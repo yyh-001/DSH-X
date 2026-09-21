@@ -92,14 +92,17 @@
       .backdrop-character { width: 78vw; opacity: 0.3; }
     }
     header, main { position: relative; z-index: 1; }
+    /* 三栏：品牌靠左、标签栏真正居中、Star 和窗口按钮靠右
+       （两侧各占 1fr、中间 auto，标签栏才是相对整条 header 居中，而不是被右边挤着） */
     header {
-      display: flex;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
       align-items: center;
-      justify-content: space-between;
+      gap: 12px;
       padding: 18px 28px;
     }
     .brand { font-weight: 700; letter-spacing: 0.04em; font-size: 20px; line-height: 1; color: var(--accent); }
-    .brand-block { display: flex; align-items: baseline; gap: 10px; }
+    .brand-block { display: flex; align-items: baseline; gap: 10px; justify-self: start; }
     .app-ver { color: var(--muted); font-size: 12px; }
     .app-ver:empty { display: none; }
     .self-update {
@@ -119,11 +122,15 @@
       position: relative;
       display: flex;
       gap: 4px;
-      background: var(--accent-soft);
+      background: rgba(255, 255, 255, 0.55);
+      backdrop-filter: blur(14px) saturate(140%);
+      -webkit-backdrop-filter: blur(14px) saturate(140%);
       padding: 4px;
       border-radius: 999px;
-      border: 1px solid var(--line);
+      border: 1px solid rgba(255, 255, 255, 0.75);
+      box-shadow: 0 8px 24px rgba(59, 111, 224, 0.10);
       isolation: isolate;
+      justify-self: center;
     }
     nav::before {
       content: "";
@@ -147,7 +154,15 @@
     }
     nav button:hover { color: var(--accent); transform: translateY(-1px); }
     nav button.active { color: #fff; }
-    .header-right { display: flex; align-items: stretch; gap: 12px; }
+    /* 右侧一组：Star（+ app 窗口模式下的窗口按钮）
+       align-self: stretch 让它跟中间标签栏那一行等高，Star 再靠内部 stretch 撑满，两个胶囊一样高 */
+    .header-right {
+      display: flex;
+      align-items: stretch;
+      gap: 12px;
+      justify-self: end;
+      align-self: stretch;
+    }
     /* 右上角 Star：和 nav 一样是胶囊，靠 stretch 撑成和 nav 等高 */
     .star-link {
       display: inline-flex;
@@ -210,10 +225,12 @@
       nav::before, nav button { transition: none; }
       .page.tab-enter-forward, .page.tab-enter-backward { animation: none; }
     }
-    #page-home, #page-plugins, #page-settings { align-items: center; justify-content: center; padding: 24px; }
+    #page-home, #page-plugins, #page-mcp, #page-skills, #page-settings { align-items: center; justify-content: center; padding: 24px; }
     .card {
       width: min(640px, 100%);
-      background: var(--card);
+      background: rgba(255, 255, 255, 0.78);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
       border: 1px solid var(--line);
       border-radius: 20px;
       padding: 24px;
@@ -241,7 +258,7 @@
       .controls { margin-left: auto; }
     }
     label { display: block; color: var(--muted); font-size: 12px; letter-spacing: 0.08em; margin-bottom: 8px; }
-    input[type=text], input[type=number], select {
+    input[type=text], input[type=number], select, textarea {
       width: 100%;
       appearance: none;
       background: #fff;
@@ -251,12 +268,28 @@
       padding: 12px 14px;
       font: inherit;
     }
-    input[type=text]:focus, input[type=number]:focus, select:focus { outline: 1px solid var(--accent); }
-    select {
-      width: 148px;
-      flex: 0 0 auto;
+    input[type=text]:focus, input[type=number]:focus, select:focus, textarea:focus { outline: 1px solid var(--accent); }
+    .field .select { width: 148px; flex: 0 0 auto; }
+    /* MCP 行内的图标按钮 */
+    .icon-btn-sm {
+      appearance: none;
+      width: 30px;
+      height: 30px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      color: var(--accent);
       cursor: pointer;
+      flex: 0 0 auto;
     }
+    .icon-btn-sm:hover { background: var(--accent-soft); border-color: #b9ccf0; }
+    .icon-btn-sm.danger { color: #c0392b; }
+    .icon-btn-sm.danger:hover { background: #fdecea; border-color: #f0b9b3; }
+    .icon-btn-sm svg { width: 14px; height: 14px; }
     /* 设置页的行：标题在左、控件在右，跟开关同一套节奏 */
     .field {
       display: flex;
@@ -347,7 +380,9 @@
       top: calc(100% + 6px);
       z-index: 40;
       padding: 6px;
-      background: #fff;
+      background: rgba(255, 255, 255, 0.78);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
       border: 1px solid var(--line);
       border-radius: 14px;
       box-shadow: 0 18px 44px rgba(22, 35, 61, 0.18);
@@ -356,6 +391,11 @@
       animation: select-in 0.12s ease;
     }
     .select-panel[hidden] { display: none; }
+    @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+      .card, .modal, .ask-card { background: var(--card); }
+      .select-panel { background: #fff; }
+      .modal-mask { backdrop-filter: none; -webkit-backdrop-filter: none; }
+    }
     @keyframes select-in {
       from { opacity: 0; transform: translateY(-4px); }
       to { opacity: 1; transform: none; }
@@ -365,8 +405,8 @@
       align-items: center;
       justify-content: space-between;
       gap: 10px;
-      padding: 9px 11px;
-      border-radius: 9px;
+      padding: 9px 12px;
+      border-radius: 10px;
       font-size: 14px;
       color: var(--text);
       cursor: pointer;
@@ -554,7 +594,9 @@
       flex: 1;
       margin: 0;
       overflow: auto;
-      background: #f7faff;
+      background: rgba(255, 255, 255, 0.55);
+      backdrop-filter: blur(12px) saturate(130%);
+      -webkit-backdrop-filter: blur(12px) saturate(130%);
       border: 1px solid var(--line);
       border-radius: 16px;
       padding: 16px;
@@ -591,18 +633,25 @@
       /* 给滚动条留位置，开关不会被压住 */
       padding-right: 10px;
       margin-right: -10px;
+      padding-block: 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
     }
     .plugin-row {
       margin: 0;
-      padding: 13px 8px;
-      border-bottom: 1px solid var(--line);
+      padding: 12px 14px;
+      border: 1px solid rgba(255, 255, 255, 0.9);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.5);
       align-items: center;
       gap: 14px;
-      border-radius: 10px;
-      transition: background 0.12s ease;
+      transition: background 0.12s ease, border-color 0.12s ease;
     }
-    .plugin-row:hover { background: var(--accent-soft); }
-    .plugin-row:last-child { border-bottom: 0; }
+    .plugin-row:hover {
+      background: rgba(255, 255, 255, 0.8);
+      border-color: #c7d8f7;
+    }
     .plugin-row.off .plugin-name { color: var(--muted); font-weight: 500; }
     .plugin-row.off .plugin-meta { opacity: 0.75; }
     .plugin-row input:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -610,6 +659,148 @@
     .plugin-name { color: var(--text); font-weight: 600; font-size: 14px; letter-spacing: 0; overflow-wrap: anywhere; }
     .plugin-meta { color: var(--muted); font-size: 12px; letter-spacing: 0; overflow-wrap: anywhere; }
     .plugin-empty { color: var(--muted); font-size: 13px; padding: 10px 8px; }
+    /* MCP / 技能页：行右侧的操作组和小按钮 */
+    .head-actions { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+    .row-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+    .mini {
+      appearance: none;
+      background: #fff;
+      border: 1px solid var(--line);
+      color: var(--accent);
+      font: inherit;
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+    .mini:hover { background: var(--accent-soft); border-color: #b9ccf0; }
+    .mini.danger { color: #c0392b; }
+    .mini.danger:hover { background: #fdecea; border-color: #f0b9b3; }
+    /* 添加 MCP 的模态框 */
+    .modal-mask {
+      position: fixed;
+      inset: 0;
+      z-index: 60;
+      background: rgba(31, 41, 61, 0.30);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 28px;
+    }
+    .modal-mask[hidden] { display: none; }
+    .modal {
+      position: relative;
+      background: rgba(255, 255, 255, 0.93);
+      backdrop-filter: blur(16px) saturate(130%);
+      -webkit-backdrop-filter: blur(16px) saturate(130%);
+      border: 1px solid rgba(255, 255, 255, 0.85);
+      border-radius: 20px;
+      box-shadow: 0 24px 64px rgba(30, 45, 80, 0.28);
+      width: min(600px, 100%);
+      max-height: 100%;
+      overflow-y: auto;
+      padding: 24px;
+    }
+    .modal-title { color: var(--text); font-weight: 700; font-size: 16px; margin: 0 0 4px; }
+    .modal-close {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      appearance: none;
+      border: 0;
+      background: none;
+      color: var(--muted);
+      width: 32px;
+      height: 32px;
+      border-radius: 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+    .modal-close:hover { background: var(--accent-soft); color: var(--text); }
+    .modal-close svg { width: 14px; height: 14px; }
+    /* MCP 表单：标签在上、控件通栏，和设置页的左右式 .field 区分开（盒子样式由 .modal 提供） */
+    .mcp-form .field { display: block; margin: 12px 0 0; }
+    /* 设置页的 .field input 是 104px 右对齐（数字框风格），这里恢复成通栏左对齐 */
+    .mcp-form .field input, .mcp-form .field textarea {
+      width: 100%;
+      flex: 1 1 auto;
+      text-align: left;
+      font-variant-numeric: normal;
+    }
+    .mcp-form .field > span { display: block; margin: 0 0 6px; }
+    .mcp-form .field small { color: var(--muted); font-weight: 400; }
+    .mcp-form .field .select { width: 100%; flex: 1 1 auto; }
+    .mcp-form textarea { resize: vertical; font-family: ui-monospace, Consolas, 'Courier New', monospace; font-size: 12.5px; line-height: 1.55; }
+    .mcp-form .hint { margin-top: 10px; }
+    .mcp-form .head-actions { margin-top: 16px; justify-content: flex-end; }
+    .mcp-form .head-actions .primary { width: auto; padding: 12px 34px; font-size: 14px; }
+    .mcp-form .head-actions .ghost { padding: 11px 26px; font-size: 14px; border-radius: 12px; }
+    .skill-master { margin-top: 8px; }
+    /* MCP 状态检测：行内小徽标（在线/失败/检测中） */
+    .probe-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      line-height: 1.4;
+      padding: 3px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--muted);
+      max-width: 320px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 0 1 auto;
+    }
+    .probe-chip .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: 0 0 auto; }
+    .probe-chip.ok { color: #1f7a45; border-color: #b3ddc4; background: #eefaf2; }
+    .probe-chip.bad { color: #c0392b; border-color: #f0b9b3; background: #fdecea; }
+    .probe-chip.busy { color: var(--accent); border-color: #b9ccf0; background: var(--accent-soft); }
+    .probe-chip.busy .dot { animation: probe-pulse 1s ease-in-out infinite; }
+    @keyframes probe-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+    /* 输入类组件的轻玻璃：放在样式表末尾，保证盖过前面的 #fff 底色；
+       聚焦/展开时回白，保证正在输入的内容可读 */
+    input[type=text], input[type=number], textarea, .select-trigger {
+      background: rgba(233, 241, 253, 0.5);
+      backdrop-filter: blur(12px) saturate(130%);
+      -webkit-backdrop-filter: blur(12px) saturate(130%);
+    }
+    input[type=text]:focus, input[type=number]:focus, textarea:focus,
+    .select.open .select-trigger {
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+    /* 添加方式的分段切换：表单 / JSON */
+    .seg { display: flex; gap: 6px; margin: 6px 0 2px; }
+    .seg-btn {
+      appearance: none;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--muted);
+      font: inherit;
+      font-size: 13px;
+      padding: 8px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    .seg-btn:hover { border-color: #b9ccf0; }
+    .seg-btn.active { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+    /* 双排字段：一行放两个，窄的固定宽，其余平分 */
+    .mcp-form .field-row { display: flex; gap: 12px; margin: 12px 0 0; }
+    .mcp-form .field-row > .field { flex: 1 1 0; min-width: 0; margin: 0; }
+    .mcp-form .field-row > .field.narrow { flex: 0 0 200px; }
+    .mcp-form .field-row > .field.command { flex: 0 0 34%; }
+    .mcp-mode > .field:first-child, .mcp-mode > .field-row:first-child { margin-top: 10px; }
+    /* .field/.seg 自己声明了 display，会压过 UA 的 [hidden] 规则，这里统一兜住 */
+    .mcp-form [hidden] { display: none !important; }
     /* 细滚动条：默认亮灰条在浅色面板上太抢眼，统一成淡蓝灰 */
     .select-panel, .plugin-list, #log { scrollbar-width: thin; scrollbar-color: #c3d3ee transparent; }
     .select-panel::-webkit-scrollbar, .plugin-list::-webkit-scrollbar, #log::-webkit-scrollbar {
@@ -646,8 +837,10 @@
       max-height: 88vh;
       display: flex;
       flex-direction: column;
-      background: var(--card);
-      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.93);
+      backdrop-filter: blur(16px) saturate(130%);
+      -webkit-backdrop-filter: blur(16px) saturate(130%);
+      border: 1px solid rgba(255, 255, 255, 0.85);
       border-radius: 16px;
       box-shadow: 0 18px 48px rgba(22, 35, 61, 0.24);
       padding: 24px 26px 20px;
@@ -740,18 +933,20 @@
       <span class="app-ver" id="appVer">__APP_VERSION__</span>
       <button type="button" class="self-update" id="selfUpdate" hidden>更新</button>
     </div>
+    <nav>
+      <button class="active" data-tab="home">控制</button>
+      <button data-tab="plugins">插件</button>
+      <button data-tab="mcp">MCP</button>
+      <button data-tab="skills">技能</button>
+      <button data-tab="log">终端</button>
+      <button data-tab="settings">设置</button>
+    </nav>
     <div class="header-right">
       <a class="star-link" href="https://github.com/yyh-001/DSH-X" target="_blank" rel="noreferrer"
          title="在 GitHub 上给 DSH-X 点个 Star">
         <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1.7l1.93 3.91 4.32.63-3.12 3.04.73 4.3L8 11.55l-3.86 2.03.73-4.3L1.75 6.24l4.32-.63z"/></svg>
         <span>Star</span>
       </a>
-      <nav>
-        <button class="active" data-tab="home">控制</button>
-        <button data-tab="plugins">插件</button>
-        <button data-tab="log">终端</button>
-        <button data-tab="settings">设置</button>
-      </nav>
       <!-- app 窗口模式才显示：原生标题栏被去掉了，最小化/最大化/关闭由页面接管 -->
       <div class="win-controls">
         <button type="button" class="win-btn" id="winMin" title="最小化" aria-label="最小化">
@@ -831,6 +1026,95 @@
         <p class="hint" id="pluginHint"></p>
       </div>
     </div>
+    <div id="page-mcp" class="page">
+      <div class="card plugins">
+        <div class="plugin-head">
+          <div>
+            <div class="plugin-title">MCP 服务器</div>
+            <div class="plugin-sub" id="mcpSub">web profile</div>
+          </div>
+          <div class="head-actions">
+            <button class="icon-btn-sm" id="mcpAdd" type="button" title="添加 MCP 服务器" aria-label="添加 MCP 服务器"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M7 2.2v9.6M2.2 7h9.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+            <button class="icon-btn-sm" id="mcpRefresh" type="button" title="刷新列表并重新检测" aria-label="刷新列表并重新检测"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M12.2 7A5.2 5.2 0 1 1 7 1.8c1.9 0 3.6 1 4.5 2.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M11.9 1.5v3H9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          </div>
+        </div>
+        <div class="plugin-list" id="mcpList"></div>
+        <p class="hint" id="mcpHint"></p>
+      </div>
+      <div class="modal-mask" id="mcpModal" hidden>
+        <form class="modal mcp-form" id="mcpForm">
+          <button type="button" class="modal-close" id="mcpModalClose" aria-label="关闭" title="关闭">
+            <svg viewBox="0 0 14 14" aria-hidden="true"><path d="M1.5 1.5l11 11M12.5 1.5l-11 11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/></svg>
+          </button>
+          <div class="modal-title" id="mcpModalTitle">添加 MCP 服务器</div>
+          <div class="seg" id="mcpModeSeg">
+            <button type="button" class="seg-btn active" data-mcp-mode="form">表单</button>
+            <button type="button" class="seg-btn" data-mcp-mode="json">JSON</button>
+          </div>
+          <div class="mcp-mode" id="mcpModeForm">
+            <div class="field"><span>名称 <small>工具会以 mcp__名称__工具 的形式提供给模型</small></span><input id="mcpName" type="text" placeholder="my-mcp-server" autocomplete="off" spellcheck="false" /></div>
+            <div class="field-row">
+              <div class="field narrow"><span>类型</span>
+                <div class="select" id="mcpTransportSelect">
+                  <button type="button" class="select-trigger" aria-haspopup="listbox" aria-expanded="false">
+                    <span class="select-value">stdio（本机程序）</span>
+                    <svg class="select-caret" viewBox="0 0 12 8" aria-hidden="true"><path fill="currentColor" d="M0 0h12L6 8z"/></svg>
+                  </button>
+                  <div class="select-panel" role="listbox" hidden></div>
+                </div>
+              </div>
+              <div class="field narrow"><span>超时时间 MS <small>可选，默认 60000</small></span><input id="mcpTimeout" type="number" min="1" step="1" placeholder="60000" inputmode="numeric" /></div>
+            </div>
+            <div class="field" data-show="stdio"><span>启动命令</span><input id="mcpCommand" type="text" placeholder="npx" autocomplete="off" spellcheck="false" /></div>
+            <div class="field" data-show="stdio"><span>参数 <small>用空格分隔，独立一行好粘贴长参数</small></span><input id="mcpArgs" type="text" placeholder="-y @modelcontextprotocol/server-github" autocomplete="off" spellcheck="false" /></div>
+            <div class="field" data-show="streamable-http"><span>URL</span><input id="mcpUrl" type="text" placeholder="https://mcp.example.com/mcp" autocomplete="off" spellcheck="false" /></div>
+            <div class="field" data-show="streamable-http"><span>请求头（可选） <small>JSON 对象</small></span><textarea id="mcpHeaders" rows="3" spellcheck="false" placeholder='{
+  "Authorization": "Bearer your-token"
+}'></textarea></div>
+            <p class="hint">协议版本由 dsh 自动协商。</p>
+          </div>
+          <div class="mcp-mode" id="mcpModeJson" hidden>
+            <div class="field"><span>完整配置</span>
+              <textarea id="mcpJsonText" rows="9" spellcheck="false" placeholder='{
+  "my-mcp-server": {
+    "type": "http",
+    "url": ""
+  }
+}'></textarea>
+            </div>
+            <p class="hint">支持 {"server-name": {…}} 或 {"mcpServers": {…}}，可一次导入多个；同名覆盖已有配置。</p>
+          </div>
+          <div class="head-actions">
+            <button class="ghost" id="mcpCancel" type="button">取消</button>
+            <button class="primary" id="mcpSaveBtn" type="submit">保存</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <div id="page-skills" class="page">
+      <div class="card plugins">
+        <div class="plugin-head">
+          <div>
+            <div class="plugin-title">技能</div>
+            <div class="plugin-sub" id="skillSub">本地技能目录</div>
+          </div>
+          <div class="head-actions">
+            <button class="ghost" id="skillFolderDsh" type="button" title="~/.dsh/skills">dsh 目录</button>
+            <button class="ghost" id="skillFolderAgents" type="button" title="~/.agents/skills">agents 目录</button>
+            <button class="ghost" id="skillRefresh" type="button">刷新</button>
+          </div>
+        </div>
+        <label class="toggle skill-master" title="web 模板把 host 层的 skill-filesystem / tool-skill 交给了 agent 预设挂载，本地技能默认就在工作；这个开关只是往补丁层写覆盖，一般不需要动">
+          <span class="plugin-main">
+            <span class="plugin-name">强制启用 host 层技能行</span>
+            <span class="plugin-meta" id="skillMasterMeta"></span>
+          </span>
+          <input type="checkbox" id="skillMaster" />
+        </label>
+        <div class="plugin-list" id="skillList"></div>
+        <p class="hint" id="skillHint"></p>
+      </div>
+    </div>
     <div id="page-log" class="page">
       <div class="logbar"><button type="button" id="clear">清空</button></div>
       <pre id="log"></pre>
@@ -842,7 +1126,15 @@
         <label class="toggle"><span>兼容模式</span><input id="autoDisable" type="checkbox" /></label>
         <details class="advanced">
           <summary>高级设置</summary>
-          <label class="field"><span>启动 profile</span><select id="profile"></select></label>
+          <div class="field"><span>启动 profile</span>
+            <div class="select" id="profileSelect">
+              <button type="button" class="select-trigger" aria-haspopup="listbox" aria-expanded="false">
+                <span class="select-value"></span>
+                <svg class="select-caret" viewBox="0 0 12 8" aria-hidden="true"><path fill="currentColor" d="M0 0h12L6 8z"/></svg>
+              </button>
+              <div class="select-panel" role="listbox" hidden></div>
+            </div>
+          </div>
           <label class="field"><span>管理页端口</span><input id="port" type="number" min="1" max="65535" step="1" inputmode="numeric" /></label>
           <p class="hint" id="portHint"></p>
         </details>
@@ -1113,6 +1405,8 @@
         positionTabIndicator(button)
         if (button.dataset.tab === 'settings') loadSettings()
         if (button.dataset.tab === 'plugins') loadPlugins()
+        if (button.dataset.tab === 'mcp') loadMcp()
+        if (button.dataset.tab === 'skills') loadSkills()
       }
     })
     requestAnimationFrame(() => positionTabIndicator(activeTabButton()))
@@ -1899,7 +2193,11 @@
     const autoStartEl = document.getElementById('autoStart')
     const seedMarketEl = document.getElementById('seedMarket')
     const autoDisableEl = document.getElementById('autoDisable')
-    const profileEl = document.getElementById('profile')
+    const profileSelect = createSelect(document.getElementById('profileSelect'), {
+      options: [],
+      value: '',
+      onChange: () => {},
+    })
     const portEl = document.getElementById('port')
     const portHint = document.getElementById('portHint')
     const settingsHint = document.getElementById('settingsHint')
@@ -1908,8 +2206,7 @@
     function fillSettings(data) {
       if ('profile' in data) {
         const list = Array.isArray(data.profiles) && data.profiles.length ? data.profiles : [String(data.profile ?? 'web')]
-        profileEl.innerHTML = list.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('')
-        profileEl.value = String(data.profile ?? '')
+        profileSelect.setOptions(list.map((name) => ({ value: name, text: name })), String(data.profile ?? ''))
       }
       if ('port' in data) {
         portEl.value = String(data.port ?? '')
@@ -1938,7 +2235,7 @@
       settingsHint.textContent = '正在保存…'
       try {
         const data = await post('/api/settings', {
-          profile: profileEl.value.trim(),
+          profile: profileSelect.value,
           port: Number(portEl.value),
           autoStart: autoStartEl.checked,
           seedMarket: seedMarketEl.checked,
@@ -1966,6 +2263,122 @@
       return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
       }[ch]))
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+      }[ch]))
+    }
+
+    /** 通用自绘下拉：结构/交互和首页版本选择器同一套，替掉原生 select 的系统菜单。 */
+    function createSelect(rootEl, { options = [], value = '', onChange = () => {} } = {}) {
+      const trigger = rootEl.querySelector('.select-trigger')
+      const valueEl = rootEl.querySelector('.select-value')
+      const panel = rootEl.querySelector('.select-panel')
+      let list = options.slice()
+      let current = value
+      let open = false
+      let active = -1
+
+      const paintTrigger = () => {
+        const hit = list.find((item) => item.value === current)
+        valueEl.textContent = hit ? hit.text : (list[0]?.text ?? '')
+        trigger.setAttribute('aria-expanded', String(open))
+        rootEl.classList.toggle('open', open)
+      }
+      const paintPanel = () => {
+        panel.innerHTML = list.map((item, index) => {
+          const cls = ['select-option']
+          if (item.value === current) cls.push('selected')
+          if (index === active) cls.push('active')
+          return `<div class="${cls.join(' ')}" data-index="${index}" role="option" aria-selected="${item.value === current}">
+            <span class="opt-name">${escapeHtml(item.text)}</span>
+          </div>`
+        }).join('')
+        panel.querySelectorAll('.select-option').forEach((el) => {
+          el.addEventListener('click', () => choose(Number(el.dataset.index)))
+          el.addEventListener('mouseenter', () => { active = Number(el.dataset.index); paintActive() })
+        })
+      }
+      const paintActive = () => {
+        panel.querySelectorAll('.select-option').forEach((el, index) => el.classList.toggle('active', index === active))
+      }
+      const scrollActive = () => panel.querySelector('.select-option.active')?.scrollIntoView({ block: 'nearest' })
+      const openPanel = () => {
+        if (!list.length) return
+        open = true
+        active = Math.max(0, list.findIndex((item) => item.value === current))
+        paintPanel()
+        paintTrigger()
+        panel.hidden = false
+        scrollActive()
+        trigger.focus()
+      }
+      const closePanel = () => {
+        if (!open) return
+        open = false
+        panel.hidden = true
+        paintTrigger()
+      }
+      const choose = (index) => {
+        const item = list[index]
+        if (!item) return
+        current = item.value
+        closePanel()
+        onChange(item.value)
+      }
+      const move = (delta) => {
+        if (!list.length) return
+        active = Math.min(list.length - 1, Math.max(0, active + delta))
+        paintActive()
+        scrollActive()
+      }
+
+      trigger.addEventListener('click', () => (open ? closePanel() : openPanel()))
+      rootEl.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+          if (!open) return
+          event.preventDefault()
+          event.stopPropagation()
+          closePanel()
+          trigger.focus()
+          return
+        }
+        if (event.key === 'Tab') { closePanel(); return }
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+          event.preventDefault()
+          if (!open) { openPanel(); return }
+          move(event.key === 'ArrowDown' ? 1 : -1)
+          return
+        }
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          if (!open) openPanel()
+          else choose(active)
+        }
+      })
+      document.addEventListener('click', (event) => {
+        if (open && !rootEl.contains(event.target)) closePanel()
+      })
+
+      paintTrigger()
+      return {
+        get value() { return current },
+        set value(next) {
+          current = next
+          if (!list.some((item) => item.value === current) && list.length) current = list[0].value
+          paintTrigger()
+        },
+        setOptions(nextList, nextValue) {
+          list = (nextList || []).slice()
+          current = nextValue ?? ''
+          if (!list.some((item) => item.value === current) && list.length) current = list[0].value
+          paintTrigger()
+          if (open) paintPanel()
+        },
+        close: closePanel,
+      }
     }
 
     function stateAutoFix() {
@@ -2032,6 +2445,588 @@
       pluginRefreshEl.disabled = true
       await loadPlugins()
       pluginRefreshEl.disabled = false
+    }
+
+    // ---- MCP 服务器：profile 补丁层里的 dsh-mcp-client 条目 ----
+    const mcpListEl = document.getElementById('mcpList')
+    const mcpHintEl = document.getElementById('mcpHint')
+    const mcpSubEl = document.getElementById('mcpSub')
+    const mcpFormEl = document.getElementById('mcpForm')
+    const mcpModalEl = document.getElementById('mcpModal')
+    const mcpModalTitleEl = document.getElementById('mcpModalTitle')
+    const mcpAddEl = document.getElementById('mcpAdd')
+    const mcpRefreshEl = document.getElementById('mcpRefresh')
+    const mcpNameEl = document.getElementById('mcpName')
+    const transportSelect = createSelect(document.getElementById('mcpTransportSelect'), {
+      options: [
+        { value: 'stdio', text: 'stdio（本机程序）' },
+        { value: 'streamable-http', text: 'HTTP（远程服务）' },
+      ],
+      value: 'stdio',
+      onChange: () => mcpSyncFields(),
+    })
+    const mcpCommandEl = document.getElementById('mcpCommand')
+    const mcpArgsEl = document.getElementById('mcpArgs')
+    const mcpUrlEl = document.getElementById('mcpUrl')
+    const mcpHeadersEl = document.getElementById('mcpHeaders')
+    let mcpServers = []
+    let mcpProfile = 'web'
+    // 正在编辑的服务器名；空串 = 新增。编辑时名字锁定（改名等于换服务器，让用户删了重加）
+    let mcpEditing = ''
+    // 表单里没有工作目录输入了；编辑 JSON 导入的服务器时把已有的 cwd 原样带回去
+    let mcpEditingCwd = ''
+    let mcpEditingEnv = null
+    // 表单里也没有的其它官方字段（reconnect / maxInstructionBytes / failOnStartupError），编辑时原样带回
+    let mcpEditingExtra = null
+    // 检测结果：serverName → 结果对象；{ busy: true } 表示正在握手
+    const mcpProbeState = new Map()
+    // 检测结果持久化：localStorage 按 serverName 存最近一次结果 + 配置指纹。
+    // 配置没变就直接复用缓存徽标，切页签、刷新页面都不再重复起进程检测。
+    const PROBE_CACHE_KEY = 'dshx-mcp-probe-v1'
+    function loadProbeCache() {
+      try { return JSON.parse(localStorage.getItem(PROBE_CACHE_KEY)) || {} } catch { return {} }
+    }
+    function saveProbeEntry(serverName, entry) {
+      const cache = loadProbeCache()
+      cache[serverName] = entry
+      try { localStorage.setItem(PROBE_CACHE_KEY, JSON.stringify(cache)) } catch { /* 存不下就算了 */ }
+    }
+    function clearProbeEntry(serverName) {
+      mcpProbeState.delete(serverName)
+      const cache = loadProbeCache()
+      delete cache[serverName]
+      try { localStorage.setItem(PROBE_CACHE_KEY, JSON.stringify(cache)) } catch { /* ignore */ }
+    }
+    /** 配置指纹：传输/命令/参数/环境变量/地址里任何一个变了，指纹就变，自动重测。 */
+    function configKeyOf(server) {
+      const raw = JSON.stringify([server.transport, server.command, server.args, server.cwd, server.url, server.headers, server.env, server.toolCallTimeoutMs])
+      let hash = 5381
+      for (let index = 0; index < raw.length; index += 1) hash = ((hash << 5) + hash + raw.charCodeAt(index)) >>> 0
+      return hash.toString(36) + ':' + raw.length
+    }
+    function probeAgeText(at) {
+      const mins = Math.max(0, Math.round((Date.now() - at) / 60000))
+      if (mins < 1) return '刚刚'
+      if (mins < 60) return `${mins} 分钟前`
+      if (mins < 1440) return `${Math.round(mins / 60)} 小时前`
+      return `${Math.round(mins / 1440)} 天前`
+    }
+    // 添加方式：form（表单）/ json（粘贴导入）
+    let mcpMode = 'form'
+
+    const mcpModeSegEl = document.getElementById('mcpModeSeg')
+    const mcpJsonTextEl = document.getElementById('mcpJsonText')
+    const mcpTimeoutEl = document.getElementById('mcpTimeout')
+
+    function setMcpMode(mode) {
+      mcpMode = mode
+      mcpModeSegEl.querySelectorAll('.seg-btn').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.mcpMode === mode)
+      })
+      document.getElementById('mcpModeForm').hidden = mode !== 'form'
+      document.getElementById('mcpModeJson').hidden = mode !== 'json'
+      if (mode === 'form') mcpSyncFields()
+    }
+
+    mcpModeSegEl.querySelectorAll('.seg-btn').forEach((btn) => {
+      btn.onclick = () => setMcpMode(btn.dataset.mcpMode)
+    })
+
+    function mcpSyncFields() {
+      const transport = transportSelect.value
+      mcpFormEl.querySelectorAll('[data-show]').forEach((el) => {
+        el.hidden = el.dataset.show !== transport
+      })
+    }
+
+    /** 检测失败时给个人话的原因（后端 stage → 文案）。 */
+    const MCP_PROBE_STAGE = {
+      ok: '在线',
+      command: '找不到启动命令',
+      spawn: '进程起不来',
+      timeout: '握手超时',
+      protocol: '不是 MCP 端点',
+      http: 'HTTP 出错',
+      auth: '需要授权',
+      network: '连不上',
+      config: '配置不全',
+      broken: '条目损坏',
+      error: '检测出错',
+    }
+
+    /** 一台服务器的检测徽标（没检测过就什么都不画）。 */
+    function mcpProbeChip(serverName) {
+      const state = mcpProbeState.get(serverName)
+      if (!state) return ''
+      if (state.busy) return '<span class="probe-chip busy" title="正在起进程 / 连端点做 MCP 握手"><span class="dot"></span>检测中</span>'
+      const label = state.ok ? '可用' : '不可用'
+      const detail = state.ok
+        ? [
+          state.detail || '',
+          Array.isArray(state.tools) && state.tools.length
+            ? `工具：${state.tools.slice(0, 12).join('、')}${state.tools.length > 12 ? ' …' : ''}`
+            : '',
+          state.command ? `命令：${state.command}` : '',
+          state.url ? `地址：${state.url}` : '',
+          state.at ? `检测于 ${probeAgeText(state.at)}` : '',
+        ]
+        : [
+          state.detail || '',
+          state.command ? `命令：${state.command}` : '',
+          state.url ? `地址：${state.url}` : '',
+          state.stderr ? `stderr：${state.stderr}` : '',
+          state.at ? `检测于 ${probeAgeText(state.at)}` : '',
+        ]
+      return `<span class="probe-chip ${state.ok ? 'ok' : 'bad'}" title="${escapeHtml(detail.filter(Boolean).join('\n'))}"><span class="dot"></span>${escapeHtml(label)}</span>`
+    }
+
+    function renderMcp(data) {
+      mcpServers = Array.isArray(data?.servers) ? data.servers : []
+      mcpProfile = data?.profile || mcpProfile
+      // 服务器删了就把它的旧检测结果扔掉（内存 + 本地缓存）
+      const alive = new Set(mcpServers.map((server) => server.serverName))
+      for (const key of [...mcpProbeState.keys()]) if (!alive.has(key)) { mcpProbeState.delete(key); clearProbeEntry(key) }
+      // 没有内存结果的，从本地缓存恢复（配置指纹没变才恢复），切页签/刷新页面不丢徽标
+      const probeCache = loadProbeCache()
+      for (const server of mcpServers) {
+        if (server.disabled || mcpProbeState.has(server.serverName)) continue
+        const cached = probeCache[server.serverName]
+        if (cached && cached.configKey === configKeyOf(server)) mcpProbeState.set(server.serverName, cached)
+      }
+      mcpSubEl.textContent = `${mcpProfile} profile · ${mcpServers.length ? `${mcpServers.length} 个服务器` : '还没有 MCP 服务器'}`
+      if (!mcpServers.length) {
+        mcpListEl.innerHTML = '<div class="plugin-empty">还没有 MCP 服务器。点右上角「添加」，接一个 stdio 本机程序或 HTTP 服务。</div>'
+        return
+      }
+      mcpListEl.innerHTML = mcpServers.map((server) => {
+        const where = server.transport === 'streamable-http' ? server.url : [server.command, ...(server.args || [])].join(' ')
+        const meta = [
+          server.transport === 'streamable-http' ? 'HTTP' : 'stdio',
+          where,
+          server.error || '',
+        ].filter(Boolean).join(' · ')
+        return `<div class="toggle plugin-row${server.disabled ? ' off' : ''}" title="${escapeHtml(server.error || where)}">
+          <span class="plugin-main">
+            <span class="plugin-name">${escapeHtml(server.serverName)}</span>
+            <span class="plugin-meta">${escapeHtml(meta)}</span>
+          </span>
+          <span class="row-actions">
+            ${mcpProbeChip(server.serverName)}
+            <button type="button" class="icon-btn-sm" data-mcp-edit="${escapeHtml(server.serverName)}" title="编辑" aria-label="编辑"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 12l.9-3.1L10.2 1.6l2.2 2.2L5.1 11.1 2 12z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></button>
+            <button type="button" class="icon-btn-sm danger" data-mcp-del="${escapeHtml(server.serverName)}" title="删除" aria-label="删除"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M1.8 3.5h10.4M5.3 3.5V2.2h3.4v1.3M3 3.5l.5 8.3h7l.5-8.3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <input type="checkbox" data-mcp-toggle="${escapeHtml(server.serverName)}" ${server.disabled ? '' : 'checked'} ${server.error ? 'disabled title="条目损坏，删掉重加"' : ''} />
+          </span>
+        </div>`
+      }).join('')
+      mcpListEl.querySelectorAll('input[data-mcp-toggle]').forEach((el) => {
+        el.onchange = () => { void toggleMcp(el.dataset.mcpToggle, el.checked) }
+      })
+      mcpListEl.querySelectorAll('button[data-mcp-edit]').forEach((el) => {
+        el.onclick = () => editMcp(el.dataset.mcpEdit)
+      })
+      mcpListEl.querySelectorAll('button[data-mcp-del]').forEach((el) => {
+        el.onclick = () => { void removeMcp(el.dataset.mcpDel) }
+      })
+    }
+
+    /**
+     * 状态检测：让管理器真起一次进程 / 真连一次端点，跑 MCP 的 initialize 握手。
+     * 结果是"此刻通不通"，不写进配置；配置改了就把它清掉重新测。
+     */
+    /** 检测跑一批就不再重复触发；加载/刷新时自动来一遍。 */
+    let mcpProbeRunning = false
+
+    /**
+     * 状态检测：对启用中的服务器真起一次进程 / 真连一次端点，跑 MCP 的 initialize 握手。
+     * 不带名单 = 自动检测全部启用中的；结果是"此刻通不通"，不写进配置。
+     */
+    async function runMcpProbe(serverNames) {
+      if (mcpProbeRunning) return
+      const auto = !(Array.isArray(serverNames) && serverNames.length)
+      let targets
+      if (auto) {
+        // 自动检测只跑「没有缓存」或「配置变过」的；其余直接复用上一次的徽标
+        const cache = loadProbeCache()
+        targets = mcpServers
+          .filter((server) => !server.disabled && !server.error)
+          .filter((server) => {
+            const cached = cache[server.serverName]
+            return !cached || cached.configKey !== configKeyOf(server)
+          })
+          .map((server) => server.serverName)
+      } else {
+        targets = serverNames
+      }
+      if (!targets.length) return
+      mcpProbeRunning = true
+      for (const name of targets) mcpProbeState.set(name, { busy: true })
+      renderMcp({ servers: mcpServers, profile: mcpProfile })
+      try {
+        const data = await post('/api/mcp/probe', { serverNames: targets })
+        for (const result of data.results || []) {
+          const server = mcpServers.find((item) => item.serverName === result.serverName)
+          const entry = { ...result, at: Date.now(), configKey: server ? configKeyOf(server) : '' }
+          mcpProbeState.set(result.serverName, entry)
+          saveProbeEntry(result.serverName, entry)
+        }
+      } catch (error) {
+        for (const name of targets) mcpProbeState.delete(name)
+        renderMcp({ servers: mcpServers, profile: mcpProfile })
+        mcpHintEl.textContent = `检测失败：${error.message}`
+        return
+      } finally {
+        mcpProbeRunning = false
+        renderMcp({ servers: mcpServers, profile: mcpProfile })
+      }
+      const results = targets.map((name) => mcpProbeState.get(name)).filter(Boolean)
+      const passed = results.filter((item) => item.ok).length
+      mcpHintEl.textContent = `检测完成：${passed}/${results.length} 台在线。鼠标停在徽标上看详情。`
+    }
+
+    function loadMcp() {
+      return getJson('/api/mcp').then((data) => {
+        renderMcp(data)
+        // 列表到位后自动检测所有启用中的服务器；刷新列表 = 重新检测
+        void runMcpProbe()
+      }).catch((error) => { mcpHintEl.textContent = error.message })
+    }
+
+    async function toggleMcp(serverName, enabled) {
+      mcpHintEl.textContent = `正在${enabled ? '启用' : '停用'} ${serverName}…`
+      try {
+        const data = await post('/api/mcp/toggle', { serverName, enabled })
+        mcpProbeState.delete(serverName)
+        renderMcp(data)
+        mcpHintEl.textContent = `${serverName} 已${enabled ? '启用' : '停用'}${data.changed ? '' : '（无变化）'}。dsh 在跑的话会原地热加载。`
+        if (enabled) void runMcpProbe([serverName])
+      } catch (error) {
+        mcpHintEl.textContent = error.message
+        loadMcp()
+      }
+    }
+
+    async function removeMcp(serverName) {
+      if (!window.confirm(`删除 MCP 服务器 ${serverName}？（只删启动器写的条目，不影响别的配置）`)) return
+      try {
+        const data = await post('/api/mcp/remove', { serverName })
+        renderMcp(data)
+        mcpHintEl.textContent = `${serverName} 已删除。`
+      } catch (error) {
+        mcpHintEl.textContent = error.message
+      }
+    }
+
+    function editMcp(serverName) {
+      const server = mcpServers.find((item) => item.serverName === serverName)
+      if (server) openMcpForm(server)
+    }
+
+    function openMcpForm(server) {
+      mcpEditing = server ? server.serverName : ''
+      mcpNameEl.value = server ? server.serverName : ''
+      mcpNameEl.disabled = Boolean(server)
+      transportSelect.value = server?.transport === 'streamable-http' ? 'streamable-http' : 'stdio'
+      mcpTimeoutEl.value = server?.toolCallTimeoutMs ? String(server.toolCallTimeoutMs) : ''
+      mcpCommandEl.value = server?.command || ''
+      mcpArgsEl.value = (server?.args || []).join(' ')
+      mcpEditingCwd = server?.cwd || ''
+      mcpEditingEnv = server?.env && Object.keys(server.env).length ? server.env : null
+      // 表单里没有控件的官方字段：编辑时原样带回去，别让保存把它们抹掉
+      mcpEditingExtra = server
+        ? {
+          reconnect: server.reconnect || undefined,
+          maxInstructionBytes: server.maxInstructionBytes || undefined,
+          failOnStartupError: server.failOnStartupError || undefined,
+        }
+        : null
+      mcpUrlEl.value = server?.url || ''
+      mcpHeadersEl.value = server?.headers && Object.keys(server.headers).length
+        ? JSON.stringify(server.headers, null, 2)
+        : ''
+      // 编辑只走表单；新增时表单 / JSON 两种方式可选，默认表单
+      mcpModeSegEl.hidden = Boolean(server)
+      if (server) {
+        setMcpMode('form')
+      } else {
+        mcpJsonTextEl.value = ''
+        setMcpMode('form')
+      }
+      mcpModalTitleEl.textContent = server ? `编辑 MCP 服务器：${server.serverName}` : '添加 MCP 服务器'
+      mcpModalEl.hidden = false
+      mcpAddEl.disabled = true
+      mcpHintEl.textContent = server ? `正在编辑 ${server.serverName}。` : ''
+    }
+
+    function closeMcpForm() {
+      mcpModalEl.hidden = true
+      mcpAddEl.disabled = false
+      mcpEditing = ''
+      mcpEditingCwd = ''
+      mcpEditingEnv = null
+      mcpEditingExtra = null
+    }
+
+    mcpAddEl.onclick = () => openMcpForm(null)
+    document.getElementById('mcpCancel').onclick = closeMcpForm
+    // 右上角关闭按钮或 Esc 关掉模态框
+    document.getElementById('mcpModalClose').onclick = closeMcpForm
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !mcpModalEl.hidden) closeMcpForm()
+    })
+    mcpRefreshEl.onclick = async () => {
+      mcpRefreshEl.disabled = true
+      await loadMcp()
+      // 刷新是显式动作：跳过缓存，把启用中的全部重新检测一遍
+      await runMcpProbe(mcpServers.filter((server) => !server.disabled && !server.error).map((server) => server.serverName))
+      mcpRefreshEl.disabled = false
+    }
+    // 检测全部：会真起进程/真连端点，所以按钮期间锁住，别让人连点
+
+    mcpFormEl.onsubmit = async (event) => {
+      event.preventDefault()
+      if (mcpMode === 'json') return importMcpJson()
+      return saveMcpForm()
+    }
+
+    /** 表单方式：把表单字段拼成配置；请求头按 JSON 对象解析。 */
+    async function saveMcpForm() {
+      const serverName = mcpNameEl.value.trim()
+      const payload = {
+        serverName,
+        transport: transportSelect.value,
+        command: mcpCommandEl.value.trim(),
+        args: mcpArgsEl.value.trim(),
+        url: mcpUrlEl.value.trim(),
+      }
+      // 工作目录已从表单移除；JSON 导入进来的 cwd 在编辑保存时原样透传
+      if (mcpEditingCwd) payload.cwd = mcpEditingCwd
+      if (mcpEditingEnv) payload.env = mcpEditingEnv
+      // 超时永远带上：空串 = 把这个字段清掉（后端把空串当显式清空，不是"没填"）
+      payload.toolCallTimeoutMs = mcpTimeoutEl.value.trim()
+      // 正在编辑的条目里那些表单没有的官方字段，原样带回去
+      if (mcpEditingExtra) Object.assign(payload, mcpEditingExtra)
+      try {
+        const headersText = mcpHeadersEl.value.trim()
+        if (headersText) {
+          const parsed = JSON.parse(headersText)
+          if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('请求头要是 JSON 对象')
+          payload.headers = parsed
+        }
+      } catch (error) {
+        mcpHintEl.textContent = error.message
+        return
+      }
+      await submitMcpSave(payload, `${serverName} 已保存。dsh 正在跑的话会原地热加载，工具会以 mcp__${serverName}__* 出现。`)
+    }
+
+    /** JSON 方式：支持 {"server-name": {…}} 或 {"mcpServers": {"server-name": {…}}}，可一次导入多个。 */
+    async function importMcpJson() {
+      let data
+      try {
+        data = JSON.parse(mcpJsonTextEl.value)
+      } catch (error) {
+        mcpHintEl.textContent = `JSON 解析失败：${error.message}`
+        return
+      }
+      let entries
+      if (data && typeof data === 'object' && !Array.isArray(data) && data.mcpServers && typeof data.mcpServers === 'object' && !Array.isArray(data.mcpServers)) {
+        entries = Object.entries(data.mcpServers)
+      } else if (data && typeof data === 'object' && !Array.isArray(data)) {
+        entries = Object.entries(data)
+      } else {
+        mcpHintEl.textContent = '没有识别到服务器配置，需要 JSON 对象。'
+        return
+      }
+      if (!entries.length) {
+        mcpHintEl.textContent = 'JSON 里没有服务器条目。'
+        return
+      }
+      const payloads = []
+      const problems = []
+      for (const [rawName, config] of entries) {
+        const name = String(rawName || '').trim()
+        if (!config || typeof config !== 'object' || Array.isArray(config) || (!config.command && !config.url)) {
+          problems.push(`${name || '(未命名)'}: 不是有效的服务器配置（要有 command 或 url）`)
+          continue
+        }
+        // 显式写了 type/transport 就听它的：dsh 只认 stdio 和 streamable-http，sse 走 http 端点
+        const declared = String(config.transport ?? config.type ?? '').trim().toLowerCase()
+        const transport = declared.includes('http') || declared.includes('sse')
+          ? 'streamable-http'
+          : (config.command ? 'stdio' : 'streamable-http')
+        payloads.push({
+          serverName: name,
+          transport,
+          command: config.command,
+          args: config.args,
+          env: config.env,
+          cwd: config.cwd,
+          url: config.url,
+          headers: config.headers,
+          toolCallTimeoutMs: config.toolCallTimeoutMs ?? config.timeout,
+          maxInstructionBytes: config.maxInstructionBytes,
+          failOnStartupError: config.failOnStartupError,
+          reconnect: config.reconnect,
+        })
+      }
+      if (payloads.length && problems.length) mcpHintEl.textContent = `跳过 ${problems.length} 条有问题的：${problems.join('；')}。正在导入其余的…`
+      let ok = 0
+      const errors = []
+      for (const payload of payloads) {
+        try {
+          await post('/api/mcp/save', payload)
+          ok += 1
+        } catch (error) {
+          errors.push(`${payload.serverName}: ${error.message}`)
+        }
+      }
+      const parts = [`导入完成：${ok} 成功`]
+      if (problems.length) parts.push(`跳过 ${problems.length} 条无效的（${problems.join('；')}）`)
+      if (errors.length) parts.push(`${errors.length} 失败（${errors.join('；')}）`)
+      await loadMcp()
+      // 只有真正保存失败才留着表单让用户改；跳过无效条目不算失败
+      if (!errors.length) closeMcpForm()
+      mcpHintEl.textContent = parts.join('，') + '。'
+    }
+
+    /** 两种方式共用的收尾：调保存接口、刷列表、关表单。 */
+    async function submitMcpSave(payload, doneMessage) {
+      const button = document.getElementById('mcpSaveBtn')
+      button.disabled = true
+      mcpHintEl.textContent = `正在保存 ${payload.serverName}…`
+      try {
+        const data = await post('/api/mcp/save', payload)
+        clearProbeEntry(payload.serverName)
+        renderMcp(data)
+        closeMcpForm()
+        void runMcpProbe([payload.serverName])
+        const notes = []
+        if (data.repaired) notes.push('顺带修好了一个损坏的区块')
+        for (const warning of data.warnings || []) notes.push(warning)
+        mcpHintEl.textContent = notes.length ? `${doneMessage}（${notes.join('；')}）` : doneMessage
+      } catch (error) {
+        mcpHintEl.textContent = error.message
+      } finally {
+        button.disabled = false
+      }
+    }
+
+    // ---- 技能：~/.dsh/skills 和 ~/.agents/skills 下的本地技能 ----
+    const skillListEl = document.getElementById('skillList')
+    const skillHintEl = document.getElementById('skillHint')
+    const skillSubEl = document.getElementById('skillSub')
+    const skillFolderButtons = [
+      ['dsh', document.getElementById('skillFolderDsh')],
+      ['agents', document.getElementById('skillFolderAgents')],
+    ].filter((entry) => entry[1])
+    const skillRefreshEl = document.getElementById('skillRefresh')
+    const skillMasterEl = document.getElementById('skillMaster')
+    const skillMasterMetaEl = document.getElementById('skillMasterMeta')
+    const SKILL_ROOT_LABEL = { dsh: '~/.dsh/skills', agents: '~/.agents/skills' }
+
+    /** 把真实技能目录写进按钮的 tooltip（DSH_HOME / DSH_AGENTS_HOME 可能被改过）。 */
+    function bindSkillFolders(roots) {
+      for (const [key, button] of skillFolderButtons) {
+        const root = (roots || []).find((item) => item.key === key)
+        if (root?.dir) button.title = root.dir
+      }
+    }
+
+    function skillLabel(skill) {
+      return skill.name || skill.dirName
+    }
+
+    function renderSkills(data) {
+      skills = Array.isArray(data?.skills) ? data.skills : []
+      skillSubEl.textContent = `${data.profile || 'web'} profile · ${skills.length ? `${skills.length} 个技能` : '技能目录是空的'}`
+      bindSkillFolders(data?.roots)
+      const local = data.localSkills || {}
+      skillMasterEl.checked = Boolean(local.enabled)
+      skillMasterMetaEl.textContent = local.enabled
+        ? '补丁层已覆盖 host 层那两行（本地技能本来就由 agent 预设挂载）'
+        : 'host 层两行用模板默认：由 agent 预设挂载，本地技能照常工作'
+      if (!skills.length) {
+        skillListEl.innerHTML = '<div class="plugin-empty">技能目录还是空的。用右上角两个按钮打开对应目录，把技能文件夹放进去。</div>'
+        return
+      }
+      skillListEl.innerHTML = skills.map((skill) => {
+        const meta = [
+          SKILL_ROOT_LABEL[skill.root] || skill.root,
+          skill.kind === 'dir' ? '目录包' : '单文件',
+          skill.description.length > 64 ? `${skill.description.slice(0, 64)}…` : skill.description,
+          skill.frontmatterOk ? '' : (skill.frontmatterIssue || 'frontmatter 不合法，dsh 会丢弃它'),
+          skill.disableModelInvocation ? '已停用' : '',
+        ].filter(Boolean).join(' · ')
+        return `<div class="toggle plugin-row${skill.disableModelInvocation ? ' off' : ''}" title="${escapeHtml(skill.file)}">
+          <span class="plugin-main">
+            <span class="plugin-name">${escapeHtml(skillLabel(skill))}</span>
+            <span class="plugin-meta">${escapeHtml(meta)}</span>
+          </span>
+          <span class="row-actions">
+            <input type="checkbox" data-skill-toggle="${escapeHtml(skill.relPath)}" data-skill-root="${escapeHtml(skill.root)}" ${skill.disableModelInvocation ? '' : 'checked'} ${skill.frontmatterOk ? '' : 'disabled'} />
+          </span>
+        </div>`
+      }).join('')
+      skillListEl.querySelectorAll('input[data-skill-toggle]').forEach((el) => {
+        el.onchange = () => { void toggleSkill(el.dataset.skillRoot, el.dataset.skillToggle, el.checked) }
+      })
+    }
+
+    function loadSkills() {
+      return getJson('/api/skills').then((data) => {
+        renderSkills(data)
+      }).catch((error) => { skillHintEl.textContent = error.message })
+    }
+
+    async function toggleSkill(root, path, enabled) {
+      skillHintEl.textContent = enabled ? '正在启用…' : '正在停用…'
+      try {
+        const data = await post('/api/skills/toggle', { root, path, enabled })
+        renderSkills(data)
+        skillHintEl.textContent = enabled ? '已启用。' : '已停用（只是对模型隐藏，文件还在）。'
+      } catch (error) {
+        skillHintEl.textContent = error.message
+        loadSkills()
+      }
+    }
+
+    skillRefreshEl.onclick = async () => {
+      skillRefreshEl.disabled = true
+      await loadSkills()
+      skillRefreshEl.disabled = false
+    }
+
+    // 两个技能根各一个入口：技能通常放在 ~/.agents/skills，只给一个按钮会让人对着空目录发懵
+    for (const [key, button] of skillFolderButtons) {
+      button.onclick = async () => {
+        button.disabled = true
+        try {
+          const data = await post('/api/skills/open-folder', { root: key })
+          skillHintEl.textContent = `已打开 ${data.dir || SKILL_ROOT_LABEL[key] || key}`
+        } catch (error) {
+          skillHintEl.textContent = error.message
+        } finally {
+          button.disabled = false
+        }
+      }
+    }
+
+    skillMasterEl.onchange = async () => {
+      const enabled = skillMasterEl.checked
+      skillMasterEl.disabled = true
+      skillHintEl.textContent = enabled ? '正在往补丁层写覆盖…' : '正在清除覆盖…'
+      try {
+        const data = await post('/api/skills/local', { enabled })
+        renderSkills(data)
+        skillHintEl.textContent = enabled
+          ? 'host 层 skill-filesystem / tool-skill 已强制启用（跟 agent 预设那份叠加）。dsh 在跑会热加载。'
+          : '已清除覆盖，host 层两行回到模板默认（由 agent 预设挂载）。本地技能不受影响。'
+      } catch (error) {
+        skillHintEl.textContent = error.message
+        loadSkills()
+      } finally {
+        skillMasterEl.disabled = false
+      }
     }
 
     loadSettings()

@@ -132,6 +132,8 @@ async function assemble() {
     'registry.js',
     'settings.js',
     'plugins.js',
+    'mcp.js',
+    'skills.js',
     'plugin-tool.js',
     'stdio-unblock.cjs',
     'package.json',

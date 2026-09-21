@@ -16,6 +16,15 @@ import {
   pluginsNamedInFailure,
   setPluginEnabled,
 } from './plugins.js'
+import { listMcpServers, probeMcpServer, removeMcpServer, saveMcpServer, setMcpEnabled } from './mcp.js'
+import {
+  listSkills,
+  localSkillsEnabled,
+  rootDirOf,
+  setLocalSkillsEnabled,
+  setSkillEnabled,
+  skillRoots,
+} from './skills.js'
 import {
   autoStartEnabled,
   DEFAULT_PORT,
@@ -594,9 +603,23 @@ function withBundledRuntime(pathValue) {
   return [dir, ...parts.filter((item) => item !== dir)].join(delimiter)
 }
 
-/** 当前 profile 目录。 */
 function profileDir() {
   return join(homeDir(), 'profiles', PROFILE_NAME)
+}
+
+/** 当前 profile 的用户补丁层：插件开关、MCP 条目、本地技能覆盖都写这里。 */
+function patchFile() {
+  return join(profileDir(), 'cordis.patch.yml')
+}
+
+/** 技能接口的统一载荷：列表 + 两个受管根 + 本地技能总开关状态。 */
+function skillsPayload() {
+  const roots = skillRoots(homeDir())
+  return {
+    skills: listSkills(roots),
+    roots,
+    localSkills: localSkillsEnabled(profileDir()),
+  }
 }
 
 /** dsh 启动参数。 */
@@ -1643,6 +1666,56 @@ async function readJson(req) {
   return JSON.parse(Buffer.concat(chunks).toString('utf8'))
 }
 
+/** MCP 检测同时跑几台；stdio 探测要起真进程，别一次全放出去。 */
+const PROBE_CONCURRENCY = 3
+/** 检测超时：默认 20s，允许页面调，夹在 2s - 120s 之间。 */
+function probeTimeout(value) {
+  const ms = Number(value)
+  if (!Number.isFinite(ms) || ms <= 0) return 20000
+  return Math.min(120000, Math.max(2000, Math.round(ms)))
+}
+
+/**
+ * 探测用的环境：把启动器自带的 node/npx 放到 PATH 最前，但**不**继承 NODE_OPTIONS——
+ * 那是启动器给 dsh 自己挂的加载钩子，塞给被测的 MCP 程序只会添乱。
+ */
+function probeEnv() {
+  const env = { ...process.env, PATH: withBundledRuntime(process.env.PATH || '') }
+  delete env.NODE_OPTIONS
+  return env
+}
+
+/**
+ * MCP 状态检测：对每台服务器真起一次进程 / 真连一次端点，走 MCP initialize 握手。
+ * 结果只回给页面，不落盘——它是"现在这一下通不通"，不是配置的一部分。
+ */
+async function probeMcpServers(targets, timeoutMs, onResult) {
+  const results = new Array(targets.length)
+  let cursor = 0
+  const workers = Array.from({ length: Math.min(PROBE_CONCURRENCY, targets.length) }, async () => {
+    for (;;) {
+      const index = cursor
+      cursor += 1
+      if (index >= targets.length) return
+      const server = targets[index]
+      const result = server.broken
+        ? {
+          serverName: server.serverName,
+          transport: server.transport,
+          ok: false,
+          stage: 'broken',
+          detail: server.error || '条目损坏，无法检测',
+          ms: 0,
+        }
+        : await probeMcpServer(server, { timeoutMs, env: probeEnv(), cwd: profileDir(), clientName: `dsh-x ${APP_VERSION}` })
+      results[index] = result
+      onResult?.(result)
+    }
+  })
+  await Promise.all(workers)
+  return results
+}
+
 function send(res, status, body, type = 'application/json; charset=utf-8') {
   const payload = Buffer.isBuffer(body) ? body : Buffer.from(typeof body === 'string' ? body : JSON.stringify(body))
   res.writeHead(status, {
@@ -1792,6 +1865,92 @@ async function handleApi(req, res, url) {
     const result = setPluginEnabled(profileDir(), name, enabled)
     pushLog(`插件 ${name} → ${enabled ? '启用' : '禁用'}${result.changed ? '' : '（无变化）'}`)
     send(res, 200, { ok: true, changed: result.changed, ...listPlugins(profileDir()), profile: PROFILE_NAME, autoFix: lastAutoFix })
+    return
+  }
+  if (req.method === 'GET' && url.pathname === '/api/mcp') {
+    send(res, 200, { ...listMcpServers(patchFile()), profile: PROFILE_NAME })
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/mcp/save') {
+    const result = saveMcpServer(patchFile(), body)
+    const extras = [
+      result.repaired ? '覆盖了损坏区块' : '',
+      ...(result.warnings || []),
+    ].filter(Boolean)
+    pushLog(`MCP 服务器 ${body.serverName} 已保存（${body.transport === 'streamable-http' ? 'http' : 'stdio'}）${extras.length ? ` · ${extras.join('；')}` : ''}`)
+    send(res, 200, {
+      ok: true,
+      warnings: result.warnings || [],
+      repaired: result.repaired === true,
+      ...listMcpServers(patchFile()),
+      profile: PROFILE_NAME,
+    })
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/mcp/probe') {
+    // 真起进程 / 真连端点：一次一台或指定的几台，结果按入参顺序返回
+    const { servers } = listMcpServers(patchFile())
+    const wanted = Array.isArray(body.serverNames) && body.serverNames.length
+      ? new Set(body.serverNames.map((name) => String(name)))
+      : null
+    const targets = servers.filter((server) => !wanted || wanted.has(server.serverName))
+    if (!targets.length) {
+      send(res, 200, { ok: true, results: [] })
+      return
+    }
+    pushLog(`开始检测 ${targets.length} 个 MCP 服务器（会真起进程/连端点）…`)
+    const results = await probeMcpServers(targets, probeTimeout(body.timeoutMs))
+    const passed = results.filter((item) => item.ok).length
+    const failed = results.filter((item) => !item.ok)
+    pushLog(`MCP 检测完成：${passed} 台在线${failed.length ? `，${failed.length} 台有问题（${failed.map((item) => `${item.serverName}:${item.stage}`).join('、')}）` : ''}`)
+    send(res, 200, { ok: true, results })
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/mcp/toggle') {
+    const name = String(body.serverName || '')
+    const result = setMcpEnabled(patchFile(), name, body.enabled !== false)
+    pushLog(`MCP 服务器 ${name} → ${body.enabled !== false ? '启用' : '停用'}${result.changed ? '' : '（无变化）'}`)
+    send(res, 200, { ok: true, changed: result.changed, ...listMcpServers(patchFile()), profile: PROFILE_NAME })
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/mcp/remove') {
+    const name = String(body.serverName || '')
+    removeMcpServer(patchFile(), name)
+    pushLog(`MCP 服务器 ${name} 已删除`)
+    send(res, 200, { ok: true, ...listMcpServers(patchFile()), profile: PROFILE_NAME })
+    return
+  }
+  if (req.method === 'GET' && url.pathname === '/api/skills') {
+    send(res, 200, { ...skillsPayload(), profile: PROFILE_NAME })
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/skills/toggle') {
+    const root = rootDirOf(skillRoots(homeDir()), body.root)
+    setSkillEnabled(root, String(body.path || ''), body.enabled !== false)
+    pushLog(`技能 ${body.path} → ${body.enabled !== false ? '启用' : '停用'}`)
+    send(res, 200, { ok: true, ...skillsPayload(), profile: PROFILE_NAME })
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/skills/open-folder') {
+    // 在资源管理器里打开技能根目录（默认 ~/.dsh/skills）；目录不存在就顺手建好
+    const dir = rootDirOf(skillRoots(homeDir()), body.root || 'dsh')
+    await mkdir(dir, { recursive: true })
+    const opener = process.platform === 'win32' ? 'explorer.exe'
+      : process.platform === 'darwin' ? 'open' : 'xdg-open'
+    // 不能加 windowsHide：它会把「隐藏启动」的状态传给 explorer，文件夹窗口就弹不出来了
+    execFile(opener, [dir], (error) => {
+      // explorer.exe 成功时也会返回退出码 1，只把真正的启动失败（ENOENT 之类）写进日志
+      if (error && typeof error.code === 'string') pushLog(`打开技能目录失败：${error.message}`)
+    })
+    pushLog(`已打开技能目录 ${dir}`)
+    send(res, 200, { ok: true, dir })
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/skills/local') {
+    const enabled = body.enabled !== false
+    setLocalSkillsEnabled(profileDir(), enabled)
+    pushLog(`本地技能加载 → ${enabled ? '启用' : '恢复默认'}${enabled ? '' : '（清除覆盖）'}`)
+    send(res, 200, { ok: true, ...skillsPayload(), profile: PROFILE_NAME })
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/wake') {
