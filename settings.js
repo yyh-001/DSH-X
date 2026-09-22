@@ -51,10 +51,21 @@ export async function ensureWritableDir(dir) {
 /** dsh 的启动 profile（一个 profile 一套插件和数据），默认 web。 */
 export const DEFAULT_PROFILE = 'web'
 
+/**
+ * 下载源选项：镜像源同步官方有延迟，刚发布的版本会「检查到更新却装不上」，
+ * 想第一时间拿到新版本就切官方源（国内直连可能慢，最好配代理）。
+ */
+export const DOWNLOAD_SOURCES = {
+  mirror: 'https://registry.npmmirror.com',
+  official: 'https://registry.npmjs.org',
+}
+export const DEFAULT_SOURCE = 'mirror'
+
 export const DEFAULTS = {
   dataDir: '',
   port: DEFAULT_PORT,
   profile: DEFAULT_PROFILE,
+  downloadSource: DEFAULT_SOURCE,
   // 额外启动参数（一行文本，空格分词，含空格的值用引号包起来）
   args: '',
   autoStart: false,
@@ -63,6 +74,12 @@ export const DEFAULTS = {
   autoDisablePlugins: true,
   // 用户在更新弹窗里点过「不更新」的版本 { dsh?, self? }：同一个版本不再提示
   skippedUpdate: {},
+}
+
+/** 下载源只认内置选项，历史文件里的脏值回默认镜像。 */
+export function safeDownloadSource(value) {
+  const name = String(value ?? '').trim()
+  return DOWNLOAD_SOURCES[name] ? name : DEFAULT_SOURCE
 }
 
 /** 端口校验：1-65535 的整数，别的都当成没填（回默认端口）。 */
@@ -218,6 +235,7 @@ export async function saveSettings(patch) {
   }
   if ('profile' in patch) merged.profile = safeProfile(patch.profile)
   merged.args = 'args' in patch ? safeArgs(patch.args) : safeArgs(merged.args)
+  merged.downloadSource = safeDownloadSource(merged.downloadSource)
   merged.autoStart = Boolean(merged.autoStart)
   merged.seedMarket = merged.seedMarket !== false
   merged.autoDisablePlugins = merged.autoDisablePlugins !== false
