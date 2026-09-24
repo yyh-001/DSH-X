@@ -116,9 +116,9 @@ jobs:
         if: steps.probe.outputs.ready == 'yes'
         with:
           name: DSH-X-mac-${{ matrix.arch }}
-          path: |
-            release/DSH-X-mac-*.dmg
-            release/release-manifest.json
+          # 清单/SBOM 目前只有 Windows 的 pack.mjs 会生成，mac 这边先只传 dmg；
+          # 两平台各写一份同名清单会互相覆盖，等清单支持多产物之后再说
+          path: release/DSH-X-mac-*.dmg
           if-no-files-found: error
 
       - name: 挂到同 tag 的 Release 上
