@@ -5,7 +5,7 @@ import { appendFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFile
 import { homedir, tmpdir } from 'node:os'
 import { basename, delimiter, dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { cmpVer, currentRegistry, installSpec, listPackage, parseVer } from './registry.js'
+import { cmpVer, currentRegistry, installSpec, listPackage, parsePnpmProgress, parseVer } from './registry.js'
 import pkg from './package.json' with { type: 'json' }
 import {
   disableRowId,
@@ -120,6 +120,9 @@ const logs = []
 let current = null
 let installing = null
 let installProgress = null
+// 插件安装/升级的进度（走 dsh 内部的 pnpm，解析方式和 npm 不同，页面按 kind 分给不同的进度条）
+let pluginProgress = null
+let pluginProgressName = ''
 let pluginBusy = false
 let remoteCache = { at: 0, data: null }
 let selfCache = { at: 0, data: null }
@@ -534,6 +537,7 @@ async function snapshot() {
     health: lastHealth,
     dataDir: DATA,
     progress: installProgress,
+    pluginProgress,
   }
 }
 
@@ -718,6 +722,15 @@ export function withBundledRuntime(pathValue) {
 }
 
 /** 当前 profile 目录。 */
+/**
+ * 插件安装/升级的进度事件：多带 kind 与插件名，页面据此画插件页自己的进度条。
+ * 传 null 表示结束（页面上就是把进度条收起来）。
+ */
+function emitPluginProgress(state) {
+  pluginProgress = state
+  emit('progress', state ? { ...state, kind: 'plugin', name: pluginProgressName } : { phase: 'idle', kind: 'plugin' })
+}
+
 function profileDir() {
   return join(homeDir(), 'profiles', PROFILE_NAME)
 }
@@ -1054,12 +1067,16 @@ function runPluginCommand(ver, args, label) {
     const child = spawnDsh(ver, ['plugin', '--profile', PROFILE_NAME, ...args])
     // 留一份输出尾巴挂在错误上：只报退出码的话调用方没法判断是哪种失败，只能瞎猜着重试
     const tail = []
+    // pnpm 的进度：装插件可能几十秒，页面要有条能动的进度条，别只留一句「正在更新…」
+    const progressState = { resolved: 0, reused: 0, downloaded: 0, added: 0, total: 0 }
     const keep = (buf) => {
       for (const line of buf.toString('utf8').split(/\r?\n/)) {
         const text = redact(line, secretValues)
         tail.push(text)
         if (tail.length > 40) tail.shift()
         pushLog(`[plugin] ${text}`)
+        const progress = parsePnpmProgress(text, progressState)
+        if (progress) emitPluginProgress(progress)
       }
     }
     child.stdout.on('data', keep)
@@ -1165,6 +1182,8 @@ async function addPlugin(version, spec) {
   if (!existsSync(binPath(ver))) throw new Error('找不到官方入口 lib/bin.js')
 
   pluginBusy = true
+  pluginProgressName = pkg
+  emitPluginProgress({ phase: 'resolve' })
   await mkdir(homeDir(), { recursive: true })
   await ensureProfileNpmrc()
   const broken = pruneDanglingLinks(join(profileDir(), 'node_modules'))
@@ -1196,6 +1215,8 @@ async function addPlugin(version, spec) {
     pushLog(`${pkg} 已在 web profile`)
   } finally {
     pluginBusy = false
+    pluginProgressName = ''
+    emitPluginProgress(null)
   }
 }
 
@@ -2043,6 +2064,7 @@ async function handleApi(req, res, url) {
     res.write(`event: log\ndata: ${JSON.stringify({ lines: logs.slice(-120) })}\n\n`)
     res.write(`event: state\ndata: ${JSON.stringify(await snapshot())}\n\n`)
     if (installProgress) res.write(`event: progress\ndata: ${JSON.stringify(installProgress)}\n\n`)
+    if (pluginProgress) res.write(`event: progress\ndata: ${JSON.stringify({ ...pluginProgress, kind: 'plugin', name: pluginProgressName })}\n\n`)
     clients.add(res)
     req.on('close', () => clients.delete(res))
     return

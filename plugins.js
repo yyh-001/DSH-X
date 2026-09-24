@@ -121,10 +121,22 @@ export function packageRowIds(profileDir, packageName) {
 }
 
 function packageVersion(profileDir, name) {
+  const meta = packageMeta(profileDir, name)
+  return meta.version
+}
+
+/** 已装插件自带的版本与一句话自述（读不到就只有版本为空，不影响其余字段）。 */
+function packageMeta(profileDir, name) {
   try {
-    return String(JSON.parse(readFileSync(join(profileDir, 'node_modules', name, 'package.json'), 'utf8')).version || '')
+    const manifest = JSON.parse(readFileSync(join(profileDir, 'node_modules', name, 'package.json'), 'utf8'))
+    const description = typeof manifest.description === 'string' ? manifest.description.trim() : ''
+    return {
+      version: String(manifest.version || ''),
+      // 自述可能很长，列表里只当一行副标题用
+      description: description.length > 140 ? `${description.slice(0, 139)}…` : description,
+    }
   } catch {
-    return ''
+    return { version: '', description: '' }
   }
 }
 
@@ -156,7 +168,8 @@ export function listPlugins(profileDir) {
       toggleable = false
       reason = '市场自管行，不提供开关'
     }
-    return { name, version: packageVersion(profileDir, name), ids, enabled: !disabled, toggleable, reason, official }
+    const meta = packageMeta(profileDir, name)
+    return { name, version: meta.version, description: meta.description, ids, enabled: !disabled, toggleable, reason, official }
   })
   return { profileDir, patchPath, plugins, disables: state.disables }
 }

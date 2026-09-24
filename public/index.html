@@ -330,6 +330,8 @@
     }
     /* 横向滑动的过程要裁掉，不然会闪出横向滚动条 */
     .pane { display: none; flex: 1 1 auto; min-width: 0; min-height: 0; overflow-x: hidden; overflow-y: auto; }
+    /* 面板内容和右侧滚动条之间留出呼吸空间，所有设置分类共用。 */
+    main:not(.home) .pane { padding-right: 14px; }
     .pane.active { display: block; }
     /* 日志面板撑满一屏：内部自己滚，不跟着外层滚 */
     .pane.fill.active { display: flex; flex-direction: column; overflow: hidden; }
@@ -391,6 +393,7 @@
       }
       .nav-back { flex-basis: 100%; margin-bottom: 0; }
       .settings-body { padding: 18px 16px 26px; }
+      main:not(.home) .pane { padding-right: 8px; }
     }
     .home-bar {
       display: flex;
@@ -427,7 +430,7 @@
       background-size: 9px 6px;
       padding-right: 30px;
     }
-    /* 版本下拉：原生 select 的弹出列表没法跟随页面配色，这里整套自绘 */
+    /* 版本与设置下拉共用的触发器、选项和弹层样式。 */
     .select { position: relative; }
     .select-trigger {
       width: 100%;
@@ -524,6 +527,21 @@
       border-radius: 0 0 9px 9px;
     }
     .select-option.more.active { background: var(--accent-soft); color: var(--accent); }
+    /* 设置项共用版本选择器的视觉语言；原 select 留作值与 change 事件的来源。 */
+    .ui-select { position: relative; width: 148px; flex: 0 0 auto; min-width: 0; }
+    .ui-select > select {
+      position: absolute;
+      width: 1px !important;
+      height: 1px !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .ui-select .select-trigger { min-width: 0; width: 100%; min-height: 44px; }
+    .ui-select-panel { position: fixed; left: 0; top: 0; right: auto; width: auto; max-height: min(46vh, 320px); }
+    .ui-select-option { min-height: 38px; }
+    .ui-select-option.selected::after { content: '✓'; flex: 0 0 auto; font-size: 14px; font-weight: 700; }
     .toggle {
       display: flex;
       align-items: center;
@@ -609,6 +627,8 @@
     .set-desc { display: block; margin-top: 4px; color: var(--muted); font-size: 13px; line-height: 1.6; }
     .set-control { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; }
     .set-control select { width: 150px; }
+    .set-control .ui-select { width: 160px; }
+    .set-control .ui-select:has(#webBind) { width: 206px; }
     .set-row > input[type=number] {
       width: 104px;
       flex: 0 0 auto;
@@ -695,6 +715,9 @@
     @media (max-width: 560px) {
       .set-row { gap: 12px; padding: 16px; }
       .set-control select { width: 118px; }
+      .set-row:has(.ui-select) { flex-wrap: wrap; }
+      .set-row:has(.ui-select) .set-text, .set-row:has(.ui-select) .set-control { flex: 1 1 100%; }
+      .set-control .ui-select, .set-control .ui-select:has(#webBind) { width: 100%; }
       .set-row.stacked .set-control { flex-wrap: wrap; }
       .set-row.stacked .set-control input[type=text] { flex-basis: 100%; }
       #pane-settings .pane-top { flex-wrap: wrap; }
@@ -825,15 +848,6 @@
       white-space: pre-wrap;
     }
     .log-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
-    .plugin-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 10px;
-    }
-    .plugin-title { color: var(--text); font-size: 15px; font-weight: 650; letter-spacing: 0.02em; }
-    .plugin-sub { color: var(--muted); font-size: 12px; margin-top: 3px; }
     .ghost {
       border: 1px solid #c7d8f7;
       background: #fff;
@@ -848,26 +862,33 @@
     .ghost:hover:not(:disabled) { background: var(--accent-soft); border-color: #b9ccf0; }
     .ghost:disabled { opacity: 0.5; cursor: default; }
     #pane-plugins { overflow-x: hidden; }
-    .plugin-list { min-width: 0; }
+    .plugin-list {
+      min-width: 0;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
+    }
     .plugin-row {
       margin: 0;
-      padding: 13px 8px;
+      padding: 12px 16px;
       border-bottom: 1px solid var(--line);
       align-items: center;
-      gap: 14px;
-      border-radius: 10px;
+      gap: 12px;
       transition: background 0.12s ease;
     }
     .plugin-row:hover { background: var(--accent-soft); }
+    .plugin-row:focus-within { background: var(--accent-soft); }
     .plugin-row:last-child { border-bottom: 0; }
     .plugin-row.off .plugin-name { color: var(--muted); font-weight: 500; }
-    .plugin-row.off .plugin-meta { opacity: 0.75; }
+    .plugin-row.off .plugin-desc { opacity: 0.7; }
     .plugin-row input:disabled { opacity: 0.4; cursor: not-allowed; }
-    /* 撑满剩余宽度：这样行里的「更新到 …」和右侧开关会贴在一起、每行都对齐到右边，
-       不然 space-between 会把它挤在行中间，位置还随说明文字长短变化 */
-    .plugin-main { flex: 1 1 auto; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-    .plugin-name { color: var(--text); font-weight: 600; font-size: 14px; letter-spacing: 0; overflow-wrap: anywhere; }
-    .plugin-meta { color: var(--muted); font-size: 12px; letter-spacing: 0; overflow-wrap: anywhere; }
+    .plugin-main { flex: 1 1 auto; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .plugin-head { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+    .plugin-name { color: var(--text); font-weight: 600; font-size: 14px; letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .plugin-scope { color: var(--muted); font-weight: 500; }
+    .plugin-version, .plugin-status { flex: 0 0 auto; color: var(--muted); font-size: 11.5px; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+    .plugin-desc { color: var(--muted); font-size: 12.5px; letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .plugin-empty { color: var(--muted); font-size: 13px; padding: 10px 8px; }
     .plugin-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
     /* 顶栏里的 profile 下拉：和旁边的 ghost 按钮同高、同字号、同圆角，排成一行才齐。
@@ -884,7 +905,11 @@
       border-radius: 999px;
       background-position: right 10px center;
     }
-    /* 行内「更新到 x.y.z」：比 .ghost 再小一档，别把插件名挤走 */
+    .plugin-actions .ui-select { width: 104px; max-width: 170px; }
+    .plugin-actions .ui-select .select-trigger { min-height: 30px; height: 30px; margin-top: 4px; padding: 0 10px; border-radius: 999px; font-size: 12px; }
+    .plugin-actions .ui-select .select-caret { width: 10px; height: 7px; }
+    .plugin-actions .plugin-refresh { display: grid; place-items: center; width: 30px; height: 30px; margin-top: 4px; padding: 0; }
+    .plugin-refresh svg { width: 15px; height: 15px; }
     .plugin-update {
       flex: 0 0 auto;
       border: 1px solid #c7d8f7;
@@ -899,6 +924,17 @@
     }
     .plugin-update:hover:not(:disabled) { background: var(--accent-dim); border-color: #b9ccf0; }
     .plugin-update:disabled { opacity: 0.5; cursor: default; }
+    @media (max-width: 760px) {
+      #pane-plugins .pane-top { flex-wrap: wrap; }
+      .plugin-actions { flex-wrap: wrap; margin-left: auto; justify-content: flex-end; }
+    }
+    @media (max-width: 560px) {
+      #pane-plugins .pane-top > div:first-child { width: 100%; }
+      .plugin-actions { width: 100%; justify-content: flex-start; }
+      .plugin-row { padding: 11px 12px; gap: 9px; }
+      .plugin-update { font-size: 11px; padding: 4px 7px; }
+      .plugin-version { display: none; }
+    }
     /* 细滚动条：默认亮灰条在浅色面板上太抢眼，统一成淡蓝灰 */
     .select-panel, .plugin-list, #log, .pane, .settings-nav { scrollbar-width: thin; scrollbar-color: #c3d3ee transparent; }
     .select-panel::-webkit-scrollbar, .plugin-list::-webkit-scrollbar, #log::-webkit-scrollbar,
@@ -1166,11 +1202,13 @@
                 <select id="profile" title="dsh 下次启动用哪个 profile；插件和插件配置按 profile 分开，会话与记忆是共享的。"></select>
                 <button class="ghost" id="pluginCheckUpdates" type="button" data-i18n="检查更新">检查更新</button>
                 <button class="ghost" id="pluginUpdateAll" type="button" hidden data-i18n="全部更新">全部更新</button>
-                <button class="ghost" id="pluginRefresh" type="button" data-i18n="刷新">刷新</button>
+                <button class="ghost plugin-refresh" id="pluginRefresh" type="button" title="刷新" aria-label="刷新"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 1-2.4-5.7"/><path d="M20 4v5h-5"/></svg></button>
               </div>
             </div>
             <div class="plugin-list" id="pluginList"></div>
             <p class="hint" id="pluginHint"></p>
+            <!-- 插件装/升级可能几十秒，光一句「正在更新…」看不出在动 -->
+            <div class="progress" id="pluginProgress" hidden><div class="progress-bar" id="pluginProgressBar"></div></div>
           </div>
         </section>
         <section class="pane fill" id="pane-log">
@@ -1312,7 +1350,7 @@
                 <div class="set-row">
                   <div class="set-text">
                     <span class="set-name" data-i18n="管理页端口">管理页端口</span>
-                    <span class="set-desc" data-i18n="管理页监听的端口。">管理页监听的端口。</span>
+                    <span class="set-desc" data-i18n="重启后生效。">重启后生效。</span>
                     <p class="hint" id="portHint"></p>
                   </div>
                   <input id="port" type="number" min="1" max="65535" step="1" inputmode="numeric" />
@@ -1320,7 +1358,7 @@
                 <div class="set-row">
                   <div class="set-text">
                     <span class="set-name" data-i18n="Web 绑定">Web 绑定</span>
-                    <span class="set-desc" data-i18n="回环：只有本机能访问（默认）。局域网：启动器不再固定注入 --host 127.0.0.1，实际绑定由远程访问插件的「局域网访问」开关（或 profile 补丁）决定，手机/其他电脑才能连上。">回环：只有本机能访问（默认）。局域网：启动器不再固定注入 --host 127.0.0.1，实际绑定由远程访问插件的「局域网访问」开关（或 profile 补丁）决定，手机/其他电脑才能连上。</span>
+                    <span class="set-desc" data-i18n="回环仅本机；局域网访问由 dsh 的远程访问设置控制。">回环仅本机；局域网访问由 dsh 的远程访问设置控制。</span>
                     <p class="hint" id="webBindHint"></p>
                   </div>
                   <div class="set-control">
@@ -1333,7 +1371,7 @@
                 <div class="set-row">
                   <div class="set-text">
                     <span class="set-name" data-i18n="下载源">下载源</span>
-                    <span class="set-desc" data-i18n="dsh 版本的下载源；查版本列表和下载安装都走它，改完立即生效。">dsh 版本的下载源；查版本列表和下载安装都走它，改完立即生效。</span>
+                    <span class="set-desc" data-i18n="版本列表和安装包的来源。">版本列表和安装包的来源。</span>
                     <p class="hint" id="sourceHint"></p>
                   </div>
                   <div class="set-control">
@@ -1343,7 +1381,7 @@
                 <div class="set-row stacked">
                   <div class="set-text">
                     <span class="set-name" data-i18n="版本目录">版本目录</span>
-                    <span class="set-desc" data-i18n="dsh 各版本各自一个目录，互不干扰。">dsh 各版本各自一个目录，互不干扰。</span>
+                    <span class="set-desc" data-i18n="各版本独立存放。">各版本独立存放。</span>
                   </div>
                   <div class="set-control">
                     <input id="dataDir" type="text" />
@@ -1427,13 +1465,13 @@
   "下载源": "Download source",
   "镜像源": "Mirror",
   "官方源": "Official",
-  "dsh 版本的下载源；查版本列表和下载安装都走它，改完立即生效。": "Where dsh versions are fetched from; it is used for both the version list and the download, and takes effect immediately.",
-  "镜像源：国内下载快，但同步官方有延迟，刚发布的版本可能「检查到更新却装不上」。": "Mirror: fast inside China, but it lags behind npm — a brand-new release may show up as an update yet fail to install.",
-  "官方源：新版本发布即可安装，国内直连可能较慢，建议配代理。": "Official: new releases are installable right away; a direct connection from China can be slow, so a proxy helps.",
+  "版本列表和安装包的来源。": "Source for version lists and downloads.",
+  "镜像源下载较快，新版本可能延迟同步。": "The mirror is faster, but new releases may arrive later.",
+  "官方源更新及时，国内直连可能较慢。": "The official source updates promptly, but may be slower in China.",
   "回环（127.0.0.1）": "Loopback (127.0.0.1)",
   "局域网（0.0.0.0）": "LAN (0.0.0.0)",
-  "回环：只有本机能访问（默认）。局域网：启动器不再固定注入 --host 127.0.0.1，实际绑定由远程访问插件的「局域网访问」开关（或 profile 补丁）决定，手机/其他电脑才能连上。": "Loopback: this machine only (default). LAN: the launcher stops injecting --host 127.0.0.1, and the remote-access plugin's LAN switch (or the profile patch) decides the bind, so phones and other computers can connect.",
-  "远程访问插件的「局域网访问」开关已打开，当前按局域网处理（启动器不注入 --host）。想只允许本机访问，去 dsh 设置里关掉那个开关。": "The remote-access plugin's LAN switch is on, so this runs as LAN (the launcher injects no --host). To allow this machine only, turn that switch off in the dsh settings.",
+  "回环仅本机；局域网访问由 dsh 的远程访问设置控制。": "Loopback allows this machine only; dsh's remote access settings control LAN access.",
+  "远程访问插件已开启局域网；仅限本机请先关闭该开关。": "The remote-access plugin has LAN access on. Turn it off to allow this machine only.",
   "已保存。Web 绑定更改在下次启动 dsh 时生效。": "Saved. The Web binding change takes effect the next time dsh starts.",
   "重启": "Restart",
   "额外启动参数": "Extra startup arguments",
@@ -1459,7 +1497,7 @@
   "关闭大肥鱼": "Hide the big fish",
   "隐藏主界面左下角的大肥鱼。": "Hide the big fish in the lower-left corner of the home screen.",
   "设置启动器的启动方式、界面语言，以及 dsh 的插件与启动配置。": "Choose how the launcher starts and which language it uses, plus dsh's plugin and startup settings.",
-  "配置管理页端口和版本目录。": "Configure the manager port and version directory.",
+  "端口、网络与版本目录。": "Ports, network, and version storage.",
   "当前启动器服务尚未更新，请重启启动器后重试。": "The launcher service has not updated yet. Restart the launcher and try again.",
   "开机自启未能修改，请查看日志。": "Could not change start at login. Check the log.",
   "端口要填 1-65535 之间的整数": "Enter a port from 1 to 65535.",
@@ -1507,7 +1545,7 @@
   "下载完成，正在安装新版本…": "Download finished, installing the new version…",
   "DSH-X 启动器": "DSH-X launcher",
   "未命名": "Unnamed",
-  "dsh 各版本各自一个目录，互不干扰。": "Each dsh version gets its own directory.",
+  "各版本独立存放。": "Each version is stored separately.",
   "dsh 用哪个 profile 启动；插件和数据按 profile 分开。": "Which profile dsh starts with; plugins and data are kept per profile.",
   "基础设置": "Basics",
   "常规": "General",
@@ -1515,7 +1553,7 @@
   "启动器和 dsh 的输出日志。": "Output from the launcher and dsh.",
   "登录 Windows 后自动把启动器跑起来。": "Start the launcher automatically after you sign in to Windows.",
   "目录与端口": "Folders and ports",
-  "管理页监听的端口。": "The port the manager listens on.",
+  "重启后生效。": "Takes effect after a restart.",
   "装新版本时顺手把插件市场预置好，之后可以在里面装第三方插件。": "Sets up the plugin marketplace when a new version is installed; you can install third-party plugins from it.",
   "这一页文案的语言。": "The language used on these pages.",
   "启动器": "Launcher",
@@ -1532,7 +1570,7 @@
   "检查完成：{count} 个插件可更新。": "Done: {count} plugin(s) can be updated.",
   "检查完成：插件都是最新的。": "Done: every plugin is up to date.",
   "（{n} 个查不到远程版本）": " ({n} could not be looked up)",
-  "可更新到 {latest}": "Update available: {latest}",
+  "可更新": "Update available",
   "查不到远程版本": "remote version unknown",
   "正在更新 {name}…": "Updating {name}…",
   "正在更新插件…": "Updating plugins…",
@@ -1547,8 +1585,8 @@
   "正在更新到 {latest}": "Updating to {latest}",
   "已保存。重启启动器后管理页改到 {port} 端口。": "Saved. The manager moves to port {port} after a restart.",
   "已保存。版本目录已改为 {dir}（立即生效）；已安装的版本不会自动迁移，需要就手动复制过去。": "Saved. The version directory is now {dir} (effective immediately); installed versions are not moved automatically.",
-  "当前监听 {live} 端口；重启启动器后尝试使用 {port}。": "Currently listening on {live}; the launcher will try port {port} after restart.",
-  "dsh 各版本装在这里（几百 MB 一个）；插件和 profile 仍在 {home}，已装版本不自动迁移。": "dsh versions go here (a few hundred MB each); plugins and profiles stay in {home}, and installed versions are not moved.",
+  "当前 {live}；重启后尝试切换到 {port}。": "Currently on {live}; will try {port} after a restart.",
+  "每版约几百 MB；插件和 profile 仍在 {home}，已安装版本不会迁移。": "Each version uses a few hundred MB. Plugins and profiles stay in {home}; installed versions are not moved.",
   "上次启动自动禁用了：{names}（认为没问题可在上面重新打开）。": "Disabled at the last start: {names} (turn them back on here if that was wrong).",
   "启动时自动禁用了：{names}（插件页可恢复）": "Disabled at start: {names} (restore them on the Plugins page)",
   "⚠ 页面自检：{failed}/{total} 个插件包加载失败": "⚠ Page self-check: {failed}/{total} client plugin bundles failed to load",
@@ -1563,7 +1601,8 @@
   "{prefix} {done}/{total}（{percent}%）": "{prefix} {done}/{total} ({percent}%)",
   "正在下载新版本 {pct}%（{mb} / {size}）": "Downloading the new version: {pct}% ({mb} / {size})",
   "行 {ids}": "rows {ids}",
-  "{profile} profile · 共 {total} 个 · {on} 个启用": "{profile} profile · {total} total · {on} enabled"
+  "{profile} profile · 共 {total} 个 · {on} 个启用": "{profile} profile · {total} total · {on} enabled",
+  "共 {total} 个插件 · {on} 个已启用": "{total} plugins · {on} enabled"
 }
 
     function t(zh, vars) {
@@ -1587,8 +1626,14 @@
         gear.title = action
         gear.setAttribute('aria-label', action)
       }
+      const pluginRefresh = document.getElementById('pluginRefresh')
+      if (pluginRefresh) {
+        pluginRefresh.title = t('刷新')
+        pluginRefresh.setAttribute('aria-label', t('刷新'))
+      }
       const argsInput = document.getElementById('args')
       if (argsInput) argsInput.placeholder = t('例如：--log-level debug')
+      syncUiSelects()
     }
 
     // ---- 版本下拉（自绘，替代原生 select）----
@@ -1731,6 +1776,155 @@
       if (!versionRootEl.contains(event.target)) closeVersionPanel()
     })
 
+    // 设置中的四个原生 select 共享一套菜单。select 本身仍保存值并触发原有 change 处理。
+    const uiSelects = new Map()
+    let openUiSelect = null
+
+    function syncUiSelect(select) {
+      const item = uiSelects.get(select)
+      if (!item) return
+      item.value.textContent = select.selectedOptions[0]?.textContent || t('加载中…')
+      item.trigger.disabled = select.disabled || !select.options.length
+      item.trigger.setAttribute('aria-label', `${item.label()}: ${item.value.textContent}`)
+      item.panel.setAttribute('aria-label', item.label())
+      if (openUiSelect === item) renderUiSelectOptions(item)
+    }
+
+    function syncUiSelects() {
+      for (const select of uiSelects.keys()) syncUiSelect(select)
+    }
+
+    function closeUiSelect() {
+      if (!openUiSelect) return
+      const item = openUiSelect
+      openUiSelect = null
+      item.panel.hidden = true
+      item.root.classList.remove('open')
+      item.trigger.setAttribute('aria-expanded', 'false')
+      item.trigger.removeAttribute('aria-activedescendant')
+    }
+
+    function paintUiSelectActive(item) {
+      for (const [index, option] of [...item.panel.children].entries()) {
+        option.classList.toggle('active', index === item.active)
+      }
+      const active = item.panel.children[item.active]
+      if (active) {
+        item.trigger.setAttribute('aria-activedescendant', active.id)
+        active.scrollIntoView({ block: 'nearest' })
+      }
+    }
+
+    function renderUiSelectOptions(item) {
+      item.panel.replaceChildren()
+      for (const [index, option] of [...item.select.options].entries()) {
+        const row = document.createElement('div')
+        row.className = `select-option ui-select-option${option.value === item.select.value ? ' selected' : ''}`
+        row.id = `${item.select.id}-option-${index}`
+        row.role = 'option'
+        row.setAttribute('aria-selected', String(option.value === item.select.value))
+        row.textContent = option.textContent
+        row.addEventListener('mouseenter', () => { item.active = index; paintUiSelectActive(item) })
+        row.addEventListener('click', () => chooseUiSelectOption(item, index))
+        item.panel.append(row)
+      }
+      paintUiSelectActive(item)
+    }
+
+    function positionUiSelect(item) {
+      const rect = item.trigger.getBoundingClientRect()
+      const width = Math.min(Math.max(rect.width, item.select.id === 'profile' ? 180 : 160), innerWidth - 24)
+      item.panel.style.width = `${width}px`
+      item.panel.style.left = `${Math.max(12, Math.min(rect.left, innerWidth - width - 12))}px`
+      const height = item.panel.getBoundingClientRect().height
+      const below = innerHeight - rect.bottom
+      const top = below >= height + 8 || below >= rect.top ? rect.bottom + 6 : rect.top - height - 6
+      item.panel.style.top = `${Math.max(12, Math.min(top, innerHeight - height - 12))}px`
+    }
+
+    function openUiSelectPanel(item) {
+      if (item.select.disabled || !item.select.options.length) return
+      closeUiSelect()
+      closeVersionPanel()
+      openUiSelect = item
+      item.active = Math.max(0, item.select.selectedIndex)
+      item.root.classList.add('open')
+      item.trigger.setAttribute('aria-expanded', 'true')
+      item.panel.hidden = false
+      renderUiSelectOptions(item)
+      positionUiSelect(item)
+      item.trigger.focus()
+    }
+
+    function chooseUiSelectOption(item, index) {
+      const option = item.select.options[index]
+      if (!option || option.disabled) return
+      const changed = item.select.value !== option.value
+      item.select.value = option.value
+      closeUiSelect()
+      syncUiSelect(item.select)
+      item.trigger.focus()
+      if (changed) item.select.dispatchEvent(new Event('change', { bubbles: true }))
+    }
+
+    for (const select of document.querySelectorAll('#profile, #uiLang, #webBind, #downloadSource')) {
+      const root = document.createElement('div')
+      root.className = 'select ui-select'
+      const trigger = document.createElement('button')
+      trigger.type = 'button'
+      trigger.className = 'select-trigger'
+      trigger.setAttribute('aria-haspopup', 'listbox')
+      trigger.setAttribute('aria-expanded', 'false')
+      const value = document.createElement('span')
+      value.className = 'select-value'
+      trigger.append(value)
+      trigger.insertAdjacentHTML('beforeend', '<svg class="select-caret" viewBox="0 0 12 8" aria-hidden="true"><path fill="currentColor" d="M0 0h12L6 8z"/></svg>')
+      const panel = document.createElement('div')
+      panel.className = 'select-panel ui-select-panel'
+      panel.id = `${select.id}Menu`
+      panel.role = 'listbox'
+      panel.hidden = true
+      trigger.setAttribute('aria-controls', panel.id)
+      const label = () => select.id === 'profile' ? 'Profile' : select.closest('.set-row')?.querySelector('.set-name')?.textContent || select.title
+      const item = { select, root, trigger, value, panel, label, active: 0 }
+      select.before(root)
+      root.append(select, trigger)
+      document.body.append(panel)
+      select.classList.add('ui-select-native')
+      select.tabIndex = -1
+      select.setAttribute('aria-hidden', 'true')
+      panel.setAttribute('aria-label', label())
+      uiSelects.set(select, item)
+      select.addEventListener('change', () => syncUiSelect(select))
+      trigger.addEventListener('click', () => openUiSelect === item ? closeUiSelect() : openUiSelectPanel(item))
+      trigger.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') { closeUiSelect(); return }
+        if (event.key === 'Tab') { closeUiSelect(); return }
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+          event.preventDefault()
+          if (openUiSelect !== item) openUiSelectPanel(item)
+          else { item.active = Math.max(0, Math.min(select.options.length - 1, item.active + (event.key === 'ArrowDown' ? 1 : -1))); paintUiSelectActive(item) }
+        } else if (event.key === 'Home' || event.key === 'End') {
+          event.preventDefault()
+          if (openUiSelect !== item) openUiSelectPanel(item)
+          item.active = event.key === 'Home' ? 0 : select.options.length - 1
+          paintUiSelectActive(item)
+        } else if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          if (openUiSelect === item) chooseUiSelectOption(item, item.active)
+          else openUiSelectPanel(item)
+        }
+      })
+      syncUiSelect(select)
+    }
+    document.addEventListener('pointerdown', (event) => {
+      if (openUiSelect && !openUiSelect.root.contains(event.target) && !openUiSelect.panel.contains(event.target)) closeUiSelect()
+    })
+    document.addEventListener('scroll', (event) => {
+      if (openUiSelect && !openUiSelect.panel.contains(event.target)) closeUiSelect()
+    }, true)
+    window.addEventListener('resize', closeUiSelect)
+
     const hintEl = document.getElementById('hint')
     const mainEl = document.getElementById('main')
     const restartEl = document.getElementById('restart')
@@ -1743,8 +1937,7 @@
     let userPicked = false
     let action = ''
     let installProgress = null
-    let barPhase = ''
-    let barMaxPct = 0
+    let pluginProgress = null
     // 下拉默认只列已装 + 最新 + 最近几个版本，其余折起来（原生下拉太长会顶出屏幕）
     const RECENT_REMOTE_LIMIT = 5
     let showAllVersions = false
@@ -1813,7 +2006,7 @@
     const settingsCategories = {
       general: ['常规', '设置启动器的启动方式、界面语言，以及 dsh 的插件与启动配置。'],
       appearance: ['外观', '选择启动器的外观；跟随系统会在系统主题变化时自动切换。'],
-      advanced: ['高级设置', '配置管理页端口和版本目录。'],
+      advanced: ['高级设置', '端口、网络与版本目录。'],
     }
     const settingsSections = [...document.querySelectorAll('#pane-settings .set-section[data-category]')]
     const settingsTitleEl = document.getElementById('settingsTitle')
@@ -1934,25 +2127,27 @@
       }).filter(Boolean)
     }
 
-    function setProgress(busy) {
-      const wrap = document.getElementById('progress')
-      const bar = document.getElementById('progress-bar')
+    /**
+     * 画一条进度条：busy 为假就收起来。相位与峰值记在条子自己身上（dataset），
+     * 这样「装 dsh」和「装插件」两条条子各管各的，互不干扰。
+     */
+    function paintProgress(wrap, bar, state, busy) {
       if (!wrap || !bar) return
       if (!busy) {
         wrap.hidden = true
         wrap.classList.remove('indeterminate')
         bar.style.width = '0%'
-        barPhase = ''
-        barMaxPct = 0
+        wrap.dataset.phase = ''
+        wrap.dataset.max = '0'
         return
       }
       wrap.hidden = false
-      const total = Number(installProgress?.total) || 0
-      const done = Number(installProgress?.done) || 0
-      const phase = installProgress?.phase || ''
-      if (phase !== barPhase) {
-        barPhase = phase
-        barMaxPct = 0
+      const total = Number(state?.total) || 0
+      const done = Number(state?.done) || 0
+      const phase = state?.phase || ''
+      if (phase !== (wrap.dataset.phase || '')) {
+        wrap.dataset.phase = phase
+        wrap.dataset.max = '0'
       }
       let pct = 0
       if (phase === 'resolve') {
@@ -1965,8 +2160,18 @@
         return
       }
       wrap.classList.remove('indeterminate')
-      barMaxPct = Math.max(barMaxPct, pct)
-      bar.style.width = `${barMaxPct}%`
+      const max = Math.max(Number(wrap.dataset.max) || 0, pct)
+      wrap.dataset.max = String(max)
+      bar.style.width = `${max}%`
+    }
+
+    function setProgress(busy) {
+      paintProgress(document.getElementById('progress'), document.getElementById('progress-bar'), installProgress, busy)
+    }
+
+    /** 插件安装/升级那条：状态由 kind === 'plugin' 的 progress 事件驱动。 */
+    function setPluginProgress(busy) {
+      paintProgress(document.getElementById('pluginProgress'), document.getElementById('pluginProgressBar'), pluginProgress, busy)
     }
 
     function progressHint(prefix) {
@@ -2143,6 +2348,7 @@
       mainEl.disabled = loading || !version
       mainEl.classList.toggle('loading', loading && !updating && !uninstalling)
       setProgress(installing)
+      setPluginProgress(Boolean(pluginProgress))
 
       if (updating) {
         hintEl.textContent = progressHint(`正在更新到 ${latest}`)
@@ -2413,6 +2619,7 @@
       }
       if (data.progress) installProgress = data.progress
       if (!data.installing) installProgress = data.progress || null
+      if ('pluginProgress' in data) pluginProgress = data.pluginProgress || null
       if (!userPicked) picked = preferredPick()
       render()
       maybeLaunch()
@@ -2449,6 +2656,11 @@
       events.addEventListener('progress', (event) => {
         try {
           const data = JSON.parse(event.data)
+          if (data?.kind === 'plugin') {
+            pluginProgress = !data || data.phase === 'idle' ? null : data
+            setPluginProgress(Boolean(pluginProgress))
+            return
+          }
           if (!data || data.phase === 'idle') installProgress = null
           else installProgress = data
           render()
@@ -2738,8 +2950,8 @@
     const sourceHint = document.getElementById('sourceHint')
     // 下拉里只放短词，两种源各自的代价写在提示行里
     const describeSource = (value) => value === 'official'
-      ? t('官方源：新版本发布即可安装，国内直连可能较慢，建议配代理。')
-      : t('镜像源：国内下载快，但同步官方有延迟，刚发布的版本可能「检查到更新却装不上」。')
+      ? t('官方源更新及时，国内直连可能较慢。')
+      : t('镜像源下载较快，新版本可能延迟同步。')
     const argsEl = document.getElementById('args')
     const uiLangEl = document.getElementById('uiLang')
     const webBindEl = document.getElementById('webBind')
@@ -2808,32 +3020,32 @@
       if (portHint) {
         const live = Number(data.listenPort)
         portHint.textContent = live && live !== Number(data.port)
-          ? t('当前监听 {live} 端口；重启启动器后尝试使用 {port}。', { live, port: data.port })
+          ? t('当前 {live}；重启后尝试切换到 {port}。', { live, port: data.port })
           : ''
       }
       if ('downloadSource' in data) {
         const list = Array.isArray(data.downloadSources) && data.downloadSources.length
           ? data.downloadSources
           : [{ id: 'mirror', label: '镜像源' }]
-        sourceEl.innerHTML = list.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(t(item.label))}</option>`).join('')
+        sourceEl.innerHTML = list.map((item) => `<option value="${escapeHtml(item.id)}" data-i18n="${escapeHtml(item.label)}">${escapeHtml(t(item.label))}</option>`).join('')
         sourceEl.value = String(data.downloadSource || 'mirror')
         sourceHint.textContent = describeSource(sourceEl.value)
       }
       if ('dataDir' in data) {
         dataDirEl.value = String(data.dataDir ?? '')
-        // 一次说清三件事：这是什么的目录、插件和 profile 不归它管、已装的版本不会搬家
-        dataDirHint.textContent = t('dsh 各版本装在这里（几百 MB 一个）；插件和 profile 仍在 {home}，已装版本不自动迁移。', { home: data.dshHome || '~/.dsh' })
+        dataDirHint.textContent = t('每版约几百 MB；插件和 profile 仍在 {home}，已安装版本不会迁移。', { home: data.dshHome || '~/.dsh' })
       }
       if ('webBind' in data) webBindEl.value = data.webBind === 'lan' ? 'lan' : 'loopback'
       // 远程访问插件的「局域网访问」开关压着设置值时如实说明，别让用户以为选错了没生效
       if (webBindHintEl) {
         webBindHintEl.textContent = data.webBindLan
-          ? t('远程访问插件的「局域网访问」开关已打开，当前按局域网处理（启动器不注入 --host）。想只允许本机访问，去 dsh 设置里关掉那个开关。')
+          ? t('远程访问插件已开启局域网；仅限本机请先关闭该开关。')
           : ''
       }
       if ('autoStart' in data) autoStartEl.checked = Boolean(data.autoStart)
       if ('seedMarket' in data) seedMarketEl.checked = data.seedMarket !== false
       if ('autoDisablePlugins' in data) autoDisableEl.checked = data.autoDisablePlugins !== false
+      syncUiSelects()
     }
 
     function loadSettings() {
@@ -2912,11 +3124,11 @@
         }
         if ('dataDir' in patch && !pendingSettings.has('dataDir') && document.activeElement !== dataDirEl) {
           dataDirEl.value = String(data.dataDir ?? patch.dataDir)
-          dataDirHint.textContent = t('dsh 各版本装在这里（几百 MB 一个）；插件和 profile 仍在 {home}，已装版本不自动迁移。', { home: data.dshHome || '~/.dsh' })
+          dataDirHint.textContent = t('每版约几百 MB；插件和 profile 仍在 {home}，已安装版本不会迁移。', { home: data.dshHome || '~/.dsh' })
         }
         if ('port' in patch && !pendingSettings.has('port')) {
           portHint.textContent = Number(data.port) !== Number(data.listenPort)
-            ? t('当前监听 {live} 端口；重启启动器后尝试使用 {port}。', { live: data.listenPort, port: data.port })
+            ? t('当前 {live}；重启后尝试切换到 {port}。', { live: data.listenPort, port: data.port })
             : ''
         }
         if ('autoStart' in patch && Boolean(data.autoStart) !== patch.autoStart) {
@@ -2983,6 +3195,7 @@
     profileEl.onchange = async () => {
       const value = profileEl.value
       profileEl.disabled = true
+      syncUiSelect(profileEl)
       try {
         // 直接等这一次保存返回：queueSetting 是排队异步的，等它「返回」并不代表服务端已经换了 profile
         await post('/api/settings', { profile: value })
@@ -2994,6 +3207,7 @@
         pluginHintEl.textContent = error.message
       } finally {
         profileEl.disabled = false
+        syncUiSelect(profileEl)
       }
     }
     argsEl.oninput = () => {
@@ -3051,8 +3265,8 @@
       const on = list.filter((plugin) => plugin.enabled).length
       if (pluginSubEl) {
         pluginSubEl.textContent = list.length
-          ? t('{profile} profile · 共 {total} 个 · {on} 个启用', { profile: data.profile || 'web', total: list.length, on })
-          : `${data.profile || 'web'} profile`
+          ? t('共 {total} 个插件 · {on} 个已启用', { total: list.length, on })
+          : ''
       }
       if (!list.length) {
         pluginListEl.innerHTML = `<div class="plugin-empty">${t('这个 profile 里没有已安装的插件。')}</div>`
@@ -3060,20 +3274,22 @@
       }
       pluginListEl.innerHTML = list.map((plugin) => {
         const update = pluginUpdates[plugin.name]
-        const meta = [
-          plugin.version ? `v${plugin.version}` : '',
-          plugin.ids?.length ? t('行 {ids}', { ids: plugin.ids.join(', ') }) : '',
-          plugin.enabled ? '' : t('已禁用'),
-          update?.hasUpdate ? t('可更新到 {latest}', { latest: update.latest }) : '',
-          update?.error ? t('查不到远程版本') : '',
-          plugin.toggleable ? '' : t(plugin.reason || ''),
-        ].filter(Boolean).join(' · ')
-        return `<label class="toggle plugin-row${plugin.enabled ? '' : ' off'}" title="${escapeHtml(plugin.reason || plugin.name)}">
+        const scoped = /^(@[^/]+\/)(.+)$/.exec(plugin.name)
+        const nameHtml = scoped
+          ? `<span class="plugin-scope">${escapeHtml(scoped[1])}</span>${escapeHtml(scoped[2])}`
+          : escapeHtml(plugin.name)
+        const details = [plugin.name, plugin.description, plugin.ids?.length ? t('行 {ids}', { ids: plugin.ids.join(', ') }) : '', plugin.toggleable ? '' : t(plugin.reason || '')].filter(Boolean).join('\n')
+        const status = plugin.enabled ? (update?.error ? t('查不到远程版本') : '') : t('已禁用')
+        return `<label class="toggle plugin-row${plugin.enabled ? '' : ' off'}" title="${escapeHtml(details)}">
           <span class="plugin-main">
-            <span class="plugin-name">${escapeHtml(plugin.name)}</span>
-            <span class="plugin-meta">${escapeHtml(meta)}</span>
+            <span class="plugin-head">
+              <span class="plugin-name">${nameHtml}</span>
+              ${plugin.version ? `<span class="plugin-version">v${escapeHtml(plugin.version)}</span>` : ''}
+              ${status ? `<span class="plugin-status">${escapeHtml(status)}</span>` : ''}
+            </span>
+            ${plugin.description ? `<span class="plugin-desc">${escapeHtml(plugin.description)}</span>` : ''}
           </span>
-          ${update?.hasUpdate ? `<button class="plugin-update" type="button" data-update="${escapeHtml(plugin.name)}" ${pluginUpdating ? 'disabled' : ''}>${escapeHtml(t('更新到 {latest}', { latest: update.latest }))}</button>` : ''}
+          ${update?.hasUpdate ? `<button class="plugin-update" type="button" data-update="${escapeHtml(plugin.name)}" aria-label="${escapeHtml(`${plugin.name} ${t('更新到 {latest}', { latest: update.latest })}`)}" ${pluginUpdating ? 'disabled' : ''}>${escapeHtml(t('更新到 {latest}', { latest: update.latest }))}</button>` : ''}
           <input type="checkbox" data-plugin="${escapeHtml(plugin.name)}" ${plugin.enabled ? 'checked' : ''} ${plugin.toggleable ? '' : 'disabled'} />
         </label>`
       }).join('')

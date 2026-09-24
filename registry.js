@@ -394,6 +394,33 @@ function parseInstallProgress(line, state) {
   return null
 }
 
+/**
+ * pnpm 的进度行（非 TTY 时用的是 append-only reporter，长这样）：
+ *   Packages: +123
+ *   Progress: resolved 12, reused 0, downloaded 0, added 0
+ * 插件安装/升级走的是 dsh 内部的 pnpm，输出和 npm 那套（parseInstallProgress）不一样，
+ * 这里单独认。返回和 npm 那套同形状的进度，页面用同一个进度条画。
+ */
+export function parsePnpmProgress(line, state) {
+  const packages = /^Packages:\s*\+(\d+)/i.exec(line)
+  if (packages) {
+    state.total = Number(packages[1])
+    return null // 只是报了总数，等 Progress 行再出进度
+  }
+  const progress = /Progress:\s*resolved (\d+),\s*reused (\d+),\s*downloaded (\d+),\s*added (\d+)/i.exec(line)
+  if (!progress) return null
+  state.resolved = Number(progress[1])
+  state.reused = Number(progress[2])
+  state.downloaded = Number(progress[3])
+  state.added = Number(progress[4])
+  if (state.added) {
+    // 已经在写入 node_modules：用「要装多少个」当分母，进度条才是真比例
+    return { phase: 'download', done: state.added, total: Math.max(state.total, state.resolved, state.added) }
+  }
+  // 还在解析依赖图：没有确定的分子分母，交给页面用饱和曲线显示
+  return { phase: 'resolve', done: state.resolved }
+}
+
 export async function installSpec(root, name, range, onLog = () => {}) {
   const { cli } = await ensureNpm(onLog)
   await mkdir(root, { recursive: true })

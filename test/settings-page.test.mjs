@@ -80,13 +80,10 @@ test('设置改变后自动提交，目录留空时拒绝提交', () => {
 test('读到的设置填进输入框，并说明插件/profile 位置与迁移语义', () => {
   assert.match(html, /if \('dataDir' in data\) \{[\s\S]*?dataDirEl\.value = String\(data\.dataDir \?\? ''\)/)
   // 文案走 t()，家目录用 {home} 占位（界面语言切换后同一句话要能换掉）
-  assert.match(
-    html,
-    /dataDirHint\.textContent = t\('dsh 各版本装在这里[\s\S]{0,80}?\{home\}[\s\S]{0,40}?home: data\.dshHome/,
-    '提示行说明各版本装在这里，并把 dsh 家目录填进 {home}',
-  )
-  assert.match(html, /插件和 profile 仍在/)
-  assert.match(html, /已安装的版本不会自动迁移/)
+  const hint = html.match(/dataDirHint\.textContent = t\('([^']*\{home\}[^']*)', \{ home: data\.dshHome/)
+  assert.ok(hint, '提示行把 dsh 家目录填进 {home}')
+  assert.match(hint[1], /插件和 profile 仍在/)
+  assert.match(hint[1], /已安装版本不会迁移/)
 })
 
 test('改过目录的保存提示说明立即生效和不迁移', () => {

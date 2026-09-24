@@ -11,7 +11,7 @@
         </defs>
         <g data-part="head">
           <image class="mascot-light-layer" href="/mascot/base.png" width="1254" height="1254" mask="url(#mascot-base-mask)"/>
-          <image class="mascot-dark-layer" href="/mascot/base-dark.png" width="1254" height="1254" mask="url(#mascot-base-mask)"/>
+          <image class="mascot-dark-layer" href="/mascot/base-dark-soft.png" width="1254" height="1254" mask="url(#mascot-base-mask)"/>
           <g data-part="tuft"><image class="mascot-light-layer" href="/mascot/tuft.svg" width="1254" height="1254"/><image class="mascot-dark-layer" href="/mascot/tuft-dark.svg" width="1254" height="1254"/></g>
           <g data-part="bow"><image class="mascot-light-layer" href="/mascot/bow.svg" width="1254" height="1254"/><image class="mascot-dark-layer" href="/mascot/bow-dark.svg" width="1254" height="1254"/></g>
           <g data-part="gaze">
