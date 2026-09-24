@@ -82,6 +82,6 @@ test('设置页有下载源选择器：改动即保存，并说明两种源各�
   assert.match(html, /sourceEl\.onchange = \(\) => \{[\s\S]{0,120}?queueSetting\('downloadSource', sourceEl\.value\)/, '改动跟着自动保存提交')
   assert.match(html, /sourceEl\.value = String\(data\.downloadSource \|\| 'mirror'\)/, '读设置时回填')
   assert.match(html, /sourceHint\.textContent = describeSource\(sourceEl\.value\)/, '提示行跟着当前源变化')
-  assert.match(html, /镜像源：国内下载快/, '镜像源的代价要写出来')
-  assert.match(html, /官方源：新版本发布即可安装/, '官方源的代价也要写出来')
+  assert.match(html, /镜像源下载较快/, '镜像源的代价要写出来')
+  assert.match(html, /官方源更新及时/, '官方源的代价也要写出来')
 })
