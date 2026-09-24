@@ -48,6 +48,12 @@ html[data-color-scheme="dark"] .settings-nav.has-pill .nav-item.active {
   box-shadow: none;
 }
 html[data-color-scheme="dark"] .toggle.set-row:hover { background: #313237; }
+html[data-color-scheme="dark"] .plugin-update {
+  border-color: #6b6c72;
+  background: #34353a;
+  color: var(--accent);
+}
+html[data-color-scheme="dark"] .plugin-update:hover:not(:disabled) { background: #414248; border-color: #898a91; }
 html[data-color-scheme="dark"] .set-row:focus-within { box-shadow: inset 3px 0 0 var(--accent); }
 html[data-color-scheme="dark"] .nav-item.active svg { color: var(--accent); }
 html[data-color-scheme="dark"] .set-group,

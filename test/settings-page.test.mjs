@@ -23,7 +23,7 @@ test('设置页有版本目录入口，用整行的设置项样式，旁边是�
   )
   assert.match(html, /post\('\/api\/pick-dir'/, '浏览按钮走 /api/pick-dir')
   assert.match(html, /\.set-row\.stacked \{ display: block; \}/, '整行样式存在')
-  assert.match(html, /<div class="set-control"><select id="profile"><\/select><\/div>/, 'profile 仍是窄行下拉')
+  assert.match(html, /<div class="plugin-actions">[\s\S]{0,200}?<select id="profile"/, 'profile 下拉在插件页顶部')
   assert.match(html, /<p class="hint" id="dataDirHint"><\/p>/, '提示行复用 .hint（空内容自动隐藏）')
   // 文本输入框本来就在样式表里，新控件不需要额外 CSS
   assert.match(html, /input\[type=text\], input\[type=number\], select \{/)
@@ -48,9 +48,22 @@ test('顶栏四个 tab 已取消，设置分类在左侧导航，主页右上角
   assert.doesNotMatch(html, /data-category="dsh"/, 'dsh 分类已经并进常规')
   assert.match(
     html,
-    /<section class="set-section" data-category="general"[\s\S]{0,3000}?<div class="set-caption"[^>]*>dsh<\/div>[\s\S]{0,3000}?id="seedMarket"[\s\S]{0,2000}?id="profile"/,
-    '插件市场 / 启动 profile 现在挂在常规里',
+    /<section class="set-section" data-category="general"[\s\S]{0,3000}?<div class="set-caption"[^>]*>dsh<\/div>[\s\S]{0,3000}?id="seedMarket"[\s\S]{0,2000}?id="args"/,
+    '插件市场 / 额外启动参数现在挂在常规里',
   )
+  // 启动 profile 的入口挪到了插件页：插件就是按 profile 分的，选择器跟着插件走
+  assert.match(
+    html,
+    /<section class="pane[^"]*" id="pane-plugins"[\s\S]{0,1200}?<select id="profile"[^>]*>/,
+    '插件页能切 profile',
+  )
+  assert.doesNotMatch(
+    html,
+    /<section class="set-section" data-category="general"[\s\S]{0,4000}?<select id="profile"[^>]*>/,
+    '常规里不再重复一份 profile 选择器',
+  )
+  // 必须等这一次保存真的返回再重读：queueSetting 是排队异步的，等它返回不代表服务端已经换了 profile
+  assert.match(html, /await post\('\/api\/settings', \{ profile: value \}\)[\s\S]{0,240}?await loadPlugins\(\)/, '切换 profile 后等保存落地再重读插件列表')
   assert.match(html, /section\.hidden = section\.dataset\.category !== nextCategory/, '切换分类只显示对应设置')
   assert.match(html, /gearEl\.onclick = \(\) => showPane\(currentPane === 'settings' \? 'control' : 'settings', currentSettingsCategory\)/, '齿轮在设置与主界面间切换')
   assert.match(html, /const paneLoaders = \{ plugins: loadPlugins, settings: loadSettings \}/, '进面板时才按需加载')

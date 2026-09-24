@@ -1144,6 +1144,92 @@ async function addPlugin(version, spec) {
   }
 }
 
+// ---- 插件更新：查 registry 上的最新版本，按需升级 profile 里的包 ----
+// 升级复用 addPlugin（peer 404、目录链接读不了这两套回退都在里面），装和升走同一条路。
+const pluginUpdateCache = { at: 0, data: null }
+const PLUGIN_UPDATE_TTL = 60 * 1000
+const PLUGIN_UPDATE_CONCURRENCY = 4
+
+/** 跑 dsh plugin 命令用哪个版本：正在跑的优先，其次配置里最新那个装好的。 */
+async function pluginCommandVersion() {
+  if (current?.version) return current.version
+  const versions = listedVersions(await loadConfig()).filter((ver) => existsSync(binPath(ver)))
+  if (!versions.length) throw new Error('没有可用的 dsh 版本，插件页暂时用不了')
+  return versions[0]
+}
+
+/**
+ * 每个第三方插件在 registry 上的最新版本。官方组件（@deepseek-ai/*）跳过——那些版本由 dsh 决定。
+ * 插件多是预发布版，dist-tags.latest 不一定指向最新的那个，所以按版本号比出最大的一个。
+ */
+async function checkPluginUpdates({ force = false } = {}) {
+  const now = Date.now()
+  if (!force && pluginUpdateCache.data && now - pluginUpdateCache.at < PLUGIN_UPDATE_TTL) return pluginUpdateCache.data
+  const queue = listPlugins(profileDir()).plugins.filter((plugin) => !plugin.official)
+  const result = {}
+  await Promise.all(Array.from({ length: Math.min(PLUGIN_UPDATE_CONCURRENCY, queue.length) }, async () => {
+    while (queue.length) {
+      const plugin = queue.shift()
+      try {
+        const { versions, tags } = await listPackage(plugin.name)
+        const latest = versions[0] || ''
+        const parsed = latest && plugin.version ? cmpVer(parseVer(latest), parseVer(plugin.version)) : 0
+        result[plugin.name] = { current: plugin.version, latest, latestTag: tags.latest || '', hasUpdate: parsed > 0 }
+      } catch (error) {
+        // 某个包查不到就如实说查不到，别把整次检查拖挂（离线、私有包、镜像缺条目都会有）
+        result[plugin.name] = {
+          current: plugin.version,
+          latest: '',
+          hasUpdate: false,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      }
+    }
+  }))
+  const data = { checkedAt: new Date().toISOString(), plugins: result }
+  pluginUpdateCache.at = now
+  pluginUpdateCache.data = data
+  return data
+}
+
+/** 升一个插件到指定版本（缺省用最新版），升完回读磁盘确认版本真的换了。 */
+async function updatePlugin(name, { latest = '' } = {}) {
+  const plugin = listPlugins(profileDir()).plugins.find((item) => item.name === name)
+  if (!plugin) throw new Error(`这个 profile 里没有 ${name}`)
+  if (plugin.official) throw new Error(`${name} 是官方组件，版本跟着 dsh 走，不单独更新`)
+  const target = latest || (await checkPluginUpdates({ force: true })).plugins[name]?.latest
+  if (!target) throw new Error(`查不到 ${name} 的最新版本`)
+  if (plugin.version && cmpVer(parseVer(target), parseVer(plugin.version)) <= 0) {
+    return { name, from: plugin.version, to: plugin.version, changed: false }
+  }
+  pushLog(`更新插件 ${name}: ${plugin.version || '未知'} → ${target}`)
+  await addPlugin(await pluginCommandVersion(), `${name}@${target}`)
+  const after = listPlugins(profileDir()).plugins.find((item) => item.name === name)
+  // addPlugin 只保证命令成功：装完再回读一次，别把「命令没报错」当成「版本真的换了」
+  if (after?.version !== target) {
+    throw new Error(`${name} 装完是 ${after?.version || '未知'}，不是 ${target}（看终端日志；杀软拦截、store 异常都会这样）`)
+  }
+  pluginUpdateCache.at = 0
+  return { name, from: plugin.version, to: after.version, changed: true }
+}
+
+/** 依次更新所有可更新的插件：单个失败不影响其它，最后如实汇总。 */
+async function updateAllPlugins() {
+  const check = await checkPluginUpdates({ force: true })
+  const names = Object.entries(check.plugins).filter(([, info]) => info.hasUpdate).map(([name]) => name)
+  const done = []
+  const failed = []
+  for (const name of names) {
+    try {
+      done.push(await updatePlugin(name, { latest: check.plugins[name].latest }))
+    } catch (error) {
+      failed.push({ name, error: error instanceof Error ? error.message : String(error) })
+    }
+  }
+  return { checked: names.length, done, failed }
+}
+
+
 /**
  * profile 依赖自愈：dsh 报 `cannot resolve profile bundle "x"` 说明 profile 的
  * node_modules 里那个包不在（没装成，或 pnpm 中途被打断只留了断链），按 dsh 的
@@ -1845,6 +1931,14 @@ async function handleApi(req, res, url) {
     send(res, 200, { ...listPlugins(profileDir()), profile: PROFILE_NAME, autoFix: lastAutoFix })
     return
   }
+  if (req.method === 'GET' && url.pathname === '/api/plugins/updates') {
+    try {
+      send(res, 200, { ...(await checkPluginUpdates({ force: url.searchParams.get('refresh') === '1' })), profile: PROFILE_NAME })
+    } catch (error) {
+      send(res, 500, { error: error instanceof Error ? error.message : String(error) })
+    }
+    return
+  }
   if (req.method === 'GET' && url.pathname === '/api/events') {
     res.writeHead(200, {
       'content-type': 'text/event-stream',
@@ -1932,6 +2026,20 @@ async function handleApi(req, res, url) {
     const result = setPluginEnabled(profileDir(), name, enabled)
     pushLog(`插件 ${name} → ${enabled ? '启用' : '禁用'}${result.changed ? '' : '（无变化）'}`)
     send(res, 200, { ok: true, changed: result.changed, ...listPlugins(profileDir()), profile: PROFILE_NAME, autoFix: lastAutoFix })
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/plugins/update') {
+    try {
+      const result = body.all ? await updateAllPlugins() : await updatePlugin(String(body.name || ''))
+      pushLog(body.all
+        ? `插件更新完成：成功 ${result.done.length} 个${result.failed.length ? `，失败 ${result.failed.length} 个` : ''}（重启 dsh 后生效）`
+        : `${result.name} ${result.changed ? `已更新到 ${result.to}` : '已是最新'}（重启 dsh 后生效）`)
+      send(res, 200, { ok: true, ...result, ...listPlugins(profileDir()), profile: PROFILE_NAME, autoFix: lastAutoFix })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      pushLog(`插件更新失败：${message}`)
+      send(res, 400, { error: message })
+    }
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/wake') {

@@ -259,8 +259,8 @@
       box-shadow: 0 3px 10px rgba(59, 111, 224, 0.12);
       opacity: 0;
       pointer-events: none;
-      transition: transform 200ms cubic-bezier(.22, 1, .36, 1), width 200ms cubic-bezier(.22, 1, .36, 1),
-        height 200ms cubic-bezier(.22, 1, .36, 1), opacity 140ms ease;
+      transition: transform 260ms cubic-bezier(.2, 1.3, .32, 1), width 260ms cubic-bezier(.2, 1.3, .32, 1),
+        height 260ms cubic-bezier(.2, 1.3, .32, 1), opacity 160ms ease;
     }
     .nav-pill.on { opacity: 1; }
     .nav-pill.instant { transition: none; }
@@ -863,10 +863,42 @@
     .plugin-row.off .plugin-name { color: var(--muted); font-weight: 500; }
     .plugin-row.off .plugin-meta { opacity: 0.75; }
     .plugin-row input:disabled { opacity: 0.4; cursor: not-allowed; }
-    .plugin-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+    /* 撑满剩余宽度：这样行里的「更新到 …」和右侧开关会贴在一起、每行都对齐到右边，
+       不然 space-between 会把它挤在行中间，位置还随说明文字长短变化 */
+    .plugin-main { flex: 1 1 auto; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
     .plugin-name { color: var(--text); font-weight: 600; font-size: 14px; letter-spacing: 0; overflow-wrap: anywhere; }
     .plugin-meta { color: var(--muted); font-size: 12px; letter-spacing: 0; overflow-wrap: anywhere; }
     .plugin-empty { color: var(--muted); font-size: 13px; padding: 10px 8px; }
+    .plugin-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+    /* 顶栏里的 profile 下拉：和旁边的 ghost 按钮同高、同字号、同圆角，排成一行才齐。
+       顶部按钮还有一条 .pane-top .ghost 的 4px 下移微调，这里得跟上，否则下拉比按钮高 2px */
+    .plugin-actions select {
+      width: auto;
+      min-width: 76px;
+      max-width: 170px;
+      height: 30px;
+      margin: 4px 0 0;
+      padding: 0 25px 0 11px;
+      font-size: 12px;
+      line-height: 1;
+      border-radius: 999px;
+      background-position: right 10px center;
+    }
+    /* 行内「更新到 x.y.z」：比 .ghost 再小一档，别把插件名挤走 */
+    .plugin-update {
+      flex: 0 0 auto;
+      border: 1px solid #c7d8f7;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font: inherit;
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: background 140ms ease, border-color 140ms ease;
+    }
+    .plugin-update:hover:not(:disabled) { background: var(--accent-dim); border-color: #b9ccf0; }
+    .plugin-update:disabled { opacity: 0.5; cursor: default; }
     /* 细滚动条：默认亮灰条在浅色面板上太抢眼，统一成淡蓝灰 */
     .select-panel, .plugin-list, #log, .pane, .settings-nav { scrollbar-width: thin; scrollbar-color: #c3d3ee transparent; }
     .select-panel::-webkit-scrollbar, .plugin-list::-webkit-scrollbar, #log::-webkit-scrollbar,
@@ -1130,7 +1162,12 @@
                 <h1 class="pane-title" data-i18n="插件">插件</h1>
                 <p class="pane-sub" id="pluginSub">web profile</p>
               </div>
-              <button class="ghost" id="pluginRefresh" type="button" data-i18n="刷新">刷新</button>
+              <div class="plugin-actions">
+                <select id="profile" title="dsh 下次启动用哪个 profile；插件和插件配置按 profile 分开，会话与记忆是共享的。"></select>
+                <button class="ghost" id="pluginCheckUpdates" type="button" data-i18n="检查更新">检查更新</button>
+                <button class="ghost" id="pluginUpdateAll" type="button" hidden data-i18n="全部更新">全部更新</button>
+                <button class="ghost" id="pluginRefresh" type="button" data-i18n="刷新">刷新</button>
+              </div>
             </div>
             <div class="plugin-list" id="pluginList"></div>
             <p class="hint" id="pluginHint"></p>
@@ -1200,13 +1237,6 @@
                   </span>
                   <input id="autoDisable" type="checkbox" />
                 </label>
-                <div class="set-row">
-                  <div class="set-text">
-                    <span class="set-name" data-i18n="启动 profile">启动 profile</span>
-                    <span class="set-desc" data-i18n="下次启动 dsh 时使用哪个 profile；插件和数据按 profile 分开。">下次启动 dsh 时使用哪个 profile；插件和数据按 profile 分开。</span>
-                  </div>
-                  <div class="set-control"><select id="profile"></select></div>
-                </div>
                 <div class="set-row stacked">
                   <div class="set-text">
                     <span class="set-name" data-i18n="额外启动参数">额外启动参数</span>
@@ -1448,7 +1478,6 @@
   "常规": "General",
   "启动失败时自动禁用出问题的插件再试一次，免得 dsh 起不来。": "If dsh fails to start, disable the plugins that broke it and try again, so dsh still comes up.",
   "启动器和 dsh 的输出日志。": "Output from the launcher and dsh.",
-  "下次启动 dsh 时使用哪个 profile；插件和数据按 profile 分开。": "Choose the profile for the next dsh launch; plugins and data are separate for each profile.",
   "登录 Windows 后自动把启动器跑起来。": "Start the launcher automatically after you sign in to Windows.",
   "目录与端口": "Folders and ports",
   "管理页监听的端口。": "The port the manager listens on.",
@@ -1460,6 +1489,22 @@
   "更新 {latest}": "Update {latest}",
   "升级会先停掉正在运行的 dsh，再下载安装新版本。插件由第三方维护、通常滞后于 dsh，新版本可能让插件失效或页面打不开（插件市场就出过这种情况）。已装的其他版本会保留，随时可以切回。": "Upgrading stops the running dsh, then downloads and installs the new version. Plugins are maintained by third parties and usually lag behind dsh, so a new version can break them or stop a page from opening (that happened to the plugin market). Other installed versions are kept, so you can switch back any time.",
   "更新启动器": "Update launcher",
+  "检查更新": "Check for updates",
+  "已切到 profile {name}，dsh 下次启动用它。": "Switched to profile {name}; dsh will use it on the next start.",
+  "全部更新": "Update all",
+  "全部更新（{n}）": "Update all ({n})",
+  "正在检查插件更新…": "Checking plugin updates…",
+  "检查完成：{count} 个插件可更新。": "Done: {count} plugin(s) can be updated.",
+  "检查完成：插件都是最新的。": "Done: every plugin is up to date.",
+  "（{n} 个查不到远程版本）": " ({n} could not be looked up)",
+  "可更新到 {latest}": "Update available: {latest}",
+  "查不到远程版本": "remote version unknown",
+  "正在更新 {name}…": "Updating {name}…",
+  "正在更新插件…": "Updating plugins…",
+  "{name} 已更新到 {latest}，重启 dsh 后生效。": "{name} updated to {latest}; restart dsh to apply.",
+  "{name} 已经是最新版本。": "{name} is already up to date.",
+  "{ok} 个插件已更新，重启 dsh 后生效。": "{ok} plugin(s) updated; restart dsh to apply.",
+  "更新了 {ok} 个，{failed} 个失败（{names}），重启 dsh 后生效。": "Updated {ok}, {failed} failed ({names}); restart dsh to apply.",
   "更新启动器到 {latest}": "Update the launcher to {latest}",
   "更多版本…（还有 {n} 个）": "More versions… ({n} left)",
   "卸载 {version}？插件和数据会保留。": "Uninstall {version}? Plugins and data are kept.",
@@ -1830,7 +1875,7 @@
         const enterAnimation = pane.animate([
           { opacity: 0, transform: `translateX(${direction * 48}px)` },
           { opacity: 1, transform: 'translateX(0)' },
-        ], { duration: 210, easing: 'cubic-bezier(.22, 1, .36, 1)', fill: 'both' })
+        ], { duration: 260, easing: 'cubic-bezier(.2, 1.3, .32, 1)', fill: 'both' })
         activePaneAnimation = enterAnimation
         enterAnimation.finished.then(() => {
           if (activePaneAnimation === enterAnimation) {
@@ -2869,7 +2914,22 @@
         queueSetting(key, input.checked)
       }
     })
-    profileEl.onchange = () => queueSetting('profile', profileEl.value)
+    profileEl.onchange = async () => {
+      const value = profileEl.value
+      profileEl.disabled = true
+      try {
+        // 直接等这一次保存返回：queueSetting 是排队异步的，等它「返回」并不代表服务端已经换了 profile
+        await post('/api/settings', { profile: value })
+        // 插件页显示的就是这个 profile 的插件：切完立刻重读，别让人对着一份旧列表
+        pluginHintEl.textContent = t('已切到 profile {name}，dsh 下次启动用它。', { name: value })
+        await loadPlugins()
+        await refreshPluginUpdates({ force: true, quiet: true }).catch(() => {})
+      } catch (error) {
+        pluginHintEl.textContent = error.message
+      } finally {
+        profileEl.disabled = false
+      }
+    }
     argsEl.oninput = () => {
       clearTimeout(argsSaveTimer)
       argsSaveTimer = setTimeout(() => {
@@ -2901,7 +2961,13 @@
     const pluginHintEl = document.getElementById('pluginHint')
     const pluginSubEl = document.getElementById('pluginSub')
     const pluginRefreshEl = document.getElementById('pluginRefresh')
+    const pluginCheckEl = document.getElementById('pluginCheckUpdates')
+    const pluginUpdateAllEl = document.getElementById('pluginUpdateAll')
     let pluginsLoaded = false
+    // 插件更新：name → { current, latest, hasUpdate, error? }（服务端查 registry，页面上只做展示）
+    let pluginUpdates = {}
+    let pluginListData = null
+    let pluginUpdating = ''
 
     function escapeHtml(value) {
       return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
@@ -2927,10 +2993,13 @@
         return
       }
       pluginListEl.innerHTML = list.map((plugin) => {
+        const update = pluginUpdates[plugin.name]
         const meta = [
           plugin.version ? `v${plugin.version}` : '',
           plugin.ids?.length ? t('行 {ids}', { ids: plugin.ids.join(', ') }) : '',
           plugin.enabled ? '' : t('已禁用'),
+          update?.hasUpdate ? t('可更新到 {latest}', { latest: update.latest }) : '',
+          update?.error ? t('查不到远程版本') : '',
           plugin.toggleable ? '' : t(plugin.reason || ''),
         ].filter(Boolean).join(' · ')
         return `<label class="toggle plugin-row${plugin.enabled ? '' : ' off'}" title="${escapeHtml(plugin.reason || plugin.name)}">
@@ -2938,12 +3007,27 @@
             <span class="plugin-name">${escapeHtml(plugin.name)}</span>
             <span class="plugin-meta">${escapeHtml(meta)}</span>
           </span>
+          ${update?.hasUpdate ? `<button class="plugin-update" type="button" data-update="${escapeHtml(plugin.name)}" ${pluginUpdating ? 'disabled' : ''}>${escapeHtml(t('更新到 {latest}', { latest: update.latest }))}</button>` : ''}
           <input type="checkbox" data-plugin="${escapeHtml(plugin.name)}" ${plugin.enabled ? 'checked' : ''} ${plugin.toggleable ? '' : 'disabled'} />
         </label>`
       }).join('')
       pluginListEl.querySelectorAll('input[data-plugin]').forEach((el) => {
         el.onchange = () => { void togglePlugin(el.dataset.plugin, el.checked) }
       })
+      pluginListEl.querySelectorAll('button[data-update]').forEach((el) => {
+        el.onclick = (event) => {
+          // 整行是个 label（点哪都能开关），按钮的点击不能顺带把插件关掉
+          event.preventDefault()
+          event.stopPropagation()
+          void updatePlugin(el.dataset.update)
+        }
+      })
+      if (pluginUpdateAllEl) {
+        const pending = list.filter((plugin) => pluginUpdates[plugin.name]?.hasUpdate).length
+        pluginUpdateAllEl.hidden = pending === 0
+        if (pending) pluginUpdateAllEl.textContent = t('全部更新（{n}）', { n: pending })
+        else pluginUpdateAllEl.textContent = t('全部更新')
+      }
     }
 
     async function togglePlugin(name, enabled) {
@@ -2961,7 +3045,10 @@
 
     function loadPlugins() {
       return getJson('/api/plugins').then((data) => {
+        pluginListData = data
         renderPlugins(data)
+        // 版本信息拿到后再查一次 registry：查不到（离线/私有包）就静默跳过，别打扰
+        void refreshPluginUpdates({ quiet: true }).catch(() => {})
         const names = (data.autoFix?.plugins || []).map((item) => item.name || item.id).filter(Boolean)
         if (names.length) pluginHintEl.textContent = t('上次启动自动禁用了：{names}（认为没问题可在上面重新打开）。', { names: names.join('、') })
         else if (!pluginsLoaded) pluginHintEl.textContent = ''
@@ -2972,7 +3059,98 @@
     pluginRefreshEl.onclick = async () => {
       pluginRefreshEl.disabled = true
       await loadPlugins()
+      await refreshPluginUpdates({ force: true })
       pluginRefreshEl.disabled = false
+    }
+
+    function pluginButtons(list = [pluginCheckEl, pluginUpdateAllEl, pluginRefreshEl]) {
+      for (const el of list) if (el) el.disabled = Boolean(pluginUpdating)
+    }
+
+    /** 拉一次更新检查结果；force=true 会绕过服务端 60s 缓存。 */
+    async function refreshPluginUpdates({ force = false, quiet = false } = {}) {
+      if (force && !quiet) pluginHintEl.textContent = t('正在检查插件更新…')
+      const url = force ? '/api/plugins/updates?refresh=1' : '/api/plugins/updates'
+      const data = await fetch(url).then((res) => res.json())
+      pluginUpdates = data.plugins || {}
+      if (pluginListData) renderPlugins(pluginListData)
+      if (!quiet) {
+        const all = Object.values(pluginUpdates)
+        const pending = all.filter((info) => info.hasUpdate).length
+        const failed = all.filter((info) => info.error).length
+        pluginHintEl.textContent = pending
+          ? t('检查完成：{count} 个插件可更新。', { count: pending })
+          : t('检查完成：插件都是最新的。')
+        if (failed && !pending) pluginHintEl.textContent += t('（{n} 个查不到远程版本）', { n: failed })
+      }
+      return pluginUpdates
+    }
+
+    async function updatePlugin(name) {
+      if (pluginUpdating) return
+      pluginUpdating = name
+      pluginButtons()
+      pluginHintEl.textContent = t('正在更新 {name}…', { name })
+      try {
+        const data = await post('/api/plugins/update', { name })
+        pluginListData = data
+        renderPlugins(data)
+        await refreshPluginUpdates({ force: true, quiet: true })
+        renderPlugins(data)
+        pluginHintEl.textContent = data.changed
+          ? t('{name} 已更新到 {latest}，重启 dsh 后生效。', { name, latest: data.to })
+          : t('{name} 已经是最新版本。', { name })
+      } catch (error) {
+        pluginHintEl.textContent = error.message
+        await loadPlugins()
+      } finally {
+        pluginUpdating = ''
+        pluginButtons()
+      }
+    }
+
+    async function updateAllPlugins() {
+      if (pluginUpdating) return
+      pluginUpdating = '*'
+      pluginButtons()
+      pluginHintEl.textContent = t('正在更新插件…')
+      try {
+        const data = await post('/api/plugins/update', { all: true })
+        pluginListData = data
+        renderPlugins(data)
+        await refreshPluginUpdates({ force: true, quiet: true })
+        renderPlugins(data)
+        const failed = (data.failed || []).length
+        pluginHintEl.textContent = failed
+          ? t('更新了 {ok} 个，{failed} 个失败（{names}），重启 dsh 后生效。', {
+            ok: (data.done || []).length,
+            failed,
+            names: (data.failed || []).map((item) => item.name).join('、'),
+          })
+          : t('{ok} 个插件已更新，重启 dsh 后生效。', { ok: (data.done || []).length })
+      } catch (error) {
+        pluginHintEl.textContent = error.message
+        await loadPlugins()
+      } finally {
+        pluginUpdating = ''
+        pluginButtons()
+      }
+    }
+
+    if (pluginCheckEl) {
+      pluginCheckEl.onclick = async () => {
+        pluginCheckEl.disabled = true
+        try {
+          await refreshPluginUpdates({ force: true })
+        } catch (error) {
+          pluginHintEl.textContent = error.message
+        } finally {
+          pluginButtons()
+        }
+      }
+    }
+    if (pluginUpdateAllEl) {
+      pluginUpdateAllEl.onclick = () => { void updateAllPlugins() }
     }
 
     applyLang()
