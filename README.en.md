@@ -63,6 +63,8 @@ If that happens:
 
 Install [DSH-Setup.exe](https://github.com/yyh-001/DSH-X/releases/latest) on Windows, then open **DSH-X** from the desktop. Both the manager page and DSH's own web page open in your default browser. The manager defaults to `http://127.0.0.1:3780/` (the port can be changed on the settings page; restart the launcher to apply it).
 
+dsh's web UI binds to this machine only (`127.0.0.1`) by default. To let a phone or another computer reach it: settings page → Advanced → **Web binding** → pick "LAN (0.0.0.0)"; it applies the next time dsh starts. When the remote-access plugin's LAN switch is on, the launcher treats it as LAN too (it stops injecting `--host`).
+
 ## Development
 
 Needs Node.js 22.18+ locally (official DSH: `^22.19.0 || >=24`).

@@ -511,6 +511,17 @@ fn main() {
     let node = root.join("node").join("node.exe");
     let script = root.join("start.js");
 
+    // 用户在 DSH.exe 上带的参数：原样转给 start.js（server.js 会把它们拼到 dsh
+    // 命令行末尾），不再静默忽略。开头那个不带 `-` 的是 dsh 式调用里的 profile 名
+    // （`DSH.exe web --host …`），启动 profile 由设置页决定，这里把它丢掉，只透传
+    // flag。唤醒已有实例的那条路上参数会随本进程退出作废——那个实例已经在跑了。
+    let mut forwarded: Vec<String> = std::env::args().skip(1).collect();
+    if let Some(first) = forwarded.first() {
+        if !first.starts_with('-') {
+            forwarded.remove(0);
+        }
+    }
+
     // 已经有实例在跑就别再走后面那一套了。否则会先建出一个窗口、再拉一次 node 和
     // WebView2，等发现端口被占才收摊——用户看到的就是一个多余的窗口闪一下。
     // 直接让那个实例把窗口叫出来就完事（它的 node 收到 /api/wake 会回信号给我们）。
@@ -530,6 +541,7 @@ fn main() {
         let mut command = Command::new(&node);
         command
             .arg(&script)
+            .args(&forwarded)
             .current_dir(&root)
             .env("PATH", &path)
             // stdout 走管道：node 用一行约定标记叫我们把窗口叫到前面

@@ -21,12 +21,14 @@ import {
   DEFAULT_PORT,
   ensureSettings,
   ensureWritableDir,
+  lanBindToggleOn,
   loadSettings,
   loadSettingsSync,
   parseArgs,
   resolveDataDir,
   resolvePort,
   resolveProfile,
+  resolveWebBind,
   safeDataDir,
   safeLang,
   safeTheme,
@@ -34,6 +36,7 @@ import {
   safePort,
   safeProfile,
   safeArgs,
+  safeWebBind,
   saveSettings,
   setAutoStart,
 } from './settings.js'
@@ -73,8 +76,18 @@ const READY_RE = /dsh web:\s+(https?:\/\/[^\s]+)/
 const START_TIMEOUT_MS = 120_000
 // 启动 profile：设置页可改，startServer() 里按设置定值
 let PROFILE_NAME = resolveProfile()
+// DSH.exe 命令行上传进来的参数：Rust 启动器原样转发给 start.js，这里拼进 dsh
+// 命令行末尾——不再静默忽略。只在经由 start.js 启动时认，免得把测试/开发时
+// node 自己的 argv 误当成用户参数。
+const CLI_ARGS = /start\.js$/i.test(process.argv[1] || '') ? process.argv.slice(2) : []
 // 额外启动参数：用户自己加的 argv，拼在命令行末尾（设置页可改）
-let EXTRA_ARGS = parseArgs(loadSettingsSync().args)
+let EXTRA_ARGS = composeExtraArgs(loadSettingsSync().args)
+// Web 绑定方式：loopback（默认）/ lan。lan 时启动 web 不注入 --host/--port，
+// 绑定交给配置层（远程访问插件的「局域网访问」开关写的 profile 补丁块）决定
+let WEB_BIND = resolveWebBind()
+// 远程访问插件的「局域网访问」开关（读 dsh 的 settings.yaml）：开着时同样不注入
+// --host，否则命令行显式 --host 永远压着插件的开关和补丁块（详见 lanBindToggleOn）
+let LAN_TOGGLE = false
 // 界面语言（zh / en）：settings.json 为准；安装时选的语言写在安装目录 lang.txt，启动时对齐一次
 const INSTALL_LANG = join(ROOT, 'lang.txt')
 let LANG = safeLang(loadSettingsSync().lang) || installLang() || 'zh'
@@ -553,6 +566,9 @@ async function publicSettings() {
     reduceMotion: REDUCE_MOTION,
     hideBackground: HIDE_BACKGROUND,
     hideBigFish: HIDE_BIG_FISH,
+    // Web 绑定：设置值 + 插件开关是否压着它（页面要如实说明当前生效的是哪一个）
+    webBind: WEB_BIND,
+    webBindLan: LAN_TOGGLE,
   }
 }
 
@@ -568,6 +584,7 @@ async function saveManagerSettings(body) {
     ...('port' in body ? { port: safePort(body.port) } : {}),
     ...('profile' in body ? { profile: safeProfile(body.profile) } : {}),
     ...('args' in body ? { args: safeArgs(body.args) } : {}),
+    ...('webBind' in body ? { webBind: safeWebBind(body.webBind) } : {}),
     ...('lang' in body ? { lang: safeLang(body.lang) } : {}),
     ...('theme' in body ? { theme: safeTheme(body.theme) } : {}),
     ...('panelTransparency' in body ? { panelTransparency: safePanelTransparency(body.panelTransparency) } : {}),
@@ -586,7 +603,9 @@ async function saveManagerSettings(body) {
     }
   }
   // profile 立即生效：插件页、启动参数、npmrc 都读这个变量（已经在跑的 dsh 不受影响）
-  EXTRA_ARGS = parseArgs(stored.args)
+  EXTRA_ARGS = composeExtraArgs(stored.args)
+  WEB_BIND = safeWebBind(stored.webBind)
+  LAN_TOGGLE = lanBindToggleOn(homeDir())
   if (safeLang(stored.lang)) LANG = safeLang(stored.lang)
   THEME = safeTheme(stored.theme)
   PANEL_TRANSPARENCY = safePanelTransparency(stored.panelTransparency)
@@ -688,8 +707,29 @@ function profileDir() {
   return join(homeDir(), 'profiles', PROFILE_NAME)
 }
 
+/**
+ * 当前是否按局域网绑定：设置里选了局域网，或远程访问插件的「局域网访问」开关
+ * 开着。两者都是用户明确的局域网意图，任一条成立启动器就不再注入 --host。
+ * 纯函数（参数缺省取模块状态），方便单测。
+ */
+export function lanBindActive(webBind = WEB_BIND, toggle = LAN_TOGGLE) {
+  return webBind === 'lan' || toggle === true
+}
+
+/** 设置页的额外启动参数 + DSH.exe 命令行传来的参数，后者拼在后面（更具体，覆盖前者）。 */
+function composeExtraArgs(settingsText) {
+  return [...parseArgs(settingsText), ...CLI_ARGS]
+}
+
 /** dsh 启动参数。 */
 function bootArgs() {
+  if (lanBindActive()) {
+    // 局域网：--host/--port 一个都不传。CLI 硬禁 --host 0.0.0.0，绑定只能走配置层
+    // （远程插件的 lan-bind 开关写进 profile 补丁的 webserver 块）；--port 0 也一样
+    // 会压过配置层，把插件钉好的端口抹成随机值，所以一并交给配置层决定。
+    return [PROFILE_NAME, '--no-open', ...EXTRA_ARGS]
+  }
+  // 默认姿势：钉死回环 + 让 OS 挑端口（端口冲突顺延是 dsh 输出的事，启动器读真实地址）。
   // 额外参数放最后：用户可以用它覆盖 --port 之类（启动器是从 dsh 的输出里读真实地址的，
   // 所以换个端口也不影响管理页拿到的链接）
   return [PROFILE_NAME, '--host', '127.0.0.1', '--port', '0', '--no-open', ...EXTRA_ARGS]
@@ -1506,7 +1546,7 @@ async function selfCheckPage(url, version) {
 async function bootOnce(ver) {
   await mkdir(homeDir(), { recursive: true })
   await seedMarket(ver)
-  pushLog(`启动 ${ver} · profile ${PROFILE_NAME}`)
+  pushLog(`启动 ${ver} · profile ${PROFILE_NAME}${lanBindActive() ? ' · Web 绑定 局域网(0.0.0.0，由配置层决定)' : ''}`)
   const child = spawnDsh(ver, bootArgs())
   const proc = attachProcess(ver, child)
   await emitState()
@@ -2083,7 +2123,11 @@ export async function startServer() {
   // 设置页改过端口 / profile 的话，这里拿到的就是新值（PORT 环境变量仍然优先，测试用）
   if (!process.env.PORT) PORT = resolvePort()
   PROFILE_NAME = resolveProfile()
-  EXTRA_ARGS = parseArgs((await loadSettings()).args)
+  EXTRA_ARGS = composeExtraArgs((await loadSettings()).args)
+  WEB_BIND = resolveWebBind()
+  // 远程插件的「局域网访问」开关：开着时启动 web 不注入 --host（每次起管理器读一次）
+  LAN_TOGGLE = lanBindToggleOn(homeDir())
+  if (CLI_ARGS.length) pushLog(`DSH.exe 传入启动参数：${CLI_ARGS.join(' ')}`)
   const stored = await loadSettings()
   // 安装/升级时选过语言就以它为准，否则用设置里存的
   const fromInstall = installLang()

@@ -51,6 +51,9 @@ export async function ensureWritableDir(dir) {
 /** dsh 的启动 profile（一个 profile 一套插件和数据），默认 web。 */
 export const DEFAULT_PROFILE = 'web'
 
+/** Web 绑定方式：loopback（回环，默认）/ lan（局域网，不注入 --host，交给配置层决定）。 */
+export const DEFAULT_WEB_BIND = 'loopback'
+
 export const DEFAULTS = {
   dataDir: '',
   port: DEFAULT_PORT,
@@ -64,6 +67,9 @@ export const DEFAULTS = {
   hideBigFish: false,
   // 额外启动参数（一行文本，空格分词，含空格的值用引号包起来）
   args: '',
+  // dsh web 的绑定方式：loopback 注入 --host 127.0.0.1（默认）；lan 不注入，
+  // 由配置层（远程访问插件的「局域网访问」开关写的 profile 补丁块）决定 0.0.0.0
+  webBind: DEFAULT_WEB_BIND,
   autoStart: false,
   seedMarket: true,
   // 启动失败时按错误点名自动禁用问题插件（兼容模式），再重试
@@ -161,6 +167,55 @@ export function safePanelTransparency(value) {
   return Number.isFinite(number) ? Math.max(0, Math.min(100, Math.round(number))) : DEFAULTS.panelTransparency
 }
 
+/**
+ * Web 绑定方式：只认 loopback / lan（顺手收下 127.0.0.1 / 0.0.0.0 两种写法），
+ * 别的值一律抛错——和端口、profile 一样，显式填错要让用户知道。
+ */
+export function safeWebBind(value) {
+  const mode = String(value ?? '').trim().toLowerCase()
+  if (mode === 'loopback' || mode === '127.0.0.1') return 'loopback'
+  if (mode === 'lan' || mode === '0.0.0.0') return 'lan'
+  throw new Error('Web 绑定只能选 回环(loopback) 或 局域网(lan)')
+}
+
+/**
+ * 远程访问插件（@linxin666/dsh-remote-web-ui）的「局域网访问」开关有没有开。
+ *
+ * 插件把开关存在 dsh 的设置文件里（`<dsh home>/settings.yaml` 的
+ * `remote-web-ui.lanBind`）。启动器读它只为了一件事：开关开着时启动 web 不再
+ * 注入 `--host 127.0.0.1`——命令行显式 --host 在 dsh 里优先于配置层，注入了
+ * 回环地址，插件的开关和补丁块就永远赢不了，手机/其他电脑也就连不上。
+ *
+ * 没有 YAML 依赖，只在这一个文件里找这一个键：定位顶层 `remote-web-ui:` 段，
+ * 在它的子行里找 `lanBind:`。读不到、格式不认识、插件没装，都当没开——
+ * 启动器不依赖任何第三方插件存在。
+ */
+export function lanBindToggleOn(home) {
+  let text = ''
+  try {
+    text = readFileSync(join(home, 'settings.yaml'), 'utf8')
+  } catch {
+    return false
+  }
+  let inSection = false
+  for (const line of text.split(/\r?\n/)) {
+    if (!line.trim() || /^\s*#/.test(line)) continue
+    const indent = line.length - line.trimStart().length
+    if (!inSection) {
+      if (indent === 0 && /^remote-web-ui\s*:/.test(line)) inSection = true
+      continue
+    }
+    // 缩进回落到顶层（或更浅）说明这个段结束了
+    if (indent <= 0) break
+    const match = /^\s*lanBind\s*:\s*(.+?)\s*$/.exec(line)
+    if (match) {
+      const value = match[1].replace(/^['"]|['"]$/g, '')
+      return /^(?:true|yes|on|1)$/i.test(value)
+    }
+  }
+  return false
+}
+
 /** 管理页端口：环境变量 PORT（开发和测试用）优先，其次 settings.json。 */
 export function resolvePort() {
   const fromEnv = Number(process.env.PORT || 0)
@@ -169,6 +224,15 @@ export function resolvePort() {
     return safePort(loadSettingsSync().port)
   } catch {
     return DEFAULT_PORT
+  }
+}
+
+/** Web 绑定方式：设置文件里的脏值退回默认（回环），和端口、profile 一个口径。 */
+export function resolveWebBind() {
+  try {
+    return safeWebBind(loadSettingsSync().webBind)
+  } catch {
+    return DEFAULT_WEB_BIND
   }
 }
 
@@ -258,6 +322,13 @@ export async function saveSettings(patch) {
   merged.reduceMotion = merged.reduceMotion === true
   merged.hideBackground = merged.hideBackground === true
   merged.hideBigFish = merged.hideBigFish === true
+  // 同 webBind：脏值顺手修回默认（回环），显式改绑定方式时才把错误抛给调用方
+  try {
+    merged.webBind = safeWebBind(merged.webBind)
+  } catch {
+    merged.webBind = DEFAULT_WEB_BIND
+  }
+  if ('webBind' in patch) merged.webBind = safeWebBind(patch.webBind)
   merged.autoStart = Boolean(merged.autoStart)
   merged.seedMarket = merged.seedMarket !== false
   merged.autoDisablePlugins = merged.autoDisablePlugins !== false

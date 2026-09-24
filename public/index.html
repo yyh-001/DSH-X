@@ -1240,7 +1240,7 @@
                 <div class="set-row stacked">
                   <div class="set-text">
                     <span class="set-name" data-i18n="额外启动参数">额外启动参数</span>
-                    <span class="set-desc" data-i18n="追加到 dsh 命令行末尾（空格分词，含空格的值用引号包起来）。已装的插件、数据不受影响。">追加到 dsh 命令行末尾（空格分词，含空格的值用引号包起来）。已装的插件、数据不受影响。</span>
+                    <span class="set-desc" data-i18n="追加到 dsh 命令行末尾（空格分词，含空格的值用引号包起来）；DSH.exe 命令行上带的参数排在这些之后，更具体、可覆盖前者。已装的插件、数据不受影响。">追加到 dsh 命令行末尾（空格分词，含空格的值用引号包起来）；DSH.exe 命令行上带的参数排在这些之后，更具体、可覆盖前者。已装的插件、数据不受影响。</span>
                   </div>
                   <div class="set-control">
                     <input id="args" type="text" spellcheck="false" autocomplete="off" placeholder="例如：--log-level debug" />
@@ -1316,6 +1316,19 @@
                     <p class="hint" id="portHint"></p>
                   </div>
                   <input id="port" type="number" min="1" max="65535" step="1" inputmode="numeric" />
+                </div>
+                <div class="set-row">
+                  <div class="set-text">
+                    <span class="set-name" data-i18n="Web 绑定">Web 绑定</span>
+                    <span class="set-desc" data-i18n="回环：只有本机能访问（默认）。局域网：启动器不再固定注入 --host 127.0.0.1，实际绑定由远程访问插件的「局域网访问」开关（或 profile 补丁）决定，手机/其他电脑才能连上。">回环：只有本机能访问（默认）。局域网：启动器不再固定注入 --host 127.0.0.1，实际绑定由远程访问插件的「局域网访问」开关（或 profile 补丁）决定，手机/其他电脑才能连上。</span>
+                    <p class="hint" id="webBindHint"></p>
+                  </div>
+                  <div class="set-control">
+                    <select id="webBind">
+                      <option value="loopback" data-i18n="回环（127.0.0.1）">回环（127.0.0.1）</option>
+                      <option value="lan" data-i18n="局域网（0.0.0.0）">局域网（0.0.0.0）</option>
+                    </select>
+                  </div>
                 </div>
                 <div class="set-row stacked">
                   <div class="set-text">
@@ -1399,7 +1412,13 @@
   "日志": "Logs",
   "返回": "Back",
   "设置": "Settings",
-  "追加到 dsh 命令行末尾（空格分词，含空格的值用引号包起来）。已装的插件、数据不受影响。": "Appended to the end of the dsh command line (split on spaces; quote values with spaces). Installed plugins and data are unaffected.",
+  "追加到 dsh 命令行末尾（空格分词，含空格的值用引号包起来）；DSH.exe 命令行上带的参数排在这些之后，更具体、可覆盖前者。已装的插件、数据不受影响。": "Appended to the end of the dsh command line (split on spaces; quote values with spaces). Arguments passed on the DSH.exe command line come after these and are more specific, so they win. Installed plugins and data are unaffected.",
+  "Web 绑定": "Web binding",
+  "回环（127.0.0.1）": "Loopback (127.0.0.1)",
+  "局域网（0.0.0.0）": "LAN (0.0.0.0)",
+  "回环：只有本机能访问（默认）。局域网：启动器不再固定注入 --host 127.0.0.1，实际绑定由远程访问插件的「局域网访问」开关（或 profile 补丁）决定，手机/其他电脑才能连上。": "Loopback: this machine only (default). LAN: the launcher stops injecting --host 127.0.0.1, and the remote-access plugin's LAN switch (or the profile patch) decides the bind, so phones and other computers can connect.",
+  "远程访问插件的「局域网访问」开关已打开，当前按局域网处理（启动器不注入 --host）。想只允许本机访问，去 dsh 设置里关掉那个开关。": "The remote-access plugin's LAN switch is on, so this runs as LAN (the launcher injects no --host). To allow this machine only, turn that switch off in the dsh settings.",
+  "已保存。Web 绑定更改在下次启动 dsh 时生效。": "Saved. The Web binding change takes effect the next time dsh starts.",
   "重启": "Restart",
   "额外启动参数": "Extra startup arguments",
   "界面语言": "Interface language",
@@ -2701,6 +2720,8 @@
     const portHint = document.getElementById('portHint')
     const argsEl = document.getElementById('args')
     const uiLangEl = document.getElementById('uiLang')
+    const webBindEl = document.getElementById('webBind')
+    const webBindHintEl = document.getElementById('webBindHint')
     const themeEls = [...document.querySelectorAll('input[name="theme"]')]
     const panelTransparencyEl = document.getElementById('panelTransparency')
     const panelTransparencyValueEl = document.getElementById('panelTransparencyValue')
@@ -2772,6 +2793,13 @@
         dataDirEl.value = String(data.dataDir ?? '')
         // 一次说清三件事：这是什么的目录、插件和 profile 不归它管、已装的版本不会搬家
         dataDirHint.textContent = t('dsh 各版本装在这里（几百 MB 一个）；插件和 profile 仍在 {home}，已装版本不自动迁移。', { home: data.dshHome || '~/.dsh' })
+      }
+      if ('webBind' in data) webBindEl.value = data.webBind === 'lan' ? 'lan' : 'loopback'
+      // 远程访问插件的「局域网访问」开关压着设置值时如实说明，别让用户以为选错了没生效
+      if (webBindHintEl) {
+        webBindHintEl.textContent = data.webBindLan
+          ? t('远程访问插件的「局域网访问」开关已打开，当前按局域网处理（启动器不注入 --host）。想只允许本机访问，去 dsh 设置里关掉那个开关。')
+          : ''
       }
       if ('autoStart' in data) autoStartEl.checked = Boolean(data.autoStart)
       if ('seedMarket' in data) seedMarketEl.checked = data.seedMarket !== false
@@ -2865,6 +2893,8 @@
           settingsHint.textContent = t('开机自启未能修改，请查看日志。')
         } else if ('port' in patch && Number(data.port) !== Number(data.listenPort)) {
           settingsHint.textContent = t('已保存。重启启动器后管理页改到 {port} 端口。', { port: data.port })
+        } else if ('webBind' in patch) {
+          settingsHint.textContent = t('已保存。Web 绑定更改在下次启动 dsh 时生效。')
         } else if ('dataDir' in patch && data.dataDir && normDir(data.dataDir) !== normDir(patch.dataDir)) {
           settingsHint.textContent = t('已保存。版本目录已改为 {dir}（立即生效）；已安装的版本不会自动迁移，需要就手动复制过去。', { dir: data.dataDir })
         } else {
@@ -2897,6 +2927,7 @@
     seedMarketEl.onchange = () => queueSetting('seedMarket', seedMarketEl.checked)
     autoDisableEl.onchange = () => queueSetting('autoDisablePlugins', autoDisableEl.checked)
     uiLangEl.onchange = () => queueSetting('lang', uiLangEl.value)
+    webBindEl.onchange = () => queueSetting('webBind', webBindEl.value)
     themeEls.forEach((input) => {
       input.onchange = () => {
         if (!input.checked) return
