@@ -205,6 +205,9 @@
     /* app 窗口模式：原生标题栏被去掉了，这排按钮顶上；浏览器里不显示 */
     .win-controls { display: none; align-items: center; gap: 2px; margin-left: 2px; }
     .app-window .win-controls { display: flex; }
+    /* macOS 用系统红绿灯：自绘按钮不要，顶栏左边让出红绿灯那块（外壳把它们摆在 x=18 起的约 70px 里） */
+    .mac-window .win-controls { display: none; }
+    .mac-window header { padding-left: 96px; }
     .win-btn {
       width: 34px;
       height: 30px;
@@ -1166,7 +1169,7 @@
                 <label class="toggle set-row">
                   <span class="set-text">
                     <span class="set-name" data-i18n="开机自启">开机自启</span>
-                    <span class="set-desc" data-i18n="登录 Windows 后自动把启动器跑起来。">登录 Windows 后自动把启动器跑起来。</span>
+                    <span class="set-desc" data-i18n="登录系统后自动把启动器跑起来。">登录系统后自动把启动器跑起来。</span>
                   </span>
                   <input id="autoStart" type="checkbox" />
                 </label>
@@ -1225,7 +1228,7 @@
                   <input type="radio" name="theme" value="system" checked />
                   <span class="theme-preview system" aria-hidden="true"><span class="theme-mini"></span></span>
                   <span class="theme-option-name" data-i18n="跟随系统">跟随系统</span>
-                  <span class="theme-option-desc" data-i18n="随 Windows 外观自动切换">随 Windows 外观自动切换</span>
+                  <span class="theme-option-desc" data-i18n="随系统外观自动切换">随系统外观自动切换</span>
                 </label>
                 <label class="theme-option">
                   <input type="radio" name="theme" value="light" />
@@ -1378,11 +1381,11 @@
   "市场自管行，不提供开关": "Marketplace-managed row, no toggle",
   "高级设置": "Advanced",
   "外观": "Appearance",
-  "选择启动器的外观；跟随系统会在系统主题变化时自动切换。": "Choose the launcher appearance. System follows Windows theme changes.",
+  "选择启动器的外观；跟随系统会在系统主题变化时自动切换。": "Choose the launcher appearance. System follows the OS theme.",
   "跟随系统": "System",
   "浅色": "Light",
   "深色": "Dark",
-  "随 Windows 外观自动切换": "Follows Windows appearance",
+  "随系统外观自动切换": "Follows the system appearance",
   "始终使用浅色外观": "Always use light appearance",
   "始终使用深色外观": "Always use dark appearance",
   "悬浮窗透明度": "Floating window transparency",
@@ -1449,7 +1452,7 @@
   "启动失败时自动禁用出问题的插件再试一次，免得 dsh 起不来。": "If dsh fails to start, disable the plugins that broke it and try again, so dsh still comes up.",
   "启动器和 dsh 的输出日志。": "Output from the launcher and dsh.",
   "下次启动 dsh 时使用哪个 profile；插件和数据按 profile 分开。": "Choose the profile for the next dsh launch; plugins and data are separate for each profile.",
-  "登录 Windows 后自动把启动器跑起来。": "Start the launcher automatically after you sign in to Windows.",
+  "登录系统后自动把启动器跑起来。": "Start the launcher automatically after you sign in.",
   "目录与端口": "Folders and ports",
   "管理页监听的端口。": "The port the manager listens on.",
   "装新版本时顺手把插件市场预置好，之后可以在里面装第三方插件。": "Sets up the plugin marketplace when a new version is installed; you can install third-party plugins from it.",
@@ -1675,8 +1678,11 @@
     // DSH.exe 的窗口去掉了原生标题栏，窗口按钮和拖动都由页面接管
     const inAppWindow = launchQuery.has('window')
     if (inAppWindow) document.documentElement.classList.add('app-window')
+    // macOS 的外壳留着系统的红绿灯（窗口左上角），页面只让出那块位置、不画自己的按钮
+    const macWindow = inAppWindow && launchQuery.get('window') === 'mac'
+    if (macWindow) document.documentElement.classList.add('mac-window')
     // 清掉查询串时得留住 window=1，否则一刷新就退回浏览器模式的排版
-    const homePath = inAppWindow ? '/?window=1' : '/'
+    const homePath = inAppWindow ? `/?window=${launchQuery.get('window')}` : '/'
     let launchFollowed = false
     let launchRequested = false
 

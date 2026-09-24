@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, sep } from 'node:path'
 import test from 'node:test'
 
 import { safeDataDir } from '../settings.js'
@@ -8,7 +8,8 @@ import { safeDataDir } from '../settings.js'
 test('绝对路径放行，末尾斜杠和空白顺手规范掉', () => {
   const base = join(tmpdir(), 'dsh-data')
   assert.equal(safeDataDir(base), base)
-  assert.equal(safeDataDir(`${base}\\`), base)
+  // 用本平台的分隔符：POSIX 上 '\' 是合法的文件名字符，不算末尾斜杠
+  assert.equal(safeDataDir(`${base}${sep}`), base)
   assert.equal(safeDataDir(`  ${base}  `), base)
 })
 

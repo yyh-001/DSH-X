@@ -1,10 +1,11 @@
 import { execFile, spawn, spawnSync } from 'node:child_process'
 import { createServer } from 'node:http'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
-import { appendFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync } from 'node:fs'
+import { accessSync, appendFileSync, closeSync, constants as fsConstants, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { basename, delimiter, dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { promisify } from 'node:util'
 import { cmpVer, installSpec, listPackage, parseVer } from './registry.js'
 import pkg from './package.json' with { type: 'json' }
 import {
@@ -37,6 +38,9 @@ import {
   saveSettings,
   setAutoStart,
 } from './settings.js'
+import { APP_DIR, IS_MAC, IS_WINDOWS, LAUNCHER_NAME, MAC_APP_NAME, NODE_BINARY, appBundle } from './platform.js'
+
+const execFileAsync = promisify(execFile)
 
 const ROOT = dirname(fileURLToPath(import.meta.url))
 let DATA = resolveDataDir()
@@ -46,7 +50,8 @@ const PKG = '@deepseek-ai/dsh'
 const MARKET_PKG = 'dshmarket'
 const APP_VERSION = String(pkg.version || '0.0.0')
 const APP_REPO = 'yyh-001/DSH-X'
-const APP_SETUP = 'DSH-Setup.exe'
+// 发布页上的安装包名：scripts/pack.mjs 按平台产出同名文件
+const APP_SETUP = IS_MAC ? `DSH-X-mac-${process.arch}.dmg` : 'DSH-Setup.exe'
 // 管理页端口：环境变量 PORT（开发和测试用）优先，其余看设置；启动时 startServer() 再定最终值
 let PORT = resolvePort() || DEFAULT_PORT
 /** 配置的端口被别的程序占用时，往后最多试这么多个端口。 */
@@ -92,7 +97,7 @@ function installLang() {
     return ''
   }
 }
-const LOG_DIR = process.env.APPDATA ? join(process.env.APPDATA, 'DSH') : join(ROOT, 'data')
+const LOG_DIR = APP_DIR
 const LOG_FILE = join(LOG_DIR, 'manager.log')
 const LOG_MAX_BYTES = 5 * 1024 * 1024
 const NOISY_LOG_RE = /^(?:已安装 \d+\/\d+|已解析 \d+)/
@@ -154,6 +159,8 @@ function systemNpmRoots() {
     if (base) add(join(base, 'nodejs', 'node_modules'))
   }
   add('/usr/local/lib/node_modules')
+  // Apple Silicon 上 Homebrew 的前缀
+  if (IS_MAC) add('/opt/homebrew/lib/node_modules')
   add(join(homedir(), '.npm-global', 'lib', 'node_modules'))
   return roots
 }
@@ -342,7 +349,7 @@ function cleanStaleUpdates() {
     return
   }
   for (const name of entries) {
-    if (!/^DSH-X-update-.+\.exe$/i.test(name)) continue
+    if (!/^DSH-X-update-.+\.(?:exe|dmg)$/i.test(name)) continue
     try {
       unlinkSync(join(tmpdir(), name))
       pushLog(`已清理上次的安装包 ${name}`)
@@ -352,10 +359,43 @@ function cleanStaleUpdates() {
   }
 }
 
+/** 安装包小于这个就肯定不对（错误页、被掐断的半截文件）。 */
+const SELF_UPDATE_MIN_BYTES = 5 * 1024 * 1024
+/** UDIF（.dmg）的尾部是一块 512 字节的 koly 块，开头四个字节就是魔数。 */
+const DMG_TRAILER_BYTES = 512
+const DMG_MAGIC = 'koly'
+
+/** 各平台的安装包：Windows 是 Inno 的 PE 安装程序，macOS 是装着 DSH-X.app 的 dmg。 */
+const SELF_UPDATE_PACKAGE = IS_MAC
+  ? {
+    ext: 'dmg',
+    valid: (buffer) => buffer.subarray(buffer.length - DMG_TRAILER_BYTES, buffer.length - DMG_TRAILER_BYTES + DMG_MAGIC.length).toString('latin1') === DMG_MAGIC,
+  }
+  : { ext: 'exe', valid: (buffer) => buffer[0] === 0x4d && buffer[1] === 0x5a }
+
+/**
+ * macOS 上自更新是「把正在跑的 .app 整个换掉」，所以必须真是从一个能写的 .app 里跑起来的。
+ * 放在下载之前检查：别让用户等完上百 MB 才知道装不了。
+ */
+function assertMacUpdatable() {
+  const bundle = appBundle()
+  if (!bundle) throw new Error('从源码运行时不能自更新：请用 git pull 更新，或到发布页下载 dmg')
+  // 没挪进「应用程序」就直接打开的未签名应用会被 Gatekeeper 放到只读的随机路径里（App Translocation）
+  let writable = !bundle.includes('/AppTranslocation/')
+  try {
+    accessSync(dirname(bundle), fsConstants.W_OK)
+  } catch {
+    writable = false
+  }
+  if (!writable) throw new Error(`没有权限替换 ${bundle}：请先把 DSH-X 拖进「应用程序」文件夹，从那里打开后再更新`)
+  return bundle
+}
+
 /** 第一步：下载 + 校验。进度通过 selfUpdate 事件推给页面。 */
 async function downloadSelfUpdate() {
+  if (IS_MAC) assertMacUpdatable()
   const info = await checkSelfUpdate()
-  const target = join(tmpdir(), `DSH-X-update-${info.latest || 'latest'}.exe`)
+  const target = join(tmpdir(), `DSH-X-update-${info.latest || 'latest'}.${SELF_UPDATE_PACKAGE.ext}`)
   pushLog(`下载更新${info.latest ? ` ${info.latest}` : ''}…`)
 
   const res = await fetch(info.url, { redirect: 'follow', signal: AbortSignal.timeout(10 * 60 * 1000) })
@@ -377,8 +417,8 @@ async function downloadSelfUpdate() {
     }
   }
   const buffer = Buffer.concat(chunks)
-  // 只认 PE 可执行文件：拿到的更可能是错误页、或者被掐断的半截文件
-  if (buffer.length < 5 * 1024 * 1024 || buffer[0] !== 0x4d || buffer[1] !== 0x5a) {
+  // 只认本平台的安装包格式：拿到的更可能是错误页、或者被掐断的半截文件
+  if (buffer.length < SELF_UPDATE_MIN_BYTES || !SELF_UPDATE_PACKAGE.valid(buffer)) {
     throw new Error(`下载到的不是安装包（${buffer.length} 字节）`)
   }
   await writeFile(target, buffer)
@@ -422,6 +462,7 @@ function waitForProcess(name, timeoutMs) {
 async function installSelfUpdate() {
   const staged = stagedUpdate
   if (!staged || !existsSync(staged.file)) throw new Error('更新包还没下载好')
+  if (IS_MAC) return installMacUpdate(staged)
   const name = basename(staged.file)
   const logFile = join(tmpdir(), 'DSH-X-install.log')
   // 上次的日志留着没用，先清掉，免得 Inno 另起一个带编号的文件名
@@ -460,12 +501,73 @@ async function installSelfUpdate() {
 
   if (!(await waitForProcess(name, 8000))) throw new Error('安装程序没能启动')
   pushLog(`安装程序已启动：${name}`)
+  return finishSelfUpdate(staged)
+}
+
+/** 安装已经交出去了：通知页面，先让响应发出去，再停 dsh、退出。 */
+function finishSelfUpdate(staged) {
   emit('selfUpdate', { phase: 'install', latest: staged.latest })
-  // 先让响应发出去，再停 dsh、退出——此时安装目录里已经没有属于我们的进程占着文件了
+  // 此时安装目录里已经没有属于我们的进程占着文件了
   setTimeout(() => {
     shutdown().finally(() => process.exit(0))
   }, 900)
   return { latest: staged.latest, file: staged.file }
+}
+
+/** 等外壳退出的上限：它卡住也照样换（macOS 允许替换正在运行的包），总比永远不装强。 */
+const MAC_SWAP_WAIT_TICKS = 150
+const MAC_SWAP_TICK_SECONDS = 0.2
+
+/**
+ * 换包助手：等外壳和我们都退出，把旧包挪开、新包挪到原位，再打开新版。
+ * 新包就在旧包旁边（同一个卷），两次 mv 都只是改名；第二步失败就把旧包挪回去。
+ * 参数：$1 外壳 pid，$2 我们的 pid，$3 旧包路径，$4 新包路径。
+ */
+const MAC_SWAP_SCRIPT = `
+for pid in "$1" "$2"; do
+  n=0
+  while kill -0 "$pid" 2>/dev/null && [ "$n" -lt ${MAC_SWAP_WAIT_TICKS} ]; do sleep ${MAC_SWAP_TICK_SECONDS}; n=$((n + 1)); done
+done
+rm -rf "$3.old"
+mv "$3" "$3.old" || { echo "move old app failed"; open "$3"; exit 1; }
+if mv "$4" "$3"; then rm -rf "$3.old"; else echo "move new app failed"; mv "$3.old" "$3"; fi
+open "$3"
+`
+
+/**
+ * macOS：挂上 dmg，把新的 DSH-X.app 拷到旧包旁边，再交给换包助手，然后自己退出。
+ *
+ * 拷贝在退出之前做完：挂载、拷贝任何一步出错都还能留在原地报错；真正换包必须等我们退出，
+ * 所以交给一个 detached 的 sh（setsid 之后不随我们一起被收掉）。
+ */
+async function installMacUpdate(staged) {
+  const bundle = assertMacUpdatable()
+  const next = join(dirname(bundle), `.${basename(bundle)}.update`)
+  const mount = mkdtempSync(join(tmpdir(), 'DSH-X-mount-'))
+  pushLog(`挂载更新包 ${basename(staged.file)}`)
+  await execFileAsync('hdiutil', ['attach', '-nobrowse', '-readonly', '-noautoopen', '-mountpoint', mount, staged.file])
+  try {
+    const source = join(mount, MAC_APP_NAME)
+    if (!existsSync(join(source, 'Contents', 'MacOS', LAUNCHER_NAME))) throw new Error(`更新包里没有 ${MAC_APP_NAME}`)
+    await rm(next, { recursive: true, force: true })
+    // ditto 保留权限、符号链接和扩展属性，是拷 .app 的标准做法（cp -R 会弄丢签名需要的东西）
+    await execFileAsync('ditto', [source, next])
+  } finally {
+    await execFileAsync('hdiutil', ['detach', '-quiet', mount])
+      .catch(() => execFileAsync('hdiutil', ['detach', '-force', '-quiet', mount]))
+      .catch((error) => pushLog(`卸载更新包失败：${error?.message || error}`))
+    await rm(mount, { recursive: true, force: true }).catch(() => {})
+  }
+
+  const logFd = openSync(join(tmpdir(), 'DSH-X-install.log'), 'w')
+  // 外壳（Contents/MacOS/DSH）是我们的父进程，它在我们退出后才退
+  spawn('/bin/sh', ['-c', MAC_SWAP_SCRIPT, 'dsh-x-update', String(process.ppid), String(process.pid), bundle, next], {
+    detached: true,
+    stdio: ['ignore', logFd, logFd],
+  }).unref()
+  closeSync(logFd)
+  pushLog(`新版本已就位，退出后替换 ${bundle}`)
+  return finishSelfUpdate(staged)
 }
 
 /**
@@ -679,7 +781,7 @@ export function orderRuntimePaths(parts, dir) {
  */
 export function withBundledRuntime(pathValue) {
   const dir = join(ROOT, 'node')
-  if (!existsSync(join(dir, 'node.exe'))) return pathValue
+  if (!existsSync(join(dir, NODE_BINARY))) return pathValue
   return orderRuntimePaths(String(pathValue).split(delimiter).filter(Boolean), dir).join(delimiter)
 }
 
@@ -1621,7 +1723,8 @@ function listProfiles() {
  * 所以目录选择必须由管理页所在的本机进程来做。
  */
 function pickDirectory() {
-  if (process.platform !== 'win32') throw new Error('只有 Windows 支持目录选择')
+  if (IS_MAC) return pickDirectoryMac()
+  if (!IS_WINDOWS) throw new Error('只有 Windows 和 macOS 支持目录选择')
   const script = [
     'Add-Type -AssemblyName System.Windows.Forms | Out-Null',
     '$d = New-Object System.Windows.Forms.FolderBrowserDialog',
@@ -1640,6 +1743,30 @@ function pickDirectory() {
           return
         }
         resolve(String(stdout || '').trim())
+      },
+    )
+  })
+}
+
+/** AppleScript 里用户点「取消」的错误号：不算失败，当作没选。 */
+const APPLESCRIPT_USER_CANCELED = '-128'
+
+/** macOS 的目录选择走 AppleScript 的 choose folder（系统自带，不需要额外权限）。 */
+function pickDirectoryMac() {
+  return new Promise((resolve, reject) => {
+    execFile(
+      'osascript',
+      // activate 把对话框带到最前，否则它可能躲在管理页窗口后面
+      ['-e', 'activate', '-e', 'POSIX path of (choose folder with prompt "选择 dsh 版本目录")'],
+      { timeout: 5 * 60 * 1000, encoding: 'utf8' },
+      (error, stdout, stderr) => {
+        if (error) {
+          if (String(stderr || '').includes(`(${APPLESCRIPT_USER_CANCELED})`)) resolve('')
+          else reject(error)
+          return
+        }
+        // POSIX path 带尾斜杠，去掉和其它地方的目录写法保持一致
+        resolve(String(stdout || '').trim().replace(/(.)\/+$/, '$1'))
       },
     )
   })
@@ -1735,6 +1862,18 @@ async function uninstallSystem(ver) {
   pushLog(`卸载系统 ${ver}`)
   await rm(system.root, { recursive: true, force: true })
   const prefix = dirname(dirname(dirname(system.root)))
+  if (!IS_WINDOWS) {
+    // POSIX 的全局包在 <prefix>/lib/node_modules，命令是 <prefix>/bin/dsh 这个符号链接。
+    // 包删掉之后它就悬空了，existsSync 会跟着链接判成不存在，所以用 lstat；也只删链接，
+    // 同名的普通文件不是 npm 装的，不碰。
+    const link = join(dirname(prefix), 'bin', 'dsh')
+    try {
+      if (lstatSync(link).isSymbolicLink()) await rm(link, { force: true })
+    } catch {
+      // 没有就算了
+    }
+    return
+  }
   for (const name of ['dsh', 'dsh.cmd', 'dsh.ps1']) {
     const file = join(prefix, name)
     if (existsSync(file)) await rm(file, { force: true })

@@ -1,16 +1,20 @@
 import { execFile } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { homedir } from 'node:os'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
+import { APP_DIR, IS_MAC, IS_WINDOWS, MAC_BUNDLE_ID, appBundle, launcherExecutable, userAppDir } from './platform.js'
 
 const execFileAsync = promisify(execFile)
 const ROOT = dirname(fileURLToPath(import.meta.url))
-const SETTINGS_DIR = process.env.APPDATA ? join(process.env.APPDATA, 'DSH') : join(ROOT, 'data')
+const SETTINGS_DIR = APP_DIR
 const SETTINGS_FILE = join(SETTINGS_DIR, 'settings.json')
 const RUN_REG = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run'
 const RUN_NAME = 'DSH'
+/** macOS 的登录自启：每用户 LaunchAgent，文件在就算开着（登录时 launchd 按它拉起启动器）。 */
+const LAUNCH_AGENT = join(homedir(), 'Library', 'LaunchAgents', `${MAC_BUNDLE_ID}.plist`)
 
 /** 管理页端口，默认这个；被别的程序占了可以在设置页改。 */
 export const DEFAULT_PORT = 3780
@@ -19,7 +23,9 @@ export const DEFAULT_PORT = 3780
 function describeDirError(dir, error) {
   const code = String(error?.code || '')
   if (code === 'EPERM' || code === 'EACCES') {
-    return `没有权限写这个目录：${dir}；请换一个当前用户能写的普通目录（例如 D:\\DSH-X），不要用 Program Files、Windows 这类系统目录。`
+    return IS_MAC
+      ? `没有权限写这个目录：${dir}；请换一个当前用户能写的普通目录（例如 ~/DSH-X），不要用 /Applications、/System 这类系统目录。`
+      : `没有权限写这个目录：${dir}；请换一个当前用户能写的普通目录（例如 D:\\DSH-X），不要用 Program Files、Windows 这类系统目录。`
   }
   if (code === 'ENOTDIR' || code === 'EEXIST') {
     return `这不是一个目录：${dir}`
@@ -188,12 +194,12 @@ export function safeDataDir(dir) {
 export function fallbackDataDir() {
   const local = join(ROOT, 'data')
   if (hasInstall(local)) return local
-  if (process.env.APPDATA) {
-    const roaming = join(process.env.APPDATA, 'DSH', 'data')
+  const userDir = userAppDir()
+  if (userDir) {
+    const roaming = join(userDir, 'data')
     if (hasInstall(roaming)) return roaming
-  }
-  if (existsSync(join(ROOT, 'DSH.exe')) && process.env.APPDATA) {
-    return join(process.env.APPDATA, 'DSH', 'data')
+    // 装好的启动器（有原生外壳）一律放每用户目录；macOS 的安装目录在 .app 包里，更是写不得
+    if (launcherExecutable()) return roaming
   }
   return local
 }
@@ -289,10 +295,42 @@ export async function ensureSettings() {
   return saveSettings({ ...stored, dataDir })
 }
 
+/** 登录自启要执行的 argv：装好的走原生外壳，源码运行就直接 node start.js。 */
+function launchArgs() {
+  const exe = launcherExecutable()
+  // macOS 走 open 而不是直接执行包里的二进制：LaunchServices 负责单实例和把应用带到前台
+  if (IS_MAC && exe) return ['/usr/bin/open', '-a', appBundle()]
+  if (exe) return [exe]
+  return [process.execPath, join(ROOT, 'start.js')]
+}
+
 export function launchCommand() {
-  const exe = join(ROOT, 'DSH.exe')
-  if (existsSync(exe)) return `"${exe}"`
-  return `"${process.execPath}" "${join(ROOT, 'start.js')}"`
+  return launchArgs().map((arg) => `"${arg}"`).join(' ')
+}
+
+const escapeXml = (text) => String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+/** LaunchAgent 的 plist：只在登录时跑一次（RunAtLoad），不设 KeepAlive——用户退出了就别再拉起来。 */
+export function launchAgentPlist(args = launchArgs(), cwd = ROOT) {
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
+    '<plist version="1.0">',
+    '<dict>',
+    '  <key>Label</key>',
+    `  <string>${escapeXml(MAC_BUNDLE_ID)}</string>`,
+    '  <key>ProgramArguments</key>',
+    '  <array>',
+    ...args.map((arg) => `    <string>${escapeXml(arg)}</string>`),
+    '  </array>',
+    '  <key>WorkingDirectory</key>',
+    `  <string>${escapeXml(cwd)}</string>`,
+    '  <key>RunAtLoad</key>',
+    '  <true/>',
+    '</dict>',
+    '</plist>',
+    '',
+  ].join('\n')
 }
 
 function runReg(args) {
@@ -300,7 +338,8 @@ function runReg(args) {
 }
 
 export async function autoStartEnabled() {
-  if (process.platform !== 'win32') return false
+  if (IS_MAC) return existsSync(LAUNCH_AGENT)
+  if (!IS_WINDOWS) return false
   try {
     await runReg(['query', RUN_REG, '/v', RUN_NAME])
     return true
@@ -310,8 +349,18 @@ export async function autoStartEnabled() {
 }
 
 export async function setAutoStart(enabled) {
-  if (process.platform !== 'win32') {
-    if (enabled) throw new Error('开机自启目前只支持 Windows')
+  if (IS_MAC) {
+    // 只写/删文件，不 launchctl load：load 会立刻再拉起一个启动器，而这里要的只是「下次登录时」
+    if (enabled) {
+      await mkdir(dirname(LAUNCH_AGENT), { recursive: true })
+      await writeFile(LAUNCH_AGENT, launchAgentPlist())
+    } else {
+      await rm(LAUNCH_AGENT, { force: true })
+    }
+    return
+  }
+  if (!IS_WINDOWS) {
+    if (enabled) throw new Error('开机自启目前只支持 Windows 和 macOS')
     return
   }
   const on = await autoStartEnabled()
