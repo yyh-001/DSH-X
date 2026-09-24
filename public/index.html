@@ -1038,6 +1038,8 @@
       padding: 9px 15px;
       border-radius: 10px;
     }
+    /* 「手动下载」是链接不是按钮，对齐一下 */
+    .ask-actions a.ghost { display: inline-flex; align-items: center; text-decoration: none; }
     .ask-note { margin: 12px 0 0; color: var(--muted); font-size: 12.5px; }
     .ask-note[hidden] { display: none; }
     /* 页面内提示：原生 alert 在 app 窗口里是系统弹窗，风格割裂 */
@@ -1565,6 +1567,9 @@
   "更新 {latest}": "Update {latest}",
   "升级会先停掉正在运行的 dsh，再下载安装新版本。插件由第三方维护、通常滞后于 dsh，新版本可能让插件失效或页面打不开（插件市场就出过这种情况）。已装的其他版本会保留，随时可以切回。": "Upgrading stops the running dsh, then downloads and installs the new version. Plugins are maintained by third parties and usually lag behind dsh, so a new version can break them or stop a page from opening (that happened to the plugin market). Other installed versions are kept, so you can switch back any time.",
   "更新启动器": "Update launcher",
+  "手动下载": "Download manually",
+  "到 GitHub 发布页自己挑安装包下载（自动更新不管用时用这个）": "Pick the installer yourself from the GitHub releases page (use this when the automatic update does not work)",
+  "下载失败：{message}。可以点「手动下载」到发布页取安装包。": "Download failed: {message}. Use \"Download manually\" to get the installer from the release page.",
   "检查更新": "Check for updates",
   "已切到 profile {name}，dsh 下次启动用它。": "Switched to profile {name}; dsh will use it on the next start.",
   "全部更新": "Update all",
@@ -1595,7 +1600,6 @@
   "⚠ 页面自检：{failed}/{total} 个插件包加载失败": "⚠ Page self-check: {failed}/{total} client plugin bundles failed to load",
   "{name} 已{state}{changed}。": "{name} {state}.{changed}",
   "正在{act} {name}…": "{act} {name}…",
-  "下载失败：{message}。可以从 GitHub 的发布页手动下载安装包。": "Download failed: {message}. You can grab the installer from the GitHub release page.",
   "安装没能开始：{message}": "The install did not start: {message}",
   "读取更新内容失败：{message}": "Could not load the changelog: {message}",
   "没选成：{error}": "Not picked: {error}",
@@ -2883,7 +2887,7 @@
         ))
       }
       if (update.self) {
-        rows.push(askRow(
+        const selfRow = askRow(
           'self',
           t('DSH-X 启动器'),
           update.self.current,
@@ -2921,18 +2925,32 @@
             post('/api/self/download').then(openInstaller).catch((error) => {
               btn.disabled = false
               btn.textContent = t('更新启动器')
-              askNoteEl.textContent = t('下载失败：{message}。可以从 GitHub 的发布页手动下载安装包。', { message: error.message })
+              askNoteEl.textContent = t('下载失败：{message}。可以点「手动下载」到发布页取安装包。', { message: error.message })
               wrap.hidden = true
             })
           },
-        ))
+        )
+        // 自动更新不管用时的退路：直接给发布页，自己挑对应平台的安装包。
+        // 外链走普通 <a>（/api/open 只允许本机地址），WebView 和浏览器里都能打开。
+        const manual = document.createElement('a')
+        manual.className = 'ghost'
+        manual.href = 'https://github.com/yyh-001/DSH-X/releases/latest'
+        manual.target = '_blank'
+        manual.rel = 'noreferrer'
+        manual.textContent = t('手动下载')
+        manual.title = t('到 GitHub 发布页自己挑安装包下载（自动更新不管用时用这个）')
+        selfRow.manual = manual
+        rows.push(selfRow)
       }
       for (const row of rows) askItemsEl.append(row.item)
-      // 底部一排：暂不更新在最左，启动器更新次之，dsh 更新作为主操作压最右
+      // 底部一排：暂不更新在最左，手动下载与启动器更新次之，dsh 更新作为主操作压最右
       askActionsEl.textContent = ''
       askActionsEl.append(askSkipEl)
       for (const kind of ['self', 'dsh']) {
-        for (const row of rows.filter((item) => item.kind === kind)) askActionsEl.append(row.action)
+        for (const row of rows.filter((item) => item.kind === kind)) {
+          if (row.manual) askActionsEl.append(row.manual)
+          askActionsEl.append(row.action)
+        }
       }
       askEl.hidden = false
     }
