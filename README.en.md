@@ -98,21 +98,18 @@ On macOS the same command needs only Rust and the Xcode command line tools, and 
 - `release/DSH-X.app`: the app bundle (ad-hoc signed)
 - `release/DSH-X-mac-<arch>.dmg`: the release asset self-update downloads; upload one per architecture (`DSH_MAC_ARCH=x64 npm run dist` for Intel, after `rustup target add x86_64-apple-darwin`)
 
-On Windows the build also emits two verifiable files:
+On Windows the build also emits three files for self-checking (**none of them are uploaded to the release** — the release page carries the installers and the dmgs): `release/dsh-x-<version>.spdx.json` (an SBOM, SPDX 2.3), `release/release-manifest.json` (the release manifest: version, commit, whether the build is tagged, artifact hashes) and, when a private key is present, `release/release-manifest.sig` (Ed25519).
 
-- `release/dsh-x-<version>.spdx.json`: an SBOM (SPDX 2.3) listing the bundled runtimes and every file the launcher ships, with their sha256
-- `release/release-manifest.json`: the release manifest (version, commit, whether the build is tagged, artifact hashes) plus an Ed25519 signature in `release/release-manifest.sig`
-
-Before publishing, run the consistency gate and upload the installer together with both files:
+Before publishing, run the consistency gate and upload the installer and the dmgs:
 
 ```sh
 node scripts/release-manifest.mjs check-tag v0.1.14   # tag must match the version in package.json
 node scripts/release-manifest.mjs verify              # signature valid + every artifact hash matches
-gh release create v0.1.14 release/DSH-Setup.exe release/dsh-x-0.1.14.spdx.json \
-  release/release-manifest.json release/release-manifest.sig --latest
+gh release create v0.1.14 release/DSH-Setup.exe \
+  release/mac/DSH-X-mac-arm64.dmg release/mac/DSH-X-mac-x64.dmg --latest
 ```
 
-Signing needs a key once: `node scripts/release-manifest.mjs keygen` writes the private key to `release/release-key.pem` (git-ignored, **back it up**), and the public key ships in this repository as `scripts/release-pubkey.pem`. With that public key anyone can verify a download — put the installer, `release-manifest.json` and `release-manifest.sig` in one directory and run:
+Signing needs a key once: `node scripts/release-manifest.mjs keygen` writes the private key to `release/release-key.pem` (git-ignored, **back it up**), and the public key ships in this repository as `scripts/release-pubkey.pem`. When you have a manifest and signature in hand (your own build, or a set from elsewhere), put the installer, `release-manifest.json` and `release-manifest.sig` in one directory and run:
 
 ```sh
 node scripts/release-manifest.mjs verify <that-directory>

@@ -69,13 +69,8 @@ jobs:
             echo "还没有 $tag 的 Release，资产先留在 workflow artifacts 里；建好 Release 后再跑一次即可"
             exit 0
           fi
-          # 安装包 + SBOM + 清单 + 签名是一套：要换一起换。没签名这次就别动 Release，
-          # 免得把本机签好的那套覆盖成没签名的（清单哈希也对不上新 exe）。
-          if [ ! -f release/release-manifest.sig ]; then
-            echo "这次没有签名（没配 DSH_RELEASE_KEY），不动 Release 上的资产"
-            exit 0
-          fi
-          gh release upload "$tag" release/DSH-Setup.exe release/dsh-x-*.spdx.json release/release-manifest.json release/release-manifest.sig --clobber
+          # 发布页只放安装包和 dmg（用户拍板：SBOM/清单/签名不上传，那些留在本机自查）
+          gh release upload "$tag" release/DSH-Setup.exe --clobber
 
   # mac 的打包能力在 PR #25（scripts/pack-mac.mjs）里，合并之后这里才真的会出包；
   # 没合并时这一步只打个招呼就过，不至于把整个 workflow 挂红。

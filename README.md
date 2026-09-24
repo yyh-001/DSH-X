@@ -69,7 +69,7 @@ macOS 打开 `DSH-X-mac-arm64.dmg`（Apple Silicon）或 `DSH-X-mac-x64.dmg`（I
 
 dsh 的 Web 界面默认只绑在本机（`127.0.0.1`）。想让手机/其他电脑也能访问：设置页 → 高级设置 → **Web 绑定**选「局域网（0.0.0.0）」，下次启动 dsh 生效；远程访问插件的「局域网访问」开关打开时，启动器也会自动按局域网处理（不再注入 `--host`）。
 
-**核对下载到的包（可选）**：把这一版发布的几个文件（安装包、`dsh-x-<版本>.spdx.json`、`release-manifest.json`、`release-manifest.sig`）全部放进同一个目录，跑 `node scripts/release-manifest.mjs verify <目录>`（脚本在仓库里），它会验签、逐个核对 sha256 与体积，少文件或对不上都会报出来。公钥指纹（SPKI/DER 的 SHA-256）是 `0699e51d0a98acaa5d1942afb7510010cb7864754f05746f5038cc35c9b42d99`，自己复算：`openssl pkey -pubin -in scripts/release-pubkey.pem -outform DER | openssl dgst -sha256`。（清单目前只覆盖 Windows 的安装包，dmg 还核不了。）
+**核对下载到的包（可选）**：Release 页面每个文件旁边就写着 sha256，本地对一下即可 —— Windows `certutil -hashfile DSH-Setup.exe SHA256`，macOS `shasum -a 256 DSH-X-mac-arm64.dmg`。数字一致就说明下载过程没出错、文件没被动过。
 
 ## 开发
 
@@ -98,22 +98,20 @@ macOS 上同一条命令只需要 Rust 和 Xcode 命令行工具，产出：
 - `release/DSH-X.app`：应用本体（ad-hoc 签名）
 - `release/DSH-X-mac-<arch>.dmg`：自更新下载的发布资产，每个架构各传一份（Intel 版先 `rustup target add x86_64-apple-darwin`，再 `DSH_MAC_ARCH=x64 npm run dist`）
 
-Windows 打完包还会顺带生成两份可核验的文件：
+Windows 打完包还会顺带生成三份自查用的文件（**都不上传到 Release**，发布页只放安装包和 dmg）：`release/dsh-x-<版本>.spdx.json`（SBOM，SPDX 2.3）、`release/release-manifest.json`（发布清单：版本、提交、有没有 tag、产物哈希），有私钥时再写一份 `release/release-manifest.sig`（Ed25519）。
 
-- `release/dsh-x-<版本>.spdx.json`：SBOM（SPDX 2.3），列出随包发的运行时和启动器自己的文件及其 sha256
-- `release/release-manifest.json`：发布清单（版本、提交、有没有 tag、产物哈希），配 `release/release-manifest.sig` 的 Ed25519 签名
-
-发版时先过一致性闸门，再把安装包连这两份文件一起传上去：
+发版时先过一致性闸门，再上传安装包和 dmg：
 
 ```sh
 node scripts/release-manifest.mjs check-tag v0.1.14   # tag 必须与 package.json 的版本一致
 node scripts/release-manifest.mjs verify              # 签名有效 + 逐个产物核对哈希
-gh release create v0.1.14 release/DSH-Setup.exe release/dsh-x-0.1.14.spdx.json \
-  release/release-manifest.json release/release-manifest.sig --latest
+gh release create v0.1.14 release/DSH-Setup.exe \
+  release/mac/DSH-X-mac-arm64.dmg release/mac/DSH-X-mac-x64.dmg --latest
 ```
 
-第一次签名先跑 `node scripts/release-manifest.mjs keygen`：私钥落在 `release/release-key.pem`（已被忽略、不进仓库，**务必备份**），公钥是仓库里的 `scripts/release-pubkey.pem`。拿着公钥，谁都能核对下载到的安装包——把安装包、`release-manifest.json`、`release-manifest.sig` 放进同一个目录，然后：
+第一次签名先跑 `node scripts/release-manifest.mjs keygen`：私钥落在 `release/release-key.pem`（已被忽略、不进仓库，**务必备份**），公钥是仓库里的 `scripts/release-pubkey.pem`。手上有一份清单和签名时（例如自己打的包、或从别处拿到的一套），把安装包、`release-manifest.json`、`release-manifest.sig` 放进同一个目录就能核：
 
 ```sh
 node scripts/release-manifest.mjs verify <那个目录>
 ```
+
