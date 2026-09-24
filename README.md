@@ -84,3 +84,23 @@ npm run dist
 
 - `release/DSH/`：便携目录
 - `release/DSH-Setup.exe`：安装包（默认 `%LOCALAPPDATA%\Programs\DSH`）
+
+打完包还会顺带生成两份可核验的文件：
+
+- `release/dsh-x-<版本>.spdx.json`：SBOM（SPDX 2.3），列出随包发的运行时和启动器自己的文件及其 sha256
+- `release/release-manifest.json`：发布清单（版本、提交、有没有 tag、产物哈希），配 `release/release-manifest.sig` 的 Ed25519 签名
+
+发版时先过一致性闸门，再把安装包连这两份文件一起传上去：
+
+```sh
+node scripts/release-manifest.mjs check-tag v0.1.14   # tag 必须与 package.json 的版本一致
+node scripts/release-manifest.mjs verify              # 签名有效 + 逐个产物核对哈希
+gh release create v0.1.14 release/DSH-Setup.exe release/dsh-x-0.1.14.spdx.json \
+  release/release-manifest.json release/release-manifest.sig --latest
+```
+
+第一次签名先跑 `node scripts/release-manifest.mjs keygen`：私钥落在 `release/release-key.pem`（已被忽略、不进仓库，**务必备份**），公钥是仓库里的 `scripts/release-pubkey.pem`。拿着公钥，谁都能核对下载到的安装包——把安装包、`release-manifest.json`、`release-manifest.sig` 放进同一个目录，然后：
+
+```sh
+node scripts/release-manifest.mjs verify <那个目录>
+```

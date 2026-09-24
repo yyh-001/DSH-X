@@ -13,7 +13,11 @@
     "start": "node start.js",
     "server": "node server.js",
     "test": "node --test",
-    "dist": "node scripts/pack.mjs"
+    "dist": "node scripts/pack.mjs",
+    "release:manifest": "node scripts/release-manifest.mjs make",
+    "release:sbom": "node scripts/release-sbom.mjs",
+    "release:verify": "node scripts/release-manifest.mjs verify",
+    "release:check": "node scripts/release-manifest.mjs check-tag"
   },
   "author": "yyh",
   "license": "MIT"

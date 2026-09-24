@@ -4,6 +4,8 @@ import { copyFile, cp, mkdir, writeFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import { pipeline } from 'node:stream/promises'
 import { fileURLToPath } from 'node:url'
+import { collectArtifacts, writeReleaseManifest } from './release-manifest.mjs'
+import { collectComponents, writeSbom } from './release-sbom.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const PKG = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
@@ -207,7 +209,26 @@ async function buildInstaller() {
   console.log(`已复制到桌面: ${desktop}`)
 }
 
+// 发布资产：先出 SBOM，再出覆盖「安装包 + SBOM」的发布清单（有私钥时顺带签名）。
+// 没配密钥也不该让打包失败，所以这里只提示。
+async function buildReleaseArtifacts() {
+  const releaseDir = join(ROOT, 'release')
+  const { path: sbomPath } = writeSbom({ releaseDir, version: PKG.version })
+  console.log(`SBOM: ${sbomPath}`)
+  const artifacts = collectArtifacts(releaseDir, [`${SETUP_NAME}.exe`, basename(sbomPath)])
+  const { manifest, signed } = writeReleaseManifest({
+    releaseDir,
+    version: PKG.version,
+    artifacts,
+    components: collectComponents({ nodeDir: join(releaseDir, 'DSH', 'node') }),
+  })
+  const where = manifest.tag ? `tag ${manifest.tag}` : '没有 tag'
+  console.log(`发布清单: release/release-manifest.json（${where}${manifest.dirty ? '，有未提交改动' : ''}）`)
+  console.log(signed ? '已用 release/release-key.pem 签名' : '未签名：没有 release/release-key.pem（node scripts/release-manifest.mjs keygen 生成）')
+}
+
 await downloadNode()
 await buildLauncher()
 await assemble()
 await buildInstaller()
+await buildReleaseArtifacts()
