@@ -1247,7 +1247,7 @@ async function useHoistedLinker() {
   return true
 }
 
-function pruneDanglingLinks(dir) {
+function pruneDanglingLinks(dir, depth = 1) {
   let removed = 0
   let entries = []
   try {
@@ -1263,7 +1263,14 @@ function pruneDanglingLinks(dir) {
     } catch {
       continue
     }
-    if (!isLink) continue
+    if (!isLink) {
+      // 带 scope 的包（@local/dsh-preset-advisor 这种）在 scope 目录里，只扫一层会漏掉，
+      // 而悬空的恰恰常出现在那儿：dsh 报 cannot resolve 的正是它们。
+      if (depth > 0 && entry.name.startsWith('@') && entry.isDirectory()) {
+        removed += pruneDanglingLinks(path, depth - 1)
+      }
+      continue
+    }
     try {
       statSync(path)          // 能 stat 到说明链接是通的
       continue
@@ -1429,7 +1436,18 @@ async function repairProfileDeps(version, error) {
   try {
     await mkdir(homeDir(), { recursive: true })
     await ensureProfileNpmrc()
-    await runPluginCommand(version, ['install', '--config.auto-install-peers=false'], 'dsh plugin install')
+    try {
+      await runPluginCommand(version, ['install', '--config.auto-install-peers=false'], 'dsh plugin install')
+    } catch (error1) {
+      const text = `${error1 instanceof Error ? error1.message : error1}\n${(error1?.tail || []).join('\n')}`
+      // 和装插件那条路同样的退路：这台机器读不了目录链接时，让 pnpm 改用真实目录再装一遍。
+      // 报错长这样：UNKNOWN: unknown error, open ...node_modules\<pkg>\package.json（-4094）
+      if (!looksLikeLinkFailure(text) || !(await useHoistedLinker())) throw error1
+      pushLog('这台机器读不了目录链接，改用真实目录（node-linker=hoisted）重试')
+      const again = pruneDanglingLinks(join(profileDir(), 'node_modules'))
+      if (again) pushLog(`[兼容] 先清理了 ${again} 个悬空的链接`)
+      await runPluginCommand(version, ['install', '--config.auto-install-peers=false'], 'dsh plugin install')
+    }
     pushLog('[兼容] profile 依赖已重建，重试启动…')
     return true
   } catch (error2) {
@@ -2039,7 +2057,7 @@ function isLocalHostHeader(host) {
   return !match[2] || Number(match[2]) === PORT
 }
 
-export { snapshot, stop }
+export { pruneDanglingLinks, snapshot, stop }
 
 async function stop(version) {
   const proc = current
