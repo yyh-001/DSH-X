@@ -206,30 +206,54 @@ export function safeWebBind(value) {
  * 在它的子行里找 `lanBind:`。读不到、格式不认识、插件没装，都当没开——
  * 启动器不依赖任何第三方插件存在。
  */
-export function lanBindToggleOn(home) {
-  let text = ''
+export function lanBindToggleOn(home, profile = '') {
+  // 0.1.7-rc.1 起 dsh 把设置搬到「当前 profile 的 Cordis 配置」里（旧 settings.yaml 只导入一次），
+  // 所以要两处都看：新位置有明确取值就以它为准，没有（还没迁移、或旧版本）再回落到旧文件。
+  if (profile) {
+    for (const name of ['cordis.yml', 'cordis.yaml']) {
+      const value = lanBindFromYaml(readTextIfExists(join(home, 'profiles', profile, name)))
+      if (value !== undefined) return value
+    }
+  }
+  return lanBindFromYaml(readTextIfExists(join(home, 'settings.yaml'))) === true
+}
+
+/** 读文件，读不到给空串（配置缺失是常态，不该抛）。 */
+function readTextIfExists(file) {
   try {
-    text = readFileSync(join(home, 'settings.yaml'), 'utf8')
+    return readFileSync(file, 'utf8')
   } catch {
-    return false
+    return ''
   }
-  let inSection = false
-  for (const line of text.split(/\r?\n/)) {
+}
+
+/**
+ * 在 YAML 文本里找「提到 remote-web-ui 的那一段」里的 lanBind。
+ * 段可以在顶层（旧 settings.yaml 的形状），也可以是嵌套的插件条目（新 profile 配置的形状）；
+ * 段内允许隔着别的键。找不到返回 undefined（＝这份文件没说），false 才是明确说「关」。
+ */
+export function lanBindFromYaml(text) {
+  const lines = String(text ?? '').split(/\r?\n/)
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i]
     if (!line.trim() || /^\s*#/.test(line)) continue
+    if (!/remote-web-ui/i.test(line)) continue
+    if (!/:\s*(?:\{.*)?$/.test(line)) continue
+    // 同一行写成流式映射的情况：{ lanBind: true }
+    const inline = /lanBind\s*:\s*([^,}\s]+)/.exec(line)
+    if (inline) return /^(?:true|yes|on|1)$/i.test(inline[1].replace(/^['"]|['"]$/g, ''))
     const indent = line.length - line.trimStart().length
-    if (!inSection) {
-      if (indent === 0 && /^remote-web-ui\s*:/.test(line)) inSection = true
-      continue
-    }
-    // 缩进回落到顶层（或更浅）说明这个段结束了
-    if (indent <= 0) break
-    const match = /^\s*lanBind\s*:\s*(.+?)\s*$/.exec(line)
-    if (match) {
-      const value = match[1].replace(/^['"]|['"]$/g, '')
-      return /^(?:true|yes|on|1)$/i.test(value)
+    for (let j = i + 1; j < lines.length; j += 1) {
+      const next = lines[j]
+      if (!next.trim() || /^\s*#/.test(next)) continue
+      const nextIndent = next.length - next.trimStart().length
+      // 缩进回落到这一段之外（或更浅）说明段结束了；数组项不算出段
+      if (nextIndent <= indent && !/^\s*-\s/.test(next)) break
+      const match = /^\s*lanBind\s*:\s*(.+?)\s*$/.exec(next)
+      if (match) return /^(?:true|yes|on|1)$/i.test(match[1].replace(/^['"]|['"]$/g, ''))
     }
   }
-  return false
+  return undefined
 }
 
 /** 管理页端口：环境变量 PORT（开发和测试用）优先，其次 settings.json。 */

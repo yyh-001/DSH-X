@@ -17,6 +17,8 @@
  *   4. dsh-session-persistence 的 validateStoredEvents —— 迁移完成后落库前再查一次词汇表
  *      （这一层查的是迁移后的 seq，旧日志经过打包行折叠会重新编号）。
  *
+ * 除了事件词汇表，这里还兜一个 dsh 的健壮性缺口（见 appBootStackPatch 的注释）。
+ *
  * 安全：只在源码结构匹配时替换，dsh 升级导致代码变化即自动跳过（不改坏任何东西）。
  */
 const SESSION_TYPES = ['filesnap/point', 'filesnap/rewound', 'filesnap/redone']
@@ -52,6 +54,40 @@ function semanticsPatch(source) {
   return source.replace(anchor, `${cases} return;\n\t\t${anchor}`)
 }
 
+/**
+ * dsh-app-boot 改写错误 stack 的两处要能容错。
+ *
+ * 注册过任意 ESM loader 钩子时（我们的 perf/ 与 compat/ 就是），Node 22.19 会把解析错误
+ * 的 stack 变成只读的自有属性（实测 `writable: false`）。而 app-boot 为了把报错里的
+ * importer 路径还原成真实调用方，会执行 `error.stack = ...` —— 这一写直接抛
+ * `TypeError: Cannot assign to read only property 'stack'`，把原来的错误码
+ * （`ERR_PACKAGE_PATH_NOT_EXPORTED` 之类）顶掉。dsh 0.1.7 新增的插件元数据读取
+ * （`readPluginMeta` 会探测 `<包>/locale/en.json`）正好走这条路，于是「设置 → 内置插件」
+ * 大面积报错（issue #24：188 条里 179 条带 meta.error）。
+ *
+ * 这里只把赋值本身包进 try/catch：写得进去行为不变；写不进去就放弃改写 stack，
+ * 保住原始错误码。dsh 升级改掉这两行就会自动跳过。
+ */
+export function appBootStackPatch(source) {
+  const assignments = [
+    'if (stack !== void 0) error.stack = stack.replace(originalMessage, message);',
+    'if (stack !== void 0) error.stack = stack.replace(originalMessage, error.message);',
+  ]
+  let out = source
+  let patched = 0
+  for (const line of assignments) {
+    if (!out.includes(line)) continue
+    const guarded = line.replace(
+      /^if \(stack !== void 0\) (error\.stack = .*);$/,
+      'if (stack !== void 0) { try { $1; } catch { /* stack 只读（注册过 ESM 钩子时 Node 会这样）：放弃改写，保留原始错误码 */ } }',
+    )
+    if (guarded === line) continue
+    out = out.replace(line, guarded)
+    patched += 1
+  }
+  return patched ? out : null
+}
+
 export async function load(url, context, nextLoad) {
   const result = await nextLoad(url, context)
   if (result.format !== 'module' || result.source === undefined) return result
@@ -63,6 +99,10 @@ export async function load(url, context, nextLoad) {
   if (url.includes('dsh-session/lib/index.js')) {
     const next = knownSetPatch(source)
     if (next !== null) { source = next; applied.push('事件词汇表') }
+  }
+  if (url.includes('dsh-app-boot/lib/index.js')) {
+    const next = appBootStackPatch(source)
+    if (next !== null) { source = next; applied.push('错误 stack 安全写') }
   }
   if (url.includes('dsh-session-format-v0-to-v1/lib/index.js')) {
     const a = dispositionsPatch(source)

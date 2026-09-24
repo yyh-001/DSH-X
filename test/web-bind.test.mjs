@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { readFileSync } from 'node:fs'
@@ -7,7 +7,7 @@ import test from 'node:test'
 import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
 
-import { DEFAULT_WEB_BIND, lanBindToggleOn, safeWebBind } from '../settings.js'
+import { DEFAULT_WEB_BIND, lanBindFromYaml, lanBindToggleOn, safeWebBind } from '../settings.js'
 import { lanBindActive } from '../server.js'
 
 const html = readFileSync(fileURLToPath(new URL('../public/index.html', import.meta.url)), 'utf8')
@@ -55,6 +55,21 @@ test('远程插件开关：false / 缺段 / 缺文件都当没开', () => {
   assert.equal(lanBindToggleOn(homeWithSettings('other-plugin:\n  lanBind: true\n')), false)
   assert.equal(lanBindToggleOn(homeWithSettings('remote-web-ui:\n  tokenTtlMs: 600000\n')), false)
   assert.equal(lanBindToggleOn(join(tmpdir(), 'dsh-webbind-does-not-exist')), false)
+})
+
+test('设置搬到 profile 的 cordis 配置后仍然认：新位置优先，旧文件兜底', () => {
+  // dsh 0.1.7-rc.1 起设置存进「当前 profile 的 Cordis 配置」（旧 settings.yaml 只导入一次），
+  // 只读旧文件的话，局域网联动会一直拿着过期值。
+  assert.equal(lanBindFromYaml('remote-web-ui: { lanBind: true }'), true, '同一行的流式映射也要认')
+  assert.equal(lanBindFromYaml("plugins:\n  '@linxin666/dsh-remote-web-ui':\n    settings:\n      lanBind: true\n"), true, '嵌套在插件条目里的形状')
+
+  const home = mkdtempSync(join(tmpdir(), 'dsh-webbind-move-'))
+  mkdirSync(join(home, 'profiles', 'web'), { recursive: true })
+  writeFileSync(join(home, 'settings.yaml'), 'remote-web-ui:\n  lanBind: true\n', 'utf8')
+  assert.equal(lanBindToggleOn(home, 'web'), true, '只有旧文件时按旧文件')
+  writeFileSync(join(home, 'profiles', 'web', 'cordis.yml'), 'remote-web-ui:\n  lanBind: false\n', 'utf8')
+  assert.equal(lanBindToggleOn(home, 'web'), false, '新位置有明确取值就以它为准')
+  assert.equal(lanBindToggleOn(home), true, '没传 profile 名时回落到旧文件（兼容老调用）')
 })
 
 test('远程插件开关：只看本段的键，别的段里同名键不算', () => {

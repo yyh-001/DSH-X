@@ -5,7 +5,7 @@ import { appendFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFile
 import { homedir, tmpdir } from 'node:os'
 import { basename, delimiter, dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { cmpVer, installSpec, listPackage, parseVer } from './registry.js'
+import { cmpVer, currentRegistry, installSpec, listPackage, parseVer } from './registry.js'
 import pkg from './package.json' with { type: 'json' }
 import {
   disableRowId,
@@ -616,7 +616,7 @@ async function saveManagerSettings(body) {
   // profile 立即生效：插件页、启动参数、npmrc 都读这个变量（已经在跑的 dsh 不受影响）
   EXTRA_ARGS = composeExtraArgs(stored.args)
   WEB_BIND = safeWebBind(stored.webBind)
-  LAN_TOGGLE = lanBindToggleOn(homeDir())
+  LAN_TOGGLE = lanBindToggleOn(homeDir(), PROFILE_NAME)
   if (safeLang(stored.lang)) LANG = safeLang(stored.lang)
   THEME = safeTheme(stored.theme)
   PANEL_TRANSPARENCY = safePanelTransparency(stored.panelTransparency)
@@ -644,7 +644,7 @@ async function emitState() {
 }
 
 /** dsh 子进程与 AI 修复命令共用的环境变量（AI 靠这些变量拼出正确的 dsh 命令）。 */
-function dshEnv(version) {
+export function dshEnv(version) {
   const home = homeDir()
   const workerCompat = existsSync(WORKER_COMPAT)
   const env = {
@@ -666,6 +666,10 @@ function dshEnv(version) {
       workerCompat ? `--require ${basename(WORKER_COMPAT)}` : '',
     ].filter(Boolean).join(' '),
     npm_config_ignore_workspace_root_check: 'true',
+    // 下载源也传给 dsh 子进程：插件安装/升级是 dsh 自己跑 pnpm，不传的话它会按 pnpm 自己的
+    // 配置解析（多数机器上就是 npm 官方默认源），于是「检查更新」看的是设置里的源、真正装包
+    // 却走另一个源。传下去之后全链路一致：选了哪个源，查版本、下 dsh、装插件都走它。
+    npm_config_registry: currentRegistry(),
     PATH: withBundledRuntime(process.env.PATH || ''),
   }
   if (workerCompat) {
@@ -1511,7 +1515,7 @@ export async function checkWebPage(origin, token) {
   const headers = cookie ? { cookie } : {}
   const page = await fetch(`${base}/`, { headers, signal: AbortSignal.timeout(15000) })
   const html = await page.text()
-  const urls = [...new Set([...html.matchAll(/\/plugins\/[^"'\s<>)]+/g)].map((match) => match[0].replaceAll('&amp;', '&')))]
+  const urls = pageBundleUrls(html)
   const failed = []
   let ok = 0
   for (const url of urls) {
@@ -1525,6 +1529,23 @@ export async function checkWebPage(origin, token) {
     }
   }
   return { origin: base, total: urls.length, ok, failed }
+}
+
+/**
+ * 从 app 页面 HTML 里挑出客户端插件包的地址。
+ *
+ * dsh 0.1.7 起页面里写的是**相对地址**（`plugins/…`，没有前导斜杠），0.1.6 及以前是
+ * `/plugins/…`。只认绝对地址的话，0.1.7 上会一条都抓不到，然后自检报「0 个全部正常」——
+ * 既没检到东西、又盖住了真正的加载失败（issue #24 的附带发现）。两种都认，统一成绝对路径。
+ * @returns {string[]} 去重后的绝对路径
+ */
+export function pageBundleUrls(html) {
+  const urls = new Set()
+  for (const match of String(html).matchAll(/(?:^|["'\s(=,])(\.?\/?plugins\/[^"'\s<>)]+)/gm)) {
+    const raw = match[1].replaceAll('&amp;', '&')
+    urls.add(raw.startsWith('/') ? raw : `/${raw.replace(/^\.\//, '')}`)
+  }
+  return [...urls]
 }
 
 /** 启动成功后异步自检并把结论写进状态（失败不影响运行中的实例）。 */
@@ -1541,7 +1562,10 @@ async function selfCheckPage(url, version) {
       ok: result.ok,
       failed: result.failed.slice(0, 8),
     }
-    if (result.failed.length) {
+    if (result.total === 0) {
+      // 一条都没抓到＝这次自检没得出结论，别写成「0 个全部正常」骗自己（dsh 换过引用方式）
+      pushLog('页面自检：没在页面里找到客户端插件包引用（dsh 可能换了引用方式），这次没得出结论')
+    } else if (result.failed.length) {
       pushLog(`页面自检：${result.ok}/${result.total} 个客户端插件包正常，${result.failed.length} 个失败`)
       for (const item of result.failed.slice(0, 5)) pushLog(`[自检] HTTP ${item.status || '-'} ${item.url.slice(0, 160)}`)
     } else {
@@ -1606,6 +1630,18 @@ const MAX_AUTO_DISABLE = 3
 let lastAutoFix = null
 
 /**
+ * 这个 dsh 版本会不会自己隔离「可选插件启动失败」——0.1.7-rc.1 起会
+ * （release notes：可选插件启动失败时其余插件仍可运行，只有必需插件失败才退出；
+ * 并把分类诊断写进日志文件、在插件页给出启停入口）。
+ * 那种版本上启动器不该再按 stdout 正则去改用户的补丁层：既多余，也可能误伤。
+ */
+export function dshToleratesOptionalFailures(version) {
+  const parsed = parseVer(version)
+  const since = parseVer('0.1.7-rc.1')
+  return Boolean(parsed) && Boolean(since) && cmpVer(parsed, since) >= 0
+}
+
+/**
  * 兼容模式：启动输出点名了某个插件行加载失败时，把该行写进补丁层禁用。
  * 只信任错误的原始输出（failed to import loader entry <行> (<包>)），官方组件不动。
  * @returns 是否改动了配置（改动后上层立刻重试启动）。
@@ -1614,6 +1650,12 @@ async function autoDisableFailedPlugins(error, already) {
   const settings = await loadSettings()
   if (settings.autoDisablePlugins === false) return false
   const failure = error?.failure || lastFailure
+  // 新版本 dsh 自己扛得住可选插件失败，启动器就别替它做决定（原因见 dshToleratesOptionalFailures）
+  const version = failure?.version || current?.version || ''
+  if (dshToleratesOptionalFailures(version)) {
+    pushLog(`[兼容] ${version} 的 dsh 会自己隔离出问题的可选插件，本次不自动禁用；失败原因看它自己的插件页/日志`)
+    return false
+  }
   const text = `${failure?.message || ''}\n${(failure?.tail || []).join('\n')}`
 
   // 禁掉一个加载行并记账；返回是否真的动手了（没改动就别重试，免得打转）
@@ -2137,7 +2179,7 @@ export async function startServer() {
   EXTRA_ARGS = composeExtraArgs((await loadSettings()).args)
   WEB_BIND = resolveWebBind()
   // 远程插件的「局域网访问」开关：开着时启动 web 不注入 --host（每次起管理器读一次）
-  LAN_TOGGLE = lanBindToggleOn(homeDir())
+  LAN_TOGGLE = lanBindToggleOn(homeDir(), PROFILE_NAME)
   if (CLI_ARGS.length) pushLog(`DSH.exe 传入启动参数：${CLI_ARGS.join(' ')}`)
   const stored = await loadSettings()
   // 安装/升级时选过语言就以它为准，否则用设置里存的

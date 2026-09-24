@@ -4,6 +4,7 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 import { currentRegistry } from '../registry.js'
+import { dshEnv } from '../server.js'
 import { DEFAULTS, DEFAULT_SOURCE, DOWNLOAD_SOURCES, safeDownloadSource } from '../settings.js'
 
 const read = (name) => readFileSync(fileURLToPath(new URL(`../${name}`, import.meta.url)), 'utf8')
@@ -49,6 +50,21 @@ test('registry.js 里不再有写死的源，缓存和 .npmrc 都跟着当前源
   assert.match(registry, /const cacheKey = `\$\{registry\}\/\$\{name\}`/)
   assert.match(registry, /registry=\$\{currentRegistry\(\)\}/, '安装目录的 .npmrc 每次现写当前源')
   assert.match(registry, /npm_config_registry: currentRegistry\(\)/, '下载时把源透给 npm')
+})
+
+test('dsh 子进程也拿到当前源：插件安装/升级跟着设置一起走', () => {
+  // 插件安装/升级是 dsh 自己跑 pnpm，注册表由 pnpm 配置决定；不把源透下去的话，
+  // 「检查更新」看的是设置里的源、真正装包却走 pnpm 自己的源（多数机器上是官方默认），
+  // 两边不一致。这条钉住「查版本 / 下 dsh / 装插件」用的是同一个源。
+  assert.equal(dshEnv('0.0.0-test').npm_config_registry, currentRegistry(), '子进程的 registry 与当前源一致')
+  const before = process.env.npm_config_registry
+  try {
+    process.env.npm_config_registry = 'https://example.test/npm/'
+    assert.equal(dshEnv('0.0.0-test').npm_config_registry, 'https://example.test/npm', '手动设的环境变量仍然最高优先')
+  } finally {
+    if (before === undefined) delete process.env.npm_config_registry
+    else process.env.npm_config_registry = before
+  }
 })
 
 test('服务端把可选项给页面，切源顺手作废更新检查缓存', () => {
