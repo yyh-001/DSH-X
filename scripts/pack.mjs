@@ -1,20 +1,29 @@
-import { spawnSync } from 'node:child_process'
-import { createWriteStream, existsSync, readFileSync, rmSync } from 'node:fs'
-import { copyFile, cp, mkdir, writeFile } from 'node:fs/promises'
+import { existsSync, readFileSync, rmSync } from 'node:fs'
+import { copyFile, mkdir, writeFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
-import { pipeline } from 'node:stream/promises'
-import { fileURLToPath } from 'node:url'
+import {
+  NODE_VERSION,
+  PKG,
+  ROOT,
+  VENDOR,
+  copyAppFiles,
+  copyNpmModules,
+  copyPnpm as copyPnpmModule,
+  download,
+  downloadNodeFile,
+  run,
+} from './pack-common.mjs'
 import { collectArtifacts, writeReleaseManifest } from './release-manifest.mjs'
 import { collectComponents, writeSbom } from './release-sbom.mjs'
 
-const ROOT = fileURLToPath(new URL('..', import.meta.url))
-const PKG = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
-const NODE_VERSION = process.env.DSH_NODE_VERSION || '22.19.0'
-// dsh 的 profile 用 pnpm 8（lockfile 6.0），便携目录带同主版本
-const PNPM_VERSION = process.env.DSH_PNPM_VERSION || '8.15.9'
+// macOS 另有一套（.app + dmg），同一个 npm run dist 按当前系统分流
+if (process.platform === 'darwin') {
+  await import('./pack-mac.mjs')
+  process.exit(0)
+}
+
 const DIST = `node-v${NODE_VERSION}-win-x64`
 const ZIP = `${DIST}.zip`
-const VENDOR = join(ROOT, 'vendor')
 const ZIP_PATH = join(VENDOR, ZIP)
 const EXTRACTED = join(VENDOR, DIST)
 const OUT = join(ROOT, 'release', 'DSH')
@@ -29,36 +38,10 @@ const SETUP_NAME = 'DSH-Setup'
 const ICON_NAME = `dsh-${PKG.version}.ico`
 const DESKTOP = join(process.env.USERPROFILE || ROOT, 'Desktop')
 
-function run(command, args, cwd = ROOT) {
-  const result = spawnSync(command, args, { cwd, stdio: 'inherit', windowsHide: false })
-  if (result.status !== 0) throw new Error(`${command} ${args.join(' ')} failed`)
-}
-
-async function download(url, dest) {
-  const res = await fetch(url)
-  if (!res.ok) throw new Error(`下载失败 HTTP ${res.status} ${url}`)
-  await pipeline(res.body, createWriteStream(dest))
-}
-
 async function downloadNode() {
   await mkdir(VENDOR, { recursive: true })
   if (existsSync(join(EXTRACTED, 'node.exe'))) return
-  const urls = [
-    `https://npmmirror.com/mirrors/node/v${NODE_VERSION}/${ZIP}`,
-    `https://nodejs.org/dist/v${NODE_VERSION}/${ZIP}`,
-  ]
-  let last
-  for (const url of urls) {
-    try {
-      console.log(`下载 ${url}`)
-      await download(url, ZIP_PATH)
-      last = null
-      break
-    } catch (error) {
-      last = error
-    }
-  }
-  if (last) throw last
+  await downloadNodeFile(ZIP, ZIP_PATH)
   run('powershell', ['-NoProfile', '-Command', `Expand-Archive -Force '${ZIP_PATH}' '${VENDOR}'`])
 }
 
@@ -69,36 +52,13 @@ async function copyNodeRuntime() {
     const src = join(EXTRACTED, name)
     if (existsSync(src)) await copyFile(src, join(OUT, 'node', name))
   }
-  await mkdir(join(OUT, 'node', 'node_modules'), { recursive: true })
-  await cp(join(EXTRACTED, 'node_modules', 'npm'), join(OUT, 'node', 'node_modules', 'npm'), { recursive: true })
-  const corepack = join(EXTRACTED, 'node_modules', 'corepack')
-  if (existsSync(corepack)) {
-    await cp(corepack, join(OUT, 'node', 'node_modules', 'corepack'), { recursive: true })
-  }
+  await copyNpmModules(join(EXTRACTED, 'node_modules'), join(OUT, 'node'))
   await copyPnpm()
 }
 
-/**
- * `dsh plugin` 是 pnpm 的透传器，PATH 上没有 pnpm 就完全装不了插件（含开机预装
- * dshmarket）。机器上有没有全局 pnpm 全看运气，所以便携目录自带一个，启动器再
- * 把它加进子进程 PATH。
- */
+/** pnpm 本体见 pack-common.mjs 的 copyPnpm；这里只写 Windows 的命令行包装。 */
 async function copyPnpm() {
-  const target = join(OUT, 'node', 'node_modules', 'pnpm')
-  if (existsSync(join(target, 'bin', 'pnpm.cjs'))) return
-  const staging = join(VENDOR, 'pnpm')
-  if (!existsSync(join(staging, 'node_modules', 'pnpm', 'bin', 'pnpm.cjs'))) {
-    console.log(`下载 pnpm@${PNPM_VERSION}`)
-    await mkdir(staging, { recursive: true })
-    await writeFile(join(staging, 'package.json'), JSON.stringify({
-      name: 'pnpm-bootstrap',
-      private: true,
-      dependencies: { pnpm: PNPM_VERSION },
-    }, null, 2))
-    run(process.execPath, [join(EXTRACTED, 'node_modules', 'npm', 'bin', 'npm-cli.js'), 'install',
-      '--registry=https://registry.npmmirror.com', '--no-audit', '--no-fund'], staging)
-  }
-  await cp(join(staging, 'node_modules', 'pnpm'), target, { recursive: true })
+  await copyPnpmModule(join(OUT, 'node'), join(EXTRACTED, 'node_modules', 'npm', 'bin', 'npm-cli.js'))
   await writeFile(join(OUT, 'node', 'pnpm.cmd'), [
     '@ECHO off',
     'SETLOCAL',
@@ -126,30 +86,8 @@ async function buildLauncher() {
 
 async function assemble() {
   rmSync(OUT, { recursive: true, force: true })
-  await mkdir(join(OUT, 'public'), { recursive: true })
-  await mkdir(join(OUT, 'assets'), { recursive: true })
-  for (const file of [
-    'start.js',
-    'server.js',
-    'registry.js',
-    'settings.js',
-    'plugins.js',
-    'plugin-tool.js',
-    'stdio-unblock.cjs',
-    'package.json',
-  ]) {
-    await copyFile(join(ROOT, file), join(OUT, file))
-  }
-  // 分层版看板娘的素材暂时不装进包（文件留在仓库里；以后切回分层版就把名字从这份名单去掉）
-  const skipAssets = new Set(['head-v2.png', 'accessories-v2.png', 'ear.png'])
-  await cp(join(ROOT, 'public'), join(OUT, 'public'), {
-    recursive: true,
-    filter: (src) => !skipAssets.has(basename(src)),
-  })
-  await cp(join(ROOT, 'assets'), join(OUT, 'assets'), { recursive: true })
+  await copyAppFiles(OUT)
   await copyFile(join(ROOT, 'assets', 'dsh.ico'), join(OUT, 'assets', ICON_NAME))
-  await cp(join(ROOT, 'perf'), join(OUT, 'perf'), { recursive: true })
-  await cp(join(ROOT, 'compat'), join(OUT, 'compat'), { recursive: true })
   await copyNodeRuntime()
   // 这里原本要拷 node_modules（装着 systray2）。托盘搬进 DSH.exe 之后启动器不再依赖任何
   // npm 包，只剩 node 内置模块和同目录的自己人，整份拷贝都省了。

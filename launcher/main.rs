@@ -1,7 +1,7 @@
-#![cfg(windows)]
-#![windows_subsystem = "windows"]
+#![cfg_attr(windows, windows_subsystem = "windows")]
 
 //! 启动器外壳：拉起 node 跑管理服务，再把这个管理页装进一个自己的窗口。
+//! Windows 上是 DSH.exe（WebView2），macOS 上是 DSH-X.app 里的 Contents/MacOS/DSH（WKWebView）。
 //!
 //! 之所以要窗口而不是丢给系统浏览器：浏览器只允许脚本关闭「自己用 window.open 打开的」
 //! 页面，所以系统浏览器里那个标签页谁也关不掉——托盘退出时只能指望页面自己 window.close()，
@@ -12,6 +12,7 @@
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{SocketAddr, TcpStream};
+#[cfg(windows)]
 use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -19,6 +20,8 @@ use std::sync::{mpsc, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
+#[cfg(target_os = "macos")]
+use tao::dpi::LogicalPosition;
 use tao::dpi::{LogicalSize, PhysicalPosition};
 use tao::event::{Event, WindowEvent};
 use tao::event_loop::{ControlFlow, EventLoop, EventLoopBuilder};
@@ -27,8 +30,29 @@ use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tray_icon::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use wry::{WebContext, WebViewBuilder};
 
+#[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-/// 管理页默认端口；设置页里可以改（存在 %APPDATA%\DSH\settings.json）。
+/// 每用户目录名（和 platform.js 的 APP_DIR_NAME 一致）：settings.json、webview 数据都在它下面。
+const APP_DIR_NAME: &str = "DSH";
+/// 自带运行时里 node 的文件名（和 platform.js 的 NODE_BINARY 一致）。
+#[cfg(windows)]
+const NODE_BINARY: &str = "node.exe";
+#[cfg(target_os = "macos")]
+const NODE_BINARY: &str = "node";
+/// 管理页地址上的 window 参数：页面据此决定自己画窗口按钮（Windows）还是给系统红绿灯让位（macOS）。
+#[cfg(windows)]
+const WINDOW_QUERY: &str = "1";
+#[cfg(target_os = "macos")]
+const WINDOW_QUERY: &str = "mac";
+/// 红绿灯的位置（逻辑像素，相对窗口左上角）：对齐页面顶栏的竖直中线，页面在左边让出了这块。
+#[cfg(target_os = "macos")]
+const TRAFFIC_LIGHT_INSET: (f64, f64) = (18.0, 29.0);
+/// 托盘图标边长：Windows 托盘只要 16/32；macOS 菜单栏按 18pt 显示，给 2 倍图才不糊。
+#[cfg(windows)]
+const TRAY_ICON_SIZE: u32 = 32;
+#[cfg(target_os = "macos")]
+const TRAY_ICON_SIZE: u32 = 36;
+/// 管理页默认端口；设置页里可以改（存在每用户目录的 settings.json）。
 const DEFAULT_PORT: u16 = 3780;
 /// 等管理服务起来的时限；超了也照常开窗口，让页面自己显示连接失败。
 const PORT_WAIT: Duration = Duration::from_secs(25);
@@ -55,6 +79,9 @@ const ITEM_TOGGLE: &str = "toggle";
 const ITEM_RESTART: &str = "restart";
 const ITEM_MANAGER: &str = "manager";
 const ITEM_QUIT: &str = "quit";
+/// macOS 应用菜单里的 ⌘W：和关窗口一样只是藏起来
+#[cfg(target_os = "macos")]
+const ITEM_CLOSE_WINDOW: &str = "close-window";
 
 #[derive(Debug)]
 enum UserEvent {
@@ -136,13 +163,14 @@ impl Tray {
     }
 }
 
-/// 托盘图标用不了 256 那帧（托盘只要 16/32），从大图缩下去。
+/// 托盘图标用不了 256 那帧（托盘只要 TRAY_ICON_SIZE），从大图缩下去。
 fn load_tray_icon(root: &Path) -> Option<tray_icon::Icon> {
     let bytes = std::fs::read(root.join("assets").join("tray.ico")).ok()?;
     let (rgba, width, height) = decode_ico(&bytes)?;
     let source = image::RgbaImage::from_raw(width, height, rgba)?;
-    let scaled = image::imageops::resize(&source, 32, 32, image::imageops::FilterType::Lanczos3);
-    tray_icon::Icon::from_rgba(scaled.into_raw(), 32, 32).ok()
+    let size = TRAY_ICON_SIZE;
+    let scaled = image::imageops::resize(&source, size, size, image::imageops::FilterType::Lanczos3);
+    tray_icon::Icon::from_rgba(scaled.into_raw(), size, size).ok()
 }
 
 fn build_tray(root: &Path) -> Option<Tray> {
@@ -165,8 +193,9 @@ fn build_tray(root: &Path) -> Option<Tray> {
     }
     let icon = TrayIconBuilder::new()
         .with_menu(Box::new(menu))
-        // 左键留给「打开启动器界面」，菜单走右键
-        .with_menu_on_left_click(false)
+        // Windows：左键留给「打开启动器界面」，菜单走右键。macOS 菜单栏的惯例是单击就出菜单，
+        // 叫回窗口由程序坞图标负责（见 Event::Reopen）。
+        .with_menu_on_left_click(cfg!(target_os = "macos"))
         .with_tooltip("DSH-X")
         .with_icon(load_tray_icon(root)?)
         .build()
@@ -325,10 +354,20 @@ static CONFIGURED_PORT: OnceLock<u16> = OnceLock::new();
 /// 实际在用的端口：管理页在自己端口被别的程序占用时会往后顺延，扫到哪个用哪个。
 static LIVE_PORT: OnceLock<u16> = OnceLock::new();
 
+/// 每用户目录（和 platform.js 的 userAppDir 一致）：Windows 是 %APPDATA%\DSH，
+/// macOS 是 ~/Library/Application Support/DSH。
+fn user_app_dir() -> Option<PathBuf> {
+    #[cfg(windows)]
+    let base = std::env::var_os("APPDATA").map(PathBuf::from);
+    #[cfg(target_os = "macos")]
+    let base = std::env::var_os("HOME").map(|home| PathBuf::from(home).join("Library").join("Application Support"));
+    base.map(|dir| dir.join(APP_DIR_NAME))
+}
+
 fn configured_port() -> u16 {
     *CONFIGURED_PORT.get_or_init(|| {
-        let text = std::env::var_os("APPDATA")
-            .map(|dir| Path::new(&dir).join("DSH").join("settings.json"))
+        let text = user_app_dir()
+            .map(|dir| dir.join("settings.json"))
             .and_then(|file| std::fs::read_to_string(file).ok());
         text.and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
             .and_then(|json| json.get("port").and_then(|value| value.as_u64()))
@@ -430,6 +469,7 @@ fn wait_for_manager() -> Option<u16> {
 /// 页面上任何一个链接（插件页面、更新日志）被构造成 `http://127.0.0.1:1/?&calc`
 /// 就成了任意命令执行。这里直接调 ShellExecuteW——`start` 内部走的也是它，
 /// 参数按 argv 原样传，中间没有 shell。
+#[cfg(windows)]
 fn open_in_browser(url: &str) {
     use windows_sys::Win32::UI::Shell::ShellExecuteW;
     use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
@@ -438,6 +478,67 @@ fn open_in_browser(url: &str) {
     unsafe {
         ShellExecuteW(std::ptr::null_mut(), verb.as_ptr(), file.as_ptr(), std::ptr::null(), std::ptr::null(), SW_SHOWNORMAL);
     }
+}
+
+/// macOS：`open` 按 argv 收参数、不经过 shell，同样没有注入问题。
+#[cfg(target_os = "macos")]
+fn open_in_browser(url: &str) {
+    let _ = Command::new("/usr/bin/open").arg(url).spawn();
+}
+
+/// 把隐藏/最小化的窗口叫回前台。
+fn show_window(window: &tao::window::Window) {
+    // 被 ─ 收到任务栏/程序坞的窗口，光 set_visible + set_focus 拉不回来
+    window.set_minimized(false);
+    window.set_visible(true);
+    window.set_focus();
+}
+
+/// macOS 的应用菜单。没有它 ⌘Q/⌘W/⌘C/⌘V 全都不灵（WKWebView 的复制粘贴靠菜单里的
+/// 标准动作派发），而无边框窗口又拿不到系统菜单。「退出」不用系统预设项：那会直接结束进程、
+/// 绕过 node 的收尾，所以换成自己的项、走和托盘同一条 /api/quit。
+#[cfg(target_os = "macos")]
+fn build_app_menu() -> Menu {
+    use tray_icon::menu::accelerator::{Accelerator, Code, Modifiers};
+    use tray_icon::menu::Submenu;
+    let quit = MenuItem::with_id(ITEM_QUIT, "Quit DSH-X", true, Some(Accelerator::new(Modifiers::META, Code::KeyQ)));
+    let close = MenuItem::with_id(ITEM_CLOSE_WINDOW, "Close Window", true, Some(Accelerator::new(Modifiers::META, Code::KeyW)));
+    let app = Submenu::with_items(
+        "DSH-X",
+        true,
+        &[
+            &PredefinedMenuItem::about(None, None),
+            &PredefinedMenuItem::separator(),
+            &PredefinedMenuItem::hide(None),
+            &PredefinedMenuItem::hide_others(None),
+            &PredefinedMenuItem::show_all(None),
+            &PredefinedMenuItem::separator(),
+            &quit,
+        ],
+    );
+    let edit = Submenu::with_items(
+        "Edit",
+        true,
+        &[
+            &PredefinedMenuItem::undo(None),
+            &PredefinedMenuItem::redo(None),
+            &PredefinedMenuItem::separator(),
+            &PredefinedMenuItem::cut(None),
+            &PredefinedMenuItem::copy(None),
+            &PredefinedMenuItem::paste(None),
+            &PredefinedMenuItem::select_all(None),
+        ],
+    );
+    let window = Submenu::with_items(
+        "Window",
+        true,
+        &[&PredefinedMenuItem::minimize(None), &PredefinedMenuItem::fullscreen(None), &close],
+    );
+    let menu = Menu::new();
+    for submenu in [app, edit, window].into_iter().flatten() {
+        let _ = menu.append(&submenu);
+    }
+    menu
 }
 
 /// 极简 HTTP GET，只用来问本机管理服务一个短路径；读完整响应取正文即可。
@@ -505,10 +606,24 @@ fn load_window_icon(root: &Path) -> Option<tao::window::Icon> {
     tao::window::Icon::from_rgba(rgba, width, height).ok()
 }
 
+/// 启动器文件（start.js、node/、assets/…）所在的目录。
+/// Windows 就是 exe 旁边；macOS 是包里的 Contents/Resources/app（可执行文件在 Contents/MacOS）。
+fn app_root(exe: &Path) -> PathBuf {
+    let dir = exe.parent().expect("install dir");
+    #[cfg(target_os = "macos")]
+    {
+        let bundled = dir.parent().map(|contents| contents.join("Resources").join("app"));
+        if let Some(bundled) = bundled.filter(|path| path.join("start.js").exists()) {
+            return bundled;
+        }
+    }
+    dir.to_path_buf()
+}
+
 fn main() {
     let exe = std::env::current_exe().expect("current exe");
-    let root = exe.parent().expect("install dir").to_path_buf();
-    let node = root.join("node").join("node.exe");
+    let root = app_root(&exe);
+    let node = root.join("node").join(NODE_BINARY);
     let script = root.join("start.js");
 
     // 用户在 DSH.exe 上带的参数：原样转给 start.js（server.js 会把它们拼到 dsh
@@ -531,11 +646,20 @@ fn main() {
         std::process::exit(0);
     }
 
-    let mut path = node.parent().unwrap().display().to_string();
-    if let Ok(old) = std::env::var("PATH") {
-        path.push(';');
-        path.push_str(&old);
+    // 从 Finder / 程序坞打开的 macOS 应用只拿到 launchd 的精简 PATH（/usr/bin:/bin:…），
+    // 用户 shell 里配的 Homebrew 等目录都不在；插件的构建脚本会用到 git 之类，这里补上常见位置。
+    let mut dirs = vec![node.parent().unwrap().to_path_buf()];
+    if let Some(old) = std::env::var_os("PATH") {
+        dirs.extend(std::env::split_paths(&old));
     }
+    #[cfg(target_os = "macos")]
+    for extra in ["/opt/homebrew/bin", "/usr/local/bin"] {
+        let extra = PathBuf::from(extra);
+        if !dirs.contains(&extra) {
+            dirs.push(extra);
+        }
+    }
+    let path = std::env::join_paths(dirs).expect("PATH entries");
 
     let spawn_node = |app_window: bool| {
         let mut command = Command::new(&node);
@@ -545,8 +669,9 @@ fn main() {
             .current_dir(&root)
             .env("PATH", &path)
             // stdout 走管道：node 用一行约定标记叫我们把窗口叫到前面
-            .stdout(Stdio::piped())
-            .creation_flags(CREATE_NO_WINDOW);
+            .stdout(Stdio::piped());
+        #[cfg(windows)]
+        command.creation_flags(CREATE_NO_WINDOW);
         if app_window {
             // 告诉 start.js：管理页由本进程的窗口承载，别再自己开浏览器
             command.env("DSH_APP_WINDOW", "1");
@@ -564,7 +689,7 @@ fn main() {
             event_loop,
             &root,
             "启动器文件不完整",
-            "缺少 node/node.exe 或 start.js，多半是安装没完成、或者被杀毒软件清理掉了。",
+            &format!("缺少 node/{NODE_BINARY} 或 start.js，多半是安装没完成、或者被杀毒软件清理掉了。"),
             "重新安装一次 DSH-X 即可。",
         );
     }
@@ -621,11 +746,7 @@ fn main() {
     // WebView2 的初始化是启动里最贵的一段，放在 node 之后做，两者就能并行。
     // 建不出来（WebView2 缺失等）就降级成「只有托盘、没有窗口」，浏览器顶上管理页，
     // 绝不能在 node 已经在跑的时候直接退出——那会留下没人管的进程。
-    let data_dir = std::env::var("APPDATA")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| root.clone())
-        .join("DSH")
-        .join("webview");
+    let data_dir = user_app_dir().unwrap_or_else(|| root.join("data")).join("webview");
     let _ = std::fs::create_dir_all(&data_dir);
     let mut context = WebContext::new(Some(data_dir));
 
@@ -639,13 +760,25 @@ fn main() {
         )
     });
 
-    let mut window_builder = WindowBuilder::new()
+    let window_builder = WindowBuilder::new()
         .with_title("DSH-X")
         .with_window_icon(load_window_icon(&root))
-        // 不要原生标题栏：图标、标题、三个按钮都由页面自己画，风格才统一
-        .with_decorations(false)
         .with_inner_size(LogicalSize::new(WINDOW_W, WINDOW_H))
         .with_min_inner_size(LogicalSize::new(WINDOW_MIN_W, WINDOW_MIN_H));
+    // 不要原生标题栏：图标、标题、三个按钮都由页面自己画，风格才统一
+    #[cfg(windows)]
+    let mut window_builder = window_builder.with_decorations(false);
+    // macOS 反过来留着系统红绿灯（用户对它们的肌肉记忆比风格统一更重要），只把标题栏做透明、
+    // 让页面铺满整个窗口，红绿灯挪到和页面顶栏对齐的位置
+    #[cfg(target_os = "macos")]
+    let mut window_builder = {
+        use tao::platform::macos::WindowBuilderExtMacOS;
+        window_builder
+            .with_titlebar_transparent(true)
+            .with_title_hidden(true)
+            .with_fullsize_content_view(true)
+            .with_traffic_light_inset(LogicalPosition::new(TRAFFIC_LIGHT_INSET.0, TRAFFIC_LIGHT_INSET.1))
+    };
     if let Some(position) = centered {
         window_builder = window_builder.with_position(position);
     }
@@ -708,21 +841,34 @@ fn main() {
     // 端口被占用时管理页会顺延，所以这里扫一遍把真正的端口定下来。
     wait_for_manager();
 
-    // 直接加载，不问服务端：window=1 是个常量，绕一趟 HTTP 只会拖慢启动——而且
-    // 那个接口内部要发网络请求，一旦超过读超时就会退化成不带 window=1 的地址，
+    // 直接加载，不问服务端：window 参数是个常量，绕一趟 HTTP 只会拖慢启动——而且
+    // 那个接口内部要发网络请求，一旦超过读超时就会退化成不带 window 的地址，
     // 页面因此丢掉自定义标题栏和窗口按钮。更新询问交给页面自己去问 /api/pending。
     if let Some(webview) = &webview {
-        let _ = webview.load_url(&format!("{}?window=1", manager_url()));
+        let _ = webview.load_url(&format!("{}?window={WINDOW_QUERY}", manager_url()));
     }
 
     // 托盘建在主线程：它的消息要靠下面这个事件循环的消息泵派发
     let tray = build_tray(&root);
     let mut state = TrayState::default();
 
+    // macOS 的菜单栏菜单也得在事件循环跑起来之前挂上；句柄要一直留着，否则菜单项跟着失效
+    #[cfg(target_os = "macos")]
+    let app_menu = {
+        let menu = build_app_menu();
+        menu.init_for_nsapp();
+        menu
+    };
+
     // webview 与 context 都是本帧的局部变量，run 不返回，所以它们的生命周期覆盖整个窗口期
     event_loop.run(move |event, _, control_flow| {
-        // 左键点托盘＝打开启动器界面（菜单已经改成只在右键弹）
+        #[cfg(target_os = "macos")]
+        let _ = &app_menu;
+        // Windows：左键点托盘＝打开启动器界面（菜单已经改成只在右键弹）。macOS 的左键是出菜单。
         while let Ok(tray_event) = TrayIconEvent::receiver().try_recv() {
+            if cfg!(target_os = "macos") {
+                continue;
+            }
             if let TrayIconEvent::Click {
                 button: MouseButton::Left,
                 button_state: MouseButtonState::Up,
@@ -730,12 +876,7 @@ fn main() {
             } = tray_event
             {
                 match &window {
-                    Some(window) => {
-                        // 被 ─ 收到任务栏的窗口，光 set_visible + set_focus 拉不回来
-                        window.set_minimized(false);
-                        window.set_visible(true);
-                        window.set_focus();
-                    }
+                    Some(window) => show_window(window),
                     None => open_in_browser(&manager_url()),
                 }
             }
@@ -756,17 +897,18 @@ fn main() {
                     let _ = http_post(&manager_addr(), "/api/restart");
                 }
                 ITEM_MANAGER => match &window {
-                    Some(window) => {
-                        // 被 ─ 收到任务栏的窗口，光 set_visible + set_focus 拉不回来
-                        window.set_minimized(false);
-                        window.set_visible(true);
-                        window.set_focus();
-                    }
+                    Some(window) => show_window(window),
                     None => open_in_browser(&manager_url()),
                 },
                 ITEM_QUIT => {
                     // 让 node 自己收尾（停掉 dsh、通知开着的页面），它一退我们跟着收摊
                     let _ = http_post(&manager_addr(), "/api/quit");
+                }
+                #[cfg(target_os = "macos")]
+                ITEM_CLOSE_WINDOW => {
+                    if let Some(window) = &window {
+                        window.set_visible(false);
+                    }
                 }
                 _ => {}
             }
@@ -776,10 +918,20 @@ fn main() {
         match event {
             Event::UserEvent(UserEvent::Show) => {
                 if let Some(window) = &window {
-                    window.set_minimized(false);
-                    window.set_visible(true);
-                    window.set_focus();
+                    show_window(window);
                 }
+            }
+            // macOS：窗口藏起来之后点程序坞图标，系统发的就是这个
+            Event::Reopen { .. } => match &window {
+                Some(window) => show_window(window),
+                None => open_in_browser(&manager_url()),
+            },
+            // macOS 上系统也能直接结束我们（程序坞右键「退出」、注销关机），这时 node 还活着、
+            // 占着端口；同步让它收尾，否则下次打开会撞上一个没有窗口的旧实例。
+            // node 已经先退的正常路径上这一步连接被拒，立刻返回。
+            #[cfg(target_os = "macos")]
+            Event::LoopDestroyed => {
+                let _ = http_post(&manager_addr(), "/api/quit");
             }
             Event::UserEvent(UserEvent::Exited) => *control_flow = ControlFlow::ExitWithCode(0),
             Event::UserEvent(UserEvent::Tray(next)) => {

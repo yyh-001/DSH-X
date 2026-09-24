@@ -61,7 +61,11 @@ If that happens:
 
 ## Usage
 
-Install [DSH-Setup.exe](https://github.com/yyh-001/DSH-X/releases/latest) on Windows, then open **DSH-X** from the desktop. Both the manager page and DSH's own web page open in your default browser. The manager defaults to `http://127.0.0.1:3780/` (the port can be changed on the settings page; restart the launcher to apply it).
+Install [DSH-Setup.exe](https://github.com/yyh-001/DSH-X/releases/latest) on Windows, then open **DSH-X** from the desktop.
+
+On macOS, open `DSH-X-mac-arm64.dmg` (Apple Silicon) or `DSH-X-mac-x64.dmg` (Intel) and drag **DSH-X** into Applications. The app is not notarized, so the first launch is blocked: right-click it and choose **Open**, or allow it under System Settings → Privacy & Security. Settings and logs live in `~/Library/Application Support/DSH`. Self-update only works when the app is in a folder you can write to (e.g. Applications).
+
+Both the manager page and DSH's own web page open in your default browser. The manager defaults to `http://127.0.0.1:3780/` (the port can be changed on the settings page; restart the launcher to apply it).
 
 dsh's web UI binds to this machine only (`127.0.0.1`) by default. To let a phone or another computer reach it: settings page → Advanced → **Web binding** → pick "LAN (0.0.0.0)"; it applies the next time dsh starts. When the remote-access plugin's LAN switch is on, the launcher treats it as LAN too (it stops injecting `--host`).
 
@@ -87,7 +91,12 @@ npm run dist
 - `release/DSH/`: portable directory
 - `release/DSH-Setup.exe`: installer (defaults to `%LOCALAPPDATA%\Programs\DSH`)
 
-The build also emits two verifiable files:
+On macOS the same command needs only Rust and the Xcode command line tools, and produces:
+
+- `release/DSH-X.app`: the app bundle (ad-hoc signed)
+- `release/DSH-X-mac-<arch>.dmg`: the release asset self-update downloads; upload one per architecture (`DSH_MAC_ARCH=x64 npm run dist` for Intel, after `rustup target add x86_64-apple-darwin`)
+
+On Windows the build also emits two verifiable files:
 
 - `release/dsh-x-<version>.spdx.json`: an SBOM (SPDX 2.3) listing the bundled runtimes and every file the launcher ships, with their sha256
 - `release/release-manifest.json`: the release manifest (version, commit, whether the build is tagged, artifact hashes) plus an Ed25519 signature in `release/release-manifest.sig`

@@ -7,7 +7,7 @@ edition = "2021"
 name = "DSH"
 path = "main.rs"
 
-[build-dependencies]
+[target.'cfg(windows)'.build-dependencies]
 winresource = "0.1"
 
 [profile.release]
@@ -20,4 +20,6 @@ serde_json = "1"
 tao = "0.37.0"
 tray-icon = "0.25.1"
 wry = "0.57.0"
+
+[target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.60", features = ["Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }

@@ -1,4 +1,6 @@
 /// 启动器自己的版本号跟着 package.json 走（和安装包、管理页显示的保持一致）。
+/// macOS 的版本号写在 Info.plist 里（由 scripts/pack.mjs 生成），这里只有 Windows 用。
+#[cfg(windows)]
 fn app_version() -> String {
     let raw = std::fs::read_to_string("../package.json").unwrap_or_default();
     raw.split("\"version\"")

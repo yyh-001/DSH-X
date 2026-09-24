@@ -61,7 +61,11 @@ DeepSeek Harness 轻量 Windows 启动器。选一个版本，在系统浏览器
 
 ## 使用
 
-Windows 安装 [DSH-Setup.exe](https://github.com/yyh-001/DSH-X/releases/latest) 后，从桌面打开 **DSH-X**。启动器管理页和 DSH 官方原版 Web 界面都会使用系统默认浏览器打开；管理页地址默认 `http://127.0.0.1:3780/`（设置页可改端口，改完重启启动器生效）。
+Windows 安装 [DSH-Setup.exe](https://github.com/yyh-001/DSH-X/releases/latest) 后，从桌面打开 **DSH-X**。
+
+macOS 打开 `DSH-X-mac-arm64.dmg`（Apple Silicon）或 `DSH-X-mac-x64.dmg`（Intel），把 **DSH-X** 拖进「应用程序」。应用没有经过公证，第一次打开会被拦下：右键点它选「打开」，或到「系统设置 → 隐私与安全性」里放行。设置和日志在 `~/Library/Application Support/DSH`。自更新要求应用放在当前用户能写的目录（比如「应用程序」）。
+
+启动器管理页和 DSH 官方原版 Web 界面都会使用系统默认浏览器打开；管理页地址默认 `http://127.0.0.1:3780/`（设置页可改端口，改完重启启动器生效）。
 
 dsh 的 Web 界面默认只绑在本机（`127.0.0.1`）。想让手机/其他电脑也能访问：设置页 → 高级设置 → **Web 绑定**选「局域网（0.0.0.0）」，下次启动 dsh 生效；远程访问插件的「局域网访问」开关打开时，启动器也会自动按局域网处理（不再注入 `--host`）。
 
@@ -87,7 +91,12 @@ npm run dist
 - `release/DSH/`：便携目录
 - `release/DSH-Setup.exe`：安装包（默认 `%LOCALAPPDATA%\Programs\DSH`）
 
-打完包还会顺带生成两份可核验的文件：
+macOS 上同一条命令只需要 Rust 和 Xcode 命令行工具，产出：
+
+- `release/DSH-X.app`：应用本体（ad-hoc 签名）
+- `release/DSH-X-mac-<arch>.dmg`：自更新下载的发布资产，每个架构各传一份（Intel 版先 `rustup target add x86_64-apple-darwin`，再 `DSH_MAC_ARCH=x64 npm run dist`）
+
+Windows 打完包还会顺带生成两份可核验的文件：
 
 - `release/dsh-x-<版本>.spdx.json`：SBOM（SPDX 2.3），列出随包发的运行时和启动器自己的文件及其 sha256
 - `release/release-manifest.json`：发布清单（版本、提交、有没有 tag、产物哈希），配 `release/release-manifest.sig` 的 Ed25519 签名
