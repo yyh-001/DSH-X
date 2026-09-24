@@ -12,7 +12,7 @@
   <a href="README.md">中文</a>
 </p>
 
-A lightweight Windows launcher for DeepSeek Harness. Pick a version, start DSH Web in your system browser.
+A lightweight launcher for DeepSeek Harness. Pick a version, start DSH Web in your system browser.
 
 > [!IMPORTANT]
 > **DSH-X starts DeepSeek Harness's own web page, not a desktop app.**  
@@ -21,13 +21,15 @@ A lightweight Windows launcher for DeepSeek Harness. Pick a version, start DSH W
 ## Features
 
 - **Pick a version and go**: start / stop / restart / update / uninstall
-- **Plugins page**: list installed plugins, toggle each with one click
+- **macOS support**: a native `.app` and dmg installers (one for Apple Silicon, one for Intel); self-update, launch at login and the folder picker all use the system's own mechanisms
+- **Plugins page**: list installed plugins and toggle each with one click, check for and install updates (one or all), and switch profiles
 - **Compatibility mode**: on a failed start, disable the plugins named in the error (one click to restore); after boot it checks the client plugin bundles the page references and reports the verdict, telling a broken install apart from a stale tab
+- **Dark appearance**: follow the system or pick a theme, plus floating-panel transparency and mascot switches
 - **Faster startup**: equivalent fast implementations at the bundle composition point (saves about 1–2 s), skipped automatically once dsh changes underneath
 - **Plugins stay where dsh puts them**: data lives in `~/.dsh`, so switching versions needs no plugin reinstall
 - **Keeps one older version**: only the newest and the most recently installed are kept (enough to roll back); older ones are pruned after install
-- **Tray resident**: closing the page does not quit; the UI uses your system browser
-- **Bundled Node / npm**: the installer ships a portable `node.exe` and npm 10; packages come from the npmmirror registry
+- **Resident in the background**: closing the page does not quit (Windows tray / macOS menu bar icon); the UI uses your system browser
+- **Bundled Node / npm / pnpm**: a portable runtime ships inside the package, packages come from the npmmirror registry, and plugin installs need nothing from the host
 - **One version at a time**: no two versions fighting over ports and data
 - **Optional marketplace**: can install `dshmarket` on first launch
 
