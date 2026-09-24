@@ -132,6 +132,39 @@ test('没私钥重建会清掉上一次的签名，verify 明说「没签名」�
   }
 })
 
+test('allowUnsigned：没签名只提醒，体积和哈希照样得对上', () => {
+  const box = sandbox()
+  try {
+    const releaseDir = join(box.dir, 'release')
+    mkdirSync(releaseDir, { recursive: true })
+    const exe = join(releaseDir, 'DSH-Setup.exe')
+    writeFileSync(exe, Buffer.from('installer'))
+    const publicKeyPath = join(box.dir, 'pub.pem')
+    keygen({ privateKeyPath: join(box.dir, 'key.pem'), publicKeyPath })
+    const exported = writeReleaseManifest({
+      releaseDir,
+      version: '9.9.9',
+      artifacts: collectArtifacts(releaseDir, ['DSH-Setup.exe']),
+      provenance: { commit: 'x', tag: null, dirty: false },
+      privateKeyPath: join(box.dir, 'no-such-key.pem'), // 没配私钥：只出清单
+      manifestPath: join(box.dir, 'release-manifest.json'),
+      signaturePath: join(box.dir, 'release-manifest.sig'),
+    })
+    assert.equal(exported.signed, false)
+
+    const relaxed = verifyReleaseManifest({ releaseDir, manifestPath: exported.manifestPath, signaturePath: join(box.dir, 'release-manifest.sig'), publicKeyPath, allowUnsigned: true })
+    assert.equal(relaxed.ok, true, '明确允许未签名时应算核过')
+    assert.equal(relaxed.unsigned, true, '要能说清这次是未签名')
+
+    writeFileSync(exe, Buffer.from('tampered installer'))
+    const bad = verifyReleaseManifest({ releaseDir, manifestPath: exported.manifestPath, signaturePath: join(box.dir, 'release-manifest.sig'), publicKeyPath, allowUnsigned: true })
+    assert.equal(bad.ok, false, '放过签名不等于放过体积/哈希')
+    assert.ok(bad.problems.some((item) => item.includes('不一致')), `对不上的文件要点名：${bad.problems}`)
+  } finally {
+    box.done()
+  }
+})
+
 test('SBOM：运行时按条目声明，启动器自己的文件逐个带哈希', () => {
   const box = sandbox()
   try {

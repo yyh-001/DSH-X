@@ -123,15 +123,21 @@ export function writeReleaseManifest({
   return { manifest, signed, manifestPath }
 }
 
-/** 校验：签名有效 + 每个产物的体积与 sha256 与清单一致。返回 { ok, problems, manifest }。 */
-export function verifyReleaseManifest({ releaseDir = join(ROOT, 'release'), manifestPath = MANIFEST, signaturePath = SIGNATURE, publicKeyPath = PUBLIC_KEY } = {}) {
+/**
+ * 校验：签名有效 + 每个产物的体积与 sha256 与清单一致。返回 { ok, problems, unsigned, manifest }。
+ * allowUnsigned：没签名时只提醒、不算问题（CI 里没配私钥、或用户下载的是未签名的包时用得上）。
+ */
+export function verifyReleaseManifest({ releaseDir = join(ROOT, 'release'), manifestPath = MANIFEST, signaturePath = SIGNATURE, publicKeyPath = PUBLIC_KEY, allowUnsigned = false } = {}) {
   const problems = []
-  if (!existsSync(manifestPath)) return { ok: false, problems: ['没有 release-manifest.json（先跑 make）'], manifest: null }
+  let unsigned = false
+  if (!existsSync(manifestPath)) return { ok: false, problems: ['没有 release-manifest.json（先跑 make）'], unsigned, manifest: null }
   const bytes = readFileSync(manifestPath)
   const manifest = JSON.parse(bytes.toString('utf8'))
   if (!existsSync(publicKeyPath)) problems.push('缺少公钥，无法校验签名')
-  else if (!existsSync(signaturePath)) problems.push('这个包没有签名（不是用官方密钥打的）')
-  else if (!verifySignature(bytes, readFileSync(signaturePath, 'utf8'), readFileSync(publicKeyPath, 'utf8'))) problems.push('签名校验不通过')
+  else if (!existsSync(signaturePath)) {
+    if (allowUnsigned) unsigned = true
+    else problems.push('这个包没有签名（不是用官方密钥打的）')
+  } else if (!verifySignature(bytes, readFileSync(signaturePath, 'utf8'), readFileSync(publicKeyPath, 'utf8'))) problems.push('签名校验不通过')
   for (const artifact of manifest.artifacts ?? []) {
     const file = join(releaseDir, artifact.path)
     if (!existsSync(file)) {
@@ -142,7 +148,7 @@ export function verifyReleaseManifest({ releaseDir = join(ROOT, 'release'), mani
     if (actual.size !== artifact.size) problems.push(`${artifact.path} 体积不一致：清单 ${artifact.size}，实际 ${actual.size}`)
     if (actual.sha256 !== artifact.sha256) problems.push(`${artifact.path} sha256 不一致：清单 ${artifact.sha256.slice(0, 12)}…，实际 ${actual.sha256.slice(0, 12)}…`)
   }
-  return { ok: problems.length === 0, problems, manifest }
+  return { ok: problems.length === 0, problems, unsigned, manifest }
 }
 
 export function keygen({ privateKeyPath = PRIVATE_KEY, publicKeyPath = PUBLIC_KEY } = {}) {
@@ -179,14 +185,19 @@ async function main(argv) {
     return 0
   }
   if (command === 'verify') {
-    // verify [目录]：默认核本机 release/；换成别的目录就能核「从 release 页下载下来的一套」
-    const dir = rest[0] ? resolve(rest[0]) : join(ROOT, 'release')
-    const { ok, problems, manifest } = verifyReleaseManifest({
+    // verify [目录] [--unsigned-ok]：默认核本机 release/；换成别的目录就能核「从 release 页下载下来的一套」。
+    // --unsigned-ok 只在「没签名不算错」时用（CI 里没配私钥、或下载的是未签名的包）。
+    const allowUnsigned = rest.includes('--unsigned-ok')
+    const dirArg = rest.find((arg) => !arg.startsWith('--'))
+    const dir = dirArg ? resolve(dirArg) : join(ROOT, 'release')
+    const { ok, problems, unsigned, manifest } = verifyReleaseManifest({
       releaseDir: dir,
       manifestPath: join(dir, 'release-manifest.json'),
       signaturePath: join(dir, 'release-manifest.sig'),
+      allowUnsigned,
     })
     for (const problem of problems) console.log(`  ! ${problem}`)
+    if (unsigned) console.log('  · 这个包没签名：签名那项没核，体积与 sha256 已核')
     console.log(ok ? `清单校验通过（DSH-X ${manifest.version}）` : '清单校验未通过')
     return ok ? 0 : 1
   }
