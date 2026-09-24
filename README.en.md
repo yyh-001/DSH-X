@@ -12,7 +12,7 @@
   <a href="README.md">中文</a>
 </p>
 
-A lightweight launcher for DeepSeek Harness. Pick a version, start DSH Web in your system browser.
+A lightweight launcher for DeepSeek Harness. Pick a version, start DSH web.
 
 > [!IMPORTANT]
 > **DSH-X starts DeepSeek Harness's own web page, not a desktop app.**  

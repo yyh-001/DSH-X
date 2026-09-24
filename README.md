@@ -12,7 +12,7 @@
   <a href="README.en.md">English</a>
 </p>
 
-DeepSeek Harness 轻量启动器。选一个版本，在系统浏览器中启动 DSH Web。
+DeepSeek Harness 轻量启动器。选一个版本，启动 DSH web。
 
 > [!IMPORTANT]
 > **DSH-X 启动的是 DeepSeek Harness 官方原版 Web 页面，不是桌面端。**  
