@@ -7,230 +7,8 @@
   <meta name="description" content="DeepSeek Harness 轻量启动器。选一个版本，启动 DSH web。" />
   <link rel="icon" href="./favicon.ico" sizes="any" />
   <link rel="icon" type="image/png" href="./favicon.png" />
-  <style>
-    :root {
-      --bg: #eef3fd;
-      --card: #fff;
-      --line: #d8e2f7;
-      --text: #16233d;
-      --muted: #6b7d9c;
-      --accent: #3b6fe0;
-      --accent-soft: #eaf1ff;
-      --accent-dim: #e2ebff;
-    }
-    * { box-sizing: border-box; }
-    html, body { margin: 0; background: var(--bg); color: var(--text); overflow-x: hidden; }
-    body {
-      font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
-      min-height: 100svh;
-      -webkit-font-smoothing: antialiased;
-    }
-    /* 和启动器同一套背景：淡蓝渐变铺底，角色由 mascot.js 放进来 */
-    .backdrop {
-      position: fixed;
-      inset: 0;
-      overflow: hidden;
-      pointer-events: none;
-      z-index: 0;
-      background: radial-gradient(ellipse at 25% 10%, #f1fbff, #d9eaf7 65%, #d2e3f5);
-    }
-    .backdrop-character {
-      position: absolute;
-      left: -3vh;
-      bottom: -7vh;
-      width: min(76vh, 62vw);
-      aspect-ratio: 1;
-      background: url("./background-character.png") center / contain no-repeat;
-      opacity: .46;
-    }
-    .water-surface { display: block; width: 100%; height: 100%; pointer-events: none; opacity: .78; }
-    .water-surface[hidden] { display: none; }
-    a { color: inherit; }
-    .wrap {
-      position: relative;
-      z-index: 3;
-      width: calc(100% - 48px);
-      max-width: 1140px;
-      margin: 0 auto;
-    }
-    @media (min-width: 768px) {
-      .wrap { width: calc(100% - 144px); }
-    }
-    header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      height: 50px;
-      padding-top: 8px;
-    }
-    .gh { margin-right: auto; }
-    .gh {
-      display: inline-flex;
-      align-items: center;
-      gap: .65rem;
-      text-decoration: none;
-      color: var(--text);
-    }
-    .gh:hover .gh-name { color: var(--accent); }
-    .gh svg.mark { width: 1.5rem; height: 1.5rem; fill: currentColor; flex-shrink: 0; }
-    .gh-name { font-size: 1rem; font-weight: 600; transition: color .18s ease; }
-    .stars {
-      display: inline-flex;
-      align-items: center;
-      gap: .25rem;
-      height: 1.5rem;
-      padding: 0 .5rem;
-      border: 1px solid var(--line);
-      border-radius: .375rem;
-      background: var(--card);
-      color: var(--muted);
-      font-size: .75rem;
-      font-weight: 500;
-      font-variant-numeric: tabular-nums;
-    }
-    .stars svg { width: .875rem; height: .875rem; fill: #eab308; }
-    /* 下载次数：安安静静待在按钮右边的说明文字，不做成第二个按钮；数据没拉到就整块不显示 */
-    .dl {
-      display: inline-flex;
-      align-items: center;
-      gap: .375rem;
-      color: var(--dim);
-      font-size: .8125rem;
-      font-variant-numeric: tabular-nums;
-      white-space: nowrap;
-    }
-    .dl b { color: var(--muted); font-weight: 600; }
-    .dl svg { width: .9375rem; height: .9375rem; fill: currentColor; opacity: .55; }
-    .dl[hidden] { display: none; }
-    .lang {
-      margin-left: .5rem;
-      height: 1.5rem;
-      padding: 0 .625rem;
-      border: 1px solid var(--line);
-      border-radius: .375rem;
-      background: var(--card);
-      color: var(--muted);
-      font: inherit;
-      font-size: .75rem;
-      font-weight: 500;
-      cursor: pointer;
-    }
-    .lang:hover { color: var(--accent); border-color: var(--accent); }
-    .stage {
-      display: grid;
-      align-items: center;
-      gap: 2.5rem;
-      min-height: calc(100svh - 50px);
-      padding: 1.5rem 0 2.5rem;
-    }
-    @media (min-width: 960px) {
-      .stage {
-        grid-template-columns: minmax(0, .86fr) minmax(0, 1.14fr);
-        gap: 2rem;
-      }
-    }
-    h1 {
-      margin: 0;
-      font-size: clamp(2.4rem, 5vw, 3.85rem);
-      font-weight: 700;
-      letter-spacing: -.03em;
-      line-height: 1.12;
-      color: var(--accent);
-    }
-    .lead {
-      margin: 1.5rem 0 0;
-      max-width: 34rem;
-      color: var(--text);
-      font-size: clamp(1.05rem, 1.6vw, 1.25rem);
-      font-weight: 400;
-      line-height: 1.55;
-    }
-    .note {
-      display: flex;
-      align-items: flex-start;
-      gap: .5rem;
-      margin: 1rem 0 0;
-      max-width: 34rem;
-      color: var(--muted);
-      font-size: .8125rem;
-      line-height: 1.45;
-    }
-    .note svg { width: 1rem; height: 1rem; flex-shrink: 0; margin-top: .1rem; opacity: .8; }
-    .cta { margin-top: 1.7rem; display: flex; flex-wrap: wrap; gap: 1rem; }
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: .65rem;
-      height: 54px;
-      padding: 0 1.25rem;
-      border-radius: 14px;
-      font: inherit;
-      font-size: 15px;
-      font-weight: 600;
-      text-decoration: none;
-      border: 0;
-      white-space: nowrap;
-    }
-    .btn svg { width: 1.5rem; height: 1.5rem; fill: currentColor; }
-    .btn-go { background: var(--accent); color: #fff; box-shadow: 0 8px 22px rgba(59, 111, 224, .28); }
-    .btn-go:hover { background: #3462cb; }
-    .btn-alt { background: var(--card); color: var(--accent); border: 1px solid #cfe0f7; box-shadow: 0 6px 16px rgba(59, 111, 224, .1); }
-    .btn-alt:hover { background: var(--accent-soft); border-color: #b9ccf0; }
-    .cta-note { margin: .7rem 0 0; color: var(--muted); font-size: .8125rem; line-height: 1.45; }
-    .links { margin-top: 1.25rem; display: flex; flex-wrap: wrap; gap: .75rem 1.25rem; align-items: center; }
-    .btn-ghost {
-      display: inline-flex;
-      align-items: center;
-      gap: .5rem;
-      height: 2.5rem;
-      padding: 0 .875rem;
-      border-radius: .625rem;
-      border: 1px solid var(--line);
-      background: var(--card);
-      color: var(--accent);
-      text-decoration: none;
-      font-size: .875rem;
-      font-weight: 600;
-    }
-    .btn-ghost:hover { border-color: #b9ccf0; background: var(--accent-soft); }
-    .btn-ghost svg { width: 1.125rem; height: 1.125rem; fill: currentColor; }
-    .ver {
-      color: var(--muted);
-      font-size: .8125rem;
-      text-decoration: none;
-    }
-    .ver:hover { color: var(--accent); }
-    .ver:empty { display: none; }
-    .shot {
-      margin: 0;
-      border-radius: 12px;
-      overflow: hidden;
-      border: 1px solid var(--line);
-      background: var(--card);
-      box-shadow: 0 24px 60px rgba(22, 35, 61, .16);
-    }
-    .shot img { display: block; width: 100%; }
-    @media (min-width: 960px) {
-      .visual { overflow: visible; }
-      .shot { width: 118%; }
-    }
-    @media (max-width: 639px) {
-      .gh-name { display: none; }
-    }
-    :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-  </style>
-  <link rel="stylesheet" href="./mascot.css" />
-  <style>
-    /* mascot.css 是从启动器原样拷来的，那份保持不动；这里只按落地页的版式微调：
-       启动器左列没有正文，角色可以铺很大，落地页左列是文案，按原尺寸会压住免责说明。 */
-    .mascot { width: min(46vh, 30vw); left: -5vh; bottom: -9vh; }
-    .mascot svg { opacity: .62; }
-    @media (max-width: 900px) {
-      .mascot { width: min(38vh, 48vw); bottom: -6vh; }
-      .mascot svg { opacity: .5; }
-    }
-  </style>
+  <script>document.documentElement.dataset.colorScheme = localStorage.getItem('dsh-x-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')</script>
+  <link rel="stylesheet" href="./landing.css" />
 </head>
 <body>
   <div class="backdrop" aria-hidden="true">
@@ -238,7 +16,9 @@
     <div class="backdrop-character"></div>
   </div>
   <div class="wrap">
-    <header>
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="DSH-X"><img src="./icon-app.png" alt="" /><span class="brand-name">DSH-X</span><span class="brand-caption" data-zh="桌面启动器" data-en="Desktop launcher">桌面启动器</span></a>
+      <div class="header-actions">
       <a class="gh" href="https://github.com/yyh-001/DSH-X" id="gh" aria-label="GitHub">
         <svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .7a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2.24c-3.22.7-3.9-1.37-3.9-1.37-.52-1.34-1.28-1.7-1.28-1.7-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.57-.3-5.28-1.29-5.28-5.69 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.47.11-3.06 0 0 .96-.31 3.16 1.18a10.9 10.9 0 0 1 5.75 0c2.2-1.49 3.16-1.18 3.16-1.18.62 1.59.23 2.77.11 3.06.74.81 1.18 1.84 1.18 3.1 0 4.42-2.71 5.39-5.29 5.68.42.36.78 1.07.78 2.15v3.27c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .7Z"/></svg>
         <span class="gh-name">GitHub</span>
@@ -247,52 +27,73 @@
           <span id="star-count">Star</span>
         </span>
       </a>
-      <button class="lang" id="lang" type="button" aria-label="切换语言 / Switch language">EN</button>
+      <button class="icon-control" id="theme" type="button" aria-label="切换到深色模式" title="切换到深色模式">
+        <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+        <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.5A8.6 8.6 0 0 1 9.5 3.5 8.7 8.7 0 1 0 20.5 14.5Z"/></svg>
+      </button>
+      <button class="lang" id="lang" type="button" aria-label="切换语言 / Switch language"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 3.6 5.5 3.6 9S14.5 18.5 12 21c-2.5-2.5-3.6-5.5-3.6-9S9.5 5.5 12 3Z"/></svg><span id="lang-label">EN</span></button>
+      </div>
     </header>
   </div>
-  <div class="wrap stage">
+  <main class="wrap stage" id="top">
     <div class="copy">
-      <h1>DSH-X</h1>
-      <p class="lead" data-zh="选一个版本，启动 dsh web。" data-en="Pick a version, start dsh web.">选一个版本，启动 dsh web。</p>
-      <p class="note">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-        <span data-zh="社区开源项目，并非 DeepSeek 官方产品，与 DeepSeek 无隶属或背书关系。" data-en="A community open-source project, not an official DeepSeek product and not affiliated with or endorsed by DeepSeek.">社区开源项目，并非 DeepSeek 官方产品，与 DeepSeek 无隶属或背书关系。</span>
-      </p>
+      <p class="eyebrow" data-zh="开源 · 轻量 · 即刻启动" data-en="Open source · Lightweight · Ready to launch">开源 · 轻量 · 即刻启动</p>
+      <h1><span class="title-name">DSH-X</span><span class="title-rest" data-zh="让启动更简单。" data-en="Start with ease.">让启动更简单。</span></h1>
+      <p class="lead" data-zh="选择版本，启动官方原版 DSH Web。安装、更新与插件管理，都在一个地方完成。" data-en="Pick a version and launch the original DSH Web. Manage installs, updates, and plugins in one place.">选择版本，启动官方原版 DSH Web。安装、更新与插件管理，都在一个地方完成。</p>
       <div class="cta">
         <a class="btn btn-go" id="download" href="https://github.com/yyh-001/DSH-X/releases/latest/download/DSH-Setup.exe">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 4.2 10.5 3v8.15H2V4.2Zm9.5-1.34L22 1.35v9.8H11.5V2.86ZM2 12.15h8.5V20.3L2 19.1v-6.95Zm9.5 0H22v9.8l-10.5-1.51v-8.29Z"/></svg>
           <span data-zh="下载 Windows 版" data-en="Download for Windows">下载 Windows 版</span>
         </a>
         <a class="btn btn-alt" id="downloadMac" href="https://github.com/yyh-001/DSH-X/releases/latest/download/DSH-X-mac-arm64.dmg">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.37 1.43c0 1.14-.44 2.2-1.19 3.01-.9.98-2.4 1.74-3.6 1.63-.15-1.13.45-2.3 1.17-3.1.8-.9 2.32-1.6 3.62-1.54Zm4.13 15.77c-.6 1.38-.89 2-1.66 3.22-1.07 1.7-2.58 3.82-4.45 3.83-1.66.02-2.09-1.08-4.34-1.07-2.25.01-2.72 1.1-4.38 1.08-1.87-.02-3.3-1.93-4.37-3.63C-1.02 15.3-1.3 9.1 1.09 5.98c1.15-1.5 2.97-2.38 4.68-2.38 1.74 0 2.83 1.08 4.27 1.08 1.4 0 2.25-1.08 4.26-1.08 1.52 0 3.13.83 4.28 2.26-3.76 2.06-3.15 7.42 1.92 11.34Z"/></svg>
+          <span class="apple-mark" aria-hidden="true"></span>
           <span data-zh="下载 macOS 版" data-en="Download for macOS">下载 macOS 版</span>
         </a>
+      </div>
+      <div class="download-meta">
         <span class="dl" id="dlCount" hidden>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a1 1 0 0 1 1 1v9.59l3.3-3.3a1 1 0 1 1 1.4 1.42l-5 5a1 1 0 0 1-1.4 0l-5-5A1 1 0 1 1 7.7 10.3l3.3 3.3V4a1 1 0 0 1 1-1Zm-7 15a1 1 0 0 1 1 1v1h12v-1a1 1 0 1 1 2 0v2a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1Z"/></svg>
           <span id="dlText"></span>
         </span>
-      </div>
-      <p class="cta-note" data-zh="macOS 的按钮给的是 Apple Silicon（M 系列）版；Intel Mac 到发布页取 x64 版。" data-en="The macOS button is the Apple Silicon (M-series) build; Intel Macs take the x64 build from the releases page.">macOS 的按钮给的是 Apple Silicon（M 系列）版；Intel Mac 到发布页取 x64 版。</p>
-      <div class="links">
-        <a class="btn-ghost" href="https://github.com/yyh-001/DSH-X">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .7a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2.24c-3.22.7-3.9-1.37-3.9-1.37-.52-1.34-1.28-1.7-1.28-1.7-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.57-.3-5.28-1.29-5.28-5.69 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.47.11-3.06 0 0 .96-.31 3.16 1.18a10.9 10.9 0 0 1 5.75 0c2.2-1.49 3.16-1.18 3.16-1.18.62 1.59.23 2.77.11 3.06.74.81 1.18 1.84 1.18 3.1 0 4.42-2.71 5.39-5.29 5.68.42.36.78 1.07.78 2.15v3.27c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .7Z"/></svg>
-          <span data-zh="在 GitHub 上查看" data-en="View on GitHub">在 GitHub 上查看</span>
-        </a>
-        <a class="btn-ghost" href="https://qm.qq.com/q/7AD2g70HqS"><span data-zh="QQ 群" data-en="QQ Group">QQ 群</span></a>
         <a class="ver" id="ver" href="https://github.com/yyh-001/DSH-X/releases/latest"></a>
       </div>
+      <p class="cta-note" data-zh="macOS 下载为 Apple Silicon 版；Intel Mac 请在发布页选择 x64。" data-en="The macOS download is for Apple Silicon. Intel Mac users can choose x64 on the releases page.">macOS 下载为 Apple Silicon 版；Intel Mac 请在发布页选择 x64。</p>
+      <nav class="links" aria-label="社区链接">
+        <span class="links-label" data-zh="了解更多 / 加入社区" data-en="Learn more / Community">了解更多 / 加入社区</span>
+        <a class="social-link social-icon" href="https://github.com/yyh-001/DSH-X" aria-label="GitHub" title="GitHub">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .7a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2.24c-3.22.7-3.9-1.37-3.9-1.37-.52-1.34-1.28-1.7-1.28-1.7-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.57-.3-5.28-1.29-5.28-5.69 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.47.11-3.06 0 0 .96-.31 3.16 1.18a10.9 10.9 0 0 1 5.75 0c2.2-1.49 3.16-1.18 3.16-1.18.62 1.59.23 2.77.11 3.06.74.81 1.18 1.84 1.18 3.1 0 4.42-2.71 5.39-5.29 5.68.42.36.78 1.07.78 2.15v3.27c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .7Z"/></svg>
+        </a>
+        <a class="social-link social-icon" href="https://qm.qq.com/q/7AD2g70HqS" aria-label="QQ 群" title="QQ 群 993579665">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.914 14.529a32 32 0 0 0-.676-1.886l-.91-2.246c.002-.026.013-.468.013-.696C18.34 5.86 16.508 2 12 2S5.66 5.86 5.66 9.7c0 .229.011.671.012.697l-.91 2.246a32 32 0 0 0-.675 1.886c-.86 2.737-.581 3.87-.369 3.895c.455.054 1.771-2.06 1.771-2.06c0 1.224.637 2.822 2.016 3.976c-.515.157-1.147.399-1.554.695c-.365.267-.319.54-.253.65c.289.481 4.955.307 6.303.157c1.347.15 6.014.324 6.302-.158c.066-.11.112-.382-.253-.649c-.407-.296-1.039-.538-1.555-.695c1.379-1.154 2.016-2.752 2.016-3.977c0 0 1.316 2.115 1.771 2.06c.212-.025.49-1.157-.37-3.894"/></svg>
+        </a>
+        <a class="social-link social-icon" href="https://space.bilibili.com/32214737" aria-label="哔哩哔哩" title="哔哩哔哩">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.813 4.653h.854c1.51.054 2.769.578 3.773 1.574 1.004.995 1.524 2.249 1.56 3.76v7.36c-.036 1.51-.556 2.769-1.56 3.773s-2.262 1.524-3.773 1.56H5.333c-1.51-.036-2.769-.556-3.773-1.56S.036 18.858 0 17.347v-7.36c.036-1.511.556-2.765 1.56-3.76 1.004-.996 2.262-1.52 3.773-1.574h.774l-1.174-1.12a1.234 1.234 0 0 1-.373-.906c0-.356.124-.658.373-.907l.027-.027c.267-.249.573-.373.92-.373.347 0 .653.124.92.373L9.653 4.44c.071.071.134.142.187.213h4.267a.836.836 0 0 1 .16-.213l2.853-2.747c.267-.249.573-.373.92-.373.347 0 .662.151.929.4.267.249.391.551.391.907 0 .355-.124.657-.373.906zM5.333 7.24c-.746.018-1.373.276-1.88.773-.506.498-.769 1.13-.786 1.894v7.52c.017.764.28 1.395.786 1.893.507.498 1.134.756 1.88.773h13.334c.746-.017 1.373-.275 1.88-.773.506-.498.769-1.129.786-1.893v-7.52c-.017-.765-.28-1.396-.786-1.894-.507-.497-1.134-.755-1.88-.773zM8 11.107c.373 0 .684.124.933.373.25.249.383.569.4.96v1.173c-.017.391-.15.711-.4.96-.249.25-.56.374-.933.374s-.684-.125-.933-.374c-.25-.249-.383-.569-.4-.96V12.44c0-.373.129-.689.386-.947.258-.257.574-.386.947-.386zm8 0c.373 0 .684.124.933.373.25.249.383.569.4.96v1.173c-.017.391-.15.711-.4.96-.249.25-.56.374-.933.374s-.684-.125-.933-.374c-.25-.249-.383-.569-.4-.96V12.44c.017-.391.15-.711.4-.96.249-.249.56-.373.933-.373Z"/></svg>
+        </a>
+      </nav>
+      <p class="note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        <span data-zh="社区开源项目，并非 DeepSeek 官方产品，与 DeepSeek 无隶属或背书关系。" data-en="A community open-source project, not an official DeepSeek product and not affiliated with or endorsed by DeepSeek.">社区开源项目，并非 DeepSeek 官方产品，与 DeepSeek 无隶属或背书关系。</span>
+      </p>
     </div>
     <div class="visual">
       <figure class="shot">
-        <img src="./screenshot-home.png" alt="DSH-X 界面" />
+        <div class="shot-bar" aria-hidden="true"><i></i><i></i><i></i><span>DSH-X / PREVIEW</span></div>
+        <img id="productShot" src="./screenshot-home.png" alt="DSH-X 界面" />
       </figure>
+      <p class="preview-caption" data-zh="真实桌面端界面预览" data-en="Preview of the desktop launcher">真实桌面端界面预览</p>
     </div>
-  </div>
+  </main>
+  <section class="wrap features" aria-label="DSH-X 功能">
+    <article class="feature"><span class="feature-number">01 / VERSIONS</span><h2 data-zh="版本，一处管理" data-en="Versions in one place">版本，一处管理</h2><p data-zh="安装、启动、更新与切换版本，操作集中在一个界面。" data-en="Install, launch, update, and switch versions from one interface.">安装、启动、更新与切换版本，操作集中在一个界面。</p></article>
+    <article class="feature"><span class="feature-number">02 / PLUGINS</span><h2 data-zh="插件，轻松维护" data-en="Simple plugin care">插件，轻松维护</h2><p data-zh="查看已安装插件，快速开关并检查更新。" data-en="See installed plugins, toggle them, and check for updates.">查看已安装插件，快速开关并检查更新。</p></article>
+    <article class="feature"><span class="feature-number">03 / ORIGINAL WEB</span><h2 data-zh="原版 Web 体验" data-en="The original Web UI">原版 Web 体验</h2><p data-zh="在系统浏览器里使用官方原版 DSH Web 页面。" data-en="Use the original DSH Web UI in your system browser.">在系统浏览器里使用官方原版 DSH Web 页面。</p></article>
+  </section>
+  <footer class="wrap site-footer"><span>© DSH-X · Community open source project</span><a href="https://github.com/yyh-001/DSH-X/releases/latest" data-zh="查看全部版本与下载" data-en="All releases and downloads">查看全部版本与下载</a></footer>
   <script defer src="./water.js"></script>
-  <script defer src="./mascot.js"></script>
   <script>
     // ---- 中英切换：文案写在 data-zh / data-en 上，带数字的句子靠变量重渲染 ----
     const LANG_KEY = 'dsh-x-lang'
+    const THEME_KEY = 'dsh-x-theme'
     let lang = localStorage.getItem(LANG_KEY) === 'en' ? 'en' : 'zh'
     let starCount = null
     let downloadCount = null
@@ -334,12 +135,31 @@
       }
       document.documentElement.lang = lang === 'en' ? 'en' : 'zh-CN'
       document.title = t('title')
-      document.getElementById('lang').textContent = lang === 'en' ? '中文' : 'EN'
+      document.getElementById('lang-label').textContent = lang === 'en' ? '中文' : 'EN'
+      updateThemeLabel()
       renderStars()
       renderDownloads()
     }
 
     document.getElementById('lang').onclick = () => applyLang(lang === 'en' ? 'zh' : 'en')
+
+    function updateThemeLabel() {
+      const dark = document.documentElement.dataset.colorScheme === 'dark'
+      const label = dark
+        ? (lang === 'en' ? 'Switch to light mode' : '切换到浅色模式')
+        : (lang === 'en' ? 'Switch to dark mode' : '切换到深色模式')
+      const button = document.getElementById('theme')
+      button.setAttribute('aria-label', label)
+      button.title = label
+      document.getElementById('productShot').src = dark ? './screenshot-dark-mode.png' : './screenshot-home.png'
+    }
+
+    document.getElementById('theme').onclick = () => {
+      const next = document.documentElement.dataset.colorScheme === 'dark' ? 'light' : 'dark'
+      document.documentElement.dataset.colorScheme = next
+      localStorage.setItem(THEME_KEY, next)
+      updateThemeLabel()
+    }
 
     function fmtStars(n) {
       if (n >= 1000) {

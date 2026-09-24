@@ -8,6 +8,7 @@
     precision mediump float;
     uniform vec2 resolution;
     uniform float time;
+    uniform float darkMode;
     uniform vec3 ripples[6];
     vec2 hash(vec2 p) {
       return fract(sin(vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3))))*43758.5453);
@@ -47,13 +48,14 @@
       float b=caustic(q*1.14+vec2(.6,.9),time+2.);
       float light=pow(a*.65+b*.35,1.6);
       float swell=sin(p.x*3.+p.y*2.+time*.18)*.5+.5;
-      vec3 deep=vec3(.77,.86,.94),shallow=vec3(.89,.96,.98);
+      vec3 deep=mix(vec3(.77,.86,.94),vec3(.095,.095,.11),darkMode);
+      vec3 shallow=mix(vec3(.89,.96,.98),vec3(.18,.18,.20),darkMode);
       vec3 color=mix(deep,shallow,.35+uv.y*.25+swell*.15);
-      color+=vec3(.085,.075,.055)*light;
-      color+=rings;
+      color+=mix(vec3(.085,.075,.055),vec3(.1,.1,.105),darkMode)*light;
+      color+=rings*mix(1.,.18,darkMode);
       // A broad quiet area behind the controls keeps the water unobtrusive.
       float calm=exp(-dot((uv-vec2(.5,.52))*vec2(2.,3.),(uv-vec2(.5,.52))*vec2(2.,3.)));
-      color=mix(color,vec3(.91,.95,.99),calm*.35);
+      color=mix(color,mix(vec3(.91,.95,.99),vec3(.13,.13,.15),darkMode),calm*.35);
       gl_FragColor=vec4(color,1.);
     }`;
   function compile(type, source) {
@@ -71,13 +73,14 @@
   const buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
   gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]),gl.STATIC_DRAW);
   const position=gl.getAttribLocation(program,'position');gl.enableVertexAttribArray(position);gl.vertexAttribPointer(position,2,gl.FLOAT,false,0,0);
-  const uniforms=Object.fromEntries(['resolution','time','ripples[0]'].map(n=>[n,gl.getUniformLocation(program,n)]));
+  const uniforms=Object.fromEntries(['resolution','time','darkMode','ripples[0]'].map(n=>[n,gl.getUniformLocation(program,n)]));
   const ripples=new Float32Array(18);for(let i=0;i<6;i++)ripples[i*3+2]=-20;
   const reduced=matchMedia('(prefers-reduced-motion: reduce)');
   let frame=0,last=0,time=0,slot=0,lastRipple=-1,lost=false;
   const active=()=>!lost&&!document.hidden&&!reduced.matches&&!document.documentElement.classList.contains('background-paused');
   function draw(){
     gl.uniform2f(uniforms.resolution,canvas.width,canvas.height);
+    gl.uniform1f(uniforms.darkMode,document.documentElement.dataset.colorScheme === 'dark' ? 1 : 0);
     gl.uniform1f(uniforms.time,time);gl.uniform3fv(uniforms['ripples[0]'],ripples);
     gl.drawArrays(gl.TRIANGLES,0,6);
   }
@@ -99,7 +102,7 @@
     ripples[slot*3]=e.clientX/size;ripples[slot*3+1]=(innerHeight-e.clientY)/size;ripples[slot*3+2]=time;
     slot=(slot+1)%6;lastRipple=time;
   },{passive:true});
-  new MutationObserver(sync).observe(document.documentElement,{attributes:true,attributeFilter:['class']});
+  new MutationObserver(()=>{draw();sync();}).observe(document.documentElement,{attributes:true,attributeFilter:['class','data-color-scheme']});
   document.addEventListener('visibilitychange',sync);reduced.addEventListener('change',sync);
   window.addEventListener('resize',resize);
   canvas.addEventListener('webglcontextlost',()=>{lost=true;canvas.hidden=true;sync();});
