@@ -51,69 +51,39 @@ DeepSeek Harness 轻量启动器。选一个版本，在系统浏览器中启动
 
 ## 杀软误报
 
-启动器没有代码签名，而它的行为和启发式里的「下载器」有几分像：会拉起 `cmd` / `powershell` 打开链接、可以写开机自启项、自带一份 Node 运行时、自更新时会下载安装包。所以偶尔会被 Windows Defender 或其他杀软拦下来。
+启动器没有代码签名，行为又和启发式里的「下载器」有几分像（会拉起 `cmd` / `powershell`、能写开机自启、自带 Node 运行时、自更新时下载安装包），所以偶尔会被 Windows Defender 或其他杀软拦下。
 
-遇到了这样处理：
-
-- 先在杀软的「保护历史记录」里确认被拦的具体条目；
-- 把安装目录（默认 `%LOCALAPPDATA%\Programs\DSH`）加进排除项，可以先恢复使用；
-- 把误报提交给微软：<https://www.microsoft.com/en-us/wdsi/filesubmission>（选「软件开发者」，上传 `DSH-Setup.exe`），一般 1–2 天会撤销误报；
-- 国内杀软（360、火绒等）各有误报提交入口，同样适用；
-- 下载后 SmartScreen 提示「未知发布者」是正常的（没有代码签名），点「仍要运行」即可。
+被拦了：把安装目录（默认 `%LOCALAPPDATA%\Programs\DSH`）加进排除项；误报可以提交给[微软](https://www.microsoft.com/en-us/wdsi/filesubmission)（选「软件开发者」，上传 `DSH-Setup.exe`），一般 1–2 天撤销，国内杀软（360、火绒等）同理。下载后 SmartScreen 提示「未知发布者」是正常的，点「仍要运行」。
 
 ## 使用
 
-Windows 安装 [DSH-Setup.exe](https://github.com/yyh-001/DSH-X/releases/latest) 后，从桌面打开 **DSH-X**。
+Windows：[下载 DSH-Setup.exe](https://github.com/yyh-001/DSH-X/releases/latest) 安装，从桌面打开 **DSH-X**。
 
-macOS 打开 `DSH-X-mac-arm64.dmg`（Apple Silicon）或 `DSH-X-mac-x64.dmg`（Intel），把 **DSH-X** 拖进「应用程序」。应用没有经过公证，第一次打开会被拦下：右键点它选「打开」，或到「系统设置 → 隐私与安全性」里放行。设置和日志在 `~/Library/Application Support/DSH`。自更新要求应用放在当前用户能写的目录（比如「应用程序」）。
+macOS：打开 `DSH-X-mac-arm64.dmg`（Apple Silicon）或 `DSH-X-mac-x64.dmg`（Intel），把 **DSH-X** 拖进「应用程序」。应用没做公证，第一次打开要右键选「打开」；自更新也要求放在这种可写目录里。设置和日志在 `~/Library/Application Support/DSH`。
 
-启动器管理页和 DSH 官方原版 Web 界面都会使用系统默认浏览器打开；管理页地址默认 `http://127.0.0.1:3780/`（设置页可改端口，改完重启启动器生效）。
+管理页和 dsh 的界面都在系统浏览器里打开，管理页默认 `http://127.0.0.1:3780/`（端口可在设置页改）。想让手机或其他电脑访问 dsh：设置页 → 高级设置 → **Web 绑定**选「局域网」，下次启动 dsh 生效。
 
-dsh 的 Web 界面默认只绑在本机（`127.0.0.1`）。想让手机/其他电脑也能访问：设置页 → 高级设置 → **Web 绑定**选「局域网（0.0.0.0）」，下次启动 dsh 生效；远程访问插件的「局域网访问」开关打开时，启动器也会自动按局域网处理（不再注入 `--host`）。
-
-**核对下载到的包（可选）**：Release 页面每个文件旁边就写着 sha256，本地对一下即可 —— Windows `certutil -hashfile DSH-Setup.exe SHA256`，macOS `shasum -a 256 DSH-X-mac-arm64.dmg`。数字一致就说明下载过程没出错、文件没被动过。
+核对下载到的包（可选）：Release 页面每个文件旁边有 sha256，本地对一下即可 —— Windows `certutil -hashfile DSH-Setup.exe SHA256`，macOS `shasum -a 256 DSH-X-mac-arm64.dmg`。
 
 ## 开发
 
-需要本机 Node.js 22.18+（官方 DSH：`^22.19.0 || >=24`）。
-
-```sh
-npm install
-npm start
-```
-
-只起网页：`npm run server`。
+本机需要 Node.js 22.18+。`npm install` 之后 `npm start`；只起网页用 `npm run server`。
 
 ## 打包
-
-需要 Rust 与 Inno Setup 6（没有会尝试下载）。
 
 ```sh
 npm run dist
 ```
 
-- `release/DSH/`：便携目录
-- `release/DSH-Setup.exe`：安装包（默认 `%LOCALAPPDATA%\Programs\DSH`）
+Windows（需要 Rust 与 Inno Setup 6）产出 `release/DSH/` 便携目录和 `release/DSH-Setup.exe`；macOS（需要 Rust 与 Xcode 命令行工具）产出 `release/DSH-X.app` 和 `release/DSH-X-mac-<arch>.dmg`（Intel 版：`DSH_MAC_ARCH=x64 npm run dist`）。
 
-macOS 上同一条命令只需要 Rust 和 Xcode 命令行工具，产出：
-
-- `release/DSH-X.app`：应用本体（ad-hoc 签名）
-- `release/DSH-X-mac-<arch>.dmg`：自更新下载的发布资产，每个架构各传一份（Intel 版先 `rustup target add x86_64-apple-darwin`，再 `DSH_MAC_ARCH=x64 npm run dist`）
-
-Windows 打完包还会顺带生成三份自查用的文件（**都不上传到 Release**，发布页只放安装包和 dmg）：`release/dsh-x-<版本>.spdx.json`（SBOM，SPDX 2.3）、`release/release-manifest.json`（发布清单：版本、提交、有没有 tag、产物哈希），有私钥时再写一份 `release/release-manifest.sig`（Ed25519）。
-
-发版时先过一致性闸门，再上传安装包和 dmg：
+打包还会顺带生成 SBOM 与发布清单（自查用，不上传 Release）。发版时先过两道闸门，再把安装包和 dmg 一起传上去：
 
 ```sh
 node scripts/release-manifest.mjs check-tag v0.1.14   # tag 必须与 package.json 的版本一致
-node scripts/release-manifest.mjs verify              # 签名有效 + 逐个产物核对哈希
-gh release create v0.1.14 release/DSH-Setup.exe \
-  release/mac/DSH-X-mac-arm64.dmg release/mac/DSH-X-mac-x64.dmg --latest
+node scripts/release-manifest.mjs verify              # 逐个产物核对哈希（有私钥时一并验签）
+gh release create v0.1.14 release/DSH-Setup.exe release/mac/DSH-X-mac-*.dmg --latest
 ```
 
-第一次签名先跑 `node scripts/release-manifest.mjs keygen`：私钥落在 `release/release-key.pem`（已被忽略、不进仓库，**务必备份**），公钥是仓库里的 `scripts/release-pubkey.pem`。手上有一份清单和签名时（例如自己打的包、或从别处拿到的一套），把安装包、`release-manifest.json`、`release-manifest.sig` 放进同一个目录就能核：
-
-```sh
-node scripts/release-manifest.mjs verify <那个目录>
-```
+私钥在 `release/release-key.pem`（已被忽略、不进仓库，**务必备份**）。`scripts/release-manifest.mjs` 的头部注释里有 keygen、单独核对某个目录等其余用法。
 

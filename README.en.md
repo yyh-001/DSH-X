@@ -51,68 +51,38 @@ Feedback: **QQ group [993579665](https://qm.qq.com/q/7AD2g70HqS)**
 
 ## Antivirus false positives
 
-The launcher is not code signed, and some of what it does looks like a downloader to heuristics: it spawns `cmd` / `powershell` to open links, can write an autostart entry, ships its own Node runtime, and downloads an installer when updating itself. That occasionally gets it flagged by Windows Defender or another antivirus.
+The launcher is not code-signed and behaves a bit like a downloader to heuristics (it spawns `cmd` / `powershell`, can write an autostart entry, ships its own Node runtime, downloads an installer to self-update), so Windows Defender or another antivirus may occasionally block it.
 
-If that happens:
-
-- Check the antivirus history to see exactly what was blocked;
-- Add the install directory (default `%LOCALAPPDATA%\Programs\DSH`) to its exclusions to get running again;
-- Report the false positive to Microsoft at <https://www.microsoft.com/en-us/wdsi/filesubmission> (choose "software developer", upload `DSH-Setup.exe`); such reports are usually reverted within a day or two;
-- Other vendors (360, Huorong, …) have their own false-positive forms;
-- A SmartScreen "unknown publisher" prompt after downloading is expected without code signing — click "Run anyway".
+If it does: add the install directory (default `%LOCALAPPDATA%\Programs\DSH`) to the exclusions, and report the false positive to [Microsoft](https://www.microsoft.com/en-us/wdsi/filesubmission) (choose "software developer", upload `DSH-Setup.exe`) — usually reverted in a day or two; other vendors (360, Huorong, …) have their own forms. A SmartScreen "unknown publisher" prompt after downloading is expected: click "Run anyway".
 
 ## Usage
 
-Install [DSH-Setup.exe](https://github.com/yyh-001/DSH-X/releases/latest) on Windows, then open **DSH-X** from the desktop.
+Windows: install [DSH-Setup.exe](https://github.com/yyh-001/DSH-X/releases/latest), then open **DSH-X** from the desktop.
 
-On macOS, open `DSH-X-mac-arm64.dmg` (Apple Silicon) or `DSH-X-mac-x64.dmg` (Intel) and drag **DSH-X** into Applications. The app is not notarized, so the first launch is blocked: right-click it and choose **Open**, or allow it under System Settings → Privacy & Security. Settings and logs live in `~/Library/Application Support/DSH`. Self-update only works when the app is in a folder you can write to (e.g. Applications).
+macOS: open `DSH-X-mac-arm64.dmg` (Apple Silicon) or `DSH-X-mac-x64.dmg` (Intel) and drag **DSH-X** into Applications. The app is not notarized, so the first launch needs right-click → **Open**; self-update also needs the app to sit in a writable folder. Settings and logs live in `~/Library/Application Support/DSH`.
 
-Both the manager page and DSH's own web page open in your default browser. The manager defaults to `http://127.0.0.1:3780/` (the port can be changed on the settings page; restart the launcher to apply it).
+The manager page and dsh's own web page open in your default browser; the manager defaults to `http://127.0.0.1:3780/` (the port can be changed on the settings page). To reach dsh from a phone or another computer: settings → Advanced → **Web binding** → LAN, applied the next time dsh starts.
 
-dsh's web UI binds to this machine only (`127.0.0.1`) by default. To let a phone or another computer reach it: settings page → Advanced → **Web binding** → pick "LAN (0.0.0.0)"; it applies the next time dsh starts. When the remote-access plugin's LAN switch is on, the launcher treats it as LAN too (it stops injecting `--host`).
-
-**Verifying a download (optional)**: put every file from that release (the installer, `dsh-x-<version>.spdx.json`, `release-manifest.json`, `release-manifest.sig`) in one directory and run `node scripts/release-manifest.mjs verify <that-directory>` (the script ships in this repository). It checks the signature and every sha256 and size; a missing file or a mismatch is reported. The public key fingerprint (SPKI/DER SHA-256) is `0699e51d0a98acaa5d1942afb7510010cb7864754f05746f5038cc35c9b42d99`; recompute it with `openssl pkey -pubin -in scripts/release-pubkey.pem -outform DER | openssl dgst -sha256`. (The manifest covers the Windows installer only so far — the dmg can't be checked yet.)
+Verifying a download (optional): the releases page lists a sha256 next to every file — compare it locally with `certutil -hashfile DSH-Setup.exe SHA256` (Windows) or `shasum -a 256 DSH-X-mac-arm64.dmg` (macOS).
 
 ## Development
 
-Needs Node.js 22.18+ locally (official DSH: `^22.19.0 || >=24`).
-
-```sh
-npm install
-npm start
-```
-
-Web page only: `npm run server`.
+Needs Node.js 22.18+ locally. `npm install`, then `npm start`; web page only: `npm run server`.
 
 ## Packaging
-
-Needs Rust and Inno Setup 6 (it will try to download them).
 
 ```sh
 npm run dist
 ```
 
-- `release/DSH/`: portable directory
-- `release/DSH-Setup.exe`: installer (defaults to `%LOCALAPPDATA%\Programs\DSH`)
+On Windows (Rust and Inno Setup 6) this produces `release/DSH/` and `release/DSH-Setup.exe`; on macOS (Rust and the Xcode command line tools) it produces `release/DSH-X.app` and `release/DSH-X-mac-<arch>.dmg` (Intel: `DSH_MAC_ARCH=x64 npm run dist`).
 
-On macOS the same command needs only Rust and the Xcode command line tools, and produces:
-
-- `release/DSH-X.app`: the app bundle (ad-hoc signed)
-- `release/DSH-X-mac-<arch>.dmg`: the release asset self-update downloads; upload one per architecture (`DSH_MAC_ARCH=x64 npm run dist` for Intel, after `rustup target add x86_64-apple-darwin`)
-
-On Windows the build also emits three files for self-checking (**none of them are uploaded to the release** — the release page carries the installers and the dmgs): `release/dsh-x-<version>.spdx.json` (an SBOM, SPDX 2.3), `release/release-manifest.json` (the release manifest: version, commit, whether the build is tagged, artifact hashes) and, when a private key is present, `release/release-manifest.sig` (Ed25519).
-
-Before publishing, run the consistency gate and upload the installer and the dmgs:
+The build also writes an SBOM and a release manifest for self-checking (not uploaded to the release). To publish, run the two gates and upload the installer together with the dmgs:
 
 ```sh
 node scripts/release-manifest.mjs check-tag v0.1.14   # tag must match the version in package.json
-node scripts/release-manifest.mjs verify              # signature valid + every artifact hash matches
-gh release create v0.1.14 release/DSH-Setup.exe \
-  release/mac/DSH-X-mac-arm64.dmg release/mac/DSH-X-mac-x64.dmg --latest
+node scripts/release-manifest.mjs verify              # every artifact hash; also checks the signature when a key is present
+gh release create v0.1.14 release/DSH-Setup.exe release/mac/DSH-X-mac-*.dmg --latest
 ```
 
-Signing needs a key once: `node scripts/release-manifest.mjs keygen` writes the private key to `release/release-key.pem` (git-ignored, **back it up**), and the public key ships in this repository as `scripts/release-pubkey.pem`. When you have a manifest and signature in hand (your own build, or a set from elsewhere), put the installer, `release-manifest.json` and `release-manifest.sig` in one directory and run:
-
-```sh
-node scripts/release-manifest.mjs verify <that-directory>
-```
+The private key lives in `release/release-key.pem` (git-ignored, **back it up**). The header comments in `scripts/release-manifest.mjs` document `keygen` and verifying a directory of files.
