@@ -1,0 +1,125 @@
+# 打包：推 tag（或手动触发）时在 GitHub 的机器上出安装包。
+#
+# 为什么要有这个：mac 的包在 Windows 上打不出来（codesign / hdiutil 都是 macOS 独有），
+# 所以 Windows 和 macOS 各自跑在自己的 runner 上；另外这也是「不怕本机环境差异」的一条路。
+#
+# 只上传资产、不创建 Release：Release 连同中文发行说明仍按原来的流程在本地建，
+# 建完这个 workflow 会把产物补上去（Windows 的 exe + SBOM + 清单 + 签名，mac 的 dmg）。
+#
+# 签名是可选的：仓库里配了 DSH_RELEASE_KEY（私钥文件内容）才会签，没配就只出清单。
+name: build
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write # 往 Release 上传资产要这个
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 跑测试
+        run: npm test
+
+      - name: 写入签名私钥（没配 secret 就跳过）
+        shell: bash
+        env:
+          KEY: ${{ secrets.DSH_RELEASE_KEY }}
+        run: |
+          mkdir -p release
+          if [ -n "$KEY" ]; then printf '%s' "$KEY" > release/release-key.pem; echo "有私钥，本次会签名"; else echo "没有私钥，只出清单"; fi
+
+      - name: 打包（Rust + Inno Setup，脚本会在 runner 上自己装 Inno）
+        run: npm run dist
+
+      - name: 校验清单
+        run: node scripts/release-manifest.mjs verify
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DSH-Setup-windows
+          path: |
+            release/DSH-Setup.exe
+            release/dsh-x-*.spdx.json
+            release/release-manifest.json
+            release/release-manifest.sig
+          if-no-files-found: error
+
+      - name: 挂到同 tag 的 Release 上
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" release/DSH-Setup.exe release/dsh-x-*.spdx.json release/release-manifest.json release/release-manifest.sig --clobber
+          else
+            echo "还没有 $tag 的 Release，资产先留在 workflow artifacts 里；建好 Release 后再跑一次即可"
+          fi
+
+  # mac 的打包能力在 PR #25（scripts/pack-mac.mjs）里，合并之后这里才真的会出包；
+  # 没合并时这一步只打个招呼就过，不至于把整个 workflow 挂红。
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14 # Apple Silicon
+            arch: arm64
+          - runner: macos-13 # Intel
+            arch: x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    env:
+      DSH_MAC_ARCH: ${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 还没有 mac 打包支持就跳过
+        id: probe
+        run: |
+          if [ -f scripts/pack-mac.mjs ]; then echo "ready=yes" >> "$GITHUB_OUTPUT"; else echo "ready=no" >> "$GITHUB_OUTPUT"; echo "scripts/pack-mac.mjs 还不存在（PR #25 未合并），跳过 mac 打包"; fi
+
+      - name: 跑测试
+        if: steps.probe.outputs.ready == 'yes'
+        run: npm test
+
+      - name: 打包（.app + .dmg，ad-hoc 签名）
+        if: steps.probe.outputs.ready == 'yes'
+        run: npm run dist
+
+      - uses: actions/upload-artifact@v4
+        if: steps.probe.outputs.ready == 'yes'
+        with:
+          name: DSH-X-mac-${{ matrix.arch }}
+          path: |
+            release/DSH-X-mac-*.dmg
+            release/release-manifest.json
+          if-no-files-found: error
+
+      - name: 挂到同 tag 的 Release 上
+        if: steps.probe.outputs.ready == 'yes' && startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" release/DSH-X-mac-*.dmg --clobber
+          else
+            echo "还没有 $tag 的 Release，dmg 先留在 workflow artifacts 里"
+          fi
