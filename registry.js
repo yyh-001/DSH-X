@@ -7,11 +7,22 @@ import { dirname, join } from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { fileURLToPath } from 'node:url'
+import { DEFAULTS, DOWNLOAD_SOURCES, loadSettingsSync } from './settings.js'
 import pkg from './package.json' with { type: 'json' }
 
 const APP_ROOT = dirname(fileURLToPath(import.meta.url))
 const LOCAL_NODE = join(APP_ROOT, 'node')
-export const REGISTRY = (process.env.npm_config_registry || 'https://registry.npmmirror.com').replace(/\/$/, '')
+
+/**
+ * 下载源不再写死：环境变量（开发测试用）> 设置页的下载源 > 默认镜像。
+ * 每次用时现读：设置页切换下载源后不用重启就生效。
+ */
+export function currentRegistry() {
+  const fromEnv = (process.env.npm_config_registry || '').replace(/\/$/, '')
+  if (fromEnv) return fromEnv
+  const name = loadSettingsSync().downloadSource
+  return DOWNLOAD_SOURCES[name] || DOWNLOAD_SOURCES[DEFAULTS.downloadSource]
+}
 const USER_AGENT = `dsh-versions/${pkg.version || '0.0.0'}`
 const packumentCache = new Map()
 let npmReady = null
@@ -101,13 +112,15 @@ async function registryGet(url) {
 }
 
 export async function packument(name) {
-  if (packumentCache.has(name)) return packumentCache.get(name)
-  const pending = registryGet(`${REGISTRY}/${name.replace('/', '%2f')}`)
-  packumentCache.set(name, pending)
+  const registry = currentRegistry()
+  const cacheKey = `${registry}/${name}`
+  if (packumentCache.has(cacheKey)) return packumentCache.get(cacheKey)
+  const pending = registryGet(`${registry}/${name.replace('/', '%2f')}`)
+  packumentCache.set(cacheKey, pending)
   try {
     return await pending
   } catch (error) {
-    packumentCache.delete(name)
+    packumentCache.delete(cacheKey)
     throw error
   }
 }
@@ -226,7 +239,7 @@ function runNpm(cli, args, { cwd, onLog, env } = {}) {
       cwd,
       env: {
         ...process.env,
-        npm_config_registry: REGISTRY,
+        npm_config_registry: currentRegistry(),
         npm_config_audit: 'false',
         npm_config_fund: 'false',
         npm_config_update_notifier: 'false',
@@ -309,7 +322,7 @@ async function ensureNpmOnce(onLog) {
   const found = foundNpm()
   const current = found ? await npmVersion(found.cli) : ''
   if (found && npmCompatible(current)) {
-    onLog(`使用 npm ${current} · ${REGISTRY}`)
+    onLog(`使用 npm ${current} · ${currentRegistry()}`)
     return found
   }
   const want = await latestCompatibleNpm()
@@ -317,7 +330,7 @@ async function ensureNpmOnce(onLog) {
   else onLog(`npm ${current} 与 Node ${process.versions.node} 不匹配，改用 ${want}`, { phase: 'resolve' })
   await installNpm(LOCAL_NODE, want, onLog)
   const next = { home: LOCAL_NODE, cli: npmCli(LOCAL_NODE) }
-  onLog(`npm ${await npmVersion(next.cli)} · ${REGISTRY}`)
+  onLog(`npm ${await npmVersion(next.cli)} · ${currentRegistry()}`)
   return next
 }
 
@@ -389,7 +402,7 @@ export async function installSpec(root, name, range, onLog = () => {}) {
     name: 'dsh-version',
     version: '0.0.0',
   }, null, 2)}\n`)
-  await writeFile(join(root, '.npmrc'), `registry=${REGISTRY}\naudit=false\nfund=false\nupdate-notifier=false\nprogress=false\n`)
+  await writeFile(join(root, '.npmrc'), `registry=${currentRegistry()}\naudit=false\nfund=false\nupdate-notifier=false\nprogress=false\n`)
   onLog(`npm install ${name}@${range}`, { phase: 'resolve' })
   const state = { resolved: 0, fetched: 0, total: 0 }
   let lastShown = 0

@@ -53,6 +53,15 @@ export const DEFAULT_PROFILE = 'web'
 
 /** Web 绑定方式：loopback（回环，默认）/ lan（局域网，不注入 --host，交给配置层决定）。 */
 export const DEFAULT_WEB_BIND = 'loopback'
+/**
+ * 下载源选项：镜像源同步官方有延迟，刚发布的版本会「检查到更新却装不上」，
+ * 想第一时间拿到新版本就切官方源（国内直连可能慢，最好配代理）。
+ */
+export const DOWNLOAD_SOURCES = {
+  mirror: 'https://registry.npmmirror.com',
+  official: 'https://registry.npmjs.org',
+}
+export const DEFAULT_SOURCE = 'mirror'
 
 export const DEFAULTS = {
   dataDir: '',
@@ -65,6 +74,7 @@ export const DEFAULTS = {
   reduceMotion: false,
   hideBackground: false,
   hideBigFish: false,
+  downloadSource: DEFAULT_SOURCE,
   // 额外启动参数（一行文本，空格分词，含空格的值用引号包起来）
   args: '',
   // dsh web 的绑定方式：loopback 注入 --host 127.0.0.1（默认）；lan 不注入，
@@ -76,6 +86,12 @@ export const DEFAULTS = {
   autoDisablePlugins: true,
   // 用户在更新弹窗里点过「不更新」的版本 { dsh?, self? }：同一个版本不再提示
   skippedUpdate: {},
+}
+
+/** 下载源只认内置选项，历史文件里的脏值回默认镜像。 */
+export function safeDownloadSource(value) {
+  const name = String(value ?? '').trim()
+  return DOWNLOAD_SOURCES[name] ? name : DEFAULT_SOURCE
 }
 
 /** 端口校验：1-65535 的整数，别的都当成没填（回默认端口）。 */
@@ -329,6 +345,7 @@ export async function saveSettings(patch) {
     merged.webBind = DEFAULT_WEB_BIND
   }
   if ('webBind' in patch) merged.webBind = safeWebBind(patch.webBind)
+  merged.downloadSource = safeDownloadSource(merged.downloadSource)
   merged.autoStart = Boolean(merged.autoStart)
   merged.seedMarket = merged.seedMarket !== false
   merged.autoDisablePlugins = merged.autoDisablePlugins !== false

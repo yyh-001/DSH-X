@@ -1330,6 +1330,16 @@
                     </select>
                   </div>
                 </div>
+                <div class="set-row">
+                  <div class="set-text">
+                    <span class="set-name" data-i18n="下载源">下载源</span>
+                    <span class="set-desc" data-i18n="dsh 版本的下载源；查版本列表和下载安装都走它，改完立即生效。">dsh 版本的下载源；查版本列表和下载安装都走它，改完立即生效。</span>
+                    <p class="hint" id="sourceHint"></p>
+                  </div>
+                  <div class="set-control">
+                    <select id="downloadSource"></select>
+                  </div>
+                </div>
                 <div class="set-row stacked">
                   <div class="set-text">
                     <span class="set-name" data-i18n="版本目录">版本目录</span>
@@ -1414,6 +1424,12 @@
   "设置": "Settings",
   "追加到 dsh 命令行末尾（空格分词，含空格的值用引号包起来）；DSH.exe 命令行上带的参数排在这些之后，更具体、可覆盖前者。已装的插件、数据不受影响。": "Appended to the end of the dsh command line (split on spaces; quote values with spaces). Arguments passed on the DSH.exe command line come after these and are more specific, so they win. Installed plugins and data are unaffected.",
   "Web 绑定": "Web binding",
+  "下载源": "Download source",
+  "镜像源": "Mirror",
+  "官方源": "Official",
+  "dsh 版本的下载源；查版本列表和下载安装都走它，改完立即生效。": "Where dsh versions are fetched from; it is used for both the version list and the download, and takes effect immediately.",
+  "镜像源：国内下载快，但同步官方有延迟，刚发布的版本可能「检查到更新却装不上」。": "Mirror: fast inside China, but it lags behind npm — a brand-new release may show up as an update yet fail to install.",
+  "官方源：新版本发布即可安装，国内直连可能较慢，建议配代理。": "Official: new releases are installable right away; a direct connection from China can be slow, so a proxy helps.",
   "回环（127.0.0.1）": "Loopback (127.0.0.1)",
   "局域网（0.0.0.0）": "LAN (0.0.0.0)",
   "回环：只有本机能访问（默认）。局域网：启动器不再固定注入 --host 127.0.0.1，实际绑定由远程访问插件的「局域网访问」开关（或 profile 补丁）决定，手机/其他电脑才能连上。": "Loopback: this machine only (default). LAN: the launcher stops injecting --host 127.0.0.1, and the remote-access plugin's LAN switch (or the profile patch) decides the bind, so phones and other computers can connect.",
@@ -2718,6 +2734,12 @@
     const profileEl = document.getElementById('profile')
     const portEl = document.getElementById('port')
     const portHint = document.getElementById('portHint')
+    const sourceEl = document.getElementById('downloadSource')
+    const sourceHint = document.getElementById('sourceHint')
+    // 下拉里只放短词，两种源各自的代价写在提示行里
+    const describeSource = (value) => value === 'official'
+      ? t('官方源：新版本发布即可安装，国内直连可能较慢，建议配代理。')
+      : t('镜像源：国内下载快，但同步官方有延迟，刚发布的版本可能「检查到更新却装不上」。')
     const argsEl = document.getElementById('args')
     const uiLangEl = document.getElementById('uiLang')
     const webBindEl = document.getElementById('webBind')
@@ -2788,6 +2810,14 @@
         portHint.textContent = live && live !== Number(data.port)
           ? t('当前监听 {live} 端口；重启启动器后尝试使用 {port}。', { live, port: data.port })
           : ''
+      }
+      if ('downloadSource' in data) {
+        const list = Array.isArray(data.downloadSources) && data.downloadSources.length
+          ? data.downloadSources
+          : [{ id: 'mirror', label: '镜像源' }]
+        sourceEl.innerHTML = list.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(t(item.label))}</option>`).join('')
+        sourceEl.value = String(data.downloadSource || 'mirror')
+        sourceHint.textContent = describeSource(sourceEl.value)
       }
       if ('dataDir' in data) {
         dataDirEl.value = String(data.dataDir ?? '')
@@ -2927,6 +2957,11 @@
     seedMarketEl.onchange = () => queueSetting('seedMarket', seedMarketEl.checked)
     autoDisableEl.onchange = () => queueSetting('autoDisablePlugins', autoDisableEl.checked)
     uiLangEl.onchange = () => queueSetting('lang', uiLangEl.value)
+    sourceEl.onchange = () => {
+      // 提示行跟着换；设置交给自动保存，切完下一次查版本/下载就走新源
+      sourceHint.textContent = describeSource(sourceEl.value)
+      queueSetting('downloadSource', sourceEl.value)
+    }
     webBindEl.onchange = () => queueSetting('webBind', webBindEl.value)
     themeEls.forEach((input) => {
       input.onchange = () => {

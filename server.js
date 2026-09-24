@@ -33,6 +33,7 @@ import {
   safeLang,
   safeTheme,
   safePanelTransparency,
+  safeDownloadSource,
   safePort,
   safeProfile,
   safeArgs,
@@ -556,6 +557,11 @@ async function publicSettings() {
     autoStart: await autoStartEnabled(),
     seedMarket: stored.seedMarket !== false,
     autoDisablePlugins: stored.autoDisablePlugins !== false,
+    downloadSource: safeDownloadSource(stored.downloadSource),
+    downloadSources: [
+      { id: 'mirror', label: '镜像源' },
+      { id: 'official', label: '官方源' },
+    ],
     profile: PROFILE_NAME,
     profiles: listProfiles(),
     // 回显用户填的原文（带引号），不能回显 parse 后的数组，否则含空格的值再存一次就被拆开了
@@ -584,6 +590,7 @@ async function saveManagerSettings(body) {
     ...('port' in body ? { port: safePort(body.port) } : {}),
     ...('profile' in body ? { profile: safeProfile(body.profile) } : {}),
     ...('args' in body ? { args: safeArgs(body.args) } : {}),
+    ...('downloadSource' in body ? { downloadSource: safeDownloadSource(body.downloadSource) } : {}),
     ...('webBind' in body ? { webBind: safeWebBind(body.webBind) } : {}),
     ...('lang' in body ? { lang: safeLang(body.lang) } : {}),
     ...('theme' in body ? { theme: safeTheme(body.theme) } : {}),
@@ -601,6 +608,10 @@ async function saveManagerSettings(body) {
     } catch (error) {
       pushLog(`开机自启未写入: ${error instanceof Error ? error.message : error}`)
     }
+  }
+  // 切换下载源后清掉更新检查的缓存，让新源立即生效（下载那侧每次现读，不用清）
+  if ('downloadSource' in body) {
+    remoteCache = { at: 0, data: null }
   }
   // profile 立即生效：插件页、启动参数、npmrc 都读这个变量（已经在跑的 dsh 不受影响）
   EXTRA_ARGS = composeExtraArgs(stored.args)
