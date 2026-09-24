@@ -69,6 +69,8 @@ macOS 打开 `DSH-X-mac-arm64.dmg`（Apple Silicon）或 `DSH-X-mac-x64.dmg`（I
 
 dsh 的 Web 界面默认只绑在本机（`127.0.0.1`）。想让手机/其他电脑也能访问：设置页 → 高级设置 → **Web 绑定**选「局域网（0.0.0.0）」，下次启动 dsh 生效；远程访问插件的「局域网访问」开关打开时，启动器也会自动按局域网处理（不再注入 `--host`）。
 
+**核对下载到的包（可选）**：把这一版发布的几个文件（安装包、`dsh-x-<版本>.spdx.json`、`release-manifest.json`、`release-manifest.sig`）全部放进同一个目录，跑 `node scripts/release-manifest.mjs verify <目录>`（脚本在仓库里），它会验签、逐个核对 sha256 与体积，少文件或对不上都会报出来。公钥指纹（SPKI/DER 的 SHA-256）是 `0699e51d0a98acaa5d1942afb7510010cb7864754f05746f5038cc35c9b42d99`，自己复算：`openssl pkey -pubin -in scripts/release-pubkey.pem -outform DER | openssl dgst -sha256`。（清单目前只覆盖 Windows 的安装包，dmg 还核不了。）
+
 ## 开发
 
 需要本机 Node.js 22.18+（官方 DSH：`^22.19.0 || >=24`）。

@@ -69,6 +69,8 @@ Both the manager page and DSH's own web page open in your default browser. The m
 
 dsh's web UI binds to this machine only (`127.0.0.1`) by default. To let a phone or another computer reach it: settings page → Advanced → **Web binding** → pick "LAN (0.0.0.0)"; it applies the next time dsh starts. When the remote-access plugin's LAN switch is on, the launcher treats it as LAN too (it stops injecting `--host`).
 
+**Verifying a download (optional)**: put every file from that release (the installer, `dsh-x-<version>.spdx.json`, `release-manifest.json`, `release-manifest.sig`) in one directory and run `node scripts/release-manifest.mjs verify <that-directory>` (the script ships in this repository). It checks the signature and every sha256 and size; a missing file or a mismatch is reported. The public key fingerprint (SPKI/DER SHA-256) is `0699e51d0a98acaa5d1942afb7510010cb7864754f05746f5038cc35c9b42d99`; recompute it with `openssl pkey -pubin -in scripts/release-pubkey.pem -outform DER | openssl dgst -sha256`. (The manifest covers the Windows installer only so far — the dmg can't be checked yet.)
+
 ## Development
 
 Needs Node.js 22.18+ locally (official DSH: `^22.19.0 || >=24`).
