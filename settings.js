@@ -90,11 +90,17 @@ export function safeUpdateSource(value) {
 }
 
 /**
- * 打开 dsh 页面的方式：tab = 系统默认浏览器的标签页（默认）；app = 用 Chromium 系浏览器的
- * 应用窗口打开（Chrome/Edge 的 --app=…，没有地址栏，更像一个 App）。找不到 Chrome/Edge
- * 就退回标签页，所以这个选项是「尽量」而不是「必须」。
+ * 打开 dsh 页面的方式：
+ *
+ * - tab：系统默认浏览器的标签页（默认）；
+ * - app：用 Chromium 系浏览器的应用窗口打开（Chrome/Edge 的 --app=…，没有地址栏，更像
+ *   一个 App）。找不到 Chrome/Edge 就退回标签页，所以这个选项是「尽量」而不是「必须」；
+ * - window：装进启动器自己的窗口（原生外壳再开一个 WebView2 窗口承载 dsh 界面），完全不
+ *   经过浏览器进程——关窗口、托盘、退出都由启动器自己说了算。它只在原生外壳托管下成立
+ *   （外壳设了 DSH_APP_WINDOW=1，并在 stdout 上收约定标记），源码运行（npm start）时选它
+ *   会安静地退回标签页，不会开出一个没人管的窗口。
  */
-export const OPEN_MODES = ['tab', 'app']
+export const OPEN_MODES = ['tab', 'app', 'window']
 export const DEFAULT_OPEN_MODE = 'tab'
 
 export function safeOpenMode(value) {
@@ -139,7 +145,7 @@ export const DEFAULTS = {
   downloadSource: DEFAULT_SOURCE,
   // 启动器更新的下载源：direct（默认）/ mirror（国内加速）
   updateSource: DEFAULT_UPDATE_SOURCE,
-  // 打开 dsh 页面的方式：tab（默认，系统浏览器标签页）/ app（Chromium 应用窗口）
+  // 打开 dsh 页面的方式：tab（默认，系统浏览器标签页）/ app（Chromium 应用窗口）/ window（启动器内嵌窗口）
   openMode: DEFAULT_OPEN_MODE,
   // dsh 的用户目录（DSH_HOME）。留空 = 默认 ~/.dsh；用户把 .dsh 挪到别的盘时在这里指回去
   dshHome: '',
@@ -438,6 +444,8 @@ export async function saveSettings(patch) {
   }
   if ('webBind' in patch) merged.webBind = safeWebBind(patch.webBind)
   merged.downloadSource = safeDownloadSource(merged.downloadSource)
+  merged.openMode = safeOpenMode(merged.openMode)
+  if ('openMode' in patch) merged.openMode = safeOpenMode(patch.openMode)
   merged.autoStart = Boolean(merged.autoStart)
   merged.seedMarket = merged.seedMarket !== false
   merged.autoDisablePlugins = merged.autoDisablePlugins !== false
