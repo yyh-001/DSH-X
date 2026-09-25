@@ -838,7 +838,7 @@ export function dshEnv(version) {
     // 配置解析（多数机器上就是 npm 官方默认源），于是「检查更新」看的是设置里的源、真正装包
     // 却走另一个源。传下去之后全链路一致：选了哪个源，查版本、下 dsh、装插件都走它。
     npm_config_registry: currentRegistry(),
-    PATH: withBundledRuntime(process.env.PATH || ''),
+    PATH: withVersionBin(withBundledRuntime(process.env.PATH || ''), versionBinDir(version)),
   }
   if (workerCompat) {
     // NODE_PATH 是分号分隔的，条目本身带空格没关系，正好兜住带空格的安装路径
@@ -879,6 +879,33 @@ export function orderRuntimePaths(parts, dir) {
  * 有没有全局 pnpm 全看运气，所以安装包自带一份。另外插件里常带原生模块和 postinstall
  * 构建脚本，也指望能就地找到 node/npm。系统里已经有 pnpm 时的排序见 orderRuntimePaths。
  */
+/**
+ * 当前版本自己的命令行入口目录（node_modules/.bin，里面有 dsh / cordis 这些 shim）。
+ * 从 bin 路径往上找 node_modules，兼容「启动器装的版本」和「系统装的 dsh」两种布局。
+ */
+function versionBinDir(version) {
+  let dir = dirname(binPath(version))
+  for (let i = 0; i < 5; i += 1) {
+    if (basename(dir) === 'node_modules') return join(dir, '.bin')
+    if (dir === dirname(dir)) break
+    dir = dirname(dir)
+  }
+  return ''
+}
+
+/**
+ * 把当前版本的命令行入口追加到 PATH **末尾**：agent 在 shell 里就能直接 `dsh xxx`，
+ * 版本跟着启动器选的那个走（pyenv 的 shim 就是这个意思）。
+ *
+ * 追加而不是插队：用户自己 PATH 上本来就有 dsh 时优先用他的，我们只在后面的位置兜底。
+ */
+export function withVersionBin(pathValue, binDir) {
+  if (!binDir || !existsSync(binDir)) return pathValue
+  const parts = String(pathValue).split(delimiter).filter(Boolean)
+  if (parts.includes(binDir)) return pathValue
+  return [...parts, binDir].join(delimiter)
+}
+
 export function withBundledRuntime(pathValue) {
   const dir = join(ROOT, 'node')
   if (!existsSync(join(dir, NODE_BINARY))) return pathValue
