@@ -178,12 +178,15 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-function block(rowId) {
-  return `- id: ${rowId}\n  disabled: true\n`
+function block(rowId, disabled) {
+  return `- id: ${rowId}\n  disabled: ${disabled ? 'true' : 'false'}\n`
 }
 
-/** 补丁文件是否还是合法的顶层条目数组（行级启发式，宁可拒绝也不写坏）。 */
-function looksLikeEntryList(text) {
+/**
+ * 补丁文件是否还是合法的顶层条目数组（行级启发式，宁可拒绝也不写坏）。
+ * mcp.js 写自己的 insert 区块之前也过一遍这个，两边策略必须一致。
+ */
+export function looksLikeEntryList(text) {
   const lines = text.split(/\r?\n/).filter((line) => line.trim() !== '' && !line.trim().startsWith('#'))
   if (!lines.length) return true
   if (lines.length === 1 && /^\[\s*\]$/.test(lines[0].trim())) return true
@@ -192,19 +195,20 @@ function looksLikeEntryList(text) {
   return true
 }
 
-/** 追加一行禁用（纯文本变换，便于一次写多行）。 */
-function appendDisableBlock(text, rowId) {
+/** 追加一行禁用/强制启用（纯文本变换，便于一次写多行）。 */
+function appendRowBlock(text, rowId, disabled) {
+  const row = block(rowId, disabled)
   const core = String(text ?? '').trim()
-  if (core === '') return { ok: true, text: block(rowId) }
+  if (core === '') return { ok: true, text: row }
   const withoutComments = core.replace(/^[ \t]*#.*$/gmu, '').trim()
   if (withoutComments === '') {
     const head = text.endsWith('\n') ? text : `${text}\n`
-    return { ok: true, text: `${head}${block(rowId)}` }
+    return { ok: true, text: `${head}${row}` }
   }
   if (withoutComments === '[]' || withoutComments === '[ ]') {
     const commented = text.replace(/^[ \t]*\[[ \t]*\][ \t]*(?:#.*)?(?:\r?\n|$)/mu, '# []\n')
     const head = commented.endsWith('\n') ? commented : `${commented}\n`
-    return { ok: true, text: `${head}${block(rowId)}` }
+    return { ok: true, text: `${head}${row}` }
   }
   const lastContent = text.split(/\r?\n/).map((line) => line.trim()).filter((line) => line !== '' && !line.startsWith('#')).pop() ?? ''
   if (/^[[{]/.test(lastContent)) {
@@ -214,30 +218,34 @@ function appendDisableBlock(text, rowId) {
     return { ok: false, reason: '补丁层不是合法的条目数组，已拒绝写入以免破坏；请先修正 cordis.patch.yml' }
   }
   const head = text.endsWith('\n') ? text : `${text}\n`
-  return { ok: true, text: `${head}${block(rowId)}` }
+  return { ok: true, text: `${head}${row}` }
 }
 
 /**
- * 删掉某一行里的 `disabled: true`（键在行里的位置不限）。
- * 同一行的其它覆盖键（name/config/…）留着，整行只剩它就整行删掉。
+ * 删掉某一行里的 `disabled: <值>`（键在行里的位置不限，别的覆盖键留着；整行只剩它就整行删掉）。
+ * 位置不限这条是必要的：#9 里就有人遇到 `disabled` 不在第二行的补丁行。
  */
-function removeDisableBlock(text, rowId) {
+function removeRowBlock(text, rowId, disabled = true) {
+  const want = disabled ? 'true' : 'false'
   const idRe = new RegExp(`^- id:\\s*['"]?${escapeRegExp(rowId)}['"]?\\s*$`)
+  const valueRe = new RegExp(`^ {2}disabled:\\s*${want}\\s*$`)
   const lines = String(text ?? '').split('\n')
   for (let index = 0; index < lines.length; index += 1) {
     if (!idRe.test(lines[index])) continue
-    let end = index + 1
-    while (end < lines.length && !/^- /.test(lines[end])) end += 1
-    const row = lines.slice(index, end)
-    const at = row.findIndex((line, pos) => pos > 0 && /^ {2}disabled:\s*true\s*$/.test(line))
+    let rowEnd = index + 1
+    while (rowEnd < lines.length && !/^- /.test(lines[rowEnd])) rowEnd += 1
+    const row = lines.slice(index, rowEnd)
+    const at = row.findIndex((line, pos) => pos > 0 && valueRe.test(line))
     if (at < 0) return text
     const kept = row.filter((_, pos) => pos !== at)
     const stillHasKeys = kept.slice(1).some((line) => line.trim() !== '')
-    lines.splice(index, end - index, ...(stillHasKeys ? kept : []))
+    lines.splice(index, rowEnd - index, ...(stillHasKeys ? kept : []))
     return lines.join('\n')
   }
   return text
 }
+
+const removeDisableBlock = (text, rowId) => removeRowBlock(text, rowId, true)
 
 /** 补丁层空了就把模板的 `[]` 占位恢复回来（否则 dsh 拒绝启动整个 profile）。 */
 function ensurePlaceholder(text) {
@@ -275,6 +283,32 @@ export function enableRowId(profileDir, rowId) {
   const patchPath = patchPathOf(profileDir)
   const state = readPatchState(patchPath)
   const next = removeDisableBlock(state.text, rowId)
+  if (next === state.text) return { ok: true, changed: false }
+  backupOnce(patchPath)
+  writeFileSync(patchPath, ensurePlaceholder(next))
+  return { ok: true, changed: true }
+}
+
+/**
+ * 强制启用/取消强制启用一条 loader 行（写/删 `disabled: false` 覆盖块）。
+ *
+ * 官方模板会把某些行 patch 成 disabled（如 web 模板默认关掉本地技能加载），
+ * 插件页的开关对官方包不开放，但用户层覆盖是合法的——技能总开关走这里。
+ */
+export function forceRowId(profileDir, rowId, forced) {
+  if (!ROW_ID_RE.test(rowId)) throw new Error(`行 id ${rowId} 含特殊字符`)
+  if (MARKET_ROW_RE.test(rowId)) throw new Error(`行 id ${rowId} 由插件市场自管，不写入补丁层`)
+  const patchPath = patchPathOf(profileDir)
+  const state = readPatchState(patchPath)
+  if (forced) {
+    if (state.forced.includes(rowId)) return { ok: true, changed: false }
+    const result = appendRowBlock(state.text, rowId, false)
+    if (!result.ok) throw new Error(result.reason)
+    backupOnce(patchPath)
+    writeFileSync(patchPath, result.text)
+    return { ok: true, changed: true }
+  }
+  const next = removeRowBlock(state.text, rowId, false)
   if (next === state.text) return { ok: true, changed: false }
   backupOnce(patchPath)
   writeFileSync(patchPath, ensurePlaceholder(next))
