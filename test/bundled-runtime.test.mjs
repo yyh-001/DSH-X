@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { delimiter, join } from 'node:path'
 import test from 'node:test'
 
-import { orderRuntimePaths, withBundledRuntime, withVersionBin } from '../server.js'
+import { dshArgs, dshEnv, orderRuntimePaths, withBundledRuntime, withVersionBin, writeDshShims } from '../server.js'
 
 const BUNDLED = 'E:\\DSH\\node'
 
@@ -93,4 +93,46 @@ test('版本 .bin 不存在（还没装好 / 系统版 dsh）时原样返回', (
   const pathValue = 'C:\Windows'
   assert.equal(withVersionBin(pathValue, ''), pathValue)
   assert.equal(withVersionBin(pathValue, join(tmpdir(), 'dsh-no-such-bin-' + Date.now())), pathValue)
+})
+
+// 第 2 条：用户自己的 node 不该被自带运行时盖住（agent 在 shell 里跑的 node 是他自己那个）。
+// 自带运行时退到后面兜底，dsh 本身仍然用启动器自己的 node 启动（spawnDsh 的 process.execPath）。
+test('用户有 node：他的目录排在自带运行时前面，自带只兜底', () => {
+  const userNode = plainDir()
+  writeFileSync(join(userNode, process.platform === 'win32' ? 'node.exe' : 'node'), '')
+  const other = plainDir()
+  const ordered = orderRuntimePaths([other, userNode], BUNDLED)
+  assert.equal(ordered.indexOf(userNode) < ordered.indexOf(BUNDLED), true, '用户自己的 node 优先')
+  assert.ok(ordered.includes(BUNDLED), '自带运行时仍然在 PATH 里兜底')
+})
+
+// 第 3 条：dsh 自己的开关走命令行，别进 NODE_OPTIONS —— 后者会被所有子进程继承，
+// agent 在 shell 里跑的 node 万一是老版本，撞上 --use-system-ca 会直接 bad option 退出。
+test('dsh 的开关在命令行上，不进 NODE_OPTIONS；worker 需要的 --require 留着', () => {
+  const args = dshArgs('0.1.7-rc.1')
+  assert.ok(args.includes('--use-system-ca'), '证书库开关在命令行')
+  assert.ok(args.some((arg) => arg.startsWith('--max-http-header-size')), '请求头上限在命令行')
+  assert.ok(args.some((arg) => arg.startsWith('--import')), 'ESM 补丁钩子在命令行')
+
+  const env = dshEnv('0.1.7-rc.1')
+  assert.ok(!env.NODE_OPTIONS.includes('--use-system-ca'), '不能漏给子进程')
+  assert.ok(!env.NODE_OPTIONS.includes('--max-http-header-size'), '不能漏给子进程')
+  assert.match(env.NODE_OPTIONS, /--require /, 'worker 线程那份 CJS 补丁必须留着')
+})
+
+test('dsh shim 用的是启动器自己的 node：用户那套 node 再老也带得动', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-shim-'))
+  const bin = join(dir, 'fake-dsh-bin.js')
+  writeFileSync(bin, '// fake\n')
+  const written = writeDshShims('0.1.7-rc.1', { dir: join(dir, 'bin'), bin })
+  assert.equal(written, join(dir, 'bin'))
+  const cmd = readFileSync(join(dir, 'bin', 'dsh.cmd'), 'utf8')
+  assert.ok(cmd.includes(process.execPath), 'node 写死成启动器自己的')
+  assert.ok(cmd.includes(bin), '指向当前版本的入口')
+  assert.ok(readFileSync(join(dir, 'bin', 'dsh'), 'utf8').startsWith('#!/bin/sh'))
+})
+
+test('写 shim 时版本入口不存在（还没装好）就安静跳过', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-shim-'))
+  assert.equal(writeDshShims('0.1.7-rc.1', { dir: join(dir, 'bin'), bin: join(dir, 'nope.js') }), '')
 })

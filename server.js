@@ -1,7 +1,7 @@
 import { execFile, spawn, spawnSync } from 'node:child_process'
 import { createServer } from 'node:http'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
-import { accessSync, appendFileSync, closeSync, constants as fsConstants, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync } from 'node:fs'
+import { accessSync, appendFileSync, chmodSync, closeSync, constants as fsConstants, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { basename, delimiter, dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -822,15 +822,13 @@ export function dshEnv(version) {
     DSH_BIN: binPath(version),
     DSH_VERSION: version,
     DSH_PROFILE: PROFILE_NAME,
-    // 浏览器里堆积的 cookie 会顶爆默认 16KB 的请求头上限（HTTP 431），一并放宽；
-    // app 用系统证书库（Windows 证书存储），否则挂了代理 / TUN（mihomo 之类）做
-    // TLS 中间人时，DeepSeek 的请求会以 transport failed 收场；
-    // --require 用于把会话事件兼容补丁带进 dsh 起的 worker 线程。这里只放文件名，
-    // 目录靠下面的 NODE_PATH 传（原因见 WORKER_COMPAT）。
+    // 只有「必须被 dsh 起的 worker 线程继承」的东西留在这里：worker 的 execArgv 是空的，
+    // 命令行参数传不进去，只能靠 NODE_OPTIONS（这里只放文件名，目录靠下面的 NODE_PATH 传）。
+    // dsh 自己要的那几个开关（--use-system-ca、--max-http-header-size、--import 钩子）走命令行，
+    // 见 spawnDsh：NODE_OPTIONS 会被**所有**子进程继承，agent 在 shell 里跑的 node 万一是老版本，
+    // 撞上 --use-system-ca 这种新开关会直接 bad option 退出。
     NODE_OPTIONS: [
-      '--use-system-ca',
       process.env.NODE_OPTIONS,
-      '--max-http-header-size=131072',
       workerCompat ? `--require ${basename(WORKER_COMPAT)}` : '',
     ].filter(Boolean).join(' '),
     npm_config_ignore_workspace_root_check: 'true',
@@ -838,7 +836,9 @@ export function dshEnv(version) {
     // 配置解析（多数机器上就是 npm 官方默认源），于是「检查更新」看的是设置里的源、真正装包
     // 却走另一个源。传下去之后全链路一致：选了哪个源，查版本、下 dsh、装插件都走它。
     npm_config_registry: currentRegistry(),
-    PATH: withVersionBin(withBundledRuntime(process.env.PATH || ''), versionBinDir(version)),
+    // 末尾追加两个目录：先是启动器写的 dsh shim（node 写死成启动器自己的），再是版本自己的
+    // .bin（里面有 cordis 之类的入口）。追加不插队 —— 用户自己的 dsh 仍然优先。
+    PATH: withVersionBin(withBundledRuntime(process.env.PATH || ''), join(DATA, '.bin'), versionBinDir(version)),
   }
   if (workerCompat) {
     // NODE_PATH 是分号分隔的，条目本身带空格没关系，正好兜住带空格的安装路径
@@ -867,9 +867,12 @@ function hasCommand(dir, name) {
  */
 export function orderRuntimePaths(parts, dir) {
   const rest = parts.filter((item) => item !== dir)
+  // 用户自己的工具链优先：有 pnpm 的目录排最前（#12 的 store 错配），其次是带 node 的目录。
+  // 自带运行时只是兜底 —— agent 在 shell 里跑的 node 应该是用户自己那个，而不是我们的 22.19。
   const pnpmDir = rest.find((item) => hasCommand(item, 'pnpm'))
-  if (!pnpmDir) return [dir, ...rest]
-  return [pnpmDir, dir, ...rest.filter((item) => item !== pnpmDir)]
+  const nodeDir = rest.find((item) => hasCommand(item, 'node'))
+  const head = [pnpmDir, nodeDir].filter((item, index, list) => item && list.indexOf(item) === index)
+  return [...head, dir, ...rest.filter((item) => !head.includes(item))]
 }
 
 /**
@@ -894,16 +897,42 @@ function versionBinDir(version) {
 }
 
 /**
+ * 写一份「跟着启动器当前版本走」的 dsh 命令行入口。
+ *
+ * 为什么不用版本目录里那个 .bin/dsh.cmd：它的 node 取自 PATH，而我们把用户自己的 node
+ * 排在了前面（见 orderRuntimePaths），用户那套 node 要是太老就带不动 dsh。这里把启动器
+ * 自己的 node 写死，`dsh` 在 shell 里就总是能跑起来，版本也跟着启动器选的那个走。
+ */
+export function writeDshShims(version, options = {}) {
+  const target = options.dir ?? join(DATA, '.bin')
+  const bin = options.bin ?? binPath(version)
+  if (!existsSync(bin)) return ''
+  try {
+    mkdirSync(target, { recursive: true })
+    const node = process.execPath
+    writeFileSync(join(target, 'dsh.cmd'), `@ECHO off\r\n"${node}" "${bin}" %*\r\n`)
+    const sh = join(target, 'dsh')
+    writeFileSync(sh, `#!/bin/sh\nexec "${node}" "${bin}" "$@"\n`)
+    try {
+      chmodSync(sh, 0o755)
+    } catch { /* Windows 上无所谓 */ }
+  } catch {
+    return ''
+  }
+  return target
+}
+
+/**
  * 把当前版本的命令行入口追加到 PATH **末尾**：agent 在 shell 里就能直接 `dsh xxx`，
  * 版本跟着启动器选的那个走（pyenv 的 shim 就是这个意思）。
  *
  * 追加而不是插队：用户自己 PATH 上本来就有 dsh 时优先用他的，我们只在后面的位置兜底。
  */
-export function withVersionBin(pathValue, binDir) {
-  if (!binDir || !existsSync(binDir)) return pathValue
+export function withVersionBin(pathValue, ...binDirs) {
   const parts = String(pathValue).split(delimiter).filter(Boolean)
-  if (parts.includes(binDir)) return pathValue
-  return [...parts, binDir].join(delimiter)
+  const add = binDirs.filter((dir) => dir && existsSync(dir) && !parts.includes(dir))
+  if (!add.length) return pathValue
+  return [...parts, ...add].join(delimiter)
 }
 
 export function withBundledRuntime(pathValue) {
@@ -972,11 +1001,29 @@ const HOOKS = [
 const WORKER_COMPAT = join(ROOT, 'compat', 'worker-events.cjs')
 const WORKER_COMPAT_DIR = dirname(WORKER_COMPAT)
 
+/**
+ * 拉起 dsh 时的命令行参数。
+ *
+ * dsh 自己的开关（系统证书库、请求头上限、两个 ESM 补丁钩子）放这里而不是 NODE_OPTIONS：
+ * NODE_OPTIONS 会被 dsh 的所有子进程继承，agent 在 shell 里跑的 node 万一是老版本，
+ * 撞上 --use-system-ca 这类新开关就直接 bad option 退出。worker 线程那份 CJS 补丁仍在
+ * NODE_OPTIONS 里（worker 的 execArgv 是空的，命令行传不进去），见 dshEnv。
+ */
+export function dshArgs(version, extra = []) {
+  return [
+    '--use-system-ca',
+    '--max-http-header-size=131072',
+    ...HOOKS.flatMap((file) => ['--import', pathToFileURL(file).href]),
+    binPath(version),
+    ...extra,
+  ]
+}
+
 function spawnDsh(version, extra) {
   const home = homeDir()
-  const bin = binPath(version)
-  const args = [...HOOKS.flatMap((file) => ['--import', pathToFileURL(file).href]), bin, ...extra]
-  return spawn(process.execPath, args, {
+  // 先把 dsh 的命令行入口写出来（PATH 里要用到），再拼参数
+  writeDshShims(version)
+  return spawn(process.execPath, dshArgs(version, extra), {
     cwd: home,
     env: dshEnv(version),
     stdio: ['ignore', 'pipe', 'pipe'],
