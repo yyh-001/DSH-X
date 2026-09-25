@@ -122,7 +122,8 @@ let HIDE_BIG_FISH = loadSettingsSync().hideBigFish === true
 let DSH_HOME_DIR = safeDshHome(loadSettingsSync().dshHome)
 // 启动器更新的下载源：direct（默认直连 GitHub）/ mirror（国内加速，直连失败时走前缀镜像）
 let UPDATE_SOURCE = safeUpdateSource(loadSettingsSync().updateSource)
-// 打开 dsh 页面的方式：tab（默认，系统浏览器标签页）/ app（Chromium 应用窗口）
+// 打开 dsh 页面的方式：tab（默认，系统浏览器标签页）/ app（Chromium 应用窗口）/
+// window（启动器内嵌窗口；只在被原生外壳拉起时成立，判断见 openRoute）
 let OPEN_MODE = safeOpenMode(loadSettingsSync().openMode)
 
 /** 安装目录里的 lang.txt（安装程序写的），只认 zh / en。 */
@@ -721,9 +722,12 @@ async function publicSettings() {
       { id: 'official', label: '官方源' },
     ],
     openMode: safeOpenMode(stored.openMode),
+    // 选了内嵌窗口但当前没有原生外壳（源码运行）时，页面要如实说明会落到标签页
+    openModeWindow: openRoute(OPEN_MODE, shellWindowHost()) === 'window',
     openModes: [
       { id: 'tab', label: '浏览器标签页' },
       { id: 'app', label: '应用窗口' },
+      { id: 'window', label: '桌面窗口（内嵌）' },
     ],
     updateSource: safeUpdateSource(stored.updateSource),
     updateSources: [
@@ -791,7 +795,11 @@ async function saveManagerSettings(body) {
   }
   if ('openMode' in body) {
     OPEN_MODE = safeOpenMode(stored.openMode)
-    pushLog(OPEN_MODE === 'app' ? '打开方式：应用窗口（找不到 Chrome/Edge 会退回标签页）' : '打开方式：系统浏览器标签页')
+    pushLog(OPEN_MODE === 'app'
+      ? '打开方式：应用窗口（找不到 Chrome/Edge 会退回标签页）'
+      : OPEN_MODE === 'window'
+        ? `打开方式：桌面窗口（${shellWindowHost() ? '启动器内嵌，不经过浏览器' : '当前没有原生外壳，会退回浏览器标签页'}）`
+        : '打开方式：系统浏览器标签页')
   }
   if ('dshHome' in body) {
     const next = safeDshHome(stored.dshHome)
@@ -2257,8 +2265,32 @@ function openInAppWindow(url) {
 }
 
 /**
+ * 内嵌窗口模式：本进程是被 DSH.exe / DSH-X.app 的原生外壳拉起来的（它设了
+ * DSH_APP_WINDOW=1），它在 stdout 上收这一行约定标记（和 __DSH_SHOW__ 一个路子），
+ * 收到就把地址装进它自己创建的窗口里。不经过浏览器进程——这正是这个模式存在的理由：
+ * app 模式借的还是浏览器（只是没有地址栏），window 模式的窗口完全归启动器所有，
+ * 关窗口 / 托盘 / 退出都由它说了算。
+ */
+const OPEN_SIGNAL = '__DSH_OPEN__'
+
+/** 本进程是不是由原生外壳（DSH.exe / DSH-X.app）托管：只有它能开内嵌窗口。 */
+function shellWindowHost() {
+  return process.env.DSH_APP_WINDOW === '1'
+}
+
+/**
+ * 这个地址该由谁打开：'window'（启动器内嵌窗口）还是 'browser'（系统浏览器）。
+ * 纯函数，便于测试；两个条件缺一不可——设置里选了 window，且真的有个外壳在收标记
+ * （源码运行 npm start 时没有外壳，选 window 也只会安静地退回浏览器）。
+ */
+export function openRoute(mode, shellWindow) {
+  return mode === 'window' && shellWindow ? 'window' : 'browser'
+}
+
+/**
  * 交给系统默认程序打开。openMode 为 app 时优先用 Chromium 的应用窗口（更像个 App、
- * 没有地址栏），找不到 Chrome/Edge 就安静退回默认浏览器。
+ * 没有地址栏），找不到 Chrome/Edge 就安静退回默认浏览器；为 window 时交给原生外壳
+ * 自己的窗口（不经过浏览器进程）。
  *
  * Windows 走 `cmd /c start`，而 cmd 会把这行**再解析一遍**：URL 里的 `&` 是语句
  * 分隔符、`|<>^()%"` 各有含义，于是 `http://127.0.0.1:1/?&calc` 能直接跑起任意命令
@@ -2268,6 +2300,11 @@ function openInAppWindow(url) {
  */
 function openExternal(target, mode = OPEN_MODE) {
   const url = String(target)
+  // 内嵌窗口：地址交给原生外壳自己的窗口，连浏览器进程都不起（见 OPEN_SIGNAL）
+  if (openRoute(mode, shellWindowHost()) === 'window') {
+    process.stdout.write(`${OPEN_SIGNAL} ${url}\n`)
+    return
+  }
   if (mode === 'app' && /^https?:/i.test(url)) {
     if (openInAppWindow(url)) return
     pushLog('没找到 Chrome/Edge，改用系统默认浏览器打开')
@@ -2479,6 +2516,10 @@ async function handleApi(req, res, url) {
       `url=${running?.url || ''}`,
       `installed=${snap.installed.length ? 1 : 0}`,
       `lang=${LANG}`,
+      // 托盘照着它决定「打开 DSH」是叫内嵌窗口还是丢给系统浏览器
+      `openmode=${OPEN_MODE}`,
+      // 本次是不是由原生外壳托管：外壳缺失时窗口模式不成立，托盘据此退回浏览器
+      `shell=${shellWindowHost() ? 1 : 0}`,
     ].join('\n'), 'text/plain; charset=utf-8')
     return
   }

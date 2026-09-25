@@ -9,6 +9,10 @@
 //!
 //! 关窗口 ≠ 退出：托盘还在、dsh 照常跑；托盘点「打开管理页」时 start.js 会打 SHOW_PORT，
 //! 把隐藏的窗口叫回来。
+//!
+//! 设置里选了「桌面窗口」时，dsh 自己的界面也开在这里（第二个窗口，同样由本进程创建）：
+//! node 在 stdout 上打一行 OPEN_SIGNAL 说明地址，这边收到就把窗口叫出来；换句话说
+//! dsh 的界面完全不经过浏览器进程。
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{SocketAddr, TcpStream};
@@ -24,11 +28,11 @@ use std::time::{Duration, Instant};
 use tao::dpi::LogicalPosition;
 use tao::dpi::{LogicalSize, PhysicalPosition};
 use tao::event::{Event, WindowEvent};
-use tao::event_loop::{ControlFlow, EventLoop, EventLoopBuilder};
-use tao::window::WindowBuilder;
+use tao::event_loop::{ControlFlow, EventLoop, EventLoopBuilder, EventLoopProxy, EventLoopWindowTarget};
+use tao::window::{Window, WindowBuilder};
 use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tray_icon::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
-use wry::{WebContext, WebViewBuilder};
+use wry::{WebContext, WebView, WebViewBuilder};
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -71,8 +75,16 @@ const WINDOW_MIN_H: f64 = 520.0;
 /// 启动失败那张错误页的窗口尺寸（逻辑像素）
 const ERROR_W: f64 = 560.0;
 const ERROR_H: f64 = 300.0;
+/// 内嵌 DSH 窗口的尺寸（逻辑像素）：dsh 的界面比管理页宽，首次出现给大一点
+const DSH_WINDOW_W: f64 = 1180.0;
+const DSH_WINDOW_H: f64 = 820.0;
+const DSH_WINDOW_MIN_W: f64 = 720.0;
+const DSH_WINDOW_MIN_H: f64 = 520.0;
 /// node 往 stdout 打这一行，就表示它要我们把窗口叫到前面（见 start.js 的 requestShow）。
 const SHOW_SIGNAL: &str = "__DSH_SHOW__";
+/// node 往 stdout 打这一行（后面跟一个空格和地址），表示「把这个地址装进内嵌窗口」
+/// （见 server.js 的 OPEN_SIGNAL）。设置里选了桌面窗口时，页面上的「打开 DSH」走的就是它。
+const OPEN_SIGNAL: &str = "__DSH_OPEN__";
 /// 菜单项 id
 const ITEM_OPEN_DSH: &str = "open-dsh";
 const ITEM_TOGGLE: &str = "toggle";
@@ -96,6 +108,15 @@ enum UserEvent {
     Quit,
     /// 轮询到的最新托盘状态
     Tray(TrayState),
+    /// 把地址装进内嵌的 DSH 窗口（空地址＝dsh 没在跑，显示那张本地页）。
+    /// 来源有两个：node 的 OPEN_SIGNAL 标记行，和托盘的「打开 DSH」。
+    OpenDsh(String),
+    /// 页面里点出来的链接：按当前打开方式决定进内嵌窗口还是交给系统浏览器
+    OpenExternal(String),
+    /// 内嵌窗口那张本地页上的「启动」按钮：让 node 去拉 dsh
+    LaunchDsh,
+    /// 内嵌窗口里网页的标题变了：同步到窗口标题（任务栏里才认得出是哪个窗口）
+    DshTitle(String),
 }
 
 /// 从 /api/tray 读回来的状态（纯文本 key=value，见 server.js）
@@ -106,11 +127,21 @@ struct TrayState {
     installed: bool,
     /// 界面语言（zh / en），由管理页的 /api/tray 带过来
     lang: String,
+    /// 打开方式（tab / window），由管理页的 /api/tray 带过来
+    openmode: String,
+    /// 本进程是不是由原生外壳托管（＝这个进程自己，永远为真；源码运行那一侧才是 0）
+    shell: bool,
 }
 
 impl TrayState {
     fn live(&self) -> bool {
         self.status == "running" || self.status == "starting"
+    }
+
+    /// 该不该把 dsh 的界面开进内嵌窗口：设置里选了 window，且确实有个外壳在（本进程就是），
+    /// 两个条件缺一不可——源码运行时选了窗口模式，也要照旧退回系统浏览器。
+    fn window_mode(&self) -> bool {
+        self.openmode == "window" && self.shell
     }
 }
 
@@ -125,10 +156,71 @@ fn parse_tray_state(text: &str) -> TrayState {
             "url" => state.url = value.trim().to_string(),
             "installed" => state.installed = value.trim() == "1",
             "lang" => state.lang = value.trim().to_string(),
+            "openmode" => state.openmode = value.trim().to_string(),
+            "shell" => state.shell = value.trim() == "1",
             _ => {}
         }
     }
     state
+}
+
+/// node 那行标记 → 要打开的地址（不是这行就返回 None）。
+fn parse_open_signal(line: &str) -> Option<String> {
+    let url = line.trim().strip_prefix(OPEN_SIGNAL)?.trim();
+    if url.is_empty() {
+        return None;
+    }
+    Some(url.to_string())
+}
+
+/// 地址的 host（没有 scheme 或 host 为空时返回 None）。只做够用的事：不引入 URL 库，
+/// 只用来判断「这是不是本机地址」「是不是同一个源」。
+fn url_host(url: &str) -> Option<&str> {
+    let rest = url.strip_prefix("http://").or_else(|| url.strip_prefix("https://"))?;
+    let authority = rest.split(['/', '?', '#']).next()?;
+    // 去掉 userinfo（user:pass@host）：@ 之后才是 host
+    let authority = authority.rsplit('@').next()?;
+    if let Some(rest) = authority.strip_prefix('[') {
+        // IPv6 字面量：[::1]:9716 → ::1
+        return rest.split(']').next();
+    }
+    Some(authority.split(':').next().unwrap_or(""))
+}
+
+/// 是不是本机地址：dsh 的界面、管理页都在回环上；外链一律交给系统浏览器。
+fn is_loopback_url(url: &str) -> bool {
+    matches!(url_host(url), Some("127.0.0.1") | Some("localhost") | Some("::1"))
+}
+
+/// http(s) 地址（含本机）：这种才有可能交给系统浏览器打开。
+fn is_web_url(url: &str) -> bool {
+    url.starts_with("http://") || url.starts_with("https://")
+}
+
+/// 真正的外部网页：http(s) 且不是本机地址。只有这种才丢给系统浏览器——
+/// 别的 scheme（about: / data: / blob:）都是页面自己的东西，交给系统只会弹出
+/// 「获取打开此 data 链接的应用」那种系统对话框。这条尤其重要：WebView2 的
+/// NavigateToString（wry 的 load_html）内部就是一次 **data: 导航**，
+/// 拦下它等于本地页永远渲染不出来。
+fn is_external_web_url(url: &str) -> bool {
+    is_web_url(url) && !is_loopback_url(url)
+}
+
+/// 两个地址的「scheme://authority」是否相同——用来认出「这个链接就是 dsh 自己」。
+fn same_origin(a: &str, b: &str) -> bool {
+    match (origin_of(a), origin_of(b)) {
+        (Some(left), Some(right)) => left == right,
+        _ => false,
+    }
+}
+
+fn origin_of(url: &str) -> Option<String> {
+    let (scheme, rest) = url.split_once("://")?;
+    let authority = rest.split(['/', '?', '#']).next()?;
+    if scheme.is_empty() || authority.is_empty() {
+        return None;
+    }
+    Some(format!("{}://{}", scheme.to_ascii_lowercase(), authority.to_ascii_lowercase()))
 }
 
 /// 原生托盘。菜单项句柄要留着——状态一变就得改文案和可用性。
@@ -261,6 +353,200 @@ fn error_page(title: &str, message: &str, detail: &str) -> String {
         .replace("__TITLE__", &escape_html(title))
         .replace("__MESSAGE__", &escape_html(message))
         .replace("__DETAIL__", &escape_html(detail))
+}
+
+/// dsh 没在跑时内嵌窗口里显示的那张页：给一个「启动」按钮，别留一张白页让用户以为坏了。
+/// 和错误页一个路子——本地 HTML，不依赖管理服务在不在。
+const IDLE_PAGE: &str = r#"<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>__TITLE__</title><style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; display: flex; align-items: center; justify-content: center;
+         background: #15171c; color: #e7e9ee;
+         font: 14px/1.6 "Microsoft YaHei UI", "Segoe UI", sans-serif; }
+  .card { text-align: center; padding: 0 32px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: #8a93a5; display: inline-block;
+         margin-right: 8px; vertical-align: 1px; }
+  h1 { margin: 0 0 8px; font-size: 16px; font-weight: 600; }
+  p { margin: 0 0 20px; color: #b9bec9; }
+  .actions { display: flex; gap: 10px; justify-content: center; }
+  button { border: 0; border-radius: 8px; padding: 9px 20px; font: inherit; font-size: 13px; cursor: pointer; }
+  .primary { background: #3b6cff; color: #fff; }
+  .primary:hover { background: #4a78ff; }
+  .ghost { background: #262a33; color: #e7e9ee; }
+  .ghost:hover { background: #303643; }
+</style></head>
+<body>
+  <div class="card">
+    <h1><span class="dot"></span>__TITLE__</h1>
+    <p>__HINT__</p>
+    <div class="actions">
+      <button class="primary" onclick="window.ipc.postMessage('launch')">__START__</button>
+      <button class="ghost" onclick="window.ipc.postMessage('manager')">__MANAGER__</button>
+    </div>
+  </div>
+</body></html>
+"#;
+
+/// 按界面语言拼出那张本地页（英文界面下不该冒出中文）。
+fn idle_page(lang: &str) -> String {
+    let en = lang == "en";
+    IDLE_PAGE
+        .replace("__TITLE__", if en { "dsh is not running" } else { "dsh 没在运行" })
+        .replace(
+            "__HINT__",
+            if en {
+                "Start it here, or go back to the launcher page."
+            } else {
+                "可以在这里直接启动，或者回到启动器管理页。"
+            },
+        )
+        .replace("__START__", if en { "Start dsh" } else { "启动 dsh" })
+        .replace("__MANAGER__", if en { "Open launcher" } else { "打开管理页" })
+}
+
+/// 内嵌 DSH 窗口当前装的是哪张页：本地那张「没在跑」，还是真的 dsh 地址。
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum DshPage {
+    Idle,
+    Remote(String),
+}
+
+/// 内嵌的 DSH 窗口。窗口和 webview 一起拿着，直到进程退出；关窗口只是藏起来
+/// （和主窗口一个口径：dsh 照常跑，需要时从托盘再叫回来）。
+struct DshWindow {
+    window: Window,
+    webview: WebView,
+    page: DshPage,
+}
+
+impl DshWindow {
+    fn show(&self) {
+        show_window(&self.window);
+    }
+
+    /// 让窗口跟上 dsh 的当前地址。地址没变就什么都不做——别把用户正在看的页面刷掉；
+    /// 空地址＝dsh 没在跑，换成那张本地页（上面有「启动」按钮）。
+    fn follow(&mut self, url: &str, lang: &str) {
+        if url.is_empty() {
+            if self.page != DshPage::Idle {
+                let _ = self.webview.load_html(&idle_page(lang));
+                self.page = DshPage::Idle;
+            }
+            return;
+        }
+        if self.page == DshPage::Remote(url.to_string()) {
+            return;
+        }
+        if self.webview.load_url(url).is_ok() {
+            self.page = DshPage::Remote(url.to_string());
+        }
+    }
+}
+
+/// 建出内嵌的 DSH 窗口。只能在事件循环里做：`WindowBuilder::build` 要一个
+/// `EventLoopWindowTarget`，而它只存在于 run 的回调里。
+///
+/// 建不出来（WebView2 缺失等）返回 None——调用方退回系统浏览器，别把已经跑起来的
+/// node 丢下不管。
+fn create_dsh_window(
+    event_loop: &EventLoopWindowTarget<UserEvent>,
+    context: &mut WebContext,
+    root: &Path,
+    proxy: &EventLoopProxy<UserEvent>,
+) -> Option<DshWindow> {
+    // 无边框窗口才需要自己摆位；这个是带标题栏的普通窗口，系统本来就会摆，但首次出现
+    // 摆在主屏正中比落在系统的层叠位置上更像回事
+    let centered = event_loop.primary_monitor().map(|monitor| {
+        let screen = monitor.size();
+        let area = LogicalSize::new(DSH_WINDOW_W, DSH_WINDOW_H).to_physical::<u32>(monitor.scale_factor());
+        PhysicalPosition::new(
+            monitor.position().x + (screen.width as i32 - area.width as i32) / 2,
+            monitor.position().y + (screen.height as i32 - area.height as i32) / 2,
+        )
+    });
+    let mut builder = WindowBuilder::new()
+        .with_title("DSH")
+        .with_window_icon(load_window_icon(root))
+        .with_inner_size(LogicalSize::new(DSH_WINDOW_W, DSH_WINDOW_H))
+        .with_min_inner_size(LogicalSize::new(DSH_WINDOW_MIN_W, DSH_WINDOW_MIN_H));
+    if let Some(position) = centered {
+        builder = builder.with_position(position);
+    }
+    let window = builder.build(event_loop).ok()?;
+
+    let ipc_proxy = proxy.clone();
+    let link_proxy = proxy.clone();
+    let title_proxy = proxy.clone();
+    let webview = WebViewBuilder::new_with_web_context(context)
+        // 和主窗口同一条路：先 about:blank，再 load_url（见 DshWindow::follow）
+        .with_url("about:blank")
+        .with_ipc_handler(move |request| {
+            // 只有本地那张页会发消息；dsh 自己的页面发什么都不管
+            let event = match request.body().as_str() {
+                "launch" => UserEvent::LaunchDsh,
+                "manager" => UserEvent::Show,
+                _ => return,
+            };
+            let _ = ipc_proxy.send_event(event);
+        })
+        // target="_blank" / window.open：本机地址交给窗口自己开（回到事件循环里决定），
+        // 外部地址丢给系统浏览器。wry 不设这个处理器时会把它们直接取消，点了像没反应。
+        .with_new_window_req_handler(move |url, _features| {
+            let _ = link_proxy.send_event(UserEvent::OpenExternal(url));
+            wry::NewWindowResponse::Deny
+        })
+        // 就地导航：本机地址（dsh 自己、它的插件页）和页面自己的东西（about:/data:/blob:，
+        // 本地那张「没在跑」的页就是 data: 导航）都放行，只有真正的外部网页丢给系统浏览器。
+        // 这个窗口里没有需要保住的自定义界面，所以比管理页那条规则宽松。
+        .with_navigation_handler(|url| {
+            if is_external_web_url(&url) {
+                open_in_browser(&url);
+                return false;
+            }
+            true
+        })
+        // 网页标题变了就同步到窗口标题：否则任务栏里永远只有一个「DSH」，
+        // 分不清哪个窗口是 dsh 的界面
+        .with_document_title_changed_handler(move |title| {
+            let _ = title_proxy.send_event(UserEvent::DshTitle(title));
+        })
+        .build(&window)
+        .ok()?;
+
+    Some(DshWindow {
+        window,
+        webview,
+        page: DshPage::Idle,
+    })
+}
+
+/// 「把 dsh 的界面装进内嵌窗口」这件事的唯一入口：没有窗口就建一个，然后让它跟上地址
+/// 并叫到前面。建不出来（WebView2 缺失等）退回系统浏览器——至少别什么都不发生。
+fn open_dsh_window(
+    slot: &mut Option<DshWindow>,
+    event_loop: &EventLoopWindowTarget<UserEvent>,
+    context: &mut WebContext,
+    root: &Path,
+    proxy: &EventLoopProxy<UserEvent>,
+    url: &str,
+    lang: &str,
+) {
+    if slot.is_none() {
+        *slot = create_dsh_window(event_loop, context, root, proxy);
+    }
+    match slot {
+        Some(window) => {
+            window.follow(url, lang);
+            window.show();
+        }
+        None => {
+            if !url.is_empty() {
+                open_in_browser(url);
+            }
+        }
+    }
 }
 
 /// 启动失败就把这句话显示在我们自己的窗口里，然后守着它，直到用户点关闭。
@@ -717,13 +1003,18 @@ fn main() {
         });
     }
 
-    // node 说「把窗口叫出来」时，读的就是这句约定标记
+    // node 说「把窗口叫出来」时，读的就是这句约定标记；说「把地址装进内嵌窗口」时，
+    // 读的是同一根管道上的另一行（设置里选了桌面窗口，页面上的「打开 DSH」就走这里）
     if let Some(out) = node_out {
         let proxy = proxy.clone();
         thread::spawn(move || {
             for line in BufReader::new(out).lines().map_while(Result::ok) {
                 if line.trim() == SHOW_SIGNAL {
                     let _ = proxy.send_event(UserEvent::Show);
+                    continue;
+                }
+                if let Some(url) = parse_open_signal(&line) {
+                    let _ = proxy.send_event(UserEvent::OpenDsh(url));
                 }
             }
         });
@@ -797,6 +1088,8 @@ fn main() {
 
     // 页面的窗口操作走 IPC 转成事件，窗口本身留在事件循环里操作，避免到处共享所有权
     let ipc_proxy = proxy.clone();
+    let link_proxy = proxy.clone();
+    let nav_proxy = proxy.clone();
     let webview = match &window {
         Some(window) => match WebViewBuilder::new_with_web_context(&mut context)
             .with_url("about:blank")
@@ -810,19 +1103,25 @@ fn main() {
                 };
                 let _ = ipc_proxy.send_event(event);
             })
-            // 外部链接（Star、运行地址、更新日志）一律交给系统浏览器。wry 在没设这个
-            // 处理器时会把 target="_blank" 直接取消，点了就像没反应。
-            .with_new_window_req_handler(|url, _features| {
-                open_in_browser(&url);
+            // 外部链接（Star、运行地址、更新日志）原来一律交给系统浏览器。现在先问一遍
+            // 事件循环：选了「桌面窗口」时，那个「运行地址」要进内嵌窗口而不是浏览器；
+            // 其余（Star、更新日志等）照样交给系统浏览器。wry 在没设这个处理器时会把
+            // target="_blank" 直接取消，点了就像没反应。
+            .with_new_window_req_handler(move |url, _features| {
+                let _ = link_proxy.send_event(UserEvent::OpenExternal(url));
                 wry::NewWindowResponse::Deny
             })
             // 就地导航（页面里 location.href 那种兜底）会把窗口导走，连自定义标题栏
-            // 一起弄丢，所以只放行管理页自己，其余同样丢给浏览器。
-            .with_navigation_handler(|url| {
+            // 一起弄丢，所以只放行管理页自己；其余交给事件循环去分派（真正的外部网页会
+            // 落到系统浏览器，data:/blob: 这类不是给系统打开的地址就静默拦下——
+            // 下载走的是 WebView2 自己的通道，不受影响）。
+            .with_navigation_handler(move |url| {
                 if url == "about:blank" || url.starts_with(&manager_url()) {
                     return true;
                 }
-                open_in_browser(&url);
+                if is_web_url(&url) {
+                    let _ = nav_proxy.send_event(UserEvent::OpenExternal(url));
+                }
                 false
             })
             .build(window)
@@ -860,8 +1159,12 @@ fn main() {
         menu
     };
 
+    // 内嵌 DSH 窗口按需创建（第一次要打开时才建，省掉不用窗口模式的机器的启动开销）。
+    // 和主窗口一样是 run 里的局部变量：它的生命周期覆盖整个进程。
+    let mut dsh: Option<DshWindow> = None;
+
     // webview 与 context 都是本帧的局部变量，run 不返回，所以它们的生命周期覆盖整个窗口期
-    event_loop.run(move |event, _, control_flow| {
+    event_loop.run(move |event, event_loop, control_flow| {
         #[cfg(target_os = "macos")]
         let _ = &app_menu;
         // Windows：左键点托盘＝打开启动器界面（菜单已经改成只在右键弹）。macOS 的左键是出菜单。
@@ -885,7 +1188,13 @@ fn main() {
         while let Ok(menu_event) = MenuEvent::receiver().try_recv() {
             match menu_event.id().as_ref() {
                 ITEM_OPEN_DSH => {
-                    if !state.url.is_empty() {
+                    if state.window_mode() {
+                        // 桌面窗口模式：叫出内嵌窗口（dsh 没在跑就显示那张本地页，
+                        // 上面有「启动 dsh」）；地址为空也要开——那是唯一能启动它的入口
+                        let url = state.url.clone();
+                        let lang = state.lang.clone();
+                        open_dsh_window(&mut dsh, event_loop, &mut context, &root, &proxy, &url, &lang);
+                    } else if !state.url.is_empty() {
                         open_in_browser(&state.url);
                     }
                 }
@@ -921,6 +1230,43 @@ fn main() {
                     show_window(window);
                 }
             }
+            // node 的标记行 / 托盘的「打开 DSH」：把地址装进内嵌窗口
+            Event::UserEvent(UserEvent::OpenDsh(url)) => {
+                let lang = state.lang.clone();
+                open_dsh_window(&mut dsh, event_loop, &mut context, &root, &proxy, &url, &lang);
+            }
+            // 页面里点出来的链接：只有「就是 dsh 自己」才进内嵌窗口，其余交给系统浏览器。
+            // window.open / target="_blank" 走的也是这条路（见外壳里两个链接处理器）。
+            Event::UserEvent(UserEvent::OpenExternal(url)) => {
+                let own = state.window_mode()
+                    && !state.url.is_empty()
+                    && (url == state.url || same_origin(&url, &state.url));
+                if own {
+                    // 用带 token 的那个地址：页面上的链接可能是没有 token 的简写，
+                    // 照原样加载只会得到一张 dsh 的拒绝页
+                    let target = state.url.clone();
+                    let lang = state.lang.clone();
+                    open_dsh_window(&mut dsh, event_loop, &mut context, &root, &proxy, &target, &lang);
+                } else if is_web_url(&url) {
+                    open_in_browser(&url);
+                }
+                // data:/blob: 这些不是能给系统打开的地址：丢过去只会弹一个
+                // 「获取打开此 data 链接的应用」的系统对话框，宁可不理它
+            }
+            // 内嵌窗口那张本地页上的「启动」：让 node 去拉 dsh（版本选择、兼容自愈都在
+            // 它那边），起来之后 /api/tray 会把地址带回来，窗口自己跟上
+            Event::UserEvent(UserEvent::LaunchDsh) => {
+                thread::spawn(|| {
+                    let _ = http_post(&manager_addr(), "/api/launch");
+                });
+            }
+            // 网页标题 → 窗口标题（空标题回落到 DSH，别留一个没名字的窗口）
+            Event::UserEvent(UserEvent::DshTitle(title)) => {
+                if let Some(window) = &dsh {
+                    let title = if title.trim().is_empty() { "DSH".to_string() } else { title };
+                    window.window.set_title(&title);
+                }
+            }
             // macOS：窗口藏起来之后点程序坞图标，系统发的就是这个
             Event::Reopen { .. } => match &window {
                 Some(window) => show_window(window),
@@ -938,6 +1284,13 @@ fn main() {
                 state = next;
                 if let Some(tray) = &tray {
                     tray.sync(&state);
+                }
+                // dsh 重启后地址（端口、token）会变，内嵌窗口跟着换页（页面没变就不动它，
+                // 别把用户正在看的界面刷掉）；dsh 停了就换成本地那张页
+                if let Some(window) = &mut dsh {
+                    let url = state.url.clone();
+                    let lang = state.lang.clone();
+                    window.follow(&url, &lang);
                 }
             }
             Event::UserEvent(UserEvent::Minimize) => {
@@ -961,12 +1314,21 @@ fn main() {
                 }
             }
             Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
+                event: WindowEvent::CloseRequested { .. },
+                window_id,
                 ..
             } => {
-                // 关窗口不退出：托盘还在、dsh 照常跑，需要时从托盘再叫回来
-                if let Some(window) = &window {
-                    window.set_visible(false);
+                // 关窗口不退出：托盘还在、dsh 照常跑，需要时从托盘再叫回来。
+                // 两个窗口都走这条规则，所以先认出是谁被关了。
+                if let Some(manager) = &window {
+                    if manager.id() == window_id {
+                        manager.set_visible(false);
+                    }
+                }
+                if let Some(window) = &dsh {
+                    if window.window.id() == window_id {
+                        window.window.set_visible(false);
+                    }
                 }
             }
             _ => {}
@@ -1026,5 +1388,70 @@ mod tests {
             "empty scan took {:?}",
             started.elapsed()
         );
+    }
+
+    #[test]
+    fn parses_the_open_signal_line() {
+        let state = parse_tray_state("status=running\nurl=http://127.0.0.1:9716/?token=abc");
+        assert_eq!(state.url, "http://127.0.0.1:9716/?token=abc");
+        assert_eq!(
+            parse_open_signal("__DSH_OPEN__ http://127.0.0.1:9716/?token=abc").as_deref(),
+            Some("http://127.0.0.1:9716/?token=abc"),
+        );
+        // 叫窗口那行不能被当成打开地址；空地址也不行（那是「别开窗口」的意思）
+        assert_eq!(parse_open_signal("__DSH_SHOW__"), None);
+        assert_eq!(parse_open_signal("__DSH_OPEN__   "), None);
+        assert_eq!(parse_open_signal("dsh web: http://127.0.0.1:9716/"), None);
+    }
+
+    #[test]
+    fn tray_state_carries_the_open_mode() {
+        let window = parse_tray_state("status=running\nurl=http://127.0.0.1:9716/?token=x\nopenmode=window\nshell=1\nlang=en");
+        assert!(window.window_mode(), "选了窗口且有外壳时才开内嵌窗口");
+        assert_eq!(window.lang, "en");
+        // 源码运行（没有原生外壳）时窗口模式不成立：托盘要照旧交给系统浏览器
+        assert!(!parse_tray_state("openmode=window\nshell=0").window_mode());
+        assert!(!parse_tray_state("openmode=tab\nshell=1").window_mode());
+        // 老版本 node 不给这两行：默认走浏览器，行为不变
+        assert!(!parse_tray_state("status=running\nurl=http://127.0.0.1:9716/").window_mode());
+    }
+
+    #[test]
+    fn tells_loopback_and_same_origin_apart() {
+        assert!(is_loopback_url("http://127.0.0.1:9716/?token=x"));
+        assert!(is_loopback_url("http://localhost:3780/"));
+        assert!(is_loopback_url("https://[::1]:9716/"));
+        assert!(!is_loopback_url("https://github.com/yyh-001/DSH-X"));
+        assert!(!is_loopback_url("http://192.168.1.9:9716/"));
+        assert!(!is_loopback_url("about:blank"));
+        // 「运行地址」那条链接可能不带 token：同源就够了，真正的地址用 state.url
+        assert!(same_origin("http://127.0.0.1:9716/?token=a", "http://127.0.0.1:9716/"));
+        assert!(!same_origin("http://127.0.0.1:9716/", "http://127.0.0.1:3780/"));
+        assert!(!same_origin("https://example.com/", "http://127.0.0.1:9716/"));
+        assert!(!same_origin("about:blank", "http://127.0.0.1:9716/"));
+    }
+
+    #[test]
+    fn only_real_web_links_go_to_the_system_browser() {
+        assert!(is_external_web_url("https://github.com/yyh-001/DSH-X"));
+        assert!(is_external_web_url("http://example.com/"));
+        assert!(!is_external_web_url("http://127.0.0.1:9716/?token=x"), "dsh 自己的页面");
+        assert!(!is_external_web_url("http://localhost:3780/"), "管理页");
+        // WebView2 的 NavigateToString（本地那张页）报的就是 data: 导航：
+        // 拦下它等于本地页永远渲染不出来，还会弹一个系统对话框
+        assert!(!is_external_web_url("data:text/html;charset=utf-8,%3Ch1%3Ex%3C%2Fh1%3E"));
+        assert!(!is_external_web_url("about:blank"));
+        assert!(!is_external_web_url("blob:http://127.0.0.1:3780/abc"));
+        assert!(is_web_url("blob:http://127.0.0.1:3780/abc") == false);
+    }
+
+    #[test]
+    fn idle_page_is_localized() {
+        let zh = idle_page("zh");
+        assert!(zh.contains("启动 dsh") && zh.contains("打开管理页"));
+        assert!(!zh.contains("__"), "占位符都该被替换掉");
+        let en = idle_page("en");
+        assert!(en.contains("Start dsh") && en.contains("Open launcher"));
+        assert!(!en.contains("启动"), "英文界面下不该冒出中文按钮");
     }
 }

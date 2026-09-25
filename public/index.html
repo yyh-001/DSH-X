@@ -1265,7 +1265,7 @@
                 <div class="set-row">
                   <div class="set-text">
                     <span class="set-name" data-i18n="打开 dsh 的方式">打开 dsh 的方式</span>
-                    <span class="set-desc" data-i18n="用系统浏览器的标签页，或用 Chromium 应用窗口（没有地址栏和标签栏，更像一个 App）。找不到 Chrome/Edge 会自动退回标签页。">用系统浏览器的标签页，或用 Chromium 应用窗口（没有地址栏和标签栏，更像一个 App）。找不到 Chrome/Edge 会自动退回标签页。</span>
+                    <span class="set-desc" data-i18n="浏览器标签页、Chromium 应用窗口（没有地址栏和标签栏），或启动器自己的桌面窗口（完全不经过浏览器）。找不到 Chrome/Edge 时，应用窗口会自动退回标签页。">浏览器标签页、Chromium 应用窗口（没有地址栏和标签栏），或启动器自己的桌面窗口（完全不经过浏览器）。找不到 Chrome/Edge 时，应用窗口会自动退回标签页。</span>
                     <p class="hint" id="openModeHint"></p>
                   </div>
                   <div class="set-control">
@@ -1496,11 +1496,15 @@
   "当前使用：{path}": "In use: {path}",
   "正在用默认位置：{path}": "Using the default location: {path}",
   "打开 dsh 的方式": "How dsh opens",
-  "用系统浏览器的标签页，或用 Chromium 应用窗口（没有地址栏和标签栏，更像一个 App）。找不到 Chrome/Edge 会自动退回标签页。": "Open dsh in a browser tab, or in a Chromium app window (no address bar, no tab strip — much more like an app). Falls back to a tab when Chrome/Edge is missing.",
+  "浏览器标签页、Chromium 应用窗口（没有地址栏和标签栏），或启动器自己的桌面窗口（完全不经过浏览器）。找不到 Chrome/Edge 时，应用窗口会自动退回标签页。": "A browser tab, a Chromium app window (no address bar, no tab strip), or the launcher's own desktop window (no browser process at all). The app window falls back to a tab when Chrome/Edge is missing.",
   "浏览器标签页": "Browser tab",
   "应用窗口": "App window",
+  "桌面窗口（内嵌）": "Desktop window (embedded)",
   "用 Chrome/Edge 的应用窗口打开：没有地址栏和标签栏。": "Opens in a Chrome/Edge app window: no address bar, no tab strip.",
+  "启动器自己开一个窗口承载 dsh 界面，关窗口只是藏起来；没有原生外壳（源码运行）时退回标签页。": "The launcher hosts the dsh UI in its own window; closing it only hides the window. Falls back to a tab when there is no native shell (running from source).",
   "用系统默认浏览器的标签页打开。": "Opens in a tab of your default browser.",
+  "当前不是由 DSH.exe 启动的，暂时会退回浏览器标签页。": "Not started by DSH.exe right now, so it falls back to a browser tab for now.",
+  "已保存。下次打开 dsh 就走新的方式。": "Saved. The next time dsh opens it uses the new way.",
   "更新下载源": "Update download source",
   "启动器自身更新的下载通道。国内直连 GitHub 常失败，可切成国内加速（走第三方镜像转发同一个文件）。": "How the launcher downloads its own updates. Direct GitHub often fails from mainland China; switch to the accelerated mirror (a third-party relay of the same file).",
   "直连 GitHub": "Direct GitHub",
@@ -3046,7 +3050,9 @@
     const openModeHint = document.getElementById('openModeHint')
     const describeOpenMode = (value) => value === 'app'
       ? t('用 Chrome/Edge 的应用窗口打开：没有地址栏和标签栏。')
-      : t('用系统默认浏览器的标签页打开。')
+      : value === 'window'
+        ? t('启动器自己开一个窗口承载 dsh 界面，关窗口只是藏起来；没有原生外壳（源码运行）时退回标签页。')
+        : t('用系统默认浏览器的标签页打开。')
     const updateSourceEl = document.getElementById('updateSource')
     const updateSourceHint = document.getElementById('updateSourceHint')
     // 更新下载源：直连 GitHub，或者走国内加速镜像（第三方转发同一个文件，所以默认直连）
@@ -3136,7 +3142,10 @@
           : [{ id: 'tab', label: '浏览器标签页' }, { id: 'app', label: '应用窗口' }]
         openModeEl.innerHTML = modes.map((item) => `<option value="${escapeHtml(item.id)}" data-i18n="${escapeHtml(item.label)}">${escapeHtml(t(item.label))}</option>`).join('')
         openModeEl.value = String(data.openMode || 'tab')
-        openModeHint.textContent = describeOpenMode(openModeEl.value)
+        // 选了桌面窗口但当前没有原生外壳（源码运行 / npm start）：如实说明会落到哪里
+        openModeHint.textContent = openModeEl.value === 'window' && data.openModeWindow === false
+          ? t('当前不是由 DSH.exe 启动的，暂时会退回浏览器标签页。')
+          : describeOpenMode(openModeEl.value)
       }
       if ('updateSource' in data) {
         const list = Array.isArray(data.updateSources) && data.updateSources.length
@@ -3254,6 +3263,8 @@
           settingsHint.textContent = t('已保存。重启启动器后管理页改到 {port} 端口。', { port: data.port })
         } else if ('webBind' in patch) {
           settingsHint.textContent = t('已保存。Web 绑定更改在下次启动 dsh 时生效。')
+        } else if ('openMode' in patch) {
+          settingsHint.textContent = t('已保存。下次打开 dsh 就走新的方式。')
         } else if ('dataDir' in patch && data.dataDir && normDir(data.dataDir) !== normDir(patch.dataDir)) {
           settingsHint.textContent = t('已保存。版本目录已改为 {dir}（立即生效）；已安装的版本不会自动迁移，需要就手动复制过去。', { dir: data.dataDir })
         } else {
