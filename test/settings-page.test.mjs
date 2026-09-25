@@ -102,3 +102,12 @@ test('内联脚本仍能解析', () => {
   // 只编译不运行：语法坏了这里就炸，运行时的行为靠上面的结构断言看住
   for (const script of inlineScripts()) new vm.Script(script)
 })
+
+test('设置页有 dsh 用户目录与更新下载源两项：前者可浏览、后者是下拉', () => {
+  assert.match(html, /<input id="dshHome" type="text"/, 'dsh 用户目录是文本框')
+  assert.match(html, /<button class="ghost" id="pickDshHome"[\s\S]{0,120}?浏览…/, 'dsh 用户目录带「浏览…」')
+  assert.match(html, /<select id="updateSource"><\/select>/, '更新下载源是下拉（选项由服务端给）')
+  // 两项都要能存：一处漏了就会变成「改了没反应」
+  assert.match(html, /queueSetting\('dshHome'/, 'dsh 用户目录改动即保存')
+  assert.match(html, /queueSetting\('updateSource'/, '更新下载源改动即保存')
+})

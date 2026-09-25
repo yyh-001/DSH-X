@@ -1394,6 +1394,27 @@
                   </div>
                   <p class="hint" id="dataDirHint"></p>
                 </div>
+                <div class="set-row stacked">
+                  <div class="set-text">
+                    <span class="set-name" data-i18n="dsh 用户目录">dsh 用户目录</span>
+                    <span class="set-desc" data-i18n="dsh 的数据、插件和 profile 放在这里（DSH_HOME）。把 .dsh 挪到别的盘之后，在这里指回来；留空用默认位置。">dsh 的数据、插件和 profile 放在这里（DSH_HOME）。把 .dsh 挪到别的盘之后，在这里指回来；留空用默认位置。</span>
+                  </div>
+                  <div class="set-control">
+                    <input id="dshHome" type="text" placeholder="默认位置" />
+                    <button class="ghost" id="pickDshHome" type="button" data-i18n="浏览…">浏览…</button>
+                  </div>
+                  <p class="hint" id="dshHomeHint"></p>
+                </div>
+                <div class="set-row">
+                  <div class="set-text">
+                    <span class="set-name" data-i18n="更新下载源">更新下载源</span>
+                    <span class="set-desc" data-i18n="启动器自身更新的下载通道。国内直连 GitHub 常失败，可切成国内加速（走第三方镜像转发同一个文件）。">启动器自身更新的下载通道。国内直连 GitHub 常失败，可切成国内加速（走第三方镜像转发同一个文件）。</span>
+                    <p class="hint" id="updateSourceHint"></p>
+                  </div>
+                  <div class="set-control">
+                    <select id="updateSource"></select>
+                  </div>
+                </div>
               </div>
             </section>
           </div>
@@ -1459,6 +1480,17 @@
   "导出日志失败。": "Could not export logs.",
   "版本": "Version",
   "版本目录": "Version directory",
+  "dsh 用户目录": "dsh home",
+  "dsh 的数据、插件和 profile 放在这里（DSH_HOME）。把 .dsh 挪到别的盘之后，在这里指回来；留空用默认位置。": "Where dsh keeps its data, plugins and profiles (DSH_HOME). If you moved .dsh to another drive, point it back here; leave empty to use the default location.",
+  "默认位置：{path}": "Default: {path}",
+  "当前使用：{path}": "In use: {path}",
+  "正在用默认位置：{path}": "Using the default location: {path}",
+  "更新下载源": "Update download source",
+  "启动器自身更新的下载通道。国内直连 GitHub 常失败，可切成国内加速（走第三方镜像转发同一个文件）。": "How the launcher downloads its own updates. Direct GitHub often fails from mainland China; switch to the accelerated mirror (a third-party relay of the same file).",
+  "直连 GitHub": "Direct GitHub",
+  "国内加速": "Accelerated mirror",
+  "直连 GitHub；国内可能连不上或很慢，连不上时可以切成国内加速。": "Direct GitHub; from mainland China this may fail or be very slow — switch to the accelerated mirror if it does.",
+  "走第三方镜像转发，国内一般能连上；文件与直连是同一个。": "Relayed by a third-party mirror that usually works from mainland China; the file is the same as the direct download.",
   "确定": "OK",
   "管理器已停止运行，这个页面可以关掉了。": "The manager has stopped; this page can be closed.",
   "管理页端口": "Manager port",
@@ -1874,7 +1906,7 @@
       if (changed) item.select.dispatchEvent(new Event('change', { bubbles: true }))
     }
 
-    for (const select of document.querySelectorAll('#profile, #uiLang, #webBind, #downloadSource')) {
+    for (const select of document.querySelectorAll('#profile, #uiLang, #webBind, #downloadSource, #updateSource')) {
       const root = document.createElement('div')
       root.className = 'select ui-select'
       const trigger = document.createElement('button')
@@ -2991,6 +3023,15 @@
     const pickDirEl = document.getElementById('pickDir')
     const dataDirEl = document.getElementById('dataDir')
     const dataDirHint = document.getElementById('dataDirHint')
+    const dshHomeEl = document.getElementById('dshHome')
+    const dshHomeHint = document.getElementById('dshHomeHint')
+    const pickDshHomeEl = document.getElementById('pickDshHome')
+    const updateSourceEl = document.getElementById('updateSource')
+    const updateSourceHint = document.getElementById('updateSourceHint')
+    // 更新下载源：直连 GitHub，或者走国内加速镜像（第三方转发同一个文件，所以默认直连）
+    const describeUpdateSource = (value) => value === 'mirror'
+      ? t('走第三方镜像转发，国内一般能连上；文件与直连是同一个。')
+      : t('直连 GitHub；国内可能连不上或很慢，连不上时可以切成国内加速。')
     const settingsHint = document.getElementById('settingsHint')
     const pendingSettings = new Map()
     let settingSaveRunning = false
@@ -3059,6 +3100,23 @@
         dataDirEl.value = String(data.dataDir ?? '')
         dataDirHint.textContent = t('每版约几百 MB；插件和 profile 仍在 {home}，已安装版本不会迁移。', { home: data.dshHome || '~/.dsh' })
       }
+      if ('dshHomeValue' in data) {
+        const value = String(data.dshHomeValue ?? '')
+        const fallback = String(data.dshHomeDefault ?? data.dshHome ?? '~/.dsh')
+        dshHomeEl.value = value
+        dshHomeEl.placeholder = t('默认位置：{path}', { path: fallback })
+        dshHomeHint.textContent = value
+          ? t('当前使用：{path}', { path: value })
+          : t('正在用默认位置：{path}', { path: fallback })
+      }
+      if ('updateSource' in data) {
+        const list = Array.isArray(data.updateSources) && data.updateSources.length
+          ? data.updateSources
+          : [{ id: 'direct', label: '直连 GitHub' }, { id: 'mirror', label: '国内加速' }]
+        updateSourceEl.innerHTML = list.map((item) => `<option value="${escapeHtml(item.id)}" data-i18n="${escapeHtml(item.label)}">${escapeHtml(t(item.label))}</option>`).join('')
+        updateSourceEl.value = String(data.updateSource || 'direct')
+        updateSourceHint.textContent = describeUpdateSource(updateSourceEl.value)
+      }
       if ('webBind' in data) webBindEl.value = data.webBind === 'lan' ? 'lan' : 'loopback'
       // 远程访问插件的「局域网访问」开关压着设置值时如实说明，别让用户以为选错了没生效
       if (webBindHintEl) {
@@ -3090,24 +3148,30 @@
     // 比较目录时忽略末尾斜杠：用户常带着 '\' 保存，与 resolve 后的值比会误判成改过
     const normDir = (value) => String(value ?? '').trim().replace(/[\\/]+$/, '')
 
-    pickDirEl.onclick = async () => {
-      pickDirEl.disabled = true
-      const before = dataDirHint.textContent
-      dataDirHint.textContent = t('在弹出的对话框里选一个目录…')
+    // 两个目录输入框共用一套「浏览…」：弹系统对话框拿路径，写回输入框并保存
+    async function pickInto(input, hint, key, button) {
+      const before = hint.textContent
+      button.disabled = true
+      hint.textContent = t('在弹出的对话框里选一个目录…')
       try {
         const data = await post('/api/pick-dir', {})
         if (data.path) {
-          dataDirEl.value = data.path
-          queueSetting('dataDir', data.path)
+          input.value = data.path
+          queueSetting(key, data.path)
         } else {
-          dataDirHint.textContent = data.error ? t('没选成：{error}', { error: data.error }) : before
+          hint.textContent = data.error ? t('没选成：{error}', { error: data.error }) : before
         }
       } catch (error) {
-        dataDirHint.textContent = error.message
+        hint.textContent = error.message
       } finally {
-        pickDirEl.disabled = false
+        button.disabled = false
       }
     }
+
+    pickDirEl.onclick = () => pickInto(dataDirEl, dataDirHint, 'dataDir', pickDirEl)
+    pickDshHomeEl.onclick = () => pickInto(dshHomeEl, dshHomeHint, 'dshHome', pickDshHomeEl)
+    // dsh 用户目录：留空就是默认位置，所以空值也要照发（服务端按空串处理）
+    dshHomeEl.onchange = () => queueSetting('dshHome', dshHomeEl.value.trim())
 
     async function flushSettings() {
       if (settingSaveRunning || !pendingSettings.size) return
@@ -3197,6 +3261,10 @@
       // 提示行跟着换；设置交给自动保存，切完下一次查版本/下载就走新源
       sourceHint.textContent = describeSource(sourceEl.value)
       queueSetting('downloadSource', sourceEl.value)
+    }
+    updateSourceEl.onchange = () => {
+      updateSourceHint.textContent = describeUpdateSource(updateSourceEl.value)
+      queueSetting('updateSource', updateSourceEl.value)
     }
     webBindEl.onchange = () => queueSetting('webBind', webBindEl.value)
     themeEls.forEach((input) => {

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 
 import { currentRegistry } from '../registry.js'
 import { dshEnv } from '../server.js'
-import { DEFAULTS, DEFAULT_SOURCE, DOWNLOAD_SOURCES, safeDownloadSource } from '../settings.js'
+import { DEFAULTS, DEFAULT_SOURCE, DOWNLOAD_SOURCES, safeDownloadSource, safeUpdateSource, updateUrlCandidates } from '../settings.js'
 
 const read = (name) => readFileSync(fileURLToPath(new URL(`../${name}`, import.meta.url)), 'utf8')
 const html = read('public/index.html')
@@ -84,4 +84,23 @@ test('设置页有下载源选择器：改动即保存，并说明两种源各�
   assert.match(html, /sourceHint\.textContent = describeSource\(sourceEl\.value\)/, '提示行跟着当前源变化')
   assert.match(html, /镜像源下载较快/, '镜像源的代价要写出来')
   assert.match(html, /官方源更新及时/, '官方源的代价也要写出来')
+})
+
+// 启动器自更新的下载源：直连 GitHub 在国内经常连不上，给一个「国内加速」选项
+// （第三方镜像只是转发同一个文件，所以默认仍然是直连，由用户自己选）。
+test('更新下载源：直连永远排第一，选了国内加速才追加镜像前缀', () => {
+  const url = 'https://github.com/yyh-001/DSH-X/releases/latest/download/DSH-Setup.exe'
+  assert.equal(DEFAULTS.updateSource, 'direct', '默认直连')
+  assert.deepEqual(updateUrlCandidates(url, 'direct'), [url])
+  const mirror = updateUrlCandidates(url, 'mirror')
+  assert.equal(mirror[0], url, '直连排第一，成功就不用镜像')
+  assert.ok(mirror.length > 1, '选了国内加速要带上镜像候选')
+  for (const candidate of mirror.slice(1)) {
+    assert.ok(candidate.endsWith(url), `镜像应该是「前缀 + 原地址」，实际：${candidate}`)
+  }
+  // 脏值不能把源弄丢，也不该抛错
+  assert.deepEqual(updateUrlCandidates(url, '瞎填的'), [url])
+  assert.deepEqual(updateUrlCandidates('', 'mirror'), [])
+  assert.equal(safeUpdateSource('mirror'), 'mirror')
+  assert.equal(safeUpdateSource('瞎填的'), 'direct')
 })

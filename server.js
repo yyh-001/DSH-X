@@ -20,6 +20,8 @@ import {
 import {
   autoStartEnabled,
   DEFAULT_PORT,
+  DEFAULT_UPDATE_SOURCE,
+  defaultDshHome,
   ensureSettings,
   ensureWritableDir,
   lanBindToggleOn,
@@ -31,8 +33,11 @@ import {
   resolveProfile,
   resolveWebBind,
   safeDataDir,
+  safeDshHome,
   safeLang,
   safeTheme,
+  safeUpdateSource,
+  updateUrlCandidates,
   safePanelTransparency,
   safeDownloadSource,
   safePort,
@@ -102,6 +107,11 @@ let PANEL_TRANSPARENCY = safePanelTransparency(loadSettingsSync().panelTranspare
 let REDUCE_MOTION = loadSettingsSync().reduceMotion === true
 let HIDE_BACKGROUND = loadSettingsSync().hideBackground === true
 let HIDE_BIG_FISH = loadSettingsSync().hideBigFish === true
+// dsh 的用户目录（DSH_HOME）：留空用默认 ~/.dsh。用户把 .dsh 挪到别的盘之后，
+// 在这里指回去，否则启动器会按默认位置重建一个、dsh 也就跑到那份空数据上去了。
+let DSH_HOME_DIR = safeDshHome(loadSettingsSync().dshHome)
+// 启动器更新的下载源：direct（默认直连 GitHub）/ mirror（国内加速，直连失败时走前缀镜像）
+let UPDATE_SOURCE = safeUpdateSource(loadSettingsSync().updateSource)
 
 /** 安装目录里的 lang.txt（安装程序写的），只认 zh / en。 */
 function installLang() {
@@ -153,7 +163,7 @@ function versionDir(version) {
 }
 
 function homeDir() {
-  return join(homedir(), '.dsh')
+  return DSH_HOME_DIR || defaultDshHome()
 }
 
 function managedBin(version) {
@@ -408,6 +418,15 @@ function assertMacUpdatable() {
   return bundle
 }
 
+/** URL 的主机名，只用于日志（解析不了就原样返回）。 */
+function safeHost(url) {
+  try {
+    return new URL(url).host
+  } catch {
+    return String(url)
+  }
+}
+
 /** 第一步：下载 + 校验。进度通过 selfUpdate 事件推给页面。 */
 async function downloadSelfUpdate() {
   if (IS_MAC) assertMacUpdatable()
@@ -415,8 +434,26 @@ async function downloadSelfUpdate() {
   const target = join(tmpdir(), `DSH-X-update-${info.latest || 'latest'}.${SELF_UPDATE_PACKAGE.ext}`)
   pushLog(`下载更新${info.latest ? ` ${info.latest}` : ''}…`)
 
-  const res = await fetch(info.url, { redirect: 'follow', signal: AbortSignal.timeout(10 * 60 * 1000) })
-  if (!res.ok) throw new Error(`下载失败 HTTP ${res.status}`)
+  // 按下载源展开成待试列表：直连排第一，选了「国内加速」的话后面跟镜像前缀。
+  // GitHub 在国内经常直接连不上，直连失败就换镜像重来（同一个文件，只是换个入口）。
+  const candidates = updateUrlCandidates(info.url, UPDATE_SOURCE)
+  let res = null
+  let lastError = null
+  for (const [index, url] of candidates.entries()) {
+    try {
+      if (index > 0) pushLog(`直连没成功，改用加速镜像重试：${safeHost(url)}`)
+      const attempt = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(10 * 60 * 1000) })
+      if (!attempt.ok) throw new Error(`HTTP ${attempt.status}`)
+      res = attempt
+      break
+    } catch (error) {
+      lastError = error
+    }
+  }
+  if (!res) {
+    const hint = UPDATE_SOURCE === 'mirror' ? '' : '；可以在设置页把「更新下载源」改成「国内加速」再试'
+    throw new Error(`下载失败：${lastError?.message || '连不上'}${hint}`)
+  }
   const total = Number(res.headers.get('content-length') || 0)
   const chunks = []
   let got = 0
@@ -656,6 +693,9 @@ async function publicSettings() {
   return {
     dataDir: DATA,
     dshHome: homeDir(),
+    // 设置里填的原文（空 = 用默认位置）+ 默认位置，页面据此回显与提示
+    dshHomeValue: safeDshHome(stored.dshHome),
+    dshHomeDefault: defaultDshHome(),
     // port 是配置值（重启后生效），listenPort 是当前真正在监听的端口
     port: stored.port ?? DEFAULT_PORT,
     listenPort: PORT,
@@ -667,6 +707,11 @@ async function publicSettings() {
     downloadSources: [
       { id: 'mirror', label: '镜像源' },
       { id: 'official', label: '官方源' },
+    ],
+    updateSource: safeUpdateSource(stored.updateSource),
+    updateSources: [
+      { id: 'direct', label: '直连 GitHub' },
+      { id: 'mirror', label: '国内加速' },
     ],
     profile: PROFILE_NAME,
     profiles: listProfiles(),
@@ -697,6 +742,8 @@ async function saveManagerSettings(body) {
     ...('profile' in body ? { profile: safeProfile(body.profile) } : {}),
     ...('args' in body ? { args: safeArgs(body.args) } : {}),
     ...('downloadSource' in body ? { downloadSource: safeDownloadSource(body.downloadSource) } : {}),
+    ...('updateSource' in body ? { updateSource: safeUpdateSource(body.updateSource) } : {}),
+    ...('dshHome' in body ? { dshHome: safeDshHome(body.dshHome) } : {}),
     ...('webBind' in body ? { webBind: safeWebBind(body.webBind) } : {}),
     ...('lang' in body ? { lang: safeLang(body.lang) } : {}),
     ...('theme' in body ? { theme: safeTheme(body.theme) } : {}),
@@ -718,6 +765,21 @@ async function saveManagerSettings(body) {
   // 切换下载源后清掉更新检查的缓存，让新源立即生效（下载那侧每次现读，不用清）
   if ('downloadSource' in body) {
     remoteCache = { at: 0, data: null }
+  }
+  if ('updateSource' in body) {
+    UPDATE_SOURCE = safeUpdateSource(stored.updateSource)
+    selfCache = { at: 0, data: null }
+    pushLog(`更新下载源改为 ${UPDATE_SOURCE === 'mirror' ? '国内加速' : '直连 GitHub'}`)
+  }
+  if ('dshHome' in body) {
+    const next = safeDshHome(stored.dshHome)
+    const home = next || defaultDshHome()
+    // 目录不存在就建出来，写不了直接报错——别等到下次启动 dsh 才发现
+    if (next) await ensureWritableDir(home)
+    if (next !== DSH_HOME_DIR) {
+      DSH_HOME_DIR = next
+      pushLog(`dsh 用户目录改为 ${home}${next ? '' : '（默认位置）'}；重启 dsh 后生效`)
+    }
   }
   // profile 立即生效：插件页、启动参数、npmrc 都读这个变量（已经在跑的 dsh 不受影响）
   EXTRA_ARGS = composeExtraArgs(stored.args)
@@ -945,7 +1007,15 @@ async function checkSelfUpdate() {
   if (selfCache.data && Date.now() - selfCache.at < 30 * 60 * 1000) return selfCache.data
   try {
     const latest = await fetchLatestTag()
-    if (!latest) return fallback
+    if (!latest) {
+      // 连不上 GitHub 时别一声不吭：用户会以为「一直没有新版本」
+      if (UPDATE_SOURCE !== 'mirror') {
+        pushLog('[更新] 检查更新失败（连不上 GitHub）；设置页可把「更新下载源」改成「国内加速」再试')
+      } else {
+        pushLog('[更新] 检查更新失败：直连和加速镜像都没取到版本号')
+      }
+      return fallback
+    }
     const cur = parseVer(current)
     const next = parseVer(latest)
     const update = Boolean(cur && next && cmpVer(next, cur) > 0)
@@ -958,25 +1028,35 @@ async function checkSelfUpdate() {
 }
 
 async function fetchLatestTag() {
-  try {
-    const res = await fetch(`https://api.github.com/repos/${APP_REPO}/releases/latest`, {
-      headers: {
-        accept: 'application/vnd.github+json',
-        'user-agent': 'dsh-launcher',
-      },
-    })
-    if (res.ok) {
+  const apiUrl = `https://api.github.com/repos/${APP_REPO}/releases/latest`
+  const pageUrl = `https://github.com/${APP_REPO}/releases/latest`
+  // 版本检查也走下载源：国内直连 api.github.com 常常超时或撞限流，选了「国内加速」就带镜像前缀
+  for (const url of updateUrlCandidates(apiUrl, UPDATE_SOURCE)) {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          accept: 'application/vnd.github+json',
+          'user-agent': 'dsh-launcher',
+        },
+      })
+      if (!res.ok) continue
       const rel = await res.json()
-      return stripTag(rel.tag_name)
-    }
-  } catch { /* HTML fallback */ }
-  const page = await fetch(`https://github.com/${APP_REPO}/releases/latest`, {
-    headers: { 'user-agent': 'dsh-launcher' },
-    redirect: 'follow',
-  })
-  if (!page.ok) return null
-  const match = /\/releases\/tag\/([^/?#]+)/.exec(page.url || '')
-  return match ? stripTag(decodeURIComponent(match[1])) : null
+      const tag = stripTag(rel.tag_name)
+      if (tag) return tag
+    } catch { /* 换下一个候选，最后再退回 HTML */ }
+  }
+  for (const url of updateUrlCandidates(pageUrl, UPDATE_SOURCE)) {
+    try {
+      const page = await fetch(url, {
+        headers: { 'user-agent': 'dsh-launcher' },
+        redirect: 'follow',
+      })
+      if (!page.ok) continue
+      const match = /\/releases\/tag\/([^/?#]+)/.exec(page.url || '')
+      if (match) return stripTag(decodeURIComponent(match[1]))
+    } catch { /* 继续试下一个 */ }
+  }
+  return null
 }
 
 /**

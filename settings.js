@@ -69,6 +69,49 @@ export const DOWNLOAD_SOURCES = {
 }
 export const DEFAULT_SOURCE = 'mirror'
 
+/**
+ * 启动器自身更新的下载源。GitHub 在国内经常连不上或慢到超时，直连失败时按这里的
+ * 前缀再试一遍（顺序即优先级）。镜像只做转发，包本身没变——但仍然经过第三方，
+ * 所以默认直连，让用户在设置里自己选。
+ */
+export const UPDATE_SOURCES = {
+  direct: [],
+  mirror: [
+    'https://gh-proxy.com/',
+    'https://ghfast.top/',
+  ],
+}
+export const DEFAULT_UPDATE_SOURCE = 'direct'
+
+/** 更新下载源只认内置选项，脏值回直连。 */
+export function safeUpdateSource(value) {
+  const name = String(value ?? '').trim()
+  return UPDATE_SOURCES[name] ? name : DEFAULT_UPDATE_SOURCE
+}
+
+/** 按下载源把发布页地址展开成待试列表：直连永远排第一，后面才是镜像前缀。 */
+export function updateUrlCandidates(url, source = DEFAULT_UPDATE_SOURCE) {
+  const direct = String(url ?? '').trim()
+  if (!direct) return []
+  const prefixes = UPDATE_SOURCES[safeUpdateSource(source)] || []
+  return [direct, ...prefixes.map((prefix) => `${prefix}${direct}`)]
+}
+
+/** dsh 用户目录（DSH_HOME）：留空用默认 ~/.dsh；填了必须是绝对路径。 */
+export function safeDshHome(dir) {
+  if (dir === undefined || dir === null) return ''
+  if (typeof dir !== 'string') throw new Error('dsh 用户目录填一个路径，别填别的')
+  const trimmed = dir.trim()
+  if (!trimmed) return ''
+  if (!isAbsolute(trimmed)) throw new Error('请使用绝对路径（例如 D:\\dsh-home）')
+  return resolve(trimmed)
+}
+
+/** dsh 用户目录没配置时的默认位置。 */
+export function defaultDshHome() {
+  return join(homedir(), '.dsh')
+}
+
 export const DEFAULTS = {
   dataDir: '',
   port: DEFAULT_PORT,
@@ -81,6 +124,10 @@ export const DEFAULTS = {
   hideBackground: false,
   hideBigFish: false,
   downloadSource: DEFAULT_SOURCE,
+  // 启动器更新的下载源：direct（默认）/ mirror（国内加速）
+  updateSource: DEFAULT_UPDATE_SOURCE,
+  // dsh 的用户目录（DSH_HOME）。留空 = 默认 ~/.dsh；用户把 .dsh 挪到别的盘时在这里指回去
+  dshHome: '',
   // 额外启动参数（一行文本，空格分词，含空格的值用引号包起来）
   args: '',
   // dsh web 的绑定方式：loopback 注入 --host 127.0.0.1（默认）；lan 不注入，
