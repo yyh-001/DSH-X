@@ -35,6 +35,7 @@ import {
   safeDataDir,
   safeDshHome,
   safeLang,
+  safeOpenMode,
   safeTheme,
   safeUpdateSource,
   updateUrlCandidates,
@@ -112,6 +113,8 @@ let HIDE_BIG_FISH = loadSettingsSync().hideBigFish === true
 let DSH_HOME_DIR = safeDshHome(loadSettingsSync().dshHome)
 // 启动器更新的下载源：direct（默认直连 GitHub）/ mirror（国内加速，直连失败时走前缀镜像）
 let UPDATE_SOURCE = safeUpdateSource(loadSettingsSync().updateSource)
+// 打开 dsh 页面的方式：tab（默认，系统浏览器标签页）/ app（Chromium 应用窗口）
+let OPEN_MODE = safeOpenMode(loadSettingsSync().openMode)
 
 /** 安装目录里的 lang.txt（安装程序写的），只认 zh / en。 */
 function installLang() {
@@ -708,6 +711,11 @@ async function publicSettings() {
       { id: 'mirror', label: '镜像源' },
       { id: 'official', label: '官方源' },
     ],
+    openMode: safeOpenMode(stored.openMode),
+    openModes: [
+      { id: 'tab', label: '浏览器标签页' },
+      { id: 'app', label: '应用窗口' },
+    ],
     updateSource: safeUpdateSource(stored.updateSource),
     updateSources: [
       { id: 'direct', label: '直连 GitHub' },
@@ -743,6 +751,7 @@ async function saveManagerSettings(body) {
     ...('args' in body ? { args: safeArgs(body.args) } : {}),
     ...('downloadSource' in body ? { downloadSource: safeDownloadSource(body.downloadSource) } : {}),
     ...('updateSource' in body ? { updateSource: safeUpdateSource(body.updateSource) } : {}),
+    ...('openMode' in body ? { openMode: safeOpenMode(body.openMode) } : {}),
     ...('dshHome' in body ? { dshHome: safeDshHome(body.dshHome) } : {}),
     ...('webBind' in body ? { webBind: safeWebBind(body.webBind) } : {}),
     ...('lang' in body ? { lang: safeLang(body.lang) } : {}),
@@ -770,6 +779,10 @@ async function saveManagerSettings(body) {
     UPDATE_SOURCE = safeUpdateSource(stored.updateSource)
     selfCache = { at: 0, data: null }
     pushLog(`更新下载源改为 ${UPDATE_SOURCE === 'mirror' ? '国内加速' : '直连 GitHub'}`)
+  }
+  if ('openMode' in body) {
+    OPEN_MODE = safeOpenMode(stored.openMode)
+    pushLog(OPEN_MODE === 'app' ? '打开方式：应用窗口（找不到 Chrome/Edge 会退回标签页）' : '打开方式：系统浏览器标签页')
   }
   if ('dshHome' in body) {
     const next = safeDshHome(stored.dshHome)
@@ -2144,8 +2157,7 @@ function pickDirectoryMac() {
   })
 }
 
-/** 允许当作"本机"的主机名——打开本机页面、判断请求来源都用它。 */
-const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]'])
+/** 允许当作"本机"的主机名——打开本机页面、判断请求来源都用它。 */const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]'])
 
 /** 严格解析成本机 http(s) 地址；不是就抛错（前缀正则挡不住 `/?&calc` 这种尾巴）。 */
 function assertLocalUrl(target) {
@@ -2172,8 +2184,70 @@ function assertLocalUrl(target) {
  */
 const CMD_SAFE_URL = /^[A-Za-z0-9\-._~:/?#\[\]@$'*,;=+]+$/
 
-function openExternal(target) {
+/**
+ * Chromium 系浏览器（支持 --app= 应用窗口）的常见安装位置。
+ * 顺序即优先级：先用户的 Chrome，再 Edge（Windows 自带，兜底最稳）。
+ * DSH_CHROMIUM 可以指定一个，方便用便携版或专门指定某个浏览器。
+ */
+export function chromiumCandidates(env = process.env, platform = process.platform) {
+  if (env.DSH_CHROMIUM) return [env.DSH_CHROMIUM]
+  if (platform === 'darwin') {
+    return [
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+      '/Applications/Chromium.app/Contents/MacOS/Chromium',
+    ]
+  }
+  if (platform !== 'win32') return ['google-chrome', 'chromium', 'microsoft-edge']
+  return [
+    join(env.LOCALAPPDATA || '', 'Google', 'Chrome', 'Application', 'chrome.exe'),
+    join(env.ProgramFiles || '', 'Google', 'Chrome', 'Application', 'chrome.exe'),
+    join(env['ProgramFiles(x86)'] || '', 'Google', 'Chrome', 'Application', 'chrome.exe'),
+    join(env['ProgramFiles(x86)'] || '', 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+    join(env.ProgramFiles || '', 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+  ].filter(Boolean)
+}
+
+/** 找到可用的 Chromium 就返回它的路径，否则空串（调用方退回默认浏览器）。 */
+export function findChromiumBrowser(env = process.env, platform = process.platform) {
+  return chromiumCandidates(env, platform).find((file) => Boolean(file) && existsSync(file)) || ''
+}
+
+/** 应用窗口的参数：--app=<url> 打开的是没有地址栏、没有标签栏的独立窗口。 */
+export function appWindowArgs(url) {
+  return [`--app=${String(url)}`]
+}
+
+/** 用 Chromium 的应用窗口打开网址；找不到浏览器返回 false，交给调用方兜底。 */
+function openInAppWindow(url) {
+  const browser = findChromiumBrowser()
+  if (!browser) return false
+  try {
+    execFile(browser, appWindowArgs(url), { windowsHide: true })
+    pushLog(`用应用窗口打开：${basename(browser)}`)
+    return true
+  } catch (error) {
+    pushLog(`应用窗口没打开（${error instanceof Error ? error.message : error}），改用默认浏览器`)
+    return false
+  }
+}
+
+/**
+ * 交给系统默认程序打开。openMode 为 app 时优先用 Chromium 的应用窗口（更像个 App、
+ * 没有地址栏），找不到 Chrome/Edge 就安静退回默认浏览器。
+ *
+ * Windows 走 `cmd /c start`，而 cmd 会把这行**再解析一遍**：URL 里的 `&` 是语句
+ * 分隔符、`|<>^()%"` 各有含义，于是 `http://127.0.0.1:1/?&calc` 能直接跑起任意命令
+ * （Node 只给含空格的参数加引号，而 URL 里通常没有空格）。所以这里只放行 cmd 会
+ * 原样看待的字符——够用（本机地址就是 `http://127.0.0.1:端口/路径?k=v`），
+ * 其余一律拒绝，比在字符串上做转义可靠。
+ */
+function openExternal(target, mode = OPEN_MODE) {
   const url = String(target)
+  if (mode === 'app' && /^https?:/i.test(url)) {
+    if (openInAppWindow(url)) return
+    pushLog('没找到 Chrome/Edge，改用系统默认浏览器打开')
+  }
   if (process.platform === 'win32') {
     if (!CMD_SAFE_URL.test(url)) throw new Error('地址里含不能安全打开的字符')
     execFile('cmd', ['/c', 'start', '', url], { windowsHide: true })

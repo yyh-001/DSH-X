@@ -89,6 +89,19 @@ export function safeUpdateSource(value) {
   return UPDATE_SOURCES[name] ? name : DEFAULT_UPDATE_SOURCE
 }
 
+/**
+ * 打开 dsh 页面的方式：tab = 系统默认浏览器的标签页（默认）；app = 用 Chromium 系浏览器的
+ * 应用窗口打开（Chrome/Edge 的 --app=…，没有地址栏，更像一个 App）。找不到 Chrome/Edge
+ * 就退回标签页，所以这个选项是「尽量」而不是「必须」。
+ */
+export const OPEN_MODES = ['tab', 'app']
+export const DEFAULT_OPEN_MODE = 'tab'
+
+export function safeOpenMode(value) {
+  const name = String(value ?? '').trim()
+  return OPEN_MODES.includes(name) ? name : DEFAULT_OPEN_MODE
+}
+
 /** 按下载源把发布页地址展开成待试列表：直连永远排第一，后面才是镜像前缀。 */
 export function updateUrlCandidates(url, source = DEFAULT_UPDATE_SOURCE) {
   const direct = String(url ?? '').trim()
@@ -126,6 +139,8 @@ export const DEFAULTS = {
   downloadSource: DEFAULT_SOURCE,
   // 启动器更新的下载源：direct（默认）/ mirror（国内加速）
   updateSource: DEFAULT_UPDATE_SOURCE,
+  // 打开 dsh 页面的方式：tab（默认，系统浏览器标签页）/ app（Chromium 应用窗口）
+  openMode: DEFAULT_OPEN_MODE,
   // dsh 的用户目录（DSH_HOME）。留空 = 默认 ~/.dsh；用户把 .dsh 挪到别的盘时在这里指回去
   dshHome: '',
   // 额外启动参数（一行文本，空格分词，含空格的值用引号包起来）

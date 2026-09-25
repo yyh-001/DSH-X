@@ -111,3 +111,9 @@ test('设置页有 dsh 用户目录与更新下载源两项：前者可浏览、
   assert.match(html, /queueSetting\('dshHome'/, 'dsh 用户目录改动即保存')
   assert.match(html, /queueSetting\('updateSource'/, '更新下载源改动即保存')
 })
+
+test('设置页有「打开 dsh 的方式」：两项可选、改动即保存', () => {
+  assert.match(html, /<select id="openMode"><\/select>/, '下拉的选项由服务端给')
+  assert.match(html, /queueSetting\('openMode'/, '改动即保存')
+  assert.match(html, /#openMode'\)\)/, '用自绘下拉统一处理')
+})
