@@ -39,7 +39,7 @@ DeepSeek Harness 轻量启动器。选一个版本，启动 DSH web。
 
 ## 整合包
 
-一次装好一批插件和它们的配置，不用一个个装、一条条改。格式用生态里的 [DSH-PackForge](https://github.com/DSH-PackForge/DSH-PackForge) `.dspack`（manifest v5，兼容旧版本），和其他第三方启动器的包互通。
+一次装好一批插件和它们的配置，不用一个个装、一条条改。整合包在插件页里一张卡一个——**一张卡就是一份 profile**（装完整合包，产物正是它），手动拼出来的 profile 也在列表里，装过包的那张标着来源；点进去能看到这份 profile 里的插件，每个还能单独开关。格式用生态里的 [DSH-PackForge](https://github.com/DSH-PackForge/DSH-PackForge) `.dspack`（manifest v5，兼容旧版本），和其他第三方启动器的包互通。
 
 - **从哪装**：本地 `.dspack` 文件、直链，或 GitHub 的 `owner/repo`（自动取最新 Release 里的包）；也可以直接在页面上从内置的社区市场里挑。
 - **装到哪**：默认装进一个独立的 profile，和现有环境互不打扰；也可以改成 `web` 之类现有 profile 并进去，装完在页面上切过去并重启。
@@ -58,7 +58,11 @@ DeepSeek Harness 轻量启动器。选一个版本，启动 DSH web。
 </p>
 
 <p align="center">
-  <img src="docs/screenshot-modpacks.png" alt="DSH-X 整合包页" width="820" />
+  <img src="docs/screenshot-modpacks.png" alt="DSH-X 插件页里的整合包卡片" width="820" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshot-modpack-detail.png" alt="DSH-X 整合包详情：这个包里的插件" width="820" />
 </p>
 
 <p align="center">

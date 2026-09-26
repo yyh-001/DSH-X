@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 
 import { currentRegistry } from '../registry.js'
 import { dshEnv } from '../server.js'
-import { DEFAULTS, DEFAULT_SOURCE, DOWNLOAD_SOURCES, safeDownloadSource, safeUpdateSource, updateUrlCandidates } from '../settings.js'
+import { DEFAULTS, DEFAULT_SOURCE, DEFAULT_UPDATE_SOURCE, DOWNLOAD_SOURCES, migrateUpdateSource, safeDownloadSource, safeUpdateSource, updateUrlCandidates } from '../settings.js'
 
 const read = (name) => readFileSync(fileURLToPath(new URL(`../${name}`, import.meta.url)), 'utf8')
 const html = read('public/index.html')
@@ -86,21 +86,41 @@ test('设置页有下载源选择器：改动即保存，并说明两种源各�
   assert.match(html, /官方源更新及时/, '官方源的代价也要写出来')
 })
 
-// 启动器自更新的下载源：直连 GitHub 在国内经常连不上，给一个「国内加速」选项
-// （第三方镜像只是转发同一个文件，所以默认仍然是直连，由用户自己选）。
-test('更新下载源：直连永远排第一，选了国内加速才追加镜像前缀', () => {
+// 启动器自更新的下载源：默认「国内加速」——它不是「只走镜像」，候选顺序永远是
+// 「先直连、失败才按前缀走镜像」，所以能直连的网络一次都碰不到镜像，只是多一条退路；
+// 而「直连」在国内等于没有退路（市场索引的域名被 DNS 污染、release 资产的 443 连不上）。
+test('更新下载源：默认国内加速，但候选永远是「直连排第一、失败才走镜像」', () => {
   const url = 'https://github.com/yyh-001/DSH-X/releases/latest/download/DSH-Setup.exe'
-  assert.equal(DEFAULTS.updateSource, 'direct', '默认直连')
-  assert.deepEqual(updateUrlCandidates(url, 'direct'), [url])
+  assert.equal(DEFAULT_UPDATE_SOURCE, 'mirror', '默认国内加速')
+  assert.equal(DEFAULTS.updateSource, 'mirror')
+  assert.deepEqual(updateUrlCandidates(url, 'direct'), [url], '只直连时没有镜像候选')
   const mirror = updateUrlCandidates(url, 'mirror')
   assert.equal(mirror[0], url, '直连排第一，成功就不用镜像')
-  assert.ok(mirror.length > 1, '选了国内加速要带上镜像候选')
+  assert.ok(mirror.length > 1, '国内加速要带上镜像候选')
   for (const candidate of mirror.slice(1)) {
     assert.ok(candidate.endsWith(url), `镜像应该是「前缀 + 原地址」，实际：${candidate}`)
   }
   // 脏值不能把源弄丢，也不该抛错
-  assert.deepEqual(updateUrlCandidates(url, '瞎填的'), [url])
+  assert.deepEqual(updateUrlCandidates(url, '瞎填的'), mirror, '脏值回默认（国内加速）')
   assert.deepEqual(updateUrlCandidates('', 'mirror'), [])
   assert.equal(safeUpdateSource('mirror'), 'mirror')
-  assert.equal(safeUpdateSource('瞎填的'), 'direct')
+  assert.equal(safeUpdateSource('瞎填的'), 'mirror', '脏值回新的默认')
+})
+
+// 老配置里存着老默认值「直连」的用户迁移到「国内加速」；用户自己选过的源不许动
+test('老配置迁移：仍是老默认「直连」的改成国内加速，打过标记的就不动', () => {
+  assert.deepEqual(
+    migrateUpdateSource({ updateSource: 'direct' }),
+    { updateSource: 'mirror', updateSourceMigrated: true },
+    '老默认值一次性改成新默认',
+  )
+  assert.equal(migrateUpdateSource({ updateSource: 'direct', updateSourceMigrated: true }), null, '迁移过就不再动')
+  assert.equal(migrateUpdateSource({ updateSource: 'mirror', updateSourceMigrated: true }), null)
+  assert.deepEqual(migrateUpdateSource({ updateSource: 'mirror' }), { updateSourceMigrated: true }, '已经是新默认，只补标记')
+  assert.deepEqual(migrateUpdateSource({}), { updateSource: 'mirror', updateSourceMigrated: true }, '没存过这个字段的也算老配置')
+  assert.equal(migrateUpdateSource(null), null)
+  // ensureSettings 里要真接上这条迁移，否则老用户永远停在「直连」
+  const settings = read('settings.js')
+  assert.match(settings, /const migration = migrateUpdateSource\(stored\)/)
+  assert.match(settings, /if \(migration\) Object\.assign\(patch, migration\)/)
 })

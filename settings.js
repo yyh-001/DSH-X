@@ -72,8 +72,11 @@ export const DEFAULT_SOURCE = 'mirror'
 
 /**
  * 启动器自身更新的下载源。GitHub 在国内经常连不上或慢到超时，直连失败时按这里的
- * 前缀再试一遍（顺序即优先级）。镜像只做转发，包本身没变——但仍然经过第三方，
- * 所以默认直连，让用户在设置里自己选。
+ * 前缀再试一遍（顺序即优先级）；镜像只做转发，包本身没变——但仍然经过第三方。
+ *
+ * 默认「国内加速」，注意它不是「只走镜像」：候选列表永远是「先直连、失败才走前缀」
+ * （见 updateUrlCandidates），所以能直连的网络一次都碰不到镜像，只是多一条退路；
+ * 而「直连」在国内等于没有退路——自更新、整合包市场与包下载会直接失败。
  */
 export const UPDATE_SOURCES = {
   direct: [],
@@ -82,12 +85,28 @@ export const UPDATE_SOURCES = {
     'https://ghfast.top/',
   ],
 }
-export const DEFAULT_UPDATE_SOURCE = 'direct'
+export const DEFAULT_UPDATE_SOURCE = 'mirror'
 
-/** 更新下载源只认内置选项，脏值回直连。 */
+/** 更新下载源只认内置选项，脏值回默认（国内加速：直连优先、失败走镜像）。 */
 export function safeUpdateSource(value) {
   const name = String(value ?? '').trim()
   return UPDATE_SOURCES[name] ? name : DEFAULT_UPDATE_SOURCE
+}
+
+/**
+ * 老配置的一次性迁移：把仍是老默认值「直连」的设置改成「国内加速」。
+ *
+ * 为什么值得替用户改：新默认只是「多一条退路」，而「直连」在国内根本走不通——市场
+ * 索引的域名被 DNS 污染、release 资产的 443 连不上——失败时用户只看到一句 fetch failed。
+ * 迁移过就记一笔标记，用户之后自己选回「直连」不会再被动。返回要补写的字段，没什么要改就返回 null。
+ */
+export function migrateUpdateSource(stored) {
+  if (!stored || typeof stored !== 'object') return null
+  if (stored.updateSourceMigrated === true) return null
+  const chosen = String(stored.updateSource || '').trim()
+  // 没存过这个字段、或用户自己选过别的源：只补标记，不动他的选择
+  if (chosen && chosen !== 'direct') return { updateSourceMigrated: true }
+  return { updateSource: DEFAULT_UPDATE_SOURCE, updateSourceMigrated: true }
 }
 
 /**
@@ -501,8 +520,13 @@ export function resolveDataDir() {
 export async function ensureSettings() {
   const stored = await loadSettings()
   const dataDir = stored.dataDir ? safeDataDir(stored.dataDir) : inferDataDir()
-  if (stored.dataDir === dataDir) return stored
-  return saveSettings({ ...stored, dataDir })
+  const patch = {}
+  if (stored.dataDir !== dataDir) patch.dataDir = dataDir
+  // 一次性迁移：老配置里的「下载源：直连」改成新默认「国内加速」（详见 migrateUpdateSource）
+  const migration = migrateUpdateSource(stored)
+  if (migration) Object.assign(patch, migration)
+  if (!Object.keys(patch).length) return stored
+  return saveSettings(patch)
 }
 
 /** 登录自启要执行的 argv：装好的走原生外壳，源码运行就直接 node start.js。 */

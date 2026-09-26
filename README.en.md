@@ -39,7 +39,7 @@ Feedback: **QQ group [993579665](https://qm.qq.com/q/7AD2g70HqS)**
 
 ## Modpacks
 
-Install a batch of plugins and their config in one go — no installing one by one and hand-editing files. The format is the ecosystem's [DSH-PackForge](https://github.com/DSH-PackForge/DSH-PackForge) `.dspack` (manifest v5, older versions accepted), so packs are interchangeable with other launchers.
+Install a batch of plugins and their config in one go — no installing one by one and hand-editing files. Every modpack is a card on the Plugins page: **one card is one profile** (which is exactly what installing a pack produces), profiles you assembled by hand show up too, and a card that came from a pack says where it came from. Click one to see the plugins in that profile, each still toggleable on its own. The format is the ecosystem's [DSH-PackForge](https://github.com/DSH-PackForge/DSH-PackForge) `.dspack` (manifest v5, older versions accepted), so packs are interchangeable with other launchers.
 
 - **Where from**: a local `.dspack` file, a direct link, or a GitHub `owner/repo` (it takes the `.dspack` from the latest release); or pick one from the built-in community market right on the page.
 - **Where to**: a profile of its own by default, so your current setup is untouched — or point it at an existing profile such as `web`. Switch to it and restart from the same page.
@@ -58,7 +58,11 @@ Install a batch of plugins and their config in one go — no installing one by o
 </p>
 
 <p align="center">
-  <img src="docs/screenshot-modpacks.png" alt="DSH-X modpacks page" width="820" />
+  <img src="docs/screenshot-modpacks.png" alt="DSH-X modpack cards on the plugins page" width="820" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshot-modpack-detail.png" alt="DSH-X modpack detail: the plugins it brought" width="820" />
 </p>
 
 <p align="center">

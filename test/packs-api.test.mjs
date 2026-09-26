@@ -145,10 +145,11 @@ test('整合包接口', async (t) => {
     assert.ok(existsSync(state[0].backupDir), '备份目录留下了')
   })
 
-  await t.test('列表：已装的包与可切换的 profile 都在', async () => {
+  await t.test('列表：装出来的 profile 与可切换的 profile 都在', async () => {
     const list = await manager.get('/api/packs')
     assert.equal(list.data.packs.length, 1)
-    assert.equal(list.data.packs[0].displayName, '示例整合包')
+    assert.equal(list.data.packs[0].profile, 'demo', '一张卡就是一份 profile')
+    assert.equal(list.data.packs[0].packName, '示例整合包', '来源标在这张卡上')
     assert.ok(list.data.profiles.includes('demo'), '新 profile 出现在可切换列表里')
   })
 
@@ -227,6 +228,65 @@ test('整合包接口', async (t) => {
     assert.ok(existsSync(join(manager.home, 'profiles', 'web')), '当前 profile 的目录不动')
     assert.equal((await manager.get('/api/packs')).data.packs.filter((item) => item.profile === 'web').length, 1, '被拒时不动安装记录')
     await manager.call('/api/packs/uninstall', { name: 'demo', profile: 'web' })
+  })
+
+  await t.test('卡片按 profile 发：装过包的标来源，手动拼的也有一张卡', async () => {
+    const inspect = await manager.call('/api/packs/inspect', { source: packFile, profile: 'grouped' })
+    await manager.call('/api/packs/install', { token: inspect.data.token, profile: 'grouped' })
+
+    // 列表里每个条目都是一份 profile，带着它自己的插件清单（卡片和详情都靠它渲染）。
+    // 假 dsh 不跑 pnpm，所以 node_modules 是空的：插件清单来自 profile 的 package.json，
+    // 有包名但读不到版本，也就没有可开关的加载行。
+    const list = await manager.get('/api/packs')
+    const record = list.data.packs.find((item) => item.profile === 'grouped')
+    assert.equal(record.pluginCount, 1)
+    assert.deepEqual(record.plugins.map((plugin) => plugin.name), ['dsh-cost-meter'])
+    assert.equal(record.toggleable, false, '没有加载行时整包开关不可用')
+    assert.equal(record.packName, '示例整合包', '装过包的要带上来源（包名与版本）')
+    assert.equal(record.records.length, 1)
+    // 当前 profile（web）排最前
+    assert.equal(list.data.packs[0].profile, 'web')
+    const fromPlugins = (await manager.get('/api/plugins')).data.packs
+    assert.equal(fromPlugins.find((item) => item.profile === 'grouped')?.pluginCount, 1, '插件页一次请求就能拿到卡片需要的东西')
+
+    // 手动拼的 profile（没有任何安装记录）也要出现在卡片里
+    const handMade = join(manager.home, 'profiles', 'hand-made')
+    mkdirSync(handMade, { recursive: true })
+    writeFileSync(join(handMade, 'package.json'), JSON.stringify({ name: 'dsh-profile-hand-made', private: true, dependencies: { 'dsh-meme': '0.1.43' }, dsh: { profile: { bundles: ['dsh-meme'] } } }, null, 2))
+    const again = (await manager.get('/api/packs')).data.packs.find((item) => item.profile === 'hand-made')
+    assert.ok(again, '手动拼的 profile 也有一张卡')
+    assert.deepEqual(again.records, [])
+    assert.equal(again.packName, '')
+
+    // 整包开关按 profile 走：没有可开关的加载行时如实报出来，不当成成功
+    const off = await manager.call('/api/packs/toggle', { profile: 'grouped', enabled: false })
+    assert.equal(off.status, 200, off.data.error)
+    assert.equal(off.data.changed, 0)
+    assert.equal(off.data.failed.length, 1)
+    assert.match(off.data.failed.join(), /dsh-cost-meter/)
+
+    // 整包更新只在「就是当前 profile」时可用：更新走的是单插件升级那条路
+    const update = await manager.call('/api/packs/update', { profile: 'grouped' })
+    assert.equal(update.status, 400)
+    assert.match(update.data.error, /不是当前在用的那个/)
+
+    const noProfile = await manager.call('/api/packs/toggle', { enabled: false })
+    assert.equal(noProfile.status, 400)
+
+    // 删除整个 profile：当前 profile 与 dsh 自带模板都不许删
+    const current = await manager.call('/api/packs/remove-profile', { profile: 'web' })
+    assert.equal(current.status, 400)
+    assert.match(current.data.error, /正在用的那个/)
+    const template = await manager.call('/api/packs/remove-profile', { profile: 'sdk' })
+    assert.equal(template.status, 400)
+    assert.match(template.data.error, /自带的 profile 模板/)
+
+    const removed = await manager.call('/api/packs/remove-profile', { profile: 'hand-made' })
+    assert.equal(removed.status, 200, removed.data.error)
+    assert.ok(!existsSync(handMade))
+    assert.ok(!(removed.data.packs || []).some((item) => item.profile === 'hand-made'))
+
+    await manager.call('/api/packs/uninstall', { name: 'demo', profile: 'grouped', removeProfile: true })
   })
 
   await t.test('坏包、不认识的来源、跨站请求都被挡住', async () => {

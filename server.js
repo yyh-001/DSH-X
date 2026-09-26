@@ -785,8 +785,8 @@ async function publicSettings() {
     ],
     updateSource: safeUpdateSource(stored.updateSource),
     updateSources: [
-      { id: 'direct', label: '直连 GitHub' },
-      { id: 'mirror', label: '国内加速' },
+      { id: 'mirror', label: '国内加速（先直连，连不上走镜像）' },
+      { id: 'direct', label: '只直连（不用镜像）' },
     ],
     profile: PROFILE_NAME,
     profiles: listProfiles(),
@@ -1983,8 +1983,48 @@ function emitPackProgress(state) {
 /** 整合包页的载荷：已装的包、可切换的 profile、市场地址。 */
 function packsPayload() {
   const state = readPackState(DATA)
+  const profilesRoot = join(homeDir(), 'profiles')
+  const cards = []
+  for (const profile of listProfiles()) {
+    let plugins = []
+    try {
+      plugins = listPlugins(join(profilesRoot, safeProfile(profile))).plugins
+    } catch {
+      continue
+    }
+    // 空 profile（dsh 自带模板、刚建还没装东西的）不发卡：列出来全是空盒子
+    if (!plugins.length) continue
+    const thirdParty = plugins.filter((plugin) => !plugin.official)
+    const records = state.packs.filter((record) => record.profile === profile)
+    const latest = records.length ? records[records.length - 1] : null
+    cards.push({
+      profile,
+      // 卡片标题就是 profile 名（dsh 和插件页的 profile 切换器都这么叫它）
+      name: profile,
+      pluginCount: plugins.length,
+      officialCount: plugins.length - thirdParty.length,
+      // 整包开关说的是「这个环境里的插件」，官方组件不参与
+      enabled: thirdParty.some((plugin) => plugin.enabled),
+      toggleable: thirdParty.some((plugin) => plugin.toggleable),
+      plugins,
+      // 来源：装过整合包就带上包的信息与安装记录；手动拼的 profile 记录为空
+      records,
+      source: latest?.source || '',
+      installedAt: latest?.installedAt || '',
+      packName: latest ? (latest.displayName || latest.name) : '',
+      packVersion: latest?.version || '',
+      createdProfile: records.some((record) => record.createdProfile === true),
+      template: TEMPLATE_PROFILES.includes(profile),
+    })
+  }
+  // 当前 profile 排最前，其余按插件数量从多到少
+  cards.sort((a, b) => {
+    if (a.profile === PROFILE_NAME) return -1
+    if (b.profile === PROFILE_NAME) return 1
+    return b.pluginCount - a.pluginCount
+  })
   return {
-    packs: state.packs,
+    packs: cards,
     profile: PROFILE_NAME,
     home: homeDir(),
     profiles: listProfiles(),
@@ -1995,11 +2035,38 @@ function packsPayload() {
 }
 
 /**
- * 下载文件：直连失败按「更新下载源」试镜像。
+ * 网络失败的说明：undici 只会给一句 `fetch failed`，真正的原因藏在 error.cause 里。
  *
- * 整合包和启动器更新走同一套前缀（gh-proxy 那些）——国内直连 github 的 release 资产
- * 基本拿不到，而整合包分发的第一步就是它。
+ * 国内最常见的两种断法「看起来一模一样、其实完全不同」，光看 fetch failed 猜不到该做什么：
+ * - raw.githubusercontent.com（市场索引在那儿）的 **DNS 被污染**：解析成 0.0.0.0 / 空地址，
+ *   请求还没出门就失败（实测 cause 是 ENOENT，秒回）；
+ * - github.com（release 资产那儿）**443 连不上**：解析正常，但一路等到超时（约 21 秒）。
+ * 所以这里把域名、原因和出路都写进错误里，页面直接显示给用户看。
  */
+function describeFetchError(error, url = '') {
+  const cause = error?.cause
+  const code = String(cause?.code || cause?.errno || '').toUpperCase()
+  const causeMessage = String(cause?.message || '')
+  const host = (() => {
+    try {
+      return new URL(String(url)).host
+    } catch {
+      return ''
+    }
+  })()
+  if (code === 'ENOENT' || code === 'ENOTFOUND' || code === 'EAI_AGAIN') {
+    return `${host || '域名'} 解析不出来（DNS 返回了空地址，通常是 DNS 被污染）`
+  }
+  if (['ETIMEDOUT', 'ECONNRESET', 'ECONNREFUSED', 'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_SOCKET', 'UND_ERR_HEADERS_TIMEOUT'].includes(code)) {
+    return `连不上 ${host || '目标'}（${code}）`
+  }
+  if (/certificate|self.signed|CERT_|TLS|SSL/i.test(causeMessage)) {
+    return `${host || '目标'} 的证书校验不过（${causeMessage}）`
+  }
+  const detail = error?.message || '请求失败'
+  return `${host ? `${host}：` : ''}${detail}${code ? `（${code}）` : ''}`
+}
+
 /** 下载上限：整合包只装清单与配置，超过这个量级的多半不是包（也免得把内存吃光）。 */
 const PACK_DOWNLOAD_LIMIT = 64 * 1024 * 1024
 
@@ -2040,7 +2107,7 @@ async function downloadToFile(url, dest, { sha256 = '', log = pushLog, onProgres
   // 直连 GitHub 在国内基本拿不到 release 资产，而「更新下载源」默认是直连——
   // 失败时把出路写进错误里（和启动器自更新那句同样的写法），否则用户只看到「下载失败」
   const hint = UPDATE_SOURCE === 'mirror' ? '' : '；如果直连 GitHub 不通，可以在设置页把「更新下载源」改成「国内加速」再试'
-  throw new Error(`下载失败：${last?.message || '未知原因'}${hint}`)
+  throw new Error(`下载失败：${describeFetchError(last, url)}${hint}`)
 }
 
 /** GitHub 接口的确定性回答：这类错误换镜像也没用，直接报出来。 */
@@ -2130,7 +2197,7 @@ async function marketEntries({ force = false } = {}) {
       last = error
     }
   }
-  throw new Error(`读整合包市场失败：${last?.message || '未知原因'}`)
+  throw new Error(`读整合包市场失败：${describeFetchError(last, url)}`)
 }
 
 /**
@@ -3160,7 +3227,8 @@ async function handleApi(req, res, url) {
     return
   }
   if (req.method === 'GET' && url.pathname === '/api/plugins') {
-    send(res, 200, { ...listPlugins(profileDir()), profile: PROFILE_NAME, autoFix: lastAutoFix })
+    // 插件页现在同时画整合包卡片，一次请求把两边都带上，省得页面开两次口
+    send(res, 200, { ...listPlugins(profileDir()), autoFix: lastAutoFix, ...packsPayload() })
     return
   }
   if (req.method === 'GET' && url.pathname === '/api/plugins/updates') {
@@ -3274,9 +3342,12 @@ async function handleApi(req, res, url) {
   if (req.method === 'POST' && url.pathname === '/api/plugins/toggle') {
     const name = String(body.name || '')
     const enabled = body.enabled !== false
-    const result = setPluginEnabled(profileDir(), name, enabled)
-    pushLog(`插件 ${name} → ${enabled ? '启用' : '禁用'}${result.changed ? '' : '（无变化）'}`)
-    send(res, 200, { ok: true, changed: result.changed, ...listPlugins(profileDir()), profile: PROFILE_NAME, autoFix: lastAutoFix })
+    // 整合包卡片可能装在别的 profile 上，切换插件时得能指定目标（不传就是当前 profile）
+    const target = body.profile ? join(homeDir(), 'profiles', safeProfile(String(body.profile))) : profileDir()
+    const result = setPluginEnabled(target, name, enabled)
+    const where = body.profile && String(body.profile) !== PROFILE_NAME ? `（profile ${body.profile}）` : ''
+    pushLog(`插件 ${name} → ${enabled ? '启用' : '禁用'}${where}${result.changed ? '' : '（无变化）'}`)
+    send(res, 200, { ok: true, changed: result.changed, ...listPlugins(profileDir()), ...packsPayload(), autoFix: lastAutoFix })
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/plugins/update') {
@@ -3385,6 +3456,112 @@ async function handleApi(req, res, url) {
       pluginBusy = false
       packProgressName = ''
       emitPackProgress(null)
+    }
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/packs/toggle') {
+    const profile = String(body.profile || '')
+    const enabled = body.enabled !== false
+    if (!profile) {
+      send(res, 400, { error: '要说清是哪个 profile' })
+      return
+    }
+    const target = join(homeDir(), 'profiles', safeProfile(profile))
+    const plugins = listPlugins(target).plugins
+    if (!plugins.length) {
+      send(res, 404, { error: `profile「${profile}」里没有已安装的插件` })
+      return
+    }
+    // 卡片代表一整个 profile：开关管的是这个环境里所有第三方插件（官方组件不提供开关）
+    const packages = plugins.filter((plugin) => !plugin.official).map((plugin) => plugin.name)
+    let changed = 0
+    const failed = []
+    for (const item of packages) {
+      try {
+        if (setPluginEnabled(target, item, enabled).changed) changed += 1
+      } catch (error) {
+        failed.push(`${item}：${error instanceof Error ? error.message : error}`)
+      }
+    }
+    pushLog(`profile ${profile} 的插件 → ${enabled ? '启用' : '禁用'}（${changed} 个有变化${failed.length ? `，${failed.length} 个不支持：${failed.join('；')}` : ''}）`)
+    send(res, 200, { ok: true, changed, failed, ...listPlugins(profileDir()), ...packsPayload(), autoFix: lastAutoFix })
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/packs/update') {
+    const profile = String(body.profile || '')
+    if (!profile) {
+      send(res, 400, { error: '要说清是哪个 profile' })
+      return
+    }
+    // 更新走的是插件页那条单插件升级（含 peer 与目录链接的退路），它只认当前 profile
+    if (profile !== PROFILE_NAME) {
+      send(res, 400, { error: `profile「${profile}」不是当前在用的那个，先在插件页把 profile 切过去再更新` })
+      return
+    }
+    if (pluginBusy) {
+      send(res, 400, { error: '正在装插件或整合包，等它结束再试' })
+      return
+    }
+    try {
+      const packages = listPlugins(profileDir()).plugins.filter((plugin) => !plugin.official).map((plugin) => plugin.name)
+      if (!packages.length) throw new Error(`profile「${profile}」里没有可更新的插件`)
+      const done = []
+      const failed = []
+      const unchanged = []
+      for (const item of packages) {
+        try {
+          const result = await updatePlugin(item)
+          if (result.changed) done.push(`${item} → ${result.to}`)
+          else unchanged.push(item)
+        } catch (error) {
+          failed.push(`${item}：${error instanceof Error ? error.message : error}`)
+        }
+      }
+      pushLog(`profile ${profile} 的插件更新完成：${done.length} 个升级${failed.length ? `，${failed.length} 个失败` : ''}（重启 dsh 后生效）`)
+      send(res, 200, {
+        ok: true,
+        updated: done.length,
+        failed,
+        unchanged,
+        ...listPlugins(profileDir()),
+        ...packsPayload(),
+        autoFix: lastAutoFix,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      pushLog(`profile ${profile} 的插件更新失败：${message}`)
+      send(res, 400, { error: message })
+    }
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/packs/remove-profile') {
+    // 手动拼出来的 profile 没有安装记录，撤不掉「安装时改过的文件」，只能整个删掉
+    const profile = String(body.profile || '')
+    if (!profile) {
+      send(res, 400, { error: '要说清是哪个 profile' })
+      return
+    }
+    if (profile === PROFILE_NAME) {
+      send(res, 400, { error: `profile「${profile}」是启动器正在用的那个，先在插件页换一个 profile 再删` })
+      return
+    }
+    if (TEMPLATE_PROFILES.includes(profile)) {
+      send(res, 400, { error: `「${profile}」是 dsh 自带的 profile 模板，不能删` })
+      return
+    }
+    const target = join(homeDir(), 'profiles', safeProfile(profile))
+    if (!existsSync(target)) {
+      send(res, 404, { error: `profile「${profile}」的目录不在` })
+      return
+    }
+    try {
+      await rm(target, { recursive: true, force: true })
+      pushLog(`已删掉整个 profile「${profile}」`)
+      send(res, 200, { ok: true, ...listPlugins(profileDir()), ...packsPayload(), autoFix: lastAutoFix })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      pushLog(`删 profile「${profile}」失败：${message}`)
+      send(res, 400, { error: message })
     }
     return
   }

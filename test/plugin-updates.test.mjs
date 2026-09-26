@@ -33,16 +33,18 @@ test('全部更新逐个来：单个失败不影响其它，最后如实汇总',
   assert.match(server, /return \{ checked: names\.length, done, failed \}/)
 })
 
-test('插件页有检查/全部更新入口，行内按钮不会误触发开关', () => {
-  assert.match(html, /id="pluginCheckUpdates"/, '面板上有「检查更新」')
-  assert.match(html, /id="pluginUpdateAll"/, '有「全部更新」')
+test('更新入口：刷新顺带查一次，逐个更新按环境走，行内按钮不会误触发开关', () => {
+  // 顶部那排不再有单独的「检查更新 / 全部更新」：刷新会把两者都做掉，
+  // 批量更新收进了每个环境的详情（卡片上的「更新 N 个」→ /api/packs/update）
+  assert.ok(!/id="pluginCheckUpdates"/.test(html), '不再有单独的「检查更新」按钮')
+  assert.ok(!/id="pluginUpdateAll"/.test(html), '不再有单独的「全部更新」按钮')
+  assert.match(html, /pluginRefreshEl\.onclick = async \(\) => \{[\s\S]{0,200}?await refreshPluginUpdates\(\{ force: true \}\)/, '刷新顺带强制查一次更新')
+  assert.match(html, /post\('\/api\/packs\/update', \{ profile: item\.profile \}\)/, '按环境批量更新')
   // 列表保持两行，更新按钮本身说明目标版本，不重复放状态标签。
   assert.match(html, /t\('更新到 \{latest\}', \{ latest: update\.latest \}\)/, '按钮上写清更新到哪版')
   assert.match(html, /class="plugin-update"[^>]*data-update=/, '可更新的行有更新按钮')
   // 整行是个 label，点哪都会开关插件；按钮的点击必须拦住，不能顺带把插件关了
   assert.match(html, /data-update[\s\S]{0,600}?event\.preventDefault\(\)[\s\S]{0,80}?event\.stopPropagation\(\)/, '更新按钮要挡住 label 的默认行为')
-  assert.match(html, /pluginUpdateAllEl\.textContent = t\('全部更新（\{n\}）', \{ n: pending \}\)/, '全部更新带上可更新的个数')
-  assert.match(html, /post\('\/api\/plugins\/update', \{ all: true \}\)/, '全部更新走同一个接口的 all 分支')
   assert.match(html, /重启 dsh 后生效/, '要提醒重启才生效（插件是启动时加载的）')
 })
 

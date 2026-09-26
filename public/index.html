@@ -947,7 +947,117 @@
       .plugin-update { font-size: 11px; padding: 4px 7px; }
       .plugin-version { display: none; }
     }
-    /* ---- 整合包：源输入行 + 检查结果卡片 ---- */
+    /* ---- 整合包：卡片区 + 点入详情 + 装包/导出弹窗 ---- */
+    .ask-card.wide { width: min(760px, 100%); }
+    .ask-card.wide .plugin-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+    .pack-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+    .pack-card {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      width: 100%;
+      padding: 14px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      cursor: pointer;
+      text-align: left;
+      font: inherit;
+      transition: border-color 0.12s ease, background 0.12s ease, transform 0.12s ease;
+    }
+    .pack-card:hover { border-color: #b9ccf0; background: var(--accent-soft); }
+    .pack-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+    .pack-card.is-current { border-color: #b9ccf0; }
+    .pack-card-arrow { align-self: center; color: var(--muted); font-size: 21px; line-height: 1; }
+    /* 封面块：包基本没有图标，用包名首字 + 名字定的色相，一眼能认出来 */
+    .pack-tile {
+      flex: 0 0 auto;
+      display: grid;
+      place-items: center;
+      width: 46px;
+      height: 46px;
+      border-radius: 12px;
+      background: hsl(var(--tile-hue, 214) 72% 93%);
+      color: hsl(var(--tile-hue, 214) 62% 38%);
+      font-size: 19px;
+      font-weight: 700;
+      letter-spacing: 0;
+      user-select: none;
+    }
+    .pack-tile.big { width: 56px; height: 56px; font-size: 23px; border-radius: 15px; }
+    .pack-card-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+    .pack-card-head { display: flex; align-items: center; gap: 10px; }
+    .pack-card-name { flex: 1 1 auto; min-width: 0; color: var(--text); font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pack-card-meta { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+    .pack-card-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .pack-tag {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 2px 9px;
+      color: var(--muted);
+      font-size: 11.5px;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .pack-card-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+    .pack-card-actions .ghost { min-height: 28px; padding: 3px 11px; font-size: 12px; }
+    .pack-bulk-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; }
+    .pack-bulk-copy { display: flex; flex-direction: column; gap: 2px; }
+    .pack-bulk-copy strong { color: var(--text); font-size: 12.5px; font-weight: 600; }
+    .pack-bulk-copy small { color: var(--muted); font-size: 11.5px; }
+    .pack-more { width: 100%; margin-top: 4px; }
+    .pack-more summary { width: fit-content; color: var(--accent); cursor: pointer; font-size: 12px; }
+    .pack-more .pack-card-actions { margin-top: 10px; }
+    .pack-advanced { border-top: 1px solid var(--line); padding-top: 10px; }
+    .pack-advanced summary { color: var(--accent); cursor: pointer; font-size: 12.5px; }
+    .pack-advanced-content { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; }
+    .pack-inspect-summary { color: var(--text); font-size: 12.5px; line-height: 1.5; }
+    /* 卡片上的整包开关：比设置页那个小一号 */
+    .pack-switch { flex: 0 0 auto; display: inline-flex; align-items: center; }
+    .pack-switch input {
+      appearance: none;
+      width: 38px;
+      height: 22px;
+      margin: 0;
+      flex: 0 0 auto;
+      background: #cfdcf3;
+      border: 0;
+      border-radius: 999px;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.16s ease;
+    }
+    .pack-switch input::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 1px 3px rgba(22, 35, 61, 0.28);
+      transition: transform 0.16s ease;
+    }
+    .pack-switch input:checked { background: var(--accent); }
+    .pack-switch input:checked::after { transform: translateX(16px); }
+    .pack-switch input:disabled { opacity: 0.45; cursor: not-allowed; }
+    /* 包详情：返回 + 包头 + 这个包里的插件 */
+    .pack-back { margin-bottom: 10px; }
+    .pack-head {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 16px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      flex-wrap: wrap;
+    }
+    .pack-head .pack-card-body { gap: 6px; }
+    .pack-head .pack-card-name { font-size: 16px; }
     .pack-source { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
     .pack-source input { flex: 1 1 auto; min-width: 0; }
     .pack-source .ghost { flex: 0 0 auto; }
@@ -961,6 +1071,7 @@
       flex-direction: column;
       gap: 10px;
     }
+    .pack-detail[hidden] { display: none; }
     .pack-detail .pack-title { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
     .pack-detail .pack-name { font-weight: 600; font-size: 14px; }
     .pack-detail .pack-meta { color: var(--muted); font-size: 12px; }
@@ -992,7 +1103,6 @@
     /* 导出那一行里的小勾选：原生 checkbox，和旁边的输入框同高对齐 */
     .pack-check { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; white-space: nowrap; cursor: pointer; }
     .pack-check input { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); }
-    #packExportVersion { width: 84px; text-align: center; }
     .pack-path { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .pack-path code { font-size: 12px; color: var(--text); word-break: break-all; }
     @media (max-width: 560px) {
@@ -1193,10 +1303,6 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M12 3.2 20 7.4v9.2L12 20.8 4 16.6V7.4l8-4.2Z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M4.4 7.6 12 11.8l7.6-4.2M12 11.8v8.6"/></svg>
             <span data-i18n="插件">插件</span>
           </button>
-          <button type="button" class="nav-item" data-pane="packs">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M3.5 7.6 12 3.5l8.5 4.1v8.8L12 20.5l-8.5-4.1z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M3.9 7.8 12 12l8.1-4.2M12 12v8.5M7.8 5.5l8.4 4.1"/></svg>
-            <span data-i18n="整合包">整合包</span>
-          </button>
           <button type="button" class="nav-item" data-pane="settings" data-category="appearance">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
             <span data-i18n="外观">外观</span>
@@ -1287,57 +1393,25 @@
               </div>
               <div class="plugin-actions">
                 <select id="profile" title="dsh 下次启动用哪个 profile；插件和插件配置按 profile 分开，会话与记忆是共享的。"></select>
-                <button class="ghost" id="pluginCheckUpdates" type="button" data-i18n="检查更新">检查更新</button>
-                <button class="ghost" id="pluginUpdateAll" type="button" hidden data-i18n="全部更新">全部更新</button>
+                <button class="ghost" id="packImportOpen" type="button" data-i18n="装整合包">装整合包</button>
                 <button class="ghost plugin-refresh" id="pluginRefresh" type="button" title="刷新" aria-label="刷新"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 1-2.4-5.7"/><path d="M20 4v5h-5"/></svg></button>
               </div>
             </div>
-            <div class="plugin-list" id="pluginList"></div>
+            <!-- 一份 profile 一张卡；dsh 一次只加载一份，正在用的那张标出来 -->
+            <div id="pluginOverview">
+              <div class="set-caption" id="packCaption" data-i18n="我的环境">我的环境</div>
+              <div class="pack-grid" id="packGrid"></div>
+            </div>
+            <!-- 点开一张整合包卡片后进这里：这个包带来的插件 + 包级操作 -->
+            <div id="packView" hidden>
+              <button class="ghost pack-back" id="packBack" type="button" data-i18n="返回环境列表">返回环境列表</button>
+              <div class="pack-head" id="packHead"></div>
+              <div class="set-caption" data-i18n="已安装的插件">已安装的插件</div>
+              <div class="plugin-list" id="packPluginList"></div>
+            </div>
             <p class="hint" id="pluginHint"></p>
             <!-- 插件装/升级可能几十秒，光一句「正在更新…」看不出在动 -->
             <div class="progress" id="pluginProgress" hidden><div class="progress-bar" id="pluginProgressBar"></div></div>
-          </div>
-        </section>
-        <section class="pane" id="pane-packs">
-          <div class="pane-inner">
-            <div class="pane-top">
-              <div>
-                <h1 class="pane-title" data-i18n="整合包">整合包</h1>
-                <p class="pane-sub" id="packSub" data-i18n="一次装好一批插件和它们的配置；默认装进独立的 profile，和现有环境互不打扰。">一次装好一批插件和它们的配置；默认装进独立的 profile，和现有环境互不打扰。</p>
-              </div>
-              <div class="plugin-actions">
-                <button class="ghost plugin-refresh" id="packRefresh" type="button" title="刷新" aria-label="刷新"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 1-2.4-5.7"/><path d="M20 4v5h-5"/></svg></button>
-              </div>
-            </div>
-            <div class="plugin-list" id="packInstalled"></div>
-            <div class="set-caption" data-i18n="装一个整合包">装一个整合包</div>
-            <div class="pack-source">
-              <input id="packSource" type="text" placeholder="owner/repo、.dspack 链接，或本地文件路径" autocomplete="off" spellcheck="false" />
-              <button class="ghost" id="packPick" type="button" data-i18n="选文件…">选文件…</button>
-              <button class="ghost" id="packCheck" type="button" data-i18n="检查">检查</button>
-            </div>
-            <p class="hint" id="packSourceHint" data-i18n="认生态里的 .dspack 整合包（PackForge 的 manifest）：本地文件、直链，或 GitHub 的 owner/repo（取它最新 Release 里的包）。">认生态里的 .dspack 整合包（PackForge 的 manifest）：本地文件、直链，或 GitHub 的 owner/repo（取它最新 Release 里的包）。</p>
-            <!-- 检查结果：装什么、装到哪、会覆盖什么，都在这里摆清楚再让人点安装 -->
-            <div class="pack-detail" id="packDetail" hidden></div>
-            <div class="set-caption" id="packMarketTitle" data-i18n="社区整合包">社区整合包</div>
-            <div class="plugin-list" id="packMarket"></div>
-            <div class="set-caption" data-i18n="导出">导出</div>
-            <div class="set-group">
-              <div class="set-row">
-                <div class="set-text">
-                  <span class="set-name" data-i18n="把当前 profile 打包成整合包">把当前 profile 打包成整合包</span>
-                  <span class="set-desc" data-i18n="带上插件清单、补丁层与 profile 根下的配置文件（不含 node_modules、会话与凭据）。别人装这个包，就能得到同样的插件环境。">带上插件清单、补丁层与 profile 根下的配置文件（不含 node_modules、会话与凭据）。别人装这个包，就能得到同样的插件环境。</span>
-                </div>
-                <div class="set-control">
-                  <label class="pack-check"><input type="checkbox" id="packExportHome" /><span data-i18n="带上技能与预设">带上技能与预设</span></label>
-                  <input id="packExportVersion" type="text" value="1.0.0" aria-label="版本号" />
-                  <button class="ghost" id="packExport" type="button" data-i18n="导出…">导出…</button>
-                </div>
-              </div>
-            </div>
-            <!-- 下载几十 MB、再装几十个包，都要有进度 -->
-            <div class="progress" id="packProgress" hidden><div class="progress-bar" id="packProgressBar"></div></div>
-            <p class="hint" id="packHint" role="status" aria-live="polite"></p>
           </div>
         </section>
         <section class="pane fill" id="pane-mcp">
@@ -1775,7 +1849,7 @@
                 <div class="set-row">
                   <div class="set-text">
                     <span class="set-name" data-i18n="更新下载源">更新下载源</span>
-                    <span class="set-desc" data-i18n="启动器自身更新的下载通道。国内直连 GitHub 常失败，可切成国内加速（走第三方镜像转发同一个文件）。">启动器自身更新的下载通道。国内直连 GitHub 常失败，可切成国内加速（走第三方镜像转发同一个文件）。</span>
+                    <span class="set-desc" data-i18n="启动器自身更新的下载通道，也是整合包市场与包下载的通道。默认「国内加速」= 先直连 GitHub，连不上才走第三方镜像转发（同一个文件）；只想直连就选另一项。">启动器自身更新的下载通道，也是整合包市场与包下载的通道。默认「国内加速」= 先直连 GitHub，连不上才走第三方镜像转发（同一个文件）；只想直连就选另一项。</span>
                     <p class="hint" id="updateSourceHint"></p>
                   </div>
                   <div class="set-control">
@@ -1824,6 +1898,43 @@
       </div>
     </div>
   </div>
+  <div class="ask" id="packImportDialog" hidden>
+    <div class="ask-card wide" role="dialog" aria-modal="true" aria-labelledby="packImportTitle">
+      <h2 class="ask-title" id="packImportTitle" data-i18n="装一个整合包">装一个整合包</h2>
+      <p class="ask-note" data-i18n="从来源（本地文件 / 链接 / owner/repo）或下面的社区市场里挑一个；检查之后才动文件。">从来源（本地文件 / 链接 / owner/repo）或下面的社区市场里挑一个；检查之后才动文件。</p>
+      <div class="pack-source">
+        <input id="packSource" type="text" placeholder="owner/repo、.dspack 链接，或本地文件路径" autocomplete="off" spellcheck="false" />
+        <button class="ghost" id="packPick" type="button" data-i18n="选文件…">选文件…</button>
+        <button class="ghost" id="packCheck" type="button" data-i18n="检查">检查</button>
+      </div>
+      <!-- 检查结果：装什么、装到哪、会覆盖什么，都在这里摆清楚再让人点安装 -->
+      <div class="pack-detail" id="packInspect" hidden></div>
+      <div class="set-caption" id="packMarketTitle" data-i18n="社区整合包">社区整合包</div>
+      <div class="plugin-list" id="packMarket"></div>
+      <!-- 下载几十 MB、再装几十个包，都要有进度 -->
+      <div class="progress" id="packProgress" hidden><div class="progress-bar" id="packProgressBar"></div></div>
+      <p class="hint" id="packHint" role="status" aria-live="polite"></p>
+      <div class="ask-actions">
+        <button type="button" class="ghost" id="packImportClose" data-i18n="关闭">关闭</button>
+      </div>
+    </div>
+  </div>
+  <div class="ask" id="packExportDialog" hidden>
+    <div class="ask-card" role="dialog" aria-modal="true" aria-labelledby="packExportTitle">
+      <h2 class="ask-title" id="packExportTitle" data-i18n="导出整合包">导出整合包</h2>
+      <p class="ask-note" data-i18n="把这份 profile 现在装着的东西打成一个 .dspack：钉版依赖、补丁层与 profile 根下的配置文件，不含 node_modules、会话与凭据。">把这份 profile 现在装着的东西打成一个 .dspack：钉版依赖、补丁层与 profile 根下的配置文件，不含 node_modules、会话与凭据。</p>
+      <div class="mcp-form">
+        <label class="mcp-field"><span data-i18n="名称">名称</span><input id="packExportName" type="text" autocomplete="off" spellcheck="false" /></label>
+        <label class="mcp-field"><span data-i18n="版本">版本</span><input id="packExportVersion" type="text" value="1.0.0" autocomplete="off" spellcheck="false" /></label>
+      </div>
+      <label class="pack-check"><input type="checkbox" id="packExportHome" /><span data-i18n="带上技能与预设">带上技能与预设</span></label>
+      <p class="hint" id="packExportHint"></p>
+      <div class="ask-actions">
+        <button type="button" class="ghost" id="packExportCancel" data-i18n="取消">取消</button>
+        <button type="button" class="primary" id="packExportGo" data-i18n="导出…">导出…</button>
+      </div>
+    </div>
+  </div>
   <div class="ask" id="notice" hidden>
     <div class="ask-card" role="alertdialog" aria-modal="true" aria-labelledby="noticeTitle">
       <h2 class="ask-title" id="noticeTitle" data-i18n="操作失败">操作失败</h2>
@@ -1844,6 +1955,76 @@
     // ---- 界面双语：字典按中文原文做 key，没翻到的原样显示中文（不会漏、不会崩） ----
     const LANG = '__APP_LANG__'
     const EN = {
+  "只直连（不用镜像）": "Direct only (no mirror)",
+  "国内加速（先直连，连不上走镜像）": "Accelerated (direct first, mirror on failure)",
+  "只连 GitHub，不经过任何镜像；国内经常连不上——市场和整合包下载都会跟着失败。": "GitHub only, never a mirror. This often fails from mainland China — the market and modpack downloads will fail too.",
+  "先直连 GitHub；连不上再走第三方镜像转发（同一个文件，只是换条路拿）。": "Try GitHub directly first; if that fails, fall back to a third-party mirror relay (same file, just another route).",
+  "启动器自身更新的下载通道，也是整合包市场与包下载的通道。默认「国内加速」= 先直连 GitHub，连不上才走第三方镜像转发（同一个文件）；只想直连就选另一项。": "The channel for the launcher's own updates — the same one the modpack market and pack downloads use. The default \"accelerated\" means: try GitHub directly first, and only fall back to a third-party mirror relay (same file) if that fails. Pick the other option to never use a mirror.",
+  "上次启动自动禁用了：{names}（点开正在用的那张卡可以重新打开）。": "Auto-disabled on the last start: {names} (open the card of the profile in use to turn them back on).",
+  "停用": "disabled",
+  "{on} 个开着": "{on} on",
+  "正在用": "in use",
+  "没在用": "not loaded",
+  "（切到这个 profile 后生效）": " (takes effect once you switch to it)",
+  "profile {name} 的插件已{state}{failed}{later}": "Plugins in profile {name} are now {state}{failed}{later}",
+  "整包开关：这个环境里的插件开 / 关（没在用的环境，切过去才生效）": "Toggle the whole environment: every plugin on or off (for a profile that is not in use, this applies once you switch to it)",
+  "整合包：{name}{version}": "Modpack: {name}{version}",
+  "手动装的": "Assembled by hand",
+  "手动创建": "Created manually",
+  "正在{act} {name} 里的插件…": "{act} the plugins in {name}…",
+  "（{n} 个不支持开关）": " ({n} cannot be toggled)",
+  "卸载整合包": "Remove modpack",
+  "删除 profile": "Delete profile",
+  "还没有装过插件：从文件、链接或市场里挑一个整合包": "Nothing installed yet — pick a modpack from a file, a link or the market",
+  "这个环境里的插件没有可开关的加载行（客户端插件由插件市场管理）": "The plugins here have no toggleable loader rows (client plugins are managed by the plugin market)",
+  "安装记录：{name} v{version} · {time} · {source}": "Install record: {name} v{version} · {time} · {source}",
+  "这份 profile 里没有已安装的插件。": "This profile has no installed plugins.",
+  "正在更新 profile {name} 的插件…": "Updating the plugins in profile {name}…",
+  "profile {name} 更新完成：{n} 个升级{failed}": "Profile {name} updated: {n} upgraded{failed}",
+  "删除 profile「{profile}」？它里面的插件与配置会一起没（{n} 个插件）。": "Delete profile \"{profile}\"? Its plugins and config go with it ({n} plugins).",
+  "确认删除「{profile}」整个目录？这一步撤不回来。": "Really delete the whole \"{profile}\" folder? This cannot be undone.",
+  "profile「{profile}」已删除。": "Profile \"{profile}\" deleted.",
+  "删除失败": "Delete failed",
+  "导出的是 profile「{profile}」现在的样子。": "Exports profile \"{profile}\" as it is now.",
+  "装整合包": "Install modpack",
+  "我的环境": "My environments",
+  "我的环境（{n}）": "My environments ({n})",
+  "查看环境 {name} 的插件": "View plugins in {name}",
+  "正在查看环境 {name}": "Viewing environment {name}",
+  "返回环境列表": "Back to environments",
+  "已安装的插件": "Installed plugins",
+  "切换到这个环境": "Switch to this environment",
+  "批量启用插件": "Enable plugins together",
+  "管理这个环境中可开关的插件": "Controls the plugins that support toggling in this environment",
+  "切换到这个环境后生效": "Takes effect after switching to this environment",
+  "更多操作": "More actions",
+  "查看安装详情": "View installation details",
+  "{deps} 个依赖 · {files} 个文件需要写入": "{deps} dependencies · {files} files to write",
+  "导出 profile": "Export profile",
+  "返回插件": "Back to plugins",
+  "这份 profile 里的插件": "Plugins in this profile",
+  "从来源（本地文件 / 链接 / owner/repo）或下面的社区市场里挑一个；检查之后才动文件。": "Pick one from a source (local file / link / owner/repo) or from the community market below. Nothing is written until you confirm after the check.",
+  "导出整合包": "Export modpack",
+  "把这份 profile 现在装着的东西打成一个 .dspack：钉版依赖、补丁层与 profile 根下的配置文件，不含 node_modules、会话与凭据。": "Pack what this profile has right now into a .dspack: pinned dependencies, the patch layer and config files at the profile root — no node_modules, sessions or credentials.",
+  "启用": "enabled",
+  "{n} 个插件": "{n} plugins",
+  "正在{act}整合包 {name}…": "{act} modpack {name}…",
+  "整合包 {name} 已{state}{failed}": "Modpack {name} is now {state}{failed}",
+  "（{n} 个插件不支持开关）": " ({n} plugins cannot be toggled)",
+  "整合包（{n}）": "Modpacks ({n})",
+  "更新 {n} 个": "Update {n}",
+  "一次装好一批插件和它们的配置": "Install a batch of plugins and their config in one go",
+  "还没装过整合包：从文件、链接或市场里挑一个": "No modpacks yet — pick one from a file, a link or the market",
+  "这个包里的插件没有可开关的加载行（客户端插件由插件市场管理）": "The plugins in this pack have no toggleable loader rows (client plugins are managed by the plugin market)",
+  "这个包里的插件现在都不在这份 profile 的已装清单里（可能被手动卸掉了）。": "None of this pack's plugins are in that profile's installed list right now (they may have been removed by hand).",
+  "正在更新整合包 {name}…": "Updating modpack {name}…",
+  "整合包 {name} 更新完成：{n} 个升级{failed}": "Modpack {name} updated: {n} upgraded{failed}",
+  "，{n} 个失败": ", {n} failed",
+  "有插件没更新成功": "Some plugins did not update",
+  "整合包更新失败": "Modpack update failed",
+  "切到 profile「{profile}」并重启 dsh？现在跑着的会话会断。": "Switch to profile \"{profile}\" and restart dsh? The running session will end.",
+  "导出的是 profile「{profile}」现在的样子（这个整合包装在那份 profile 上）。": "Exports profile \"{profile}\" as it is now (that is where this modpack lives).",
+  "导出的是当前 profile「{profile}」现在的样子。": "Exports the current profile \"{profile}\" as it is now.",
   "检查": "Check",
   "整合包": "Modpacks",
   "一次装好一批插件和它们的配置；默认装进独立的 profile，和现有环境互不打扰。": "Install a batch of plugins and their config in one go. By default each modpack gets its own profile, so your current setup is left alone.",
@@ -1851,7 +2032,6 @@
   "选文件…": "Choose file…",
   "认生态里的 .dspack 整合包（PackForge 的 manifest）：本地文件、直链，或 GitHub 的 owner/repo（取它最新 Release 里的包）。": "Works with ecosystem .dspack modpacks (PackForge manifests): a local file, a direct link, or a GitHub owner/repo (it takes the .dspack from the latest release).",
   "社区整合包": "Community modpacks",
-  "导出": "Export",
   "把当前 profile 打包成整合包": "Pack the current profile into a modpack",
   "带上插件清单、补丁层与 profile 根下的配置文件（不含 node_modules、会话与凭据）。别人装这个包，就能得到同样的插件环境。": "Includes the plugin manifest, patch layer and config files at the profile root — never node_modules, sessions or credentials. Anyone installing the pack gets the same plugin setup.",
   "带上技能与预设": "Include skills & presets",
@@ -1859,9 +2039,7 @@
   "当前 profile：{profile} · 已装 {n} 个整合包": "Current profile: {profile} · {n} modpack(s) installed",
   "还没装过整合包。从下面挑一个，或者贴一个 .dspack 链接。": "No modpacks installed yet. Pick one below, or paste a .dspack link.",
   "{bundles} 层 · {deps} 个依赖 · {time}": "{bundles} layers · {deps} dependencies · {time}",
-  "当前 profile": "current profile",
   "切到这个 profile": "Switch to it",
-  "卸载": "Remove",
   "正在读市场…": "Reading the market…",
   "市场没读到：{error}": "Could not read the market: {error}",
   "不影响使用——把 .dspack 的链接或 owner/repo 贴在上面照样能装；直连 GitHub 不通时，把设置页的「更新下载源」改成「国内加速」。": "Everything else still works — paste a .dspack link or an owner/repo above. If GitHub is unreachable directly, switch \"Update download source\" to the mirror in Settings.",
@@ -1965,11 +2143,7 @@
   "当前不是由 DSH.exe 启动的，暂时会退回浏览器标签页。": "Not started by DSH.exe right now, so it falls back to a browser tab for now.",
   "已保存。下次打开 dsh 就走新的方式。": "Saved. The next time dsh opens it uses the new way.",
   "更新下载源": "Update download source",
-  "启动器自身更新的下载通道。国内直连 GitHub 常失败，可切成国内加速（走第三方镜像转发同一个文件）。": "How the launcher downloads its own updates. Direct GitHub often fails from mainland China; switch to the accelerated mirror (a third-party relay of the same file).",
-  "直连 GitHub": "Direct GitHub",
   "国内加速": "Accelerated mirror",
-  "直连 GitHub；国内可能连不上或很慢，连不上时可以切成国内加速。": "Direct GitHub; from mainland China this may fail or be very slow — switch to the accelerated mirror if it does.",
-  "走第三方镜像转发，国内一般能连上；文件与直连是同一个。": "Relayed by a third-party mirror that usually works from mainland China; the file is the same as the direct download.",
   "确定": "OK",
   "管理器已停止运行，这个页面可以关掉了。": "The manager has stopped; this page can be closed.",
   "管理页端口": "Manager port",
@@ -1977,7 +2151,6 @@
   "外部工具服务器：写进 profile 补丁层，dsh 在跑会热加载。": "External tool servers: written into the profile patch layer, hot-reloaded while dsh runs.",
   "添加": "Add",
   "检测": "Probe",
-  "刷新": "Refresh",
   "检测会真的起进程或连端点，可能需要几秒。": "Probing really starts the process or calls the endpoint; it can take a few seconds.",
   "技能": "Skills",
   "dsh 与 agents 两个用户级技能目录。": "The two per-user skill folders: dsh and agents.",
@@ -1995,7 +2168,6 @@
   "请求头（可选，JSON）": "Headers (optional, JSON)",
   "超时（毫秒，可选）": "Timeout (ms, optional)",
   "取消": "Cancel",
-  "保存": "Save",
   "编辑": "Edit",
   "删除": "Remove",
   "编辑 MCP 服务器": "Edit an MCP server",
@@ -2147,7 +2319,6 @@
   "已保存。版本目录已改为 {dir}（立即生效）；已安装的版本不会自动迁移，需要就手动复制过去。": "Saved. The version directory is now {dir} (effective immediately); installed versions are not moved automatically.",
   "当前 {live}；重启后尝试切换到 {port}。": "Currently on {live}; will try {port} after a restart.",
   "每版约几百 MB；插件和 profile 仍在 {home}，已安装版本不会迁移。": "Each version uses a few hundred MB. Plugins and profiles stay in {home}; installed versions are not moved.",
-  "上次启动自动禁用了：{names}（认为没问题可在上面重新打开）。": "Disabled at the last start: {names} (turn them back on here if that was wrong).",
   "启动时自动禁用了：{names}（插件页可恢复）": "Disabled at start: {names} (restore them on the Plugins page)",
   "⚠ 页面自检：{failed}/{total} 个插件包加载失败": "⚠ Page self-check: {failed}/{total} client plugin bundles failed to load",
   "{name} 已{state}{changed}。": "{name} {state}.{changed}",
@@ -2167,7 +2338,6 @@
   "检测连接": "Test connection",
   "上传": "Upload",
   "下载": "Download",
-  "停止": "Stop",
   "同步什么": "What to sync",
   "两边不一样时": "When both sides differ",
   "下载时的冲突处理": "Conflict handling when downloading",
@@ -2265,7 +2435,6 @@
   "连接正常。": "Connection is fine.",
   "连接失败：{error}": "Connection failed: {error}",
   "正在上传…": "Uploading…",
-  "正在下载…": "Downloading…",
   "正在停下来，做完手上这个文件就收手…": "Stopping — it will finish the file it is on and then stop…"
 }
 
@@ -2669,7 +2838,7 @@
     const panes = [...document.querySelectorAll('.pane')]
     const gearEl = document.getElementById('settingsEntry')
     // 进面板时按需加载：和以前 tab 的行为一致，不做无谓请求
-    const paneLoaders = { plugins: loadPlugins, packs: loadPacks, mcp: loadMcp, skills: loadSkills, sync: loadSync, settings: loadSettings }
+    const paneLoaders = { plugins: loadPlugins, mcp: loadMcp, skills: loadSkills, sync: loadSync, settings: loadSettings }
     let currentPane = 'control'
     let currentSettingsCategory = 'general'
     const settingsCategories = {
@@ -3680,8 +3849,8 @@
     const updateSourceHint = document.getElementById('updateSourceHint')
     // 更新下载源：直连 GitHub，或者走国内加速镜像（第三方转发同一个文件，所以默认直连）
     const describeUpdateSource = (value) => value === 'mirror'
-      ? t('走第三方镜像转发，国内一般能连上；文件与直连是同一个。')
-      : t('直连 GitHub；国内可能连不上或很慢，连不上时可以切成国内加速。')
+      ? t('先直连 GitHub；连不上再走第三方镜像转发（同一个文件，只是换条路拿）。')
+      : t('只连 GitHub，不经过任何镜像；国内经常连不上——市场和整合包下载都会跟着失败。')
     const settingsHint = document.getElementById('settingsHint')
     const pendingSettings = new Map()
     let settingSaveRunning = false
@@ -3773,9 +3942,9 @@
       if ('updateSource' in data) {
         const list = Array.isArray(data.updateSources) && data.updateSources.length
           ? data.updateSources
-          : [{ id: 'direct', label: '直连 GitHub' }, { id: 'mirror', label: '国内加速' }]
+          : [{ id: 'mirror', label: '国内加速（先直连，连不上走镜像）' }, { id: 'direct', label: '只直连（不用镜像）' }]
         updateSourceEl.innerHTML = list.map((item) => `<option value="${escapeHtml(item.id)}" data-i18n="${escapeHtml(item.label)}">${escapeHtml(t(item.label))}</option>`).join('')
-        updateSourceEl.value = String(data.updateSource || 'direct')
+        updateSourceEl.value = String(data.updateSource || 'mirror')
         updateSourceHint.textContent = describeUpdateSource(updateSourceEl.value)
       }
       if ('webBind' in data) webBindEl.value = data.webBind === 'lan' ? 'lan' : 'loopback'
@@ -3996,12 +4165,9 @@
       else settingsHint.textContent = t('版本目录不能为空')
     }
 
-    const pluginListEl = document.getElementById('pluginList')
     const pluginHintEl = document.getElementById('pluginHint')
     const pluginSubEl = document.getElementById('pluginSub')
     const pluginRefreshEl = document.getElementById('pluginRefresh')
-    const pluginCheckEl = document.getElementById('pluginCheckUpdates')
-    const pluginUpdateAllEl = document.getElementById('pluginUpdateAll')
     let pluginsLoaded = false
     // 插件更新：name → { current, latest, hasUpdate, error? }（服务端查 registry，页面上只做展示）
     let pluginUpdates = {}
@@ -4019,6 +4185,61 @@
       return names.join('、')
     }
 
+    /**
+     * 一行插件（全部插件列表与整合包详情共用）。
+     *
+     * profile 决定开关写到哪份 profile 上（空 = 当前 profile）；updates 是这一行的
+     * 远程版本信息，整合包在别的 profile 上时传空对象——那边没查过，别显示假状态。
+     */
+    function pluginRowHtml(plugin, { profile = '', updates = pluginUpdates } = {}) {
+      const update = updates[plugin.name]
+      const scoped = /^(@[^/]+\/)(.+)$/.exec(plugin.name)
+      const nameHtml = scoped
+        ? `<span class="plugin-scope">${escapeHtml(scoped[1])}</span>${escapeHtml(scoped[2])}`
+        : escapeHtml(plugin.name)
+      const details = [plugin.name, plugin.description, plugin.ids?.length ? t('行 {ids}', { ids: plugin.ids.join(', ') }) : '', plugin.toggleable ? '' : t(plugin.reason || '')].filter(Boolean).join('\n')
+      const status = plugin.enabled ? (update?.error ? t('查不到远程版本') : '') : t('已禁用')
+      return `<label class="toggle plugin-row${plugin.enabled ? '' : ' off'}" title="${escapeHtml(details)}">
+        <span class="plugin-main">
+          <span class="plugin-head">
+            <span class="plugin-name">${nameHtml}</span>
+            ${plugin.version ? `<span class="plugin-version">v${escapeHtml(plugin.version)}</span>` : ''}
+            ${status ? `<span class="plugin-status">${escapeHtml(status)}</span>` : ''}
+          </span>
+          ${plugin.description ? `<span class="plugin-desc">${escapeHtml(plugin.description)}</span>` : ''}
+        </span>
+        ${update?.hasUpdate ? `<button class="plugin-update" type="button" data-update="${escapeHtml(plugin.name)}" data-profile="${escapeHtml(profile)}" aria-label="${escapeHtml(`${plugin.name} ${t('更新到 {latest}', { latest: update.latest })}`)}" ${pluginUpdating ? 'disabled' : ''}>${escapeHtml(t('更新到 {latest}', { latest: update.latest }))}</button>` : ''}
+        <input type="checkbox" data-plugin="${escapeHtml(plugin.name)}" data-profile="${escapeHtml(profile)}" ${plugin.enabled ? 'checked' : ''} ${plugin.toggleable ? '' : 'disabled'} />
+      </label>`
+    }
+
+    function bindPluginRowEvents(root, profile = '') {
+      root.querySelectorAll('input[data-plugin]').forEach((el) => {
+        el.onchange = () => { void togglePlugin(el.dataset.plugin, el.checked, el.dataset.profile || profile) }
+      })
+      root.querySelectorAll('button[data-update]').forEach((el) => {
+        el.onclick = (event) => {
+          // 整行是个 label（点哪都能开关），按钮的点击不能顺带把插件关掉
+          event.preventDefault()
+          event.stopPropagation()
+          void updatePlugin(el.dataset.update)
+        }
+      })
+    }
+
+    /** 服务端回来的插件/整合包载荷统一往页面里灌：两边都带着新状态。 */
+    function applyPluginPayload(data) {
+      if (Array.isArray(data?.plugins)) {
+        pluginListData = data
+        renderPlugins(data)
+      }
+      if (Array.isArray(data?.packs)) {
+        packState = { ...packState, ...data }
+        renderPackGrid()
+        renderPackView()
+      }
+    }
+
     function renderPlugins(data) {
       const list = Array.isArray(data?.plugins) ? data.plugins : []
       const on = list.filter((plugin) => plugin.enabled).length
@@ -4027,71 +4248,30 @@
           ? t('共 {total} 个插件 · {on} 个已启用', { total: list.length, on })
           : ''
       }
-      if (!list.length) {
-        pluginListEl.innerHTML = `<div class="plugin-empty">${t('这个 profile 里没有已安装的插件。')}</div>`
-        return
-      }
-      pluginListEl.innerHTML = list.map((plugin) => {
-        const update = pluginUpdates[plugin.name]
-        const scoped = /^(@[^/]+\/)(.+)$/.exec(plugin.name)
-        const nameHtml = scoped
-          ? `<span class="plugin-scope">${escapeHtml(scoped[1])}</span>${escapeHtml(scoped[2])}`
-          : escapeHtml(plugin.name)
-        const details = [plugin.name, plugin.description, plugin.ids?.length ? t('行 {ids}', { ids: plugin.ids.join(', ') }) : '', plugin.toggleable ? '' : t(plugin.reason || '')].filter(Boolean).join('\n')
-        const status = plugin.enabled ? (update?.error ? t('查不到远程版本') : '') : t('已禁用')
-        return `<label class="toggle plugin-row${plugin.enabled ? '' : ' off'}" title="${escapeHtml(details)}">
-          <span class="plugin-main">
-            <span class="plugin-head">
-              <span class="plugin-name">${nameHtml}</span>
-              ${plugin.version ? `<span class="plugin-version">v${escapeHtml(plugin.version)}</span>` : ''}
-              ${status ? `<span class="plugin-status">${escapeHtml(status)}</span>` : ''}
-            </span>
-            ${plugin.description ? `<span class="plugin-desc">${escapeHtml(plugin.description)}</span>` : ''}
-          </span>
-          ${update?.hasUpdate ? `<button class="plugin-update" type="button" data-update="${escapeHtml(plugin.name)}" aria-label="${escapeHtml(`${plugin.name} ${t('更新到 {latest}', { latest: update.latest })}`)}" ${pluginUpdating ? 'disabled' : ''}>${escapeHtml(t('更新到 {latest}', { latest: update.latest }))}</button>` : ''}
-          <input type="checkbox" data-plugin="${escapeHtml(plugin.name)}" ${plugin.enabled ? 'checked' : ''} ${plugin.toggleable ? '' : 'disabled'} />
-        </label>`
-      }).join('')
-      pluginListEl.querySelectorAll('input[data-plugin]').forEach((el) => {
-        el.onchange = () => { void togglePlugin(el.dataset.plugin, el.checked) }
-      })
-      pluginListEl.querySelectorAll('button[data-update]').forEach((el) => {
-        el.onclick = (event) => {
-          // 整行是个 label（点哪都能开关），按钮的点击不能顺带把插件关掉
-          event.preventDefault()
-          event.stopPropagation()
-          void updatePlugin(el.dataset.update)
-        }
-      })
-      if (pluginUpdateAllEl) {
-        const pending = list.filter((plugin) => pluginUpdates[plugin.name]?.hasUpdate).length
-        pluginUpdateAllEl.hidden = pending === 0
-        if (pending) pluginUpdateAllEl.textContent = t('全部更新（{n}）', { n: pending })
-        else pluginUpdateAllEl.textContent = t('全部更新')
-      }
+      if (!list.length) return
+      // 插件行只在「环境详情」里画（点开那张卡就是它）；这里只更新标题与「N 个已启用」
     }
 
-    async function togglePlugin(name, enabled) {
+    async function togglePlugin(name, enabled, profile = '') {
       pluginHintEl.textContent = t('正在{act} {name}…', { act: enabled ? t('正在启用') : t('正在禁用'), name })
       try {
-        const data = await post('/api/plugins/toggle', { name, enabled })
-        renderPlugins(data)
+        const data = await post('/api/plugins/toggle', { name, enabled, profile })
+        applyPluginPayload(data)
         const changed = data.changed ? '' : t('（无变化）')
         pluginHintEl.textContent = t('{name} 已{state}{changed}。', { name, state: enabled ? t('启用') : t('禁用'), changed })
       } catch (error) {
         pluginHintEl.textContent = error.message
-        loadPlugins()
+        void loadPlugins()
       }
     }
 
     function loadPlugins() {
       return getJson('/api/plugins').then((data) => {
-        pluginListData = data
-        renderPlugins(data)
+        applyPluginPayload(data)
         // 版本信息拿到后再查一次 registry：查不到（离线/私有包）就静默跳过，别打扰
         void refreshPluginUpdates({ quiet: true }).catch(() => {})
         const names = (data.autoFix?.plugins || []).map((item) => item.name || item.id).filter(Boolean)
-        if (names.length) pluginHintEl.textContent = t('上次启动自动禁用了：{names}（认为没问题可在上面重新打开）。', { names: names.join('、') })
+        if (names.length) pluginHintEl.textContent = t('上次启动自动禁用了：{names}（点开正在用的那张卡可以重新打开）。', { names: names.join('、') })
         else if (!pluginsLoaded) pluginHintEl.textContent = ''
         pluginsLoaded = true
       }).catch((error) => { pluginHintEl.textContent = error.message })
@@ -4104,7 +4284,7 @@
       pluginRefreshEl.disabled = false
     }
 
-    function pluginButtons(list = [pluginCheckEl, pluginUpdateAllEl, pluginRefreshEl]) {
+    function pluginButtons(list = [pluginRefreshEl]) {
       for (const el of list) if (el) el.disabled = Boolean(pluginUpdating)
     }
 
@@ -4114,7 +4294,9 @@
       const url = force ? '/api/plugins/updates?refresh=1' : '/api/plugins/updates'
       const data = await fetch(url).then((res) => res.json())
       pluginUpdates = data.plugins || {}
-      if (pluginListData) renderPlugins(pluginListData)
+      // 更新信息影响卡片上的「更新 N 个」与详情里的行，两处都重画
+      renderPackGrid()
+      renderPackView()
       if (!quiet) {
         const all = Object.values(pluginUpdates)
         const pending = all.filter((info) => info.hasUpdate).length
@@ -4178,96 +4360,338 @@
       }
     }
 
-    if (pluginCheckEl) {
-      pluginCheckEl.onclick = async () => {
-        pluginCheckEl.disabled = true
-        try {
-          await refreshPluginUpdates({ force: true })
-        } catch (error) {
-          pluginHintEl.textContent = error.message
-        } finally {
-          pluginButtons()
-        }
-      }
-    }
-    if (pluginUpdateAllEl) {
-      pluginUpdateAllEl.onclick = () => { void updateAllPlugins() }
-    }
+    // 「检查更新」不再单独占一个按钮：刷新按钮顺带强制查一次（见下面的 pluginRefreshEl）
+    // 「全部更新」入口也收进了每个环境的详情（卡片上的「更新 N 个」走 /api/packs/update）
 
     // applyLang() 挪到脚本末尾统一调一次：它里面有同步页的按钮文案（paintSyncActions），
     // 而那段用到的元素引用是 const，在这里还没求值，会踩 TDZ 把整段脚本带停。
 
     // ---- 整合包：一批插件 + 一套配置一次装进一个 profile ----
-    //
-    // 三步走：检查（下载 + 解析 + 出安装计划）→ 人看一遍 → 安装。检查过的包在服务端有
-    // 一份 token，安装时不用再下一次；进度走 SSE 的 kind === 'pack' 事件。
-    const packInstalledEl = document.getElementById('packInstalled')
+    // 整合包在这个页面里的两层：上面是卡片（一个包一张），点开一张进「这个包里的插件」。
+    // 装包走弹窗（来源 + 市场 → 检查 → 安装），检查过的包在服务端有一份 token，安装时不用再下一次；
+    // 进度走 SSE 的 kind === 'pack' 事件。
+    const packGridEl = document.getElementById('packGrid')
+    const packCaptionEl = document.getElementById('packCaption')
+    const pluginOverviewEl = document.getElementById('pluginOverview')
+    const packViewEl = document.getElementById('packView')
+    const packHeadEl = document.getElementById('packHead')
+    const packPluginListEl = document.getElementById('packPluginList')
+    const packBackEl = document.getElementById('packBack')
+    const packImportDialog = document.getElementById('packImportDialog')
+    const packImportOpenEl = document.getElementById('packImportOpen')
+    const packImportCloseEl = document.getElementById('packImportClose')
+    const packExportDialog = document.getElementById('packExportDialog')
+    const packExportProfileEl = document.getElementById('packExportProfile')
+    const packExportGoEl = document.getElementById('packExportGo')
+    const packExportCancelEl = document.getElementById('packExportCancel')
+    const packExportNameEl = document.getElementById('packExportName')
+    const packExportVersionEl = document.getElementById('packExportVersion')
+    const packExportHomeEl = document.getElementById('packExportHome')
+    const packExportHintEl = document.getElementById('packExportHint')
+    const packInspectEl = document.getElementById('packInspect')
     const packMarketEl = document.getElementById('packMarket')
-    const packMarketTitleEl = document.getElementById('packMarketTitle')
-    const packDetailEl = document.getElementById('packDetail')
     const packSourceEl = document.getElementById('packSource')
     const packCheckEl = document.getElementById('packCheck')
     const packPickEl = document.getElementById('packPick')
-    const packRefreshEl = document.getElementById('packRefresh')
-    const packExportEl = document.getElementById('packExport')
-    const packExportHomeEl = document.getElementById('packExportHome')
-    const packExportVersionEl = document.getElementById('packExportVersion')
     const packHintEl = document.getElementById('packHint')
-    const packSubEl = document.getElementById('packSub')
     let packState = { packs: [], profile: '', profiles: [], busy: false }
     let packInspection = null
     let packMarket = null
     let packProgress = null
     let packBusy = false
-    let packLoaded = false
+    let packMarketLoaded = false
+    /** 现在打开的是哪个包（点卡片进来的），空表示在列表视图。 */
+    let openedPack = null
 
-    /** 已装的整合包：一行一个，带「切到这个 profile」与「卸载」。 */
-    function renderPackInstalled() {
-      const list = Array.isArray(packState.packs) ? packState.packs : []
-      if (packSubEl) {
-        packSubEl.textContent = t('当前 profile：{profile} · 已装 {n} 个整合包', { profile: packState.profile || '-', n: list.length })
-      }
-      if (!list.length) {
-        packInstalledEl.innerHTML = `<div class="plugin-empty">${t('还没装过整合包。从下面挑一个，或者贴一个 .dspack 链接。')}</div>`
-        return
-      }
-      packInstalledEl.innerHTML = list.map((item) => {
-        const current = item.profile === packState.profile
-        // 记的是 ISO（UTC），显示成本机时间——直接切片会差 8 小时
-        const when = (() => {
-          const at = new Date(item.installedAt || '')
-          if (Number.isNaN(at.getTime())) return ''
-          const pad = (value) => String(value).padStart(2, '0')
-          return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())} ${pad(at.getHours())}:${pad(at.getMinutes())}`
-        })()
-        const details = [item.displayName || item.name, item.source, when].filter(Boolean).join('\n')
-        const meta = t('{bundles} 层 · {deps} 个依赖 · {time}', {
-          bundles: (item.bundles || []).length,
-          deps: Object.keys(item.dependencies || {}).length,
-          time: when,
+    /** 封面块：包基本没有图标，用包名首字 + 名字定的色相，一眼能认出来。 */
+    function packTileHtml(item, { big = false } = {}) {
+      const name = String(item.displayName || item.name || '?')
+      let hue = 0
+      for (const ch of String(item.name || name)) hue = (hue * 31 + ch.codePointAt(0)) % 360
+      return `<div class="pack-tile${big ? ' big' : ''}" style="--tile-hue:${hue}" aria-hidden="true">${escapeHtml([...name][0] || '?')}</div>`
+    }
+
+    /** 记的是 ISO（UTC），显示成本机时间——直接切片会差 8 小时。 */
+    function localTime(value) {
+      const at = new Date(value || '')
+      if (Number.isNaN(at.getTime())) return ''
+      const pad = (number) => String(number).padStart(2, '0')
+      return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())} ${pad(at.getHours())}:${pad(at.getMinutes())}`
+    }
+
+    /**
+     * 一个 profile 卡片的公共内容（列表卡片与详情页头共用）。
+     *
+     * 「几个开着」是配置状态（写在那份 profile 的补丁层里），和「正在运行」是两件事：
+     * dsh 一次只加载一份 profile，所以开着多少个插件不等于这份环境在跑。
+     */
+    function packMetaLine(item) {
+      const plugins = item.plugins || []
+      const on = plugins.filter((plugin) => plugin.enabled).length
+      return [
+        t('{n} 个插件', { n: item.pluginCount ?? plugins.length }),
+        plugins.length ? t('{on} 个开着', { on }) : '',
+      ].filter(Boolean).join(' · ')
+    }
+
+    /**
+     * 一张卡就是一个 profile（整合包装完的产物就是它），所以卡片标题用 profile 名，
+     * 来源放标签里：装过整合包的标包名与版本，手动拼的标「手动创建」；
+     * 正在用的那份单独标「正在用」——其余的环境没在跑，只是配置在这儿。
+     */
+    function packSourceTags(item) {
+      return [
+        item.packName
+          ? t('整合包：{name}{version}', { name: item.packName, version: item.packVersion ? ` v${item.packVersion}` : '' })
+          : t('手动创建'),
+      ]
+    }
+
+    /** 整包开关：把这个 profile 里的第三方插件一起启停。 */
+    async function togglePack(item, enabled) {
+      pluginHintEl.textContent = t('正在{act} {name} 里的插件…', { act: enabled ? t('正在启用') : t('正在禁用'), name: item.profile })
+      try {
+        const data = await post('/api/packs/toggle', { profile: item.profile, enabled })
+        applyPluginPayload(data)
+        const failed = (data.failed || []).length
+        const later = item.profile === packState.profile ? '' : t('（切到这个 profile 后生效）')
+        pluginHintEl.textContent = t('profile {name} 的插件已{state}{failed}{later}', {
+          name: item.profile,
+          state: enabled ? t('启用') : t('停用'),
+          failed: failed ? t('（{n} 个不支持开关）', { n: failed }) : '',
+          later,
         })
-        return `<div class="plugin-row pack-row" title="${escapeHtml(details)}">
-          <span class="plugin-main">
-            <span class="plugin-head">
-              <span class="plugin-name">${escapeHtml(item.displayName || item.name)}</span>
-              <span class="plugin-version">v${escapeHtml(item.version)}</span>
-              <span class="plugin-status">${escapeHtml(current ? t('当前 profile') : `profile ${item.profile}`)}</span>
-            </span>
-            <span class="plugin-desc">${escapeHtml(meta)}</span>
-          </span>
-          ${current ? '' : `<button class="plugin-update" type="button" data-switch="${escapeHtml(item.profile)}">${escapeHtml(t('切到这个 profile'))}</button>`}
-          <button class="ghost" type="button" data-remove="${escapeHtml(item.name)}" data-profile="${escapeHtml(item.profile)}" data-created="${item.createdProfile ? '1' : ''}" ${packBusy ? 'disabled' : ''}>${escapeHtml(t('卸载'))}</button>
-        </div>`
+      } catch (error) {
+        pluginHintEl.textContent = error.message
+        void loadPlugins()
+      }
+    }
+
+    /** 列表只负责选环境，环境内的操作放进详情，避免一张卡上挤满按钮。 */
+    function renderPackGrid() {
+      const list = Array.isArray(packState.packs) ? packState.packs : []
+      if (packCaptionEl) {
+        packCaptionEl.textContent = list.length
+          ? t('我的环境（{n}）', { n: list.length })
+          : t('我的环境')
+      }
+      const cards = list.map((item) => {
+        return `<button class="pack-card${item.profile === packState.profile ? ' is-current' : ''}" type="button" data-pack-open="1" data-profile="${escapeHtml(item.profile)}" aria-label="${escapeHtml(t('查看环境 {name} 的插件', { name: item.profile }))}">
+          ${packTileHtml(item)}
+          <div class="pack-card-body">
+            <div class="pack-card-head">
+              <span class="pack-card-name">${escapeHtml(item.profile)}</span>
+              ${item.profile === packState.profile ? `<span class="pack-tag">${escapeHtml(t('正在用'))}</span>` : ''}
+            </div>
+            <div class="pack-card-meta">${escapeHtml(packMetaLine(item))}</div>
+            <div class="pack-card-tags">${packSourceTags(item).map((tag) => `<span class="pack-tag">${escapeHtml(tag)}</span>`).join('')}</div>
+          </div>
+          <span class="pack-card-arrow" aria-hidden="true">›</span>
+        </button>`
       }).join('')
-      packInstalledEl.querySelectorAll('button[data-switch]').forEach((el) => {
-        el.onclick = () => { void switchProfile(el.dataset.switch) }
+      const empty = list.length ? '' : `<button class="pack-card empty" type="button" data-pack-add="1">
+        <div class="pack-tile" aria-hidden="true">＋</div>
+        <div class="pack-card-body">
+          <div class="pack-card-head"><span class="pack-card-name">${escapeHtml(t('装一个整合包'))}</span></div>
+          <div class="pack-card-meta">${escapeHtml(t('还没有装过插件：从文件、链接或市场里挑一个整合包'))}</div>
+        </div>
+      </button>`
+      packGridEl.innerHTML = cards + empty
+      packGridEl.querySelectorAll('[data-pack-open]').forEach((el) => {
+        el.onclick = () => openPack(el.dataset.profile)
       })
-      packInstalledEl.querySelectorAll('button[data-remove]').forEach((el) => {
-        el.onclick = () => { void removePack(el.dataset.remove, el.dataset.profile, el.dataset.created === '1') }
+      packGridEl.querySelectorAll('[data-pack-add]').forEach((el) => {
+        el.onclick = () => openImportDialog()
       })
     }
 
-    /** 社区整合包列表：卡片一行一个，点「检查」走和贴链接一样的路。 */
+    function openPack(profile) {
+      openedPack = { profile }
+      renderPackView()
+      document.getElementById('pane-plugins')?.scrollTo({ top: 0 })
+    }
+
+    function closePack() {
+      openedPack = null
+      renderPackView()
+    }
+
+    /** 卡详情：这个环境里的插件（每个都能单独开关）+ 这个环境的操作。 */
+    function renderPackView() {
+      if (!openedPack) {
+        packViewEl.hidden = true
+        pluginOverviewEl.hidden = false
+        if (pluginListData) renderPlugins(pluginListData)
+        return
+      }
+      const item = (packState.packs || []).find((one) => one.profile === openedPack.profile)
+      if (!item) {
+        openedPack = null
+        packViewEl.hidden = true
+        pluginOverviewEl.hidden = false
+        if (pluginListData) renderPlugins(pluginListData)
+        return
+      }
+      pluginOverviewEl.hidden = true
+      packViewEl.hidden = false
+      if (pluginSubEl) pluginSubEl.textContent = t('正在查看环境 {name}', { name: item.profile })
+      const pending = item.profile === packState.profile
+        ? (item.plugins || []).filter((plugin) => pluginUpdates[plugin.name]?.hasUpdate).length
+        : 0
+      const records = item.records || []
+      packHeadEl.innerHTML = `
+        ${packTileHtml(item, { big: true })}
+        <div class="pack-card-body">
+          <div class="pack-card-head">
+            <span class="pack-card-name">${escapeHtml(item.profile)}</span>
+            ${item.profile === packState.profile ? `<span class="pack-tag">${escapeHtml(t('正在用'))}</span>` : ''}
+          </div>
+          <div class="pack-card-meta">${escapeHtml(packMetaLine(item))}</div>
+          <div class="pack-card-tags">${packSourceTags(item).map((tag) => `<span class="pack-tag">${escapeHtml(tag)}</span>`).join('')}</div>
+          <div class="pack-card-actions">
+            ${item.profile === packState.profile ? '' : `<button class="ghost" type="button" data-pack-switch-profile="1">${escapeHtml(t('切换到这个环境'))}</button>`}
+            ${item.profile === packState.profile ? `<button class="ghost" type="button" data-pack-check-updates="1">${escapeHtml(t('检查更新'))}</button>` : ''}
+            ${pending ? `<button class="plugin-update" type="button" data-pack-update="1">${escapeHtml(t('更新 {n} 个', { n: pending }))}</button>` : ''}
+          </div>
+          <label class="pack-bulk-toggle">
+            <span class="pack-bulk-copy"><strong>${escapeHtml(t('批量启用插件'))}</strong><small>${escapeHtml(item.profile === packState.profile ? t('管理这个环境中可开关的插件') : t('切换到这个环境后生效'))}</small></span>
+            <span class="pack-switch"><input type="checkbox" id="packViewToggle" ${item.enabled ? 'checked' : ''} ${item.toggleable ? '' : 'disabled'} ${packBusy ? 'disabled' : ''} /></span>
+          </label>
+          ${item.toggleable ? '' : `<div class="pack-card-meta">${escapeHtml(t('这个环境里的插件没有可开关的加载行（客户端插件由插件市场管理）'))}</div>`}
+          <details class="pack-more">
+            <summary>${escapeHtml(t('更多操作'))}</summary>
+            <div class="pack-card-actions">
+              <button class="ghost" type="button" data-pack-export="1" ${packBusy ? 'disabled' : ''}>${escapeHtml(t('导出整合包'))}</button>
+              ${records.length ? `<button class="ghost" type="button" data-pack-remove="1" ${packBusy ? 'disabled' : ''}>${escapeHtml(t('卸载整合包'))}</button>` : ''}
+              ${!records.length && item.profile !== packState.profile && !item.template ? `<button class="ghost" type="button" data-pack-delete="1" ${packBusy ? 'disabled' : ''}>${escapeHtml(t('删除 profile'))}</button>` : ''}
+            </div>
+            ${records.map((record) => `<div class="pack-card-meta">${escapeHtml(t('安装记录：{name} v{version} · {time} · {source}', { name: record.displayName || record.name, version: record.version, time: localTime(record.installedAt), source: record.source || '' }))}</div>`).join('')}
+          </details>
+        </div>`
+      const toggleEl = document.getElementById('packViewToggle')
+      if (toggleEl) toggleEl.onchange = () => { void togglePack(item, toggleEl.checked) }
+      const actions = packHeadEl
+      actions.querySelector('[data-pack-switch-profile]')?.addEventListener('click', () => switchProfileSafe(item.profile))
+      actions.querySelector('[data-pack-check-updates]')?.addEventListener('click', async (event) => {
+        event.currentTarget.disabled = true
+        try { await refreshPluginUpdates({ force: true }) }
+        catch (error) { pluginHintEl.textContent = error.message }
+      })
+      actions.querySelector('[data-pack-export]')?.addEventListener('click', () => openExportDialog(item))
+      actions.querySelector('[data-pack-delete]')?.addEventListener('click', () => { void removeProfileDir(item) })
+      actions.querySelector('[data-pack-update]')?.addEventListener('click', () => { void updatePack(item) })
+      actions.querySelector('[data-pack-remove]')?.addEventListener('click', () => {
+        // 一个 profile 上可能装过不止一个整合包：从最新那条开始还原，剩下的在列表里逐条撤
+        const latest = records[records.length - 1]
+        void removePack(latest.name, latest.profile, latest.createdProfile === true)
+      })
+
+      const rows = (item.plugins || []).map((plugin) => pluginRowHtml(plugin, {
+        profile: item.profile,
+        updates: item.profile === packState.profile ? pluginUpdates : {},
+      }))
+      packPluginListEl.innerHTML = rows.length
+        ? rows.join('')
+        : `<div class="plugin-empty">${escapeHtml(t('这份 profile 里没有已安装的插件。'))}</div>`
+      bindPluginRowEvents(packPluginListEl, item.profile)
+    }
+
+    /** 更新一个 profile 里的插件：服务端逐个走单插件升级那条路（只认当前 profile）。 */
+    async function updatePack(item) {
+      if (packBusy) return
+      packBusy = true
+      renderPackGrid()
+      renderPackView()
+      pluginHintEl.textContent = t('正在更新 profile {name} 的插件…', { name: item.profile })
+      try {
+        const data = await post('/api/packs/update', { profile: item.profile })
+        applyPluginPayload(data)
+        pluginHintEl.textContent = t('profile {name} 更新完成：{n} 个升级{failed}', {
+          name: item.profile,
+          n: data.updated || 0,
+          failed: (data.failed || []).length ? t('，{n} 个失败', { n: data.failed.length }) : '',
+        })
+        if ((data.failed || []).length) notify(data.failed.join('\n'), t('有插件没更新成功'))
+        await refreshPluginUpdates({ force: true, quiet: true }).catch(() => {})
+      } catch (error) {
+        pluginHintEl.textContent = error.message
+        notify(error.message, t('整合包更新失败'))
+      } finally {
+        packBusy = false
+        renderPackGrid()
+        renderPackView()
+      }
+    }
+
+    /** 手动拼的 profile 没有安装记录可还原，只能整个删掉。 */
+    async function removeProfileDir(item) {
+      if (packBusy) return
+      if (!confirm(t('删除 profile「{profile}」？它里面的插件与配置会一起没（{n} 个插件）。', { profile: item.profile, n: item.pluginCount }))) return
+      if (!confirm(t('确认删除「{profile}」整个目录？这一步撤不回来。', { profile: item.profile }))) return
+      packBusy = true
+      renderPackGrid()
+      renderPackView()
+      try {
+        const data = await post('/api/packs/remove-profile', { profile: item.profile })
+        if (openedPack && openedPack.profile === item.profile) openedPack = null
+        applyPluginPayload(data)
+        pluginHintEl.textContent = t('profile「{profile}」已删除。', { profile: item.profile })
+      } catch (error) {
+        pluginHintEl.textContent = error.message
+        notify(error.message, t('删除失败'))
+      } finally {
+        packBusy = false
+        renderPackGrid()
+        renderPackView()
+      }
+    }
+
+    /** 切到某个 profile 并重启。 */
+    async function switchProfileSafe(profile) {
+      if (!confirm(t('切到 profile「{profile}」并重启 dsh？现在跑着的会话会断。', { profile }))) return
+      pluginHintEl.textContent = t('正在切到 profile「{profile}」…', { profile })
+      try {
+        await post('/api/settings', { profile })
+        pluginHintEl.textContent = t('已切到 profile「{profile}」，正在重启 dsh…', { profile })
+        await post('/api/restart', {})
+        pluginHintEl.textContent = t('已切到 profile「{profile}」，dsh 正在重启。', { profile })
+        await loadPlugins()
+      } catch (error) {
+        pluginHintEl.textContent = error.message
+      }
+    }
+
+    // ---- 装整合包 / 导出：两个弹窗 ----
+
+    function openImportDialog() {
+      packImportDialog.hidden = false
+      if (!packMarketLoaded) {
+        packMarketLoaded = true
+        void loadMarket({ quiet: true })
+      }
+      packSourceEl.focus()
+    }
+
+    function closeImportDialog() {
+      packImportDialog.hidden = true
+    }
+
+    function openExportDialog(item = null) {
+      const profile = item ? item.profile : (packState.profile || '')
+      // 装过整合包的用包名与版本打底，手动拼的从 profile 名与 1.0.0 起
+      packExportNameEl.value = item ? (item.packName || profile) : profile
+      packExportVersionEl.value = item?.packVersion || '1.0.0'
+      packExportHintEl.textContent = t('导出的是 profile「{profile}」现在的样子。', { profile })
+      packExportDialog.dataset.profile = profile
+      packExportDialog.hidden = false
+      packExportNameEl.focus()
+    }
+
+    function closeExportDialog() {
+      packExportDialog.hidden = true
+    }
+
+    /** 社区市场列表：点「检查」走和贴链接一样的路。 */
     function renderPackMarket() {
       if (!packMarket) {
         packMarketEl.innerHTML = `<div class="plugin-empty">${t('正在读市场…')}</div>`
@@ -4276,7 +4700,8 @@
       if (packMarket.error) {
         packMarketEl.innerHTML = `<div class="plugin-empty">${escapeHtml(t('市场没读到：{error}', { error: packMarket.error }))}<br />${escapeHtml(t('不影响使用——把 .dspack 的链接或 owner/repo 贴在上面照样能装；直连 GitHub 不通时，把设置页的「更新下载源」改成「国内加速」。'))}</div>`
         return
-      }      if (!packMarket.entries.length) {
+      }
+      if (!packMarket.entries.length) {
         packMarketEl.innerHTML = `<div class="plugin-empty">${t('市场里现在没有条目。')}</div>`
         return
       }
@@ -4341,10 +4766,10 @@
     }
 
     /** 检查结果：把「装什么、装到哪、会覆盖什么」摆出来，再让人点安装。 */
-    function renderPackDetail() {
+    function renderPackInspect() {
       if (!packInspection) {
-        packDetailEl.hidden = true
-        packDetailEl.innerHTML = ''
+        packInspectEl.hidden = true
+        packInspectEl.innerHTML = ''
         return
       }
       const data = packInspection
@@ -4362,22 +4787,28 @@
       ].filter(Boolean).join(' · ')
       const creates = data.target?.createsProfile
       const notes = (plan.notes || []).map(packNoteText).filter(Boolean)
-      packDetailEl.hidden = false
-      packDetailEl.innerHTML = `
+      packInspectEl.hidden = false
+      packInspectEl.innerHTML = `
         <div class="pack-title">
           <span class="pack-name">${escapeHtml(pack.displayName || pack.name)}</span>
           <span class="pack-meta">v${escapeHtml(pack.version)}${meta ? ` · ${escapeHtml(meta)}` : ''}</span>
         </div>
         ${pack.description ? `<div class="pack-desc">${escapeHtml(pack.description)}</div>` : ''}
+        <div class="pack-inspect-summary">${escapeHtml(t('{deps} 个依赖 · {files} 个文件需要写入', { deps: deps.length, files: (plan.writes || []).length }))}</div>
         ${packNotes(t('问题（先解决这些）'), plan.errors || [], 'warn')}
         ${packNotes(t('会怎么装'), notes)}
         ${packNotes(t('要注意'), plan.warnings || [], 'warn')}
-        ${packRows(t('层栈（dsh 按顺序加载）'), bundleRows)}
-        ${packRows(t('依赖'), deps)}
-        ${packRows(t('要写的文件'), (plan.writes || []).map((write) => `${write.rel}${write.note ? `（${write.note}）` : ''}`))}
-        ${packRows(t('覆盖文件'), overrides)}
-        ${packRows(t('用户级文件'), home)}
-        ${packNotes(t('包里没装的内容'), [...(pack.skipped || []).map((item) => `${item.path}：${item.reason}`), ...(pack.warnings || [])])}
+        <details class="pack-advanced">
+          <summary>${escapeHtml(t('查看安装详情'))}</summary>
+          <div class="pack-advanced-content">
+            ${packRows(t('层栈（dsh 按顺序加载）'), bundleRows)}
+            ${packRows(t('依赖'), deps)}
+            ${packRows(t('要写的文件'), (plan.writes || []).map((write) => `${write.rel}${write.note ? `（${write.note}）` : ''}`))}
+            ${packRows(t('覆盖文件'), overrides)}
+            ${packRows(t('用户级文件'), home)}
+            ${packNotes(t('包里没装的内容'), [...(pack.skipped || []).map((item) => `${item.path}：${item.reason}`), ...(pack.warnings || [])])}
+          </div>
+        </details>
         <div class="pack-target">
           <label for="packProfile">${escapeHtml(t('装进 profile'))}</label>
           <input id="packProfile" type="text" value="${escapeHtml(data.target?.profile || '')}" list="packProfiles" autocomplete="off" spellcheck="false" />
@@ -4392,18 +4823,9 @@
       if (installEl) installEl.onclick = () => { void installPack() }
       document.getElementById('packCancel').onclick = () => {
         packInspection = null
-        renderPackDetail()
+        renderPackInspect()
         packHintEl.textContent = ''
       }
-    }
-
-    function loadPacks() {
-      return getJson('/api/packs').then((data) => {
-        packState = data
-        renderPackInstalled()
-        if (!packLoaded) void loadMarket({ quiet: true })
-        packLoaded = true
-      }).catch((error) => { packHintEl.textContent = error.message })
     }
 
     async function loadMarket({ quiet = false, force = false } = {}) {
@@ -4415,8 +4837,7 @@
       }
       renderPackMarket()
       if (!quiet) {
-        const ok = packMarket.ok
-        packHintEl.textContent = ok
+        packHintEl.textContent = packMarket.ok
           ? t('市场里现在有 {n} 个整合包。', { n: packMarket.entries.length })
           : t('市场没读到：{error}', { error: packMarket.error || '' })
       }
@@ -4425,14 +4846,15 @@
     async function inspectPack(payload) {
       if (packBusy) return
       packBusy = true
+      openImportDialog()
       renderPackMarket()
       packInspection = null
-      renderPackDetail()
+      renderPackInspect()
       packHintEl.textContent = t('正在下载并检查…')
       try {
         const data = await post('/api/packs/inspect', payload)
         packInspection = data
-        renderPackDetail()
+        renderPackInspect()
         packHintEl.textContent = data.ok
           ? t('检查完了：{name} {version}。确认没问题就点安装。', { name: data.pack.displayName || data.pack.name, version: data.pack.version })
           : t('这个包有问题，先看上面的原因。')
@@ -4442,7 +4864,7 @@
       } finally {
         packBusy = false
         // 详情卡里的「安装」要等 packBusy 复位后才画得成可用状态
-        renderPackDetail()
+        renderPackInspect()
         renderPackMarket()
       }
     }
@@ -4451,7 +4873,7 @@
       if (!packInspection || packBusy) return
       packBusy = true
       renderPackMarket()
-      renderPackDetail()
+      renderPackInspect()
       packHintEl.textContent = t('正在安装…（下面有进度）')
       try {
         const profile = String(document.getElementById('packProfile')?.value || '').trim()
@@ -4460,24 +4882,21 @@
           source: packInspection.source,
           profile,
         })
-        packState = data
         const installed = data.installed
         packInspection = null
-        renderPackDetail()
-        renderPackInstalled()
-        const switching = installed.profile !== data.profile
-        packHintEl.innerHTML = escapeHtml(t('{name} 已装进 profile「{profile}」，重启 dsh 后生效。', { name: installed.displayName || installed.name, profile: installed.profile }))
-          + (switching ? ` <button class="ghost" type="button" id="packSwitchNow">${escapeHtml(t('现在切过去并重启'))}</button>` : '')
-        const switchEl = document.getElementById('packSwitchNow')
-        if (switchEl) switchEl.onclick = () => { void switchProfile(installed.profile, { restart: true }) }
+        applyPluginPayload(data)
+        renderPackInspect()
+        packHintEl.textContent = t('{name} 已装进 profile「{profile}」，重启 dsh 后生效。', { name: installed.displayName || installed.name, profile: installed.profile })
+        pluginHintEl.textContent = t('{name} 已装进 profile「{profile}」，重启 dsh 后生效。', { name: installed.displayName || installed.name, profile: installed.profile })
+        closeImportDialog()
+        openPack(installed.profile)
       } catch (error) {
         packHintEl.textContent = error.message
         notify(error.message, t('整合包安装失败'))
       } finally {
         packBusy = false
         renderPackMarket()
-        renderPackInstalled()
-        renderPackDetail()
+        renderPackInspect()
       }
     }
 
@@ -4491,59 +4910,46 @@
         removeProfile = confirm(t('这个 profile 是整合包装的。要不要连整个 profile 目录一起删掉？里面的插件和配置会一起没。'))
       }
       packBusy = true
-      renderPackInstalled()
+      renderPackGrid()
+      renderPackView()
       try {
         const data = await post('/api/packs/uninstall', { name, profile, removeProfile })
-        packState = data
-        renderPackInstalled()
-        packHintEl.textContent = t('{name} 已卸载。', { name: label })
+        if (openedPack && openedPack.name === name && openedPack.profile === profile) openedPack = null
+        applyPluginPayload(data)
+        pluginHintEl.textContent = t('{name} 已卸载。', { name: label })
       } catch (error) {
-        packHintEl.textContent = error.message
+        pluginHintEl.textContent = error.message
         notify(error.message, t('整合包卸载失败'))
       } finally {
         packBusy = false
-        renderPackInstalled()
-      }
-    }
-
-    async function switchProfile(profile, { restart = false } = {}) {
-      packHintEl.textContent = t('正在切到 profile「{profile}」…', { profile })
-      try {
-        await post('/api/settings', { profile })
-        if (restart) {
-          packHintEl.textContent = t('已切到 profile「{profile}」，正在重启 dsh…', { profile })
-          await post('/api/restart', {})
-          packHintEl.textContent = t('已切到 profile「{profile}」，dsh 正在重启。', { profile })
-        } else {
-          packHintEl.textContent = t('已切到 profile {name}，dsh 下次启动用它。', { name: profile })
-        }
-        await loadPacks()
-      } catch (error) {
-        packHintEl.textContent = error.message
+        renderPackGrid()
+        renderPackView()
       }
     }
 
     async function exportProfile() {
       if (packBusy) return
       packBusy = true
-      packHintEl.textContent = t('选择保存位置…')
+      const profile = packExportDialog.dataset.profile || packState.profile
+      packExportHintEl.textContent = t('选择保存位置…')
       try {
         const data = await post('/api/packs/export', {
-          profile: packState.profile,
+          profile,
+          name: packExportNameEl.value.trim() || profile,
           includeHome: packExportHomeEl.checked,
           version: packExportVersionEl.value.trim() || '1.0.0',
         })
         if (data.canceled) {
-          packHintEl.textContent = ''
+          packExportHintEl.textContent = ''
           return
         }
-        packHintEl.innerHTML = `<span class="pack-path">${escapeHtml(t('已导出 {n} 层、{deps} 个依赖：', { n: data.bundles.length, deps: Object.keys(data.dependencies).length }))}<code>${escapeHtml(data.path)}</code><button class="ghost" type="button" id="packReveal">${escapeHtml(t('在文件夹里显示'))}</button></span>`
+        packExportHintEl.innerHTML = `<span class="pack-path">${escapeHtml(t('已导出 {n} 层、{deps} 个依赖：', { n: data.bundles.length, deps: Object.keys(data.dependencies).length }))}<code>${escapeHtml(data.path)}</code><button class="ghost" type="button" id="packReveal">${escapeHtml(t('在文件夹里显示'))}</button></span>`
         const revealEl = document.getElementById('packReveal')
         if (revealEl) {
           revealEl.onclick = () => { void post('/api/packs/reveal', { path: data.path }).catch((error) => { notify(error.message) }) }
         }
       } catch (error) {
-        packHintEl.textContent = error.message
+        packExportHintEl.textContent = error.message
         notify(error.message, t('导出失败'))
       } finally {
         packBusy = false
@@ -4608,13 +5014,19 @@
         packPickEl.disabled = false
       }
     }
-    packRefreshEl.onclick = async () => {
-      packRefreshEl.disabled = true
-      await loadPacks()
-      await loadMarket({ force: true })
-      packRefreshEl.disabled = false
-    }
-    packExportEl.onclick = () => { void exportProfile() }
+    packImportOpenEl.onclick = () => openImportDialog()
+    packImportCloseEl.onclick = () => closeImportDialog()
+    packImportDialog.addEventListener('click', (event) => {
+      if (event.target === packImportDialog) closeImportDialog()
+    })
+    if (packExportProfileEl) packExportProfileEl.onclick = () => openExportDialog(null)
+    packExportGoEl.onclick = () => { void exportProfile() }
+    packExportCancelEl.onclick = () => closeExportDialog()
+    packExportDialog.addEventListener('click', (event) => {
+      if (event.target === packExportDialog) closeExportDialog()
+    })
+    packBackEl.onclick = () => closePack()
+
 
     // ---- MCP 服务器：写进 profile 补丁层里的 dsh-mcp-client 条目 ----
     const mcpListEl = document.getElementById('mcpList')
