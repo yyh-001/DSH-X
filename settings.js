@@ -6,7 +6,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { APP_DIR, IS_MAC, IS_WINDOWS, MAC_BUNDLE_ID, appBundle, launcherExecutable, userAppDir } from './platform.js'
-import { safeFolderConfig, safePolicy, safeS3Config, safeScopeIds, safeStoreType, safeWebdavConfig } from './sync.js'
+import { safeFolderConfig, safePolicy, safeS3Config, safeScopeIds, safeStoreType, safeWebdavConfig, safeZipConfig } from './sync.js'
 
 const execFileAsync = promisify(execFile)
 const ROOT = dirname(fileURLToPath(import.meta.url))
@@ -167,6 +167,8 @@ export const DEFAULTS = {
   webdav: {},
   // 本地目录（手动导出 / 导入；就一个路径）
   folder: {},
+  // 单个 ZIP 文件（导出成一个包 / 从包导入）
+  zip: {},
   // 同步范围与冲突策略
   sync: {},
 }
@@ -474,6 +476,7 @@ export async function saveSettings(patch) {
   merged.s3 = safeS3Config('s3' in patch ? patch.s3 : merged.s3)
   merged.webdav = safeWebdavConfig('webdav' in patch ? patch.webdav : merged.webdav)
   merged.folder = safeFolderConfig('folder' in patch ? patch.folder : merged.folder)
+  merged.zip = safeZipConfig('zip' in patch ? patch.zip : merged.zip)
   merged.sync = safeSyncSettings('sync' in patch ? patch.sync : merged.sync)
   // 已废弃的 AI 修复配置：清掉历史文件里的残留字段
   for (const key of ['aiRepair', 'aiModel', 'aiBaseURL', 'aiApiKey', 'aiMaxRounds', 'aiAllowDestructive']) {

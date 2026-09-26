@@ -33,6 +33,7 @@ import {
   runSync,
   safeFolderConfig,
   safeS3Config,
+  safeZipConfig,
   safeWebdavConfig,
   storeClient,
   storeConfigured,
@@ -196,6 +197,7 @@ let secretValues = []
 let S3_CONFIG = safeS3Config(loadSettingsSync().s3)
 let WEBDAV_CONFIG = safeWebdavConfig(loadSettingsSync().webdav)
 let FOLDER_CONFIG = safeFolderConfig(loadSettingsSync().folder)
+let ZIP_CONFIG = safeZipConfig(loadSettingsSync().zip)
 let SYNC_OPTIONS = safeSyncSettings(loadSettingsSync().sync)
 /** 正在跑的同步任务：进度、每步在哪个文件，页面靠它画进度条（也进 SSE 重放）。 */
 let syncState = null
@@ -203,7 +205,13 @@ let syncRunning = false
 /** 用户点了「停止」：引擎在每个文件之间看它一眼。 */
 let syncStopRequested = false
 /** 当前这份远端配置（引擎只认这个形状；切换存储类型不用重填另一侧的字段）。 */
-const storeConfig = () => ({ store: SYNC_OPTIONS.store, s3: S3_CONFIG, webdav: WEBDAV_CONFIG, folder: FOLDER_CONFIG })
+const storeConfig = () => ({
+  store: SYNC_OPTIONS.store,
+  s3: S3_CONFIG,
+  webdav: WEBDAV_CONFIG,
+  folder: FOLDER_CONFIG,
+  zip: ZIP_CONFIG,
+})
 secretValues = [S3_CONFIG.secretAccessKey, S3_CONFIG.sessionToken, WEBDAV_CONFIG.password].filter(Boolean)
 
 /** 把 key 之类的敏感串从任意文本里抹掉（dsh 的凭据常出现在子进程输出里）。 */
@@ -1071,6 +1079,7 @@ function syncPayload() {
     s3: S3_CONFIG,
     webdav: WEBDAV_CONFIG,
     folder: FOLDER_CONFIG,
+    zip: ZIP_CONFIG,
     sync: SYNC_OPTIONS,
     scopes: SYNC_SCOPES,
     policies: [
@@ -2028,7 +2037,10 @@ async function downloadToFile(url, dest, { sha256 = '', log = pushLog, onProgres
       log(`下载失败：${error.message}`)
     }
   }
-  throw new Error(`下载失败：${last?.message || '未知原因'}`)
+  // 直连 GitHub 在国内基本拿不到 release 资产，而「更新下载源」默认是直连——
+  // 失败时把出路写进错误里（和启动器自更新那句同样的写法），否则用户只看到「下载失败」
+  const hint = UPDATE_SOURCE === 'mirror' ? '' : '；如果直连 GitHub 不通，可以在设置页把「更新下载源」改成「国内加速」再试'
+  throw new Error(`下载失败：${last?.message || '未知原因'}${hint}`)
 }
 
 /** GitHub 接口的确定性回答：这类错误换镜像也没用，直接报出来。 */
@@ -2740,6 +2752,56 @@ function pickDirectoryMac() {
         }
         // POSIX path 带尾斜杠，去掉和其它地方的目录写法保持一致
         resolve(String(stdout || '').trim().replace(/(.)\/+$/, '$1'))
+      },
+    )
+  })
+}
+
+/**
+ * 选一个文件（导出 zip 时用来定路径，导入时用来挑包）。
+ * save = true 走「保存」对话框（可以是个还不存在的文件名），否则走「打开」对话框。
+ */
+function pickFile({ save = false, name = '' } = {}) {
+  if (IS_MAC) {
+    const what = save ? 'choose file name with prompt "选择保存位置"' : 'choose file with prompt "选择 ZIP 文件"'
+    return new Promise((resolve, reject) => {
+      execFile(
+        'osascript',
+        ['-e', 'activate', '-e', 'POSIX path of (' + what + (save && name ? ` default name "${name}"` : '') + ')'],
+        { timeout: 5 * 60 * 1000, encoding: 'utf8' },
+        (error, stdout, stderr) => {
+          if (error) {
+            if (String(stderr || '').includes(`(${APPLESCRIPT_USER_CANCELED})`)) resolve('')
+            else reject(error)
+            return
+          }
+          resolve(String(stdout || '').trim().replace(/(.)\/+$/, '$1'))
+        },
+      )
+    })
+  }
+  if (!IS_WINDOWS) throw new Error('只有 Windows 和 macOS 支持文件选择，这里请手填路径')
+  const dialog = save ? 'SaveFileDialog' : 'OpenFileDialog'
+  const script = [
+    'Add-Type -AssemblyName System.Windows.Forms | Out-Null',
+    `$f = New-Object System.Windows.Forms.${dialog}`,
+    "$f.Filter = 'ZIP 文件 (*.zip)|*.zip|所有文件 (*.*)|*.*'",
+    save ? "$f.FileName = '" + String(name || 'dsh-backup.zip').replace(/'/g, "''") + "'" : '',
+    "$f.Title = '" + (save ? '导出到哪个 ZIP 文件' : '选择要导入的 ZIP 文件') + "'",
+    "$f.OverwritePrompt = $true",
+    "if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($f.FileName) }",
+  ].filter(Boolean).join('; ')
+  return new Promise((resolve, reject) => {
+    execFile(
+      'powershell',
+      ['-STA', '-NoProfile', '-Command', script],
+      { windowsHide: true, timeout: 5 * 60 * 1000, encoding: 'utf8' },
+      (error, stdout) => {
+        if (error) {
+          reject(error)
+          return
+        }
+        resolve(String(stdout || '').trim())
       },
     )
   })
@@ -3532,6 +3594,7 @@ async function handleApi(req, res, url) {
         s3: 's3' in body ? body.s3 : S3_CONFIG,
         webdav: 'webdav' in body ? body.webdav : WEBDAV_CONFIG,
         folder: 'folder' in body ? body.folder : FOLDER_CONFIG,
+        zip: 'zip' in body ? body.zip : ZIP_CONFIG,
         sync: 'sync' in body ? body.sync : SYNC_OPTIONS,
       })
     } catch (error) {
@@ -3542,6 +3605,7 @@ async function handleApi(req, res, url) {
     S3_CONFIG = safeS3Config(stored.s3)
     WEBDAV_CONFIG = safeWebdavConfig(stored.webdav)
     FOLDER_CONFIG = safeFolderConfig(stored.folder)
+    ZIP_CONFIG = safeZipConfig(stored.zip)
     SYNC_OPTIONS = safeSyncSettings(stored.sync)
     // 密钥只留在本机设置文件里，但子进程输出/请求日志里万一带上它就得打码
     secretValues = [S3_CONFIG.secretAccessKey, S3_CONFIG.sessionToken, WEBDAV_CONFIG.password].filter(Boolean)
@@ -3597,6 +3661,15 @@ async function handleApi(req, res, url) {
     }
     return
   }
+  if (req.method === 'POST' && url.pathname === '/api/pick-file') {
+    try {
+      send(res, 200, { path: await pickFile({ save: body.save === true, name: String(body.name || '') }) })
+    } catch (error) {
+      pushLog(`文件选择失败: ${error?.message || error}`)
+      send(res, 200, { path: '', error: error?.message || String(error) })
+    }
+    return
+  }
   if (req.method === 'POST' && url.pathname === '/api/open') {
     openLocalUrl(body.url)
     send(res, 200, { ok: true })
@@ -3644,6 +3717,7 @@ export async function startServer() {
   S3_CONFIG = safeS3Config(stored.s3)
   WEBDAV_CONFIG = safeWebdavConfig(stored.webdav)
   FOLDER_CONFIG = safeFolderConfig(stored.folder)
+  ZIP_CONFIG = safeZipConfig(stored.zip)
   SYNC_OPTIONS = safeSyncSettings(stored.sync)
   secretValues = [S3_CONFIG.secretAccessKey, S3_CONFIG.sessionToken, WEBDAV_CONFIG.password].filter(Boolean)
   DATA = resolveDataDir()

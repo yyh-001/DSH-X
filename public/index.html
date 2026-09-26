@@ -887,6 +887,9 @@
       transition: background 0.12s ease;
     }
     .plugin-row:hover { background: var(--accent-soft); }
+    /* 整合包页的列表行是 div 不是 label：补上横向排版，按钮才会待在右端而不是掉到下一行 */
+    .plugin-row.pack-row { display: flex; align-items: center; gap: 12px; }
+    .plugin-row.pack-row .plugin-update, .plugin-row.pack-row .ghost { flex: 0 0 auto; }
     .plugin-row:focus-within { background: var(--accent-soft); }
     .plugin-row:last-child { border-bottom: 0; }
     .plugin-row.off .plugin-name { color: var(--muted); font-weight: 500; }
@@ -1555,6 +1558,17 @@
                 </div>
                 <p class="hint" id="syncFolderHint"></p>
               </div>
+              <div class="set-row stacked" data-store="zip">
+                <div class="set-text">
+                  <span class="set-name" data-i18n="ZIP 文件">ZIP 文件</span>
+                  <span class="set-desc" data-i18n="一个文件装下所有内容：导出写这个 .zip，导入从这个 .zip 合并回来。也能直接导入别人用压缩工具打好的包（里面套一层文件夹也认）。">一个文件装下所有内容：导出写这个 .zip，导入从这个 .zip 合并回来。也能直接导入别人用压缩工具打好的包（里面套一层文件夹也认）。</span>
+                </div>
+                <div class="set-control">
+                  <input id="syncZipPath" type="text" placeholder="D:\dsh-backup.zip" autocomplete="off" spellcheck="false" />
+                  <button class="ghost" id="syncPickZip" type="button" data-i18n="选择…">选择…</button>
+                </div>
+                <p class="hint" id="syncZipHint"></p>
+              </div>
             </div>
             <p class="hint" id="syncFootnote" data-i18n="远端的目录结构是 dsh-x/v1/…；删文件不会被同步（两边各自留并集），插件清单两个方向都会合并，不会丢掉任何一边装的插件。WebDAV 只能一层层列目录，目录多时会慢一些。">远端的目录结构是 dsh-x/v1/…；删文件不会被同步（两边各自留并集），插件清单两个方向都会合并，不会丢掉任何一边装的插件。WebDAV 只能一层层列目录，目录多时会慢一些。</p>
           </div>
@@ -1850,7 +1864,7 @@
   "卸载": "Remove",
   "正在读市场…": "Reading the market…",
   "市场没读到：{error}": "Could not read the market: {error}",
-  "不影响使用——把 .dspack 的链接或 owner/repo 贴在上面照样能装。": "Everything else still works — paste a .dspack link or an owner/repo above.",
+  "不影响使用——把 .dspack 的链接或 owner/repo 贴在上面照样能装；直连 GitHub 不通时，把设置页的「更新下载源」改成「国内加速」。": "Everything else still works — paste a .dspack link or an owner/repo above. If GitHub is unreachable directly, switch \"Update download source\" to the mirror in Settings.",
   "市场里现在没有条目。": "The market has no entries right now.",
   "作者 {author}": "by {author}",
   "{n} 层": "{n} layers",
@@ -2239,6 +2253,15 @@
   "目录可以用。": "The folder is usable.",
   "正在导出…": "Exporting…",
   "正在导入…": "Importing…",
+  "ZIP 文件": "ZIP file",
+  "一个文件装下所有内容：导出写这个 .zip，导入从这个 .zip 合并回来。也能直接导入别人用压缩工具打好的包（里面套一层文件夹也认）。": "One file holds everything: export writes this .zip, import merges from it. Zips made by other tools work too — even when they wrap everything in an extra folder.",
+  "ZIP 文件（导出 / 导入）": "ZIP file (export / import)",
+  "一个 .zip 装下所有内容，方便拷来拷去": "one .zip with everything inside, easy to carry around",
+  "选择…": "Choose…",
+  "检查文件": "Check file",
+  "正在检查文件…": "Checking the file…",
+  "文件能用：{host} · {ns} {state}": "The file is usable: {host} · {ns} {state}",
+  "文件可以用。": "The file is usable.",
   "连接正常。": "Connection is fine.",
   "连接失败：{error}": "Connection failed: {error}",
   "正在上传…": "Uploading…",
@@ -4210,14 +4233,20 @@
       }
       packInstalledEl.innerHTML = list.map((item) => {
         const current = item.profile === packState.profile
-        const when = String(item.installedAt || '').replace('T', ' ').slice(0, 16)
+        // 记的是 ISO（UTC），显示成本机时间——直接切片会差 8 小时
+        const when = (() => {
+          const at = new Date(item.installedAt || '')
+          if (Number.isNaN(at.getTime())) return ''
+          const pad = (value) => String(value).padStart(2, '0')
+          return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())} ${pad(at.getHours())}:${pad(at.getMinutes())}`
+        })()
         const details = [item.displayName || item.name, item.source, when].filter(Boolean).join('\n')
         const meta = t('{bundles} 层 · {deps} 个依赖 · {time}', {
           bundles: (item.bundles || []).length,
           deps: Object.keys(item.dependencies || {}).length,
           time: when,
         })
-        return `<div class="plugin-row" title="${escapeHtml(details)}">
+        return `<div class="plugin-row pack-row" title="${escapeHtml(details)}">
           <span class="plugin-main">
             <span class="plugin-head">
               <span class="plugin-name">${escapeHtml(item.displayName || item.name)}</span>
@@ -4245,10 +4274,9 @@
         return
       }
       if (packMarket.error) {
-        packMarketEl.innerHTML = `<div class="plugin-empty">${escapeHtml(t('市场没读到：{error}', { error: packMarket.error }))}<br />${escapeHtml(t('不影响使用——把 .dspack 的链接或 owner/repo 贴在上面照样能装。'))}</div>`
+        packMarketEl.innerHTML = `<div class="plugin-empty">${escapeHtml(t('市场没读到：{error}', { error: packMarket.error }))}<br />${escapeHtml(t('不影响使用——把 .dspack 的链接或 owner/repo 贴在上面照样能装；直连 GitHub 不通时，把设置页的「更新下载源」改成「国内加速」。'))}</div>`
         return
-      }
-      if (!packMarket.entries.length) {
+      }      if (!packMarket.entries.length) {
         packMarketEl.innerHTML = `<div class="plugin-empty">${t('市场里现在没有条目。')}</div>`
         return
       }
@@ -4259,7 +4287,7 @@
           entry.depCount ? t('{n} 个依赖', { n: entry.depCount }) : '',
           entry.dshVersion ? `dsh ${entry.dshVersion}` : '',
         ].filter(Boolean).join(' · ')
-        return `<div class="plugin-row">
+        return `<div class="plugin-row pack-row">
           <span class="plugin-main">
             <span class="plugin-head">
               <span class="plugin-name">${escapeHtml(entry.displayName || entry.name)}</span>
@@ -4875,11 +4903,13 @@
     const syncEndpointHint = document.getElementById('syncEndpointHint')
     const syncDavHint = document.getElementById('syncDavHint')
     const syncFolderHint = document.getElementById('syncFolderHint')
+    const syncZipHint = document.getElementById('syncZipHint')
     // 服务端只给 id 与顺序，中文文案跟界面语言走（EN 字典按中文原文查）
     const SYNC_STORE_TEXT = {
       s3: ['S3 兼容存储', 'AWS S3 / Cloudflare R2 / MinIO / 阿里 OSS / 腾讯 COS…'],
       webdav: ['WebDAV', '坚果云 / Nextcloud / 群晖 / Alist…'],
       folder: ['本地目录（导出 / 导入）', '导出一个文件夹，或从文件夹导回来；不联网、不要账号'],
+      zip: ['ZIP 文件（导出 / 导入）', '一个 .zip 装下所有内容，方便拷来拷去'],
     }
     const SYNC_SCOPE_TEXT = {
       sessions: ['会话记录', '每个项目的聊天记录（session.jsonl.zstd）'],
@@ -4917,6 +4947,9 @@
     }
     const folderInputs = {
       path: document.getElementById('syncFolderPath'),
+    }
+    const zipInputs = {
+      path: document.getElementById('syncZipPath'),
     }
     let syncData = null
     let syncScopeIds = []
@@ -4985,11 +5018,12 @@
      * 说白了就是把同一件事换成用户熟悉的词。applyLang 之后要重画一次（它会按 data-i18n 复位）。
      */
     function paintSyncActions() {
-      const local = syncStoreEl.value === 'folder'
+      const store = syncStoreEl.value
+      const local = store === 'folder' || store === 'zip'
       const pairs = [
         [syncUploadEl, local ? '导出' : '上传'],
         [syncDownloadEl, local ? '导入' : '下载'],
-        [syncTestEl, local ? '检查目录' : '检测连接'],
+        [syncTestEl, store === 'zip' ? '检查文件' : local ? '检查目录' : '检测连接'],
       ]
       for (const [button, label] of pairs) {
         const text = t(label)
@@ -5021,6 +5055,9 @@
       for (const [key, el] of Object.entries(folderInputs)) {
         if (el) el.value = String(data.folder?.[key] ?? '')
       }
+      for (const [key, el] of Object.entries(zipInputs)) {
+        if (el) el.value = String(data.zip?.[key] ?? '')
+      }
       showSyncStoreRows(syncStoreEl.value)
       paintSyncActions()
       // 「将同步到 …」贴在各自那组地址下面：只填当前类型那一个
@@ -5029,6 +5066,7 @@
       syncEndpointHint.textContent = store === 's3' ? remoteUrl : ''
       syncDavHint.textContent = store === 'webdav' ? remoteUrl : ''
       syncFolderHint.textContent = store === 'folder' ? remoteUrl : ''
+      syncZipHint.textContent = store === 'zip' ? remoteUrl : ''
       if (data.state) paintSync(stateForStore(data.state))
       else syncHintEl.textContent = ''
     }
@@ -5055,7 +5093,7 @@
      */
     function localRun(state) {
       if (typeof state?.local === 'boolean') return state.local
-      return syncStoreEl.value === 'folder'
+      return syncStoreEl.value === 'folder' || syncStoreEl.value === 'zip'
     }
 
     /** 上一次同步的结果：一句话摘要 + 明细（冲突、清单变化、被摘掉的本地依赖）。 */
@@ -5132,7 +5170,7 @@
       const scopes = [...syncScopeGroupEl.querySelectorAll('input[data-scope]')].filter((box) => box.checked).map((box) => box.dataset.scope)
       const sync = { store: syncStoreEl.value, scopes, policy: syncPolicyEl.value }
       syncSaveChain = syncSaveChain
-        .then(() => post('/api/sync/save', { s3: read(s3Inputs), webdav: read(davInputs), folder: read(folderInputs), sync }))
+        .then(() => post('/api/sync/save', { s3: read(s3Inputs), webdav: read(davInputs), folder: read(folderInputs), zip: read(zipInputs), sync }))
         .then((data) => { fillSync(data) })
         .catch((error) => { syncHintEl.textContent = error.message })
       return syncSaveChain
@@ -5144,7 +5182,7 @@
       } catch (error) { syncHintEl.textContent = error.message }
     }
 
-    for (const [key, el] of Object.entries({ ...s3Inputs, ...davInputs, ...folderInputs })) {
+    for (const [key, el] of Object.entries({ ...s3Inputs, ...davInputs, ...folderInputs, ...zipInputs })) {
       if (!el) continue
       el.onchange = () => { void saveSync() }
     }
@@ -5169,30 +5207,56 @@
         }
       } catch (error) { syncHintEl.textContent = error.message } finally { button.disabled = false }
     }
+    // 「选择…」：文件已经在了就当挑导入的包（打开对话框），还没有就去定导出的路径（保存对话框）
+    document.getElementById('syncPickZip').onclick = async () => {
+      const button = document.getElementById('syncPickZip')
+      button.disabled = true
+      try {
+        const current = zipInputs.path.value.trim()
+        const data = await post('/api/pick-file', {
+          save: !/\.zip$/i.test(current) || !current,
+          name: current.split(/[\/]/).pop() || 'dsh-backup.zip',
+        })
+        if (data.path) {
+          zipInputs.path.value = data.path
+          await saveSync()
+        } else if (data.error) {
+          syncHintEl.textContent = data.error
+        }
+      } catch (error) { syncHintEl.textContent = error.message } finally { button.disabled = false }
+    }
     syncTestEl.onclick = async () => {
       syncTestEl.disabled = true
-      const local = syncStoreEl.value === 'folder'
-      syncHintEl.textContent = local ? t('正在检查目录…') : t('正在连远端…')
+      const local = syncStoreEl.value === 'folder' || syncStoreEl.value === 'zip'
+      syncHintEl.textContent = syncStoreEl.value === 'zip' ? t('正在检查文件…') : local ? t('正在检查目录…') : t('正在连远端…')
       try {
         const data = await post('/api/sync/test', {})
-        const hint = syncStoreEl.value === 'webdav' ? syncDavHint
-          : syncStoreEl.value === 'folder' ? syncFolderHint : syncEndpointHint
-        hint.textContent = local
-          ? t('目录能用：{host} · {ns} {state}', {
+        const store = syncStoreEl.value
+        const hint = store === 'webdav' ? syncDavHint
+          : store === 'folder' ? syncFolderHint
+            : store === 'zip' ? syncZipHint : syncEndpointHint
+        hint.textContent = store === 'zip'
+          ? t('文件能用：{host} · {ns} {state}', {
             host: data.host || '',
             ns: data.namespace || '',
             state: data.empty ? t('还没有内容') : t('已有内容'),
           })
-          : t('连上了：{host}（{detail}）· {ns} {state}', {
+          : local
+            ? t('目录能用：{host} · {ns} {state}', {
+              host: data.host || '',
+              ns: data.namespace || '',
+              state: data.empty ? t('还没有内容') : t('已有内容'),
+            })
+            : t('连上了：{host}（{detail}）· {ns} {state}', {
             host: data.host || '',
             detail: data.detail || '',
             ns: data.namespace || '',
             state: data.empty ? t('还没有内容') : t('已有内容'),
           })
-        for (const other of [syncEndpointHint, syncDavHint, syncFolderHint]) {
+        for (const other of [syncEndpointHint, syncDavHint, syncFolderHint, syncZipHint]) {
           if (other !== hint) other.textContent = ''
         }
-        syncHintEl.textContent = local ? t('目录可以用。') : t('连接正常。')
+        syncHintEl.textContent = store === 'zip' ? t('文件可以用。') : local ? t('目录可以用。') : t('连接正常。')
         syncDetailEl.hidden = true
       } catch (error) {
         syncHintEl.textContent = t('连接失败：{error}', { error: error.message })
@@ -5201,7 +5265,7 @@
     for (const [button, mode] of [[syncUploadEl, 'up'], [syncDownloadEl, 'down']]) {
       button.onclick = async () => {
         await saveSync()
-        const local = syncStoreEl.value === 'folder'
+        const local = syncStoreEl.value === 'folder' || syncStoreEl.value === 'zip'
         button.disabled = true
         syncHintEl.textContent = mode === 'up'
           ? (local ? t('正在导出…') : t('正在上传…'))

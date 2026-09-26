@@ -126,7 +126,7 @@ test('同步面板：S3 与 WebDAV 两套配置、同步范围、上传下载按
   for (const id of [
     'syncStore', 'syncEndpoint', 'syncRegion', 'syncBucket', 'syncPrefix', 'syncAccessKey', 'syncSecretKey',
     'syncSessionToken', 'syncInsecure', 'syncDavUrl', 'syncDavUser', 'syncDavSecret', 'syncDavPrefix',
-    'syncDavInsecure', 'syncFolderPath', 'syncPickFolder', 'syncPolicy', 'syncStyle', 'syncScopeGroup',
+    'syncDavInsecure', 'syncFolderPath', 'syncPickFolder', 'syncZipPath', 'syncPickZip', 'syncPolicy', 'syncStyle', 'syncScopeGroup',
     'syncTest', 'syncUpload', 'syncDownload', 'syncStop', 'syncProgress', 'syncHint', 'syncDetail',
   ]) {
     assert.match(html, new RegExp(`id="${id}"`), `${id} 在页面上`)
@@ -138,7 +138,9 @@ test('同步面板：S3 与 WebDAV 两套配置、同步范围、上传下载按
   assert.match(html, /\.set-row\[hidden\], \.set-row\.stacked\[hidden\] \{ display: none; \}/, '整行能按存储类型藏起来（权重得压过 .set-row.stacked）')
   assert.match(html, /showSyncStoreRows\(syncStoreEl\.value\)/, '切类型时显隐对应那组')
   assert.match(html, /const s3Inputs = \{[\s\S]{0,900}?const davInputs = \{/, '两套输入各存一份')
-  assert.match(html, /post\('\/api\/sync\/save', \{ s3: read\(s3Inputs\), webdav: read\(davInputs\), folder: read\(folderInputs\), sync \}\)/, '保存时几套配置一起交上去')
+  assert.match(html, /post\('\/api\/sync\/save', \{ s3: read\(s3Inputs\), webdav: read\(davInputs\), folder: read\(folderInputs\), zip: read\(zipInputs\), sync \}\)/, '保存时几套配置一起交上去')
+  assert.match(html, /const zipInputs = \{[\s\S]{0,80}?syncZipPath/, 'ZIP 那套输入')
+  assert.match(html, /post\('\/api\/pick-file'/, '「选择…」走文件选择接口')
   assert.match(html, /const folderInputs = \{[\s\S]{0,80}?syncFolderPath/, '本地目录那套输入')
   assert.match(html, /local \? '导出' : '上传'/, '本地目录模式下按钮改叫导出/导入')
   assert.match(html, /post\('\/api\/pick-dir'/, '「浏览…」复用目录选择接口')

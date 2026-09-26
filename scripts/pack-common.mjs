@@ -31,6 +31,7 @@ const APP_FILES = [
   'mcp.js',
   'skills.js',
   'sync.js',
+  'zipfile.js',
   'plugin-tool.js',
   'stdio-unblock.cjs',
   'package.json',

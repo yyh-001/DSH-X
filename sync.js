@@ -24,6 +24,7 @@ import { Agent, request as httpsRequest } from 'node:https'
 import { dirname, isAbsolute, join, resolve, sep } from 'node:path'
 import { pipeline } from 'node:stream/promises'
 import { cmpVer, parseVer } from './registry.js'
+import { looksLikeZip, readZipEntry, readZipIndex, writeZip } from './zipfile.js'
 
 /** 远端存储里的顶层目录：同一只桶（或同一个 WebDAV 目录）可能还放着别的东西。 */
 export const SYNC_NAMESPACE = 'dsh-x/v1'
@@ -129,7 +130,7 @@ export function s3Missing(config = {}) {
  * （S3 兼容对象存储、WebDAV、本地目录）共用同一套比对与合并逻辑，只换下面这个客户端。
  * 本地目录那种就是「手动导出 / 导入」：导出到一个文件夹，或者从那个文件夹导回来。
  */
-export const STORE_TYPES = ['s3', 'webdav', 'folder']
+export const STORE_TYPES = ['s3', 'webdav', 'folder', 'zip']
 
 export function safeStoreType(value) {
   return STORE_TYPES.includes(value) ? value : 's3'
@@ -152,6 +153,27 @@ export function folderMissing(config = {}) {
 }
 
 export function folderDisplayUrl(config = {}) {
+  return String(config.path ?? '')
+}
+
+/** ZIP 文件的配置：就一个 .zip 路径（导出写它、导入读它）。 */
+export function safeZipConfig(value) {
+  const source = value && typeof value === 'object' ? value : {}
+  const path = String(source.path ?? '').trim()
+  if (path && !isAbsolute(path)) throw new Error('ZIP 文件要填绝对路径（例如 D:\\dsh-backup.zip）')
+  if (path && !/\.zip$/i.test(path)) throw new Error('ZIP 文件要以 .zip 结尾')
+  return { path }
+}
+
+export function zipConfigured(config = {}) {
+  return Boolean(config.path)
+}
+
+export function zipMissing(config = {}) {
+  return config.path ? [] : ['ZIP 文件']
+}
+
+export function zipDisplayUrl(config = {}) {
   return String(config.path ?? '')
 }
 
@@ -217,6 +239,7 @@ export function storeClient(config = {}) {
   switch (safeStoreType(config.store)) {
     case 'webdav': return new Webdav(config.webdav)
     case 'folder': return new LocalDir(config.folder)
+    case 'zip': return new ZipStore(config.zip)
     default: return new S3(config.s3)
   }
 }
@@ -225,6 +248,7 @@ export function storeConfigured(config = {}) {
   switch (safeStoreType(config.store)) {
     case 'webdav': return webdavConfigured(config.webdav)
     case 'folder': return folderConfigured(config.folder)
+    case 'zip': return zipConfigured(config.zip)
     default: return s3Configured(config.s3)
   }
 }
@@ -233,6 +257,7 @@ export function storeMissing(config = {}) {
   switch (safeStoreType(config.store)) {
     case 'webdav': return webdavMissing(config.webdav)
     case 'folder': return folderMissing(config.folder)
+    case 'zip': return zipMissing(config.zip)
     default: return s3Missing(config.s3)
   }
 }
@@ -241,6 +266,7 @@ export function storeDisplayUrl(config = {}) {
   switch (safeStoreType(config.store)) {
     case 'webdav': return webdavDisplayUrl(config.webdav || {})
     case 'folder': return folderDisplayUrl(config.folder || {})
+    case 'zip': return zipDisplayUrl(config.zip || {})
     default: return s3DisplayUrl(config.s3 || {})
   }
 }
@@ -250,6 +276,7 @@ export function storeLabel(config = {}) {
   switch (safeStoreType(config.store)) {
     case 'webdav': return 'WebDAV'
     case 'folder': return '本地目录'
+    case 'zip': return 'ZIP 文件'
     default: return 'S3 兼容存储'
   }
 }
@@ -1050,6 +1077,178 @@ export class LocalDir {
   }
 }
 
+/**
+ * ZIP 文件：把同一套内容**导出成一个 .zip / 从 .zip 导入**——「一个文件走天下」。
+ *
+ * 和别的后端不一样的地方：ZIP 不是能随手改的存储，写它得整份重写一遍。所以这里把写攒到
+ * `finish()`（引擎跑完所有范围之后调一次）：
+ * - 旧档案里已有的条目**原样搬压缩数据**（不解压也不重压），只把这次改动的条目换掉；
+ * - 于是导出是增量的（不会每次都重压几十 MB），但产出的永远是一份完整、干净的档案；
+ * - 导入方向只读不写，`finish()` 什么都不做。
+ *
+ * 另外宽容一层：用户很可能把「导出目录」手动压成 zip 再拿来导入，里面会多套一层文件夹
+ * （`dsh-backup/dsh-x/v1/…`），列目录时会把 `dsh-x/v1/` 前面那截剥掉。
+ */
+export class ZipStore {
+  constructor(config) {
+    this.config = safeZipConfig(config)
+    if (!this.config.path) throw new Error('还没选 ZIP 文件')
+    this.path = this.config.path
+    /** 这次要写进档案的条目：key → { file | buffer, mtime }。 */
+    this.pending = new Map()
+    /** 旧档案的索引，第一次列目录时读一次。 */
+    this.index = null
+  }
+
+  get namespace() {
+    return SYNC_NAMESPACE
+  }
+
+  get displayUrl() {
+    return this.path
+  }
+
+  checkReady() {
+    if (!this.config.path) throw new Error('ZIP 文件还没选：填一个 .zip 路径，或点「浏览…」')
+  }
+
+  /** 读一次旧档案的索引（不存在就是空档案）。 */
+  async readIndex() {
+    if (this.index) return this.index
+    this.index = new Map()
+    if (!existsSync(this.path)) return this.index
+    if (!(await looksLikeZip(this.path))) {
+      throw new Error(`${this.path} 不是个 ZIP 文件（导入要选之前导出的那个；导出会覆盖它）`)
+    }
+    const { entries } = await readZipIndex(this.path)
+    const root = `${SYNC_NAMESPACE}`
+    const marker = `${SYNC_NAMESPACE}/`
+    for (const entry of entries.values()) {
+      const name = entry.name
+      if (name === root || name === marker) continue
+      // 名字里找 dsh-x/v1/ 的位置：自己的包从头就是，手动压过一层的话前面会多一截
+      const at = name.indexOf(marker)
+      if (at < 0) continue
+      this.index.set(name.slice(at), entry)
+    }
+    return this.index
+  }
+
+  /** 列一个前缀下的条目（读旧档案 + 这次已经攒下的改动）。 */
+  async list(prefixKey) {
+    const index = await this.readIndex()
+    const prefix = `${prefixKey}/`
+    const out = new Map()
+    for (const [key, entry] of index) {
+      if (!key.startsWith(prefix)) continue
+      out.set(key, { key, size: entry.size, lastModifiedMs: entry.mtime.getTime(), etag: '' })
+    }
+    for (const [key, item] of this.pending) {
+      if (!key.startsWith(prefix)) continue
+      out.set(key, {
+        key,
+        size: item.buffer ? item.buffer.length : safeSize(item.file),
+        lastModifiedMs: (item.mtime || new Date()).getTime(),
+        etag: '',
+      })
+    }
+    return out
+  }
+
+  async putFile(key, file, size) {
+    this.pending.set(key, { file, mtime: safeMtime(file) })
+    return size
+  }
+
+  async putText(key, text, contentType = 'application/json') {
+    return this.putBuffer(key, Buffer.from(text, 'utf8'), contentType)
+  }
+
+  async putBuffer(key, buffer) {
+    this.pending.set(key, { buffer })
+    return buffer.length
+  }
+
+  /** 从档案里解出条目写到本地（临时文件 + 改名 + 时间戳对齐，和别的后端一个口径）。 */
+  async getFile(key, dest, { lastModifiedMs = 0, mkdirTo = true } = {}) {
+    const entry = (await this.readIndex()).get(key)
+    if (!entry) throw new Error(`ZIP 里没有 ${key}（重新导出一次？）`)
+    if (mkdirTo) await mkdir(dirname(dest), { recursive: true })
+    const temp = `${dest}.sync-part`
+    const chunks = []
+    try {
+      await readZipEntry(this.path, entry, (chunk) => { chunks.push(chunk) })
+      await writeFile(temp, Buffer.concat(chunks))
+    } catch (error) {
+      await rm(temp, { force: true })
+      throw error
+    }
+    await rm(dest, { force: true })
+    await rename(temp, dest)
+    await touch(dest, lastModifiedMs || entry.mtime.getTime())
+    return entry.size
+  }
+
+  async getText(key) {
+    const entry = (await this.readIndex()).get(key)
+    if (!entry) return null
+    return (await readZipEntry(this.path, entry)).toString('utf8')
+  }
+
+  /** 自检：档案能不能写、里面有没有东西。 */
+  async test() {
+    this.checkReady()
+    await mkdir(dirname(this.path), { recursive: true })
+    const files = [...(await this.readIndex()).keys()]
+    return {
+      empty: files.length === 0,
+      namespace: this.namespace,
+      host: this.path,
+      detail: files.length ? `ZIP · 已有 ${files.length} 个文件` : 'ZIP · 还没有内容（导出时会新建）',
+    }
+  }
+
+  /**
+   * 收尾：这次改动的条目 + 旧档案里没动的条目 → 写一份新档案。
+   * 什么都没改就原样不动（导入方向走到这里必然是空的）。
+   */
+  async finish() {
+    if (!this.pending.size) return ''
+    const index = await this.readIndex().catch(() => new Map())
+    const entries = []
+    for (const [key, entry] of index) {
+      if (this.pending.has(key)) continue
+      entries.push({ name: key, copy: { file: this.path, entry } })
+    }
+    for (const [key, item] of this.pending) {
+      entries.push(item.buffer ? { name: key, buffer: item.buffer } : { name: key, file: item.file, mtime: item.mtime })
+    }
+    await mkdir(dirname(this.path), { recursive: true })
+    const result = await writeZip(this.path, entries)
+    this.pending.clear()
+    this.index = null
+    const kb = result.size < 1024 ? `${result.size} B` : `${(result.size / 1024).toFixed(1)} KB`
+    return `ZIP 已更新：${result.entries} 个文件（${kb}）`
+  }
+}
+
+/** 源文件的修改时间 / 大小（读不到就用退路值，别把整个导出带崩）。 */
+function safeMtime(file) {
+  try {
+    return statSync(file).mtime
+  } catch {
+    return new Date()
+  }
+}
+
+function safeSize(file) {
+  try {
+    return statSync(file).size
+  } catch {
+    return 0
+  }
+}
+
 /** 把 a 的修改时间复制给 b（源文件读不到时间就算了）。 */
 async function copyTimes(source, dest) {
   try {
@@ -1753,6 +1952,11 @@ export async function runSync({
       }
     }
     summary.scopes.push(report)
+  }
+  // 有的后端要收尾（ZIP：所有条目都定了才写档案）。别的后端没这个方法，跳过。
+  if (typeof client.finish === 'function' && !summary.stopped) {
+    const written = await client.finish()
+    if (written) summary.notes.push(written)
   }
   return summary
 }

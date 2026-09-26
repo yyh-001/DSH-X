@@ -23,9 +23,9 @@ A lightweight launcher for DeepSeek Harness. Pick a version, start DSH web.
 - **Pick a version and go**: start / stop / restart / update / uninstall
 - **Multi-platform**: native packages for both Windows and macOS (with separate Apple Silicon and Intel builds for macOS); self-update, launch at login and the folder picker use each system's own mechanisms
 - **Plugins page**: list installed plugins and toggle each with one click, check for and install updates (one or all), and switch profiles
-- **Modpacks**: install a batch of plugins and their config in one go (ecosystem `.dspack` files: a local file, a direct link, a GitHub repo, or the built-in community market). You see exactly what goes where before anything is written, each pack lands in its own profile so your current setup is untouched, files are backed up first, a failed install rolls back, and removing a pack restores your files. You can also export the current profile as a modpack to share
+- **Modpacks**: install a batch of plugins and their config in one go (community market and import/export included) — see the Modpacks section below
 - **Compatibility mode**: on a failed start, disable the plugins named in the error (one click to restore); after boot it checks the client plugin bundles the page references and reports the verdict, telling a broken install apart from a stale tab
-- **Sync, or export as a backup**: push chat sessions, attachments and plugin config to an S3-compatible bucket or a WebDAV folder (Jianguo Cloud / Nextcloud / Synology / Alist…) and pull them back on another machine, or export to a local folder and import from it (no network, no account). The plugin manifest is merged in both directions, so neither machine loses a plugin
+- **Sync, or export as a backup**: push chat sessions, attachments and plugin config to an S3-compatible bucket or a WebDAV folder (Jianguo Cloud / Nextcloud / Synology / Alist…) and pull them back on another machine, or export to a local folder or a single .zip and import from it (no network, no account). The plugin manifest is merged in both directions, so neither machine loses a plugin
 - **Dark appearance**: follow the system or pick a theme, plus floating-panel transparency and mascot switches
 - **Faster startup**: equivalent fast implementations at the bundle composition point (saves about 1–2 s), skipped automatically once dsh changes underneath
 - **Plugins stay where dsh puts them**: data lives in `~/.dsh`, so switching versions needs no plugin reinstall
@@ -37,6 +37,16 @@ A lightweight launcher for DeepSeek Harness. Pick a version, start DSH web.
 
 Feedback: **QQ group [993579665](https://qm.qq.com/q/7AD2g70HqS)**
 
+## Modpacks
+
+Install a batch of plugins and their config in one go — no installing one by one and hand-editing files. The format is the ecosystem's [DSH-PackForge](https://github.com/DSH-PackForge/DSH-PackForge) `.dspack` (manifest v5, older versions accepted), so packs are interchangeable with other launchers.
+
+- **Where from**: a local `.dspack` file, a direct link, or a GitHub `owner/repo` (it takes the `.dspack` from the latest release); or pick one from the built-in community market right on the page.
+- **Where to**: a profile of its own by default, so your current setup is untouched — or point it at an existing profile such as `web`. Switch to it and restart from the same page.
+- **You see it first**: layers, dependencies, files to write, what gets overridden, and what in the pack will not be installed (credentials, `.npmrc` and machine-wide settings never land on disk). Nothing happens before you confirm.
+- **You can get back**: files it overwrites are backed up first, a failed install rolls back, removing a pack restores your files, and a profile the pack created can be deleted along with it.
+- **Share your own**: export the current profile as a `.dspack` (pinned dependencies + patch layer + config files, never `node_modules` or credentials), and whoever installs it gets the same plugin setup.
+
 ## Screenshots
 
 <p align="center">
@@ -45,6 +55,10 @@ Feedback: **QQ group [993579665](https://qm.qq.com/q/7AD2g70HqS)**
 
 <p align="center">
   <img src="docs/screenshot-plugins.png" alt="DSH-X plugins page" width="820" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshot-modpacks.png" alt="DSH-X modpacks page" width="820" />
 </p>
 
 <p align="center">
