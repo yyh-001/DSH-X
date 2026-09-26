@@ -1070,6 +1070,12 @@
     .gone[hidden] { display: none; }
     .gone-title { margin: 0 0 8px; font-size: 17px; font-weight: 650; }
     .gone-sub { margin: 0 0 18px; color: var(--muted); font-size: 13px; }
+    /* MCP 对话框里的字段：左标签右输入，和设置页同一套节奏 */
+    .mcp-form { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+    .mcp-field { display: flex; align-items: center; justify-content: space-between; gap: 14px; font-size: 13px; color: var(--text); }
+    .mcp-field > span { flex: 0 0 auto; color: var(--muted); }
+    .mcp-field input, .mcp-field select { width: 62%; }
+    .mcp-field[hidden] { display: none; }
   </style>
   <link rel="stylesheet" href="/mascot.css" />
   <link rel="stylesheet" href="/theme.css" />
@@ -1131,7 +1137,15 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
             <span data-i18n="外观">外观</span>
           </button>
-          <button type="button" class="nav-item" data-pane="log">
+            <button type="button" class="nav-item" data-pane="mcp">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4.5 7.5h15v11h-15zM8 7.5V5h8v2.5M9.5 12.5h5M9.5 15.5h3"/></svg>
+            <span data-i18n="MCP">MCP</span>
+          </button>
+          <button type="button" class="nav-item" data-pane="skills">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 3.5l2.4 5 5.5.8-4 3.8 1 5.5-4.9-2.6-4.9 2.6 1-5.5-4-3.8 5.5-.8z"/></svg>
+            <span data-i18n="技能">技能</span>
+          </button>
+        <button type="button" class="nav-item" data-pane="log">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M6 3.5h9l3 3v14H6zM15 3.5v3h3M9 11h6M9 14.5h6M9 18h4"/></svg>
             <span data-i18n="日志">日志</span>
           </button>
@@ -1214,6 +1228,47 @@
             <p class="hint" id="pluginHint"></p>
             <!-- 插件装/升级可能几十秒，光一句「正在更新…」看不出在动 -->
             <div class="progress" id="pluginProgress" hidden><div class="progress-bar" id="pluginProgressBar"></div></div>
+          </div>
+        </section>
+        <section class="pane fill" id="pane-mcp">
+          <div class="pane-inner fill">
+            <div class="pane-top">
+              <div>
+                <h1 class="pane-title" data-i18n="MCP 服务器">MCP 服务器</h1>
+                <p class="pane-sub" data-i18n="外部工具服务器：写进 profile 补丁层，dsh 在跑会热加载。">外部工具服务器：写进 profile 补丁层，dsh 在跑会热加载。</p>
+              </div>
+              <div class="plugin-actions">
+                <button class="ghost" id="mcpAdd" type="button" data-i18n="添加">添加</button>
+                <button class="ghost" id="mcpProbe" type="button" data-i18n="检测">检测</button>
+                <button class="ghost" id="mcpRefresh" type="button" data-i18n="刷新">刷新</button>
+              </div>
+            </div>
+            <div class="plugin-list" id="mcpList"></div>
+            <p class="hint" id="mcpHint" data-i18n="检测会真的起进程或连端点，可能需要几秒。">检测会真的起进程或连端点，可能需要几秒。</p>
+          </div>
+        </section>
+        <section class="pane fill" id="pane-skills">
+          <div class="pane-inner fill">
+            <div class="pane-top">
+              <div>
+                <h1 class="pane-title" data-i18n="技能">技能</h1>
+                <p class="pane-sub" id="skillSub" data-i18n="dsh 与 agents 两个用户级技能目录。">dsh 与 agents 两个用户级技能目录。</p>
+              </div>
+              <div class="plugin-actions">
+                <button class="ghost" id="skillOpenDsh" type="button" data-i18n="dsh 目录">dsh 目录</button>
+                <button class="ghost" id="skillOpenAgents" type="button" data-i18n="agents 目录">agents 目录</button>
+                <button class="ghost" id="skillRefresh" type="button" data-i18n="刷新">刷新</button>
+              </div>
+            </div>
+            <label class="toggle set-row" id="skillMasterRow">
+              <span class="plugin-main">
+                <span class="plugin-name" data-i18n="强制启用 host 层技能行">强制启用 host 层技能行</span>
+                <span class="plugin-desc" data-i18n="默认由 agent 预设挂载本地技能；这个开关只是往补丁层写覆盖，一般不用动。">默认由 agent 预设挂载本地技能；这个开关只是往补丁层写覆盖，一般不用动。</span>
+              </span>
+              <input type="checkbox" id="skillMaster" />
+            </label>
+            <div class="plugin-list" id="skillList"></div>
+            <p class="hint" id="skillHint"></p>
           </div>
         </section>
         <section class="pane fill" id="pane-log">
@@ -1443,6 +1498,30 @@
       </div>
     </div>
   </div>
+  <div class="ask" id="mcpDialog" hidden>
+    <div class="ask-card" role="dialog" aria-modal="true" aria-labelledby="mcpDialogTitle">
+      <h2 class="ask-title" id="mcpDialogTitle" data-i18n="MCP 服务器">MCP 服务器</h2>
+      <div class="mcp-form">
+        <label class="mcp-field"><span data-i18n="名称">名称</span><input id="mcpName" type="text" placeholder="my-mcp-server" autocomplete="off" spellcheck="false" /></label>
+        <label class="mcp-field"><span data-i18n="传输">传输</span>
+          <select id="mcpTransport">
+            <option value="stdio" data-i18n="stdio（本机程序）">stdio（本机程序）</option>
+            <option value="streamable-http" data-i18n="streamable-http（HTTP 端点）">streamable-http（HTTP 端点）</option>
+          </select>
+        </label>
+        <label class="mcp-field" data-mcp-row="stdio"><span data-i18n="启动命令">启动命令</span><input id="mcpCommand" type="text" placeholder="npx" autocomplete="off" spellcheck="false" /></label>
+        <label class="mcp-field" data-mcp-row="stdio"><span data-i18n="参数">参数</span><input id="mcpArgs" type="text" placeholder="-y @modelcontextprotocol/server-memory" autocomplete="off" spellcheck="false" /></label>
+        <label class="mcp-field" data-mcp-row="http"><span data-i18n="地址">地址</span><input id="mcpUrl" type="text" placeholder="https://mcp.example.com/mcp" autocomplete="off" spellcheck="false" /></label>
+        <label class="mcp-field" data-mcp-row="http"><span data-i18n="请求头（可选，JSON）">请求头（可选，JSON）</span><input id="mcpHeaders" type="text" placeholder='{"Authorization":"Bearer …"}' autocomplete="off" spellcheck="false" /></label>
+        <label class="mcp-field"><span data-i18n="超时（毫秒，可选）">超时（毫秒，可选）</span><input id="mcpTimeout" type="number" min="1" step="1" placeholder="60000" inputmode="numeric" /></label>
+      </div>
+      <p class="ask-note" id="mcpDialogNote" hidden></p>
+      <div class="ask-actions">
+        <button type="button" class="ghost" id="mcpCancel" data-i18n="取消">取消</button>
+        <button type="button" class="primary" id="mcpSave" data-i18n="保存">保存</button>
+      </div>
+    </div>
+  </div>
   <div class="ask" id="notice" hidden>
     <div class="ask-card" role="alertdialog" aria-modal="true" aria-labelledby="noticeTitle">
       <h2 class="ask-title" id="noticeTitle" data-i18n="操作失败">操作失败</h2>
@@ -1510,6 +1589,47 @@
   "确定": "OK",
   "管理器已停止运行，这个页面可以关掉了。": "The manager has stopped; this page can be closed.",
   "管理页端口": "Manager port",
+  "MCP 服务器": "MCP servers",
+  "外部工具服务器：写进 profile 补丁层，dsh 在跑会热加载。": "External tool servers: written into the profile patch layer, hot-reloaded while dsh runs.",
+  "添加": "Add",
+  "检测": "Probe",
+  "刷新": "Refresh",
+  "检测会真的起进程或连端点，可能需要几秒。": "Probing really starts the process or calls the endpoint; it can take a few seconds.",
+  "技能": "Skills",
+  "dsh 与 agents 两个用户级技能目录。": "The two per-user skill folders: dsh and agents.",
+  "dsh 目录": "dsh folder",
+  "agents 目录": "agents folder",
+  "强制启用 host 层技能行": "Force-enable host skill rows",
+  "默认由 agent 预设挂载本地技能；这个开关只是往补丁层写覆盖，一般不用动。": "Agent presets own local skill discovery by default; this switch only writes an override into the patch layer and is rarely needed.",
+  "名称": "Name",
+  "传输": "Transport",
+  "stdio（本机程序）": "stdio (local process)",
+  "streamable-http（HTTP 端点）": "streamable-http (HTTP endpoint)",
+  "启动命令": "Command",
+  "参数": "Arguments",
+  "地址": "URL",
+  "请求头（可选，JSON）": "Headers (optional, JSON)",
+  "超时（毫秒，可选）": "Timeout (ms, optional)",
+  "取消": "Cancel",
+  "保存": "Save",
+  "编辑": "Edit",
+  "删除": "Remove",
+  "编辑 MCP 服务器": "Edit an MCP server",
+  "添加 MCP 服务器": "Add an MCP server",
+  "还没有 MCP 服务器。点右上角「添加」写一台。": "No MCP servers yet. Use “Add” in the top right.",
+  "请求头不是合法 JSON": "Headers are not valid JSON",
+  "正在检测（真起进程 / 真连端点）…": "Probing (real process / real endpoint)…",
+  "{ok} 台都可用。": "All {ok} server(s) are reachable.",
+  "{ok} 台可用，{bad} 台有问题：{list}": "{ok} reachable, {bad} with problems: {list}",
+  "{name} 已保存，dsh 在跑会热加载。": "{name} saved; dsh hot-reloads it while running.",
+  "已删除 {name}。dsh 在跑会热加载。": "{name} removed; dsh hot-reloads while running.",
+  "启用 {name}": "Enable {name}",
+  "这两个目录里还没有本地技能。": "No local skills in these folders yet.",
+  "已打开 {dir}": "Opened {dir}",
+  "正在往补丁层写覆盖…": "Writing the override into the patch layer…",
+  "正在清除覆盖…": "Clearing the override…",
+  "已强制启用 host 层技能行（与 agent 预设那份叠加）。dsh 在跑会热加载。": "Host skill rows force-enabled (layered with the agent preset). dsh hot-reloads while running.",
+  "已清除覆盖，host 层两行回到模板默认。本地技能不受影响。": "Override cleared; the two host rows are back to the template default. Local skills are unaffected.",
   "日志": "Logs",
   "返回": "Back",
   "设置": "Settings",
@@ -2058,7 +2178,7 @@
     const panes = [...document.querySelectorAll('.pane')]
     const gearEl = document.getElementById('settingsEntry')
     // 进面板时按需加载：和以前 tab 的行为一致，不做无谓请求
-    const paneLoaders = { plugins: loadPlugins, settings: loadSettings }
+    const paneLoaders = { plugins: loadPlugins, mcp: loadMcp, skills: loadSkills, settings: loadSettings }
     let currentPane = 'control'
     let currentSettingsCategory = 'general'
     const settingsCategories = {
@@ -3561,6 +3681,278 @@
     }
 
     applyLang()
+
+    // ---- MCP 服务器：写进 profile 补丁层里的 dsh-mcp-client 条目 ----
+    const mcpListEl = document.getElementById('mcpList')
+    const mcpHintEl = document.getElementById('mcpHint')
+    const mcpDialogEl = document.getElementById('mcpDialog')
+    const mcpDialogNoteEl = document.getElementById('mcpDialogNote')
+    const mcpNameEl = document.getElementById('mcpName')
+    const mcpTransportEl = document.getElementById('mcpTransport')
+    const mcpCommandEl = document.getElementById('mcpCommand')
+    const mcpArgsEl = document.getElementById('mcpArgs')
+    const mcpUrlEl = document.getElementById('mcpUrl')
+    const mcpHeadersEl = document.getElementById('mcpHeaders')
+    const mcpTimeoutEl = document.getElementById('mcpTimeout')
+    let mcpServers = []
+
+    const transportLabel = (value) => value === 'streamable-http' ? 'HTTP' : 'stdio'
+    const setMcpHint = (text) => { mcpHintEl.textContent = text || '' }
+
+    function mcpRow(server) {
+      const row = document.createElement('div')
+      row.className = `plugin-row${server.disabled ? ' off' : ''}`
+      const main = document.createElement('div')
+      main.className = 'plugin-main'
+      const head = document.createElement('div')
+      head.className = 'plugin-head'
+      const name = document.createElement('span')
+      name.className = 'plugin-name'
+      name.textContent = server.broken ? `${server.serverName}（条目损坏）` : server.serverName
+      const status = document.createElement('span')
+      status.className = 'plugin-status'
+      status.textContent = `${transportLabel(server.transport)}${server.disabled ? ' · 已停用' : ''}`
+      head.append(name, status)
+      const desc = document.createElement('span')
+      desc.className = 'plugin-desc'
+      desc.textContent = server.broken ? (server.error || '补丁层里这行读不出来，删掉重加一次即可') : (server.command || server.url || '')
+      main.append(head, desc)
+      const actions = document.createElement('div')
+      actions.className = 'plugin-actions'
+      const edit = document.createElement('button')
+      edit.type = 'button'
+      edit.className = 'ghost'
+      edit.textContent = t('编辑')
+      edit.onclick = () => openMcpDialog(server)
+      const remove = document.createElement('button')
+      remove.type = 'button'
+      remove.className = 'ghost'
+      remove.textContent = t('删除')
+      remove.onclick = async () => {
+        remove.disabled = true
+        try {
+          const data = await post('/api/mcp/remove', { serverName: server.serverName })
+          mcpServers = data.servers || []
+          renderMcp()
+          setMcpHint(t('已删除 {name}。dsh 在跑会热加载。', { name: server.serverName }))
+        } catch (error) { setMcpHint(error.message) } finally { remove.disabled = false }
+      }
+      const toggle = document.createElement('input')
+      toggle.type = 'checkbox'
+      toggle.checked = !server.disabled
+      toggle.disabled = server.broken === true
+      toggle.setAttribute('aria-label', t('启用 {name}', { name: server.serverName }))
+      toggle.onchange = async () => {
+        const enabled = toggle.checked
+        toggle.disabled = true
+        try {
+          const data = await post('/api/mcp/toggle', { serverName: server.serverName, enabled })
+          mcpServers = data.servers || []
+          renderMcp()
+        } catch (error) { setMcpHint(error.message); toggle.checked = !enabled } finally { toggle.disabled = false }
+      }
+      actions.append(edit, remove, toggle)
+      row.append(main, actions)
+      return row
+    }
+
+    function renderMcp() {
+      mcpListEl.textContent = ''
+      if (!mcpServers.length) {
+        const empty = document.createElement('div')
+        empty.className = 'plugin-empty'
+        empty.textContent = t('还没有 MCP 服务器。点右上角「添加」写一台。')
+        mcpListEl.append(empty)
+        return
+      }
+      for (const server of mcpServers) mcpListEl.append(mcpRow(server))
+    }
+
+    async function loadMcp() {
+      try {
+        const data = await getJson('/api/mcp')
+        mcpServers = data.servers || []
+        renderMcp()
+      } catch (error) { setMcpHint(error.message) }
+    }
+
+    function syncMcpRows() {
+      const stdio = mcpTransportEl.value !== 'streamable-http'
+      for (const row of mcpDialogEl.querySelectorAll('[data-mcp-row]')) {
+        row.hidden = stdio ? row.dataset.mcpRow !== 'stdio' : row.dataset.mcpRow !== 'http'
+      }
+    }
+
+    function openMcpDialog(server) {
+      mcpDialogEl.dataset.edit = server ? server.serverName : ''
+      document.getElementById('mcpDialogTitle').textContent = server ? t('编辑 MCP 服务器') : t('添加 MCP 服务器')
+      mcpNameEl.value = server?.serverName ?? ''
+      mcpNameEl.disabled = Boolean(server)
+      mcpTransportEl.value = server?.transport === 'streamable-http' ? 'streamable-http' : 'stdio'
+      mcpCommandEl.value = server?.command ?? ''
+      mcpArgsEl.value = Array.isArray(server?.args) ? server.args.join(' ') : ''
+      mcpUrlEl.value = server?.url ?? ''
+      mcpHeadersEl.value = server?.headers ? JSON.stringify(server.headers) : ''
+      mcpTimeoutEl.value = server?.toolCallTimeoutMs ?? ''
+      mcpDialogNoteEl.hidden = true
+      syncMcpRows()
+      mcpDialogEl.hidden = false
+      if (!server) mcpNameEl.focus()
+    }
+
+    const closeMcpDialog = () => { mcpDialogEl.hidden = true }
+    const noteInDialog = (text) => { mcpDialogNoteEl.textContent = text; mcpDialogNoteEl.hidden = !text }
+
+    async function saveMcp() {
+      const button = document.getElementById('mcpSave')
+      const name = mcpNameEl.value.trim()
+      const transport = mcpTransportEl.value
+      const headers = mcpHeadersEl.value.trim()
+      if (headers) {
+        try {
+          JSON.parse(headers)
+        } catch {
+          noteInDialog(t('请求头不是合法 JSON'))
+          return
+        }
+      }
+      const spec = {
+        serverName: mcpDialogEl.dataset.edit || name,
+        transport,
+        command: transport === 'stdio' ? mcpCommandEl.value.trim() : '',
+        args: transport === 'stdio' ? mcpArgsEl.value.trim().split(/\s+/).filter(Boolean) : [],
+        url: transport === 'stdio' ? '' : mcpUrlEl.value.trim(),
+        headers: transport === 'stdio' || !headers ? undefined : JSON.parse(headers),
+        toolCallTimeoutMs: mcpTimeoutEl.value.trim() || undefined,
+      }
+      button.disabled = true
+      try {
+        const data = await post('/api/mcp/save', spec)
+        mcpServers = data.servers || []
+        closeMcpDialog()
+        renderMcp()
+        const notes = [...(data.warnings || [])]
+        setMcpHint(notes.length ? notes.join('；') : t('{name} 已保存，dsh 在跑会热加载。', { name: spec.serverName }))
+      } catch (error) {
+        noteInDialog(error.message)
+      } finally {
+        button.disabled = false
+      }
+    }
+
+    document.getElementById('mcpAdd').onclick = () => openMcpDialog(null)
+    document.getElementById('mcpCancel').onclick = closeMcpDialog
+    mcpTransportEl.onchange = syncMcpRows
+    document.getElementById('mcpSave').onclick = saveMcp
+    document.getElementById('mcpRefresh').onclick = loadMcp
+    document.getElementById('mcpProbe').onclick = async () => {
+      const button = document.getElementById('mcpProbe')
+      button.disabled = true
+      setMcpHint(t('正在检测（真起进程 / 真连端点）…'))
+      try {
+        const data = await post('/api/mcp/probe', {})
+        const results = data.results || []
+        const ok = results.filter((item) => item.ok).length
+        const failed = results.filter((item) => !item.ok)
+        setMcpHint(failed.length
+          ? t('{ok} 台可用，{bad} 台有问题：{list}', { ok, bad: failed.length, list: failed.map((item) => `${item.serverName}（${item.detail || item.stage}）`).join('；') })
+          : t('{ok} 台都可用。', { ok }))
+      } catch (error) { setMcpHint(error.message) } finally { button.disabled = false }
+    }
+
+    // ---- 技能：~/.dsh/skills 与 ~/.agents/skills ----
+    const skillListEl = document.getElementById('skillList')
+    const skillHintEl = document.getElementById('skillHint')
+    const skillMasterEl = document.getElementById('skillMaster')
+    const skillSubEl = document.getElementById('skillSub')
+
+    function skillRow(skill) {
+      const row = document.createElement('div')
+      row.className = `plugin-row${skill.disableModelInvocation ? ' off' : ''}`
+      const main = document.createElement('div')
+      main.className = 'plugin-main'
+      const head = document.createElement('div')
+      head.className = 'plugin-head'
+      const name = document.createElement('span')
+      name.className = 'plugin-name'
+      name.textContent = skill.name || skill.dirName
+      const status = document.createElement('span')
+      status.className = 'plugin-status'
+      status.textContent = `${skill.root === 'agents' ? '.agents' : '.dsh'}${skill.frontmatterOk ? '' : ' · frontmatter 有问题'}`
+      head.append(name, status)
+      const desc = document.createElement('span')
+      desc.className = 'plugin-desc'
+      desc.textContent = skill.frontmatterOk ? (skill.description || '') : (skill.frontmatterIssue || '')
+      main.append(head, desc)
+      const actions = document.createElement('div')
+      actions.className = 'plugin-actions'
+      const toggle = document.createElement('input')
+      toggle.type = 'checkbox'
+      toggle.checked = !skill.disableModelInvocation
+      toggle.disabled = !skill.frontmatterOk
+      toggle.setAttribute('aria-label', t('启用 {name}', { name: skill.name || skill.dirName }))
+      toggle.onchange = async () => {
+        const enabled = toggle.checked
+        toggle.disabled = true
+        try {
+          const data = await post('/api/skills/toggle', { root: skill.root, path: skill.relPath, enabled })
+          renderSkills(data)
+        } catch (error) { skillHintEl.textContent = error.message; toggle.checked = !enabled; toggle.disabled = false }
+      }
+      actions.append(toggle)
+      row.append(main, actions)
+      return row
+    }
+
+    function renderSkills(data) {
+      const skills = data.skills || []
+      skillListEl.textContent = ''
+      if (!skills.length) {
+        const empty = document.createElement('div')
+        empty.className = 'plugin-empty'
+        empty.textContent = t('这两个目录里还没有本地技能。')
+        skillListEl.append(empty)
+      } else {
+        for (const skill of skills) skillListEl.append(skillRow(skill))
+      }
+      if (data.roots) {
+        skillSubEl.textContent = data.roots.map((root) => root.dir).join(' · ')
+      }
+      if (data.localSkills) {
+        skillMasterEl.checked = data.localSkills.enabled === true
+        skillMasterEl.disabled = false
+      }
+    }
+
+    async function loadSkills() {
+      try {
+        renderSkills(await getJson('/api/skills'))
+      } catch (error) { skillHintEl.textContent = error.message }
+    }
+
+    document.getElementById('skillRefresh').onclick = loadSkills
+    for (const [id, root] of [['skillOpenDsh', 'dsh'], ['skillOpenAgents', 'agents']]) {
+      document.getElementById(id).onclick = async () => {
+        const button = document.getElementById(id)
+        button.disabled = true
+        try {
+          const data = await post('/api/skills/open-folder', { root })
+          skillHintEl.textContent = t('已打开 {dir}', { dir: data.dir || '' })
+        } catch (error) { skillHintEl.textContent = error.message } finally { button.disabled = false }
+      }
+    }
+    skillMasterEl.onchange = async () => {
+      const enabled = skillMasterEl.checked
+      skillMasterEl.disabled = true
+      skillHintEl.textContent = enabled ? t('正在往补丁层写覆盖…') : t('正在清除覆盖…')
+      try {
+        renderSkills(await post('/api/skills/local', { enabled }))
+        skillHintEl.textContent = enabled
+          ? t('已强制启用 host 层技能行（与 agent 预设那份叠加）。dsh 在跑会热加载。')
+          : t('已清除覆盖，host 层两行回到模板默认。本地技能不受影响。')
+      } catch (error) { skillHintEl.textContent = error.message; loadSkills() } finally { skillMasterEl.disabled = false }
+    }
+
     loadSettings()
   </script>
   <script src="/mascot.js" defer></script>

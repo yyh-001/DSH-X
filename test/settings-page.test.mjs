@@ -66,7 +66,7 @@ test('顶栏四个 tab 已取消，设置分类在左侧导航，主页右上角
   assert.match(html, /await post\('\/api\/settings', \{ profile: value \}\)[\s\S]{0,240}?await loadPlugins\(\)/, '切换 profile 后等保存落地再重读插件列表')
   assert.match(html, /section\.hidden = section\.dataset\.category !== nextCategory/, '切换分类只显示对应设置')
   assert.match(html, /gearEl\.onclick = \(\) => showPane\(currentPane === 'settings' \? 'control' : 'settings', currentSettingsCategory\)/, '齿轮在设置与主界面间切换')
-  assert.match(html, /const paneLoaders = \{ plugins: loadPlugins, settings: loadSettings \}/, '进面板时才按需加载')
+  assert.match(html, /const paneLoaders = \{[^}]*plugins: loadPlugins[^}]*mcp: loadMcp[^}]*\}/, '进面板时才按需加载')
 })
 
 test('设置改变后自动提交，目录留空时拒绝提交', () => {
