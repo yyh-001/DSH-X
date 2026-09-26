@@ -26,14 +26,20 @@ async function makeHome(files = {}) {
 const contextOf = (home, profile = 'web') => ({ home, profile, profileDir: join(home, 'profiles', profile), roots: [] })
 
 const configOf = (bucket) => ({
-  endpoint: bucket.url,
-  region: 'us-east-1',
-  bucket: bucket.bucket,
-  prefix: '',
-  accessKeyId: 'AKIATEST',
-  secretAccessKey: 'secret-test-key',
-  style: 'path',
+  store: 's3',
+  s3: {
+    endpoint: bucket.url,
+    region: 'us-east-1',
+    bucket: bucket.bucket,
+    prefix: '',
+    accessKeyId: 'AKIATEST',
+    secretAccessKey: 'secret-test-key',
+    style: 'path',
+  },
 })
+
+/** 只改 S3 那部分配置（测错密钥、错桶名这些）。 */
+const withS3 = (bucket, patch) => ({ ...configOf(bucket), s3: { ...configOf(bucket).s3, ...patch } })
 
 test('上传→增量→换机器下载：内容、时间戳与插件清单都对得上', async (t) => {
   const bucket = await startFakeS3({ pageSize: 2 })   // 逼着走翻页
@@ -163,19 +169,19 @@ test('配置错了说人话：密钥不对、桶不对、端点不通', async (t
   const context = contextOf(home)
   const scopes = ['sessions']
   await assert.rejects(
-    () => runSync({ mode: 'up', scopes, config: { ...configOf(bucket), secretAccessKey: 'wrong-secret' }, context }),
+    () => runSync({ mode: 'up', scopes, config: withS3(bucket, { secretAccessKey: 'wrong-secret' }), context }),
     /SecretKey 填错了/,
   )
   await assert.rejects(
-    () => runSync({ mode: 'up', scopes, config: { ...configOf(bucket), bucket: 'nope' }, context }),
+    () => runSync({ mode: 'up', scopes, config: withS3(bucket, { bucket: 'nope' }), context }),
     /桶不存在/,
   )
   await assert.rejects(
-    () => runSync({ mode: 'up', scopes, config: { ...configOf(bucket), endpoint: 'http://127.0.0.1:1' }, context }),
+    () => runSync({ mode: 'up', scopes, config: withS3(bucket, { endpoint: 'http://127.0.0.1:1' }), context }),
     /连不上|超时/,
   )
   await assert.rejects(
-    () => runSync({ mode: 'up', scopes, config: { endpoint: '', bucket: '', accessKeyId: '', secretAccessKey: '' }, context }),
+    () => runSync({ mode: 'up', scopes, config: { store: 's3', s3: { endpoint: '', bucket: '', accessKeyId: '', secretAccessKey: '' } }, context }),
     /还没填/,
   )
   assert.equal(existsSync(join(home, 'sessions', 'proj', 's1', 'session.jsonl.zstd')), true, '失败不该动本机文件')

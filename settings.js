@@ -6,7 +6,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { APP_DIR, IS_MAC, IS_WINDOWS, MAC_BUNDLE_ID, appBundle, launcherExecutable, userAppDir } from './platform.js'
-import { safePolicy, safeS3Config, safeScopeIds } from './sync.js'
+import { safeFolderConfig, safePolicy, safeS3Config, safeScopeIds, safeStoreType, safeWebdavConfig } from './sync.js'
 
 const execFileAsync = promisify(execFile)
 const ROOT = dirname(fileURLToPath(import.meta.url))
@@ -163,6 +163,10 @@ export const DEFAULTS = {
   skippedUpdate: {},
   // S3 同步的存储桶（含密钥，本机明文存这个文件里；字段由 safeS3Config 补齐）
   s3: {},
+  // WebDAV 同步（地址 + 账号密码，同样是明文存本机）
+  webdav: {},
+  // 本地目录（手动导出 / 导入；就一个路径）
+  folder: {},
   // 同步范围与冲突策略
   sync: {},
 }
@@ -420,6 +424,8 @@ function normalizeSkippedUpdate(value) {
 export function safeSyncSettings(value) {
   const source = value && typeof value === 'object' ? value : {}
   return {
+    // 用哪种远端：s3（默认，老配置里没这个字段就是它）/ webdav
+    store: safeStoreType(source.store),
     scopes: safeScopeIds(source.scopes),
     policy: safePolicy(source.policy),
   }
@@ -466,6 +472,8 @@ export async function saveSettings(patch) {
   merged.skippedUpdate = normalizeSkippedUpdate(merged.skippedUpdate)
   // S3 同步：脏值顺手补全（密钥缺失只是「没配好」，不该让保存失败），显式填错才抛
   merged.s3 = safeS3Config('s3' in patch ? patch.s3 : merged.s3)
+  merged.webdav = safeWebdavConfig('webdav' in patch ? patch.webdav : merged.webdav)
+  merged.folder = safeFolderConfig('folder' in patch ? patch.folder : merged.folder)
   merged.sync = safeSyncSettings('sync' in patch ? patch.sync : merged.sync)
   // 已废弃的 AI 修复配置：清掉历史文件里的残留字段
   for (const key of ['aiRepair', 'aiModel', 'aiBaseURL', 'aiApiKey', 'aiMaxRounds', 'aiAllowDestructive']) {

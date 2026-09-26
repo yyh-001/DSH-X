@@ -26,6 +26,8 @@ const APP_FILES = [
   'settings.js',
   'platform.js',
   'plugins.js',
+  'packs.js',
+  'zip.js',
   'mcp.js',
   'skills.js',
   'sync.js',

@@ -1,9 +1,10 @@
 import { execFile, spawn, spawnSync } from 'node:child_process'
+import { createHash, randomBytes } from 'node:crypto'
 import { createServer } from 'node:http'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { accessSync, appendFileSync, chmodSync, closeSync, constants as fsConstants, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
-import { basename, delimiter, dirname, join } from 'node:path'
+import { basename, delimiter, dirname, join, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import { cmpVer, currentRegistry, installSpec, listPackage, parsePnpmProgress, parseVer } from './registry.js'
@@ -26,7 +27,35 @@ import {
   setSkillEnabled,
   skillRoots,
 } from './skills.js'
-import { S3, SYNC_SCOPES, runSync, s3Configured, s3DisplayUrl, s3Missing, safeS3Config } from './sync.js'
+import {
+  STORE_TYPES,
+  SYNC_SCOPES,
+  runSync,
+  safeFolderConfig,
+  safeS3Config,
+  safeWebdavConfig,
+  storeClient,
+  storeConfigured,
+  storeDisplayUrl,
+  storeMissing,
+} from './sync.js'
+import {
+  MARKET_INDEX_URL,
+  applyInstall,
+  defaultProfileFor,
+  describeSource,
+  exportPack,
+  forgetPack,
+  localized,
+  packSummary,
+  parsePackArchive,
+  parsePackDir,
+  parsePackSource,
+  planInstall,
+  readPackState,
+  rememberPack,
+  uninstallPack,
+} from './packs.js'
 import {
   autoStartEnabled,
   DEFAULT_PORT,
@@ -163,15 +192,19 @@ let lastFailure = null
 let lastHealth = null
 /** 需要在日志里打码的敏感串（如 API key）。 */
 let secretValues = []
-// S3 同步：存储桶（含密钥）与范围都存 settings.json，启动时读一次、改了就更新这两个
+// 同步：远端配置（S3 桶 / WebDAV 目录，都含密钥）与范围存 settings.json，启动时读一次
 let S3_CONFIG = safeS3Config(loadSettingsSync().s3)
+let WEBDAV_CONFIG = safeWebdavConfig(loadSettingsSync().webdav)
+let FOLDER_CONFIG = safeFolderConfig(loadSettingsSync().folder)
 let SYNC_OPTIONS = safeSyncSettings(loadSettingsSync().sync)
 /** 正在跑的同步任务：进度、每步在哪个文件，页面靠它画进度条（也进 SSE 重放）。 */
 let syncState = null
 let syncRunning = false
 /** 用户点了「停止」：引擎在每个文件之间看它一眼。 */
 let syncStopRequested = false
-secretValues = [S3_CONFIG.secretAccessKey, S3_CONFIG.sessionToken].filter(Boolean)
+/** 当前这份远端配置（引擎只认这个形状；切换存储类型不用重填另一侧的字段）。 */
+const storeConfig = () => ({ store: SYNC_OPTIONS.store, s3: S3_CONFIG, webdav: WEBDAV_CONFIG, folder: FOLDER_CONFIG })
+secretValues = [S3_CONFIG.secretAccessKey, S3_CONFIG.sessionToken, WEBDAV_CONFIG.password].filter(Boolean)
 
 /** 把 key 之类的敏感串从任意文本里抹掉（dsh 的凭据常出现在子进程输出里）。 */
 function redact(text, secrets = []) {
@@ -1027,18 +1060,23 @@ function skillsPayload() {
   }
 }
 
-// ---- S3 同步：会话记录、附件与插件配置传到 S3 兼容的对象存储 ----
+// ---- 同步：会话记录、附件与插件配置传到远端（S3 兼容对象存储 / WebDAV） ----
 
 /** 同步接口的统一载荷：配置（含密钥，页面要回显）+ 可选项 + 正在跑的进度。 */
 function syncPayload() {
+  const store = storeConfig()
   return {
+    store: store.store,
+    storeTypes: STORE_TYPES,
     s3: S3_CONFIG,
+    webdav: WEBDAV_CONFIG,
+    folder: FOLDER_CONFIG,
     sync: SYNC_OPTIONS,
     scopes: SYNC_SCOPES,
     policies: [
-      { id: 'skip', label: '保留本机', hint: '本机不动；桶里那份也留着，下次换个策略再拉' },
-      { id: 'overwrite', label: '用桶里的覆盖本机', hint: '以桶为准（适合「刚换的新机器」）' },
-      { id: 'duplicate', label: '两份都留', hint: '本机不动，桶里那份另存成 …remote-日期 的文件' },
+      { id: 'skip', label: '保留本机', hint: '本机不动；远端那份也留着，下次换个策略再拉' },
+      { id: 'overwrite', label: '用远端的覆盖本机', hint: '以远端为准（适合「刚换的新机器」）' },
+      { id: 'duplicate', label: '两份都留', hint: '本机不动，远端那份另存成 …remote-日期 的文件' },
     ],
     styles: [
       { id: 'auto', label: '自动（IP 用路径风格，域名用虚拟主机）' },
@@ -1054,9 +1092,9 @@ function syncPayload() {
     ],
     home: homeDir(),
     profile: PROFILE_NAME,
-    bucketUrl: s3DisplayUrl(S3_CONFIG),
-    configured: s3Configured(S3_CONFIG),
-    missing: s3Missing(S3_CONFIG),
+    remoteUrl: storeDisplayUrl(store),
+    configured: storeConfigured(store),
+    missing: storeMissing(store),
     state: syncState,
     running: syncRunning,
   }
@@ -1075,8 +1113,13 @@ function emitSync(state) {
 async function runSyncJob(mode, options = {}) {
   if (syncRunning) throw new Error('上一次同步还没结束')
   if (pluginBusy || installing) throw new Error('正在装插件或版本，等它结束再同步')
-  if (!s3Configured(S3_CONFIG)) throw new Error(`存储桶还没填完：${s3Missing(S3_CONFIG).join('、')}`)
-  const scopes = safeSyncSettings({ scopes: options.scopes ?? SYNC_OPTIONS.scopes, policy: options.policy ?? SYNC_OPTIONS.policy })
+  const store = storeConfig()
+  if (!storeConfigured(store)) throw new Error(`远端还没填完：${storeMissing(store).join('、')}`)
+  const scopes = safeSyncSettings({
+    store: options.store ?? SYNC_OPTIONS.store,
+    scopes: options.scopes ?? SYNC_OPTIONS.scopes,
+    policy: options.policy ?? SYNC_OPTIONS.policy,
+  })
   const policy = scopes.policy
   const force = options.force === true
   const label = mode === 'up' ? '上传' : '下载'
@@ -1084,12 +1127,12 @@ async function runSyncJob(mode, options = {}) {
   syncStopRequested = false
   const startedAt = Date.now()
   emitSync({ phase: 'start', mode, done: 0, total: 0, at: startedAt })
-  pushLog(`[同步] 开始${label}：${scopes.scopes.map(scopeLabel).join('、')} → ${s3DisplayUrl(S3_CONFIG)}`)
+  pushLog(`[同步] 开始${label}：${scopes.scopes.map(scopeLabel).join('、')} → ${storeDisplayUrl(store)}`)
   try {
     const summary = await runSync({
       mode,
       scopes: scopes.scopes,
-      config: S3_CONFIG,
+      config: { ...store, store: scopes.store },
       policy,
       force,
       context: {
@@ -1146,13 +1189,14 @@ function scopeLabel(id) {
 }
 
 /**
- * 连接自检：能走到桶、密钥认不认、命名空间下有多少东西。
- * 填错端点/密钥是最常见的失败，先有一次「点一下就知道」的检查，不用真的跑同步。
+ * 连接自检：能走到远端、认证过不过、我们的目录里有没有东西。
+ * 填错地址/密钥是最常见的失败，先有一次「点一下就知道」的检查，不用真的跑同步。
  */
 async function testSyncConnection() {
-  const client = new S3(S3_CONFIG)
+  const store = storeConfig()
+  const client = storeClient(store)
   const info = await client.test()
-  pushLog(`[同步] 连接正常：${info.host}（${info.style === 'path' ? '路径风格' : '虚拟主机'}），${info.namespace}/ 下有对象`)
+  pushLog(`[同步] 连接正常：${info.host}（${info.detail}），${info.namespace}/ ${info.empty ? '还没有内容' : '已有内容'}`)
   return info
 }
 
@@ -1218,8 +1262,8 @@ function spawnDsh(version, extra) {
   })
 }
 
-async function ensureProfileNpmrc() {
-  const dir = join(homeDir(), 'profiles', PROFILE_NAME)
+async function ensureProfileNpmrc(profile = PROFILE_NAME) {
+  const dir = join(homeDir(), 'profiles', profile)
   await mkdir(dir, { recursive: true })
   const file = join(dir, '.npmrc')
   let text = ''
@@ -1504,10 +1548,17 @@ async function installedPlugins() {
   }
 }
 
-/** 跑一条 `dsh plugin …`（透传给 pnpm），输出进日志。 */
-function runPluginCommand(ver, args, label) {
+/**
+ * 跑一条 `dsh plugin …`（透传给 pnpm），输出进日志。
+ *
+ * profile 与进度出口都能换：整合包要把同一套安装跑在别的 profile 上，进度也要画在
+ * 整合包页自己的进度条里（默认是插件页那条）。
+ */
+function runPluginCommand(ver, args, label, options = {}) {
+  const profile = options.profile || PROFILE_NAME
+  const onProgress = options.onProgress || emitPluginProgress
   return new Promise((resolve, reject) => {
-    const child = spawnDsh(ver, ['plugin', '--profile', PROFILE_NAME, ...args])
+    const child = spawnDsh(ver, ['plugin', '--profile', profile, ...args])
     // 留一份输出尾巴挂在错误上：只报退出码的话调用方没法判断是哪种失败，只能瞎猜着重试
     const tail = []
     // pnpm 的进度：装插件可能几十秒，页面要有条能动的进度条，别只留一句「正在更新…」
@@ -1519,7 +1570,7 @@ function runPluginCommand(ver, args, label) {
         if (tail.length > 40) tail.shift()
         pushLog(`[plugin] ${text}`)
         const progress = parsePnpmProgress(text, progressState)
-        if (progress) emitPluginProgress(progress)
+        if (progress) onProgress(progress)
       }
     }
     child.stdout.on('data', keep)
@@ -1574,8 +1625,8 @@ function looksLikeLinkFailure(text) {
  * 没有第三种链接类型可用）。只在真撞上这个问题时才写，别去动本来正常的机器。
  * .npmrc 不在插件管理器的跟踪范围内，不会被它覆盖。
  */
-async function useHoistedLinker() {
-  const file = join(homeDir(), 'profiles', PROFILE_NAME, '.npmrc')
+async function useHoistedLinker(profile = PROFILE_NAME) {
+  const file = join(homeDir(), 'profiles', profile, '.npmrc')
   let text = ''
   try {
     text = await readFile(file, 'utf8')
@@ -1762,20 +1813,25 @@ async function updateAllPlugins() {
  * 写在这儿的理由：每次都得带上「这台机器读不了目录链接」那条退路（改用真实目录重试），
  * 启动自愈和同步拉回插件清单两条路都要它。调用方负责 pluginBusy 与进度条的收发。
  */
-async function runProfileInstall(version) {
+async function runProfileInstall(version, options = {}) {
+  const profile = options.profile || PROFILE_NAME
+  const onProgress = options.onProgress
+  const log = options.log || pushLog
+  const target = () => join(homeDir(), 'profiles', profile)
+  const run = () => runPluginCommand(version, ['install', '--config.auto-install-peers=false'], 'dsh plugin install', { profile, onProgress })
   await mkdir(homeDir(), { recursive: true })
-  await ensureProfileNpmrc()
+  await ensureProfileNpmrc(profile)
   try {
-    await runPluginCommand(version, ['install', '--config.auto-install-peers=false'], 'dsh plugin install')
+    await run()
   } catch (error1) {
     const text = `${error1 instanceof Error ? error1.message : error1}\n${(error1?.tail || []).join('\n')}`
     // 和装插件那条路同样的退路：这台机器读不了目录链接时，让 pnpm 改用真实目录再装一遍。
     // 报错长这样：UNKNOWN: unknown error, open ...node_modules\<pkg>\package.json（-4094）
-    if (!looksLikeLinkFailure(text) || !(await useHoistedLinker())) throw error1
-    pushLog('这台机器读不了目录链接，改用真实目录（node-linker=hoisted）重试')
-    const again = pruneDanglingLinks(join(profileDir(), 'node_modules'))
-    if (again) pushLog(`先清理了 ${again} 个悬空的链接`)
-    await runPluginCommand(version, ['install', '--config.auto-install-peers=false'], 'dsh plugin install')
+    if (!looksLikeLinkFailure(text) || !(await useHoistedLinker(profile))) throw error1
+    log('这台机器读不了目录链接，改用真实目录（node-linker=hoisted）重试')
+    const again = pruneDanglingLinks(join(target(), 'node_modules'))
+    if (again) log(`先清理了 ${again} 个悬空的链接`)
+    await run()
   }
 }
 
@@ -1872,6 +1928,283 @@ async function seedMarket(version) {
   } catch (error) {
     marketSeedFailed = true
     pushLog(`预装 dshmarket 失败: ${error instanceof Error ? error.message : error}（本次运行不再重试，可在插件页手动安装）`)
+  }
+}
+
+// ---- 整合包：把一批插件 + 一套配置一次装进一个 profile ----
+//
+// 与插件页的分工：插件页管「一个包」，整合包页管「一套环境」——一次写进 package.json 的
+// 依赖与层栈、补丁层、用户级文件，再走同一条 `dsh plugin install` 把依赖装齐。格式用的是
+// 生态里的 .dspack（DSH-PackForge），详情见 packs.js。
+//
+// 装进新 profile 是默认姿势：dsh 一次只跑一个 profile，新环境与现有插件互不污染，
+// 装完在插件页切过去就行。每一步都可能失败（下载、解包、写文件、pnpm），所以每次安装
+// 之前先备份被覆盖的文件，失败自动回滚。
+
+/** 整合包的进度：走 SSE 的 progress 事件，靠 kind 与插件页那条区分开。 */
+let packProgress = null
+let packProgressName = ''
+/** 检查过的包先放这儿，安装时不用再下载一遍（页面刷新也还在）。 */
+const packInspectCache = new Map()
+/** 市场索引缓存：一次列表拉几百 KB，别每开一次页面就重下一遍。 */
+let packsMarketCache = { at: 0, data: null }
+const PACK_MARKET_TTL = 10 * 60 * 1000
+/** 检查过的包最多留多久（inbox 里的临时文件）。 */
+const PACK_INBOX_TTL = 6 * 60 * 60 * 1000
+/** 最近一次导出的文件：只允许「在文件夹里显示」我们自己的产物。 */
+let lastExportPath = ''
+
+function packsDir() {
+  return join(DATA, 'packs')
+}
+
+function packInboxDir() {
+  return join(packsDir(), 'inbox')
+}
+
+function newPackToken() {
+  return `${Date.now().toString(36)}-${randomBytes(4).toString('hex')}`
+}
+
+function emitPackProgress(state) {
+  packProgress = state
+  emit('progress', state ? { ...state, kind: 'pack', name: packProgressName } : { phase: 'idle', kind: 'pack' })
+}
+
+/** 整合包页的载荷：已装的包、可切换的 profile、市场地址。 */
+function packsPayload() {
+  const state = readPackState(DATA)
+  return {
+    packs: state.packs,
+    profile: PROFILE_NAME,
+    home: homeDir(),
+    profiles: listProfiles(),
+    marketUrl: process.env.DSH_PACK_MARKET || MARKET_INDEX_URL,
+    busy: pluginBusy,
+    progress: packProgress,
+  }
+}
+
+/**
+ * 下载文件：直连失败按「更新下载源」试镜像。
+ *
+ * 整合包和启动器更新走同一套前缀（gh-proxy 那些）——国内直连 github 的 release 资产
+ * 基本拿不到，而整合包分发的第一步就是它。
+ */
+/** 下载上限：整合包只装清单与配置，超过这个量级的多半不是包（也免得把内存吃光）。 */
+const PACK_DOWNLOAD_LIMIT = 64 * 1024 * 1024
+
+async function downloadToFile(url, dest, { sha256 = '', log = pushLog, onProgress } = {}) {
+  const candidates = updateUrlCandidates(url, UPDATE_SOURCE)
+  let last = null
+  for (const candidate of candidates) {
+    try {
+      log(`下载 ${candidate}`)
+      const res = await fetch(candidate, { redirect: 'follow' })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const total = Number(res.headers.get('content-length')) || 0
+      if (total > PACK_DOWNLOAD_LIMIT) throw new Error(`文件太大（${Math.round(total / 1048576)} MB，上限 ${PACK_DOWNLOAD_LIMIT / 1048576} MB）`)
+      const chunks = []
+      let done = 0
+      for await (const chunk of res.body) {
+        chunks.push(chunk)
+        done += chunk.length
+        if (done > PACK_DOWNLOAD_LIMIT) throw new Error(`下载超过上限（${PACK_DOWNLOAD_LIMIT / 1048576} MB），已停下`)
+        onProgress?.({ phase: 'download', done, total })
+      }
+      const buffer = Buffer.concat(chunks)
+      if (total && buffer.length !== total) throw new Error(`下载不完整（${buffer.length}/${total} 字节）`)
+      if (sha256) {
+        const got = createHash('sha256').update(buffer).digest('hex')
+        if (got !== String(sha256).toLowerCase()) {
+          throw new Error(`校验对不上（期望 ${String(sha256).slice(0, 12)}…，实际 ${got.slice(0, 12)}…）`)
+        }
+      }
+      await mkdir(dirname(dest), { recursive: true })
+      await writeFile(dest, buffer)
+      return { url: candidate, bytes: buffer.length }
+    } catch (error) {
+      last = error
+      log(`下载失败：${error.message}`)
+    }
+  }
+  throw new Error(`下载失败：${last?.message || '未知原因'}`)
+}
+
+/** GitHub 接口的确定性回答：这类错误换镜像也没用，直接报出来。 */
+const GITHUB_FINAL_RE = /找不到|还没有发布|限流/
+
+/**
+ * 从 GitHub 仓库取整合包：release 资产里的 .dspack（其次 .zip）。
+ * 这是生态里的发布约定（仓库打 dsh-pack topic + Release 挂 .dspack）。
+ */
+async function resolveGithubPack(repo, ref, log = pushLog) {
+  const clean = String(repo).replace(/\.git$/i, '')
+  const api = ref
+    ? `https://api.github.com/repos/${clean}/releases/tags/${encodeURIComponent(ref)}`
+    : `https://api.github.com/repos/${clean}/releases/latest`
+  let payload = null
+  let last = null
+  for (const candidate of updateUrlCandidates(api, UPDATE_SOURCE)) {
+    try {
+      const res = await fetch(candidate, { headers: { accept: 'application/vnd.github+json', 'user-agent': 'dsh-x' } })
+      if (res.status === 404) throw new Error(ref ? `找不到 ${clean} 的 ${ref} 这个发布` : `${clean} 还没有发布过 release`)
+      if (res.status === 403 || res.status === 429) {
+        throw new Error('GitHub 接口限流了（匿名每小时 60 次）：过一会儿再试，或者直接把 release 里的 .dspack 链接贴进来')
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      payload = await res.json()
+      break
+    } catch (error) {
+      last = error
+      log(`取 release 信息失败：${error.message}`)
+      if (GITHUB_FINAL_RE.test(error.message)) throw error
+    }
+  }
+  if (!payload) throw last || new Error('取 release 信息失败')
+  const assets = Array.isArray(payload.assets) ? payload.assets : []
+  const asset = assets.find((item) => /\.dspack$/i.test(item.name)) || assets.find((item) => /\.zip$/i.test(item.name))
+  if (!asset) {
+    throw new Error(`${clean} 的${ref ? ` ${ref}` : '最新'} release 里没有 .dspack/.zip 资产${assets.length ? `（只有 ${assets.map((item) => item.name).join('、')}）` : ''}`)
+  }
+  return { url: asset.browser_download_url, name: asset.name, size: asset.size, sha256: '', version: payload.tag_name || '', repo: clean }
+}
+
+function normalizeMarketEntry(item) {
+  const downloadUrl = String(item?.downloadUrl || item?.url || '')
+  return {
+    id: String(item?.id || `${item?.owner || ''}.${item?.repo || item?.name || ''}`),
+    name: String(item?.name || ''),
+    version: String(item?.version || ''),
+    type: String(item?.type || 'profile'),
+    displayName: localized(item?.displayName, LANG) || String(item?.name || ''),
+    description: localized(item?.description, LANG),
+    author: String(item?.author || item?.owner || ''),
+    category: String(item?.category || ''),
+    dshVersion: String(item?.dshVersion || ''),
+    bundleCount: Number(item?.bundleCount) || 0,
+    depCount: Number(item?.depCount) || 0,
+    size: Number(item?.size) || 0,
+    sha256: String(item?.sha256 || ''),
+    updatedAt: String(item?.updatedAt || ''),
+    downloadUrl,
+    manifestVersion: Number(item?.manifestVersion) || 0,
+  }
+}
+
+/** 读整合包市场索引（PackForge 的公开索引：仓库打 dsh-pack topic 就会被采集进去）。 */
+async function marketEntries({ force = false } = {}) {
+  const now = Date.now()
+  if (!force && packsMarketCache.data && now - packsMarketCache.at < PACK_MARKET_TTL) return packsMarketCache.data
+  const url = process.env.DSH_PACK_MARKET || MARKET_INDEX_URL
+  let last = null
+  for (const candidate of updateUrlCandidates(url, UPDATE_SOURCE)) {
+    try {
+      const res = await fetch(candidate, { headers: { 'user-agent': 'dsh-x' } })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const index = await res.json()
+      const list = Array.isArray(index?.modpacks) ? index.modpacks
+        : Array.isArray(index?.packs) ? index.packs
+          : Array.isArray(index) ? index : []
+      const data = {
+        url,
+        entries: list.map(normalizeMarketEntry).filter((entry) => entry.downloadUrl && entry.name),
+        generatedAt: String(index?.generatedAt || ''),
+        fetchedAt: new Date().toISOString(),
+      }
+      packsMarketCache = { at: now, data }
+      return data
+    } catch (error) {
+      last = error
+    }
+  }
+  throw new Error(`读整合包市场失败：${last?.message || '未知原因'}`)
+}
+
+/**
+ * 打开一个来源（本地文件/目录直接用，网络来源下到 inbox），返回解析好的包。
+ * token 由调用方给：同一个 token 的临时文件留给安装那一步用。
+ */
+async function openPackSource(source, { token = newPackToken(), log = pushLog, onProgress } = {}) {
+  const parsed = typeof source === 'string' ? parsePackSource(source) : source
+  if (parsed.kind === 'dir') {
+    return { pack: parsePackDir(parsed.path), file: parsed.path, source: describeSource(parsed), token }
+  }
+  if (parsed.kind === 'file') {
+    if (!/\.(?:dspack|zip)$/i.test(parsed.path)) log(`按压缩包读取（扩展名不是 .dspack）：${basename(parsed.path)}`)
+    const buffer = await readFile(parsed.path)
+    return { pack: parsePackArchive(buffer), file: parsed.path, source: describeSource(parsed), token }
+  }
+  const dir = join(packInboxDir(), token)
+  const dest = join(dir, 'pack.dspack')
+  let url = parsed.url || ''
+  let sha256 = parsed.sha256 || ''
+  let resolved = ''
+  if (parsed.kind === 'github') {
+    const info = await resolveGithubPack(parsed.repo, parsed.ref, log)
+    url = info.url
+    resolved = `${info.repo}${info.version ? ` ${info.version}` : ''}`
+  }
+  if (parsed.kind === 'market') resolved = parsed.id || ''
+  if (!url) throw new Error('这个来源没有可下载的地址')
+  onProgress?.({ phase: 'fetch', done: 0, total: Number(parsed.size) || 0 })
+  const info = await downloadToFile(url, dest, {
+    sha256,
+    log,
+    // 阶段名统一由这边定：下载整合包是 fetch，装依赖才是 install（pnpm 自己的相位放在 step 里）
+    onProgress: onProgress ? (state) => onProgress({ phase: 'fetch', done: state.done, total: state.total }) : undefined,
+  })
+  onProgress?.({ phase: 'unpack', done: 0, total: 0 })
+  return {
+    pack: parsePackArchive(await readFile(dest)),
+    file: dest,
+    source: resolved || describeSource(parsed),
+    token,
+    bytes: info.bytes,
+  }
+}
+
+/** 检查结果 + 安装计划：页面上的「装什么、装到哪、会覆盖什么」都是它。 */
+function packPlanPayload(pack, profile = '') {
+  const target = safeProfile(profile || defaultProfileFor(pack))
+  const base = { pack: packSummary(pack), target: { profile: target } }
+  try {
+    const plan = planInstall(pack, { home: homeDir(), profile: target, hostProfile: PROFILE_NAME })
+    return {
+      ...base,
+      ok: pack.ok && plan.ok,
+      target: { profile: target, createsProfile: plan.createsProfile, profileDir: plan.profileDir },
+      plan: {
+        notes: plan.notes,
+        warnings: plan.warnings,
+        errors: plan.errors,
+        writes: plan.writes.map((write) => ({ rel: write.rel, kind: write.kind || '', note: write.note || '' })),
+      },
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    return { ...base, ok: false, plan: { notes: [], warnings: pack.warnings, errors: [...pack.errors, message], writes: [] } }
+  }
+}
+
+/** 清掉过期的 inbox（检查过但一直没装的包）。 */
+async function prunePackInbox() {
+  const root = packInboxDir()
+  let entries = []
+  try {
+    entries = readdirSync(root, { withFileTypes: true })
+  } catch {
+    return
+  }
+  const deadline = Date.now() - PACK_INBOX_TTL
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue
+    const full = join(root, entry.name)
+    try {
+      if (statSync(full).mtimeMs < deadline) await rm(full, { recursive: true, force: true })
+    } catch {
+      // 删不掉就算了，下次再试
+    }
   }
 }
 
@@ -2320,6 +2653,77 @@ function pickDirectory() {
 /** AppleScript 里用户点「取消」的错误号：不算失败，当作没选。 */
 const APPLESCRIPT_USER_CANCELED = '-128'
 
+/**
+ * 弹系统的文件对话框（选一个整合包 / 选导出到哪），返回绝对路径，取消返回空串。
+ *
+ * 和目录选择同一套做法：页面拿不到本机绝对路径，只能由管理页所在进程来弹。
+ * 注入到 PowerShell / AppleScript 里的字符串先把单引号去掉——它们都是单引号包裹的。
+ */
+function pickFileWin({ save, defaultName, filter }) {
+  const cleanName = String(defaultName || '').replace(/'/g, '')
+  const cleanFilter = String(filter || '').replace(/'/g, '')
+  const script = [
+    'Add-Type -AssemblyName System.Windows.Forms | Out-Null',
+    save
+      ? `$d = New-Object System.Windows.Forms.SaveFileDialog; $d.FileName = '${cleanName}'; $d.OverwritePrompt = $true`
+      : '$d = New-Object System.Windows.Forms.OpenFileDialog',
+    `$d.Filter = '${cleanFilter}'`,
+    save ? "$d.Title = '导出整合包'" : "$d.Title = '选择整合包'",
+    'if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($d.FileName) }',
+  ].join('; ')
+  return new Promise((resolve, reject) => {
+    execFile('powershell', ['-STA', '-NoProfile', '-Command', script], { windowsHide: true, timeout: 10 * 60 * 1000, encoding: 'utf8' }, (error, stdout) => {
+      if (error) {
+        reject(error)
+        return
+      }
+      resolve(String(stdout || '').trim())
+    })
+  })
+}
+
+function pickFileMac({ save, defaultName }) {
+  const cleanName = String(defaultName || '').replace(/["\\]/g, '')
+  const script = save
+    ? `activate\nPOSIX path of (choose file name with prompt "导出整合包" default name "${cleanName}")`
+    : 'activate\nPOSIX path of (choose file with prompt "选择整合包")'
+  return new Promise((resolve, reject) => {
+    execFile('osascript', ['-e', script], { timeout: 10 * 60 * 1000, encoding: 'utf8' }, (error, stdout, stderr) => {
+      if (error) {
+        if (String(stderr || '').includes(`(${APPLESCRIPT_USER_CANCELED})`)) resolve('')
+        else reject(error)
+        return
+      }
+      resolve(String(stdout || '').trim().replace(/(.)\/+$/, '$1'))
+    })
+  })
+}
+
+const PACK_FILE_FILTER_DSPACK = '整合包 (*.dspack)|*.dspack|ZIP 压缩包 (*.zip)|*.zip|所有文件 (*.*)|*.*'
+
+function pickPackFile({ save = false, defaultName = '' } = {}) {
+  if (IS_MAC) return pickFileMac({ save, defaultName })
+  if (!IS_WINDOWS) throw new Error('只有 Windows 和 macOS 支持文件选择')
+  return pickFileWin({ save, defaultName, filter: PACK_FILE_FILTER_DSPACK })
+}
+
+/**
+ * 在文件管理器里定位一个文件。
+ *
+ * 只放行启动器自己的产物（刚导出的包、inbox 里的临时文件）——这个接口没有鉴权，
+ * 做成「能打开任意路径」等于给本机开了个文件管理器后门。
+ */
+function revealPath(target) {
+  const value = String(target || '')
+  if (!value) throw new Error('先给一个路径')
+  if (!existsSync(value)) throw new Error('这个路径不存在')
+  const allowed = value === lastExportPath || value === packsDir() || value.startsWith(`${packsDir()}${sep}`)
+  if (!allowed) throw new Error('只支持显示整合包自己的文件')
+  if (IS_MAC) execFile('open', ['-R', value], { windowsHide: true })
+  else if (IS_WINDOWS) execFile('explorer', [`/select,${value}`], { windowsHide: true })
+  else execFile('xdg-open', [dirname(value)], { windowsHide: true })
+}
+
 /** macOS 的目录选择走 AppleScript 的 choose folder（系统自带，不需要额外权限）。 */
 function pickDirectoryMac() {
   return new Promise((resolve, reject) => {
@@ -2705,6 +3109,20 @@ async function handleApi(req, res, url) {
     }
     return
   }
+  if (req.method === 'GET' && url.pathname === '/api/packs') {
+    send(res, 200, packsPayload())
+    return
+  }
+  if (req.method === 'GET' && url.pathname === '/api/packs/market') {
+    try {
+      send(res, 200, { ok: true, ...(await marketEntries({ force: url.searchParams.get('refresh') === '1' })) })
+    } catch (error) {
+      // 市场读不到不算页面出错：这条索引在 GitHub 上，直连/镜像都可能拿不到，
+      // 手动贴链接或 owner/repo 照样能装。
+      send(res, 200, { ok: false, entries: [], error: error instanceof Error ? error.message : String(error) })
+    }
+    return
+  }
   if (req.method === 'GET' && url.pathname === '/api/events') {
     res.writeHead(200, {
       'content-type': 'text/event-stream',
@@ -2717,6 +3135,8 @@ async function handleApi(req, res, url) {
     res.write(`event: state\ndata: ${JSON.stringify(await snapshot())}\n\n`)
     if (installProgress) res.write(`event: progress\ndata: ${JSON.stringify(installProgress)}\n\n`)
     if (pluginProgress) res.write(`event: progress\ndata: ${JSON.stringify({ ...pluginProgress, kind: 'plugin', name: pluginProgressName })}\n\n`)
+    // 整合包：检查和安装都可能几十秒（下载 + 解包 + pnpm），刷新页面要能接着显示
+    if (packProgress) res.write(`event: progress\ndata: ${JSON.stringify({ ...packProgress, kind: 'pack', name: packProgressName })}\n\n`)
     // 同步跑得久，页面中途刷新也要能接着显示进度
     if (syncState) res.write(`event: sync\ndata: ${JSON.stringify(syncState)}\n\n`)
     clients.add(res)
@@ -2808,6 +3228,210 @@ async function handleApi(req, res, url) {
       const message = error instanceof Error ? error.message : String(error)
       pushLog(`插件更新失败：${message}`)
       send(res, 400, { error: message })
+    }
+    return
+  }
+  // ---- 整合包：检查 / 安装 / 卸载 / 导出 ----
+
+  if (req.method === 'POST' && url.pathname === '/api/packs/inspect') {
+    const token = String(body.token || '') || newPackToken()
+    const source = body.market
+      ? { kind: 'market', id: String(body.market.id || ''), url: String(body.market.downloadUrl || ''), sha256: String(body.market.sha256 || ''), size: Number(body.market.size) || 0, name: String(body.market.name || '') }
+      : String(body.source || '')
+    packProgressName = body.market ? String(body.market.displayName || body.market.name || '') : String(body.source || '')
+    emitPackProgress({ phase: 'fetch', done: 0, total: 0 })
+    try {
+      const opened = await openPackSource(source, { token, onProgress: (state) => emitPackProgress(state) })
+      // 检查会往 inbox 落一份包，顺手清掉过期的：一次会话里检查很多个也不会把磁盘堆满
+      void prunePackInbox()
+      if (opened.token) {
+        packInspectCache.set(opened.token, { file: opened.file, source: opened.source, at: Date.now() })
+      }
+      const payload = { ok: true, token: opened.token, source: opened.source, bytes: opened.bytes || 0, ...packPlanPayload(opened.pack, String(body.profile || '')) }
+      pushLog(`整合包检查：${payload.pack.displayName || payload.pack.name} ${payload.pack.version}（${payload.pack.bundles.length} 层、${payload.pack.dependencies.length} 个依赖）${payload.ok ? '' : '，有问题'}`)
+      send(res, 200, payload)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      pushLog(`整合包检查失败：${message}`)
+      send(res, 400, { ok: false, error: message })
+    } finally {
+      packProgressName = ''
+      emitPackProgress(null)
+    }
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/packs/install') {
+    if (pluginBusy) {
+      send(res, 400, { error: '正在装插件或整合包，等它结束再试' })
+      return
+    }
+    const token = String(body.token || '')
+    const cached = token ? packInspectCache.get(token) : null
+    const source = cached ? cached.source : (body.market
+      ? { kind: 'market', id: String(body.market.id || ''), url: String(body.market.downloadUrl || ''), sha256: String(body.market.sha256 || ''), size: Number(body.market.size) || 0, name: String(body.market.name || '') }
+      : String(body.source || ''))
+    if (!cached && !body.source && !body.market) {
+      send(res, 400, { error: token ? '这次检查的临时文件已经过期了，回到上一步重新检查一次再装' : '先检查一次整合包，再点安装' })
+      return
+    }
+    pluginBusy = true
+    let opened = null
+    try {
+      opened = cached
+        ? { pack: parsePackArchive(await readFile(cached.file)), file: cached.file, source: cached.source, token }
+        : await openPackSource(source, { token: token || newPackToken(), onProgress: (state) => emitPackProgress(state) })
+      const pack = opened.pack
+      packProgressName = pack.displayName || pack.fields.name
+      if (!pack.ok) throw new Error(pack.errors.join('；'))
+      const profile = safeProfile(String(body.profile || '') || defaultProfileFor(pack))
+      const plan = planInstall(pack, { home: homeDir(), profile, hostProfile: PROFILE_NAME })
+      if (!plan.ok) throw new Error(plan.errors.join('；'))
+      const version = await pluginCommandVersion()
+      pushLog(`安装整合包 ${pack.fields.name} ${pack.fields.version} → profile ${profile}（${plan.writes.length} 个文件）`)
+      emitPackProgress({ phase: 'write', done: 0, total: plan.writes.length })
+      const result = await applyInstall(plan, {
+        home: homeDir(),
+        dataDir: DATA,
+        pack,
+        source: opened.source,
+        runInstall: async (target) => {
+          emitPackProgress({ phase: 'install', step: 'resolve', done: 0, total: 0 })
+          await runProfileInstall(version, {
+            profile: target,
+            // pnpm 自己的相位放进 step：页面上「下载依赖」和「下载整合包」是两件事
+            onProgress: (state) => emitPackProgress({ phase: 'install', step: state.phase, done: state.done, total: state.total }),
+            log: pushLog,
+          })
+        },
+        log: pushLog,
+      })
+      emitPackProgress({ phase: 'done', done: plan.writes.length, total: plan.writes.length })
+      rememberPack(DATA, result.record)
+      if (token) packInspectCache.delete(token)
+      pushLog(`整合包 ${result.record.name} 已装进 profile「${profile}」（重启 dsh 后生效）`)
+      send(res, 200, {
+        ok: true,
+        installed: result.record,
+        plan: { notes: plan.notes, warnings: plan.warnings, writes: plan.writes.map((write) => write.rel) },
+        ...packsPayload(),
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      pushLog(`整合包安装失败：${message}`)
+      send(res, 400, { ok: false, error: message })
+    } finally {
+      pluginBusy = false
+      packProgressName = ''
+      emitPackProgress(null)
+    }
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/packs/uninstall') {
+    const name = String(body.name || '')
+    const profile = String(body.profile || '')
+    const record = readPackState(DATA).packs.find((item) => item.name === name && item.profile === profile)
+    if (!record) {
+      send(res, 404, { error: `没有「${name} 装在 ${profile}」这条安装记录` })
+      return
+    }
+    if (pluginBusy) {
+      send(res, 400, { error: '正在装插件或整合包，等它结束再试' })
+      return
+    }
+    // 删目录这件事先判掉：允许的话才动手卸载，否则会留下「文件还原了、目录没删」的半截状态
+    if (body.removeProfile === true) {
+      if (!record.createdProfile) {
+        send(res, 400, { error: '这个 profile 在装整合包之前就在，不敢整个删掉；可以手动清理这个目录' })
+        return
+      }
+      if (record.profile === PROFILE_NAME) {
+        send(res, 400, { error: `profile「${record.profile}」是启动器正在用的那个，先在插件页换一个 profile 再删` })
+        return
+      }
+    }
+    try {
+      const lines = []
+      const profilePath = join(homeDir(), 'profiles', profile)
+      // profile 目录已经被手动删掉时不硬还原——那等于把空目录重新变出一堆配置文件，更吓人
+      const gone = !existsSync(profilePath)
+      const result = gone
+        ? { ok: true, restored: 0 }
+        : uninstallPack(record, { home: homeDir(), log: (line) => { lines.push(line); pushLog(`[整合包] ${line}`) } })
+      if (gone) lines.push(`profile 目录「${profilePath}」已经不在了，只清掉安装记录，不再还原文件`)
+      forgetPack(DATA, name, profile)
+      let removedProfile = false
+      if (body.removeProfile === true) {
+        await rm(join(homeDir(), 'profiles', record.profile), { recursive: true, force: true })
+        removedProfile = true
+        pushLog(`[整合包] 已删掉整个 profile「${record.profile}」`)
+      }
+      pushLog(`整合包 ${name} 已从 profile「${profile}」卸下（还原 ${result.restored} 个文件${removedProfile ? '，并删除 profile 目录' : ''}）`)
+      if (record.createdProfile && !removedProfile) {
+        lines.push(`这个 profile 是整合包建的，包新建的文件已删掉；node_modules 里装过的插件还在，想清干净可以在整合包页勾「同时删掉整个 profile 目录」`)
+      }
+      send(res, 200, { ok: true, restored: result.restored, lines, removedProfile, ...packsPayload() })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      pushLog(`整合包卸载失败：${message}`)
+      send(res, 400, { error: message })
+    }
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/packs/export') {
+    try {
+      const profile = safeProfile(String(body.profile || '') || PROFILE_NAME)
+      const profilePath = join(homeDir(), 'profiles', profile)
+      if (!existsSync(join(profilePath, 'package.json'))) throw new Error(`profile「${profile}」里没有 package.json，没有可导出的东西`)
+      const name = String(body.name || '').trim() || profile
+      const version = String(body.version || '').trim() || '1.0.0'
+      if (!/^[0-9A-Za-z._+-]{1,24}$/.test(version)) throw new Error('版本号只能用字母、数字和 . _ + - （不超过 24 个字符）')
+      const target = String(body.path || '') || await pickPackFile({ save: true, defaultName: `${name}-${version}.dspack` })
+      if (!target) {
+        send(res, 200, { ok: false, canceled: true })
+        return
+      }
+      const out = exportPack({
+        profileDir: profilePath,
+        home: homeDir(),
+        name,
+        version,
+        displayName: String(body.displayName || '').trim(),
+        includeHome: body.includeHome === true,
+      })
+      await writeFile(target, out.buffer)
+      lastExportPath = target
+      pushLog(`已导出整合包：${target}（${out.bundles.length} 层、${Object.keys(out.dependencies).length} 个依赖${out.homeFiles.length ? `、${out.homeFiles.length} 个用户级文件` : ''}）`)
+      send(res, 200, {
+        ok: true,
+        path: target,
+        bytes: out.buffer.length,
+        bundles: out.bundles,
+        dependencies: out.dependencies,
+        homeFiles: out.homeFiles,
+        skipped: out.skipped,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      pushLog(`导出整合包失败：${message}`)
+      send(res, 400, { error: message })
+    }
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/packs/pick-file') {
+    try {
+      const path = await pickPackFile({ save: false })
+      send(res, 200, { path })
+    } catch (error) {
+      send(res, 200, { path: '', error: error?.message || String(error) })
+    }
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/packs/reveal') {
+    try {
+      revealPath(String(body.path || ''))
+      send(res, 200, { ok: true })
+    } catch (error) {
+      send(res, 400, { error: error?.message || String(error) })
     }
     return
   }
@@ -2906,6 +3530,8 @@ async function handleApi(req, res, url) {
     try {
       stored = await saveSettings({
         s3: 's3' in body ? body.s3 : S3_CONFIG,
+        webdav: 'webdav' in body ? body.webdav : WEBDAV_CONFIG,
+        folder: 'folder' in body ? body.folder : FOLDER_CONFIG,
         sync: 'sync' in body ? body.sync : SYNC_OPTIONS,
       })
     } catch (error) {
@@ -2914,9 +3540,11 @@ async function handleApi(req, res, url) {
       return
     }
     S3_CONFIG = safeS3Config(stored.s3)
+    WEBDAV_CONFIG = safeWebdavConfig(stored.webdav)
+    FOLDER_CONFIG = safeFolderConfig(stored.folder)
     SYNC_OPTIONS = safeSyncSettings(stored.sync)
     // 密钥只留在本机设置文件里，但子进程输出/请求日志里万一带上它就得打码
-    secretValues = [S3_CONFIG.secretAccessKey, S3_CONFIG.sessionToken].filter(Boolean)
+    secretValues = [S3_CONFIG.secretAccessKey, S3_CONFIG.sessionToken, WEBDAV_CONFIG.password].filter(Boolean)
     send(res, 200, syncPayload())
     return
   }
@@ -3014,12 +3642,16 @@ export async function startServer() {
   HIDE_BACKGROUND = stored.hideBackground === true
   HIDE_BIG_FISH = stored.hideBigFish === true
   S3_CONFIG = safeS3Config(stored.s3)
+  WEBDAV_CONFIG = safeWebdavConfig(stored.webdav)
+  FOLDER_CONFIG = safeFolderConfig(stored.folder)
   SYNC_OPTIONS = safeSyncSettings(stored.sync)
-  secretValues = [S3_CONFIG.secretAccessKey, S3_CONFIG.sessionToken].filter(Boolean)
+  secretValues = [S3_CONFIG.secretAccessKey, S3_CONFIG.sessionToken, WEBDAV_CONFIG.password].filter(Boolean)
   DATA = resolveDataDir()
   CONFIG = join(DATA, 'config.json')
   await mkdir(DATA, { recursive: true })
   cleanStaleUpdates()
+  // 检查过但一直没装的整合包会留在 inbox 里，启动时清一次过期的（DATA 可能刚改过）
+  void prunePackInbox()
   // 默认 16KB 的请求头上限会被浏览器里堆积的 cookie 顶爆（HTTP 431），放宽到 128KB
   const handler = async (req, res) => {
     try {

@@ -15,16 +15,17 @@
 A lightweight launcher for DeepSeek Harness. Pick a version, start DSH web.
 
 > [!IMPORTANT]
-> **DSH-X starts DeepSeek Harness's own web page, not a desktop app.**  
-> It only handles version installation, launching and plugin management: no embedded WebView, and no changes to DSH's web UI. DSH-X is a community project, not an official DeepSeek product.
+> **DSH-X starts DeepSeek Harness's own web page.**  
+> It only handles version installation, launching and plugin management and never modifies or rewrites DSH's web UI. DSH-X is a community project, not an official DeepSeek product.
 
 ## Features
 
 - **Pick a version and go**: start / stop / restart / update / uninstall
-- **macOS support**: a native `.app` and dmg installers (one for Apple Silicon, one for Intel); self-update, launch at login and the folder picker all use the system's own mechanisms
+- **Multi-platform**: native packages for both Windows and macOS (with separate Apple Silicon and Intel builds for macOS); self-update, launch at login and the folder picker use each system's own mechanisms
 - **Plugins page**: list installed plugins and toggle each with one click, check for and install updates (one or all), and switch profiles
+- **Modpacks**: install a batch of plugins and their config in one go (ecosystem `.dspack` files: a local file, a direct link, a GitHub repo, or the built-in community market). You see exactly what goes where before anything is written, each pack lands in its own profile so your current setup is untouched, files are backed up first, a failed install rolls back, and removing a pack restores your files. You can also export the current profile as a modpack to share
 - **Compatibility mode**: on a failed start, disable the plugins named in the error (one click to restore); after boot it checks the client plugin bundles the page references and reports the verdict, telling a broken install apart from a stale tab
-- **S3 sync**: back up chat sessions, attachments and plugin config to any S3-compatible bucket (AWS / R2 / MinIO / OSS…) and pull them back on another machine; the plugin manifest is merged in both directions, so neither machine loses a plugin
+- **Sync, or export as a backup**: push chat sessions, attachments and plugin config to an S3-compatible bucket or a WebDAV folder (Jianguo Cloud / Nextcloud / Synology / Alist…) and pull them back on another machine, or export to a local folder and import from it (no network, no account). The plugin manifest is merged in both directions, so neither machine loses a plugin
 - **Dark appearance**: follow the system or pick a theme, plus floating-panel transparency and mascot switches
 - **Faster startup**: equivalent fast implementations at the bundle composition point (saves about 1–2 s), skipped automatically once dsh changes underneath
 - **Plugins stay where dsh puts them**: data lives in `~/.dsh`, so switching versions needs no plugin reinstall

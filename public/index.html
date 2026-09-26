@@ -596,6 +596,9 @@
       letter-spacing: 0.08em;
     }
     .set-section[hidden] { display: none; }
+    /* 同步页按存储类型显隐整行：.set-row 自带 display:flex、.set-row.stacked 是 display:block，
+       不写一条权重更高的 [hidden] 规则压不住（光 .set-row[hidden] 会被 .set-row.stacked 盖掉） */
+    .set-row[hidden], .set-row.stacked[hidden] { display: none; }
     .set-label {
       position: absolute;
       width: 1px;
@@ -941,9 +944,60 @@
       .plugin-update { font-size: 11px; padding: 4px 7px; }
       .plugin-version { display: none; }
     }
+    /* ---- 整合包：源输入行 + 检查结果卡片 ---- */
+    .pack-source { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+    .pack-source input { flex: 1 1 auto; min-width: 0; }
+    .pack-source .ghost { flex: 0 0 auto; }
+    .pack-detail {
+      margin: 10px 0 4px;
+      padding: 14px 16px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .pack-detail .pack-title { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+    .pack-detail .pack-name { font-weight: 600; font-size: 14px; }
+    .pack-detail .pack-meta { color: var(--muted); font-size: 12px; }
+    .pack-detail .pack-desc { color: var(--text); font-size: 12.5px; line-height: 1.55; }
+    .pack-detail .pack-block { display: flex; flex-direction: column; gap: 5px; }
+    .pack-detail .pack-block-title { color: var(--muted); font-size: 12px; }
+    .pack-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .pack-chip {
+      border: 1px solid var(--line);
+      background: var(--accent-soft);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 12px;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .pack-note { font-size: 12.5px; color: var(--text); }
+    .pack-note.warn { color: #9a6b00; }
+    .pack-list { margin: 0; padding-left: 18px; color: var(--muted); font-size: 12.5px; }
+    .pack-list li { margin: 2px 0; word-break: break-all; }
+    .pack-detail .pack-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .pack-detail .pack-target { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .pack-detail .pack-target label { color: var(--muted); font-size: 12px; }
+    .pack-detail .pack-target input { width: 170px; }
+    .pack-actions .ghost.primary { border-color: #b9ccf0; background: var(--accent-soft); color: var(--accent); }
+    /* 导出那一行里的小勾选：原生 checkbox，和旁边的输入框同高对齐 */
+    .pack-check { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; white-space: nowrap; cursor: pointer; }
+    .pack-check input { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); }
+    #packExportVersion { width: 84px; text-align: center; }
+    .pack-path { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .pack-path code { font-size: 12px; color: var(--text); word-break: break-all; }
+    @media (max-width: 560px) {
+      .pack-source { flex-wrap: wrap; }
+      .pack-source input { flex: 1 1 100%; }
+    }
     /* 细滚动条：默认亮灰条在浅色面板上太抢眼，统一成淡蓝灰 */
-    .select-panel, .plugin-list, #log, .pane, .settings-nav { scrollbar-width: thin; scrollbar-color: #c3d3ee transparent; }
-    .select-panel::-webkit-scrollbar, .plugin-list::-webkit-scrollbar, #log::-webkit-scrollbar,
+    .select-panel, .plugin-list, #log, .pane, .settings-nav { scrollbar-width: thin; scrollbar-color: #c3d3ee transparent; }    .select-panel::-webkit-scrollbar, .plugin-list::-webkit-scrollbar, #log::-webkit-scrollbar,
     .pane::-webkit-scrollbar, .settings-nav::-webkit-scrollbar {
       width: 8px;
       height: 8px;
@@ -1136,6 +1190,10 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M12 3.2 20 7.4v9.2L12 20.8 4 16.6V7.4l8-4.2Z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M4.4 7.6 12 11.8l7.6-4.2M12 11.8v8.6"/></svg>
             <span data-i18n="插件">插件</span>
           </button>
+          <button type="button" class="nav-item" data-pane="packs">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M3.5 7.6 12 3.5l8.5 4.1v8.8L12 20.5l-8.5-4.1z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M3.9 7.8 12 12l8.1-4.2M12 12v8.5M7.8 5.5l8.4 4.1"/></svg>
+            <span data-i18n="整合包">整合包</span>
+          </button>
           <button type="button" class="nav-item" data-pane="settings" data-category="appearance">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
             <span data-i18n="外观">外观</span>
@@ -1237,6 +1295,48 @@
             <div class="progress" id="pluginProgress" hidden><div class="progress-bar" id="pluginProgressBar"></div></div>
           </div>
         </section>
+        <section class="pane" id="pane-packs">
+          <div class="pane-inner">
+            <div class="pane-top">
+              <div>
+                <h1 class="pane-title" data-i18n="整合包">整合包</h1>
+                <p class="pane-sub" id="packSub" data-i18n="一次装好一批插件和它们的配置；默认装进独立的 profile，和现有环境互不打扰。">一次装好一批插件和它们的配置；默认装进独立的 profile，和现有环境互不打扰。</p>
+              </div>
+              <div class="plugin-actions">
+                <button class="ghost plugin-refresh" id="packRefresh" type="button" title="刷新" aria-label="刷新"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 1-2.4-5.7"/><path d="M20 4v5h-5"/></svg></button>
+              </div>
+            </div>
+            <div class="plugin-list" id="packInstalled"></div>
+            <div class="set-caption" data-i18n="装一个整合包">装一个整合包</div>
+            <div class="pack-source">
+              <input id="packSource" type="text" placeholder="owner/repo、.dspack 链接，或本地文件路径" autocomplete="off" spellcheck="false" />
+              <button class="ghost" id="packPick" type="button" data-i18n="选文件…">选文件…</button>
+              <button class="ghost" id="packCheck" type="button" data-i18n="检查">检查</button>
+            </div>
+            <p class="hint" id="packSourceHint" data-i18n="认生态里的 .dspack 整合包（PackForge 的 manifest）：本地文件、直链，或 GitHub 的 owner/repo（取它最新 Release 里的包）。">认生态里的 .dspack 整合包（PackForge 的 manifest）：本地文件、直链，或 GitHub 的 owner/repo（取它最新 Release 里的包）。</p>
+            <!-- 检查结果：装什么、装到哪、会覆盖什么，都在这里摆清楚再让人点安装 -->
+            <div class="pack-detail" id="packDetail" hidden></div>
+            <div class="set-caption" id="packMarketTitle" data-i18n="社区整合包">社区整合包</div>
+            <div class="plugin-list" id="packMarket"></div>
+            <div class="set-caption" data-i18n="导出">导出</div>
+            <div class="set-group">
+              <div class="set-row">
+                <div class="set-text">
+                  <span class="set-name" data-i18n="把当前 profile 打包成整合包">把当前 profile 打包成整合包</span>
+                  <span class="set-desc" data-i18n="带上插件清单、补丁层与 profile 根下的配置文件（不含 node_modules、会话与凭据）。别人装这个包，就能得到同样的插件环境。">带上插件清单、补丁层与 profile 根下的配置文件（不含 node_modules、会话与凭据）。别人装这个包，就能得到同样的插件环境。</span>
+                </div>
+                <div class="set-control">
+                  <label class="pack-check"><input type="checkbox" id="packExportHome" /><span data-i18n="带上技能与预设">带上技能与预设</span></label>
+                  <input id="packExportVersion" type="text" value="1.0.0" aria-label="版本号" />
+                  <button class="ghost" id="packExport" type="button" data-i18n="导出…">导出…</button>
+                </div>
+              </div>
+            </div>
+            <!-- 下载几十 MB、再装几十个包，都要有进度 -->
+            <div class="progress" id="packProgress" hidden><div class="progress-bar" id="packProgressBar"></div></div>
+            <p class="hint" id="packHint" role="status" aria-live="polite"></p>
+          </div>
+        </section>
         <section class="pane fill" id="pane-mcp">
           <div class="pane-inner fill">
             <div class="pane-top">
@@ -1311,19 +1411,28 @@
                 </div>
               </div>
             </div>
-            <div class="set-caption" id="syncBucketTitle" data-i18n="存储桶">存储桶</div>
-            <div class="set-group" role="group" aria-labelledby="syncBucketTitle">
-              <div class="set-row stacked">
+            <div class="set-caption" id="syncRemoteTitle" data-i18n="远端存储">远端存储</div>
+            <div class="set-group" role="group" aria-labelledby="syncRemoteTitle">
+              <div class="set-row">
+                <div class="set-text">
+                  <span class="set-name" data-i18n="存储类型">存储类型</span>
+                  <span class="set-desc" data-i18n="S3 兼容对象存储，或 WebDAV（坚果云 / Nextcloud / 群晖 / Alist…）。两边的配置各存一份，来回切换不用重填。">S3 兼容对象存储，或 WebDAV（坚果云 / Nextcloud / 群晖 / Alist…）。两边的配置各存一份，来回切换不用重填。</span>
+                </div>
+                <div class="set-control">
+                  <select id="syncStore"></select>
+                </div>
+              </div>
+              <div class="set-row stacked" data-store="s3">
                 <div class="set-text">
                   <span class="set-name" data-i18n="存储端点">存储端点</span>
-                  <span class="set-desc" data-i18n="S3 兼容服务的地址。也可以直接贴 s3://桶名/前缀（按上面的区域补成 AWS 端点）。">S3 兼容服务的地址。也可以直接贴 s3://桶名/前缀（按上面的区域补成 AWS 端点）。</span>
+                  <span class="set-desc" data-i18n="S3 兼容服务的地址。也可以直接贴 s3://桶名/前缀（按下面的区域补成 AWS 端点）。">S3 兼容服务的地址。也可以直接贴 s3://桶名/前缀（按下面的区域补成 AWS 端点）。</span>
                 </div>
                 <div class="set-control">
                   <input id="syncEndpoint" type="text" placeholder="https://s3.us-east-1.amazonaws.com" autocomplete="off" spellcheck="false" />
                 </div>
                 <p class="hint" id="syncEndpointHint"></p>
               </div>
-              <div class="set-row">
+              <div class="set-row" data-store="s3">
                 <div class="set-text">
                   <span class="set-name" data-i18n="区域">区域</span>
                   <span class="set-desc" data-i18n="AWS 看桶所在区域；R2 填 auto；自建存储填什么都行。">AWS 看桶所在区域；R2 填 auto；自建存储填什么都行。</span>
@@ -1332,7 +1441,7 @@
                   <input id="syncRegion" type="text" placeholder="us-east-1" autocomplete="off" spellcheck="false" />
                 </div>
               </div>
-              <div class="set-row">
+              <div class="set-row" data-store="s3">
                 <div class="set-text">
                   <span class="set-name" data-i18n="寻址风格">寻址风格</span>
                   <span class="set-desc" data-i18n="自建存储（MinIO 等）用 IP 时一般已经是路径风格；拿不准就先自动再点「检测连接」。">自建存储（MinIO 等）用 IP 时一般已经是路径风格；拿不准就先自动再点「检测连接」。</span>
@@ -1341,7 +1450,7 @@
                   <select id="syncStyle"></select>
                 </div>
               </div>
-              <div class="set-row stacked">
+              <div class="set-row stacked" data-store="s3">
                 <div class="set-text">
                   <span class="set-name" data-i18n="桶名">桶名</span>
                 </div>
@@ -1349,7 +1458,7 @@
                   <input id="syncBucket" type="text" placeholder="my-bucket" autocomplete="off" spellcheck="false" />
                 </div>
               </div>
-              <div class="set-row stacked">
+              <div class="set-row stacked" data-store="s3">
                 <div class="set-text">
                   <span class="set-name" data-i18n="桶内前缀">桶内前缀</span>
                   <span class="set-desc" data-i18n="留空就放在桶根目录下；同一只桶给多台机器用时可以填机器名。">留空就放在桶根目录下；同一只桶给多台机器用时可以填机器名。</span>
@@ -1358,7 +1467,7 @@
                   <input id="syncPrefix" type="text" placeholder="laptop" autocomplete="off" spellcheck="false" />
                 </div>
               </div>
-              <div class="set-row stacked">
+              <div class="set-row stacked" data-store="s3">
                 <div class="set-text">
                   <span class="set-name" data-i18n="AccessKey">AccessKey</span>
                 </div>
@@ -1366,7 +1475,7 @@
                   <input id="syncAccessKey" type="text" placeholder="AKIA…" autocomplete="off" spellcheck="false" />
                 </div>
               </div>
-              <div class="set-row stacked">
+              <div class="set-row stacked" data-store="s3">
                 <div class="set-text">
                   <span class="set-name" data-i18n="SecretKey">SecretKey</span>
                   <span class="set-desc" data-i18n="密钥只存在本机的启动器设置文件里（明文），不会传给 dsh、也不会进日志。建议用只对这个桶有读写权限的子账号密钥。">密钥只存在本机的启动器设置文件里（明文），不会传给 dsh、也不会进日志。建议用只对这个桶有读写权限的子账号密钥。</span>
@@ -1375,7 +1484,7 @@
                   <input id="syncSecretKey" type="password" placeholder="••••••••" autocomplete="new-password" spellcheck="false" />
                 </div>
               </div>
-              <div class="set-row stacked">
+              <div class="set-row stacked" data-store="s3">
                 <div class="set-text">
                   <span class="set-name" data-i18n="会话令牌（可选）">会话令牌（可选）</span>
                   <span class="set-desc" data-i18n="用临时凭证（STS）时才需要，填 x-amz-security-token。">用临时凭证（STS）时才需要，填 x-amz-security-token。</span>
@@ -1384,15 +1493,70 @@
                   <input id="syncSessionToken" type="password" placeholder="临时凭证才需要" autocomplete="new-password" spellcheck="false" />
                 </div>
               </div>
-              <label class="toggle set-row">
+              <label class="toggle set-row" data-store="s3">
                 <span class="set-text">
                   <span class="set-name" data-i18n="跳过证书校验">跳过证书校验</span>
                   <span class="set-desc" data-i18n="自建存储用了自签名证书时才打开；打开后中间人就能看到内容，能用 http 就别开。">自建存储用了自签名证书时才打开；打开后中间人就能看到内容，能用 http 就别开。</span>
                 </span>
                 <input id="syncInsecure" type="checkbox" />
               </label>
+              <div class="set-row stacked" data-store="webdav">
+                <div class="set-text">
+                  <span class="set-name" data-i18n="WebDAV 地址">WebDAV 地址</span>
+                  <span class="set-desc" data-i18n="网盘给的那个地址，要写到具体目录。坚果云：账户信息 → 安全选项 → 添加应用密码，那里给的地址和密码；Nextcloud：https://你的域名/remote.php/dav/files/用户名；群晖：/home/webdav。">网盘给的那个地址，要写到具体目录。坚果云：账户信息 → 安全选项 → 添加应用密码，那里给的地址和密码；Nextcloud：https://你的域名/remote.php/dav/files/用户名；群晖：/home/webdav。</span>
+                </div>
+                <div class="set-control">
+                  <input id="syncDavUrl" type="text" placeholder="https://dav.jianguoyun.com/dav/我的目录" autocomplete="off" spellcheck="false" />
+                </div>
+                <p class="hint" id="syncDavHint"></p>
+              </div>
+              <div class="set-row stacked" data-store="webdav">
+                <div class="set-text">
+                  <span class="set-name" data-i18n="用户名">用户名</span>
+                  <span class="set-desc" data-i18n="坚果云要填那个「应用密码」对应的账号邮箱。">坚果云要填那个「应用密码」对应的账号邮箱。</span>
+                </div>
+                <div class="set-control">
+                  <input id="syncDavUser" type="text" placeholder="you@example.com" autocomplete="off" spellcheck="false" />
+                </div>
+              </div>
+              <div class="set-row stacked" data-store="webdav">
+                <div class="set-text">
+                  <span class="set-name" data-i18n="密码">密码</span>
+                  <span class="set-desc" data-i18n="只做 Basic 认证，务必走 https（http 会让同一网络里的人看到密码）。同样明文存在本机设置文件里。">只做 Basic 认证，务必走 https（http 会让同一网络里的人看到密码）。同样明文存在本机设置文件里。</span>
+                </div>
+                <div class="set-control">
+                  <input id="syncDavSecret" type="password" placeholder="应用密码 / 登录密码" autocomplete="new-password" spellcheck="false" />
+                </div>
+              </div>
+              <div class="set-row stacked" data-store="webdav">
+                <div class="set-text">
+                  <span class="set-name" data-i18n="目录前缀">目录前缀</span>
+                  <span class="set-desc" data-i18n="留空就直接放在上面那个目录里；多台机器共用同一个 WebDAV 目录时填机器名。">留空就直接放在上面那个目录里；多台机器共用同一个 WebDAV 目录时填机器名。</span>
+                </div>
+                <div class="set-control">
+                  <input id="syncDavPrefix" type="text" placeholder="laptop" autocomplete="off" spellcheck="false" />
+                </div>
+              </div>
+              <label class="toggle set-row" data-store="webdav">
+                <span class="set-text">
+                  <span class="set-name" data-i18n="跳过证书校验">跳过证书校验</span>
+                  <span class="set-desc" data-i18n="自建存储用了自签名证书时才打开；打开后中间人就能看到内容，能用 http 就别开。">自建存储用了自签名证书时才打开；打开后中间人就能看到内容，能用 http 就别开。</span>
+                </span>
+                <input id="syncDavInsecure" type="checkbox" />
+              </label>
+              <div class="set-row stacked" data-store="folder">
+                <div class="set-text">
+                  <span class="set-name" data-i18n="导出目录">导出目录</span>
+                  <span class="set-desc" data-i18n="导出的内容放在这个文件夹里（布局和远端一样）。别选 dsh 用户目录里面的目录——会自己套自己；也别选系统目录。目录可以拷到移动硬盘、丢进网盘同步盘，或整个打包发人。">导出的内容放在这个文件夹里（布局和远端一样）。别选 dsh 用户目录里面的目录——会自己套自己；也别选系统目录。目录可以拷到移动硬盘、丢进网盘同步盘，或整个打包发人。</span>
+                </div>
+                <div class="set-control">
+                  <input id="syncFolderPath" type="text" placeholder="D:\dsh-backup" autocomplete="off" spellcheck="false" />
+                  <button class="ghost" id="syncPickFolder" type="button" data-i18n="浏览…">浏览…</button>
+                </div>
+                <p class="hint" id="syncFolderHint"></p>
+              </div>
             </div>
-            <p class="hint" id="syncFootnote" data-i18n="桶里的目录结构是 dsh-x/v1/…，删文件不会被同步（两边各自留并集）；插件清单两个方向都会合并，不会丢掉任何一边装的插件。">桶里的目录结构是 dsh-x/v1/…，删文件不会被同步（两边各自留并集）；插件清单两个方向都会合并，不会丢掉任何一边装的插件。</p>
+            <p class="hint" id="syncFootnote" data-i18n="远端的目录结构是 dsh-x/v1/…；删文件不会被同步（两边各自留并集），插件清单两个方向都会合并，不会丢掉任何一边装的插件。WebDAV 只能一层层列目录，目录多时会慢一些。">远端的目录结构是 dsh-x/v1/…；删文件不会被同步（两边各自留并集），插件清单两个方向都会合并，不会丢掉任何一边装的插件。WebDAV 只能一层层列目录，目录多时会慢一些。</p>
           </div>
         </section>
         <section class="pane fill" id="pane-log">
@@ -1666,6 +1830,84 @@
     // ---- 界面双语：字典按中文原文做 key，没翻到的原样显示中文（不会漏、不会崩） ----
     const LANG = '__APP_LANG__'
     const EN = {
+  "检查": "Check",
+  "整合包": "Modpacks",
+  "一次装好一批插件和它们的配置；默认装进独立的 profile，和现有环境互不打扰。": "Install a batch of plugins and their config in one go. By default each modpack gets its own profile, so your current setup is left alone.",
+  "装一个整合包": "Install a modpack",
+  "选文件…": "Choose file…",
+  "认生态里的 .dspack 整合包（PackForge 的 manifest）：本地文件、直链，或 GitHub 的 owner/repo（取它最新 Release 里的包）。": "Works with ecosystem .dspack modpacks (PackForge manifests): a local file, a direct link, or a GitHub owner/repo (it takes the .dspack from the latest release).",
+  "社区整合包": "Community modpacks",
+  "导出": "Export",
+  "把当前 profile 打包成整合包": "Pack the current profile into a modpack",
+  "带上插件清单、补丁层与 profile 根下的配置文件（不含 node_modules、会话与凭据）。别人装这个包，就能得到同样的插件环境。": "Includes the plugin manifest, patch layer and config files at the profile root — never node_modules, sessions or credentials. Anyone installing the pack gets the same plugin setup.",
+  "带上技能与预设": "Include skills & presets",
+  "导出…": "Export…",
+  "当前 profile：{profile} · 已装 {n} 个整合包": "Current profile: {profile} · {n} modpack(s) installed",
+  "还没装过整合包。从下面挑一个，或者贴一个 .dspack 链接。": "No modpacks installed yet. Pick one below, or paste a .dspack link.",
+  "{bundles} 层 · {deps} 个依赖 · {time}": "{bundles} layers · {deps} dependencies · {time}",
+  "当前 profile": "current profile",
+  "切到这个 profile": "Switch to it",
+  "卸载": "Remove",
+  "正在读市场…": "Reading the market…",
+  "市场没读到：{error}": "Could not read the market: {error}",
+  "不影响使用——把 .dspack 的链接或 owner/repo 贴在上面照样能装。": "Everything else still works — paste a .dspack link or an owner/repo above.",
+  "市场里现在没有条目。": "The market has no entries right now.",
+  "作者 {author}": "by {author}",
+  "{n} 层": "{n} layers",
+  "{n} 个依赖": "{n} dependencies",
+  "{name}（dsh 自带）": "{name} (ships with dsh)",
+  "需要 dsh {version}": "dsh {version} required",
+  "整机快照形态": "whole-home snapshot",
+  "{kb} KB": "{kb} KB",
+  "问题（先解决这些）": "Problems (fix these first)",
+  "会怎么装": "What will happen",
+  "要注意": "Things to know",
+  "层栈（dsh 按顺序加载）": "Layers (loaded in this order)",
+  "依赖": "Dependencies",
+  "要写的文件": "Files to write",
+  "覆盖文件": "Files it overrides",
+  "用户级文件": "User-level files",
+  "包里没装的内容": "Content that will not be installed",
+  "装进 profile": "Target profile",
+  "新建一个 profile，和现有环境互不影响": "a new profile, your current one stays untouched",
+  "这个 profile 已存在，依赖与层栈会并进去": "this profile exists — dependencies and layers are merged in",
+  "安装": "Install",
+  "不看这个了": "Dismiss",
+  "正在读社区整合包列表…": "Reading the community modpack list…",
+  "市场里现在有 {n} 个整合包。": "The market has {n} modpack(s) right now.",
+  "正在下载并检查…": "Downloading and checking…",
+  "检查完了：{name} {version}。确认没问题就点安装。": "Checked: {name} {version}. Read it over, then hit Install.",
+  "这个包有问题，先看上面的原因。": "This pack has problems — see the reasons above.",
+  "整合包检查失败": "Modpack check failed",
+  "正在安装…（下面有进度）": "Installing… (progress below)",
+  "{name} 已装进 profile「{profile}」，重启 dsh 后生效。": "{name} is installed into profile \"{profile}\". Restart dsh to load it.",
+  "现在切过去并重启": "Switch and restart now",
+  "整合包安装失败": "Modpack install failed",
+  "卸载 {name}（profile「{profile}」）？安装时覆盖的文件会还原。": "Remove {name} from profile \"{profile}\"? Files it overwrote are restored.",
+  "这个 profile 是整合包装的。要不要连整个 profile 目录一起删掉？里面的插件和配置会一起没。": "This profile was created by the modpack. Delete the whole profile folder too? Its plugins and config go with it.",
+  "{name} 已卸载。": "{name} removed.",
+  "整合包卸载失败": "Modpack removal failed",
+  "正在切到 profile「{profile}」…": "Switching to profile \"{profile}\"…",
+  "已切到 profile「{profile}」，正在重启 dsh…": "Switched to profile \"{profile}\", restarting dsh…",
+  "已切到 profile「{profile}」，dsh 正在重启。": "Switched to profile \"{profile}\"; dsh is restarting.",
+  "选择保存位置…": "Choosing where to save…",
+  "已导出 {n} 层、{deps} 个依赖：": "Exported {n} layers and {deps} dependencies:",
+  "在文件夹里显示": "Show in folder",
+  "导出失败": "Export failed",
+  "正在下载整合包 {pct}%": "Downloading the modpack: {pct}%",
+  "正在下载整合包…": "Downloading the modpack…",
+  "正在解开整合包…": "Unpacking the modpack…",
+  "正在写配置文件…": "Writing config files…",
+  "正在解析依赖… 已解析 {n} 个": "Resolving dependencies… {n} done",
+  "正在装依赖 {done}/{total}…": "Installing dependencies {done}/{total}…",
+  "正在装依赖…": "Installing dependencies…",
+  "装好了。": "Done.",
+  "先给一个整合包：本地文件、链接，或者 owner/repo": "Give me a modpack first: a local file, a link, or owner/repo",
+  "会新建 profile「{profile}」：dsh 的会话与记忆照旧，插件的运行环境是独立的。": "Creates a new profile \"{profile}\": your sessions and memory stay as they are, only the plugin environment is separate.",
+  "profile「{profile}」已存在：包里的依赖与层栈并进去，被覆盖的文件先备份。": "Profile \"{profile}\" already exists: the pack's dependencies and layers are merged in, and every file it overwrites is backed up first.",
+  "新增层栈：{bundles}": "New layers: {bundles}",
+  "会改掉 {count} 个已有依赖的版本：{sample}{more}": "Changes the version of {count} existing dependencies: {sample}{more}",
+  " 等": " …",
   "保存": "Save",
   "关闭": "Close",
   "关闭页面": "Close page",
@@ -1916,9 +2158,19 @@
   "两边不一样时": "When both sides differ",
   "下载时的冲突处理": "Conflict handling when downloading",
   "碰上「本机也有、内容却不同」的文件怎么办。上传不受影响（本机更新的文件总是会传）。": "What to do when a download finds a file that also exists locally with different content. Uploads are unaffected: a locally newer file is always uploaded.",
-  "存储桶": "Bucket",
+  "远端存储": "Remote storage",
+  "存储类型": "Storage type",
+  "S3 兼容对象存储，或 WebDAV（坚果云 / Nextcloud / 群晖 / Alist…）。两边的配置各存一份，来回切换不用重填。": "S3-compatible object storage, or WebDAV (Jianguo Cloud / Nextcloud / Synology / Alist…). Both sets of settings are kept, so switching back and forth loses nothing.",
   "存储端点": "Endpoint",
-  "S3 兼容服务的地址。也可以直接贴 s3://桶名/前缀（按上面的区域补成 AWS 端点）。": "Address of the S3-compatible service. You can also paste s3://bucket/prefix and it is expanded into an AWS endpoint using the region below.",
+  "S3 兼容服务的地址。也可以直接贴 s3://桶名/前缀（按下面的区域补成 AWS 端点）。": "Address of the S3-compatible service. You can also paste s3://bucket/prefix and it is expanded into an AWS endpoint using the region below.",
+  "WebDAV 地址": "WebDAV address",
+  "网盘给的那个地址，要写到具体目录。坚果云：账户信息 → 安全选项 → 添加应用密码，那里给的地址和密码；Nextcloud：https://你的域名/remote.php/dav/files/用户名；群晖：/home/webdav。": "The URL your provider gives you, pointing at the folder to use. Jianguo Cloud: account info → security options → add an app password — that page gives both the URL and the password. Nextcloud: https://your-domain/remote.php/dav/files/<user>. Synology: /home/webdav.",
+  "用户名": "Username",
+  "坚果云要填那个「应用密码」对应的账号邮箱。": "For Jianguo Cloud, use the account email that app password belongs to.",
+  "密码": "Password",
+  "只做 Basic 认证，务必走 https（http 会让同一网络里的人看到密码）。同样明文存在本机设置文件里。": "Only Basic auth is used, so keep it on https — over plain http anyone on the same network can read the password. Like the S3 keys, it is stored in plain text in the launcher settings file.",
+  "目录前缀": "Folder prefix",
+  "留空就直接放在上面那个目录里；多台机器共用同一个 WebDAV 目录时填机器名。": "Leave empty to use that folder directly; when several machines share one WebDAV folder, put the machine name here.",
   "区域": "Region",
   "AWS 看桶所在区域；R2 填 auto；自建存储填什么都行。": "For AWS use the bucket's region; R2 accepts auto; self-hosted storage accepts anything.",
   "寻址风格": "Addressing style",
@@ -1931,7 +2183,7 @@
   "用临时凭证（STS）时才需要，填 x-amz-security-token。": "Only needed for temporary credentials (STS); sent as x-amz-security-token.",
   "跳过证书校验": "Skip certificate check",
   "自建存储用了自签名证书时才打开；打开后中间人就能看到内容，能用 http 就别开。": "Turn this on only when self-hosted storage uses a self-signed certificate. Once on, anyone in the middle can read the traffic — prefer plain http:// if you can.",
-  "桶里的目录结构是 dsh-x/v1/…，删文件不会被同步（两边各自留并集）；插件清单两个方向都会合并，不会丢掉任何一边装的插件。": "Objects live under dsh-x/v1/…. Deletions are never propagated, so both sides keep the union; the plugin manifest is merged in both directions, so neither machine loses a plugin it had.",
+  "远端的目录结构是 dsh-x/v1/…；删文件不会被同步（两边各自留并集），插件清单两个方向都会合并，不会丢掉任何一边装的插件。WebDAV 只能一层层列目录，目录多时会慢一些。": "Everything lives under dsh-x/v1/…. Deletions are never propagated, so both sides keep the union, and the plugin manifest is merged in both directions so neither machine loses a plugin it had. WebDAV lists one folder level at a time, so big trees take longer.",
   "会话记录": "Chat sessions",
   "每个项目的聊天记录（session.jsonl.zstd）": "Conversation history per project (session.jsonl.zstd)",
   "附件": "Attachments",
@@ -1942,11 +2194,11 @@
   "记忆": "Memory",
   "dsh 的长期记忆目录": "dsh's long-term memory folder",
   "保留本机": "Keep local",
-  "本机不动，桶里那份也留着，换个策略再拉一次就行": "Leave the local file alone; the bucket copy stays there for a later pull with another policy",
-  "用桶里的覆盖本机": "Overwrite with the bucket copy",
-  "完全以桶为准，适合刚换的新机器": "Take the bucket as the source of truth — right for a freshly set up machine",
+  "本机不动，远端那份也留着，换个策略再拉一次就行": "Leave the local file alone; the remote copy stays there for a later pull with another policy",
+  "用远端的覆盖本机": "Overwrite with the remote copy",
+  "完全以远端为准，适合刚换的新机器": "Take the remote side as the source of truth — right for a freshly set up machine",
   "两份都留": "Keep both",
-  "本机不动，桶里那份另存成 …remote-日期 的文件": "Leave the local file alone and save the bucket copy next to it as …remote-date",
+  "本机不动，远端那份另存成 …remote-日期 的文件": "Leave the local file alone and save the remote copy next to it as …remote-date",
   "自动": "Automatic",
   "IP 用路径风格，域名用虚拟主机": "Path style for IP addresses, virtual-host style for domains",
   "路径风格": "Path style",
@@ -1968,8 +2220,25 @@
   "{verb} {label} {done}/{total}：{current}": "{verb} {label} {done}/{total}: {current}",
   "{verb} {label}：{current}": "{verb} {label}: {current}",
   "同步失败：{error}": "Sync failed: {error}",
-  "正在连桶…": "Talking to the bucket…",
-  "连上了：{host}（{style}），{ns}/ 下有 {n} 个对象": "Connected: {host} ({style}), {n} object(s) under {ns}/",
+  "正在连远端…": "Talking to the remote storage…",
+  "连上了：{host}（{detail}）· {ns} {state}": "Connected: {host} ({detail}) · {ns} {state}",
+  "还没有内容": "is empty",
+  "已有内容": "already has content",
+  "S3 兼容存储": "S3-compatible",
+  "AWS S3 / Cloudflare R2 / MinIO / 阿里 OSS / 腾讯 COS…": "AWS S3 / Cloudflare R2 / MinIO / Aliyun OSS / Tencent COS…",
+  "坚果云 / Nextcloud / 群晖 / Alist…": "Jianguo Cloud / Nextcloud / Synology / Alist…",
+  "导出目录": "Export folder",
+  "导出的内容放在这个文件夹里（布局和远端一样）。别选 dsh 用户目录里面的目录——会自己套自己；也别选系统目录。目录可以拷到移动硬盘、丢进网盘同步盘，或整个打包发人。": "Everything is exported into this folder (same layout as the remote side). Do not pick a folder inside the dsh home — the export would include itself — and avoid system folders. The folder can be copied to a USB drive, dropped into a synced cloud folder, or archived and sent to someone.",
+  "本地目录（导出 / 导入）": "Local folder (export / import)",
+  "导出一个文件夹，或从文件夹导回来；不联网、不要账号": "Export to a folder, or import back from it — no network, no account",
+  "导出": "Export",
+  "导入": "Import",
+  "检查目录": "Check folder",
+  "正在检查目录…": "Checking the folder…",
+  "目录能用：{host} · {ns} {state}": "Folder is usable: {host} · {ns} {state}",
+  "目录可以用。": "The folder is usable.",
+  "正在导出…": "Exporting…",
+  "正在导入…": "Importing…",
   "连接正常。": "Connection is fine.",
   "连接失败：{error}": "Connection failed: {error}",
   "正在上传…": "Uploading…",
@@ -2006,6 +2275,8 @@
       const argsInput = document.getElementById('args')
       if (argsInput) argsInput.placeholder = t('例如：--log-level debug')
       syncUiSelects()
+      // 同步页的按钮文案跟存储类型走（本地目录时是导出/导入），data-i18n 复位之后得重画
+      paintSyncActions()
     }
 
     // ---- 版本下拉（自绘，替代原生 select）----
@@ -2239,7 +2510,7 @@
       if (changed) item.select.dispatchEvent(new Event('change', { bubbles: true }))
     }
 
-    for (const select of document.querySelectorAll('#profile, #uiLang, #webBind, #downloadSource, #updateSource, #openMode, #syncPolicy, #syncStyle')) {
+    for (const select of document.querySelectorAll('#profile, #uiLang, #webBind, #downloadSource, #updateSource, #openMode, #syncStore, #syncPolicy, #syncStyle')) {
       const root = document.createElement('div')
       root.className = 'select ui-select'
       const trigger = document.createElement('button')
@@ -2375,7 +2646,7 @@
     const panes = [...document.querySelectorAll('.pane')]
     const gearEl = document.getElementById('settingsEntry')
     // 进面板时按需加载：和以前 tab 的行为一致，不做无谓请求
-    const paneLoaders = { plugins: loadPlugins, mcp: loadMcp, skills: loadSkills, sync: loadSync, settings: loadSettings }
+    const paneLoaders = { plugins: loadPlugins, packs: loadPacks, mcp: loadMcp, skills: loadSkills, sync: loadSync, settings: loadSettings }
     let currentPane = 'control'
     let currentSettingsCategory = 'general'
     const settingsCategories = {
@@ -3034,6 +3305,13 @@
           if (data?.kind === 'plugin') {
             pluginProgress = !data || data.phase === 'idle' ? null : data
             setPluginProgress(Boolean(pluginProgress))
+            return
+          }
+          if (data?.kind === 'pack') {
+            packProgress = !data || data.phase === 'idle' ? null : data
+            setPackProgress(Boolean(packProgress))
+            // 进度文字跟着走：下载包 / 解包 / 写配置 / 装依赖 各说一句话
+            if (packProgress) packHintEl.textContent = describePackProgress(packProgress)
             return
           }
           if (!data || data.phase === 'idle') installProgress = null
@@ -3893,7 +4171,422 @@
       pluginUpdateAllEl.onclick = () => { void updateAllPlugins() }
     }
 
-    applyLang()
+    // applyLang() 挪到脚本末尾统一调一次：它里面有同步页的按钮文案（paintSyncActions），
+    // 而那段用到的元素引用是 const，在这里还没求值，会踩 TDZ 把整段脚本带停。
+
+    // ---- 整合包：一批插件 + 一套配置一次装进一个 profile ----
+    //
+    // 三步走：检查（下载 + 解析 + 出安装计划）→ 人看一遍 → 安装。检查过的包在服务端有
+    // 一份 token，安装时不用再下一次；进度走 SSE 的 kind === 'pack' 事件。
+    const packInstalledEl = document.getElementById('packInstalled')
+    const packMarketEl = document.getElementById('packMarket')
+    const packMarketTitleEl = document.getElementById('packMarketTitle')
+    const packDetailEl = document.getElementById('packDetail')
+    const packSourceEl = document.getElementById('packSource')
+    const packCheckEl = document.getElementById('packCheck')
+    const packPickEl = document.getElementById('packPick')
+    const packRefreshEl = document.getElementById('packRefresh')
+    const packExportEl = document.getElementById('packExport')
+    const packExportHomeEl = document.getElementById('packExportHome')
+    const packExportVersionEl = document.getElementById('packExportVersion')
+    const packHintEl = document.getElementById('packHint')
+    const packSubEl = document.getElementById('packSub')
+    let packState = { packs: [], profile: '', profiles: [], busy: false }
+    let packInspection = null
+    let packMarket = null
+    let packProgress = null
+    let packBusy = false
+    let packLoaded = false
+
+    /** 已装的整合包：一行一个，带「切到这个 profile」与「卸载」。 */
+    function renderPackInstalled() {
+      const list = Array.isArray(packState.packs) ? packState.packs : []
+      if (packSubEl) {
+        packSubEl.textContent = t('当前 profile：{profile} · 已装 {n} 个整合包', { profile: packState.profile || '-', n: list.length })
+      }
+      if (!list.length) {
+        packInstalledEl.innerHTML = `<div class="plugin-empty">${t('还没装过整合包。从下面挑一个，或者贴一个 .dspack 链接。')}</div>`
+        return
+      }
+      packInstalledEl.innerHTML = list.map((item) => {
+        const current = item.profile === packState.profile
+        const when = String(item.installedAt || '').replace('T', ' ').slice(0, 16)
+        const details = [item.displayName || item.name, item.source, when].filter(Boolean).join('\n')
+        const meta = t('{bundles} 层 · {deps} 个依赖 · {time}', {
+          bundles: (item.bundles || []).length,
+          deps: Object.keys(item.dependencies || {}).length,
+          time: when,
+        })
+        return `<div class="plugin-row" title="${escapeHtml(details)}">
+          <span class="plugin-main">
+            <span class="plugin-head">
+              <span class="plugin-name">${escapeHtml(item.displayName || item.name)}</span>
+              <span class="plugin-version">v${escapeHtml(item.version)}</span>
+              <span class="plugin-status">${escapeHtml(current ? t('当前 profile') : `profile ${item.profile}`)}</span>
+            </span>
+            <span class="plugin-desc">${escapeHtml(meta)}</span>
+          </span>
+          ${current ? '' : `<button class="plugin-update" type="button" data-switch="${escapeHtml(item.profile)}">${escapeHtml(t('切到这个 profile'))}</button>`}
+          <button class="ghost" type="button" data-remove="${escapeHtml(item.name)}" data-profile="${escapeHtml(item.profile)}" data-created="${item.createdProfile ? '1' : ''}" ${packBusy ? 'disabled' : ''}>${escapeHtml(t('卸载'))}</button>
+        </div>`
+      }).join('')
+      packInstalledEl.querySelectorAll('button[data-switch]').forEach((el) => {
+        el.onclick = () => { void switchProfile(el.dataset.switch) }
+      })
+      packInstalledEl.querySelectorAll('button[data-remove]').forEach((el) => {
+        el.onclick = () => { void removePack(el.dataset.remove, el.dataset.profile, el.dataset.created === '1') }
+      })
+    }
+
+    /** 社区整合包列表：卡片一行一个，点「检查」走和贴链接一样的路。 */
+    function renderPackMarket() {
+      if (!packMarket) {
+        packMarketEl.innerHTML = `<div class="plugin-empty">${t('正在读市场…')}</div>`
+        return
+      }
+      if (packMarket.error) {
+        packMarketEl.innerHTML = `<div class="plugin-empty">${escapeHtml(t('市场没读到：{error}', { error: packMarket.error }))}<br />${escapeHtml(t('不影响使用——把 .dspack 的链接或 owner/repo 贴在上面照样能装。'))}</div>`
+        return
+      }
+      if (!packMarket.entries.length) {
+        packMarketEl.innerHTML = `<div class="plugin-empty">${t('市场里现在没有条目。')}</div>`
+        return
+      }
+      packMarketEl.innerHTML = packMarket.entries.map((entry, index) => {
+        const meta = [
+          entry.author ? t('作者 {author}', { author: entry.author }) : '',
+          entry.bundleCount ? t('{n} 层', { n: entry.bundleCount }) : '',
+          entry.depCount ? t('{n} 个依赖', { n: entry.depCount }) : '',
+          entry.dshVersion ? `dsh ${entry.dshVersion}` : '',
+        ].filter(Boolean).join(' · ')
+        return `<div class="plugin-row">
+          <span class="plugin-main">
+            <span class="plugin-head">
+              <span class="plugin-name">${escapeHtml(entry.displayName || entry.name)}</span>
+              ${entry.version ? `<span class="plugin-version">v${escapeHtml(entry.version)}</span>` : ''}
+            </span>
+            ${entry.description ? `<span class="plugin-desc" title="${escapeHtml(entry.description)}">${escapeHtml(entry.description)}</span>` : ''}
+            ${meta ? `<span class="plugin-row-note">${escapeHtml(meta)}</span>` : ''}
+          </span>
+          <button class="plugin-update" type="button" data-market="${index}" ${packBusy ? 'disabled' : ''}>${escapeHtml(t('检查'))}</button>
+        </div>`
+      }).join('')
+      packMarketEl.querySelectorAll('button[data-market]').forEach((el) => {
+        el.onclick = () => {
+          const entry = packMarket.entries[Number(el.dataset.market)]
+          if (entry) void inspectPack({ market: entry })
+        }
+      })
+    }
+
+    function packRows(title, rows) {
+      if (!rows.length) return ''
+      return `<div class="pack-block">
+        <span class="pack-block-title">${escapeHtml(title)}</span>
+        <div class="pack-chips">${rows.map((row) => `<span class="pack-chip">${escapeHtml(row)}</span>`).join('')}</div>
+      </div>`
+    }
+
+    function packNotes(title, rows, kind = '') {
+      if (!rows.length) return ''
+      return `<div class="pack-block">
+        <span class="pack-block-title">${escapeHtml(title)}</span>
+        <ul class="pack-list">${rows.map((row) => `<li class="${kind}">${escapeHtml(row)}</li>`).join('')}</ul>
+      </div>`
+    }
+
+    /** 安装计划里的说明：服务端给的是结构化条目，措辞由这里的语言决定。 */
+    function packNoteText(note) {
+      if (typeof note === 'string') return t(note)
+      if (note.kind === 'create-profile') return t('会新建 profile「{profile}」：dsh 的会话与记忆照旧，插件的运行环境是独立的。', { profile: note.profile })
+      if (note.kind === 'existing-profile') return t('profile「{profile}」已存在：包里的依赖与层栈并进去，被覆盖的文件先备份。', { profile: note.profile })
+      if (note.kind === 'added-bundles') return t('新增层栈：{bundles}', { bundles: (note.bundles || []).join('、') })
+      if (note.kind === 'replaced-deps') {
+        const sample = (note.sample || []).map((item) => `${item.name} ${item.from} → ${item.to}`).join('、')
+        return t('会改掉 {count} 个已有依赖的版本：{sample}{more}', {
+          count: note.count,
+          sample,
+          more: note.count > (note.sample || []).length ? t(' 等') : '',
+        })
+      }
+      return ''
+    }
+
+    /** 检查结果：把「装什么、装到哪、会覆盖什么」摆出来，再让人点安装。 */
+    function renderPackDetail() {
+      if (!packInspection) {
+        packDetailEl.hidden = true
+        packDetailEl.innerHTML = ''
+        return
+      }
+      const data = packInspection
+      const pack = data.pack
+      const plan = data.plan || {}
+      const deps = (pack.dependencies || []).map((item) => (item.installAs ? `${item.name} → ${item.installAs.name} ${item.installAs.spec}` : `${item.name} ${item.spec}`))
+      const bundleRows = (pack.bundles || []).map((item) => (item.dependency ? item.name : t('{name}（dsh 自带）', { name: item.name })))
+      const overrides = (pack.overrides || []).map((item) => item.path)
+      const home = (pack.home || []).map((item) => item.path)
+      const meta = [
+        pack.author ? t('作者 {author}', { author: pack.author }) : '',
+        pack.dshVersion ? t('需要 dsh {version}', { version: pack.dshVersion }) : '',
+        pack.type === 'dshhome' ? t('整机快照形态') : '',
+        data.bytes ? t('{kb} KB', { kb: Math.max(1, Math.round(data.bytes / 1024)) }) : '',
+      ].filter(Boolean).join(' · ')
+      const creates = data.target?.createsProfile
+      const notes = (plan.notes || []).map(packNoteText).filter(Boolean)
+      packDetailEl.hidden = false
+      packDetailEl.innerHTML = `
+        <div class="pack-title">
+          <span class="pack-name">${escapeHtml(pack.displayName || pack.name)}</span>
+          <span class="pack-meta">v${escapeHtml(pack.version)}${meta ? ` · ${escapeHtml(meta)}` : ''}</span>
+        </div>
+        ${pack.description ? `<div class="pack-desc">${escapeHtml(pack.description)}</div>` : ''}
+        ${packNotes(t('问题（先解决这些）'), plan.errors || [], 'warn')}
+        ${packNotes(t('会怎么装'), notes)}
+        ${packNotes(t('要注意'), plan.warnings || [], 'warn')}
+        ${packRows(t('层栈（dsh 按顺序加载）'), bundleRows)}
+        ${packRows(t('依赖'), deps)}
+        ${packRows(t('要写的文件'), (plan.writes || []).map((write) => `${write.rel}${write.note ? `（${write.note}）` : ''}`))}
+        ${packRows(t('覆盖文件'), overrides)}
+        ${packRows(t('用户级文件'), home)}
+        ${packNotes(t('包里没装的内容'), [...(pack.skipped || []).map((item) => `${item.path}：${item.reason}`), ...(pack.warnings || [])])}
+        <div class="pack-target">
+          <label for="packProfile">${escapeHtml(t('装进 profile'))}</label>
+          <input id="packProfile" type="text" value="${escapeHtml(data.target?.profile || '')}" list="packProfiles" autocomplete="off" spellcheck="false" />
+          <datalist id="packProfiles">${(packState.profiles || []).map((name) => `<option value="${escapeHtml(name)}"></option>`).join('')}</datalist>
+          <span class="pack-meta">${escapeHtml(creates ? t('新建一个 profile，和现有环境互不影响') : t('这个 profile 已存在，依赖与层栈会并进去'))}</span>
+        </div>
+        <div class="pack-actions">
+          <button class="ghost primary" type="button" id="packInstall" ${(data.ok && !packBusy) ? '' : 'disabled'}>${escapeHtml(t('安装'))}</button>
+          <button class="ghost" type="button" id="packCancel">${escapeHtml(t('不看这个了'))}</button>
+        </div>`
+      const installEl = document.getElementById('packInstall')
+      if (installEl) installEl.onclick = () => { void installPack() }
+      document.getElementById('packCancel').onclick = () => {
+        packInspection = null
+        renderPackDetail()
+        packHintEl.textContent = ''
+      }
+    }
+
+    function loadPacks() {
+      return getJson('/api/packs').then((data) => {
+        packState = data
+        renderPackInstalled()
+        if (!packLoaded) void loadMarket({ quiet: true })
+        packLoaded = true
+      }).catch((error) => { packHintEl.textContent = error.message })
+    }
+
+    async function loadMarket({ quiet = false, force = false } = {}) {
+      if (!quiet) packHintEl.textContent = t('正在读社区整合包列表…')
+      try {
+        packMarket = await getJson(`/api/packs/market${force ? '?refresh=1' : ''}`)
+      } catch (error) {
+        packMarket = { ok: false, entries: [], error: error.message }
+      }
+      renderPackMarket()
+      if (!quiet) {
+        const ok = packMarket.ok
+        packHintEl.textContent = ok
+          ? t('市场里现在有 {n} 个整合包。', { n: packMarket.entries.length })
+          : t('市场没读到：{error}', { error: packMarket.error || '' })
+      }
+    }
+
+    async function inspectPack(payload) {
+      if (packBusy) return
+      packBusy = true
+      renderPackMarket()
+      packInspection = null
+      renderPackDetail()
+      packHintEl.textContent = t('正在下载并检查…')
+      try {
+        const data = await post('/api/packs/inspect', payload)
+        packInspection = data
+        renderPackDetail()
+        packHintEl.textContent = data.ok
+          ? t('检查完了：{name} {version}。确认没问题就点安装。', { name: data.pack.displayName || data.pack.name, version: data.pack.version })
+          : t('这个包有问题，先看上面的原因。')
+      } catch (error) {
+        packHintEl.textContent = error.message
+        notify(error.message, t('整合包检查失败'))
+      } finally {
+        packBusy = false
+        // 详情卡里的「安装」要等 packBusy 复位后才画得成可用状态
+        renderPackDetail()
+        renderPackMarket()
+      }
+    }
+
+    async function installPack() {
+      if (!packInspection || packBusy) return
+      packBusy = true
+      renderPackMarket()
+      renderPackDetail()
+      packHintEl.textContent = t('正在安装…（下面有进度）')
+      try {
+        const profile = String(document.getElementById('packProfile')?.value || '').trim()
+        const data = await post('/api/packs/install', {
+          token: packInspection.token,
+          source: packInspection.source,
+          profile,
+        })
+        packState = data
+        const installed = data.installed
+        packInspection = null
+        renderPackDetail()
+        renderPackInstalled()
+        const switching = installed.profile !== data.profile
+        packHintEl.innerHTML = escapeHtml(t('{name} 已装进 profile「{profile}」，重启 dsh 后生效。', { name: installed.displayName || installed.name, profile: installed.profile }))
+          + (switching ? ` <button class="ghost" type="button" id="packSwitchNow">${escapeHtml(t('现在切过去并重启'))}</button>` : '')
+        const switchEl = document.getElementById('packSwitchNow')
+        if (switchEl) switchEl.onclick = () => { void switchProfile(installed.profile, { restart: true }) }
+      } catch (error) {
+        packHintEl.textContent = error.message
+        notify(error.message, t('整合包安装失败'))
+      } finally {
+        packBusy = false
+        renderPackMarket()
+        renderPackInstalled()
+        renderPackDetail()
+      }
+    }
+
+    async function removePack(name, profile, createdProfile) {
+      if (packBusy) return
+      const record = (packState.packs || []).find((item) => item.name === name && item.profile === profile)
+      const label = record?.displayName || name
+      if (!confirm(t('卸载 {name}（profile「{profile}」）？安装时覆盖的文件会还原。', { name: label, profile }))) return
+      let removeProfile = false
+      if (createdProfile) {
+        removeProfile = confirm(t('这个 profile 是整合包装的。要不要连整个 profile 目录一起删掉？里面的插件和配置会一起没。'))
+      }
+      packBusy = true
+      renderPackInstalled()
+      try {
+        const data = await post('/api/packs/uninstall', { name, profile, removeProfile })
+        packState = data
+        renderPackInstalled()
+        packHintEl.textContent = t('{name} 已卸载。', { name: label })
+      } catch (error) {
+        packHintEl.textContent = error.message
+        notify(error.message, t('整合包卸载失败'))
+      } finally {
+        packBusy = false
+        renderPackInstalled()
+      }
+    }
+
+    async function switchProfile(profile, { restart = false } = {}) {
+      packHintEl.textContent = t('正在切到 profile「{profile}」…', { profile })
+      try {
+        await post('/api/settings', { profile })
+        if (restart) {
+          packHintEl.textContent = t('已切到 profile「{profile}」，正在重启 dsh…', { profile })
+          await post('/api/restart', {})
+          packHintEl.textContent = t('已切到 profile「{profile}」，dsh 正在重启。', { profile })
+        } else {
+          packHintEl.textContent = t('已切到 profile {name}，dsh 下次启动用它。', { name: profile })
+        }
+        await loadPacks()
+      } catch (error) {
+        packHintEl.textContent = error.message
+      }
+    }
+
+    async function exportProfile() {
+      if (packBusy) return
+      packBusy = true
+      packHintEl.textContent = t('选择保存位置…')
+      try {
+        const data = await post('/api/packs/export', {
+          profile: packState.profile,
+          includeHome: packExportHomeEl.checked,
+          version: packExportVersionEl.value.trim() || '1.0.0',
+        })
+        if (data.canceled) {
+          packHintEl.textContent = ''
+          return
+        }
+        packHintEl.innerHTML = `<span class="pack-path">${escapeHtml(t('已导出 {n} 层、{deps} 个依赖：', { n: data.bundles.length, deps: Object.keys(data.dependencies).length }))}<code>${escapeHtml(data.path)}</code><button class="ghost" type="button" id="packReveal">${escapeHtml(t('在文件夹里显示'))}</button></span>`
+        const revealEl = document.getElementById('packReveal')
+        if (revealEl) {
+          revealEl.onclick = () => { void post('/api/packs/reveal', { path: data.path }).catch((error) => { notify(error.message) }) }
+        }
+      } catch (error) {
+        packHintEl.textContent = error.message
+        notify(error.message, t('导出失败'))
+      } finally {
+        packBusy = false
+      }
+    }
+
+    /** 进度条：整合包的相位和 pnpm 的不一样，先翻成 paintProgress 认的那两种。 */
+    function setPackProgress(busy) {
+      const state = packProgress
+      let bar = null
+      if (state?.phase === 'fetch') bar = { phase: 'download', done: state.done, total: state.total }
+      else if (state?.phase === 'install') bar = { phase: state.step || 'resolve', done: state.done, total: state.total }
+      else if (state?.phase === 'write') bar = { phase: 'download', done: state.done, total: state.total }
+      paintProgress(document.getElementById('packProgress'), document.getElementById('packProgressBar'), bar, busy)
+    }
+
+    /** 进度文字：说清现在在干什么（下载包 / 解包 / 写配置 / 装依赖）。 */
+    function describePackProgress(state) {
+      if (!state) return ''
+      if (state.phase === 'fetch') {
+        const total = Number(state.total) || 0
+        const done = Number(state.done) || 0
+        return total ? t('正在下载整合包 {pct}%', { pct: Math.round((done / total) * 100) }) : t('正在下载整合包…')
+      }
+      if (state.phase === 'unpack') return t('正在解开整合包…')
+      if (state.phase === 'write') return t('正在写配置文件…')
+      if (state.phase === 'install') {
+        if (state.step === 'resolve') return t('正在解析依赖… 已解析 {n} 个', { n: Number(state.done) || 0 })
+        const total = Number(state.total) || 0
+        const done = Number(state.done) || 0
+        return total ? t('正在装依赖 {done}/{total}…', { done, total }) : t('正在装依赖…')
+      }
+      if (state.phase === 'done') return t('装好了。')
+      return ''
+    }
+
+    packCheckEl.onclick = () => {
+      const source = packSourceEl.value.trim()
+      if (!source) {
+        packHintEl.textContent = t('先给一个整合包：本地文件、链接，或者 owner/repo')
+        packSourceEl.focus()
+        return
+      }
+      void inspectPack({ source })
+    }
+    packSourceEl.onkeydown = (event) => {
+      if (event.key === 'Enter') packCheckEl.click()
+    }
+    packPickEl.onclick = async () => {
+      packPickEl.disabled = true
+      try {
+        const data = await post('/api/packs/pick-file', {})
+        if (data.path) {
+          packSourceEl.value = data.path
+          void inspectPack({ source: data.path })
+        } else if (data.error) {
+          packHintEl.textContent = data.error
+        }
+      } catch (error) {
+        packHintEl.textContent = error.message
+      } finally {
+        packPickEl.disabled = false
+      }
+    }
+    packRefreshEl.onclick = async () => {
+      packRefreshEl.disabled = true
+      await loadPacks()
+      await loadMarket({ force: true })
+      packRefreshEl.disabled = false
+    }
+    packExportEl.onclick = () => { void exportProfile() }
 
     // ---- MCP 服务器：写进 profile 补丁层里的 dsh-mcp-client 条目 ----
     const mcpListEl = document.getElementById('mcpList')
@@ -4166,12 +4859,13 @@
       } catch (error) { skillHintEl.textContent = error.message; loadSkills() } finally { skillMasterEl.disabled = false }
     }
 
-    // ---- S3 同步：会话、附件与插件配置传到对象存储 ----
+    // ---- 同步：会话、附件与插件配置传到远端（S3 兼容对象存储 / WebDAV） ----
     const syncHintEl = document.getElementById('syncHint')
     const syncDetailEl = document.getElementById('syncDetail')
     const syncScopeGroupEl = document.getElementById('syncScopeGroup')
     const syncPolicyEl = document.getElementById('syncPolicy')
     const syncStyleEl = document.getElementById('syncStyle')
+    const syncStoreEl = document.getElementById('syncStore')
     const syncTestEl = document.getElementById('syncTest')
     const syncUploadEl = document.getElementById('syncUpload')
     const syncDownloadEl = document.getElementById('syncDownload')
@@ -4179,7 +4873,14 @@
     const syncProgressWrap = document.getElementById('syncProgress')
     const syncProgressBar = document.getElementById('syncProgressBar')
     const syncEndpointHint = document.getElementById('syncEndpointHint')
+    const syncDavHint = document.getElementById('syncDavHint')
+    const syncFolderHint = document.getElementById('syncFolderHint')
     // 服务端只给 id 与顺序，中文文案跟界面语言走（EN 字典按中文原文查）
+    const SYNC_STORE_TEXT = {
+      s3: ['S3 兼容存储', 'AWS S3 / Cloudflare R2 / MinIO / 阿里 OSS / 腾讯 COS…'],
+      webdav: ['WebDAV', '坚果云 / Nextcloud / 群晖 / Alist…'],
+      folder: ['本地目录（导出 / 导入）', '导出一个文件夹，或从文件夹导回来；不联网、不要账号'],
+    }
     const SYNC_SCOPE_TEXT = {
       sessions: ['会话记录', '每个项目的聊天记录（session.jsonl.zstd）'],
       attachments: ['附件', '对话里贴的图片和文件'],
@@ -4188,16 +4889,16 @@
       memory: ['记忆', 'dsh 的长期记忆目录'],
     }
     const SYNC_POLICY_TEXT = {
-      skip: ['保留本机', '本机不动，桶里那份也留着，换个策略再拉一次就行'],
-      overwrite: ['用桶里的覆盖本机', '完全以桶为准，适合刚换的新机器'],
-      duplicate: ['两份都留', '本机不动，桶里那份另存成 …remote-日期 的文件'],
+      skip: ['保留本机', '本机不动，远端那份也留着，换个策略再拉一次就行'],
+      overwrite: ['用远端的覆盖本机', '完全以远端为准，适合刚换的新机器'],
+      duplicate: ['两份都留', '本机不动，远端那份另存成 …remote-日期 的文件'],
     }
     const SYNC_STYLE_TEXT = {
       auto: ['自动', 'IP 用路径风格，域名用虚拟主机'],
       path: ['路径风格', 'MinIO / Ceph 这类自建存储常用'],
       virtual: ['虚拟主机', 'bucket.域名/对象键'],
     }
-    const syncInputs = {
+    const s3Inputs = {
       endpoint: document.getElementById('syncEndpoint'),
       region: document.getElementById('syncRegion'),
       bucket: document.getElementById('syncBucket'),
@@ -4206,6 +4907,16 @@
       secretAccessKey: document.getElementById('syncSecretKey'),
       sessionToken: document.getElementById('syncSessionToken'),
       insecure: document.getElementById('syncInsecure'),
+    }
+    const davInputs = {
+      url: document.getElementById('syncDavUrl'),
+      username: document.getElementById('syncDavUser'),
+      password: document.getElementById('syncDavSecret'),
+      prefix: document.getElementById('syncDavPrefix'),
+      insecure: document.getElementById('syncDavInsecure'),
+    }
+    const folderInputs = {
+      path: document.getElementById('syncFolderPath'),
     }
     let syncData = null
     let syncScopeIds = []
@@ -4255,9 +4966,39 @@
       }
       fill(syncPolicyEl, data.policies, SYNC_POLICY_TEXT)
       fill(syncStyleEl, data.styles, SYNC_STYLE_TEXT)
+      fill(syncStoreEl, (data.storeTypes || ['s3', 'webdav']).map((id) => ({ id })), SYNC_STORE_TEXT)
       syncPolicyEl.value = data.sync?.policy || 'skip'
       syncStyleEl.value = data.s3?.style || 'auto'
+      syncStoreEl.value = data.store || data.sync?.store || 's3'
       syncUiSelects()
+    }
+
+    /** 按存储类型显隐几组字段（S3 / WebDAV / 本地目录各一份配置，都留在设置文件里）。 */
+    function showSyncStoreRows(type) {
+      for (const row of document.querySelectorAll('#pane-sync [data-store]')) {
+        row.hidden = row.dataset.store !== type
+      }
+    }
+
+    /**
+     * 按钮文案跟存储类型走：选本地目录时这就是「导出 / 导入 / 检查目录」，
+     * 说白了就是把同一件事换成用户熟悉的词。applyLang 之后要重画一次（它会按 data-i18n 复位）。
+     */
+    function paintSyncActions() {
+      const local = syncStoreEl.value === 'folder'
+      const pairs = [
+        [syncUploadEl, local ? '导出' : '上传'],
+        [syncDownloadEl, local ? '导入' : '下载'],
+        [syncTestEl, local ? '检查目录' : '检测连接'],
+      ]
+      for (const [button, label] of pairs) {
+        const text = t(label)
+        if (button.textContent !== text) button.textContent = text
+        button.setAttribute('aria-label', text)
+        button.title = text
+      }
+      syncUploadEl.dataset.act = local ? '导出' : '上传'
+      syncDownloadEl.dataset.act = local ? '导入' : '下载'
     }
 
     function fillSync(data) {
@@ -4267,16 +5008,37 @@
       for (const item of data.homes || []) syncHomes[item.id] = item.dir
       renderSyncScopes()
       paintSyncOptions(data)
-      for (const [key, el] of Object.entries(syncInputs)) {
+      for (const [key, el] of Object.entries(s3Inputs)) {
         if (!el) continue
         if (el.type === 'checkbox') el.checked = data.s3?.[key] === true
         else el.value = String(data.s3?.[key] ?? '')
       }
-      syncEndpointHint.textContent = data.configured
-        ? t('将同步到 {url}', { url: data.bucketUrl || '' })
-        : t('还没填完：{missing}', { missing: (data.missing || []).join('、') })
-      if (data.state) paintSync(data.state)
+      for (const [key, el] of Object.entries(davInputs)) {
+        if (!el) continue
+        if (el.type === 'checkbox') el.checked = data.webdav?.[key] === true
+        else el.value = String(data.webdav?.[key] ?? '')
+      }
+      for (const [key, el] of Object.entries(folderInputs)) {
+        if (el) el.value = String(data.folder?.[key] ?? '')
+      }
+      showSyncStoreRows(syncStoreEl.value)
+      paintSyncActions()
+      // 「将同步到 …」贴在各自那组地址下面：只填当前类型那一个
+      const remoteUrl = data.configured ? t('将同步到 {url}', { url: data.remoteUrl || '' }) : t('还没填完：{missing}', { missing: (data.missing || []).join('、') })
+      const store = data.store || 's3'
+      syncEndpointHint.textContent = store === 's3' ? remoteUrl : ''
+      syncDavHint.textContent = store === 'webdav' ? remoteUrl : ''
+      syncFolderHint.textContent = store === 'folder' ? remoteUrl : ''
+      if (data.state) paintSync(stateForStore(data.state))
       else syncHintEl.textContent = ''
+    }
+
+    /**
+     * 上一次的结果文案里「上传/下载」按当时用的存储类型翻译成「导出/导入」——
+     * 存的是 mode，画的时候才决定叫什么（本地目录模式下用户看到的就是导出）。
+     */
+    function stateForStore(state, store = syncStoreEl.value) {
+      return { ...state, local: store === 'folder' }
     }
 
     function syncBytes(bytes) {
@@ -4285,6 +5047,15 @@
       if (number < 1048576) return `${(number / 1024).toFixed(1)} KB`
       if (number < 1073741824) return `${(number / 1048576).toFixed(1)} MB`
       return `${(number / 1073741824).toFixed(2)} GB`
+    }
+
+    /**
+     * 这次跑的是不是「本地目录」（按钮叫导出/导入）？服务端推来的事件里没有这个标记
+     * （它只认 store 类型），所以拿当前选中的类型兜底。
+     */
+    function localRun(state) {
+      if (typeof state?.local === 'boolean') return state.local
+      return syncStoreEl.value === 'folder'
     }
 
     /** 上一次同步的结果：一句话摘要 + 明细（冲突、清单变化、被摘掉的本地依赖）。 */
@@ -4297,7 +5068,8 @@
       if (summary.merged) parts.push(t('清单已合并'))
       if (summary.installed) parts.push(t('依赖已重装'))
       const size = syncBytes((summary.bytesUp || 0) + (summary.bytesDown || 0))
-      const verb = summary.mode === 'up' ? t('上传') : t('下载')
+      const up = summary.mode === 'up'
+      const verb = localRun(summary) ? (up ? t('导出') : t('导入')) : (up ? t('上传') : t('下载'))
       syncHintEl.textContent = t('{verb}完成：{parts}（{size}，用时 {seconds}s）', {
         verb,
         parts: parts.join(' · '),
@@ -4334,7 +5106,8 @@
       else if (phase === 'scan') syncHintEl.textContent = t('正在扫描 {label}…', { label })
       else if (phase === 'install') syncHintEl.textContent = t('插件清单变了，正在重装依赖…')
       else if (phase === 'upload' || phase === 'download') {
-        const verb = phase === 'upload' ? t('上传') : t('下载')
+        const up = phase === 'upload'
+        const verb = localRun(state) ? (up ? t('导出') : t('导入')) : (up ? t('上传') : t('下载'))
         const current = (state.current || '').split('/').pop()
         syncHintEl.textContent = state.total
           ? t('{verb} {label} {done}/{total}：{current}', { verb, label, done: state.done || 0, total: state.total, current })
@@ -4348,15 +5121,18 @@
 
     /** 把表单里的配置交上去（服务端校验并回显，错误的填法会以人话回来）。 */
     function saveSync() {
-      const s3 = {}
-      for (const [key, el] of Object.entries(syncInputs)) {
-        if (!el) continue
-        s3[key] = el.type === 'checkbox' ? el.checked : el.value.trim()
+      const read = (inputs) => {
+        const out = {}
+        for (const [key, el] of Object.entries(inputs)) {
+          if (!el) continue
+          out[key] = el.type === 'checkbox' ? el.checked : el.value.trim()
+        }
+        return out
       }
       const scopes = [...syncScopeGroupEl.querySelectorAll('input[data-scope]')].filter((box) => box.checked).map((box) => box.dataset.scope)
-      const sync = { scopes, policy: syncPolicyEl.value }
+      const sync = { store: syncStoreEl.value, scopes, policy: syncPolicyEl.value }
       syncSaveChain = syncSaveChain
-        .then(() => post('/api/sync/save', { s3, sync }))
+        .then(() => post('/api/sync/save', { s3: read(s3Inputs), webdav: read(davInputs), folder: read(folderInputs), sync }))
         .then((data) => { fillSync(data) })
         .catch((error) => { syncHintEl.textContent = error.message })
       return syncSaveChain
@@ -4368,25 +5144,55 @@
       } catch (error) { syncHintEl.textContent = error.message }
     }
 
-    for (const [key, el] of Object.entries(syncInputs)) {
+    for (const [key, el] of Object.entries({ ...s3Inputs, ...davInputs, ...folderInputs })) {
       if (!el) continue
       el.onchange = () => { void saveSync() }
     }
     syncPolicyEl.onchange = () => { void saveSync() }
     syncStyleEl.onchange = () => { void saveSync() }
+    // 切存储类型：立刻把那一组字段显示出来，再存（两边的配置都留着）
+    syncStoreEl.onchange = () => {
+      showSyncStoreRows(syncStoreEl.value)
+      paintSyncActions()
+      void saveSync()
+    }
     document.getElementById('syncRefresh').onclick = loadSync
+    // 本地目录那种模式下，「浏览…」直接弹系统目录选择框（和版本目录同一个接口）
+    document.getElementById('syncPickFolder').onclick = async () => {
+      const button = document.getElementById('syncPickFolder')
+      button.disabled = true
+      try {
+        const data = await post('/api/pick-dir', {})
+        if (data.path) {
+          folderInputs.path.value = data.path
+          await saveSync()
+        }
+      } catch (error) { syncHintEl.textContent = error.message } finally { button.disabled = false }
+    }
     syncTestEl.onclick = async () => {
       syncTestEl.disabled = true
-      syncHintEl.textContent = t('正在连桶…')
+      const local = syncStoreEl.value === 'folder'
+      syncHintEl.textContent = local ? t('正在检查目录…') : t('正在连远端…')
       try {
         const data = await post('/api/sync/test', {})
-        syncEndpointHint.textContent = t('连上了：{host}（{style}），{ns}/ 下有 {n} 个对象', {
-          host: data.host || '',
-          style: data.style === 'path' ? t('路径风格') : t('虚拟主机'),
-          ns: data.namespace || '',
-          n: data.objects ?? 0,
-        })
-        syncHintEl.textContent = t('连接正常。')
+        const hint = syncStoreEl.value === 'webdav' ? syncDavHint
+          : syncStoreEl.value === 'folder' ? syncFolderHint : syncEndpointHint
+        hint.textContent = local
+          ? t('目录能用：{host} · {ns} {state}', {
+            host: data.host || '',
+            ns: data.namespace || '',
+            state: data.empty ? t('还没有内容') : t('已有内容'),
+          })
+          : t('连上了：{host}（{detail}）· {ns} {state}', {
+            host: data.host || '',
+            detail: data.detail || '',
+            ns: data.namespace || '',
+            state: data.empty ? t('还没有内容') : t('已有内容'),
+          })
+        for (const other of [syncEndpointHint, syncDavHint, syncFolderHint]) {
+          if (other !== hint) other.textContent = ''
+        }
+        syncHintEl.textContent = local ? t('目录可以用。') : t('连接正常。')
         syncDetailEl.hidden = true
       } catch (error) {
         syncHintEl.textContent = t('连接失败：{error}', { error: error.message })
@@ -4395,12 +5201,15 @@
     for (const [button, mode] of [[syncUploadEl, 'up'], [syncDownloadEl, 'down']]) {
       button.onclick = async () => {
         await saveSync()
+        const local = syncStoreEl.value === 'folder'
         button.disabled = true
-        syncHintEl.textContent = mode === 'up' ? t('正在上传…') : t('正在下载…')
+        syncHintEl.textContent = mode === 'up'
+          ? (local ? t('正在导出…') : t('正在上传…'))
+          : (local ? t('正在导入…') : t('正在下载…'))
         syncDetailEl.hidden = true
         try {
           const data = await post('/api/sync/run', { mode })
-          paintSync({ phase: 'done', mode, summary: data.summary })
+          paintSync({ phase: 'done', mode, local, summary: data.summary })
           if (data.summary?.manifestChanged) { await loadPlugins() }
         } catch (error) {
           syncHintEl.textContent = t('同步失败：{error}', { error: error.message })
@@ -4419,6 +5228,7 @@
       } catch (error) { syncHintEl.textContent = error.message } finally { syncStopEl.disabled = false }
     }
 
+    applyLang()
     loadSettings()
   </script>
   <script src="/mascot.js" defer></script>

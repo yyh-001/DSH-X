@@ -120,24 +120,37 @@ test('设置页有「打开 dsh 的方式」：两项可选、改动即保存', 
   assert.ok(uiSelectList.includes('#openMode'), '打开方式进自绘下拉名单')
 })
 
-test('同步面板：S3 配置、同步范围、上传下载按钮都在，密钥走 password', () => {
+test('同步面板：S3 与 WebDAV 两套配置、同步范围、上传下载按钮都在，密钥走 password', () => {
   assert.match(html, /class="nav-item" data-pane="sync"/, '左侧导航有同步入口')
   assert.match(html, /<section class="pane" id="pane-sync">/, '同步面板在设置区里')
   for (const id of [
-    'syncEndpoint', 'syncRegion', 'syncBucket', 'syncPrefix', 'syncAccessKey', 'syncSecretKey',
-    'syncSessionToken', 'syncInsecure', 'syncPolicy', 'syncStyle', 'syncScopeGroup',
+    'syncStore', 'syncEndpoint', 'syncRegion', 'syncBucket', 'syncPrefix', 'syncAccessKey', 'syncSecretKey',
+    'syncSessionToken', 'syncInsecure', 'syncDavUrl', 'syncDavUser', 'syncDavSecret', 'syncDavPrefix',
+    'syncDavInsecure', 'syncFolderPath', 'syncPickFolder', 'syncPolicy', 'syncStyle', 'syncScopeGroup',
     'syncTest', 'syncUpload', 'syncDownload', 'syncStop', 'syncProgress', 'syncHint', 'syncDetail',
   ]) {
     assert.match(html, new RegExp(`id="${id}"`), `${id} 在页面上`)
   }
   assert.match(html, /<input id="syncSecretKey" type="password"/, 'SecretKey 不明文显示')
   assert.match(html, /<input id="syncSessionToken" type="password"/, '会话令牌不明文显示')
+  assert.match(html, /<input id="syncDavSecret" type="password"/, 'WebDAV 密码不明文显示')
+  // 几组字段靠 data-store 显隐（.set-row 有 display:flex，得有一条 [hidden] 规则压得住）
+  assert.match(html, /\.set-row\[hidden\], \.set-row\.stacked\[hidden\] \{ display: none; \}/, '整行能按存储类型藏起来（权重得压过 .set-row.stacked）')
+  assert.match(html, /showSyncStoreRows\(syncStoreEl\.value\)/, '切类型时显隐对应那组')
+  assert.match(html, /const s3Inputs = \{[\s\S]{0,900}?const davInputs = \{/, '两套输入各存一份')
+  assert.match(html, /post\('\/api\/sync\/save', \{ s3: read\(s3Inputs\), webdav: read\(davInputs\), folder: read\(folderInputs\), sync \}\)/, '保存时几套配置一起交上去')
+  assert.match(html, /const folderInputs = \{[\s\S]{0,80}?syncFolderPath/, '本地目录那套输入')
+  assert.match(html, /local \? '导出' : '上传'/, '本地目录模式下按钮改叫导出/导入')
+  assert.match(html, /post\('\/api\/pick-dir'/, '「浏览…」复用目录选择接口')
   assert.match(html, /const paneLoaders = \{[^}]*sync: loadSync[^}]*\}/, '进面板时才读同步状态')
   assert.match(html, /post\('\/api\/sync\/save'/, '配置改动即保存')
   assert.match(html, /post\('\/api\/sync\/run', \{ mode \}\)/, '上传/下载走同一个接口，用 mode 分方向')
   assert.match(html, /post\('\/api\/sync\/stop'/, '跑得太久能停')
   assert.match(html, /addEventListener\('sync'/, '同步进度走 SSE 的 sync 事件')
-  assert.match(html, /#openMode, #syncPolicy, #syncStyle'\)/, '新下拉也进自绘下拉名单')
+  const syncSelects = html.match(/document\.querySelectorAll\('([^']*#syncStore[^']*)'\)/)?.[1] || ''
+  for (const id of ['#openMode', '#syncStore', '#syncPolicy', '#syncStyle']) {
+    assert.ok(syncSelects.includes(id), `新下拉 ${id} 也进自绘下拉名单`)
+  }
 })
 
 test('同步面板的中文文案都有英文', () => {
@@ -148,7 +161,7 @@ test('同步面板的中文文案都有英文', () => {
   const pane = html.match(/<section class="pane" id="pane-sync">[\s\S]*?<\/section>/)[0]
   for (const match of pane.matchAll(/data-i18n="([^"]+)"/g)) check(match[1])
   // 面板 JS 里的中文：范围/策略/风格的文案表和所有 t('…') 的字面量
-  const block = html.match(/\/\/ ---- S3 同步[\s\S]*?\n    loadSettings\(\)/)[0]
+  const block = html.match(/\/\/ ---- 同步[\s\S]*?\n    loadSettings\(\)/)[0]
   for (const match of block.matchAll(/'([^'\n]+)'/g)) check(match[1])
   assert.deepEqual([...new Set(missing)], [], '同步面板里没翻的中文')
 })

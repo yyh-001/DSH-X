@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import {
-  S3_NAMESPACE,
+  SYNC_NAMESPACE,
   canonicalQuery,
   localDepPath,
   localPathFor,
@@ -305,6 +305,6 @@ test('本地依赖路径：file:/link:/portal: 才算，相对路径按 profile 
 })
 
 test('日志里的键名收短，命名空间不出现', () => {
-  assert.equal(shortKey(`${S3_NAMESPACE}/sessions/proj/session-1/session.jsonl.zstd`), 'sessions/…/session.jsonl.zstd')
-  assert.equal(shortKey(`${S3_NAMESPACE}/profiles/web/package.json`), 'profiles/web/package.json')
+  assert.equal(shortKey(`${SYNC_NAMESPACE}/sessions/proj/session-1/session.jsonl.zstd`), 'sessions/…/session.jsonl.zstd')
+  assert.equal(shortKey(`${SYNC_NAMESPACE}/profiles/web/package.json`), 'profiles/web/package.json')
 })
