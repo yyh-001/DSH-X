@@ -411,7 +411,7 @@
       .controls { margin-left: auto; }
     }
     label { display: block; color: var(--muted); font-size: 12px; letter-spacing: 0.08em; margin-bottom: 8px; }
-    input[type=text], input[type=number], select {
+    input[type=text], input[type=number], input[type=password], select {
       width: 100%;
       appearance: none;
       background: #fff;
@@ -421,7 +421,7 @@
       padding: 12px 14px;
       font: inherit;
     }
-    input[type=text]:focus, input[type=number]:focus, select:focus { outline: 1px solid var(--accent); }
+    input[type=text]:focus, input[type=number]:focus, input[type=password]:focus, select:focus { outline: 1px solid var(--accent); }
     select {
       width: 148px;
       flex: 0 0 auto;
@@ -643,7 +643,7 @@
     /* 长路径这类要占整行的：说明在上，输入框在下铺满 */
     .set-row.stacked { display: block; }
     .set-row.stacked .set-control { margin-top: 11px; }
-    .set-row.stacked .set-control input[type=text] { flex: 1 1 auto; min-width: 0; }
+    .set-row.stacked .set-control input[type=text], .set-row.stacked .set-control input[type=password] { flex: 1 1 auto; min-width: 0; }
     .set-row .hint { margin: 9px 0 0; font-size: 12px; }
     /* 整行可点的开关行：给个悬停反馈，别让人猜哪儿能点 */
     .toggle.set-row {
@@ -722,7 +722,7 @@
       .set-row:has(.ui-select) .set-text, .set-row:has(.ui-select) .set-control { flex: 1 1 100%; }
       .set-control .ui-select, .set-control .ui-select:has(#webBind) { width: 100%; }
       .set-row.stacked .set-control { flex-wrap: wrap; }
-      .set-row.stacked .set-control input[type=text] { flex-basis: 100%; }
+      .set-row.stacked .set-control input[type=text], .set-row.stacked .set-control input[type=password] { flex-basis: 100%; }
       #pane-settings .pane-top { flex-wrap: wrap; }
       #pane-log .pane-top { flex-wrap: wrap; }
       #pane-log .pane-top > div:first-child { width: 100%; }
@@ -730,6 +730,9 @@
       #settingsHint { max-width: 100%; text-align: left; }
     }
     .hint { color: var(--muted); font-size: 13px; margin: 12px 0 0; min-height: 1.5em; }
+    /* 同步结果的明细（冲突、清单变化、被摘掉的本地依赖）一行一条，别挤成一坨 */
+    #syncDetail { display: grid; gap: 5px; font-size: 12px; }
+    #syncDetail div::before { content: '· '; }
     .hint a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
     #pane-settings .hint:empty { display: none; }
     #settingsHint:not(:empty) { padding: 5px 10px; background: rgba(255, 255, 255, 0.92); border-radius: 8px; }
@@ -1145,6 +1148,10 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 3.5l2.4 5 5.5.8-4 3.8 1 5.5-4.9-2.6-4.9 2.6 1-5.5-4-3.8 5.5-.8z"/></svg>
             <span data-i18n="技能">技能</span>
           </button>
+          <button type="button" class="nav-item" data-pane="sync">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4.2 10a8 8 0 0 1 13.6-4.3M19.8 14a8 8 0 0 1-13.6 4.3M4.2 5.6V10h4.4M19.8 18.4V14h-4.4"/></svg>
+            <span data-i18n="同步">同步</span>
+          </button>
         <button type="button" class="nav-item" data-pane="log">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M6 3.5h9l3 3v14H6zM15 3.5v3h3M9 11h6M9 14.5h6M9 18h4"/></svg>
             <span data-i18n="日志">日志</span>
@@ -1269,6 +1276,123 @@
             </label>
             <div class="plugin-list" id="skillList"></div>
             <p class="hint" id="skillHint"></p>
+          </div>
+        </section>
+        <section class="pane" id="pane-sync">
+          <div class="pane-inner">
+            <div class="pane-top">
+              <div>
+                <h1 class="pane-title" data-i18n="同步">同步</h1>
+                <p class="pane-sub" data-i18n="把会话记录、附件和插件配置备份到 S3 兼容的存储桶（AWS S3 / R2 / MinIO / OSS…），换机器时再拉回来。">把会话记录、附件和插件配置备份到 S3 兼容的存储桶（AWS S3 / R2 / MinIO / OSS…），换机器时再拉回来。</p>
+              </div>
+              <div class="plugin-actions">
+                <button class="ghost" id="syncTest" type="button" data-i18n="检测连接">检测连接</button>
+                <button class="ghost" id="syncUpload" type="button" data-i18n="上传">上传</button>
+                <button class="ghost" id="syncDownload" type="button" data-i18n="下载">下载</button>
+                <button class="ghost" id="syncStop" type="button" hidden data-i18n="停止">停止</button>
+                <button class="ghost plugin-refresh" id="syncRefresh" type="button" title="刷新" aria-label="刷新"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 1-2.4-5.7"/><path d="M20 4v5h-5"/></svg></button>
+              </div>
+            </div>
+            <!-- 同步可能要传几十 MB，进度条 + 当前文件都在这儿如实显示 -->
+            <div class="progress" id="syncProgress" hidden><div class="progress-bar" id="syncProgressBar"></div></div>
+            <p class="hint" id="syncHint" role="status" aria-live="polite"></p>
+            <div class="hint" id="syncDetail" hidden></div>
+            <div class="set-caption" id="syncScopeTitle" data-i18n="同步什么">同步什么</div>
+            <div class="set-group" id="syncScopeGroup" role="group" aria-labelledby="syncScopeTitle"></div>
+            <div class="set-caption" id="syncConflictTitle" data-i18n="两边不一样时">两边不一样时</div>
+            <div class="set-group" role="group" aria-labelledby="syncConflictTitle">
+              <div class="set-row">
+                <div class="set-text">
+                  <span class="set-name" data-i18n="下载时的冲突处理">下载时的冲突处理</span>
+                  <span class="set-desc" data-i18n="碰上「本机也有、内容却不同」的文件怎么办。上传不受影响（本机更新的文件总是会传）。">碰上「本机也有、内容却不同」的文件怎么办。上传不受影响（本机更新的文件总是会传）。</span>
+                </div>
+                <div class="set-control">
+                  <select id="syncPolicy"></select>
+                </div>
+              </div>
+            </div>
+            <div class="set-caption" id="syncBucketTitle" data-i18n="存储桶">存储桶</div>
+            <div class="set-group" role="group" aria-labelledby="syncBucketTitle">
+              <div class="set-row stacked">
+                <div class="set-text">
+                  <span class="set-name" data-i18n="存储端点">存储端点</span>
+                  <span class="set-desc" data-i18n="S3 兼容服务的地址。也可以直接贴 s3://桶名/前缀（按上面的区域补成 AWS 端点）。">S3 兼容服务的地址。也可以直接贴 s3://桶名/前缀（按上面的区域补成 AWS 端点）。</span>
+                </div>
+                <div class="set-control">
+                  <input id="syncEndpoint" type="text" placeholder="https://s3.us-east-1.amazonaws.com" autocomplete="off" spellcheck="false" />
+                </div>
+                <p class="hint" id="syncEndpointHint"></p>
+              </div>
+              <div class="set-row">
+                <div class="set-text">
+                  <span class="set-name" data-i18n="区域">区域</span>
+                  <span class="set-desc" data-i18n="AWS 看桶所在区域；R2 填 auto；自建存储填什么都行。">AWS 看桶所在区域；R2 填 auto；自建存储填什么都行。</span>
+                </div>
+                <div class="set-control">
+                  <input id="syncRegion" type="text" placeholder="us-east-1" autocomplete="off" spellcheck="false" />
+                </div>
+              </div>
+              <div class="set-row">
+                <div class="set-text">
+                  <span class="set-name" data-i18n="寻址风格">寻址风格</span>
+                  <span class="set-desc" data-i18n="自建存储（MinIO 等）用 IP 时一般已经是路径风格；拿不准就先自动再点「检测连接」。">自建存储（MinIO 等）用 IP 时一般已经是路径风格；拿不准就先自动再点「检测连接」。</span>
+                </div>
+                <div class="set-control">
+                  <select id="syncStyle"></select>
+                </div>
+              </div>
+              <div class="set-row stacked">
+                <div class="set-text">
+                  <span class="set-name" data-i18n="桶名">桶名</span>
+                </div>
+                <div class="set-control">
+                  <input id="syncBucket" type="text" placeholder="my-bucket" autocomplete="off" spellcheck="false" />
+                </div>
+              </div>
+              <div class="set-row stacked">
+                <div class="set-text">
+                  <span class="set-name" data-i18n="桶内前缀">桶内前缀</span>
+                  <span class="set-desc" data-i18n="留空就放在桶根目录下；同一只桶给多台机器用时可以填机器名。">留空就放在桶根目录下；同一只桶给多台机器用时可以填机器名。</span>
+                </div>
+                <div class="set-control">
+                  <input id="syncPrefix" type="text" placeholder="laptop" autocomplete="off" spellcheck="false" />
+                </div>
+              </div>
+              <div class="set-row stacked">
+                <div class="set-text">
+                  <span class="set-name" data-i18n="AccessKey">AccessKey</span>
+                </div>
+                <div class="set-control">
+                  <input id="syncAccessKey" type="text" placeholder="AKIA…" autocomplete="off" spellcheck="false" />
+                </div>
+              </div>
+              <div class="set-row stacked">
+                <div class="set-text">
+                  <span class="set-name" data-i18n="SecretKey">SecretKey</span>
+                  <span class="set-desc" data-i18n="密钥只存在本机的启动器设置文件里（明文），不会传给 dsh、也不会进日志。建议用只对这个桶有读写权限的子账号密钥。">密钥只存在本机的启动器设置文件里（明文），不会传给 dsh、也不会进日志。建议用只对这个桶有读写权限的子账号密钥。</span>
+                </div>
+                <div class="set-control">
+                  <input id="syncSecretKey" type="password" placeholder="••••••••" autocomplete="new-password" spellcheck="false" />
+                </div>
+              </div>
+              <div class="set-row stacked">
+                <div class="set-text">
+                  <span class="set-name" data-i18n="会话令牌（可选）">会话令牌（可选）</span>
+                  <span class="set-desc" data-i18n="用临时凭证（STS）时才需要，填 x-amz-security-token。">用临时凭证（STS）时才需要，填 x-amz-security-token。</span>
+                </div>
+                <div class="set-control">
+                  <input id="syncSessionToken" type="password" placeholder="临时凭证才需要" autocomplete="new-password" spellcheck="false" />
+                </div>
+              </div>
+              <label class="toggle set-row">
+                <span class="set-text">
+                  <span class="set-name" data-i18n="跳过证书校验">跳过证书校验</span>
+                  <span class="set-desc" data-i18n="自建存储用了自签名证书时才打开；打开后中间人就能看到内容，能用 http 就别开。">自建存储用了自签名证书时才打开；打开后中间人就能看到内容，能用 http 就别开。</span>
+                </span>
+                <input id="syncInsecure" type="checkbox" />
+              </label>
+            </div>
+            <p class="hint" id="syncFootnote" data-i18n="桶里的目录结构是 dsh-x/v1/…，删文件不会被同步（两边各自留并集）；插件清单两个方向都会合并，不会丢掉任何一边装的插件。">桶里的目录结构是 dsh-x/v1/…，删文件不会被同步（两边各自留并集）；插件清单两个方向都会合并，不会丢掉任何一边装的插件。</p>
           </div>
         </section>
         <section class="pane fill" id="pane-log">
@@ -1781,7 +1905,76 @@
   "正在下载新版本 {pct}%（{mb} / {size}）": "Downloading the new version: {pct}% ({mb} / {size})",
   "行 {ids}": "rows {ids}",
   "{profile} profile · 共 {total} 个 · {on} 个启用": "{profile} profile · {total} total · {on} enabled",
-  "共 {total} 个插件 · {on} 个已启用": "{total} plugins · {on} enabled"
+  "共 {total} 个插件 · {on} 个已启用": "{total} plugins · {on} enabled",
+  "同步": "Sync",
+  "把会话记录、附件和插件配置备份到 S3 兼容的存储桶（AWS S3 / R2 / MinIO / OSS…），换机器时再拉回来。": "Back up chat sessions, attachments and plugin config to any S3-compatible bucket (AWS S3 / R2 / MinIO / OSS…), then pull them back on another machine.",
+  "检测连接": "Test connection",
+  "上传": "Upload",
+  "下载": "Download",
+  "停止": "Stop",
+  "同步什么": "What to sync",
+  "两边不一样时": "When both sides differ",
+  "下载时的冲突处理": "Conflict handling when downloading",
+  "碰上「本机也有、内容却不同」的文件怎么办。上传不受影响（本机更新的文件总是会传）。": "What to do when a download finds a file that also exists locally with different content. Uploads are unaffected: a locally newer file is always uploaded.",
+  "存储桶": "Bucket",
+  "存储端点": "Endpoint",
+  "S3 兼容服务的地址。也可以直接贴 s3://桶名/前缀（按上面的区域补成 AWS 端点）。": "Address of the S3-compatible service. You can also paste s3://bucket/prefix and it is expanded into an AWS endpoint using the region below.",
+  "区域": "Region",
+  "AWS 看桶所在区域；R2 填 auto；自建存储填什么都行。": "For AWS use the bucket's region; R2 accepts auto; self-hosted storage accepts anything.",
+  "寻址风格": "Addressing style",
+  "自建存储（MinIO 等）用 IP 时一般已经是路径风格；拿不准就先自动再点「检测连接」。": "Self-hosted storage (MinIO and friends) reached by IP is usually path-style. Unsure? Leave it on auto and hit \"Test connection\".",
+  "桶名": "Bucket name",
+  "桶内前缀": "Key prefix",
+  "留空就放在桶根目录下；同一只桶给多台机器用时可以填机器名。": "Leave empty to use the bucket root; when several machines share one bucket, put the machine name here.",
+  "密钥只存在本机的启动器设置文件里（明文），不会传给 dsh、也不会进日志。建议用只对这个桶有读写权限的子账号密钥。": "The secret is kept in the launcher's own settings file on this machine (plain text). It is never handed to dsh and never written to the log. Prefer a sub-account key that can only read and write this one bucket.",
+  "会话令牌（可选）": "Session token (optional)",
+  "用临时凭证（STS）时才需要，填 x-amz-security-token。": "Only needed for temporary credentials (STS); sent as x-amz-security-token.",
+  "跳过证书校验": "Skip certificate check",
+  "自建存储用了自签名证书时才打开；打开后中间人就能看到内容，能用 http 就别开。": "Turn this on only when self-hosted storage uses a self-signed certificate. Once on, anyone in the middle can read the traffic — prefer plain http:// if you can.",
+  "桶里的目录结构是 dsh-x/v1/…，删文件不会被同步（两边各自留并集）；插件清单两个方向都会合并，不会丢掉任何一边装的插件。": "Objects live under dsh-x/v1/…. Deletions are never propagated, so both sides keep the union; the plugin manifest is merged in both directions, so neither machine loses a plugin it had.",
+  "会话记录": "Chat sessions",
+  "每个项目的聊天记录（session.jsonl.zstd）": "Conversation history per project (session.jsonl.zstd)",
+  "附件": "Attachments",
+  "对话里贴的图片和文件": "Images and files pasted into conversations",
+  "插件与配置": "Plugins and config",
+  "当前 profile 的插件清单和补丁层；拉下来会顺手把依赖装齐": "The plugin manifest and patch layer of the current profile; pulling also installs the dependencies",
+  "dsh 与 agents 两个用户级技能目录": "Both user-level skill folders: dsh and agents",
+  "记忆": "Memory",
+  "dsh 的长期记忆目录": "dsh's long-term memory folder",
+  "保留本机": "Keep local",
+  "本机不动，桶里那份也留着，换个策略再拉一次就行": "Leave the local file alone; the bucket copy stays there for a later pull with another policy",
+  "用桶里的覆盖本机": "Overwrite with the bucket copy",
+  "完全以桶为准，适合刚换的新机器": "Take the bucket as the source of truth — right for a freshly set up machine",
+  "两份都留": "Keep both",
+  "本机不动，桶里那份另存成 …remote-日期 的文件": "Leave the local file alone and save the bucket copy next to it as …remote-date",
+  "自动": "Automatic",
+  "IP 用路径风格，域名用虚拟主机": "Path style for IP addresses, virtual-host style for domains",
+  "路径风格": "Path style",
+  "MinIO / Ceph 这类自建存储常用": "Common for self-hosted storage such as MinIO / Ceph",
+  "虚拟主机": "Virtual-host style",
+  "bucket.域名/对象键": "bucket.domain/key",
+  "将同步到 {url}": "Syncing to {url}",
+  "还没填完：{missing}": "Not filled in yet: {missing}",
+  "{n} 个文件": "{n} file(s)",
+  "{verb}完成：{parts}（{size}，用时 {seconds}s）": "{verb} finished: {parts} ({size}, {seconds}s)",
+  "（中途停下了）": " (stopped early)",
+  "跳过 {n} 个": "skipped {n}",
+  "清单已合并": "manifest merged",
+  "依赖已重装": "dependencies reinstalled",
+  "{n} 个文件两边都有且不一样，按「保留本机」跳过：{files}": "{n} file(s) exist on both sides with different content and were skipped (keep local): {files}",
+  "正在准备…": "Getting ready…",
+  "正在扫描 {label}…": "Scanning {label}…",
+  "插件清单变了，正在重装依赖…": "The plugin manifest changed; reinstalling dependencies…",
+  "{verb} {label} {done}/{total}：{current}": "{verb} {label} {done}/{total}: {current}",
+  "{verb} {label}：{current}": "{verb} {label}: {current}",
+  "同步失败：{error}": "Sync failed: {error}",
+  "正在连桶…": "Talking to the bucket…",
+  "连上了：{host}（{style}），{ns}/ 下有 {n} 个对象": "Connected: {host} ({style}), {n} object(s) under {ns}/",
+  "连接正常。": "Connection is fine.",
+  "连接失败：{error}": "Connection failed: {error}",
+  "正在上传…": "Uploading…",
+  "正在下载…": "Downloading…",
+  "正在停下来，做完手上这个文件就收手…": "Stopping — it will finish the file it is on and then stop…"
 }
 
     function t(zh, vars) {
@@ -2046,7 +2239,7 @@
       if (changed) item.select.dispatchEvent(new Event('change', { bubbles: true }))
     }
 
-    for (const select of document.querySelectorAll('#profile, #uiLang, #webBind, #downloadSource, #updateSource, #openMode')) {
+    for (const select of document.querySelectorAll('#profile, #uiLang, #webBind, #downloadSource, #updateSource, #openMode, #syncPolicy, #syncStyle')) {
       const root = document.createElement('div')
       root.className = 'select ui-select'
       const trigger = document.createElement('button')
@@ -2182,7 +2375,7 @@
     const panes = [...document.querySelectorAll('.pane')]
     const gearEl = document.getElementById('settingsEntry')
     // 进面板时按需加载：和以前 tab 的行为一致，不做无谓请求
-    const paneLoaders = { plugins: loadPlugins, mcp: loadMcp, skills: loadSkills, settings: loadSettings }
+    const paneLoaders = { plugins: loadPlugins, mcp: loadMcp, skills: loadSkills, sync: loadSync, settings: loadSettings }
     let currentPane = 'control'
     let currentSettingsCategory = 'general'
     const settingsCategories = {
@@ -2846,6 +3039,15 @@
           if (!data || data.phase === 'idle') installProgress = null
           else installProgress = data
           render()
+        } catch {
+          // ignore
+        }
+      })
+      // 同步进度：整块界面（进度条、停止按钮、当前文件）都靠它驱动
+      events.addEventListener('sync', (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          if (data?.phase) paintSync(data)
         } catch {
           // ignore
         }
@@ -3962,6 +4164,259 @@
           ? t('已强制启用 host 层技能行（与 agent 预设那份叠加）。dsh 在跑会热加载。')
           : t('已清除覆盖，host 层两行回到模板默认。本地技能不受影响。')
       } catch (error) { skillHintEl.textContent = error.message; loadSkills() } finally { skillMasterEl.disabled = false }
+    }
+
+    // ---- S3 同步：会话、附件与插件配置传到对象存储 ----
+    const syncHintEl = document.getElementById('syncHint')
+    const syncDetailEl = document.getElementById('syncDetail')
+    const syncScopeGroupEl = document.getElementById('syncScopeGroup')
+    const syncPolicyEl = document.getElementById('syncPolicy')
+    const syncStyleEl = document.getElementById('syncStyle')
+    const syncTestEl = document.getElementById('syncTest')
+    const syncUploadEl = document.getElementById('syncUpload')
+    const syncDownloadEl = document.getElementById('syncDownload')
+    const syncStopEl = document.getElementById('syncStop')
+    const syncProgressWrap = document.getElementById('syncProgress')
+    const syncProgressBar = document.getElementById('syncProgressBar')
+    const syncEndpointHint = document.getElementById('syncEndpointHint')
+    // 服务端只给 id 与顺序，中文文案跟界面语言走（EN 字典按中文原文查）
+    const SYNC_SCOPE_TEXT = {
+      sessions: ['会话记录', '每个项目的聊天记录（session.jsonl.zstd）'],
+      attachments: ['附件', '对话里贴的图片和文件'],
+      plugins: ['插件与配置', '当前 profile 的插件清单和补丁层；拉下来会顺手把依赖装齐'],
+      skills: ['技能', 'dsh 与 agents 两个用户级技能目录'],
+      memory: ['记忆', 'dsh 的长期记忆目录'],
+    }
+    const SYNC_POLICY_TEXT = {
+      skip: ['保留本机', '本机不动，桶里那份也留着，换个策略再拉一次就行'],
+      overwrite: ['用桶里的覆盖本机', '完全以桶为准，适合刚换的新机器'],
+      duplicate: ['两份都留', '本机不动，桶里那份另存成 …remote-日期 的文件'],
+    }
+    const SYNC_STYLE_TEXT = {
+      auto: ['自动', 'IP 用路径风格，域名用虚拟主机'],
+      path: ['路径风格', 'MinIO / Ceph 这类自建存储常用'],
+      virtual: ['虚拟主机', 'bucket.域名/对象键'],
+    }
+    const syncInputs = {
+      endpoint: document.getElementById('syncEndpoint'),
+      region: document.getElementById('syncRegion'),
+      bucket: document.getElementById('syncBucket'),
+      prefix: document.getElementById('syncPrefix'),
+      accessKeyId: document.getElementById('syncAccessKey'),
+      secretAccessKey: document.getElementById('syncSecretKey'),
+      sessionToken: document.getElementById('syncSessionToken'),
+      insecure: document.getElementById('syncInsecure'),
+    }
+    let syncData = null
+    let syncScopeIds = []
+    let syncHomes = {}
+    let syncRunning = false
+    /** 保存排队：连着改几个字段时按顺序提交，最后一次的结果留在界面上。 */
+    let syncSaveChain = Promise.resolve()
+
+    const syncTextOf = (table, id, fallback) => (table[id] ? t(table[id][0]) : fallback || id)
+    const syncDescOf = (table, id) => (table[id] ? t(table[id][1]) : '')
+
+    function renderSyncScopes() {
+      syncScopeGroupEl.textContent = ''
+      for (const id of Object.keys(SYNC_SCOPE_TEXT)) {
+        if (!syncScopeIds.includes(id)) continue
+        const row = document.createElement('label')
+        row.className = 'toggle set-row'
+        const text = document.createElement('span')
+        text.className = 'set-text'
+        const name = document.createElement('span')
+        name.className = 'set-name'
+        name.textContent = syncTextOf(SYNC_SCOPE_TEXT, id)
+        const desc = document.createElement('span')
+        desc.className = 'set-desc'
+        desc.textContent = syncDescOf(SYNC_SCOPE_TEXT, id)
+        text.append(name, desc)
+        const box = document.createElement('input')
+        box.type = 'checkbox'
+        box.dataset.scope = id
+        box.checked = (syncData?.sync?.scopes || []).includes(id)
+        if (syncHomes[id]) row.title = syncHomes[id]
+        box.onchange = () => { saveSync() }
+        row.append(text, box)
+        syncScopeGroupEl.append(row)
+      }
+    }
+
+    function paintSyncOptions(data) {
+      const fill = (select, list, table) => {
+        select.replaceChildren()
+        for (const item of list) {
+          const option = document.createElement('option')
+          option.value = item.id
+          option.textContent = table ? `${syncTextOf(table, item.id, item.label)}${syncDescOf(table, item.id) ? `（${syncDescOf(table, item.id)}）` : ''}` : item.label
+          select.append(option)
+        }
+      }
+      fill(syncPolicyEl, data.policies, SYNC_POLICY_TEXT)
+      fill(syncStyleEl, data.styles, SYNC_STYLE_TEXT)
+      syncPolicyEl.value = data.sync?.policy || 'skip'
+      syncStyleEl.value = data.s3?.style || 'auto'
+      syncUiSelects()
+    }
+
+    function fillSync(data) {
+      syncData = data
+      syncScopeIds = (data.scopes || []).map((scope) => scope.id)
+      syncHomes = {}
+      for (const item of data.homes || []) syncHomes[item.id] = item.dir
+      renderSyncScopes()
+      paintSyncOptions(data)
+      for (const [key, el] of Object.entries(syncInputs)) {
+        if (!el) continue
+        if (el.type === 'checkbox') el.checked = data.s3?.[key] === true
+        else el.value = String(data.s3?.[key] ?? '')
+      }
+      syncEndpointHint.textContent = data.configured
+        ? t('将同步到 {url}', { url: data.bucketUrl || '' })
+        : t('还没填完：{missing}', { missing: (data.missing || []).join('、') })
+      if (data.state) paintSync(data.state)
+      else syncHintEl.textContent = ''
+    }
+
+    function syncBytes(bytes) {
+      const number = Number(bytes) || 0
+      if (number < 1024) return `${number} B`
+      if (number < 1048576) return `${(number / 1024).toFixed(1)} KB`
+      if (number < 1073741824) return `${(number / 1048576).toFixed(1)} MB`
+      return `${(number / 1073741824).toFixed(2)} GB`
+    }
+
+    /** 上一次同步的结果：一句话摘要 + 明细（冲突、清单变化、被摘掉的本地依赖）。 */
+    function paintSyncResult(summary) {
+      const lines = []
+      const parts = []
+      const moved = summary.mode === 'up' ? summary.uploaded : summary.downloaded
+      parts.push(t('{n} 个文件', { n: moved || 0 }))
+      if (summary.skipped) parts.push(t('跳过 {n} 个', { n: summary.skipped }))
+      if (summary.merged) parts.push(t('清单已合并'))
+      if (summary.installed) parts.push(t('依赖已重装'))
+      const size = syncBytes((summary.bytesUp || 0) + (summary.bytesDown || 0))
+      const verb = summary.mode === 'up' ? t('上传') : t('下载')
+      syncHintEl.textContent = t('{verb}完成：{parts}（{size}，用时 {seconds}s）', {
+        verb,
+        parts: parts.join(' · '),
+        size,
+        seconds: summary.seconds || 0,
+      }) + (summary.stopped ? t('（中途停下了）') : '')
+      if (summary.conflicts?.length) {
+        lines.push(t('{n} 个文件两边都有且不一样，按「保留本机」跳过：{files}', {
+          n: summary.conflicts.length,
+          files: summary.conflicts.slice(0, 3).map((key) => key.split('/').pop()).join('、'),
+        }))
+      }
+      for (const note of summary.notes || []) lines.push(note)
+      syncDetailEl.textContent = ''
+      for (const line of lines.slice(0, 8)) {
+        const row = document.createElement('div')
+        row.textContent = line
+        syncDetailEl.append(row)
+      }
+      syncDetailEl.hidden = !lines.length
+    }
+
+    /** 进度事件驱动整块界面：进度条、停止按钮、按钮禁用状态、当前在传哪个文件。 */
+    function paintSync(state) {
+      const phase = state?.phase || ''
+      const busy = Boolean(phase) && !['done', 'error', 'idle'].includes(phase)
+      syncRunning = busy
+      paintProgress(syncProgressWrap, syncProgressBar, state, busy)
+      syncStopEl.hidden = !busy
+      for (const button of [syncUploadEl, syncDownloadEl, syncTestEl]) button.disabled = busy
+      if (!state) return
+      const label = state.label ? syncTextOf(SYNC_SCOPE_TEXT, state.scope, state.label) : ''
+      if (phase === 'start') syncHintEl.textContent = t('正在准备…')
+      else if (phase === 'scan') syncHintEl.textContent = t('正在扫描 {label}…', { label })
+      else if (phase === 'install') syncHintEl.textContent = t('插件清单变了，正在重装依赖…')
+      else if (phase === 'upload' || phase === 'download') {
+        const verb = phase === 'upload' ? t('上传') : t('下载')
+        const current = (state.current || '').split('/').pop()
+        syncHintEl.textContent = state.total
+          ? t('{verb} {label} {done}/{total}：{current}', { verb, label, done: state.done || 0, total: state.total, current })
+          : t('{verb} {label}：{current}', { verb, label, current })
+      } else if (phase === 'done' && state.summary) paintSyncResult(state.summary)
+      else if (phase === 'error') {
+        syncHintEl.textContent = t('同步失败：{error}', { error: state.error || '' })
+        syncDetailEl.hidden = true
+      }
+    }
+
+    /** 把表单里的配置交上去（服务端校验并回显，错误的填法会以人话回来）。 */
+    function saveSync() {
+      const s3 = {}
+      for (const [key, el] of Object.entries(syncInputs)) {
+        if (!el) continue
+        s3[key] = el.type === 'checkbox' ? el.checked : el.value.trim()
+      }
+      const scopes = [...syncScopeGroupEl.querySelectorAll('input[data-scope]')].filter((box) => box.checked).map((box) => box.dataset.scope)
+      const sync = { scopes, policy: syncPolicyEl.value }
+      syncSaveChain = syncSaveChain
+        .then(() => post('/api/sync/save', { s3, sync }))
+        .then((data) => { fillSync(data) })
+        .catch((error) => { syncHintEl.textContent = error.message })
+      return syncSaveChain
+    }
+
+    async function loadSync() {
+      try {
+        fillSync(await getJson('/api/sync'))
+      } catch (error) { syncHintEl.textContent = error.message }
+    }
+
+    for (const [key, el] of Object.entries(syncInputs)) {
+      if (!el) continue
+      el.onchange = () => { void saveSync() }
+    }
+    syncPolicyEl.onchange = () => { void saveSync() }
+    syncStyleEl.onchange = () => { void saveSync() }
+    document.getElementById('syncRefresh').onclick = loadSync
+    syncTestEl.onclick = async () => {
+      syncTestEl.disabled = true
+      syncHintEl.textContent = t('正在连桶…')
+      try {
+        const data = await post('/api/sync/test', {})
+        syncEndpointHint.textContent = t('连上了：{host}（{style}），{ns}/ 下有 {n} 个对象', {
+          host: data.host || '',
+          style: data.style === 'path' ? t('路径风格') : t('虚拟主机'),
+          ns: data.namespace || '',
+          n: data.objects ?? 0,
+        })
+        syncHintEl.textContent = t('连接正常。')
+        syncDetailEl.hidden = true
+      } catch (error) {
+        syncHintEl.textContent = t('连接失败：{error}', { error: error.message })
+      } finally { syncTestEl.disabled = syncRunning }
+    }
+    for (const [button, mode] of [[syncUploadEl, 'up'], [syncDownloadEl, 'down']]) {
+      button.onclick = async () => {
+        await saveSync()
+        button.disabled = true
+        syncHintEl.textContent = mode === 'up' ? t('正在上传…') : t('正在下载…')
+        syncDetailEl.hidden = true
+        try {
+          const data = await post('/api/sync/run', { mode })
+          paintSync({ phase: 'done', mode, summary: data.summary })
+          if (data.summary?.manifestChanged) { await loadPlugins() }
+        } catch (error) {
+          syncHintEl.textContent = t('同步失败：{error}', { error: error.message })
+        } finally {
+          syncRunning = false
+          button.disabled = false
+          syncStopEl.hidden = true
+        }
+      }
+    }
+    syncStopEl.onclick = async () => {
+      syncStopEl.disabled = true
+      try {
+        await post('/api/sync/stop', {})
+        syncHintEl.textContent = t('正在停下来，做完手上这个文件就收手…')
+      } catch (error) { syncHintEl.textContent = error.message } finally { syncStopEl.disabled = false }
     }
 
     loadSettings()

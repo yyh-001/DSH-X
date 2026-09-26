@@ -25,8 +25,8 @@ test('设置页有版本目录入口，用整行的设置项样式，旁边是�
   assert.match(html, /\.set-row\.stacked \{ display: block; \}/, '整行样式存在')
   assert.match(html, /<div class="plugin-actions">[\s\S]{0,200}?<select id="profile"/, 'profile 下拉在插件页顶部')
   assert.match(html, /<p class="hint" id="dataDirHint"><\/p>/, '提示行复用 .hint（空内容自动隐藏）')
-  // 文本输入框本来就在样式表里，新控件不需要额外 CSS
-  assert.match(html, /input\[type=text\], input\[type=number\], select \{/)
+  // 文本输入框本来就在样式表里，新控件不需要额外 CSS（password 也走这条规则）
+  assert.match(html, /input\[type=text\], input\[type=number\], input\[type=password\], select \{/)
 })
 
 test('顶栏四个 tab 已取消，设置分类在左侧导航，主页右上角是齿轮入口', () => {
@@ -115,5 +115,40 @@ test('设置页有 dsh 用户目录与更新下载源两项：前者可浏览、
 test('设置页有「打开 dsh 的方式」：两项可选、改动即保存', () => {
   assert.match(html, /<select id="openMode"><\/select>/, '下拉的选项由服务端给')
   assert.match(html, /queueSetting\('openMode'/, '改动即保存')
-  assert.match(html, /#openMode'\)\)/, '用自绘下拉统一处理')
+  // 用自绘下拉统一处理：认这份 selector 名单里有没有它，别把整行的形状钉死（名单一直在长）
+  const uiSelectList = html.match(/document\.querySelectorAll\('([^']*#profile[^']*)'\)/)?.[1] || ''
+  assert.ok(uiSelectList.includes('#openMode'), '打开方式进自绘下拉名单')
+})
+
+test('同步面板：S3 配置、同步范围、上传下载按钮都在，密钥走 password', () => {
+  assert.match(html, /class="nav-item" data-pane="sync"/, '左侧导航有同步入口')
+  assert.match(html, /<section class="pane" id="pane-sync">/, '同步面板在设置区里')
+  for (const id of [
+    'syncEndpoint', 'syncRegion', 'syncBucket', 'syncPrefix', 'syncAccessKey', 'syncSecretKey',
+    'syncSessionToken', 'syncInsecure', 'syncPolicy', 'syncStyle', 'syncScopeGroup',
+    'syncTest', 'syncUpload', 'syncDownload', 'syncStop', 'syncProgress', 'syncHint', 'syncDetail',
+  ]) {
+    assert.match(html, new RegExp(`id="${id}"`), `${id} 在页面上`)
+  }
+  assert.match(html, /<input id="syncSecretKey" type="password"/, 'SecretKey 不明文显示')
+  assert.match(html, /<input id="syncSessionToken" type="password"/, '会话令牌不明文显示')
+  assert.match(html, /const paneLoaders = \{[^}]*sync: loadSync[^}]*\}/, '进面板时才读同步状态')
+  assert.match(html, /post\('\/api\/sync\/save'/, '配置改动即保存')
+  assert.match(html, /post\('\/api\/sync\/run', \{ mode \}\)/, '上传/下载走同一个接口，用 mode 分方向')
+  assert.match(html, /post\('\/api\/sync\/stop'/, '跑得太久能停')
+  assert.match(html, /addEventListener\('sync'/, '同步进度走 SSE 的 sync 事件')
+  assert.match(html, /#openMode, #syncPolicy, #syncStyle'\)/, '新下拉也进自绘下拉名单')
+})
+
+test('同步面板的中文文案都有英文', () => {
+  const dict = new vm.Script(`(${html.match(/const EN = (\{[\s\S]*?\n\})/)[1]})`).runInNewContext()
+  const cjk = /[\u4e00-\u9fff]/
+  const missing = []
+  const check = (text) => { if (cjk.test(text) && !dict[text]) missing.push(text) }
+  const pane = html.match(/<section class="pane" id="pane-sync">[\s\S]*?<\/section>/)[0]
+  for (const match of pane.matchAll(/data-i18n="([^"]+)"/g)) check(match[1])
+  // 面板 JS 里的中文：范围/策略/风格的文案表和所有 t('…') 的字面量
+  const block = html.match(/\/\/ ---- S3 同步[\s\S]*?\n    loadSettings\(\)/)[0]
+  for (const match of block.matchAll(/'([^'\n]+)'/g)) check(match[1])
+  assert.deepEqual([...new Set(missing)], [], '同步面板里没翻的中文')
 })

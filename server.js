@@ -26,6 +26,7 @@ import {
   setSkillEnabled,
   skillRoots,
 } from './skills.js'
+import { S3, SYNC_SCOPES, runSync, s3Configured, s3DisplayUrl, s3Missing, safeS3Config } from './sync.js'
 import {
   autoStartEnabled,
   DEFAULT_PORT,
@@ -45,6 +46,7 @@ import {
   safeDshHome,
   safeLang,
   safeOpenMode,
+  safeSyncSettings,
   safeTheme,
   safeUpdateSource,
   updateUrlCandidates,
@@ -161,6 +163,15 @@ let lastFailure = null
 let lastHealth = null
 /** 需要在日志里打码的敏感串（如 API key）。 */
 let secretValues = []
+// S3 同步：存储桶（含密钥）与范围都存 settings.json，启动时读一次、改了就更新这两个
+let S3_CONFIG = safeS3Config(loadSettingsSync().s3)
+let SYNC_OPTIONS = safeSyncSettings(loadSettingsSync().sync)
+/** 正在跑的同步任务：进度、每步在哪个文件，页面靠它画进度条（也进 SSE 重放）。 */
+let syncState = null
+let syncRunning = false
+/** 用户点了「停止」：引擎在每个文件之间看它一眼。 */
+let syncStopRequested = false
+secretValues = [S3_CONFIG.secretAccessKey, S3_CONFIG.sessionToken].filter(Boolean)
 
 /** 把 key 之类的敏感串从任意文本里抹掉（dsh 的凭据常出现在子进程输出里）。 */
 function redact(text, secrets = []) {
@@ -690,6 +701,8 @@ async function snapshot() {
     dataDir: DATA,
     progress: installProgress,
     pluginProgress,
+    sync: syncState,
+    syncRunning,
   }
 }
 
@@ -1012,6 +1025,135 @@ function skillsPayload() {
     roots,
     localSkills: localSkillsEnabled(profileDir()),
   }
+}
+
+// ---- S3 同步：会话记录、附件与插件配置传到 S3 兼容的对象存储 ----
+
+/** 同步接口的统一载荷：配置（含密钥，页面要回显）+ 可选项 + 正在跑的进度。 */
+function syncPayload() {
+  return {
+    s3: S3_CONFIG,
+    sync: SYNC_OPTIONS,
+    scopes: SYNC_SCOPES,
+    policies: [
+      { id: 'skip', label: '保留本机', hint: '本机不动；桶里那份也留着，下次换个策略再拉' },
+      { id: 'overwrite', label: '用桶里的覆盖本机', hint: '以桶为准（适合「刚换的新机器」）' },
+      { id: 'duplicate', label: '两份都留', hint: '本机不动，桶里那份另存成 …remote-日期 的文件' },
+    ],
+    styles: [
+      { id: 'auto', label: '自动（IP 用路径风格，域名用虚拟主机）' },
+      { id: 'path', label: '路径风格（MinIO / Ceph 等自建存储）' },
+      { id: 'virtual', label: '虚拟主机（bucket.域名/…）' },
+    ],
+    homes: [
+      { id: 'sessions', dir: join(homeDir(), 'sessions') },
+      { id: 'attachments', dir: join(homeDir(), 'attachments') },
+      { id: 'plugins', dir: profileDir() },
+      { id: 'skills', dir: skillRoots(homeDir()).map((root) => root.dir).join('\n') },
+      { id: 'memory', dir: join(homeDir(), 'memory') },
+    ],
+    home: homeDir(),
+    profile: PROFILE_NAME,
+    bucketUrl: s3DisplayUrl(S3_CONFIG),
+    configured: s3Configured(S3_CONFIG),
+    missing: s3Missing(S3_CONFIG),
+    state: syncState,
+    running: syncRunning,
+  }
+}
+
+/** 同步进度的唯一出口：存一份给页面刷新时回放，再推给所有打开的页面。 */
+function emitSync(state) {
+  syncState = state
+  emit('sync', state)
+}
+
+/**
+ * 跑一次同步。POST 一直等到跑完才回（页面按钮期间禁用，和插件安装同一条路），
+ * 过程靠 SSE 的 sync 事件画进度条；用户点「停止」时引擎会在下一个文件前收手。
+ */
+async function runSyncJob(mode, options = {}) {
+  if (syncRunning) throw new Error('上一次同步还没结束')
+  if (pluginBusy || installing) throw new Error('正在装插件或版本，等它结束再同步')
+  if (!s3Configured(S3_CONFIG)) throw new Error(`存储桶还没填完：${s3Missing(S3_CONFIG).join('、')}`)
+  const scopes = safeSyncSettings({ scopes: options.scopes ?? SYNC_OPTIONS.scopes, policy: options.policy ?? SYNC_OPTIONS.policy })
+  const policy = scopes.policy
+  const force = options.force === true
+  const label = mode === 'up' ? '上传' : '下载'
+  syncRunning = true
+  syncStopRequested = false
+  const startedAt = Date.now()
+  emitSync({ phase: 'start', mode, done: 0, total: 0, at: startedAt })
+  pushLog(`[同步] 开始${label}：${scopes.scopes.map(scopeLabel).join('、')} → ${s3DisplayUrl(S3_CONFIG)}`)
+  try {
+    const summary = await runSync({
+      mode,
+      scopes: scopes.scopes,
+      config: S3_CONFIG,
+      policy,
+      force,
+      context: {
+        home: homeDir(),
+        profile: PROFILE_NAME,
+        profileDir: profileDir(),
+        roots: skillRoots(homeDir()),
+      },
+      log: (line) => pushLog(line),
+      shouldStop: () => syncStopRequested,
+      onProgress: (state) => emitSync({ ...state, mode, at: Date.now() }),
+    })
+    summary.seconds = Math.round((Date.now() - startedAt) / 1000)
+    summary.mode = mode
+    // 插件清单变了（合并出了新的插件）就把依赖装上，否则清单和 node_modules 对不上，
+    // dsh 起来会说 cannot resolve profile bundle
+    if (summary.manifestChanged && !summary.stopped) {
+      try {
+        const version = await pluginCommandVersion()
+        emitSync({ phase: 'install', mode, label: '重装插件依赖', at: Date.now() })
+        pushLog('[同步] 插件清单有变化，重装 profile 依赖…')
+        pluginBusy = true
+        await runProfileInstall(version)
+        summary.installed = true
+        summary.notes.push('插件依赖已重装')
+      } catch (error) {
+        summary.installError = error instanceof Error ? error.message : String(error)
+        summary.notes.push(`插件依赖重装失败：${summary.installError}`)
+        pushLog(`[同步] 插件依赖重装失败：${summary.installError}`)
+      } finally {
+        pluginBusy = false
+        emitPluginProgress(null)
+      }
+    }
+    if (mode === 'down' && current) {
+      summary.notes.push('dsh 正在运行：新拉来的会话和插件要重启 dsh 才生效')
+    }
+    pushLog(`[同步] ${label}完成：上传 ${summary.uploaded} 个、下载 ${summary.downloaded} 个、清单合并 ${summary.merged} 处、跳过 ${summary.skipped} 个${summary.stopped ? '（已停止）' : ''}，用时 ${summary.seconds}s`)
+    emitSync({ phase: 'done', mode, at: Date.now(), summary })
+    return summary
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    pushLog(`[同步] ${label}失败：${message}`)
+    emitSync({ phase: 'error', mode, at: Date.now(), error: message })
+    throw new Error(message)
+  } finally {
+    syncRunning = false
+  }
+}
+
+/** 日志与摘要里的范围名。 */
+function scopeLabel(id) {
+  return SYNC_SCOPES.find((scope) => scope.id === id)?.label || id
+}
+
+/**
+ * 连接自检：能走到桶、密钥认不认、命名空间下有多少东西。
+ * 填错端点/密钥是最常见的失败，先有一次「点一下就知道」的检查，不用真的跑同步。
+ */
+async function testSyncConnection() {
+  const client = new S3(S3_CONFIG)
+  const info = await client.test()
+  pushLog(`[同步] 连接正常：${info.host}（${info.style === 'path' ? '路径风格' : '虚拟主机'}），${info.namespace}/ 下有对象`)
+  return info
 }
 
 /** dsh 启动参数。 */
@@ -1615,6 +1757,29 @@ async function updateAllPlugins() {
 
 
 /**
+ * 跑一次 `dsh plugin install`（把 profile 清单里的依赖装齐）。
+ *
+ * 写在这儿的理由：每次都得带上「这台机器读不了目录链接」那条退路（改用真实目录重试），
+ * 启动自愈和同步拉回插件清单两条路都要它。调用方负责 pluginBusy 与进度条的收发。
+ */
+async function runProfileInstall(version) {
+  await mkdir(homeDir(), { recursive: true })
+  await ensureProfileNpmrc()
+  try {
+    await runPluginCommand(version, ['install', '--config.auto-install-peers=false'], 'dsh plugin install')
+  } catch (error1) {
+    const text = `${error1 instanceof Error ? error1.message : error1}\n${(error1?.tail || []).join('\n')}`
+    // 和装插件那条路同样的退路：这台机器读不了目录链接时，让 pnpm 改用真实目录再装一遍。
+    // 报错长这样：UNKNOWN: unknown error, open ...node_modules\<pkg>\package.json（-4094）
+    if (!looksLikeLinkFailure(text) || !(await useHoistedLinker())) throw error1
+    pushLog('这台机器读不了目录链接，改用真实目录（node-linker=hoisted）重试')
+    const again = pruneDanglingLinks(join(profileDir(), 'node_modules'))
+    if (again) pushLog(`先清理了 ${again} 个悬空的链接`)
+    await runPluginCommand(version, ['install', '--config.auto-install-peers=false'], 'dsh plugin install')
+  }
+}
+
+/**
  * profile 依赖自愈：dsh 报 `cannot resolve profile bundle "x"` 说明 profile 的
  * node_modules 里那个包不在（没装成，或 pnpm 中途被打断只留了断链），按 dsh 的
  * 提示重装 profile 依赖即可。
@@ -1633,20 +1798,7 @@ async function repairProfileDeps(version, error) {
   pushLog(`[兼容] profile 里解析不到 ${bundles.join('、')}，重建 profile 依赖（dsh plugin install）…`)
   pluginBusy = true
   try {
-    await mkdir(homeDir(), { recursive: true })
-    await ensureProfileNpmrc()
-    try {
-      await runPluginCommand(version, ['install', '--config.auto-install-peers=false'], 'dsh plugin install')
-    } catch (error1) {
-      const text = `${error1 instanceof Error ? error1.message : error1}\n${(error1?.tail || []).join('\n')}`
-      // 和装插件那条路同样的退路：这台机器读不了目录链接时，让 pnpm 改用真实目录再装一遍。
-      // 报错长这样：UNKNOWN: unknown error, open ...node_modules\<pkg>\package.json（-4094）
-      if (!looksLikeLinkFailure(text) || !(await useHoistedLinker())) throw error1
-      pushLog('这台机器读不了目录链接，改用真实目录（node-linker=hoisted）重试')
-      const again = pruneDanglingLinks(join(profileDir(), 'node_modules'))
-      if (again) pushLog(`[兼容] 先清理了 ${again} 个悬空的链接`)
-      await runPluginCommand(version, ['install', '--config.auto-install-peers=false'], 'dsh plugin install')
-    }
+    await runProfileInstall(version)
     pushLog('[兼容] profile 依赖已重建，重试启动…')
     return true
   } catch (error2) {
@@ -2565,6 +2717,8 @@ async function handleApi(req, res, url) {
     res.write(`event: state\ndata: ${JSON.stringify(await snapshot())}\n\n`)
     if (installProgress) res.write(`event: progress\ndata: ${JSON.stringify(installProgress)}\n\n`)
     if (pluginProgress) res.write(`event: progress\ndata: ${JSON.stringify({ ...pluginProgress, kind: 'plugin', name: pluginProgressName })}\n\n`)
+    // 同步跑得久，页面中途刷新也要能接着显示进度
+    if (syncState) res.write(`event: sync\ndata: ${JSON.stringify(syncState)}\n\n`)
     clients.add(res)
     req.on('close', () => clients.delete(res))
     return
@@ -2714,6 +2868,10 @@ async function handleApi(req, res, url) {
     send(res, 200, { ...skillsPayload(), profile: PROFILE_NAME })
     return
   }
+  if (req.method === 'GET' && url.pathname === '/api/sync') {
+    send(res, 200, syncPayload())
+    return
+  }
   if (req.method === 'POST' && url.pathname === '/api/skills/toggle') {
     const root = rootDirOf(skillRoots(homeDir()), body.root)
     setSkillEnabled(root, String(body.path || ''), body.enabled !== false)
@@ -2741,6 +2899,60 @@ async function handleApi(req, res, url) {
     setLocalSkillsEnabled(profileDir(), enabled)
     pushLog(`本地技能加载 → ${enabled ? '启用' : '恢复默认'}${enabled ? '' : '（清除覆盖）'}`)
     send(res, 200, { ok: true, ...skillsPayload(), profile: PROFILE_NAME })
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/sync/save') {
+    let stored
+    try {
+      stored = await saveSettings({
+        s3: 's3' in body ? body.s3 : S3_CONFIG,
+        sync: 'sync' in body ? body.sync : SYNC_OPTIONS,
+      })
+    } catch (error) {
+      // 填错了（桶名不合法、端点不像地址）：说人话回报，别把 500 丢给页面
+      send(res, 400, { error: error instanceof Error ? error.message : String(error) })
+      return
+    }
+    S3_CONFIG = safeS3Config(stored.s3)
+    SYNC_OPTIONS = safeSyncSettings(stored.sync)
+    // 密钥只留在本机设置文件里，但子进程输出/请求日志里万一带上它就得打码
+    secretValues = [S3_CONFIG.secretAccessKey, S3_CONFIG.sessionToken].filter(Boolean)
+    send(res, 200, syncPayload())
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/sync/test') {
+    try {
+      const info = await testSyncConnection()
+      send(res, 200, { ok: true, ...info, ...syncPayload() })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      pushLog(`[同步] 连接失败：${message}`)
+      send(res, 400, { error: message })
+    }
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/sync/run') {
+    const mode = body.mode === 'down' ? 'down' : 'up'
+    try {
+      const summary = await runSyncJob(mode, {
+        scopes: Array.isArray(body.scopes) ? body.scopes : undefined,
+        policy: body.policy,
+        force: body.force === true,
+      })
+      send(res, 200, { ok: true, summary, ...syncPayload() })
+    } catch (error) {
+      send(res, 400, { error: error instanceof Error ? error.message : String(error) })
+    }
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/sync/stop') {
+    if (!syncRunning) {
+      send(res, 200, { ok: true, stopped: false })
+      return
+    }
+    syncStopRequested = true
+    pushLog('[同步] 收到停止请求，做完手上这个就收手')
+    send(res, 200, { ok: true, stopped: true })
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/wake') {
@@ -2801,6 +3013,9 @@ export async function startServer() {
   REDUCE_MOTION = stored.reduceMotion === true
   HIDE_BACKGROUND = stored.hideBackground === true
   HIDE_BIG_FISH = stored.hideBigFish === true
+  S3_CONFIG = safeS3Config(stored.s3)
+  SYNC_OPTIONS = safeSyncSettings(stored.sync)
+  secretValues = [S3_CONFIG.secretAccessKey, S3_CONFIG.sessionToken].filter(Boolean)
   DATA = resolveDataDir()
   CONFIG = join(DATA, 'config.json')
   await mkdir(DATA, { recursive: true })

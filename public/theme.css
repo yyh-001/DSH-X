@@ -66,6 +66,7 @@ html[data-color-scheme="dark"] .theme-option:has(input:checked) { box-shadow: 0 
 
 html[data-color-scheme="dark"] input[type=text],
 html[data-color-scheme="dark"] input[type=number],
+html[data-color-scheme="dark"] input[type=password],
 html[data-color-scheme="dark"] select,
 html[data-color-scheme="dark"] .select-trigger,
 html[data-color-scheme="dark"] .select-panel,

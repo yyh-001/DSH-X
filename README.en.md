@@ -24,6 +24,7 @@ A lightweight launcher for DeepSeek Harness. Pick a version, start DSH web.
 - **macOS support**: a native `.app` and dmg installers (one for Apple Silicon, one for Intel); self-update, launch at login and the folder picker all use the system's own mechanisms
 - **Plugins page**: list installed plugins and toggle each with one click, check for and install updates (one or all), and switch profiles
 - **Compatibility mode**: on a failed start, disable the plugins named in the error (one click to restore); after boot it checks the client plugin bundles the page references and reports the verdict, telling a broken install apart from a stale tab
+- **S3 sync**: back up chat sessions, attachments and plugin config to any S3-compatible bucket (AWS / R2 / MinIO / OSS…) and pull them back on another machine; the plugin manifest is merged in both directions, so neither machine loses a plugin
 - **Dark appearance**: follow the system or pick a theme, plus floating-panel transparency and mascot switches
 - **Faster startup**: equivalent fast implementations at the bundle composition point (saves about 1–2 s), skipped automatically once dsh changes underneath
 - **Plugins stay where dsh puts them**: data lives in `~/.dsh`, so switching versions needs no plugin reinstall

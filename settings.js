@@ -6,6 +6,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { APP_DIR, IS_MAC, IS_WINDOWS, MAC_BUNDLE_ID, appBundle, launcherExecutable, userAppDir } from './platform.js'
+import { safePolicy, safeS3Config, safeScopeIds } from './sync.js'
 
 const execFileAsync = promisify(execFile)
 const ROOT = dirname(fileURLToPath(import.meta.url))
@@ -160,6 +161,10 @@ export const DEFAULTS = {
   autoDisablePlugins: true,
   // 用户在更新弹窗里点过「不更新」的版本 { dsh?, self? }：同一个版本不再提示
   skippedUpdate: {},
+  // S3 同步的存储桶（含密钥，本机明文存这个文件里；字段由 safeS3Config 补齐）
+  s3: {},
+  // 同步范围与冲突策略
+  sync: {},
 }
 
 /** 下载源只认内置选项，历史文件里的脏值回默认镜像。 */
@@ -411,6 +416,15 @@ function normalizeSkippedUpdate(value) {
   return out
 }
 
+/** S3 存储桶 + 同步范围：字段补全、脏值回默认；显式填错（桶名、端点）时抛给调用方。 */
+export function safeSyncSettings(value) {
+  const source = value && typeof value === 'object' ? value : {}
+  return {
+    scopes: safeScopeIds(source.scopes),
+    policy: safePolicy(source.policy),
+  }
+}
+
 export async function saveSettings(patch) {
   const current = await loadSettings()
   const merged = { ...current, ...patch }
@@ -450,6 +464,9 @@ export async function saveSettings(patch) {
   merged.seedMarket = merged.seedMarket !== false
   merged.autoDisablePlugins = merged.autoDisablePlugins !== false
   merged.skippedUpdate = normalizeSkippedUpdate(merged.skippedUpdate)
+  // S3 同步：脏值顺手补全（密钥缺失只是「没配好」，不该让保存失败），显式填错才抛
+  merged.s3 = safeS3Config('s3' in patch ? patch.s3 : merged.s3)
+  merged.sync = safeSyncSettings('sync' in patch ? patch.sync : merged.sync)
   // 已废弃的 AI 修复配置：清掉历史文件里的残留字段
   for (const key of ['aiRepair', 'aiModel', 'aiBaseURL', 'aiApiKey', 'aiMaxRounds', 'aiAllowDestructive']) {
     delete merged[key]
