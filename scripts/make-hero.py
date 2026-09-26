@@ -26,7 +26,7 @@ TAGLINE_COLOR = (107, 125, 156)
 SHADOW_COLOR = (86, 122, 180)
 ICON_SIZE = 320
 TITLE = "DSH-X"
-TAGLINE = "官方原版 Web，不是桌面端"
+TAGLINE = "官方原版 Web 启动器"
 FONT_ROOT = r"C:\Windows\Fonts" if os.name == "nt" else "/mnt/c/Windows/Fonts"
 TITLE_FONT = os.path.join(FONT_ROOT, "segoeuib.ttf")
 TAGLINE_FONT = os.path.join(FONT_ROOT, "MiSans-Regular.otf")
@@ -98,20 +98,22 @@ def main():
 
     draw = ImageDraw.Draw(base)
     title_font = ImageFont.truetype(TITLE_FONT, 132)
-    tag_font = ImageFont.truetype(TAGLINE_FONT, 44)
 
     box = draw.textbbox((0, 0), TITLE, font=title_font)
-    title_y = icon_y + ICON_SIZE + 74 - box[1]
+    # 有小字时标题放偏上一点，没有小字就整体居中（+74 是给标题上方留的呼吸位）
+    title_y = icon_y + ICON_SIZE + (74 if TAGLINE else 118) - box[1]
     draw.text(((W - (box[2] - box[0])) / 2 - box[0], title_y), TITLE, font=title_font, fill=TITLE_COLOR)
 
-    tag_box = draw.textbbox((0, 0), TAGLINE, font=tag_font)
-    tag_y = title_y + box[3] + 42
-    draw.text(
-        ((W - (tag_box[2] - tag_box[0])) / 2 - tag_box[0], tag_y),
-        TAGLINE,
-        font=tag_font,
-        fill=TAGLINE_COLOR,
-    )
+    # 副标题默认不画（TAGLINE 留空即可）；想加就填一行文案，位置会自动跟到标题下面
+    if TAGLINE:
+        tag_font = ImageFont.truetype(TAGLINE_FONT, 44)
+        tag_box = draw.textbbox((0, 0), TAGLINE, font=tag_font)
+        draw.text(
+            ((W - (tag_box[2] - tag_box[0])) / 2 - tag_box[0], title_y + box[3] + 42),
+            TAGLINE,
+            font=tag_font,
+            fill=TAGLINE_COLOR,
+        )
 
     base.save(OUT)
     print("hero", OUT, base.size, os.path.getsize(OUT))
