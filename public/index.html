@@ -1835,6 +1835,14 @@
                   </div>
                   <p class="hint" id="dataDirHint"></p>
                 </div>
+                <label class="toggle set-row" id="systemPathRow">
+                  <span class="set-text">
+                    <span class="set-name" data-i18n="把 dsh 加到系统 PATH">把 dsh 加到系统 PATH</span>
+                    <span class="set-desc" data-i18n="写一份 shim 到固定目录并加进用户 PATH，之后在系统 PowerShell / CMD 里也能直接跑 dsh。开启后要新开终端才生效；Windows 改的是 HKCU 的用户 Path。">写一份 shim 到固定目录并加进用户 PATH，之后在系统 PowerShell / CMD 里也能直接跑 dsh。开启后要新开终端才生效；Windows 改的是 HKCU 的用户 Path。</span>
+                    <p class="hint" id="systemPathHint"></p>
+                  </span>
+                  <input type="checkbox" id="systemPath" />
+                </label>
                 <div class="set-row stacked">
                   <div class="set-text">
                     <span class="set-name" data-i18n="dsh 用户目录">dsh 用户目录</span>
@@ -2186,6 +2194,11 @@
   "正在清除覆盖…": "Clearing the override…",
   "已强制启用 host 层技能行（与 agent 预设那份叠加）。dsh 在跑会热加载。": "Host skill rows force-enabled (layered with the agent preset). dsh hot-reloads while running.",
   "已清除覆盖，host 层两行回到模板默认。本地技能不受影响。": "Override cleared; the two host rows are back to the template default. Local skills are unaffected.",
+  "把 dsh 加到系统 PATH": "Add dsh to the system PATH",
+  "写一份 shim 到固定目录并加进用户 PATH，之后在系统 PowerShell / CMD 里也能直接跑 dsh。开启后要新开终端才生效；Windows 改的是 HKCU 的用户 Path。": "Writes a shim into a fixed folder and adds it to the user PATH, so dsh also works from a plain PowerShell / CMD window. New terminals only; on Windows this edits the user Path under HKCU.",
+  "shim 目录：{dir}": "Shim folder: {dir}",
+  "已写入用户 PATH，新开一个终端就能用 dsh。": "Added to the user PATH; open a new terminal to use dsh.",
+  "已从用户 PATH 移除。": "Removed from the user PATH.",
   "日志": "Logs",
   "返回": "Back",
   "设置": "Settings",
@@ -3838,6 +3851,8 @@
     const dshHomeEl = document.getElementById('dshHome')
     const dshHomeHint = document.getElementById('dshHomeHint')
     const pickDshHomeEl = document.getElementById('pickDshHome')
+    const systemPathEl = document.getElementById('systemPath')
+    const systemPathHint = document.getElementById('systemPathHint')
     const openModeEl = document.getElementById('openMode')
     const openModeHint = document.getElementById('openModeHint')
     const describeOpenMode = (value) => value === 'app'
@@ -3927,6 +3942,10 @@
         dshHomeHint.textContent = value
           ? t('当前使用：{path}', { path: value })
           : t('正在用默认位置：{path}', { path: fallback })
+      }
+      if ('systemPath' in data) {
+        systemPathEl.checked = data.systemPath === true
+        systemPathHint.textContent = data.systemBinDir ? t('shim 目录：{dir}', { dir: data.systemBinDir }) : ''
       }
       if ('openMode' in data) {
         const modes = Array.isArray(data.openModes) && data.openModes.length
@@ -4093,6 +4112,10 @@
       // 提示行跟着换；设置交给自动保存，切完下一次查版本/下载就走新源
       sourceHint.textContent = describeSource(sourceEl.value)
       queueSetting('downloadSource', sourceEl.value)
+    }
+    systemPathEl.onchange = () => {
+      queueSetting('systemPath', systemPathEl.checked)
+      settingsHint.textContent = systemPathEl.checked ? t('已写入用户 PATH，新开一个终端就能用 dsh。') : t('已从用户 PATH 移除。')
     }
     openModeEl.onchange = () => {
       openModeHint.textContent = describeOpenMode(openModeEl.value)

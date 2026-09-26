@@ -23,8 +23,8 @@ import { request as httpRequest } from 'node:http'
 import { Agent, request as httpsRequest } from 'node:https'
 import { dirname, isAbsolute, join, resolve, sep } from 'node:path'
 import { pipeline } from 'node:stream/promises'
-import { cmpVer, parseVer } from './registry.js'
 import { looksLikeZip, readZipEntry, readZipIndex, writeZip } from './zipfile.js'
+import { cmpVer, parseVer } from './version.js'
 
 /** 远端存储里的顶层目录：同一只桶（或同一个 WebDAV 目录）可能还放着别的东西。 */
 export const SYNC_NAMESPACE = 'dsh-x/v1'
@@ -1673,30 +1673,22 @@ function missingLocalDeps(dependencies, { profileDir, exists }) {
   return missing
 }
 
-/** 去掉若干依赖，并把 bundles 里已经没有依赖的条目一并去掉（自愈脏清单）。 */
+/** 去掉若干依赖（顺带从 bundles 里摘掉同名条目）。 */
 function withoutDeps(manifest, names) {
   const drop = new Set(names)
   const dependencies = {}
   for (const name of Object.keys(manifest.dependencies ?? {}).sort()) {
     if (!drop.has(name)) dependencies[name] = manifest.dependencies[name]
   }
-  const next = { ...manifest, dependencies }
-  if (manifest.dsh?.profile && Array.isArray(manifest.dsh.profile.bundles)) {
-    next.dsh = {
-      ...manifest.dsh,
-      profile: {
-        ...manifest.dsh.profile,
-        bundles: manifest.dsh.profile.bundles.filter((name) => name in dependencies),
-      },
-    }
-  }
-  return next
+  return removeBundles({ ...manifest, dependencies }, names)
 }
 
 /**
  * 合并两台机器的 profile 清单：
  * - dependencies 取并集，同名时版本号大的赢（比不出来就听本机的）；
- * - dsh.profile.bundles 取并集，并丢掉「依赖里已经没有」的条目（自愈脏清单）；
+ * - dsh.profile.bundles 取并集；只有「因为它指向本机不存在的本地路径而摘掉的依赖」才会从
+ *   bundles 里一并摘掉（官方 dsh-base / dsh-web-app 只在 bundles 里、不在 dependencies 里，
+ *   不能按 dependencies 过滤，否则误删）；
  * - 其余字段以本机为准（name、patchReload 这些是本机 profile 的身份）；
  * - `file:` 依赖指向本机不存在的路径时：**远端来的不写进本机**（写了 pnpm install 必然
  *   失败，整个 profile 起不来），**本机自己的仍留在本机**、只是不往桶里传（用户本机
@@ -1797,17 +1789,27 @@ function sanitizeManifest(manifest, { profileDir, exists }) {
     dropped.push({ name, spec: String(spec) })
     delete dependencies[name]
   }
-  const next = { ...manifest, dependencies }
-  if (manifest.dsh?.profile && Array.isArray(manifest.dsh.profile.bundles)) {
-    next.dsh = {
+  return { manifest: removeBundles({ ...manifest, dependencies }, dropped.map((item) => item.name)), dropped }
+}
+
+/**
+ * 从 bundles 里摘掉指定名字（只摘这些——**不能**写成「只留 dependencies 里有的」：
+ * 官方那两个包 @deepseek-ai/dsh-base / dsh-web-app 只出现在 dsh.profile.bundles 里、
+ * 不在 dependencies 里，按 dependencies 过滤会把它们误删，profile 直接起不来）。
+ */
+function removeBundles(manifest, names) {
+  const drop = new Set(names)
+  if (!manifest.dsh?.profile || !Array.isArray(manifest.dsh.profile.bundles)) return manifest
+  return {
+    ...manifest,
+    dsh: {
       ...manifest.dsh,
       profile: {
         ...manifest.dsh.profile,
-        bundles: manifest.dsh.profile.bundles.filter((name) => name in dependencies),
+        bundles: manifest.dsh.profile.bundles.filter((name) => !drop.has(name)),
       },
-    }
+    },
   }
-  return { manifest: next, dropped }
 }
 
 // ---------------------------------------------------------------- 跑一次同步

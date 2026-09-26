@@ -8,6 +8,8 @@ import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { fileURLToPath } from 'node:url'
 import { DEFAULTS, DOWNLOAD_SOURCES, loadSettingsSync } from './settings.js'
+// 版本比较在 version.js（零依赖），这里转出去保持老调用方不用改
+import { cmpVer, parseVer } from './version.js'
 import pkg from './package.json' with { type: 'json' }
 
 const APP_ROOT = dirname(fileURLToPath(import.meta.url))
@@ -43,53 +45,7 @@ SET "NPX_CLI_JS=%~dp0\\node_modules\\npm\\bin\\npx-cli.js"
 "%NODE_EXE%" "%NPX_CLI_JS%" %*
 `
 
-export function parseVer(version) {
-  const match = String(version).trim().match(/^(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/)
-  if (!match) return null
-  return {
-    major: Number(match[1]),
-    minor: Number(match[2] || 0),
-    patch: Number(match[3] || 0),
-    pre: match[4] || '',
-    parts: 1 + Number(match[2] != null) + Number(match[3] != null),
-    raw: String(version),
-  }
-}
-
-/**
- * 预发布段比较，按 semver 的规则逐段比：
- * 段按 `.` 拆开，纯数字段按数值比，其余按字典序比，数字段小于字母数字段；
- * 前缀全相同时段数多的更大（`alpha` < `alpha.1`）。
- * 整段当字符串比会踩 `alpha.10` < `alpha.2` 这种坑，dsh 预发布版发到两位数就会认错更新。
- */
-function cmpPre(a, b) {
-  const left = a.split('.')
-  const right = b.split('.')
-  const len = Math.max(left.length, right.length)
-  for (let i = 0; i < len; i += 1) {
-    const l = left[i]
-    const r = right[i]
-    if (l === undefined) return -1
-    if (r === undefined) return 1
-    if (l === r) continue
-    const leftNumeric = /^\d+$/.test(l)
-    const rightNumeric = /^\d+$/.test(r)
-    if (leftNumeric && rightNumeric) return Number(l) < Number(r) ? -1 : 1
-    if (leftNumeric !== rightNumeric) return leftNumeric ? -1 : 1
-    return l < r ? -1 : 1
-  }
-  return 0
-}
-
-export function cmpVer(a, b) {
-  if (a.major !== b.major) return a.major - b.major
-  if (a.minor !== b.minor) return a.minor - b.minor
-  if (a.patch !== b.patch) return a.patch - b.patch
-  if (a.pre && b.pre) return cmpPre(a.pre, b.pre)
-  if (a.pre) return -1
-  if (b.pre) return 1
-  return 0
-}
+export { cmpVer, parseVer } from './version.js'
 
 async function registryGet(url) {
   let last

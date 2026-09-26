@@ -157,6 +157,8 @@ let UPDATE_SOURCE = safeUpdateSource(loadSettingsSync().updateSource)
 // 打开 dsh 页面的方式：tab（默认，系统浏览器标签页）/ app（Chromium 应用窗口）/
 // window（启动器内嵌窗口；只在被原生外壳拉起时成立，判断见 openRoute）
 let OPEN_MODE = safeOpenMode(loadSettingsSync().openMode)
+// 是否把 dsh 的 shim 目录写进用户 PATH（默认关，改了要新开终端才生效）
+let SYSTEM_PATH = loadSettingsSync().systemPath === true
 
 /** 安装目录里的 lang.txt（安装程序写的），只认 zh / en。 */
 function installLang() {
@@ -783,6 +785,8 @@ async function publicSettings() {
       { id: 'app', label: '应用窗口' },
       { id: 'window', label: '桌面窗口（内嵌）' },
     ],
+    systemPath: SYSTEM_PATH,
+    systemBinDir: systemBinDir(),
     updateSource: safeUpdateSource(stored.updateSource),
     updateSources: [
       { id: 'mirror', label: '国内加速（先直连，连不上走镜像）' },
@@ -819,6 +823,7 @@ async function saveManagerSettings(body) {
     ...('downloadSource' in body ? { downloadSource: safeDownloadSource(body.downloadSource) } : {}),
     ...('updateSource' in body ? { updateSource: safeUpdateSource(body.updateSource) } : {}),
     ...('openMode' in body ? { openMode: safeOpenMode(body.openMode) } : {}),
+    ...('systemPath' in body ? { systemPath: body.systemPath === true } : {}),
     ...('dshHome' in body ? { dshHome: safeDshHome(body.dshHome) } : {}),
     ...('webBind' in body ? { webBind: safeWebBind(body.webBind) } : {}),
     ...('lang' in body ? { lang: safeLang(body.lang) } : {}),
@@ -854,6 +859,12 @@ async function saveManagerSettings(body) {
       : OPEN_MODE === 'window'
         ? `打开方式：桌面窗口（${shellWindowHost() ? '启动器内嵌，不经过浏览器' : '当前没有原生外壳，会退回浏览器标签页'}）`
         : '打开方式：系统浏览器标签页')
+  }
+  if ('systemPath' in body) {
+    SYSTEM_PATH = stored.systemPath === true
+    const result = applySystemPath(SYSTEM_PATH)
+    if (!result.ok) pushLog(`系统 PATH 未改：${result.message}`)
+    else if (SYSTEM_PATH) writeDshShims(activeVersion() || '', { dir: result.dir })
   }
   if ('dshHome' in body) {
     const next = safeDshHome(stored.dshHome)
@@ -1017,6 +1028,51 @@ export function withVersionBin(pathValue, ...binDirs) {
   const add = binDirs.filter((dir) => dir && existsSync(dir) && !parts.includes(dir))
   if (!add.length) return pathValue
   return [...parts, ...add].join(delimiter)
+}
+
+/** 系统 PATH 里那份 dsh shim 放哪儿：固定目录，和「版本目录」可配置这件事解耦。 */
+export function systemBinDir() {
+  return join(APP_DIR, 'bin')
+}
+
+/**
+ * 在 PATH 字符串里加上/去掉一个目录（纯函数，方便单测）。
+ * 加的时候追加在末尾，用户自己已有的命令仍然优先；去掉时清理空项与重复项。
+ */
+export function pathWithEntry(pathValue, dir, enabled) {
+  const parts = String(pathValue || '').split(delimiter).map((item) => item.trim()).filter(Boolean)
+  const without = parts.filter((item) => item.toLowerCase() !== String(dir).toLowerCase())
+  const next = enabled ? [...without, dir] : without
+  return next.join(delimiter)
+}
+
+/** 读/写用户级 PATH（Windows：HKCU\Environment，按 REG_EXPAND_SZ 原样写，不展开变量）。 */
+function readUserPath() {
+  const out = spawnSync('reg', ['query', 'HKCU\\Environment', '/v', 'Path'], { encoding: 'utf8', windowsHide: true })
+  if (out.status !== 0) return ''
+  const line = (out.stdout || '').split(/\r?\n/).find((item) => /\bPath\b\s+REG_/i.test(item))
+  if (!line) return ''
+  return line.replace(/^.*?REG_(?:EXPAND_)?SZ\s+/i, '').trim()
+}
+
+function writeUserPath(value) {
+  const out = spawnSync('reg', ['add', 'HKCU\\Environment', '/v', 'Path', '/t', 'REG_EXPAND_SZ', '/d', value, '/f'], { encoding: 'utf8', windowsHide: true })
+  return out.status === 0
+}
+
+/**
+ * 把 dsh 的 shim 目录加进/移出用户 PATH。Windows 走 HKCU\Environment 的 Path；
+ * 其他平台不改用户的环境（mac 的 PATH 在 shell 配置里，交给用户自己加）。
+ */
+export function applySystemPath(enabled) {
+  const dir = systemBinDir()
+  if (!IS_WINDOWS) {
+    return { ok: false, dir, message: `${IS_MAC ? 'macOS' : '当前平台'}需要在 shell 配置里自己加：export PATH="${dir}:$PATH"` }
+  }
+  const next = pathWithEntry(readUserPath(), dir, enabled)
+  if (!writeUserPath(next)) return { ok: false, dir, message: '写用户 PATH 失败（注册表 HKCU\Environment 不可写？）' }
+  pushLog(enabled ? `已把 ${dir} 加到用户 PATH（新开的终端生效）` : `已把 ${dir} 从用户 PATH 移除`)
+  return { ok: true, dir }
 }
 
 export function withBundledRuntime(pathValue) {
@@ -1263,6 +1319,8 @@ function spawnDsh(version, extra) {
   const home = homeDir()
   // 先把 dsh 的命令行入口写出来（PATH 里要用到），再拼参数
   writeDshShims(version)
+  // 用户开了「加到系统 PATH」的话，稳定目录里那份也跟着当前版本走
+  if (SYSTEM_PATH) writeDshShims(version, { dir: systemBinDir() })
   return spawn(process.execPath, dshArgs(version, extra), {
     cwd: home,
     env: dshEnv(version),

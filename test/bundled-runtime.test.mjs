@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { delimiter, join } from 'node:path'
 import test from 'node:test'
 
-import { dshArgs, dshEnv, orderRuntimePaths, withBundledRuntime, withVersionBin, writeDshShims } from '../server.js'
+import { dshArgs, dshEnv, orderRuntimePaths, pathWithEntry, withBundledRuntime, withVersionBin, writeDshShims } from '../server.js'
 
 const BUNDLED = 'E:\\DSH\\node'
 
@@ -135,4 +135,18 @@ test('dsh shim 用的是启动器自己的 node：用户那套 node 再老也带
 test('写 shim 时版本入口不存在（还没装好）就安静跳过', () => {
   const dir = mkdtempSync(join(tmpdir(), 'dsh-shim-'))
   assert.equal(writeDshShims('0.1.7-rc.1', { dir: join(dir, 'bin'), bin: join(dir, 'nope.js') }), '')
+})
+
+// issue #31：让系统里的 PowerShell / CMD 也能直接用 dsh —— 用户 PATH 里那条 shim 目录的增删
+test('pathWithEntry：追加在末尾（不抢用户已有的命令），撤销时清干净', () => {
+  const dir = 'C:\Users\a\AppData\Roaming\DSH\bin'
+  const pathValue = ['C:\Windows', 'C:\Program Files\nodejs'].join(delimiter)
+  const on = pathWithEntry(pathValue, dir, true)
+  assert.equal(on.split(delimiter).pop(), dir, '追加在末尾')
+  assert.equal(pathWithEntry(on, dir, true), on, '重复开启不叠加')
+  assert.equal(pathWithEntry(on, dir, false), pathValue, '撤销后回到原样')
+  // 大小写不同也算同一条（Windows 的 PATH 不区分大小写）
+  const upper = pathWithEntry(pathValue + delimiter + dir.toUpperCase(), dir, false)
+  assert.ok(!upper.toLowerCase().includes(dir.toLowerCase()), '大写的旧条目也要清掉')
+  assert.equal(pathWithEntry('', dir, true), dir, '空 PATH 也能加')
 })

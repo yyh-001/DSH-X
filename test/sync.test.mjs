@@ -308,3 +308,36 @@ test('日志里的键名收短，命名空间不出现', () => {
   assert.equal(shortKey(`${SYNC_NAMESPACE}/sessions/proj/session-1/session.jsonl.zstd`), 'sessions/…/session.jsonl.zstd')
   assert.equal(shortKey(`${SYNC_NAMESPACE}/profiles/web/package.json`), 'profiles/web/package.json')
 })
+
+test('官方 bundle（只在 bundles 里、不在 dependencies 里）绝不能被合并逻辑删掉', () => {
+  const root = mkdtempSync(join(tmpdir(), 'dsh-merge-official-'))
+  const profileDir = join(root, 'profiles', 'web')
+  mkdirSync(profileDir, { recursive: true })
+  // dsh 自己的模板：官方包只在 dsh.profile.bundles 里，dependencies 里是第三方插件
+  const local = JSON.stringify({
+    name: 'dsh-profile-web',
+    dependencies: { 'dsh-meme': '0.1.43' },
+    dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-meme'], patchReload: 'live' } },
+  }, null, 2)
+  // 桶里那份稍微不同：多一个第三方插件，bundles 也带着官方两项
+  const remote = JSON.stringify({
+    dependencies: { 'dsh-cost-meter': '1.7.25' },
+    dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', 'dsh-cost-meter'] } },
+  }, null, 2)
+  const merged = mergeProfileManifest(local, remote, { profileDir })
+  const man = JSON.parse(merged.text)
+  assert.deepEqual(man.dsh.profile.bundles, ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-meme', 'dsh-cost-meter'])
+  assert.deepEqual(merged.bundlesDropped, [], '没摘任何依赖时不许动 bundles')
+  // 本地依赖真的没了（file: 指向不存在的目录）时，也只摘那一个、官方包照旧
+  const withLocal = JSON.stringify({
+    dependencies: { 'dsh-gone': 'file:D:/nope/dsh-gone' },
+    dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', 'dsh-gone'] } },
+  }, null, 2)
+  const merged2 = mergeProfileManifest(withLocal, local, { profileDir })
+  const man2 = JSON.parse(merged2.text)
+  const bucket2 = JSON.parse(merged2.bucketText)
+  assert.ok(man2.dsh.profile.bundles.includes('@deepseek-ai/dsh-base'), '官方包要留着')
+  assert.ok(man2.dsh.profile.bundles.includes('dsh-gone'), '本机自己的本地依赖留在本机（文件可能只是暂时不在）')
+  assert.ok(!bucket2.dsh.profile.bundles.includes('dsh-gone'), '桶里那份不含它')
+  assert.deepEqual(merged2.dropped.map((item) => item.name), ['dsh-gone'])
+})

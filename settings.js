@@ -178,6 +178,8 @@ export const DEFAULTS = {
   seedMarket: true,
   // 启动失败时按错误点名自动禁用问题插件（兼容模式），再重试
   autoDisablePlugins: true,
+  // 把 dsh 的 shim 目录写进用户 PATH（HKCU\Environment），让系统里也能直接用 dsh
+  systemPath: false,
   // 用户在更新弹窗里点过「不更新」的版本 { dsh?, self? }：同一个版本不再提示
   skippedUpdate: {},
   // S3 同步的存储桶（含密钥，本机明文存这个文件里；字段由 safeS3Config 补齐）
