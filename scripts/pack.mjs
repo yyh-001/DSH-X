@@ -81,7 +81,7 @@ async function copyPnpm() {
 }
 
 async function buildLauncher() {
-  run('cargo', ['build', '--release'], join(ROOT, 'launcher'))
+  run('cargo', ['build', '--release', '--bin', 'DSH'], join(ROOT, 'launcher'))
 }
 
 async function assemble() {
@@ -131,15 +131,27 @@ async function ensureInno() {
 
 async function buildInstaller() {
   const iscc = await ensureInno()
-  console.log('编译安装包')
+  // Inno 只打内层负载，最终分发的单文件由网页外壳内嵌它；用户不需要旁边再放一个 exe。
+  const engineDir = join(VENDOR, 'installer-engine')
+  await mkdir(engineDir, { recursive: true })
+  console.log('编译安装引擎')
   run(iscc, [
     SETUP_ISS,
     `/DMyAppVersion=${PKG.version}`,
     `/DMyAppIcon=${ICON_NAME}`,
-    `/O${join(ROOT, 'release')}`,
-    `/F${SETUP_NAME}`,
+    `/O${engineDir}`,
+    '/FDSH-Install-Engine',
   ])
+  const previousEngine = process.env.DSH_INSTALL_ENGINE
+  try {
+    process.env.DSH_INSTALL_ENGINE = join(engineDir, 'DSH-Install-Engine.exe')
+    run('cargo', ['build', '--release', '--features', 'installer', '--bin', 'DSH-Setup'], join(ROOT, 'launcher'))
+  } finally {
+    if (previousEngine === undefined) delete process.env.DSH_INSTALL_ENGINE
+    else process.env.DSH_INSTALL_ENGINE = previousEngine
+  }
   const setup = join(ROOT, 'release', `${SETUP_NAME}.exe`)
+  await copyFile(join(ROOT, 'launcher', 'target', 'release', 'DSH-Setup.exe'), setup)
   if (!existsSync(setup)) throw new Error(`没有生成 ${setup}`)
   const desktop = join(DESKTOP, `${SETUP_NAME}.exe`)
   await copyFile(setup, desktop)

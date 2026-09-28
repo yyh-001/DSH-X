@@ -11,6 +11,18 @@ fn app_version() -> String {
 }
 
 fn main() {
+    println!("cargo:rerun-if-env-changed=DSH_INSTALL_ENGINE");
+    if std::env::var_os("CARGO_FEATURE_INSTALLER").is_some() {
+        let payload = match std::env::var("DSH_INSTALL_ENGINE") {
+            Ok(path) => {
+                assert!(std::path::Path::new(&path).is_file(), "安装引擎不存在");
+                println!("cargo:rerun-if-changed={path}");
+                format!("const PAYLOAD: &[u8] = include_bytes!({path:?});")
+            }
+            Err(_) => "const PAYLOAD: &[u8] = &[];".into(),
+        };
+        std::fs::write(std::path::PathBuf::from(std::env::var_os("OUT_DIR").unwrap()).join("installer_payload.rs"), payload).unwrap();
+    }
     println!("cargo:rerun-if-changed=../assets/dsh.ico");
     println!("cargo:rerun-if-changed=../package.json");
     #[cfg(windows)]
@@ -22,10 +34,11 @@ fn main() {
             // 这些字段不只是好看：杀软/信誉服务看厂商、版权、原始文件名，
             // 一片空白的未签名 exe 更容易被启发式当成下载器。
             res.set("ProductName", "DSH-X");
-            res.set("FileDescription", "DSH-X 启动器");
+            let installer = std::env::var_os("CARGO_FEATURE_INSTALLER").is_some();
+            res.set("FileDescription", if installer { "DSH-X 安装程序" } else { "DSH-X 启动器" });
             res.set("CompanyName", "yyh");
             res.set("LegalCopyright", "Copyright (C) 2026 yyh");
-            res.set("OriginalFilename", "DSH.exe");
+            res.set("OriginalFilename", if installer { "DSH-Setup.exe" } else { "DSH.exe" });
             res.set("InternalName", "DSH");
             let version = app_version();
             res.set("FileVersion", &version);

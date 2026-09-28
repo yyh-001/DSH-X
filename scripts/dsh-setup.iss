@@ -31,9 +31,19 @@ SetupIconFile=..\assets\dsh.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2/max
 SolidCompression=yes
-; 两种语言时默认就会弹「选择安装语言」，这里显式写出意图
-ShowLanguageDialog=yes
+; 跟随 Windows 显示语言，不复用旧安装语言，否则切换系统语言后仍会沿用旧值。
+ShowLanguageDialog=no
+LanguageDetectionMethod=uilanguage
+UsePreviousLanguage=no
 WizardStyle=modern
+; 使用已有头像，安装器与启动器保持同一个角色；不额外引入皮肤 DLL。
+WizardImageFile=..\assets\icon.png
+WizardSmallImageFile=..\assets\icon.png
+WizardImageBackColor=$FFF8F2
+DisableWelcomePage=no
+DisableDirPage=no
+DisableReadyPage=no
+WizardSizePercent=110
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
@@ -57,12 +67,9 @@ Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{a
 Name: "{group}\{cm:uninstall}"; Filename: "{uninstallexe}"
 
 [Languages]
-; 定义两种语言时 Inno 会先弹「选择安装语言」，并按系统语言预选——语言 id 现在写在
-; .isl 自己头上（Inno 6.5 起 [Languages] 不再接受 LanguageID 参数），
-; ChineseSimplified.isl 里是 $0804，Default.isl 就是英文。都不匹配时用列表里的第一个。
-; 中文放前面，且 Default.isl 兜底、ChineseSimplified.isl 覆盖全部消息。
-Name: "chinesesimplified"; MessagesFile: "compiler:Default.isl,ChineseSimplified.isl"
+; 未提供翻译的系统语言回退英文；中文消息继承 Default.isl 后覆盖。
 Name: "english"; MessagesFile: "compiler:Default.isl"
+Name: "chinesesimplified"; MessagesFile: "compiler:Default.isl,ChineseSimplified.isl"
 
 [CustomMessages]
 chinesesimplified.desktopicon=创建桌面快捷方式
@@ -90,6 +97,8 @@ Filename: "{cmd}"; Parameters: "/c ping -n 3 127.0.0.1 > nul & del /f /q ""{srce
 Type: filesandordirs; Name: "{app}\node_modules"
 
 [Code]
+#include "installer-engine.iss"
+
 // 静默安装（启动器就是用 /silent 拉起安装程序的）不显示任何向导页面，带 postinstall 的
 // [Run] 条目因此一条都不会执行：新版没人拉起、安装包也留在临时目录里。所以这两件事在这里
 // 补上，只在静默模式下做（向导模式交给完成页那两条）。
@@ -105,7 +114,11 @@ begin
     else
       Lang := 'zh';
     SaveStringToFile(ExpandConstant('{app}\lang.txt'), Lang, False);
+    WriteBridgeDirectory;
   end;
+
+  // 网页外壳负责完成页的启动与清理，避免内层引擎重复执行。
+  if ExpandConstant('{param:WEBUI|0}') = '1' then Exit;
 
   if (CurStep <> ssDone) or (not WizardSilent) then
     Exit;

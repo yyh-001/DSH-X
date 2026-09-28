@@ -7,6 +7,14 @@ edition = "2021"
 name = "DSH"
 path = "main.rs"
 
+[[bin]]
+name = "DSH-Setup"
+path = "installer.rs"
+required-features = ["installer"]
+
+[features]
+installer = []
+
 [target.'cfg(windows)'.build-dependencies]
 winresource = "0.1"
 
