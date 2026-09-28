@@ -1,0 +1,47 @@
+# 落地页（docs/）：只在它自己变了的时候才重新部署。
+#
+# 为什么要有这个：Pages 原来是挂在「Deploy from a branch（master 的 /docs）」上的，
+# 那是 GitHub 的内置流程——**每次 push 到 master 都会重建、重新部署一次**，哪怕这次
+# 提交跟落地页一点关系都没有（部署列表里一长串内容相同的记录就是这么来的）。
+# 改成 Actions 部署之后可以用 paths 只盯 docs/，手动「Run workflow」也留着，想重发就重发。
+name: pages
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'docs/**'
+      # 改这个文件本身也部署一次：一是让改动立刻生效，二是加进来之后第一次 push
+      # 会有一版部署，避免「切换部署方式之后站点一直停在旧的一版」这种观感
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同时只允许一个部署：小的等大的跑完（发布不该被半路取消）
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/configure-pages@v5
+
+      # docs/ 就是站点根目录（跟原来的 branch 部署一致，.nojekyll 也照旧生效）
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
