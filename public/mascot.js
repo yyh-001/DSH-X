@@ -37,7 +37,7 @@
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   let failed = false;
   let frame = 0, last = 0, clock = 0, nextBlink = 2 + Math.random() * 3;
-  let blinkStart = -10, bounce = 0;
+  let blinkStart = -10, reactionAt = -10, reactionTuft = 0, reactionBow = 0;
   let targetX = 0, targetY = 0, x = 0, y = 0, tuft = 0, velocity = 0, bow = 0, bowVelocity = 0;
   // Original fish rig, with independently sprung pose and expression channels.
   const springs = Object.fromEntries(Object.entries({ tilt: 0, lift: 0, squash: 1, left: 1, right: 1, smile: 0, ear: 0 })
@@ -69,7 +69,8 @@
   new ResizeObserver(refreshRect).observe(host);
   window.addEventListener('resize', refreshRect);
   function neutral() {
-    for (const name of ['head','tuft','bow','ear','gaze','eye-left','eye-right']) parts[name].removeAttribute('transform');
+    // 眼球会被 tick 写 opacity（闭眼时淡出），静止态必须还原，否则暂停动画后可能留下没眼睛的脸
+    for (const name of ['head','tuft','bow','ear','gaze','eye-left','eye-right']) { parts[name].removeAttribute('transform'); parts[name].removeAttribute('opacity'); }
     for (const name of ['lid-left','lid-right','blush']) parts[name].setAttribute('opacity','0');
   }
   function sync() {
@@ -105,22 +106,26 @@
     if (!active()) return;
     const px = event.detail ? (event.clientX - rect.left) / rect.width : .4;
     const py = event.detail ? (event.clientY - rect.top) / rect.height : .4;
-    bounce = 1; springs.ear.velocity += 28; setState('happy', 1.5);
-    if (py < .3) velocity += 145;
-    else if (px > .73) bowVelocity += 155;
-    else { velocity += 75; bowVelocity += 65; }
-    velocity = clamp(velocity,-180,180); bowVelocity = clamp(bowVelocity,-180,180);
+    // 点一下的反应交给一条两端归零的包络去带（以前是往弹簧里灌一次性冲量，呆毛和蝴蝶结会来回摆）
+    reactionAt = clock;
+    reactionTuft = py < .3 ? 1 : px > .73 ? .25 : .7;
+    reactionBow = px > .73 ? 1 : py < .3 ? .25 : .6;
+    setState('happy', 1.5);
   });
+  /** 点击反应包络：0.9s 内「甩出去—收回来」，两端都归零，不产生过冲。 */
+  const reactionAmount = age => age >= 0 && age < .9 ? Math.sin(age / .9 * Math.PI) : 0;
   function tick(now) {
     if (!active()) { frame = 0; return; }
     const dt = last ? Math.min((now - last) / 1000, .035) : 1 / 60;
     last = now; clock += dt;
     const ease = 1 - Math.exp(-dt * 7);
     x += (targetX - x) * ease; y += (targetY - y) * ease;
-    const tuftTarget = x * 7 + Math.sin(clock * 2.3) * 2;
-    velocity += ((tuftTarget - tuft) * 65 - velocity * 9) * dt; tuft += velocity * dt;
-    const bowTarget = -x * 5 + Math.sin(clock * 2.7 + 1) * 2.5;
-    bowVelocity += ((bowTarget - bow) * 75 - bowVelocity * 10) * dt; bow += bowVelocity * dt;
+    const reaction = reactionAmount(clock - reactionAt);
+    // 阻尼比 9/10 时回摆有一成多的过冲，收尾会「荡」两下；提到 13/14 后基本一次到位
+    const tuftTarget = x * 7 + Math.sin(clock * 2.3) * 2 + reaction * 16 * reactionTuft;
+    velocity += ((tuftTarget - tuft) * 65 - velocity * 13) * dt; tuft += velocity * dt;
+    const bowTarget = -x * 5 + Math.sin(clock * 2.7 + 1) * 2.5 + reaction * 11 * reactionBow;
+    bowVelocity += ((bowTarget - bow) * 75 - bowVelocity * 14) * dt; bow += bowVelocity * dt;
     if (clock >= stateUntil) {
       if (hovering) setState('curious', 2.4);
       else { sequence = (sequence + 1) % playlist.length; setState(playlist[sequence], playlist[sequence] === 'sleeping' ? 4 : 3.2); }
@@ -132,34 +137,38 @@
     switch (state) {
       case 'curious': tilt += 6; lift -= 9; left = 1.08; right = .82; break;
       case 'thinking': tilt -= 5; left = .65; right = .85; lookY -= .6; lookX += .35; break;
-      case 'playful': tilt += Math.sin(age * 4) * 5; lift -= Math.abs(Math.sin(age * 3)) * 22; squash += Math.sin(age * 6) * .018; break;
+      case 'playful': tilt += Math.sin(age * 2.2) * 2; lift -= Math.sin(Math.min(age / 1.2, 1) * Math.PI) * 14; break;
       case 'drowsy': tilt += 4; lift += 10; left = right = .45; break;
       case 'sleeping': tilt += 6; lift += 16; left = right = .055; squash += Math.sin(age * 2) * .012; lookX = lookY = 0; break;
       case 'waking': lift -= 16 * Math.sin(Math.min(age / 1.8, 1) * Math.PI); left = right = 1.12; break;
-      case 'happy': tilt += Math.sin(age * 9) * 3; lift -= Math.abs(Math.sin(age * 7)) * 20; squash += Math.sin(age * 10) * .025; smile = 1; break;
+      case 'happy': smile = 1; break;
     }
     tilt = spring('tilt', tilt, dt);
     lift = spring('lift', lift, dt);
     squash = spring('squash', squash, dt);
     left = spring('left', left, dt); right = spring('right', right, dt);
     smile = clamp(spring('smile', smile, dt), 0, 1);
-    bounce *= Math.exp(-dt * 4);
     const angle = tilt + x * 2.4;
     const radians = angle * Math.PI / 180;
     const limit = (-host.offsetLeft - 3) * 1254 / (host.clientWidth || 1254);
     const edgeX = edgeY => 460 + Math.cos(radians) * (6 - 460) / squash - Math.sin(radians) * (edgeY - 1080) * squash;
     const shiftX = Math.min(x * 8, limit - Math.max(edgeX(229), edgeX(1254)));
-    parts.head.setAttribute('transform', `translate(${shiftX} ${lift + y * 5 - bounce * 18}) rotate(${angle} 460 1080) translate(460 1080) scale(${1 / squash} ${squash}) translate(-460 -1080)`);
+    parts.head.setAttribute('transform', `translate(${shiftX} ${lift + y * 5 - reaction * 16}) rotate(${angle} 460 1080) translate(460 1080) scale(${1 / squash} ${squash}) translate(-460 -1080)`);
     parts.tuft.setAttribute('transform', `rotate(${tuft} 472 272)`);
-    parts.ear.setAttribute('transform', `rotate(${spring('ear', -x * 2 + Math.sin(clock * 1.9) * 1.2 - bow * .22, dt)} 969 790)`);
+    parts.ear.setAttribute('transform', `rotate(${spring('ear', -x * 2 + Math.sin(clock * 1.9) * 1.2 - bow * .22 + reaction * 4 * reactionTuft, dt)} 969 790)`);
     parts.bow.setAttribute('transform', `rotate(${bow} 1022 818)`);
     parts.gaze.setAttribute('transform', `translate(${clamp(lookX, -1, 1) * 24} ${clamp(lookY, -1, 1) * 17})`);
     if (clock >= nextBlink) { blinkStart = clock; nextBlink = clock + 2.6 + Math.random() * 4; }
     const blinkAge = clock - blinkStart;
     const blink = blinkAge < .19 ? 1 - Math.sin(blinkAge / .19 * Math.PI) * .97 : 1;
     for (const side of ['left','right']) {
-      parts[`eye-${side}`].setAttribute('transform', `scale(1 ${Math.max(.025, (side === 'left' ? left : right) * blink * (1 - smile))})`);
-      parts[`lid-${side}`].setAttribute('opacity', String(smile));
+      // 开心时眼睛闭成笑脸弧（∩ 形），眨眼、打瞌睡、睡着同理；
+      // 闭眼过程让整只眼球淡出、只留这条弧——眼球若被压成细缝，会和弧叠在同一处变成「两条线」
+      const open = (side === 'left' ? left : right) * blink * (1 - smile);
+      const eyeShown = clamp((open - .12) / .18, 0, 1);
+      parts[`eye-${side}`].setAttribute('transform', `scale(1 ${Math.max(.02, open)})`);
+      parts[`eye-${side}`].setAttribute('opacity', String(eyeShown));
+      parts[`lid-${side}`].setAttribute('opacity', String(1 - eyeShown));
     }
     parts.blush.setAttribute('opacity', String(smile * .42));
     frame = requestAnimationFrame(tick);
