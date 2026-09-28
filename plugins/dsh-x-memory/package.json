@@ -1,0 +1,74 @@
+{
+  "name": "dsh-x-memory",
+  "version": "0.1.0",
+  "description": "文件式长期记忆：一条事实一个 Markdown 文件 + MEMORY.md 索引，按工作区隔离、会话级注入，给 agent 六个读写工具，设置页里可浏览与编辑。照 ZCode 那套记忆语义实现。File-based long-term memory for DeepSeek Harness — one fact per Markdown file plus a MEMORY.md index, per-workspace, injected per session, with six agent tools and a settings-page browser.",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json",
+    "./cordis.patch.yml": "./cordis.patch.yml"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "README.en.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "memory",
+    "markdown",
+    "zcode"
+  ],
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    },
+    "compatibility": {
+      "dsh": ">=0.1.6"
+    }
+  },
+  "dshhub": {
+    "schemaVersion": 1,
+    "displayName": "DSH-X Memory",
+    "summary": "文件式长期记忆：一条事实一个 Markdown 文件 + MEMORY.md 索引，按工作区隔离；会话开始时把索引注入上下文，模型用 memory_save / memory_search / memory_read 等工具读写。文件随时可看可改可进 git。",
+    "categories": [
+      "记忆",
+      "工具"
+    ],
+    "homepage": "https://github.com/yyh-001/DSH-X"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yyh-001/DSH-X.git"
+  },
+  "author": "yyh",
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-ui-renderer": "^0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-locale": "^0.1.2-rc.1"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "manifestVersion": 5,
+  "type": "profile",
+  "name": "dsh-x-recommended",
+  "displayName": "DSH-X 推荐整合包",
+  "version": "1.2.0",
+  "description": "DSH-X 的一整套开箱环境。三件：dsh-config-manager —— 会话之外的全部配置（设置、插件清单、MCP、技能、预设、凭据）备份 / 恢复 / 迁移 / 多机同步，走 S3、WebDAV、私有 git 或本地 ZIP；dsh-x-memory —— DSH-X 自带的文件式长期记忆（一条事实一个 Markdown 文件 + MEMORY.md 索引，按工作区分开，会话开始时注入索引）；dsh-x-sync —— DSH-X 自带的同步（会话、附件、插件配置、技能、记忆传 S3/WebDAV/本地目录/ZIP，与启动器共用同一只桶）。后两件随安装包发（清单里写 bundled），不需要联网装。",
+  "author": "yyh",
+  "license": "MIT",
+  "homepage": "https://github.com/yyh-001/DSH-X",
+  "category": "starter",
+  "dshVersion": ">=0.1.6",
+  "profileName": "dshx",
+  "keywords": [
+    "dsh-pack",
+    "starter"
+  ],
+  "dependencies": {
+    "dsh-config-manager": "^0.1.65",
+    "dsh-x-memory": "bundled",
+    "dsh-x-sync": "bundled"
+  },
+  "bundles": [
+    "dsh-config-manager",
+    "dsh-x-memory",
+    "dsh-x-sync"
+  ],
+  "conflicts": []
+}

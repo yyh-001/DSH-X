@@ -1328,10 +1328,7 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 3.5l2.4 5 5.5.8-4 3.8 1 5.5-4.9-2.6-4.9 2.6 1-5.5-4-3.8 5.5-.8z"/></svg>
             <span data-i18n="技能">技能</span>
           </button>
-          <button type="button" class="nav-item" data-pane="sync">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4.2 10a8 8 0 0 1 13.6-4.3M19.8 14a8 8 0 0 1-13.6 4.3M4.2 5.6V10h4.4M19.8 18.4V14h-4.4"/></svg>
-            <span data-i18n="同步">同步</span>
-          </button>
+          <!-- 同步暂时不占设置页的导航位（说明见 #pane-sync 上方那段）-->
         <button type="button" class="nav-item" data-pane="log">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M6 3.5h9l3 3v14H6zM15 3.5v3h3M9 11h6M9 14.5h6M9 18h4"/></svg>
             <span data-i18n="日志">日志</span>
@@ -1734,6 +1731,13 @@
                 </label>
                 <label class="toggle set-row">
                   <span class="set-text">
+                    <span class="set-name" data-i18n="内置插件">内置插件</span>
+                    <span class="set-desc" data-i18n="DSH-X 自带的两件插件：记忆（文件式长期记忆）与同步（会话/附件/配置/记忆）。装进当前环境并保持更新；关掉则只在你手动装时才出现。">DSH-X 自带的两件插件：记忆（文件式长期记忆）与同步（会话/附件/配置/记忆）。装进当前环境并保持更新；关掉则只在你手动装时才出现。</span>
+                  </span>
+                  <input id="seedBundled" type="checkbox" />
+                </label>
+                <label class="toggle set-row">
+                  <span class="set-text">
                     <span class="set-name" data-i18n="兼容模式">兼容模式</span>
                     <span class="set-desc" data-i18n="启动失败时自动禁用出问题的插件再试一次，免得 dsh 起不来。">启动失败时自动禁用出问题的插件再试一次，免得 dsh 起不来。</span>
                   </span>
@@ -1954,6 +1958,8 @@
       </div>
       <!-- 检查结果：装什么、装到哪、会覆盖什么，都在这里摆清楚再让人点安装 -->
       <div class="pack-detail" id="packInspect" hidden></div>
+      <div class="set-caption" id="packBuiltinTitle" data-i18n="内置整合包" hidden>内置整合包</div>
+      <div class="plugin-list" id="packBuiltin" hidden></div>
       <div class="set-caption" id="packMarketTitle" data-i18n="社区整合包">社区整合包</div>
       <div class="plugin-list" id="packMarket"></div>
       <!-- 下载几十 MB、再装几十个包，都要有进度 -->
@@ -2077,6 +2083,9 @@
   "选文件…": "Choose file…",
   "认生态里的 .dspack 整合包（PackForge 的 manifest）：本地文件、直链，或 GitHub 的 owner/repo（取它最新 Release 里的包）。": "Works with ecosystem .dspack modpacks (PackForge manifests): a local file, a direct link, or a GitHub owner/repo (it takes the .dspack from the latest release).",
   "社区整合包": "Community modpacks",
+  "内置整合包": "Built-in modpack",
+  "装进 {profile} 环境": "Installs into the {profile} environment",
+  "随安装包发，不用联网": "Ships with the installer; no network needed",
   "把当前 profile 打包成整合包": "Pack the current profile into a modpack",
   "带上插件清单、补丁层与 profile 根下的配置文件（不含 node_modules、会话与凭据）。别人装这个包，就能得到同样的插件环境。": "Includes the plugin manifest, patch layer and config files at the profile root — never node_modules, sessions or credentials. Anyone installing the pack gets the same plugin setup.",
   "带上技能与预设": "Include skills & presets",
@@ -2354,6 +2363,10 @@
   "目录与端口": "Folders and ports",
   "重启后生效。": "Takes effect after a restart.",
   "装新版本时顺手把插件市场预置好，之后可以在里面装第三方插件。": "Sets up the plugin marketplace when a new version is installed; you can install third-party plugins from it.",
+  "记忆插件": "Memory plugin",
+  "内置的文件式长期记忆：一条事实一个 Markdown 文件 + MEMORY.md 索引，按工作区分开。启用后 dsh 设置页里出现「记忆」面板。": "Built-in file-based long-term memory: one fact per Markdown file plus a MEMORY.md index, kept per workspace. A Memory panel shows up in dsh Settings once it is installed.",
+  "内置插件": "Built-in plugins",
+  "DSH-X 自带的两件插件：记忆（文件式长期记忆）与同步（会话/附件/配置/记忆）。装进当前环境并保持更新；关掉则只在你手动装时才出现。": "The two plugins DSH-X ships: Memory (file-based long-term memory) and Sync (sessions / attachments / config / memory). They are installed into the current environment and kept up to date; turn this off to install them yourself instead.",
   "这一页文案的语言。": "The language used on these pages.",
   "启动器": "Launcher",
   "已安装。可更新到 {latest}。": "Installed. {latest} is available.",
@@ -2912,7 +2925,8 @@
     const panes = [...document.querySelectorAll('.pane')]
     const gearEl = document.getElementById('settingsEntry')
     // 进面板时按需加载：和以前 tab 的行为一致，不做无谓请求
-    const paneLoaders = { plugins: loadPlugins, mcp: loadMcp, skills: loadSkills, sync: loadSync, settings: loadSettings }
+    // 同步面板不挂导航（见 #pane-sync 上方那段），要放回来加回 sync: loadSync
+    const paneLoaders = { plugins: loadPlugins, mcp: loadMcp, skills: loadSkills, settings: loadSettings }
     let currentPane = 'control'
     let currentSettingsCategory = 'general'
     const settingsCategories = {
@@ -3956,6 +3970,7 @@
 
     const autoStartEl = document.getElementById('autoStart')
     const seedMarketEl = document.getElementById('seedMarket')
+    const seedBundledEl = document.getElementById('seedBundled')
     const autoDisableEl = document.getElementById('autoDisable')
     const autoCleanEl = document.getElementById('autoCleanVersions')
     const profileEl = document.getElementById('profile')
@@ -4145,6 +4160,8 @@
       }
       if ('autoStart' in data) autoStartEl.checked = Boolean(data.autoStart)
       if ('seedMarket' in data) seedMarketEl.checked = data.seedMarket !== false
+      if ('seedMemory' in data) seedBundledEl.checked = data.seedMemory !== false
+      if ('seedBundled' in data) seedBundledEl.checked = data.seedBundled !== false
       if ('autoDisablePlugins' in data) autoDisableEl.checked = data.autoDisablePlugins !== false
       if ('autoCleanVersions' in data) autoCleanEl.checked = data.autoCleanVersions !== false
       syncUiSelects()
@@ -4277,6 +4294,7 @@
     }
     autoStartEl.onchange = () => queueSetting('autoStart', autoStartEl.checked)
     seedMarketEl.onchange = () => queueSetting('seedMarket', seedMarketEl.checked)
+    seedBundledEl.onchange = () => queueSetting('seedBundled', seedBundledEl.checked)
     autoDisableEl.onchange = () => queueSetting('autoDisablePlugins', autoDisableEl.checked)
     autoCleanEl.onchange = () => queueSetting('autoCleanVersions', autoCleanEl.checked)
     uiLangEl.onchange = () => queueSetting('lang', uiLangEl.value)
@@ -4617,6 +4635,8 @@
     const packExportHintEl = document.getElementById('packExportHint')
     const packInspectEl = document.getElementById('packInspect')
     const packMarketEl = document.getElementById('packMarket')
+    const packBuiltinEl = document.getElementById('packBuiltin')
+    const packBuiltinTitleEl = document.getElementById('packBuiltinTitle')
     const packSourceEl = document.getElementById('packSource')
     const packCheckEl = document.getElementById('packCheck')
     const packPickEl = document.getElementById('packPick')
@@ -4624,6 +4644,7 @@
     let packState = { packs: [], profile: '', profiles: [], busy: false }
     let packInspection = null
     let packMarket = null
+    let packBuiltin = null
     let packProgress = null
     let packBusy = false
     let packMarketLoaded = false
@@ -4896,6 +4917,7 @@
         packMarketLoaded = true
         void loadMarket({ quiet: true })
       }
+      void loadBuiltinPack()
       packSourceEl.focus()
     }
 
@@ -5070,11 +5092,54 @@
       }
     }
 
+    /** 内置整合包：随安装包发的那份，点一下就按本地目录走检查 → 安装，不联网。 */
+    async function loadBuiltinPack() {
+      try {
+        const data = await getJson('/api/packs')
+        packBuiltin = data.builtin || null
+      } catch {
+        packBuiltin = null
+      }
+      renderPackBuiltin()
+    }
+
+    function renderPackBuiltin() {
+      const builtin = packBuiltin
+      packBuiltinTitleEl.hidden = !builtin
+      packBuiltinEl.hidden = !builtin
+      if (!builtin) {
+        packBuiltinEl.innerHTML = ''
+        return
+      }
+      const meta = [
+        builtin.profileName ? t('装进 {profile} 环境', { profile: builtin.profileName }) : '',
+        builtin.pluginCount ? t('{n} 层', { n: builtin.pluginCount }) : '',
+        t('随安装包发，不用联网'),
+      ].filter(Boolean).join(' · ')
+      // 自述按插件行的规矩单行截断，完整文本挂 title
+      const desc = (builtin.description || '').replace(/\s+/g, ' ').trim()
+      const shortDesc = desc.length > 96 ? `${desc.slice(0, 96)}…` : desc
+      packBuiltinEl.innerHTML = `<div class="plugin-row pack-row">
+        <span class="plugin-main">
+          <span class="plugin-head">
+            <span class="plugin-name">${escapeHtml(builtin.displayName || builtin.name)}</span>
+            ${builtin.version ? `<span class="plugin-version">v${escapeHtml(builtin.version)}</span>` : ''}
+          </span>
+          ${desc ? `<span class="plugin-desc" title="${escapeHtml(desc)}">${escapeHtml(shortDesc)}</span>` : ''}
+          <span class="plugin-row-note">${escapeHtml(meta)}</span>
+        </span>
+        <button class="plugin-update" type="button" data-builtin="1" ${packBusy ? 'disabled' : ''}>${escapeHtml(t('检查'))}</button>
+      </div>`
+      const button = packBuiltinEl.querySelector('button[data-builtin]')
+      if (button) button.onclick = () => inspectPack({ source: builtin.path })
+    }
+
     async function inspectPack(payload) {
       if (packBusy) return
       packBusy = true
       openImportDialog()
       renderPackMarket()
+      renderPackBuiltin()
       packInspection = null
       renderPackInspect()
       packHintEl.textContent = t('正在下载并检查…')
@@ -5093,6 +5158,7 @@
         // 详情卡里的「安装」要等 packBusy 复位后才画得成可用状态
         renderPackInspect()
         renderPackMarket()
+        renderPackBuiltin()
       }
     }
 

@@ -1,0 +1,16 @@
+# dsh-x-memory bundle patch: one host row over the web profile.
+# The row name resolves from the profile's own node_modules where
+# `dsh plugin --profile web add <path>` installed this package.
+#
+# Optional config (uncomment to override; every key has a default):
+# - insert:
+#     - id: x-memory
+#       name: dsh-x-memory
+#       config:
+#         autoInject: true            # 是否把记忆索引注入上下文（关掉=只用工具）
+#         freezeIndexPerSession: true # 索引每会话只渲染一次，中途写记忆不改已注入的内容
+#         perWorkspace: true          # 按工作区（会话 cwd）分目录；false=所有工作区共用一份
+#         rootDir: ""                 # 自定义记忆根目录；留空=$DSH_HOME/memories/<工作区>
+- insert:
+    - id: x-memory
+      name: dsh-x-memory

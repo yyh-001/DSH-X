@@ -149,9 +149,13 @@ test('设置页有「打开 dsh 的方式」：两项可选、改动即保存', 
   assert.ok(uiSelectList.includes('#openMode'), '打开方式进自绘下拉名单')
 })
 
-test('同步面板：S3 与 WebDAV 两套配置、同步范围、上传下载按钮都在，密钥走 password', () => {
-  assert.match(html, /class="nav-item" data-pane="sync"/, '左侧导航有同步入口')
-  assert.match(html, /<section class="pane" id="pane-sync">/, '同步面板在设置区里')
+test('同步面板：已从设置页摘下来（引擎与接线留着），面板本身四套配置仍齐全、密钥走 password', () => {
+  // 同步改由 dsh 插件（dsh-x-sync）提供，启动器设置页不再挂这个入口；
+  // 面板结构、加载函数、自绘下拉名单都不删——放回去只差导航项和 paneLoaders 两行
+  assert.ok(!/class="nav-item[^"]*" data-pane="sync"/.test(html), '左侧导航不该再有同步入口')
+  assert.ok(!/const paneLoaders = \{[^}]*sync: loadSync/.test(html), '面板加载表里也不挂它')
+  assert.match(html, /<section class="pane" id="pane-sync">/, '面板结构留着（放回来不用重写）')
+  assert.match(html, /async function loadSync\(\)/, '面板自己的加载函数也留着')
   for (const id of [
     'syncStore', 'syncEndpoint', 'syncRegion', 'syncBucket', 'syncPrefix', 'syncAccessKey', 'syncSecretKey',
     'syncSessionToken', 'syncInsecure', 'syncDavUrl', 'syncDavUser', 'syncDavSecret', 'syncDavPrefix',
@@ -173,7 +177,9 @@ test('同步面板：S3 与 WebDAV 两套配置、同步范围、上传下载按
   assert.match(html, /const folderInputs = \{[\s\S]{0,80}?syncFolderPath/, '本地目录那套输入')
   assert.match(html, /local \? '导出' : '上传'/, '本地目录模式下按钮改叫导出/导入')
   assert.match(html, /post\('\/api\/pick-dir'/, '「浏览…」复用目录选择接口')
-  assert.match(html, /const paneLoaders = \{[^}]*sync: loadSync[^}]*\}/, '进面板时才读同步状态')
+  assert.match(html, /const paneLoaders = \{ plugins: loadPlugins[^}]*\}/, '面板加载表还在（放回来加一行 sync: loadSync）')
+  // 摘下来是临时的：怎么放回来得写在原地，别留给下一个人去猜
+  assert.match(html, /放回来[\s\S]{0,160}?paneLoaders/, 'pane-sync 上方写清了放回来的两步')
   assert.match(html, /post\('\/api\/sync\/save'/, '配置改动即保存')
   assert.match(html, /post\('\/api\/sync\/run', \{ mode \}\)/, '上传/下载走同一个接口，用 mode 分方向')
   assert.match(html, /post\('\/api\/sync\/stop'/, '跑得太久能停')

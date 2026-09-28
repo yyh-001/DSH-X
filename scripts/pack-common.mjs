@@ -82,6 +82,14 @@ export async function copyAppFiles(out) {
   await cp(join(ROOT, 'assets'), join(out, 'assets'), { recursive: true })
   await cp(join(ROOT, 'perf'), join(out, 'perf'), { recursive: true })
   await cp(join(ROOT, 'compat'), join(out, 'compat'), { recursive: true })
+  // 内置 dsh 插件：装进安装目录的 plugins/，server.js 首次启动时复制到 DSH_HOME 并预置到 profile。
+  // test/ 与 node_modules/ 不进安装包（用例是给仓库看的，node_modules 由 profile 那边装）。
+  await cp(join(ROOT, 'plugins'), join(out, 'plugins'), {
+    recursive: true,
+    filter: (src) => !['test', 'node_modules'].includes(basename(src)) && !basename(src).startsWith('.'),
+  })
+  // 内置整合包（packs/）：随安装包发，插件页的「内置整合包」就地安装，不用联网去 Release 拿
+  await cp(join(ROOT, 'packs'), join(out, 'packs'), { recursive: true })
 }
 
 /** 把 npm、corepack 从解压好的 node 发行包拷进 nodeDir/node_modules。 */

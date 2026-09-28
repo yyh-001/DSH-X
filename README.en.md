@@ -25,7 +25,6 @@ A lightweight launcher for DeepSeek Harness. Pick a version, start DSH web.
 - **Plugins page**: list installed plugins and toggle each with one click, check for and install updates (one or all), and switch profiles
 - **Modpacks**: install a batch of plugins and their config in one go (community market and import/export included) — see the Modpacks section below
 - **Compatibility mode**: on a failed start, disable the plugins named in the error (one click to restore); after boot it checks the client plugin bundles the page references and reports the verdict, telling a broken install apart from a stale tab
-- **Sync, or export as a backup**: push chat sessions, attachments and plugin config to an S3-compatible bucket or a WebDAV folder (Jianguo Cloud / Nextcloud / Synology / Alist…) and pull them back on another machine, or export to a local folder or a single .zip and import from it (no network, no account). The plugin manifest is merged in both directions, so neither machine loses a plugin
 - **Dark appearance**: follow the system or pick a theme, plus floating-panel transparency and mascot switches
 - **Faster startup**: equivalent fast implementations at the bundle composition point (saves about 1–2 s), skipped automatically once dsh changes underneath
 - **Plugins stay where dsh puts them**: data lives in `~/.dsh`, so switching versions needs no plugin reinstall
@@ -47,6 +46,8 @@ Install a batch of plugins and their config in one go — no installing one by o
 - **You see it first**: layers, dependencies, files to write, what gets overridden, and what in the pack will not be installed (credentials, `.npmrc` and machine-wide settings never land on disk). Nothing happens before you confirm.
 - **You can get back**: files it overwrites are backed up first, a failed install rolls back, removing a pack restores your files, and a profile the pack created can be deleted along with it.
 - **Share your own**: export the current profile as a `.dspack` (pinned dependencies + patch layer + config files, never `node_modules` or credentials), and whoever installs it gets the same plugin setup.
+
+The repo ships one: [**`packs/dsh-x-recommended`**](packs/dsh-x-recommended/README.md) — DSH-X's own starter set, which currently installs the ecosystem's config-manager plugin (`dsh-config-manager`). `node scripts/make-pack.mjs` builds it into `release/packs/`, then install it from the page as a local file.
 
 ## Screenshots
 

@@ -234,6 +234,8 @@ export const DEFAULTS = {
   webBind: DEFAULT_WEB_BIND,
   autoStart: false,
   seedMarket: true,
+  // 预置 DSH-X 自带的两件插件（plugins/：记忆 dsh-x-memory、同步 dsh-x-sync）
+  seedBundled: true,
   // 启动失败时按错误点名自动禁用问题插件（兼容模式），再重试
   autoDisablePlugins: true,
   // 装完新版本后自动清理更旧的版本（只留最新的和最近装的一个）。
@@ -561,6 +563,9 @@ export async function saveSettings(patch) {
   if ('proxyUrl' in patch) merged.proxyUrl = safeProxyUrl(patch.proxyUrl)
   merged.autoStart = Boolean(merged.autoStart)
   merged.seedMarket = merged.seedMarket !== false
+  // 旧键 seedMemory（这版之前的名字）当作别名读一次
+  if (!('seedBundled' in patch) && 'seedMemory' in patch) merged.seedBundled = patch.seedMemory
+  merged.seedBundled = merged.seedBundled !== false
   merged.autoDisablePlugins = merged.autoDisablePlugins !== false
   merged.autoCleanVersions = merged.autoCleanVersions !== false
   merged.skippedUpdate = normalizeSkippedUpdate(merged.skippedUpdate)
