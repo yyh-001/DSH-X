@@ -94,6 +94,61 @@ export function safeUpdateSource(value) {
 }
 
 /**
+ * 网络代理的三种模式：跟随系统（默认，自己探测系统代理）/ 手动填地址 / 不走代理。
+ *
+ * 为什么默认「跟随系统」：Node 的全局 fetch 既不看系统代理、也不看 HTTP_PROXY，于是
+ * 「浏览器能上网、启动器却 fetch failed」——issue #32 的「第一次启动读取版本超时」就是这么
+ * 来的。装了代理软件的用户多半只勾过「系统代理」，所以默认跟着它走，什么都不用填。
+ */
+export const PROXY_MODES = ['off', 'system', 'manual']
+export const DEFAULT_PROXY_MODE = 'system'
+
+export function safeProxyMode(value) {
+  const name = String(value ?? '').trim().toLowerCase()
+  return PROXY_MODES.includes(name) ? name : DEFAULT_PROXY_MODE
+}
+
+/**
+ * 代理地址规范化：认 `http://127.0.0.1:7890`，也认只填 `127.0.0.1:7890` 的简写；路径和
+ * 查询串丢掉（代理地址没有这些）。认不出来返回空串——探测系统代理时用这个版本，探测不该抛错。
+ */
+export function normalizeProxyUrl(value) {
+  const text = String(value ?? '').trim()
+  if (!text) return ''
+  // 全角/中文之类直接不认：URL 解析会把「不是地址」这种拼成 xn-- 开头的域名，
+  // 那还不如老实说填错了（代理地址本来就是 ASCII 那套东西）
+  if (/[^\x20-\x7e]/.test(text)) return ''
+  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(text) ? text : `http://${text}`
+  let url
+  try {
+    url = new URL(withScheme)
+  } catch {
+    return ''
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return ''
+  if (!url.hostname || !/^[A-Za-z0-9._-]+$/.test(url.hostname)) return ''
+  const auth = url.username ? `${url.username}${url.password ? `:${url.password}` : ''}@` : ''
+  return `${url.protocol}//${auth}${url.host}`
+}
+
+/**
+ * 手动填的代理地址：认得出来就用，认不出来把原因说清楚（页面直接显示给用户）。
+ * socks 单独给一句——代理软件里的 socks 端口填进来是最常见的错，而它必须换成 http（混合）端口。
+ */
+export function safeProxyUrl(value) {
+  const text = String(value ?? '').trim()
+  if (!text) return ''
+  const normalized = normalizeProxyUrl(text)
+  if (!normalized) {
+    if (/^socks/i.test(text)) {
+      throw new Error('只支持 http 代理：请填代理软件里的 http（混合）端口，socks 端口连不上')
+    }
+    throw new Error('代理地址填得不对，形如 http://127.0.0.1:7890')
+  }
+  return normalized
+}
+
+/**
  * 老配置的一次性迁移：把仍是老默认值「直连」的设置改成「国内加速」。
  *
  * 为什么值得替用户改：新默认只是「多一条退路」，而「直连」在国内根本走不通——市场
@@ -165,6 +220,9 @@ export const DEFAULTS = {
   downloadSource: DEFAULT_SOURCE,
   // 启动器更新的下载源：direct（默认）/ mirror（国内加速）
   updateSource: DEFAULT_UPDATE_SOURCE,
+  // 网络代理：off / system（默认，跟随系统）/ manual；手动模式看下面的 proxyUrl
+  proxyMode: DEFAULT_PROXY_MODE,
+  proxyUrl: '',
   // 打开 dsh 页面的方式：tab（默认，系统浏览器标签页）/ app（Chromium 应用窗口）/ window（启动器内嵌窗口）
   openMode: DEFAULT_OPEN_MODE,
   // dsh 的用户目录（DSH_HOME）。留空 = 默认 ~/.dsh；用户把 .dsh 挪到别的盘时在这里指回去
@@ -494,6 +552,15 @@ export async function saveSettings(patch) {
   merged.autoDisablePlugins = merged.autoDisablePlugins !== false
   merged.skippedUpdate = normalizeSkippedUpdate(merged.skippedUpdate)
   // S3 同步：脏值顺手补全（密钥缺失只是「没配好」，不该让保存失败），显式填错才抛
+  merged.proxyMode = safeProxyMode(merged.proxyMode)
+  if ('proxyMode' in patch) merged.proxyMode = safeProxyMode(patch.proxyMode)
+  // 代理地址和端口/profile 同规矩：脏值顺手修回空（当没填），显式填错才把错误抛给页面
+  try {
+    merged.proxyUrl = safeProxyUrl(merged.proxyUrl)
+  } catch {
+    merged.proxyUrl = ''
+  }
+  if ('proxyUrl' in patch) merged.proxyUrl = safeProxyUrl(patch.proxyUrl)
   merged.s3 = safeS3Config('s3' in patch ? patch.s3 : merged.s3)
   merged.webdav = safeWebdavConfig('webdav' in patch ? patch.webdav : merged.webdav)
   merged.folder = safeFolderConfig('folder' in patch ? patch.folder : merged.folder)

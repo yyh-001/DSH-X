@@ -21,6 +21,8 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from
 import { spawn, execFile } from 'node:child_process'
 import { delimiter, dirname, isAbsolute, join, resolve } from 'node:path'
 import { looksLikeEntryList } from './plugins.js'
+// 探测远端 MCP 端点也走带代理的 fetch（本机端点它自动直连）
+import { netFetch } from './proxy.js'
 
 export const MCP_CLIENT_PKG = '@deepseek-ai/dsh-mcp-client'
 
@@ -654,7 +656,7 @@ async function probeHttp(spec, options) {
   const send = (body, sessionId) => {
     const merged = { ...headers }
     if (sessionId) merged['mcp-session-id'] = sessionId
-    return fetch(url, {
+    return netFetch(url, {
       method: 'POST',
       headers: merged,
       body: JSON.stringify(body),

@@ -8,6 +8,8 @@ import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { fileURLToPath } from 'node:url'
 import { DEFAULTS, DOWNLOAD_SOURCES, loadSettingsSync } from './settings.js'
+// 版本列表、tarball 都走带代理的 fetch（见 proxy.js）；回环地址它自动直连
+import { netFetch, proxyEnv } from './proxy.js'
 // 版本比较在 version.js（零依赖），这里转出去保持老调用方不用改
 import { cmpVer, parseVer } from './version.js'
 import pkg from './package.json' with { type: 'json' }
@@ -51,7 +53,7 @@ async function registryGet(url) {
   let last
   for (let attempt = 0; attempt < 4; attempt += 1) {
     try {
-      const res = await fetch(url, {
+      const res = await netFetch(url, {
         headers: {
           accept: 'application/vnd.npm.install-v1+json, application/json',
           'user-agent': USER_AGENT,
@@ -96,7 +98,7 @@ async function fetchToFile(url, dest) {
   let last
   for (let attempt = 0; attempt < 4; attempt += 1) {
     try {
-      const res = await fetch(url, { headers: { 'user-agent': USER_AGENT } })
+      const res = await netFetch(url, { headers: { 'user-agent': USER_AGENT } })
       if (!res.ok) throw new Error(`tarball ${res.status} ${url}`)
       const expected = Number(res.headers.get('content-length')) || 0
       await pipeline(Readable.fromWeb(res.body), createWriteStream(dest))
@@ -196,6 +198,7 @@ function runNpm(cli, args, { cwd, onLog, env } = {}) {
       env: {
         ...process.env,
         npm_config_registry: currentRegistry(),
+        ...proxyEnv(),
         npm_config_audit: 'false',
         npm_config_fund: 'false',
         npm_config_update_notifier: 'false',

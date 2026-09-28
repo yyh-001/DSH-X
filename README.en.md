@@ -32,6 +32,7 @@ A lightweight launcher for DeepSeek Harness. Pick a version, start DSH web.
 - **Keeps one older version**: only the newest and the most recently installed are kept (enough to roll back); older ones are pruned after install
 - **Resident in the background**: closing the page does not quit (Windows tray / macOS menu bar icon); the UI uses your system browser
 - **Bundled Node / npm / pnpm**: a portable runtime ships inside the package, packages come from the npmmirror registry, and plugin installs need nothing from the host
+- **Network proxy**: follow the system proxy (default), enter an address, or turn it off; unreachable proxies fall back to a direct connection. The version list, GitHub, the market and plugin installs all go through it
 - **One version at a time**: no two versions fighting over ports and data
 - **Optional marketplace**: can install `dshmarket` on first launch
 

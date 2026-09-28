@@ -1864,6 +1864,18 @@
                     <select id="updateSource"></select>
                   </div>
                 </div>
+                <div class="set-row stacked">
+                  <div class="set-text">
+                    <span class="set-name" data-i18n="网络代理">网络代理</span>
+                    <span class="set-desc" data-i18n="启动器自己联网的地方都按它走：版本列表、GitHub、市场和整合包下载、插件安装。默认跟随系统代理（代理软件里选了「系统代理」就不用管）；手动填的是代理软件的 http（混合）端口，不是 socks 端口；代理连不上会自动退回直连。">启动器自己联网的地方都按它走：版本列表、GitHub、市场和整合包下载、插件安装。默认跟随系统代理（代理软件里选了「系统代理」就不用管）；手动填的是代理软件的 http（混合）端口，不是 socks 端口；代理连不上会自动退回直连。</span>
+                  </div>
+                  <div class="set-control">
+                    <select id="proxyMode"></select>
+                    <input id="proxyUrl" type="text" placeholder="http://127.0.0.1:7890" />
+                    <button class="ghost" id="proxyTest" type="button" data-i18n="测试">测试</button>
+                  </div>
+                  <p class="hint" id="proxyHint"></p>
+                </div>
               </div>
             </section>
           </div>
@@ -2151,6 +2163,24 @@
   "当前不是由 DSH.exe 启动的，暂时会退回浏览器标签页。": "Not started by DSH.exe right now, so it falls back to a browser tab for now.",
   "已保存。下次打开 dsh 就走新的方式。": "Saved. The next time dsh opens it uses the new way.",
   "更新下载源": "Update download source",
+  "网络代理": "Network proxy",
+  "手动填写": "Enter manually",
+  "不走代理": "No proxy",
+  "启动器自己联网的地方都按它走：版本列表、GitHub、市场和整合包下载、插件安装。默认跟随系统代理（代理软件里选了「系统代理」就不用管）；手动填的是代理软件的 http（混合）端口，不是 socks 端口；代理连不上会自动退回直连。": "Every outbound request the launcher makes goes through this: version list, GitHub, market and pack downloads, plugin installs. The default follows the system proxy (nothing to fill in if your proxy app has system proxy on). Enter the proxy app's HTTP (mixed) port, not its SOCKS port; if the proxy is unreachable the launcher falls back to a direct connection.",
+  "测试": "Test",
+  "现在走 {url}。": "Currently using {url}.",
+  "不用代理，全部直连。": "No proxy: everything connects directly.",
+  "还没填地址，先按直连走。": "No address filled in yet; connecting directly for now.",
+  "系统里只配了 socks 代理（{detail}）：启动器要用它的 http（混合）端口，请在代理软件里找到它填到「手动」里。": "The system only has a SOCKS proxy ({detail}). The launcher needs the HTTP (mixed) port: find it in your proxy app and enter it under \"Enter manually\".",
+  "系统里没检测到代理，现在按直连走。": "No system proxy detected; connecting directly for now.",
+  "手动填的地址认不出来：{detail}": "That does not look like a proxy address: {detail}",
+  "正在测试…": "Testing…",
+  "通了：{url}（{via}）。": "Works: {url} ({via}).",
+  "走代理 {url}": "via proxy {url}",
+  "直连": "direct",
+  "不通：{detail}": "Failed: {detail}",
+  "直连通了（{url}），但代理没通：{proxyError}": "Direct connection works ({url}), but the proxy failed: {proxyError}",
+  "未知原因": "unknown reason",
   "国内加速": "Accelerated mirror",
   "确定": "OK",
   "管理器已停止运行，这个页面可以关掉了。": "The manager has stopped; this page can be closed.",
@@ -2715,7 +2745,7 @@
       if (changed) item.select.dispatchEvent(new Event('change', { bubbles: true }))
     }
 
-    for (const select of document.querySelectorAll('#profile, #uiLang, #webBind, #downloadSource, #updateSource, #openMode, #syncStore, #syncPolicy, #syncStyle')) {
+    for (const select of document.querySelectorAll('#profile, #uiLang, #webBind, #downloadSource, #updateSource, #proxyMode, #openMode, #syncStore, #syncPolicy, #syncStyle')) {
       const root = document.createElement('div')
       root.className = 'select ui-select'
       const trigger = document.createElement('button')
@@ -3866,6 +3896,27 @@
     const describeUpdateSource = (value) => value === 'mirror'
       ? t('先直连 GitHub；连不上再走第三方镜像转发（同一个文件，只是换条路拿）。')
       : t('只连 GitHub，不经过任何镜像；国内经常连不上——市场和整合包下载都会跟着失败。')
+    const proxyModeEl = document.getElementById('proxyMode')
+    const proxyUrlEl = document.getElementById('proxyUrl')
+    const proxyHintEl = document.getElementById('proxyHint')
+    const proxyTestEl = document.getElementById('proxyTest')
+    // 只在「手动」时才要地址；其余两种模式下那个输入框没有意义
+    const showProxyUrl = (mode) => { proxyUrlEl.hidden = String(mode) !== 'manual' }
+    // 提示行只讲「现在到底怎么走」：走哪个代理、为什么没走成（不写「设置成功」那种话）
+    const describeProxy = (data) => {
+      const mode = String((data && data.proxyMode) || proxyModeEl.value || 'system')
+      const inUse = (data && data.proxyInUse) || null
+      if (mode === 'off') return t('不用代理，全部直连。')
+      if (inUse && inUse.url) return t('现在走 {url}。', { url: inUse.url })
+      if (mode === 'manual') return t('还没填地址，先按直连走。')
+      if (inUse && inUse.note === 'socks') {
+        return t('系统里只配了 socks 代理（{detail}）：启动器要用它的 http（混合）端口，请在代理软件里找到它填到「手动」里。', { detail: inUse.detail || '' })
+      }
+      if (inUse && inUse.note === 'bad-url') {
+        return t('手动填的地址认不出来：{detail}', { detail: inUse.detail || '' })
+      }
+      return t('系统里没检测到代理，现在按直连走。')
+    }
     const settingsHint = document.getElementById('settingsHint')
     const pendingSettings = new Map()
     let settingSaveRunning = false
@@ -3965,6 +4016,21 @@
         updateSourceEl.innerHTML = list.map((item) => `<option value="${escapeHtml(item.id)}" data-i18n="${escapeHtml(item.label)}">${escapeHtml(t(item.label))}</option>`).join('')
         updateSourceEl.value = String(data.updateSource || 'mirror')
         updateSourceHint.textContent = describeUpdateSource(updateSourceEl.value)
+      }
+      if ('proxyMode' in data || 'proxyUrl' in data) {
+        const list = Array.isArray(data.proxyModes) && data.proxyModes.length
+          ? data.proxyModes
+          : [{ id: 'system', label: '跟随系统' }, { id: 'manual', label: '手动填写' }, { id: 'off', label: '不走代理' }]
+        if (!pendingSettings.has('proxyMode')) {
+          proxyModeEl.innerHTML = list.map((item) => `<option value="${escapeHtml(item.id)}" data-i18n="${escapeHtml(item.label)}">${escapeHtml(t(item.label))}</option>`).join('')
+          proxyModeEl.value = String(data.proxyMode || 'system')
+          showProxyUrl(proxyModeEl.value)
+        }
+        if (!pendingSettings.has('proxyUrl') && document.activeElement !== proxyUrlEl) {
+          proxyUrlEl.value = String(data.proxyUrl ?? '')
+        }
+        // 自检结果 / 提示行不能被每次读设置盖掉；改动本身是自动保存的
+        if (!proxyTestEl.dataset.ran) proxyHintEl.textContent = describeProxy(data)
       }
       if ('webBind' in data) webBindEl.value = data.webBind === 'lan' ? 'lan' : 'loopback'
       // 远程访问插件的「局域网访问」开关压着设置值时如实说明，别让用户以为选错了没生效
@@ -4124,6 +4190,38 @@
     updateSourceEl.onchange = () => {
       updateSourceHint.textContent = describeUpdateSource(updateSourceEl.value)
       queueSetting('updateSource', updateSourceEl.value)
+    }
+    proxyModeEl.onchange = () => {
+      showProxyUrl(proxyModeEl.value)
+      // 提示行先按新模式说一句；保存回来的 proxyInUse 会再校正一次
+      delete proxyTestEl.dataset.ran
+      proxyHintEl.textContent = describeProxy(null)
+      queueSetting('proxyMode', proxyModeEl.value)
+    }
+    // 地址失焦（或回车）才提交：边打字边存会把半截地址写进设置
+    proxyUrlEl.onchange = () => {
+      delete proxyTestEl.dataset.ran
+      queueSetting('proxyUrl', proxyUrlEl.value.trim())
+    }
+    proxyTestEl.onclick = async () => {
+      proxyTestEl.disabled = true
+      proxyHintEl.textContent = t('正在测试…')
+      try {
+        // 先把没落盘的改动存掉，否则测的是旧设置
+        await flushSettings()
+        const data = await post('/api/proxy/test', {})
+        proxyTestEl.dataset.ran = '1'
+        proxyHintEl.textContent = data.ok
+          // 代理没通但直连兜住了：最容易被当成「一切正常」的一种，必须说出来
+          ? data.proxyError
+            ? t('直连通了（{url}），但代理没通：{proxyError}', { url: data.url, proxyError: data.proxyError })
+            : t('通了：{url}（{via}）。', { url: data.url, via: data.via ? t('走代理 {url}', { url: data.via }) : t('直连') })
+          : t('不通：{detail}', { detail: data.detail || t('未知原因') })
+      } catch (error) {
+        proxyHintEl.textContent = error.message
+      } finally {
+        proxyTestEl.disabled = false
+      }
     }
     webBindEl.onchange = () => queueSetting('webBind', webBindEl.value)
     themeEls.forEach((input) => {

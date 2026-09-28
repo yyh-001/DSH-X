@@ -24,6 +24,7 @@ const APP_FILES = [
   'server.js',
   'registry.js',
   'settings.js',
+  'proxy.js',
   'platform.js',
   'plugins.js',
   'packs.js',

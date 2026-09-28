@@ -84,11 +84,15 @@ import {
   safeDownloadSource,
   safePort,
   safeProfile,
+  safeProxyMode,
+  safeProxyUrl,
   safeArgs,
   safeWebBind,
   saveSettings,
   setAutoStart,
 } from './settings.js'
+// 带代理的 fetch：Node 的全局 fetch 既不看系统代理也不看 HTTP_PROXY，外网请求都走 netFetch
+import { netFetch, proxyEnv, resetProxyCache, resolveProxy } from './proxy.js'
 import { APP_DIR, IS_MAC, IS_WINDOWS, LAUNCHER_NAME, MAC_APP_NAME, NODE_BINARY, appBundle } from './platform.js'
 
 const execFileAsync = promisify(execFile)
@@ -509,7 +513,7 @@ async function downloadSelfUpdate() {
   for (const [index, url] of candidates.entries()) {
     try {
       if (index > 0) pushLog(`直连没成功，改用加速镜像重试：${safeHost(url)}`)
-      const attempt = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(10 * 60 * 1000) })
+      const attempt = await netFetch(url, { redirect: 'follow', signal: AbortSignal.timeout(10 * 60 * 1000) })
       if (!attempt.ok) throw new Error(`HTTP ${attempt.status}`)
       res = attempt
       break
@@ -519,7 +523,7 @@ async function downloadSelfUpdate() {
   }
   if (!res) {
     const hint = UPDATE_SOURCE === 'mirror' ? '' : '；可以在设置页把「更新下载源」改成「国内加速」再试'
-    throw new Error(`下载失败：${lastError?.message || '连不上'}${hint}`)
+    throw new Error(`下载失败：${describeFetchError(lastError, info.url)}${hint}`)
   }
   const total = Number(res.headers.get('content-length') || 0)
   const chunks = []
@@ -792,6 +796,16 @@ async function publicSettings() {
       { id: 'mirror', label: '国内加速（先直连，连不上走镜像）' },
       { id: 'direct', label: '只直连（不用镜像）' },
     ],
+    // 网络代理：模式 + 手动地址 + 「现在实际在用哪个」（探测结果，页面拿它显示提示行）。
+    // 探测不到时 proxyInUse.url 是空的，note/detail 说明原因（socks-only 之类，页面自己翻译）。
+    proxyMode: safeProxyMode(stored.proxyMode),
+    proxyUrl: stored.proxyUrl || '',
+    proxyModes: [
+      { id: 'system', label: '跟随系统' },
+      { id: 'manual', label: '手动填写' },
+      { id: 'off', label: '不走代理' },
+    ],
+    proxyInUse: resolveProxy(stored),
     profile: PROFILE_NAME,
     profiles: listProfiles(),
     // 回显用户填的原文（带引号），不能回显 parse 后的数组，否则含空格的值再存一次就被拆开了
@@ -822,6 +836,8 @@ async function saveManagerSettings(body) {
     ...('args' in body ? { args: safeArgs(body.args) } : {}),
     ...('downloadSource' in body ? { downloadSource: safeDownloadSource(body.downloadSource) } : {}),
     ...('updateSource' in body ? { updateSource: safeUpdateSource(body.updateSource) } : {}),
+    ...('proxyMode' in body ? { proxyMode: safeProxyMode(body.proxyMode) } : {}),
+    ...('proxyUrl' in body ? { proxyUrl: safeProxyUrl(body.proxyUrl) } : {}),
     ...('openMode' in body ? { openMode: safeOpenMode(body.openMode) } : {}),
     ...('systemPath' in body ? { systemPath: body.systemPath === true } : {}),
     ...('dshHome' in body ? { dshHome: safeDshHome(body.dshHome) } : {}),
@@ -851,6 +867,17 @@ async function saveManagerSettings(body) {
     UPDATE_SOURCE = safeUpdateSource(stored.updateSource)
     selfCache = { at: 0, data: null }
     pushLog(`更新下载源改为 ${UPDATE_SOURCE === 'mirror' ? '国内加速' : '直连 GitHub'}`)
+  }
+  if ('proxyMode' in body || 'proxyUrl' in body) {
+    // 探测结果有缓存，改了设置要立刻重新探一次；请求那侧每次现读设置，不用重启
+    resetProxyCache()
+    const inUse = resolveProxy(stored)
+    const why = inUse.note === 'socks' ? `（系统里只有 socks 代理 ${inUse.detail}）`
+      : inUse.note === 'bad-url' ? '（地址认不出来）'
+        : ''
+    pushLog(inUse.url
+      ? `网络代理：${inUse.url}（${inUse.mode === 'manual' ? '手动填写' : '跟随系统'}）`
+      : `网络代理：${inUse.mode === 'off' ? '不走代理，全部直连' : `没找到可用的代理，按直连走${why}`}`)
   }
   if ('openMode' in body) {
     OPEN_MODE = safeOpenMode(stored.openMode)
@@ -931,6 +958,9 @@ export function dshEnv(version) {
     // 配置解析（多数机器上就是 npm 官方默认源），于是「检查更新」看的是设置里的源、真正装包
     // 却走另一个源。传下去之后全链路一致：选了哪个源，查版本、下 dsh、装插件都走它。
     npm_config_registry: currentRegistry(),
+    // 代理同理传下去：dsh 自己跑 pnpm 装插件、agent 在 shell 里跑 git/curl，认的都是这几个
+    // 环境变量（NO_PROXY 里带着回环，本机服务不受影响）。设置成「不走代理」时这里是空的。
+    ...proxyEnv(),
     // 末尾追加两个目录：先是启动器写的 dsh shim（node 写死成启动器自己的），再是版本自己的
     // .bin（里面有 cordis 之类的入口）。追加不插队 —— 用户自己的 dsh 仍然优先。
     PATH: withVersionBin(withBundledRuntime(process.env.PATH || ''), join(DATA, '.bin'), versionBinDir(version)),
@@ -1395,7 +1425,7 @@ async function checkSelfUpdate() {
     if (!latest) {
       // 连不上 GitHub 时别一声不吭：用户会以为「一直没有新版本」
       if (UPDATE_SOURCE !== 'mirror') {
-        pushLog('[更新] 检查更新失败（连不上 GitHub）；设置页可把「更新下载源」改成「国内加速」再试')
+        pushLog(`[更新] 检查更新失败（连不上 GitHub）；设置页可把「更新下载源」改成「国内加速」再试${proxyHint()}`)
       } else {
         pushLog('[更新] 检查更新失败：直连和加速镜像都没取到版本号')
       }
@@ -1418,7 +1448,7 @@ async function fetchLatestTag() {
   // 版本检查也走下载源：国内直连 api.github.com 常常超时或撞限流，选了「国内加速」就带镜像前缀
   for (const url of updateUrlCandidates(apiUrl, UPDATE_SOURCE)) {
     try {
-      const res = await fetch(url, {
+      const res = await netFetch(url, {
         headers: {
           accept: 'application/vnd.github+json',
           'user-agent': 'dsh-launcher',
@@ -1432,7 +1462,7 @@ async function fetchLatestTag() {
   }
   for (const url of updateUrlCandidates(pageUrl, UPDATE_SOURCE)) {
     try {
-      const page = await fetch(url, {
+      const page = await netFetch(url, {
         headers: { 'user-agent': 'dsh-launcher' },
         redirect: 'follow',
       })
@@ -1567,7 +1597,7 @@ async function releaseFeed(kind) {
   if (!url) return []
   const hit = feedCache.get(kind)
   if (hit && Date.now() - hit.at < FEED_TTL_MS) return hit.entries
-  const res = await fetch(url, { headers: { 'user-agent': 'dsh-launcher' } })
+  const res = await netFetch(url, { headers: { 'user-agent': 'dsh-launcher' } })
   if (!res.ok) throw new Error(`release feed ${res.status}`)
   const xml = await res.text()
   const entries = []
@@ -2115,6 +2145,11 @@ function packsPayload() {
  * 所以这里把域名、原因和出路都写进错误里，页面直接显示给用户看。
  */
 function describeFetchError(error, url = '') {
+  // 代理和直连都没通（proxy.js 拼的错误）：代理那头也按同一套词汇表讲一遍，
+  // 否则「走代理没通」这句会被下面的 ECONNRESET 分支吃掉，用户根本看不到
+  if (error?.proxyError) {
+    return `走代理没通（${describeFetchError(error.proxyError, error.proxyUrl || '')}），直连也没通`
+  }
   const cause = error?.cause
   const code = String(cause?.code || cause?.errno || '').toUpperCase()
   const causeMessage = String(cause?.message || '')
@@ -2138,6 +2173,39 @@ function describeFetchError(error, url = '') {
   return `${host ? `${host}：` : ''}${detail}${code ? `（${code}）` : ''}`
 }
 
+/**
+ * 连不上时的第二条出路：现在是不是在走代理、走的哪个。
+ * 代理开着却连不上，第一件该看的就是它——比「换下载源」更可能是原因（见 proxy.js 开头）。
+ */
+function proxyHint() {
+  const proxy = resolveProxy()
+  return proxy.url ? `；也可以看设置页的「网络代理」（现在走 ${proxy.url}），或先选「不走代理」试试` : ''
+}
+
+/**
+ * 网络自检：按当前设置（含代理）去打一次下载源的 /-/ping。
+ * 这是给「连不上但不知道为什么」准备的一步：通了说明版本列表也拉得动；不通就把
+ * describeFetchError 的说法原样带回来，页面直接显示。
+ */
+async function testNetwork() {
+  const url = `${currentRegistry()}/-/ping`
+  const proxy = resolveProxy(await loadSettings())
+  try {
+    const res = await netFetch(url, { signal: AbortSignal.timeout(20_000) })
+    // 代理失败但直连兜住了，也要如实说出来：否则「代理填错了、直连能通」看起来一切正常
+    const proxyError = res.proxyError || ''
+    if (!res.ok) return { ok: false, url, via: res.viaProxy, proxy: proxy.url, proxyError, detail: `HTTP ${res.status}` }
+    // 读掉响应体：握手/取数据阶段的失败（代理隧道断在半路）到这里才暴露
+    await res.text()
+    return { ok: true, url, via: res.viaProxy, proxy: proxy.url, proxyError, detail: '' }
+  } catch (error) {
+    const detail = error?.name === 'AbortError' || error?.name === 'TimeoutError'
+      ? '20 秒没回应（超时）'
+      : describeFetchError(error, url)
+    return { ok: false, url, via: '', proxy: proxy.url, proxyError: '', detail }
+  }
+}
+
 /** 下载上限：整合包只装清单与配置，超过这个量级的多半不是包（也免得把内存吃光）。 */
 const PACK_DOWNLOAD_LIMIT = 64 * 1024 * 1024
 
@@ -2147,7 +2215,7 @@ async function downloadToFile(url, dest, { sha256 = '', log = pushLog, onProgres
   for (const candidate of candidates) {
     try {
       log(`下载 ${candidate}`)
-      const res = await fetch(candidate, { redirect: 'follow' })
+      const res = await netFetch(candidate, { redirect: 'follow' })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const total = Number(res.headers.get('content-length')) || 0
       if (total > PACK_DOWNLOAD_LIMIT) throw new Error(`文件太大（${Math.round(total / 1048576)} MB，上限 ${PACK_DOWNLOAD_LIMIT / 1048576} MB）`)
@@ -2178,7 +2246,7 @@ async function downloadToFile(url, dest, { sha256 = '', log = pushLog, onProgres
   // 直连 GitHub 在国内基本拿不到 release 资产，而「更新下载源」默认是直连——
   // 失败时把出路写进错误里（和启动器自更新那句同样的写法），否则用户只看到「下载失败」
   const hint = UPDATE_SOURCE === 'mirror' ? '' : '；如果直连 GitHub 不通，可以在设置页把「更新下载源」改成「国内加速」再试'
-  throw new Error(`下载失败：${describeFetchError(last, url)}${hint}`)
+  throw new Error(`下载失败：${describeFetchError(last, url)}${proxyHint()}${hint}`)
 }
 
 /** GitHub 接口的确定性回答：这类错误换镜像也没用，直接报出来。 */
@@ -2197,7 +2265,7 @@ async function resolveGithubPack(repo, ref, log = pushLog) {
   let last = null
   for (const candidate of updateUrlCandidates(api, UPDATE_SOURCE)) {
     try {
-      const res = await fetch(candidate, { headers: { accept: 'application/vnd.github+json', 'user-agent': 'dsh-x' } })
+      const res = await netFetch(candidate, { headers: { accept: 'application/vnd.github+json', 'user-agent': 'dsh-x' } })
       if (res.status === 404) throw new Error(ref ? `找不到 ${clean} 的 ${ref} 这个发布` : `${clean} 还没有发布过 release`)
       if (res.status === 403 || res.status === 429) {
         throw new Error('GitHub 接口限流了（匿名每小时 60 次）：过一会儿再试，或者直接把 release 里的 .dspack 链接贴进来')
@@ -2250,7 +2318,7 @@ async function marketEntries({ force = false } = {}) {
   let last = null
   for (const candidate of updateUrlCandidates(url, UPDATE_SOURCE)) {
     try {
-      const res = await fetch(candidate, { headers: { 'user-agent': 'dsh-x' } })
+      const res = await netFetch(candidate, { headers: { 'user-agent': 'dsh-x' } })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const index = await res.json()
       const list = Array.isArray(index?.modpacks) ? index.modpacks
@@ -3181,7 +3249,7 @@ function probeTimeout(value) {
  * 那是启动器给 dsh 自己挂的加载钩子，塞给被测的 MCP 程序只会添乱。
  */
 function probeEnv() {
-  const env = { ...process.env, PATH: withBundledRuntime(process.env.PATH || '') }
+  const env = { ...process.env, ...proxyEnv(), PATH: withBundledRuntime(process.env.PATH || '') }
   delete env.NODE_OPTIONS
   return env
 }
@@ -3408,6 +3476,10 @@ async function handleApi(req, res, url) {
   }
   if (req.method === 'POST' && url.pathname === '/api/settings') {
     send(res, 200, await saveManagerSettings(body))
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/proxy/test') {
+    send(res, 200, await testNetwork())
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/plugins/toggle') {
