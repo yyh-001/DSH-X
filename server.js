@@ -1265,8 +1265,21 @@ async function testSyncConnection() {
   return info
 }
 
-/** dsh 启动参数。 */
+/**
+ * dsh 启动参数。
+ *
+ * 注意：`--host` / `--port` / `--no-open` 是 web 应用（HTTP 服务）的参数，
+ * headless / tui 等不提供 HTTP 服务的 profile 不认这些参数——它们被透传到对应
+ * app 后会被 app 自己的 commander 以 `unknown option` 打回、exit 1（实测
+ * `dsh headless --no-open` 直接报 unknown option）。所以这几个参数只对 web
+ * profile 注入；其余 profile 只给 profile 名，避免误伤：
+ *   - web + loopback：钉死回环 + 让 OS 挑端口（端口冲突顺延由 dsh 输出，启动器读真实地址）
+ *   - web + lan：不注入 host/port，绑定交给配置层；--no-open 仍保留，避免自动开浏览器
+ */
 function bootArgs() {
+  if (PROFILE_NAME !== 'web') {
+    return [PROFILE_NAME, ...EXTRA_ARGS]
+  }
   if (lanBindActive()) {
     // 局域网：--host/--port 一个都不传。CLI 硬禁 --host 0.0.0.0，绑定只能走配置层
     // （远程插件的 lan-bind 开关写进 profile 补丁的 webserver 块）；--port 0 也一样
