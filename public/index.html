@@ -737,6 +737,19 @@
     #syncDetail { display: grid; gap: 5px; font-size: 12px; }
     #syncDetail div::before { content: '· '; }
     .hint a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+    /* 在跑的实例（多开）：一行一个。没有实例时整块收起来（见 paintInstances） */
+    .instances { margin-top: 14px; border-top: 1px solid var(--line); }
+    .instances[hidden] { display: none; }
+    .instances-title { display: block; color: var(--muted); font-size: 12px; letter-spacing: 0.08em; margin: 11px 0 2px; }
+    .instance-row { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+    .instance-row:last-child { border-bottom: 0; }
+    .instance-main { flex: 1 1 auto; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+    .instance-head { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+    .instance-name { color: var(--text); font-weight: 600; font-size: 14px; letter-spacing: 0; white-space: nowrap; }
+    .instance-profile { color: var(--muted); font-weight: 500; font-size: 12.5px; white-space: nowrap; }
+    .instance-state { flex: 0 0 auto; color: var(--muted); font-size: 11.5px; }
+    .instance-url { color: var(--muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .instance-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
     #pane-settings .hint:empty { display: none; }
     #settingsHint:not(:empty) { padding: 5px 10px; background: rgba(255, 255, 255, 0.92); border-radius: 8px; }
     .progress {
@@ -1378,6 +1391,11 @@
           </div>
         </div>
         <p class="hint" id="hint" data-i18n="插件和数据在用户目录的 .dsh。">插件和数据在用户目录的 .dsh。</p>
+        <!-- 多开的实例列表：一个一行，各自能打开/停止（空的时候整块收起来，见 paintInstances） -->
+        <div class="instances" id="instances" hidden>
+          <span class="instances-title" data-i18n="在跑的实例">在跑的实例</span>
+          <div id="instancesList"></div>
+        </div>
         <div class="progress" id="progress" hidden>
           <div class="progress-bar" id="progress-bar"></div>
         </div>
@@ -1720,6 +1738,13 @@
                     <span class="set-desc" data-i18n="启动失败时自动禁用出问题的插件再试一次，免得 dsh 起不来。">启动失败时自动禁用出问题的插件再试一次，免得 dsh 起不来。</span>
                   </span>
                   <input id="autoDisable" type="checkbox" />
+                </label>
+                <label class="toggle set-row">
+                  <span class="set-text">
+                    <span class="set-name" data-i18n="自动清理旧版本">自动清理旧版本</span>
+                    <span class="set-desc" data-i18n="装完新版本后删掉更旧的，只留最新的和最近装的一个（正在运行的除外）。关掉就全部留着——回退时想退到哪个版本都在，代价是每个版本要占几百 MB。">装完新版本后删掉更旧的，只留最新的和最近装的一个（正在运行的除外）。关掉就全部留着——回退时想退到哪个版本都在，代价是每个版本要占几百 MB。</span>
+                  </span>
+                  <input id="autoCleanVersions" type="checkbox" />
                 </label>
                 <div class="set-row stacked">
                   <div class="set-text">
@@ -2278,6 +2303,8 @@
   "DSH-X 已退出": "DSH-X has exited",
   "卸载": "Uninstall",
   "停止": "Stop",
+  "打开": "Open",
+  "在跑的实例": "Running instances",
   "重试": "Retry",
   "最新": "Latest",
   "已装": "Installed",
@@ -2478,7 +2505,9 @@
   "连接正常。": "Connection is fine.",
   "连接失败：{error}": "Connection failed: {error}",
   "正在上传…": "Uploading…",
-  "正在停下来，做完手上这个文件就收手…": "Stopping — it will finish the file it is on and then stop…"
+  "正在停下来，做完手上这个文件就收手…": "Stopping — it will finish the file it is on and then stop…",
+  "自动清理旧版本": "Prune old versions",
+  "装完新版本后删掉更旧的，只留最新的和最近装的一个（正在运行的除外）。关掉就全部留着——回退时想退到哪个版本都在，代价是每个版本要占几百 MB。": "After installing a new version, delete the older ones and keep only the newest and the most recently installed (never one that is running). Turn this off to keep them all — any version stays available to roll back to, at a few hundred MB each."
 }
 
     function t(zh, vars) {
@@ -2520,6 +2549,8 @@
     const versionTriggerEl = document.getElementById('versionTrigger')
     const versionValueEl = document.getElementById('versionValue')
     const versionPanelEl = document.getElementById('versionPanel')
+    const instancesEl = document.getElementById('instances')
+    const instancesListEl = document.getElementById('instancesList')
     let versionOptions = []      // [{ value, text, badge?, more? }]
     let versionValue = ''
     let versionDisabled = false
@@ -3083,7 +3114,17 @@
       return true
     }
 
-    function runningInfo() {
+    /**
+     * 状态里的实例信息。给了版本就只认这个版本的实例——多开时别的版本也在跑，
+     * 主按钮得看「我选的这个在不在跑」，不能被旁边那个带偏；不给版本（自动选版本、
+     * 打开 DSH 这类只认一个地址的地方）就用服务端给的 running（最近起来的那个）。
+     */
+    function runningInfo(version = '') {
+      if (version) {
+        const mine = (state.instances || []).find((item) => item && item.version === version
+          && (item.status === 'running' || item.status === 'starting'))
+        if (mine) return mine
+      }
       if (state.running && state.running.version) return state.running
       const row = (state.versions || []).find((item) => item && (item.status === 'running' || item.status === 'starting'))
       return row ? { version: row.version, status: row.status, url: row.url } : null
@@ -3179,6 +3220,68 @@
       return versionValue || preferredPick()
     }
 
+    /** 打开一个地址：交给服务端按「打开方式」办（内嵌窗口 / 应用窗口 / 标签页）。 */
+    async function openInstance(url) {
+      if (!url) return
+      try {
+        await post('/api/open', { url })
+      } catch {
+        window.open(url, '_blank', 'noopener')
+      }
+    }
+
+    /**
+     * 在跑的实例：一行一个，各自能打开、能单独停。
+     * 只要有一个实例在跑就列出来（不是只在多开时才出现）——选中另一个版本时，
+     * 这栏是唯一能看到"还有东西在跑"的地方。
+     */
+    function paintInstances() {
+      const list = state.instances || []
+      const show = list.length > 0
+      instancesEl.hidden = !show
+      if (!show) {
+        instancesListEl.innerHTML = ''
+        return
+      }
+      instancesListEl.innerHTML = list.map((item) => {
+        const busy = item.status === 'starting' || item.status === 'stopping'
+        const stateText = item.status === 'starting' ? t('启动中') : item.status === 'stopping' ? t('停止中') : ''
+        const url = item.url || ''
+        return `<div class="instance-row">
+          <span class="instance-main">
+            <span class="instance-head">
+              <span class="instance-name">${escapeHtml(item.version)}</span>
+              ${item.profile ? `<span class="instance-profile">${escapeHtml(item.profile)} profile</span>` : ''}
+              ${stateText ? `<span class="instance-state">${escapeHtml(stateText)}</span>` : ''}
+            </span>
+            <span class="instance-url" title="${escapeHtml(url)}">${escapeHtml(url)}</span>
+          </span>
+          <span class="instance-actions">
+            <button class="ghost" type="button" data-open="${escapeHtml(item.version)}" ${item.status === 'running' && url ? '' : 'disabled'}>${escapeHtml(t('打开'))}</button>
+            <button class="ghost" type="button" data-stop="${escapeHtml(item.version)}" ${busy ? 'disabled' : ''}>${escapeHtml(t('停止'))}</button>
+          </span>
+        </div>`
+      }).join('')
+      instancesListEl.querySelectorAll('button[data-open]').forEach((el) => {
+        el.onclick = () => {
+          const item = (state.instances || []).find((row) => row.version === el.dataset.open)
+          void openInstance(item?.url)
+        }
+      })
+      instancesListEl.querySelectorAll('button[data-stop]').forEach((el) => {
+        el.onclick = async () => {
+          el.disabled = true
+          try {
+            await post('/api/stop', { version: el.dataset.stop })
+          } catch (error) {
+            notify(error.message)
+          } finally {
+            render()
+          }
+        }
+      })
+    }
+
     function render() {
       const have = new Set(installedList())
       const allVersions = allVersionList()
@@ -3202,9 +3305,10 @@
       if (versionOpen) paintVersionPanel()
 
       const version = versionValue
-      const running = runningInfo()
+      const running = runningInfo(version)
       const thisRun = Boolean(running && running.version === version)
-      const live = Boolean(running && (running.status === 'running' || running.status === 'starting'))
+      // 「这个版本在跑」而不是「有实例在跑」：多开时旁边那个在跑，不妨碍我选别的版本再起一个
+      const live = Boolean(thisRun && (running.status === 'running' || running.status === 'starting'))
       const updating = action === 'update' || Boolean(latest && state.installing === latest && version !== latest)
       const installing = state.installing === version || action === 'install' || updating
       const starting = (thisRun && running.status === 'starting') || action === 'start'
@@ -3222,7 +3326,9 @@
       removeEl.hidden = !have.has(version) || live || (loading && !uninstalling)
       removeEl.disabled = loading
       removeEl.classList.toggle('loading', uninstalling)
-      versionDisabled = loading || live
+      // 多开之后跑着的时候也能往下拉里切：切到另一个版本点启动，就是在旁边再起一个，
+      // 不必先把这个停掉（从前这条是禁用的，那正是「同时只跑一个版本」的旧约束）
+      versionDisabled = loading
       if (versionDisabled) closeVersionPanel()
       paintVersionTrigger()
       mainEl.hidden = updating || uninstalling
@@ -3230,6 +3336,7 @@
       mainEl.classList.toggle('loading', loading && !updating && !uninstalling)
       setProgress(installing)
       setPluginProgress(Boolean(pluginProgress))
+      paintInstances()
 
       if (updating) {
         hintEl.textContent = progressHint(`正在更新到 ${latest}`)
@@ -3316,13 +3423,7 @@
         action = 'start'
         render()
         const data = await post('/api/start', { version })
-        if (data.url) {
-          try {
-            await post('/api/open', { url: data.url })
-          } catch {
-            window.open(data.url, '_blank', 'noopener')
-          }
-        }
+        if (data.url) await openInstance(data.url)
       } finally {
         action = ''
         render()
@@ -3332,7 +3433,7 @@
     mainEl.onclick = async () => {
       const version = selected()
       if (!version) return
-      const running = runningInfo()
+      const running = runningInfo(version)
       if (running && running.version === version && (running.status === 'running' || running.status === 'starting')) {
         action = 'stop'
         render()
@@ -3368,7 +3469,8 @@
     }
     /** 升级到最新版：正在跑就先停掉，装完再按原样拉起来。 */
     async function updateToLatest(latest) {
-      const running = runningInfo()
+      // 升级的是「下拉里选中的那个版本」：只停它自己的实例，旁边多开的实例不动
+      const running = runningInfo(versionValue || selected())
       const wasLive = Boolean(running && (running.status === 'running' || running.status === 'starting'))
       try {
         if (wasLive) {
@@ -3493,6 +3595,7 @@
         installing: data.installing ?? null,
         installed,
         versions: data.versions,
+        instances: Array.isArray(data.instances) ? data.instances : [],
         running,
         autoFix: data.autoFix ?? null,
         health: data.health ?? null,
@@ -3529,7 +3632,7 @@
       events.addEventListener('message', (event) => {
         try {
           const data = JSON.parse(event.data)
-          if (data && (data.installed || data.versions || data.running)) applyState(data)
+          if (data && (data.installed || data.versions || data.instances || data.running)) applyState(data)
         } catch {
           // ignore non-state messages
         }
@@ -3854,6 +3957,7 @@
     const autoStartEl = document.getElementById('autoStart')
     const seedMarketEl = document.getElementById('seedMarket')
     const autoDisableEl = document.getElementById('autoDisable')
+    const autoCleanEl = document.getElementById('autoCleanVersions')
     const profileEl = document.getElementById('profile')
     const portEl = document.getElementById('port')
     const portHint = document.getElementById('portHint')
@@ -4042,6 +4146,7 @@
       if ('autoStart' in data) autoStartEl.checked = Boolean(data.autoStart)
       if ('seedMarket' in data) seedMarketEl.checked = data.seedMarket !== false
       if ('autoDisablePlugins' in data) autoDisableEl.checked = data.autoDisablePlugins !== false
+      if ('autoCleanVersions' in data) autoCleanEl.checked = data.autoCleanVersions !== false
       syncUiSelects()
     }
 
@@ -4173,6 +4278,7 @@
     autoStartEl.onchange = () => queueSetting('autoStart', autoStartEl.checked)
     seedMarketEl.onchange = () => queueSetting('seedMarket', seedMarketEl.checked)
     autoDisableEl.onchange = () => queueSetting('autoDisablePlugins', autoDisableEl.checked)
+    autoCleanEl.onchange = () => queueSetting('autoCleanVersions', autoCleanEl.checked)
     uiLangEl.onchange = () => queueSetting('lang', uiLangEl.value)
     sourceEl.onchange = () => {
       // 提示行跟着换；设置交给自动保存，切完下一次查版本/下载就走新源

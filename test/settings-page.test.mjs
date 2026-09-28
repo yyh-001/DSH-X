@@ -98,6 +98,35 @@ test('改过目录的保存提示说明立即生效和不迁移', () => {
   )
 })
 
+test('自动清理旧版本：开关在 dsh 那组里，改动即保存，读设置时回显', () => {
+  // 装完新版删掉更旧的是默认行为（老设置文件里没这个键也是这个行为），
+  // 开关只是把它变成可选：关掉就一个都不删
+  assert.match(
+    html,
+    /id="autoDisable"[\s\S]{0,600}?<input id="autoCleanVersions" type="checkbox" \/>[\s\S]{0,1400}?id="args"/,
+    '开关跟在兼容模式后面，额外启动参数仍收在组尾',
+  )
+  assert.match(html, /data-i18n="自动清理旧版本"/, '标题走静态文案那条线')
+  assert.match(
+    html,
+    /if \('autoCleanVersions' in data\) autoCleanEl\.checked = data\.autoCleanVersions !== false/,
+    '缺省当开着，只有 false 才显示成关',
+  )
+  assert.match(html, /queueSetting\('autoCleanVersions', autoCleanEl\.checked\)/, '改动即保存')
+  // 服务端三处都得认这个键：读出来给页面、写回去、默认值
+  const server = readFileSync(fileURLToPath(new URL('../server.js', import.meta.url)), 'utf8')
+  const settings = readFileSync(fileURLToPath(new URL('../settings.js', import.meta.url)), 'utf8')
+  assert.match(server, /autoCleanVersions: autoCleanEnabled\(stored\)/, '读设置时交给页面')
+  assert.match(server, /'autoCleanVersions' in body \? \{ autoCleanVersions: body\.autoCleanVersions !== false \}/, '保存时认这个键')
+  assert.match(settings, /autoCleanVersions: true,/, '默认值在 DEFAULTS 里')
+  assert.match(settings, /merged\.autoCleanVersions = merged\.autoCleanVersions !== false/, '存盘时归一成布尔')
+  // 英文也要有，否则界面切成英文这里还是中文
+  const dict = new vm.Script(`(${html.match(/const EN = (\{[\s\S]*?\n\})/)[1]})`).runInNewContext()
+  for (const key of ['自动清理旧版本', '装完新版本后删掉更旧的，只留最新的和最近装的一个（正在运行的除外）。关掉就全部留着——回退时想退到哪个版本都在，代价是每个版本要占几百 MB。']) {
+    assert.ok(dict[key], `「${key.slice(0, 12)}…」有英文`)
+  }
+})
+
 test('内联脚本仍能解析', () => {
   // 只编译不运行：语法坏了这里就炸，运行时的行为靠上面的结构断言看住
   for (const script of inlineScripts()) new vm.Script(script)

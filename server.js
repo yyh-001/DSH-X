@@ -183,7 +183,14 @@ let host = {
   onWake: async () => {},
 }
 const logs = []
-let current = null
+/**
+ * 正在跑的 dsh 实例，一个版本一个（多开）。
+ *
+ * 端口不用抢：启动器给 dsh 传 `--port 0`，由系统各挑一个，从 dsh 自己打印的地址里读回来。
+ * 数据是共享的——同一个 DSH_HOME、同一份 profile，多开的两个实例看见同一批会话与插件，
+ * 这正是「换个版本跑」想要的样子；同一个版本再点一次启动只会拿回已经在跑的那个。
+ */
+const instances = new Map()
 let installing = null
 let installProgress = null
 // 插件安装/升级的进度（走 dsh 内部的 pnpm，解析方式和 npm 不同，页面按 kind 分给不同的进度条）
@@ -335,25 +342,41 @@ const KEEP_VERSIONS = 2
  * 装完新版后该留哪几个：刚装的那个 + 版本号最高的，正在跑的一定留。
  * `versions[0]` 是 install() 刚插到最前面的那个，**不是**「版本号最高的那个」——
  * 用户可以挑一个旧版本装。只按位置取前两个的话，装旧版就会把最新版删掉。
+ * `running` 收多开的全部实例（历史调用传单个版本号，一起认）。
  */
-export function versionsToKeep(versions, currentVersion, limit = KEEP_VERSIONS) {
+export function versionsToKeep(versions, running, limit = KEEP_VERSIONS) {
   if (!versions.length) return new Set()
   const [installed, ...rest] = versions
   const ranked = [...rest].sort((a, b) =>
     cmpVer(parseVer(b) ?? parseVer('0'), parseVer(a) ?? parseVer('0')))
   const keep = new Set([installed, ...ranked.slice(0, Math.max(0, limit - 1))])
-  if (currentVersion) keep.add(currentVersion)
+  for (const version of [running ?? []].flat()) {
+    if (version) keep.add(version)
+  }
   return keep
 }
 
 /**
+ * 自动清理旧版本：设置里默认开着，只有显式关掉才不清理
+ * （老配置文件里没这个键 = 开着，行为跟以前一样）。
+ */
+export function autoCleanEnabled(settings) {
+  return settings?.autoCleanVersions !== false
+}
+
+/**
  * 装完新版后清理旧版本：只留最新的和上一个，正在运行的除外。
+ * 设置里关掉「自动清理旧版本」后一个都不删。
  * @returns 被清理掉的版本号
  */
 async function pruneVersions(config) {
   const versions = listedVersions(config)
   if (versions.length <= KEEP_VERSIONS) return []
-  const keep = versionsToKeep(versions, current?.version)
+  if (!autoCleanEnabled(await loadSettings())) {
+    pushLog(`自动清理旧版本已关闭，${versions.length} 个已装版本全部保留`)
+    return []
+  }
+  const keep = versionsToKeep(versions, instanceList().map((proc) => proc.version))
   const removed = []
   for (const version of versions) {
     if (keep.has(version)) continue
@@ -728,21 +751,62 @@ export function notifyShutdown() {
   })
 }
 
+/** 所有实例（含正在起 / 正在停的），按启动先后。 */
+function instanceList() {
+  return [...instances.values()]
+}
+
+/** 说得上「在跑」的实例：起来中或已经跑起来（正在停的不算）。 */
+function liveInstanceList() {
+  return instanceList().filter((proc) => proc.status === 'running' || proc.status === 'starting')
+}
+
+/** 一个实例对外的那一份（页面、托盘都读这个形状）。 */
+function instanceInfo(proc) {
+  return {
+    version: proc.version,
+    profile: proc.profile,
+    status: proc.status,
+    url: proc.url,
+    startedAt: proc.startedAt,
+  }
+}
+
+/**
+ * 只认一个地址的地方（托盘、原生外壳窗口、/api/tray）读这个：最近起来的那个在跑的实例；
+ * 一个都没在跑就退回最近的那个。
+ */
+function primaryInstance() {
+  const live = liveInstanceList()
+  return live[live.length - 1] || instanceList().at(-1) || null
+}
+
 async function snapshot() {
   const config = await loadConfig()
   const installed = listedVersions(config)
+  const all = instanceList()
   return {
     installing,
     installed,
-    versions: installed.map((version) => ({
-      version,
-      managed: isManaged(version),
-      status: current?.version === version ? current.status : 'stopped',
-      url: current?.version === version ? current.url : null,
-    })),
-    running: current
-      ? { version: current.version, status: current.status, url: current.url }
-      : null,
+    instances: all.map(instanceInfo),
+    versions: installed.map((version) => {
+      // 同一个版本的实例可能不止一个（多开下只会有一个，聚合起来更稳）：跑着的优先，
+      // 地址给第一个跑起来的那个
+      const procs = all.filter((proc) => proc.version === version)
+      const live = procs.find((proc) => proc.status === 'running' || proc.status === 'starting')
+      const chosen = live || procs[0]
+      return {
+        version,
+        managed: isManaged(version),
+        status: chosen ? chosen.status : 'stopped',
+        url: chosen?.url ?? null,
+      }
+    }),
+    // 只认一个地址的老地方（托盘、外壳窗口）读 running：多开时它是最近起来的那个在跑的实例
+    running: (() => {
+      const proc = primaryInstance()
+      return proc ? { version: proc.version, status: proc.status, url: proc.url } : null
+    })(),
     autoFix: lastAutoFix,
     health: lastHealth,
     dataDir: DATA,
@@ -776,6 +840,7 @@ async function publicSettings() {
     autoStart: await autoStartEnabled(),
     seedMarket: stored.seedMarket !== false,
     autoDisablePlugins: stored.autoDisablePlugins !== false,
+    autoCleanVersions: autoCleanEnabled(stored),
     downloadSource: safeDownloadSource(stored.downloadSource),
     downloadSources: [
       { id: 'mirror', label: '镜像源' },
@@ -825,7 +890,7 @@ async function publicSettings() {
 async function saveManagerSettings(body) {
   if (body.dataDir) {
     const dir = safeDataDir(body.dataDir)
-    if (dir !== DATA && current) throw new Error('请先停止再改版本目录')
+    if (dir !== DATA && instances.size) throw new Error('请先停止再改版本目录')
     if (installing) throw new Error('正在安装，稍后再改版本目录')
     await applyDataDir(dir)
   }
@@ -851,6 +916,7 @@ async function saveManagerSettings(body) {
     ...('autoStart' in body ? { autoStart: Boolean(body.autoStart) } : {}),
     ...('seedMarket' in body ? { seedMarket: body.seedMarket !== false } : {}),
     ...('autoDisablePlugins' in body ? { autoDisablePlugins: body.autoDisablePlugins !== false } : {}),
+    ...('autoCleanVersions' in body ? { autoCleanVersions: body.autoCleanVersions !== false } : {}),
   })
   if ('autoStart' in body) {
     try {
@@ -902,6 +968,11 @@ async function saveManagerSettings(body) {
       DSH_HOME_DIR = next
       pushLog(`dsh 用户目录改为 ${home}${next ? '' : '（默认位置）'}；重启 dsh 后生效`)
     }
+  }
+  if ('autoCleanVersions' in body) {
+    pushLog(stored.autoCleanVersions
+      ? '装新版本后自动清理旧版本'
+      : '不再自动清理旧版本（已装版本全部保留）')
   }
   // profile 立即生效：插件页、启动参数、npmrc 都读这个变量（已经在跑的 dsh 不受影响）
   EXTRA_ARGS = composeExtraArgs(stored.args)
@@ -1262,7 +1333,7 @@ async function runSyncJob(mode, options = {}) {
         emitPluginProgress(null)
       }
     }
-    if (mode === 'down' && current) {
+    if (mode === 'down' && instances.size) {
       summary.notes.push('dsh 正在运行：新拉来的会话和插件要重启 dsh 才生效')
     }
     pushLog(`[同步] ${label}完成：上传 ${summary.uploaded} 个、下载 ${summary.downloaded} 个、清单合并 ${summary.merged} 处、跳过 ${summary.skipped} 个${summary.stopped ? '（已停止）' : ''}，用时 ${summary.seconds}s`)
@@ -1296,25 +1367,23 @@ async function testSyncConnection() {
 }
 
 /**
- * dsh 启动参数。
- *
- * 注意：`--host` / `--port` / `--no-open` 是 web 应用（HTTP 服务）的参数，
- * headless / tui 等不提供 HTTP 服务的 profile 不认这些参数——它们被透传到对应
- * app 后会被 app 自己的 commander 以 `unknown option` 打回、exit 1（实测
- * `dsh headless --no-open` 直接报 unknown option）。所以这几个参数只对 web
- * profile 注入；其余 profile 只给 profile 名，避免误伤：
- *   - web + loopback：钉死回环 + 让 OS 挑端口（端口冲突顺延由 dsh 输出，启动器读真实地址）
- *   - web + lan：不注入 host/port，绑定交给配置层；--no-open 仍保留，避免自动开浏览器
+ * dsh 启动参数。`alongside` = 已经有一个实例在跑（多开），局域网下要另给端口。
+ * @param {boolean} alongside
  */
-function bootArgs() {
-  if (PROFILE_NAME !== 'web') {
-    return [PROFILE_NAME, ...EXTRA_ARGS]
-  }
+function bootArgs(alongside = false) {
+  // web 以外的 profile（headless / acp / sdk…）不提供 HTTP 服务，也不认这几个 flag：
+  // 参数是透传给 profile 对应 app 的，会被它自己的 commander 打回 `unknown option`
+  // 并 exit 1（`dsh headless --no-open` 就是这条），所以只对 web 注入
+  if (PROFILE_NAME !== 'web') return [PROFILE_NAME, ...EXTRA_ARGS]
   if (lanBindActive()) {
     // 局域网：--host/--port 一个都不传。CLI 硬禁 --host 0.0.0.0，绑定只能走配置层
     // （远程插件的 lan-bind 开关写进 profile 补丁的 webserver 块）；--port 0 也一样
     // 会压过配置层，把插件钉好的端口抹成随机值，所以一并交给配置层决定。
-    return [PROFILE_NAME, '--no-open', ...EXTRA_ARGS]
+    // 多开是例外：配置层里只有一个端口，第二个实例撞上去就是 EADDRINUSE，
+    // 所以给它一个系统挑的端口（--host 照样不传，绑定仍由配置层说了算）。
+    return alongside
+      ? [PROFILE_NAME, '--port', '0', '--no-open', ...EXTRA_ARGS]
+      : [PROFILE_NAME, '--no-open', ...EXTRA_ARGS]
   }
   // 默认姿势：钉死回环 + 让 OS 挑端口（端口冲突顺延是 dsh 输出的事，启动器读真实地址）。
   // 额外参数放最后：用户可以用它覆盖 --port 之类（启动器是从 dsh 的输出里读真实地址的，
@@ -1839,7 +1908,9 @@ const PLUGIN_UPDATE_CONCURRENCY = 4
 
 /** 跑 dsh plugin 命令用哪个版本：正在跑的优先，其次配置里最新那个装好的。 */
 async function pluginCommandVersion() {
-  if (current?.version) return current.version
+  // 多开时按「最近起来的那个」定：插件命令只认一个版本（profile 是共用的）
+  const live = primaryInstance()
+  if (live?.version) return live.version
   const versions = listedVersions(await loadConfig()).filter((ver) => existsSync(binPath(ver)))
   if (!versions.length) throw new Error('没有可用的 dsh 版本，插件页暂时用不了')
   return versions[0]
@@ -2494,8 +2565,19 @@ function killTree(pid) {
 }
 
 function attachProcess(version, child) {
-  current = { version, child, status: 'starting', url: null, tail: [], exit: null }
-  const proc = current
+  const proc = {
+    version,
+    profile: PROFILE_NAME,
+    child,
+    status: 'starting',
+    url: null,
+    tail: [],
+    exit: null,
+    startedAt: Date.now(),
+  }
+  instances.set(version, proc)
+  // 一个版本一个实例，日志里要能看出是哪一行是哪台在说话（多开时尤其）
+  const tag = `[${version}] `
   const onChunk = (buf) => {
     const text = buf.toString('utf8')
     for (const line of text.split(/\r?\n/)) {
@@ -2503,7 +2585,7 @@ function attachProcess(version, child) {
         proc.tail.push(line)
         if (proc.tail.length > 200) proc.tail.shift()
       }
-      pushLog(line)
+      pushLog(`${tag}${line}`)
       const match = line.match(READY_RE)
       if (match && proc.status === 'starting') {
         proc.url = match[1]
@@ -2516,9 +2598,9 @@ function attachProcess(version, child) {
   child.stderr.on('data', onChunk)
   child.on('exit', (code, signal) => {
     proc.exit = { code, signal }
-    pushLog(`已退出 code=${code ?? '-'} signal=${signal ?? '-'}`)
-    if (current?.child === child) {
-      current = null
+    pushLog(`${tag}已退出 code=${code ?? '-'} signal=${signal ?? '-'}`)
+    if (instances.get(version)?.child === child) {
+      instances.delete(version)
       lastHealth = null
     }
     emitState()
@@ -2530,7 +2612,7 @@ async function waitUntilReady(proc, version) {
   const started = Date.now()
   const label = version
   while (proc.status === 'starting') {
-    if (current !== proc) throw new Error(`${label} 启动失败`)
+    if (instances.get(proc.version) !== proc) throw new Error(`${label} 启动失败`)
     if (Date.now() - started > START_TIMEOUT_MS) {
       killTree(proc.child.pid)
       throw new Error(`${label} 启动超时`)
@@ -2624,8 +2706,9 @@ async function selfCheckPage(url, version) {
 async function bootOnce(ver) {
   await mkdir(homeDir(), { recursive: true })
   await seedMarket(ver)
-  pushLog(`启动 ${ver} · profile ${PROFILE_NAME}${lanBindActive() ? ' · Web 绑定 局域网(0.0.0.0，由配置层决定)' : ''}`)
-  const child = spawnDsh(ver, bootArgs())
+  const alongside = instances.size > 0
+  pushLog(`启动 ${ver} · profile ${PROFILE_NAME}${lanBindActive() ? ' · Web 绑定 局域网(0.0.0.0，由配置层决定)' : ''}${alongside ? '（与已在跑的实例并存）' : ''}`)
+  const child = spawnDsh(ver, bootArgs(alongside))
   const proc = attachProcess(ver, child)
   await emitState()
   try {
@@ -2652,15 +2735,19 @@ async function bootOnce(ver) {
   }
 }
 
+/**
+ * 启动某个版本。多开：已经在跑的那个版本不会被动，新版本在旁边另起一个
+ * （同一个版本重复点启动只会拿回已经在跑的那个）。
+ */
 async function startNow(version) {
   const ver = safeVersion(version)
-  if (current?.version === ver && current.status === 'running' && current.url) {
-    return { url: current.url }
+  const existing = instances.get(ver)
+  if (existing?.status === 'running' && existing.url) {
+    return { url: existing.url }
   }
-  if (current?.version === ver && current.status === 'starting') {
-    return waitUntilReady(current, ver)
+  if (existing?.status === 'starting') {
+    return waitUntilReady(existing, ver)
   }
-  if (current) await stop()
   const config = await loadConfig()
   if (!listedVersions(config).includes(ver)) throw new Error(`${ver} 未安装`)
   if (!existsSync(binPath(ver))) throw new Error('找不到官方入口 lib/bin.js')
@@ -2694,7 +2781,7 @@ async function autoDisableFailedPlugins(error, already) {
   if (settings.autoDisablePlugins === false) return false
   const failure = error?.failure || lastFailure
   // 新版本 dsh 自己扛得住可选插件失败，启动器就别替它做决定（原因见 dshToleratesOptionalFailures）
-  const version = failure?.version || current?.version || ''
+  const version = failure?.version || primaryInstance()?.version || ''
   if (dshToleratesOptionalFailures(version)) {
     pushLog(`[兼容] ${version} 的 dsh 会自己隔离出问题的可选插件，本次不自动禁用；失败原因看它自己的插件页/日志`)
     return false
@@ -2782,12 +2869,13 @@ async function start(version) {
 }
 
 export async function launchInstalled() {
-  if (current?.status === 'running' && current.url) {
-    return { version: current.version, url: current.url }
+  const live = primaryInstance()
+  if (live?.status === 'running' && live.url) {
+    return { version: live.version, url: live.url }
   }
-  if (current?.status === 'starting' && current.version) {
-    const result = await start(current.version)
-    return { version: current.version, url: result.url }
+  if (live?.status === 'starting') {
+    const result = await start(live.version)
+    return { version: live.version, url: result.url }
   }
   const installed = listedVersions(await loadConfig())
   if (!installed.length) return { version: null, url: null }
@@ -2796,14 +2884,26 @@ export async function launchInstalled() {
   return { version, url: result.url }
 }
 
+/**
+ * 重启：多开下把在跑的实例都重启一遍（每个还用它自己的版本），一个都没跑就起一个。
+ * 某个版本起不来不拦着后面的，但错误要往上抛——页面得知道有实例没回来。
+ */
 export async function restartInstalled() {
-  const version = current?.version
-  if (current) await stop()
-  if (version) {
-    const result = await start(version)
-    return { version, url: result.url }
+  const versions = instanceList().map((proc) => proc.version)
+  if (!versions.length) return launchInstalled()
+  await stop()
+  let last = null
+  let failure = null
+  for (const version of versions) {
+    try {
+      const result = await start(version)
+      last = { version, url: result.url }
+    } catch (error) {
+      failure = failure || error
+    }
   }
-  return launchInstalled()
+  if (failure) throw failure
+  return last
 }
 
 export function onState(listener) {
@@ -3170,20 +3270,24 @@ function isLocalHostHeader(host) {
   return !match[2] || Number(match[2]) === PORT
 }
 
-export { pruneDanglingLinks, snapshot, stop }
+export { pruneDanglingLinks, pruneVersions, snapshot, stop }
 
+/**
+ * 停止实例：给了版本就停那个版本，没给就全停（托盘的「停止」是后者）。
+ * 指名了一个没在跑的版本不算错，什么都不做——多开下页面和状态本来就可能差一拍。
+ */
 async function stop(version) {
-  const proc = current
-  if (!proc) return
-  if (typeof version === 'string' && version && VERSION_RE.test(version) && proc.version !== version) {
-    throw new Error(`正在运行的是 ${proc.version}`)
-  }
-  proc.status = 'stopping'
+  const wanted = typeof version === 'string' && version && VERSION_RE.test(version) ? version : ''
+  const targets = wanted ? [instances.get(wanted)].filter(Boolean) : instanceList()
+  if (!targets.length) return
+  for (const proc of targets) proc.status = 'stopping'
   await emitState()
-  const closed = new Promise((resolve) => proc.child.once('close', resolve))
-  killTree(proc.child.pid)
-  await Promise.race([closed, new Promise((resolve) => setTimeout(resolve, 5000))])
-  if (current?.child === proc.child) current = null
+  await Promise.all(targets.map(async (proc) => {
+    const closed = new Promise((resolve) => proc.child.once('close', resolve))
+    killTree(proc.child.pid)
+    await Promise.race([closed, new Promise((resolve) => setTimeout(resolve, 5000))])
+    if (instances.get(proc.version)?.child === proc.child) instances.delete(proc.version)
+  }))
   await emitState()
 }
 
@@ -3213,7 +3317,7 @@ async function uninstallSystem(ver) {
 
 async function uninstall(version) {
   const ver = safeVersion(version)
-  if (current?.version === ver) throw new Error('请先停止再移除')
+  if (instances.has(ver)) throw new Error('请先停止再移除')
   const config = await loadConfig()
   const versions = listedVersions(config)
   if (!versions.includes(ver)) throw new Error(`${ver} 未安装`)
@@ -4130,8 +4234,8 @@ export async function startServer() {
 }
 
 export async function stopAll() {
-  if (current) killTree(current.child.pid)
-  current = null
+  for (const proc of instanceList()) killTree(proc.child.pid)
+  instances.clear()
   for (const res of clients) {
     try { res.end() } catch { /* already gone */ }
   }

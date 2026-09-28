@@ -30,5 +30,5 @@ test('闸门放在禁用之前，并且会说明为什么没动手', () => {
     '用户关掉兼容模式 → 直接退出；否则先过版本闸门，再谈禁用',
   )
   assert.match(server, /会自己隔离出问题的可选插件，本次不自动禁用/, '要在日志里说清为什么没禁用')
-  assert.match(server, /const version = failure\?\.version \|\| current\?\.version \|\| ''/, '版本取失败的或正在跑的那个')
+  assert.match(server, /const version = failure\?\.version \|\| primaryInstance\(\)\?\.version \|\| ''/, '版本取失败的或正在跑的那个')
 })

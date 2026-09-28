@@ -236,6 +236,9 @@ export const DEFAULTS = {
   seedMarket: true,
   // 启动失败时按错误点名自动禁用问题插件（兼容模式），再重试
   autoDisablePlugins: true,
+  // 装完新版本后自动清理更旧的版本（只留最新的和最近装的一个）。
+  // 关掉就全部留着：回退时想退到哪个版本都在，代价是每个版本好几百 MB
+  autoCleanVersions: true,
   // 把 dsh 的 shim 目录写进用户 PATH（HKCU\Environment），让系统里也能直接用 dsh
   systemPath: false,
   // 用户在更新弹窗里点过「不更新」的版本 { dsh?, self? }：同一个版本不再提示
@@ -547,11 +550,6 @@ export async function saveSettings(patch) {
   merged.downloadSource = safeDownloadSource(merged.downloadSource)
   merged.openMode = safeOpenMode(merged.openMode)
   if ('openMode' in patch) merged.openMode = safeOpenMode(patch.openMode)
-  merged.autoStart = Boolean(merged.autoStart)
-  merged.seedMarket = merged.seedMarket !== false
-  merged.autoDisablePlugins = merged.autoDisablePlugins !== false
-  merged.skippedUpdate = normalizeSkippedUpdate(merged.skippedUpdate)
-  // S3 同步：脏值顺手补全（密钥缺失只是「没配好」，不该让保存失败），显式填错才抛
   merged.proxyMode = safeProxyMode(merged.proxyMode)
   if ('proxyMode' in patch) merged.proxyMode = safeProxyMode(patch.proxyMode)
   // 代理地址和端口/profile 同规矩：脏值顺手修回空（当没填），显式填错才把错误抛给页面
@@ -561,6 +559,12 @@ export async function saveSettings(patch) {
     merged.proxyUrl = ''
   }
   if ('proxyUrl' in patch) merged.proxyUrl = safeProxyUrl(patch.proxyUrl)
+  merged.autoStart = Boolean(merged.autoStart)
+  merged.seedMarket = merged.seedMarket !== false
+  merged.autoDisablePlugins = merged.autoDisablePlugins !== false
+  merged.autoCleanVersions = merged.autoCleanVersions !== false
+  merged.skippedUpdate = normalizeSkippedUpdate(merged.skippedUpdate)
+  // S3 同步：脏值顺手补全（密钥缺失只是「没配好」，不该让保存失败），显式填错才抛
   merged.s3 = safeS3Config('s3' in patch ? patch.s3 : merged.s3)
   merged.webdav = safeWebdavConfig('webdav' in patch ? patch.webdav : merged.webdav)
   merged.folder = safeFolderConfig('folder' in patch ? patch.folder : merged.folder)
