@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -46,6 +46,38 @@ test('列表：目录包与平文件都认，frontmatter 按 dsh 的规则校验
     assert.equal(ok.kind, 'flat')
   } finally {
     box.done()
+  }
+})
+
+test('链进来的技能也认（目录软链 / junction），断链只跳过不出错', () => {
+  const box = sandbox()
+  const real = mkdtempSync(join(tmpdir(), 'dsh-skills-real-'))
+  // Windows 上 junction 不需要管理员权限；POSIX 上就是普通目录软链
+  const linkType = process.platform === 'win32' ? 'junction' : 'dir'
+  try {
+    mkdirSync(join(real, 'linked'))
+    const realFile = join(real, 'linked', 'SKILL.md')
+    writeFileSync(realFile, GOOD.replace('my-skill', 'linked-one'))
+    try {
+      symlinkSync(join(real, 'linked'), join(box.dir, 'linked'), linkType)
+      // 目标不存在的链：不能让它把整张列表带崩（Windows 上读悬空 junction 会报 UNKNOWN -4094）
+      symlinkSync(join(real, 'gone'), join(box.dir, 'dangling'), linkType)
+    } catch {
+      console.log('  这台机器建不了链接，跳过')
+      return
+    }
+
+    const skills = listSkills(box.roots)
+    assert.deepEqual(skills.map((item) => item.dirName), ['linked'], '真链要认出来，断链不该冒出来')
+    assert.equal(skills[0].kind, 'dir')
+    assert.equal(skills[0].frontmatterOk, true)
+
+    // 开关要写到链那一头的真文件
+    setSkillEnabled(box.dir, 'linked/SKILL.md', false)
+    assert.match(readFileSync(realFile, 'utf8'), /^disable-model-invocation: true$/m)
+  } finally {
+    try { box.done() } catch { /* 悬空 junction 在 Windows 上可能删不掉，测试用临时目录，留着无妨 */ }
+    try { rmSync(real, { recursive: true, force: true }) } catch { /* 同上 */ }
   }
 })
 

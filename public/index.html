@@ -1259,6 +1259,11 @@
     .mcp-field > span { flex: 0 0 auto; color: var(--muted); }
     .mcp-field input, .mcp-field select { width: 62%; }
     .mcp-field[hidden] { display: none; }
+    #skillList .plugin-desc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    /* MCP 行是 div 不是 label：横向排版和右侧开关都靠 .toggle 那套（和插件行一致） */
+    #mcpList .plugin-row { display: flex; align-items: center; gap: 12px; }
+    #mcpList .plugin-desc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #mcpList .plugin-actions .plugin-update { font-variant-numeric: normal; }
   </style>
   <link rel="stylesheet" href="/mascot.css" />
   <link rel="stylesheet" href="/theme.css" />
@@ -1459,17 +1464,13 @@
                 <button class="ghost" id="skillRefresh" type="button" data-i18n="刷新">刷新</button>
               </div>
             </div>
-            <label class="toggle set-row" id="skillMasterRow">
-              <span class="plugin-main">
-                <span class="plugin-name" data-i18n="强制启用 host 层技能行">强制启用 host 层技能行</span>
-                <span class="plugin-desc" data-i18n="默认由 agent 预设挂载本地技能；这个开关只是往补丁层写覆盖，一般不用动。">默认由 agent 预设挂载本地技能；这个开关只是往补丁层写覆盖，一般不用动。</span>
-              </span>
-              <input type="checkbox" id="skillMaster" />
-            </label>
             <div class="plugin-list" id="skillList"></div>
             <p class="hint" id="skillHint"></p>
           </div>
         </section>
+        <!-- 同步面板暂时从设置页摘下来：导出的活儿改由 dsh 插件（dsh-x-sync）干，启动器这边先不占地方。
+             引擎（sync.js / zipfile.js）、/api/sync* 路由和下面这一整块界面都原样留着，要放回来只需两步：
+             把上面导航里那个 data-pane="sync" 的 .nav-item 补回去，再给 paneLoaders 加回 sync: loadSync。 -->
         <section class="pane" id="pane-sync">
           <div class="pane-inner">
             <div class="pane-top">
@@ -1711,7 +1712,7 @@
                 <div class="set-row">
                   <div class="set-text">
                     <span class="set-name" data-i18n="打开 dsh 的方式">打开 dsh 的方式</span>
-                    <span class="set-desc" data-i18n="浏览器标签页、Chromium 应用窗口（没有地址栏和标签栏），或启动器自己的桌面窗口（完全不经过浏览器）。找不到 Chrome/Edge 时，应用窗口会自动退回标签页。">浏览器标签页、Chromium 应用窗口（没有地址栏和标签栏），或启动器自己的桌面窗口（完全不经过浏览器）。找不到 Chrome/Edge 时，应用窗口会自动退回标签页。</span>
+                    <span class="set-desc" data-i18n="dsh 页面用哪种窗口打开。">dsh 页面用哪种窗口打开。</span>
                     <p class="hint" id="openModeHint"></p>
                   </div>
                   <div class="set-control">
@@ -2187,7 +2188,7 @@
   "当前使用：{path}": "In use: {path}",
   "正在用默认位置：{path}": "Using the default location: {path}",
   "打开 dsh 的方式": "How dsh opens",
-  "浏览器标签页、Chromium 应用窗口（没有地址栏和标签栏），或启动器自己的桌面窗口（完全不经过浏览器）。找不到 Chrome/Edge 时，应用窗口会自动退回标签页。": "A browser tab, a Chromium app window (no address bar, no tab strip), or the launcher's own desktop window (no browser process at all). The app window falls back to a tab when Chrome/Edge is missing.",
+  "dsh 页面用哪种窗口打开。": "Which window the dsh page opens in.",
   "浏览器标签页": "Browser tab",
   "应用窗口": "App window",
   "桌面窗口（内嵌）": "Desktop window (embedded)",
@@ -5340,11 +5341,14 @@
 
     function mcpRow(server) {
       const row = document.createElement('div')
-      row.className = `plugin-row${server.disabled ? ' off' : ''}`
+      // 带 toggle 才会套上开关样式（和插件行、技能行一致），否则是原生单选框
+      row.className = `toggle plugin-row${server.disabled ? ' off' : ''}`
       const main = document.createElement('div')
       main.className = 'plugin-main'
       const head = document.createElement('div')
       head.className = 'plugin-head'
+      const description = server.broken ? (server.error || '条目损坏') : `${server.transport}${server.toolCallTimeoutMs ? ` · 超时 ${server.toolCallTimeoutMs}ms` : ''}`
+      row.title = [server.serverName, server.transport, server.command || server.url || '', description].filter(Boolean).join(' · ')
       const name = document.createElement('span')
       name.className = 'plugin-name'
       name.textContent = server.broken ? `${server.serverName}（条目损坏）` : server.serverName
@@ -5360,12 +5364,12 @@
       actions.className = 'plugin-actions'
       const edit = document.createElement('button')
       edit.type = 'button'
-      edit.className = 'ghost'
+      edit.className = 'plugin-update'
       edit.textContent = t('编辑')
       edit.onclick = () => openMcpDialog(server)
       const remove = document.createElement('button')
       remove.type = 'button'
-      remove.className = 'ghost'
+      remove.className = 'plugin-update'
       remove.textContent = t('删除')
       remove.onclick = async () => {
         remove.disabled = true
@@ -5502,44 +5506,39 @@
     // ---- 技能：~/.dsh/skills 与 ~/.agents/skills ----
     const skillListEl = document.getElementById('skillList')
     const skillHintEl = document.getElementById('skillHint')
-    const skillMasterEl = document.getElementById('skillMaster')
     const skillSubEl = document.getElementById('skillSub')
 
     function skillRow(skill) {
-      const row = document.createElement('div')
-      row.className = `plugin-row${skill.disableModelInvocation ? ' off' : ''}`
-      const main = document.createElement('div')
-      main.className = 'plugin-main'
-      const head = document.createElement('div')
-      head.className = 'plugin-head'
-      const name = document.createElement('span')
-      name.className = 'plugin-name'
-      name.textContent = skill.name || skill.dirName
-      const status = document.createElement('span')
-      status.className = 'plugin-status'
-      status.textContent = `${skill.root === 'agents' ? '.agents' : '.dsh'}${skill.frontmatterOk ? '' : ' · frontmatter 有问题'}`
-      head.append(name, status)
-      const desc = document.createElement('span')
-      desc.className = 'plugin-desc'
-      desc.textContent = skill.frontmatterOk ? (skill.description || '') : (skill.frontmatterIssue || '')
-      main.append(head, desc)
-      const actions = document.createElement('div')
-      actions.className = 'plugin-actions'
-      const toggle = document.createElement('input')
-      toggle.type = 'checkbox'
-      toggle.checked = !skill.disableModelInvocation
-      toggle.disabled = !skill.frontmatterOk
-      toggle.setAttribute('aria-label', t('启用 {name}', { name: skill.name || skill.dirName }))
-      toggle.onchange = async () => {
-        const enabled = toggle.checked
-        toggle.disabled = true
+      // 和插件行同一套结构：整行是一个 label.toggle，右侧开关，中间名字 + 来源 + 一行自述
+      const displayName = skill.name || skill.dirName
+      const title = [displayName, skill.relPath, skill.frontmatterOk ? '' : skill.frontmatterIssue].filter(Boolean).join(' · ')
+      const status = skill.frontmatterOk ? (skill.disableModelInvocation ? t('已停用') : '') : t('frontmatter 有问题')
+      const full = skill.frontmatterOk ? (skill.description || '') : (skill.frontmatterIssue || '')
+      const truncated = full.length > 110 ? `${full.slice(0, 110)}…` : full
+      const row = document.createElement('label')
+      row.className = `toggle plugin-row${skill.disableModelInvocation ? ' off' : ''}`
+      row.title = title
+      row.innerHTML = `<span class="plugin-main">
+          <span class="plugin-head">
+            <span class="plugin-name">${escapeHtml(displayName)}</span>
+            <span class="plugin-version">${escapeHtml(skill.root === 'agents' ? '.agents' : '.dsh')}</span>
+            ${status ? `<span class="plugin-status">${escapeHtml(status)}</span>` : ''}
+          </span>
+          ${truncated ? `<span class="plugin-desc" title="${escapeHtml(full)}">${escapeHtml(truncated)}</span>` : ''}
+        </span>
+        <input type="checkbox" ${skill.disableModelInvocation ? '' : 'checked'} ${skill.frontmatterOk ? '' : 'disabled'} aria-label="${escapeHtml(t('启用 {name}', { name: displayName }))}" />`
+      const input = row.querySelector('input')
+      input.onchange = async () => {
+        const enabled = input.checked
+        input.disabled = true
         try {
-          const data = await post('/api/skills/toggle', { root: skill.root, path: skill.relPath, enabled })
-          renderSkills(data)
-        } catch (error) { skillHintEl.textContent = error.message; toggle.checked = !enabled; toggle.disabled = false }
+          renderSkills(await post('/api/skills/toggle', { root: skill.root, path: skill.relPath, enabled }))
+        } catch (error) {
+          skillHintEl.textContent = error.message
+          input.checked = !enabled
+          input.disabled = false
+        }
       }
-      actions.append(toggle)
-      row.append(main, actions)
       return row
     }
 
@@ -5556,10 +5555,6 @@
       }
       if (data.roots) {
         skillSubEl.textContent = data.roots.map((root) => root.dir).join(' · ')
-      }
-      if (data.localSkills) {
-        skillMasterEl.checked = data.localSkills.enabled === true
-        skillMasterEl.disabled = false
       }
     }
 
@@ -5579,17 +5574,6 @@
           skillHintEl.textContent = t('已打开 {dir}', { dir: data.dir || '' })
         } catch (error) { skillHintEl.textContent = error.message } finally { button.disabled = false }
       }
-    }
-    skillMasterEl.onchange = async () => {
-      const enabled = skillMasterEl.checked
-      skillMasterEl.disabled = true
-      skillHintEl.textContent = enabled ? t('正在往补丁层写覆盖…') : t('正在清除覆盖…')
-      try {
-        renderSkills(await post('/api/skills/local', { enabled }))
-        skillHintEl.textContent = enabled
-          ? t('已强制启用 host 层技能行（与 agent 预设那份叠加）。dsh 在跑会热加载。')
-          : t('已清除覆盖，host 层两行回到模板默认。本地技能不受影响。')
-      } catch (error) { skillHintEl.textContent = error.message; loadSkills() } finally { skillMasterEl.disabled = false }
     }
 
     // ---- 同步：会话、附件与插件配置传到远端（S3 兼容对象存储 / WebDAV） ----

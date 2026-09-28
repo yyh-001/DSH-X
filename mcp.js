@@ -579,11 +579,16 @@ async function probeStdio(spec, options) {
   // Windows 上 npx/npm 这类是 .cmd 批处理，不能直接 CreateProcess，得借 cmd.exe 跑
   const needsShell = process.platform === 'win32' && /\.(cmd|bat)$/i.test(resolved)
   const child = needsShell
-    ? spawn(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', resolved, ...args], {
+    // Windows 上经 cmd 起进程：命令行里带空格的路径必须自己加引号，否则 C:\Program Files\...
+    // 会被 cmd 当成 `C:\Program` + 参数（npx/pnpm 这些 .cmd 包装器全在带空格的目录里）。
+    // 每个参数单独加引号，再按 cmd 的规矩把整行包一层（cmd /s /c "…"）。
+    ? spawn(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', `"${[resolved, ...args].map((part) => (/[\s"]/.test(part) ? `"${String(part).replace(/"/g, '""')}"` : part)).join(' ')}"`], {
       cwd,
       env,
       windowsHide: true,
       stdio: ['pipe', 'pipe', 'pipe'],
+      // 命令行已经按 cmd 的规矩自己引好了，别再让 Node 转义一层（否则引号叠加、cmd 解析失败）
+      windowsVerbatimArguments: true,
     })
     : spawn(resolved, args, { cwd, env, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] })
 

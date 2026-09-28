@@ -22,7 +22,7 @@
  * **agent 预设**自己挂这两个行（官方注释写的是 "presets own local discovery"）——本地技能
  * 默认就在工作。所以这里那两行覆盖只是"host 层强制启用"的高级开关，不是本地技能的总闸。
  */
-import { copyFileSync, existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, resolve, sep } from 'node:path'
 import { patchPathOf, readPatchState, forceRowId } from './plugins.js'
@@ -152,6 +152,19 @@ function parseSkillFile(file) {
   }
 }
 
+/**
+ * 链接（符号链接 / Windows junction）在 readdir 的 dirent 里既不是 file 也不是 dir，
+ * 光看 entry.isDirectory() 会把手链进来的技能整条漏掉。dsh 自己是跟链走的
+ * （dsh-skill-filesystem 的 nodeEntryKind 会 stat 一次），这里照做；断链就跳过。
+ */
+function statOrNull(path) {
+  try {
+    return statSync(path)
+  } catch {
+    return null
+  }
+}
+
 /** 列出所有技能根下的本地技能（不动文件）。 */
 export function listSkills(roots) {
   const skills = []
@@ -165,7 +178,8 @@ export function listSkills(roots) {
     for (const entry of entries) {
       // dsh 只跳过 user-dsh 根下的 .system；其它点开头条目照常会被发现，所以这里也照收
       if (entry.name === '.system' && root.key === 'dsh') continue
-      if (entry.isDirectory()) {
+      const followed = entry.isSymbolicLink() ? statOrNull(join(root.dir, entry.name)) : null
+      if (entry.isDirectory() || followed?.isDirectory() === true) {
         const file = join(root.dir, entry.name, 'SKILL.md')
         if (!existsSync(file)) continue
         skills.push({
@@ -176,7 +190,7 @@ export function listSkills(roots) {
           file,
           ...parseSkillFile(file),
         })
-      } else if (entry.isFile() && /\.md$/i.test(entry.name)) {
+      } else if ((entry.isFile() || followed?.isFile() === true) && /\.md$/i.test(entry.name)) {
         const file = join(root.dir, entry.name)
         skills.push({
           root: root.key,
