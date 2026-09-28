@@ -1,6 +1,7 @@
-"""Render docs/hero.png — the banner at the top of the README.
+"""Render the README banner: docs/hero.png (Chinese) and docs/hero-en.png.
 
-    python scripts/make-hero.py
+    python scripts/make-hero.py        # docs/hero.png
+    python scripts/make-hero.py en     # docs/hero-en.png
 
 Style follows the docs landing page and the launcher: the same pale blue radial
 gradient, the app icon with a soft shadow, and the product name in the accent
@@ -11,10 +12,13 @@ re-running this keeps the banner in sync.
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 import importlib.util
 import os
+import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ICON = os.path.join(ROOT, "assets", "icon.png")
-OUT = os.path.join(ROOT, "docs", "hero.png")
+# 英文版走 hero-en.png：README.en.md 的头图，文案与字体跟中文那份不同
+EN = len(sys.argv) > 1 and sys.argv[1].lower().startswith("en")
+OUT = os.path.join(ROOT, "docs", "hero-en.png" if EN else "hero.png")
 
 W, H = 1536, 1024
 # Same stops as the landing page's .backdrop:
@@ -26,10 +30,11 @@ TAGLINE_COLOR = (107, 125, 156)
 SHADOW_COLOR = (86, 122, 180)
 ICON_SIZE = 320
 TITLE = "DSH-X"
-TAGLINE = "官方原版 Web 启动器"
+TAGLINE = "Launches the original DSH Web UI" if EN else "官方原版 Web 启动器"
 FONT_ROOT = r"C:\Windows\Fonts" if os.name == "nt" else "/mnt/c/Windows/Fonts"
 TITLE_FONT = os.path.join(FONT_ROOT, "segoeuib.ttf")
-TAGLINE_FONT = os.path.join(FONT_ROOT, "MiSans-Regular.otf")
+# 中文用 MiSans（拉丁字形一般），英文那段用 Segoe UI
+TAGLINE_FONT = os.path.join(FONT_ROOT, "segoeui.ttf" if EN else "MiSans-Regular.otf")
 
 
 def rounded_icon(size):

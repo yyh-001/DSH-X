@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/hero.png" alt="DSH-X" width="880" />
+  <img src="docs/hero-en.png" alt="DSH-X" width="880" />
 </p>
 
 <p align="center">
@@ -24,16 +24,16 @@ A lightweight launcher for DeepSeek Harness. Pick a version, start DSH web.
 - **Multi-platform**: native packages for both Windows and macOS (with separate Apple Silicon and Intel builds for macOS); self-update, launch at login and the folder picker use each system's own mechanisms
 - **Plugins page**: list installed plugins and toggle each with one click, check for and install updates (one or all), and switch profiles
 - **Modpacks**: install a batch of plugins and their config in one go (community market and import/export included) — see the Modpacks section below
-- **Compatibility mode**: on a failed start, disable the plugins named in the error (one click to restore); after boot it checks the client plugin bundles the page references and reports the verdict, telling a broken install apart from a stale tab
+- **Compatibility mode**: on a failed start, disable the plugins named in the error (one click to restore); after boot it checks the client plugin bundles that the page references and reports the verdict, telling a broken install apart from a stale tab
 - **Dark appearance**: follow the system or pick a theme, plus floating-panel transparency and mascot switches
 - **Faster startup**: equivalent fast implementations at the bundle composition point (saves about 1–2 s), skipped automatically once dsh changes underneath
 - **Plugins stay where dsh puts them**: data lives in `~/.dsh`, so switching versions needs no plugin reinstall
 - **Keeps one older version**: only the newest and the most recently installed are kept (enough to roll back); older ones are pruned after install (this can be turned off in Settings)
 - **Resident in the background**: closing the page does not quit (Windows tray / macOS menu bar icon); the UI uses your system browser
-- **Bundled Node / npm / pnpm**: a portable runtime ships inside the package, packages come from the npmmirror registry, and plugin installs need nothing from the host
+- **Bundled Node / npm / pnpm**: a portable runtime ships inside the package, packages come from the npmmirror registry, and plugin installs need nothing from the host system
 - **Network proxy**: follow the system proxy (default), enter an address, or turn it off; unreachable proxies fall back to a direct connection. The version list, GitHub, the market and plugin installs all go through it
 - **Run several versions at once**: one instance per version, each on the port it picked (data in `.dsh` is shared anyway); open and stop them one by one on the control page
-- **Optional marketplace**: can install `dshmarket` on first launch
+- **Optional marketplace**: `dshmarket` can be installed on first launch
 
 Feedback: **QQ group [993579665](https://qm.qq.com/q/7AD2g70HqS)**
 
@@ -52,23 +52,23 @@ The repo ships one: [**`packs/dsh-x-recommended`**](packs/dsh-x-recommended/READ
 ## Screenshots
 
 <p align="center">
-  <img src="docs/screenshot-home.png" alt="DSH-X control page" width="820" />
+  <img src="docs/screenshot-home-en.png" alt="DSH-X control page" width="820" />
 </p>
 
 <p align="center">
-  <img src="docs/screenshot-plugins.png" alt="DSH-X plugins page" width="820" />
+  <img src="docs/screenshot-plugins-en.png" alt="DSH-X plugins page" width="820" />
 </p>
 
 <p align="center">
-  <img src="docs/screenshot-modpacks.png" alt="DSH-X modpack cards on the plugins page" width="820" />
+  <img src="docs/screenshot-modpacks-en.png" alt="DSH-X modpack cards on the plugins page" width="820" />
 </p>
 
 <p align="center">
-  <img src="docs/screenshot-modpack-detail.png" alt="DSH-X modpack detail: the plugins it brought" width="820" />
+  <img src="docs/screenshot-modpack-detail-en.png" alt="DSH-X modpack detail: the plugins it brought" width="820" />
 </p>
 
 <p align="center">
-  <img src="docs/screenshot-settings.png" alt="DSH-X settings page" width="820" />
+  <img src="docs/screenshot-settings-en.png" alt="DSH-X settings page" width="820" />
 </p>
 
 ## Antivirus false positives
