@@ -43,6 +43,8 @@
   let failed = false;
   let frame = 0, last = 0, clock = 0, nextBlink = 2 + Math.random() * 3;
   let blinkStart = -10, reactionAt = -10, reactionTuft = 0, reactionBow = 0, reactionEar = 0;
+  let blinkDuration = .23, doubleBlinkAt = Infinity, nextGlance = 1.5;
+  let glanceX = 0, glanceY = 0, gazeX = 0, gazeY = 0, pointerAt = -10;
   let targetX = 0, targetY = 0, x = 0, y = 0, pet = 0;
   // Original rig, with independently sprung pose and expression channels.
   const defaults = { tilt: 0, lift: 0, squash: 1, left: 1, right: 1, smile: 0, ear: 0, tuft: 0, bow: 0, energy: 1, droop: 0 };
@@ -68,6 +70,10 @@
     setState(previewState || 'idle', previewState ? Infinity : 3.2);
   });
   function setState(next, duration) {
+    // 睡醒先轻眨一下再睁开，避免从闭眼弧直接跳成圆眼。
+    if (next === 'waking' && (state === 'sleeping' || state === 'drowsy')) {
+      blinkStart = clock; blinkDuration = .38; nextBlink = clock + 2; doubleBlinkAt = Infinity;
+    }
     state = next; stateAt = clock; stateUntil = clock + duration;
     host.dataset.state = next;
   }
@@ -95,9 +101,14 @@
     // 清空积存的速度，恢复动画时从静止姿态进入，避免暂停前的甩动突然重放。
     for (const [key, channel] of Object.entries(springs)) { channel.value = defaults[key]; channel.velocity = 0; }
     x = y = pet = 0; reactionAt = blinkStart = -10; hovering = false;
+    gazeX = gazeY = glanceX = glanceY = 0;
+    nextGlance = clock + 1.5; nextBlink = clock + 2; doubleBlinkAt = Infinity; pointerAt = -10;
     // 眼球会被 tick 写 opacity（闭眼时淡出），静止态必须还原，否则暂停动画后可能留下没眼睛的脸
     for (const name of ['head','tuft','bow','ear','gaze','eye-left','eye-right']) { parts[name].removeAttribute('transform'); parts[name].removeAttribute('opacity'); }
-    for (const name of ['lid-left','lid-right']) parts[name].setAttribute('opacity','0');
+    for (const name of ['lid-left','lid-right']) {
+      parts[name].setAttribute('opacity','0');
+      parts[name].removeAttribute('transform');
+    }
   }
   function sync() {
     cancelAnimationFrame(frame); frame = 0; last = 0;
@@ -110,6 +121,7 @@
   new MutationObserver(sync).observe(document.body, { attributes: true, attributeFilter: ['class'] });
   window.addEventListener('pointermove', event => {
     if (!active() || event.pointerType === 'touch') return;
+    pointerAt = clock;
     targetX = clamp((event.clientX - rect.left - rect.width * .4) / (innerWidth * .55), -1, 1);
     targetY = clamp((event.clientY - rect.top - rect.height * .62) / (innerHeight * .55), -1, 1);
   }, { passive: true });
@@ -156,7 +168,15 @@
     const age = clock - stateAt;
     let tilt = Math.sin(clock * .8) * 1.2, lift = Math.sin(clock * 1.6) * 4;
     let squash = 1, left = 1, right = 1, smile = 0;
-    let lookX = x, lookY = y;
+    // 眼睛先于头部追上指针；无人交互时偶尔扫视并停留，不能一直机械地左右摆。
+    if (clock >= nextGlance) {
+      glanceX = (Math.random() - .5) * .65;
+      glanceY = (Math.random() - .5) * .35;
+      nextGlance = clock + 1.8 + Math.random() * 3;
+    }
+    const attention = clamp(1 - (clock - pointerAt - 1.5) / 2, 0, 1);
+    let lookX = targetX * attention + glanceX * (1 - attention);
+    let lookY = targetY * attention + glanceY * (1 - attention);
     // 状态→配件配合：犯困/睡着时呆毛、蝴蝶结、毛耳朵一起垂下来，醒来/好奇时精神起来（经弹簧平滑，不跳变）
     let droopTarget = 0;
     switch (state) {
@@ -200,18 +220,36 @@
     parts.ear.setAttribute('transform', `rotate(${ear} 990 940)`);
     const earRadians = ear * Math.PI / 180;
     parts.bow.setAttribute('transform', `translate(${28 * (Math.cos(earRadians) - 1)} ${28 * Math.sin(earRadians)}) rotate(${bow} 1018 940)`);
-    parts.gaze.setAttribute('transform', `translate(${clamp(lookX, -1, 1) * 24} ${clamp(lookY, -1, 1) * 17})`);
-    if (clock >= nextBlink) { blinkStart = clock; nextBlink = clock + 2.6 + Math.random() * 4; }
-    const blinkAge = clock - blinkStart;
-    const blink = blinkAge < .19 ? 1 - Math.sin(blinkAge / .19 * Math.PI) * .97 : 1;
+    const gazeEase = 1 - Math.exp(-dt * (state === 'drowsy' ? 5 : 18));
+    gazeX += (clamp(lookX, -1, 1) * 22 - gazeX) * gazeEase;
+    gazeY += (clamp(lookY, -1, 1) * 15 - gazeY) * gazeEase;
+    parts.gaze.setAttribute('transform', `translate(${gazeX} ${gazeY})`);
+    if (state !== 'sleeping' && (clock >= nextBlink || clock >= doubleBlinkAt)) {
+      const second = clock >= doubleBlinkAt;
+      blinkStart = clock;
+      blinkDuration = state === 'drowsy' ? .48 : second ? .19 : .23;
+      doubleBlinkAt = !second && state !== 'drowsy' && Math.random() < .18 ? clock + .34 : Infinity;
+      nextBlink = clock + (state === 'drowsy' ? 1.8 : 2.8) + Math.random() * 3.5;
+    }
     for (const side of ['left','right']) {
+      // 快合慢开，并让另一只眼晚约一帧，保留自然差异而不是刻意轮流眨眼。
+      const phase = (clock - blinkStart - (side === 'right' ? .012 : 0)) / blinkDuration;
+      const smooth = t => t * t * (3 - 2 * t);
+      const blink = phase < 0 || phase >= 1 ? 1
+        : phase < .3 ? 1 - smooth(phase / .3)
+        : phase < .42 ? 0 : smooth((phase - .42) / .58);
       // 开心时眼睛闭成笑脸弧（∩ 形），眨眼、打瞌睡、睡着同理；
       // 闭眼过程让整只眼球淡出、只留这条弧——眼球若被压成细缝，会和弧叠在同一处变成「两条线」
       const open = (side === 'left' ? left : right) * blink * (1 - smile);
       const eyeShown = clamp((open - .12) / .18, 0, 1);
-      parts[`eye-${side}`].setAttribute('transform', `scale(1 ${Math.max(.02, open)})`);
+      const width = 1 + Math.max(0, 1 - open) * .045;
+      parts[`eye-${side}`].setAttribute('transform', `scale(${width} ${Math.max(.02, open)})`);
       parts[`eye-${side}`].setAttribute('opacity', String(eyeShown));
       parts[`lid-${side}`].setAttribute('opacity', String(1 - eyeShown));
+      // 普通眨眼/睡眠用低弧度眼睑；只有开心才上扬，避免睡着也一直笑。
+      const half = side === 'left' ? 46 : 44;
+      const curve = 5 - smile * 35;
+      parts[`lid-${side}`].setAttribute('d', `M-${half} 8Q0 ${curve} ${half} 8`);
     }
     frame = requestAnimationFrame(tick);
   }
