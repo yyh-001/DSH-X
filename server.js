@@ -1,6 +1,7 @@
 import { execFile, spawn, spawnSync } from 'node:child_process'
 import { createHash, randomBytes } from 'node:crypto'
 import { createServer } from 'node:http'
+import { createServer as createNetServer } from 'node:net'
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { accessSync, appendFileSync, chmodSync, closeSync, constants as fsConstants, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
@@ -74,6 +75,7 @@ import {
   resolveWebBind,
   safeDataDir,
   safeDshHome,
+  safeInstancePorts,
   safeLang,
   safeOpenMode,
   safeSyncSettings,
@@ -90,6 +92,7 @@ import {
   safeWebBind,
   saveSettings,
   setAutoStart,
+  VERSION_RE,
 } from './settings.js'
 // 带代理的 fetch：Node 的全局 fetch 既不看系统代理也不看 HTTP_PROXY，外网请求都走 netFetch
 import { netFetch, proxyEnv, resetProxyCache, resolveProxy } from './proxy.js'
@@ -128,7 +131,6 @@ async function probeManager(port) {
     return false
   }
 }
-const VERSION_RE = /^[0-9A-Za-z][0-9A-Za-z._+-]*$/
 const SPEC_RE = /^(?:@[a-z0-9._~-]+\/)?[a-z0-9._~-]+(?:@[a-z0-9._~+-]+)?$/i
 const GITHUB_SPEC_RE = /^github:[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:#[\w./-]+)?$/
 /** 本地路径形态的插件源（内置插件走这条）：只认绝对路径，`file:` 后面必须是盘符或 /。 */
@@ -149,6 +151,9 @@ let WEB_BIND = resolveWebBind()
 // 远程访问插件的「局域网访问」开关（读 dsh 的 settings.yaml）：开着时同样不注入
 // --host，否则命令行显式 --host 永远压着插件的开关和补丁块（详见 lanBindToggleOn）
 let LAN_TOGGLE = false
+// 手工钉死端口的实例（键 `版本@profile` → 端口）：没钉的组合每次启动由系统挑一个。
+// 和 WEB_BIND 一样是「改完立刻生效」的内存副本，启动时与保存设置时各刷新一次。
+let INSTANCE_PORTS = safeInstancePorts(loadSettingsSync().instancePorts)
 // 界面语言（zh / en）：settings.json 为准；安装时选的语言写在安装目录 lang.txt，启动时对齐一次
 const INSTALL_LANG = join(ROOT, 'lang.txt')
 let LANG = safeLang(loadSettingsSync().lang) || installLang() || 'zh'
@@ -404,6 +409,7 @@ async function pruneVersions(config) {
   if (removed.length) {
     config.versions = listedVersions(config)
     await saveConfig(config)
+    for (const version of removed) await dropInstancePorts(version)
   }
   return removed
 }
@@ -808,6 +814,8 @@ async function snapshot() {
     // 当前 profile（启动下拉的默认值）+ 可选的 profile 列表（模板名 + 磁盘上已有的）
     profile: PROFILE_NAME,
     profiles: listProfiles(),
+    // 手工钉死端口的实例（键 `版本@profile` → 端口）：控制页那个端口输入框回显它
+    instancePorts: INSTANCE_PORTS,
     instances: all.map(instanceInfo),
     versions: installed.map((version) => {
       // 同一个版本的实例可能不止一个（多开下只会有一个，聚合起来更稳）：跑着的优先，
@@ -909,6 +917,64 @@ async function publicSettings() {
   }
 }
 
+/**
+ * 给一个实例（版本 × profile）钉死端口，或取消钉（端口填空 / 0）。
+ *
+ * 只校验「能不能钉」：端口本身合法、没和管理页撞、没和别的组合撞、这份 profile 真的
+ * 会起 web（不起 web 的 profile 没有 HTTP 服务，端口对它没有意义——传给它反而会被
+ * 它自己的 CLI 打回 unknown option）。端口此刻有没有被别的程序占着不作拦截：那可能是
+ * 用户马上要关掉的东西，只是把结论以 busy 回给页面（页面上只说问题）。
+ */
+async function setInstancePort(version, profile, port) {
+  const ver = safeVersion(version)
+  const prof = safeProfile(profile)
+  const key = instanceKey(ver, prof)
+  const map = { ...INSTANCE_PORTS }
+  const text = String(port ?? '').trim()
+  if (!text || Number(text) === 0) {
+    const saved = await saveSettings({ instancePorts: mapWithout(map, key) })
+    INSTANCE_PORTS = safeInstancePorts(saved.instancePorts)
+    pushLog(`取消固定端口：${key}`)
+    await emitState()
+    return { key, port: 0, busy: false }
+  }
+  const value = safePort(text)
+  if (!bootsWebApp(prof)) throw new Error(`profile ${prof} 不起 web 应用，端口对它没用`)
+  let configured = 0
+  try { configured = safePort(loadSettingsSync().port) } catch { configured = DEFAULT_PORT }
+  if (value === PORT || value === configured) {
+    throw new Error(`端口 ${value} 是管理页自己在用的，换一个`)
+  }
+  const taken = Object.entries(map).find(([other, otherPort]) => otherPort === value && other !== key)
+  if (taken) throw new Error(`端口 ${value} 已经钉给 ${taken[0]} 了，换一个`)
+  map[key] = value
+  const saved = await saveSettings({ instancePorts: map })
+  INSTANCE_PORTS = safeInstancePorts(saved.instancePorts)
+  pushLog(`固定端口：${key} → ${value}（下次启动生效）`)
+  await emitState()
+  const ours = instanceOnPort(value)
+  return { key, port: value, busy: !ours && !(await portAvailable(value)) }
+}
+
+/** 去掉一个键的副本（不原地改，省得把 map 的引用语义搞混）。 */
+function mapWithout(map, key) {
+  const out = { ...map }
+  delete out[key]
+  return out
+}
+
+/**
+ * 版本卸掉或被自动清理之后，它那几条固定端口就没有意义了：留着既占着端口号，以后
+ * 想钉同一个端口还会被「已经钉给 0.1.6@web 了」挡住——而那个版本早就不在了。
+ */
+async function dropInstancePorts(version) {
+  const prefix = `${version}@`
+  const kept = Object.fromEntries(Object.entries(INSTANCE_PORTS).filter(([key]) => !key.startsWith(prefix)))
+  if (Object.keys(kept).length === Object.keys(INSTANCE_PORTS).length) return
+  const saved = await saveSettings({ instancePorts: kept })
+  INSTANCE_PORTS = safeInstancePorts(saved.instancePorts)
+}
+
 async function saveManagerSettings(body) {
   if (body.dataDir) {
     const dir = safeDataDir(body.dataDir)
@@ -1002,6 +1068,7 @@ async function saveManagerSettings(body) {
   EXTRA_ARGS = composeExtraArgs(stored.args)
   WEB_BIND = safeWebBind(stored.webBind)
   LAN_TOGGLE = lanBindToggleOn(homeDir(), PROFILE_NAME)
+  INSTANCE_PORTS = safeInstancePorts(stored.instancePorts)
   if (safeLang(stored.lang)) LANG = safeLang(stored.lang)
   THEME = safeTheme(stored.theme)
   PANEL_TRANSPARENCY = safePanelTransparency(stored.panelTransparency)
@@ -1428,26 +1495,79 @@ function bootsWebApp(profile = PROFILE_NAME) {
  * dsh 启动参数。`alongside` = 已经有一个实例在跑（多开），局域网下要另给端口。
  * @param {string} profile 这次启动用的 profile（多开下同一版本可以各用各的）
  * @param {boolean} alongside
+ * @param {number} pinned 手工钉死的端口（0 = 没钉，由系统挑）
  */
-function bootArgs(profile = PROFILE_NAME, alongside = false) {
+function bootArgs(profile = PROFILE_NAME, alongside = false, pinned = 0) {
   // 不起 web 的 profile（headless / acp / sdk…）不提供 HTTP 服务，也不认这几个 flag：
   // 参数是透传给 profile 对应 app 的，会被它自己的 commander 打回 `unknown option`
   // 并 exit 1（`dsh headless --no-open` 就是这条），所以只对会起 web 的注入
   if (!bootsWebApp(profile)) return [profile, ...EXTRA_ARGS]
+  const port = pinned > 0 ? String(pinned) : '0'
   if (lanBindActive()) {
-    // 局域网：--host/--port 一个都不传。CLI 硬禁 --host 0.0.0.0，绑定只能走配置层
-    // （远程插件的 lan-bind 开关写进 profile 补丁的 webserver 块）；--port 0 也一样
-    // 会压过配置层，把插件钉好的端口抹成随机值，所以一并交给配置层决定。
-    // 多开是例外：配置层里只有一个端口，第二个实例撞上去就是 EADDRINUSE，
-    // 所以给它一个系统挑的端口（--host 照样不传，绑定仍由配置层说了算）。
-    return alongside
-      ? [profile, '--port', '0', '--no-open', ...EXTRA_ARGS]
-      : [profile, '--no-open', ...EXTRA_ARGS]
+    // 局域网：--host 不传。CLI 硬禁 --host 0.0.0.0，绑定只能走配置层（远程插件的
+    // lan-bind 开关写进 profile 补丁的 webserver 块）；--port 0 也一样会压过配置层，
+    // 把插件钉好的端口抹成随机值，所以端口也交给配置层决定。
+    // 两个例外，都是「不显式给端口就出事」：多开时配置层里只有一个端口，第二个实例
+    // 撞上去就是 EADDRINUSE；用户自己钉了端口，就是要它——这两种情况显式传 --port。
+    if (!pinned && !alongside) return [profile, '--no-open', ...EXTRA_ARGS]
+    return [profile, '--port', port, '--no-open', ...EXTRA_ARGS]
   }
-  // 默认姿势：钉死回环 + 让 OS 挑端口（端口冲突顺延是 dsh 输出的事，启动器读真实地址）。
+  // 默认姿势：钉死回环 + 端口（没钉就 --port 0，让 OS 现挑一个；dsh 会把真实地址
+  // 打出来，启动器读它，所以顺延也不影响页面拿到链接）。
   // 额外参数放最后：用户可以用它覆盖 --port 之类（启动器是从 dsh 的输出里读真实地址的，
   // 所以换个端口也不影响管理页拿到的链接）
-  return [profile, '--host', '127.0.0.1', '--port', '0', '--no-open', ...EXTRA_ARGS]
+  return [profile, '--host', '127.0.0.1', '--port', port, '--no-open', ...EXTRA_ARGS]
+}
+
+/** 这个「版本 × profile」钉死的端口（0 = 没钉，由系统现挑）。 */
+function pinnedPort(version, profile) {
+  return INSTANCE_PORTS[instanceKey(version, profile)] || 0
+}
+
+/** 地址里的端口（认不出来就是 0：这种地址不该让调用方炸掉）。 */
+function urlPortOf(url) {
+  try {
+    return Number(new URL(url).port) || 0
+  } catch {
+    return 0
+  }
+}
+
+/** 这个端口上是不是我们自己某个在跑的实例（报错时说得出是谁占着）。 */
+function instanceOnPort(port) {
+  for (const proc of instanceList()) {
+    if (proc.url && urlPortOf(proc.url) === port) return proc
+  }
+  return null
+}
+
+/**
+ * 端口现在空不空：先建一个独占的监听再立刻关掉。
+ *
+ * Windows 上 TIME_WAIT 里的端口也会报占用（libuv 在 Windows 不给 TCP 设 SO_REUSEADDR），
+ * 而那多半是刚停掉的实例留下的——所以这个结论只用来「把问题说给用户听」，不作为
+ * 拦着不让启动的理由：真绑不上，dsh 自己会失败，那条路照样能把话说清楚。
+ */
+function portAvailable(port) {
+  return new Promise((resolve) => {
+    const probe = createNetServer()
+    probe.once('error', () => resolve(false))
+    probe.once('listening', () => probe.close(() => resolve(true)))
+    probe.listen({ port, host: '127.0.0.1', exclusive: true })
+  })
+}
+
+/**
+ * dsh 绑不上端口时，Node 会抛 `listen EADDRINUSE: address already in use 127.0.0.1:3790`，
+ * 这条错误就落在它 stderr 的尾巴里。认出来只为把话说明白：固定端口起不来的头号原因
+ * 就是这个，而「启动失败」四个字对用户没有任何帮助。
+ * @returns 一句人话，没认出端口冲突就是空串
+ */
+function describePortConflict(pinned, proc) {
+  if (!/EADDRINUSE|address already in use/i.test((proc.tail || []).join('\n'))) return ''
+  const who = instanceOnPort(pinned)
+  const holder = who ? `${who.version}/${who.profile} 正在用它` : '别的程序占着'
+  return `端口 ${pinned} 被占用（${holder}）：换一个端口，或先停掉占着它的东西`
 }
 
 /** dsh 子进程的加载钩子：启动加速 + 会话事件词汇兼容（含 worker 线程那份）。 */
@@ -2903,25 +3023,43 @@ async function bootOnce(ver, prof) {
     await seedBundledPlugins(ver)
   }
   const alongside = instances.size > 0
-  pushLog(`启动 ${ver} · profile ${prof}${lanBindActive() ? ' · Web 绑定 局域网(0.0.0.0，由配置层决定)' : ''}${alongside ? '（与已在跑的实例并存）' : ''}`)
-  const child = spawnDsh(ver, bootArgs(prof, alongside))
+  const pinned = pinnedPort(ver, prof)
+  if (pinned && !(await portAvailable(pinned))) {
+    // 只说问题、不拦着：占着它的可能是用户马上要关掉的东西，也可能只是 Windows 的
+    // TIME_WAIT。真起不来时下面那条 catch 会把话说清楚。
+    pushLog(`固定端口 ${pinned} 现在被占用，这次启动多半会失败`)
+  }
+  pushLog(`启动 ${ver} · profile ${prof}${lanBindActive() ? ' · Web 绑定 局域网(0.0.0.0，由配置层决定)' : ''}${pinned ? ` · 固定端口 ${pinned}` : ''}${alongside ? '（与已在跑的实例并存）' : ''}`)
+  const child = spawnDsh(ver, bootArgs(prof, alongside, pinned), prof)
   const proc = attachProcess(ver, prof, child)
   await emitState()
   try {
     const result = await waitUntilReady(proc, ver)
+    // 钉了端口却没落到上面（额外参数里另有 --port，或 dsh 自己顺延了）：如实说一句，
+    // 否则用户以为存下来的地址还有效
+    if (pinned && urlPortOf(result.url) !== pinned) {
+      pushLog(`固定端口 ${pinned} 没拿到，这次落在 ${result.url}`)
+    }
     lastHealth = null
     await emitState()
     void selfCheckPage(result.url, ver)
     return result
   } catch (error) {
+    const conflict = pinned ? describePortConflict(pinned, proc) : ''
     const failure = {
       at: Date.now(),
       version: ver,
-      message: error instanceof Error ? error.message : String(error),
+      message: conflict || (error instanceof Error ? error.message : String(error)),
       exit: proc.exit,
       tail: (proc.tail || []).slice(-120),
     }
     lastFailure = failure
+    if (conflict) {
+      // 端口冲突时说清是哪个端口、谁占着——这正是固定端口最可能出的岔子
+      const wrapped = new Error(conflict)
+      wrapped.failure = failure
+      throw wrapped
+    }
     try {
       error.failure = failure
     } catch {
@@ -3545,6 +3683,7 @@ async function uninstall(version) {
   if (system?.version === ver) await uninstallSystem(ver)
   config.versions = versions.filter((item) => item !== ver)
   await saveConfig(config)
+  await dropInstancePorts(ver)
   await emitState()
 }
 
@@ -3778,6 +3917,10 @@ async function handleApi(req, res, url) {
   }
   if (req.method === 'POST' && url.pathname === '/api/start') {
     send(res, 200, await start(body.version, body.profile))
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/instance-port') {
+    send(res, 200, await setInstancePort(body.version, body.profile, body.port))
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/launch') {
@@ -4352,6 +4495,8 @@ export async function startServer() {
   LAN_TOGGLE = lanBindToggleOn(homeDir(), PROFILE_NAME)
   if (CLI_ARGS.length) pushLog(`DSH.exe 传入启动参数：${CLI_ARGS.join(' ')}`)
   const stored = await loadSettings()
+  // 钉死端口的实例表：启动、重启都读它（页面改这张表走 /api/instance-port）
+  INSTANCE_PORTS = safeInstancePorts(stored.instancePorts)
   // 安装/升级时选过语言就以它为准，否则用设置里存的
   const fromInstall = installLang()
   const storedLang = safeLang(stored.lang)

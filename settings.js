@@ -210,6 +210,8 @@ export const DEFAULTS = {
   dataDir: '',
   port: DEFAULT_PORT,
   profile: DEFAULT_PROFILE,
+  // 钉死端口的实例（键 `版本@profile`）：没钉的组合每次启动由系统挑，见 safeInstancePorts
+  instancePorts: {},
   // 界面语言：zh / en（安装时选的语言写进安装目录的 lang.txt，启动器读一次落到这里）
   lang: '',
   theme: 'system',
@@ -272,6 +274,13 @@ export function safePort(value) {
   return port
 }
 
+/**
+ * 版本号的字符集（registry 里的 tag 名、`data/versions/<版本>` 的目录名都按它收）。
+ * 导出是给 `instancePorts` 的键用——那张表的键是「版本@profile」，两边都不能含 @，
+ * 拼接才不会有歧义（见 server.js 的 instanceKey）。
+ */
+export const VERSION_RE = /^[0-9A-Za-z][0-9A-Za-z._+-]*$/
+
 /** profile 名会变成 ~/.dsh/profiles 下的目录名，只允许目录安全字符。 */
 export function safeProfile(value) {
   const name = String(value ?? '').trim()
@@ -279,6 +288,34 @@ export function safeProfile(value) {
     throw new Error('profile 名只能用字母、数字、点、下划线、连字符（1-32 个字符）')
   }
   return name
+}
+
+/**
+ * 每个实例（版本 × profile）手工钉的固定端口，键形如 `0.1.7@web`。
+ *
+ * 默认每个实例都由系统现挑一个端口（`--port 0`），代价是链接每次启动都变：书签、手机
+ * 上存的地址、别的程序里的回调地址都留不住。钉死的组合按下一次的端口起。
+ *
+ * 脏值直接丢掉（不抛）：这张表是「多几个键也无所谓」的附加信息，为了历史文件里的一条
+ * 烂数据让整个设置读不出来不划算。键的两段分别按 VERSION_RE / safeProfile 的形状收，
+ * 版本与 profile 都不含 @，所以只用认第一个 @。
+ */
+export function safeInstancePorts(value) {
+  const out = {}
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return out
+  for (const [rawKey, rawPort] of Object.entries(value)) {
+    const key = String(rawKey)
+    const at = key.indexOf('@')
+    if (at <= 0 || key.indexOf('@', at + 1) !== -1) continue
+    const version = key.slice(0, at)
+    const profile = key.slice(at + 1)
+    if (!VERSION_RE.test(version)) continue
+    if (!/^[A-Za-z0-9._-]{1,32}$/.test(profile) || profile === '.' || profile === '..') continue
+    const port = Number(rawPort)
+    if (!Number.isInteger(port) || port < 1 || port > 65535) continue
+    out[key] = port
+  }
+  return out
 }
 
 /**
@@ -536,6 +573,7 @@ export async function saveSettings(patch) {
   }
   if ('profile' in patch) merged.profile = safeProfile(patch.profile)
   merged.args = 'args' in patch ? safeArgs(patch.args) : safeArgs(merged.args)
+  merged.instancePorts = safeInstancePorts('instancePorts' in patch ? patch.instancePorts : merged.instancePorts)
   merged.lang = 'lang' in patch ? safeLang(patch.lang) : safeLang(merged.lang)
   merged.theme = safeTheme(merged.theme)
   merged.panelTransparency = safePanelTransparency(merged.panelTransparency)

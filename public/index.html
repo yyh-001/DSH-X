@@ -407,6 +407,8 @@
     .home-main label { margin-bottom: 8px; }
     .home-pickers { display: flex; gap: 10px; flex-wrap: wrap; }
     .home-field { flex: 1 1 140px; min-width: 0; }
+    /* 端口只填四五位数，别和版本/Profile 抢一样宽 */
+    .home-field.port { flex: 0 1 108px; }
     .home-field .ui-select { width: 100%; flex: 1 1 auto; }
     @media (max-width: 560px) {
       .home-bar { flex-wrap: wrap; }
@@ -1369,6 +1371,11 @@
                 <label for="launchProfileTrigger">Profile</label>
                 <select id="launchProfile" title="这次启动用哪个 profile；同一版本可以用不同 profile 各起一个。插件按 profile 分开，会话与记忆是共享的。"></select>
               </div>
+              <!-- 固定端口：钉住的地址每次启动都一样，书签/手机上的链接才留得住（留空＝系统每次挑） -->
+              <div class="home-field port">
+                <label for="launchPort" data-i18n="端口">端口</label>
+                <input id="launchPort" type="number" min="1" max="65535" step="1" inputmode="numeric" />
+              </div>
             </div>
           </div>
           <div class="controls">
@@ -1837,7 +1844,7 @@
                 <div class="set-row">
                   <div class="set-text">
                     <span class="set-name" data-i18n="管理页端口">管理页端口</span>
-                    <span class="set-desc" data-i18n="重启后生效。">重启后生效。</span>
+                    <span class="set-desc" data-i18n="重启后生效。dsh 自己的端口在控制页上按「版本 × profile」设置。">重启后生效。dsh 自己的端口在控制页上按「版本 × profile」设置。</span>
                     <p class="hint" id="portHint"></p>
                   </div>
                   <input id="port" type="number" min="1" max="65535" step="1" inputmode="numeric" />
@@ -2373,7 +2380,7 @@
   "启动器和 dsh 的输出日志。": "Output from the launcher and dsh.",
   "登录系统后自动把启动器跑起来。": "Start the launcher automatically after you sign in.",
   "目录与端口": "Folders and ports",
-  "重启后生效。": "Takes effect after a restart.",
+  "重启后生效。dsh 自己的端口在控制页上按「版本 × profile」设置。": "Takes effect after a restart. dsh's own port is set per version × profile on the control page.",
   "装新版本时顺手把插件市场预置好，之后可以在里面装第三方插件。": "Sets up the plugin marketplace when a new version is installed; you can install third-party plugins from it.",
   "记忆插件": "Memory plugin",
   "内置的文件式长期记忆：一条事实一个 Markdown 文件 + MEMORY.md 索引，按工作区分开。启用后 dsh 设置页里出现「记忆」面板。": "Built-in file-based long-term memory: one fact per Markdown file plus a MEMORY.md index, kept per workspace. A Memory panel shows up in dsh Settings once it is installed.",
@@ -2530,6 +2537,10 @@
   "连接正常。": "Connection is fine.",
   "连接失败：{error}": "Connection failed: {error}",
   "正在上传…": "Uploading…",
+  "端口": "Port",
+  "给这个「版本 × profile」钉一个固定端口：链接每次启动都一样，书签和手机上的地址就留得住。留空＝每次由系统挑一个。下次启动生效。": "Pin a fixed port to this version × profile so the address stays the same across restarts — bookmarks and phone links keep working. Leave it empty to let the system pick one every time. Applies on the next start.",
+  "端口 {port} 现在被别的程序占着：这次启动会失败，先让出它或换一个。": "Port {port} is currently held by another program: the next start will fail. Free it up or pick another port.",
+  "端口被占用": "Port in use",
   "正在停下来，做完手上这个文件就收手…": "Stopping — it will finish the file it is on and then stop…",
   "自动清理旧版本": "Prune old versions",
   "装完新版本后删掉更旧的，只留最新的和最近装的一个（正在运行的除外）。关掉就全部留着——回退时想退到哪个版本都在，代价是每个版本要占几百 MB。": "After installing a new version, delete the older ones and keep only the newest and the most recently installed (never one that is running). Turn this off to keep them all — any version stays available to roll back to, at a few hundred MB each."
@@ -2563,6 +2574,11 @@
       }
       const argsInput = document.getElementById('args')
       if (argsInput) argsInput.placeholder = t('例如：--log-level debug')
+      const portInput = document.getElementById('launchPort')
+      if (portInput) {
+        portInput.placeholder = t('自动')
+        portInput.title = t('给这个「版本 × profile」钉一个固定端口：链接每次启动都一样，书签和手机上的地址就留得住。留空＝每次由系统挑一个。下次启动生效。')
+      }
       syncUiSelects()
       // 同步页的按钮文案跟存储类型走（本地目录时是导出/导入），data-i18n 复位之后得重画
       paintSyncActions()
@@ -2577,6 +2593,7 @@
     const instancesEl = document.getElementById('instances')
     const instancesListEl = document.getElementById('instancesList')
     const launchProfileEl = document.getElementById('launchProfile')
+    const launchPortEl = document.getElementById('launchPort')
     let versionOptions = []      // [{ value, text, badge?, more? }]
     let versionValue = ''
     let versionDisabled = false
@@ -3194,6 +3211,57 @@
       render()
     }
 
+    /** 固定端口表的键（服务端同一条形状：`版本@profile`）。 */
+    function launchPortKey(version) {
+      return `${version || ''}@${launchProfile}`
+    }
+
+    /**
+     * 端口输入框：回显当前选中的「版本 × profile」钉的端口，没钉就是空的（占位写「自动」）。
+     * render() 每次状态变化都会跑（子进程每打一行日志就一次），用户正在输入时不能覆盖
+     * 他手里的字——所以只在不聚焦时回填。
+     */
+    function paintLaunchPort() {
+      const version = selected()
+      const pinned = (state.instancePorts || {})[launchPortKey(version)] || 0
+      if (document.activeElement !== launchPortEl) launchPortEl.value = pinned ? String(pinned) : ''
+      launchPortEl.dataset.pinned = String(pinned)
+      // 一个版本都还没有时没什么可钉的（和主按钮同一套口径）
+      launchPortEl.disabled = !version
+    }
+
+    /**
+     * 端口改完自动保存。返回这一次保存的 promise：启动前要等它落地——不然「填完端口
+     * 马上点启动」会拿着还没写下去的旧值起一个随机端口（blur 先触发 change、click
+     * 后到，两个请求谁先到服务端并不保证）。
+     */
+    let portSave = Promise.resolve()
+    function saveLaunchPort() {
+      const version = selected()
+      if (!version) return Promise.resolve()
+      const text = launchPortEl.value.trim()
+      portSave = (async () => {
+        try {
+          const data = await post('/api/instance-port', { version, profile: launchProfile, port: text })
+          // 钉成功了，但此刻端口被别的程序占着：只把问题说出来（启动时会失败）
+          if (data.busy) {
+            notify(t('端口 {port} 现在被别的程序占着：这次启动会失败，先让出它或换一个。', { port: data.port }), t('端口被占用'))
+          }
+        } catch (error) {
+          // 没存下来：把输入框恢复成存着的样子，别让人以为填进去了
+          launchPortEl.value = String((state.instancePorts || {})[launchPortKey(version)] || '')
+          notify(error.message)
+        }
+      })()
+      return portSave
+    }
+
+    launchPortEl.onchange = () => { void saveLaunchPort() }
+    // 回车＝提交：number 输入框自己不会因为回车触发 change，先失焦让 change 收尾
+    launchPortEl.onkeydown = (event) => {
+      if (event.key === 'Enter') launchPortEl.blur()
+    }
+
     function allVersionList() {
       const remoteVersions = versionNames(remote.versions)
       const extra = installedList().filter((version) => !remoteVersions.includes(version))
@@ -3401,6 +3469,7 @@
       versionDisabled = loading
       if (versionDisabled) closeVersionPanel()
       paintVersionTrigger()
+      paintLaunchPort()
       mainEl.hidden = updating || uninstalling
       mainEl.disabled = loading || !version
       mainEl.classList.toggle('loading', loading && !updating && !uninstalling)
@@ -3485,6 +3554,8 @@
 
     async function startVersion(version) {
       try {
+        // 端口那栏刚改过还没写完的话，等它落地再起（否则会按老值起）
+        await portSave
         if (!installedList().includes(version)) {
           action = 'install'
           render()
@@ -3670,6 +3741,10 @@
         profile: typeof data.profile === 'string' ? data.profile : (state.profile || ''),
         // 旧服务进程（改动前起的）的 state 里没有 profiles：保留旧值，别把下拉清空
         profiles: Array.isArray(data.profiles) ? data.profiles : (state.profiles || []),
+        // 同上：instancePorts 是后加的字段，老服务的 state 里没有它
+        instancePorts: data.instancePorts && typeof data.instancePorts === 'object'
+          ? data.instancePorts
+          : (state.instancePorts || {}),
         autoFix: data.autoFix ?? null,
         health: data.health ?? null,
         loaded: true,
