@@ -405,6 +405,9 @@
     }
     .home-main { flex: 1; min-width: 0; }
     .home-main label { margin-bottom: 8px; }
+    .home-pickers { display: flex; gap: 10px; flex-wrap: wrap; }
+    .home-field { flex: 1 1 140px; min-width: 0; }
+    .home-field .ui-select { width: 100%; flex: 1 1 auto; }
     @media (max-width: 560px) {
       .home-bar { flex-wrap: wrap; }
       .home-main { flex: 1 1 100%; }
@@ -1351,13 +1354,21 @@
             <div class="card home">
         <div class="home-bar">
           <div class="home-main">
-            <label for="versionTrigger" data-i18n="版本">版本</label>
-            <div class="select" id="versionPicker">
-              <button type="button" class="select-trigger" id="versionTrigger" aria-haspopup="listbox" aria-expanded="false">
-                <span class="select-value" id="versionValue" data-i18n="加载中…">加载中…</span>
-                <svg class="select-caret" viewBox="0 0 12 8" aria-hidden="true"><path fill="currentColor" d="M0 0h12L6 8z"/></svg>
-              </button>
-              <div class="select-panel" id="versionPanel" role="listbox" hidden></div>
+            <div class="home-pickers">
+              <div class="home-field">
+                <label for="versionTrigger" data-i18n="版本">版本</label>
+                <div class="select" id="versionPicker">
+                  <button type="button" class="select-trigger" id="versionTrigger" aria-haspopup="listbox" aria-expanded="false">
+                    <span class="select-value" id="versionValue" data-i18n="加载中…">加载中…</span>
+                    <svg class="select-caret" viewBox="0 0 12 8" aria-hidden="true"><path fill="currentColor" d="M0 0h12L6 8z"/></svg>
+                  </button>
+                  <div class="select-panel" id="versionPanel" role="listbox" hidden></div>
+                </div>
+              </div>
+              <div class="home-field">
+                <label for="launchProfileTrigger">Profile</label>
+                <select id="launchProfile" title="这次启动用哪个 profile；同一版本可以用不同 profile 各起一个。插件按 profile 分开，会话与记忆是共享的。"></select>
+              </div>
             </div>
           </div>
           <div class="controls">
@@ -2565,6 +2576,7 @@
     const versionPanelEl = document.getElementById('versionPanel')
     const instancesEl = document.getElementById('instances')
     const instancesListEl = document.getElementById('instancesList')
+    const launchProfileEl = document.getElementById('launchProfile')
     let versionOptions = []      // [{ value, text, badge?, more? }]
     let versionValue = ''
     let versionDisabled = false
@@ -2790,12 +2802,14 @@
       if (changed) item.select.dispatchEvent(new Event('change', { bubbles: true }))
     }
 
-    for (const select of document.querySelectorAll('#profile, #uiLang, #webBind, #downloadSource, #updateSource, #proxyMode, #openMode, #syncStore, #syncPolicy, #syncStyle')) {
+    for (const select of document.querySelectorAll('#launchProfile, #profile, #uiLang, #webBind, #downloadSource, #updateSource, #proxyMode, #openMode, #syncStore, #syncPolicy, #syncStyle')) {
       const root = document.createElement('div')
       root.className = 'select ui-select'
       const trigger = document.createElement('button')
       trigger.type = 'button'
       trigger.className = 'select-trigger'
+      // 给触发器一个稳定 id（label 的 for 指这里，跟 versionTrigger 一个路数）
+      trigger.id = `${select.id}Trigger`
       trigger.setAttribute('aria-haspopup', 'listbox')
       trigger.setAttribute('aria-expanded', 'false')
       const value = document.createElement('span')
@@ -2808,7 +2822,7 @@
       panel.role = 'listbox'
       panel.hidden = true
       trigger.setAttribute('aria-controls', panel.id)
-      const label = () => select.id === 'profile' ? 'Profile' : select.closest('.set-row')?.querySelector('.set-name')?.textContent || select.title
+      const label = () => select.id === 'profile' || select.id === 'launchProfile' ? 'Profile' : select.closest('.set-row')?.querySelector('.set-name')?.textContent || select.title
       const item = { select, root, trigger, value, panel, label, active: 0 }
       select.before(root)
       root.append(select, trigger)
@@ -2858,6 +2872,9 @@
     let state = { installed: [], running: null, installing: null, loaded: false }
     let picked = ''
     let userPicked = false
+    // 这次启动用哪个 profile（会话内记着，不落设置——插件页那个切换器管的是「当前 profile」，
+    // 两回事）：同一个版本可以用不同 profile 各起一个
+    let launchProfile = ''
     let action = ''
     let installProgress = null
     let pluginProgress = null
@@ -3131,18 +3148,50 @@
 
     /**
      * 状态里的实例信息。给了版本就只认这个版本的实例——多开时别的版本也在跑，
-     * 主按钮得看「我选的这个在不在跑」，不能被旁边那个带偏；不给版本（自动选版本、
-     * 打开 DSH 这类只认一个地址的地方）就用服务端给的 running（最近起来的那个）。
+     * 主按钮得看「我选的这个在不在跑」，不能被旁边那个带偏；再给了 profile 就只认
+     * 「版本 × profile」这个组合（同版本用别的 profile 跑着不算它在跑）。都不给
+     * （自动选版本、打开 DSH 这类只认一个地址的地方）就用服务端给的 running
+     * （最近起来的那个）。
      */
-    function runningInfo(version = '') {
+    function runningInfo(version = '', profile = '') {
+      const isLive = (item) => item && (item.status === 'running' || item.status === 'starting')
       if (version) {
         const mine = (state.instances || []).find((item) => item && item.version === version
-          && (item.status === 'running' || item.status === 'starting'))
+          && (!profile || item.profile === profile) && isLive(item))
         if (mine) return mine
+        // 指名了 profile 就到此为止：没有这个组合就是没有，别拿同版本别的实例充数
+        if (profile) return null
+        const row = (state.instances || []).find((item) => item && item.version === version && isLive(item))
+        if (row) return row
+        const vrow = (state.versions || []).find((item) => item && item.version === version && isLive(item))
+        return vrow ? { version: vrow.version, status: vrow.status, url: vrow.url } : null
       }
       if (state.running && state.running.version) return state.running
-      const row = (state.versions || []).find((item) => item && (item.status === 'running' || item.status === 'starting'))
+      const row = (state.versions || []).find((item) => item && isLive(item))
       return row ? { version: row.version, status: row.status, url: row.url } : null
+    }
+
+    /** 启动 profile 下拉的选项：desktop 是官方 Electron 端的保留名，不让选。 */
+    function paintLaunchProfiles() {
+      const options = (state.profiles || []).filter((name) => name && name !== 'desktop')
+      if (!options.length) {
+        launchProfileEl.innerHTML = ''
+        launchProfileEl.disabled = true
+        return
+      }
+      launchProfileEl.disabled = false
+      if (!options.includes(launchProfile)) {
+        launchProfile = options.includes(state.profile) ? state.profile : options[0]
+      }
+      launchProfileEl.innerHTML = options.map((name) =>
+        `<option value="${escapeHtml(name)}"${name === launchProfile ? ' selected' : ''}>${escapeHtml(name)}</option>`).join('')
+      // options 是程序改的，不触发 change：包装器的触发器文字得手动同步一次
+      syncUiSelect(launchProfileEl)
+    }
+
+    launchProfileEl.onchange = () => {
+      launchProfile = launchProfileEl.value
+      render()
     }
 
     function allVersionList() {
@@ -3272,22 +3321,23 @@
             <span class="instance-url" title="${escapeHtml(url)}">${escapeHtml(url)}</span>
           </span>
           <span class="instance-actions">
-            <button class="ghost" type="button" data-open="${escapeHtml(item.version)}" ${item.status === 'running' && url ? '' : 'disabled'}>${escapeHtml(t('打开'))}</button>
-            <button class="ghost" type="button" data-stop="${escapeHtml(item.version)}" ${busy ? 'disabled' : ''}>${escapeHtml(t('停止'))}</button>
+            <button class="ghost" type="button" data-open="${escapeHtml(item.version)}" data-profile="${escapeHtml(item.profile || '')}" ${item.status === 'running' && url ? '' : 'disabled'}>${escapeHtml(t('打开'))}</button>
+            <button class="ghost" type="button" data-stop-version="${escapeHtml(item.version)}" data-profile="${escapeHtml(item.profile || '')}" ${busy ? 'disabled' : ''}>${escapeHtml(t('停止'))}</button>
           </span>
         </div>`
       }).join('')
       instancesListEl.querySelectorAll('button[data-open]').forEach((el) => {
         el.onclick = () => {
-          const item = (state.instances || []).find((row) => row.version === el.dataset.open)
+          const item = (state.instances || []).find((row) => row.version === el.dataset.open
+            && (row.profile || '') === el.dataset.profile)
           void openInstance(item?.url)
         }
       })
-      instancesListEl.querySelectorAll('button[data-stop]').forEach((el) => {
+      instancesListEl.querySelectorAll('button[data-stop-version]').forEach((el) => {
         el.onclick = async () => {
           el.disabled = true
           try {
-            await post('/api/stop', { version: el.dataset.stop })
+            await post('/api/stop', { version: el.dataset.stopVersion, profile: el.dataset.profile })
           } catch (error) {
             notify(error.message)
           } finally {
@@ -3320,10 +3370,15 @@
       if (versionOpen) paintVersionPanel()
 
       const version = versionValue
-      const running = runningInfo(version)
-      const thisRun = Boolean(running && running.version === version)
-      // 「这个版本在跑」而不是「有实例在跑」：多开时旁边那个在跑，不妨碍我选别的版本再起一个
+      const running = runningInfo(version, launchProfile)
+      // 主按钮看「选中的 版本 × profile」这个组合：同版本用别的 profile 跑着，
+      // 不妨碍我再起一个（这正是多开要的那条路）
+      const thisRun = Boolean(running && running.version === version
+        && (!launchProfile || running.profile === launchProfile))
       const live = Boolean(thisRun && (running.status === 'running' || running.status === 'starting'))
+      // 卸载按钮看整个版本：任何一个 profile 的实例在跑，这个版本都不能卸（服务端同一条守卫）
+      const versionRunning = runningInfo(version)
+      const anyLive = Boolean(versionRunning && (versionRunning.status === 'running' || versionRunning.status === 'starting'))
       const updating = action === 'update' || Boolean(latest && state.installing === latest && version !== latest)
       const installing = state.installing === version || action === 'install' || updating
       const starting = (thisRun && running.status === 'starting') || action === 'start'
@@ -3338,7 +3393,7 @@
       updateEl.classList.toggle('loading', updating)
       updateEl.setAttribute('aria-label', latest ? `更新到 ${latest}` : t('更新'))
       updateEl.title = latest ? `更新到 ${latest}` : t('更新')
-      removeEl.hidden = !have.has(version) || live || (loading && !uninstalling)
+      removeEl.hidden = !have.has(version) || anyLive || (loading && !uninstalling)
       removeEl.disabled = loading
       removeEl.classList.toggle('loading', uninstalling)
       // 多开之后跑着的时候也能往下拉里切：切到另一个版本点启动，就是在旁边再起一个，
@@ -3437,7 +3492,7 @@
         }
         action = 'start'
         render()
-        const data = await post('/api/start', { version })
+        const data = await post('/api/start', { version, profile: launchProfile })
         if (data.url) await openInstance(data.url)
       } finally {
         action = ''
@@ -3448,12 +3503,12 @@
     mainEl.onclick = async () => {
       const version = selected()
       if (!version) return
-      const running = runningInfo(version)
+      const running = runningInfo(version, launchProfile)
       if (running && running.version === version && (running.status === 'running' || running.status === 'starting')) {
         action = 'stop'
         render()
         try {
-          await post('/api/stop', { version })
+          await post('/api/stop', { version, profile: launchProfile })
         } catch (error) {
           notify(error.message)
         } finally {
@@ -3474,7 +3529,7 @@
       action = 'stop'
       render()
       try {
-        await post('/api/stop', { version })
+        await post('/api/stop', { version, profile: launchProfile })
         await startVersion(version)
       } catch (error) {
         action = ''
@@ -3612,6 +3667,9 @@
         versions: data.versions,
         instances: Array.isArray(data.instances) ? data.instances : [],
         running,
+        profile: typeof data.profile === 'string' ? data.profile : (state.profile || ''),
+        // 旧服务进程（改动前起的）的 state 里没有 profiles：保留旧值，别把下拉清空
+        profiles: Array.isArray(data.profiles) ? data.profiles : (state.profiles || []),
         autoFix: data.autoFix ?? null,
         health: data.health ?? null,
         loaded: true,
@@ -3619,6 +3677,7 @@
       if (data.progress) installProgress = data.progress
       if (!data.installing) installProgress = data.progress || null
       if ('pluginProgress' in data) pluginProgress = data.pluginProgress || null
+      paintLaunchProfiles()
       if (!userPicked) picked = preferredPick()
       render()
       maybeLaunch()

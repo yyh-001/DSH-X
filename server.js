@@ -188,13 +188,21 @@ let host = {
 }
 const logs = []
 /**
- * 正在跑的 dsh 实例，一个版本一个（多开）。
+ * 正在跑的 dsh 实例，一个「版本 × profile」组合一个（多开）。
  *
- * 端口不用抢：启动器给 dsh 传 `--port 0`，由系统各挑一个，从 dsh 自己打印的地址里读回来。
- * 数据是共享的——同一个 DSH_HOME、同一份 profile，多开的两个实例看见同一批会话与插件，
- * 这正是「换个版本跑」想要的样子；同一个版本再点一次启动只会拿回已经在跑的那个。
+ * 端口不用抢：启动器给会起 web 的 profile 传 `--port 0`，由系统各挑一个，从 dsh 自己
+ * 打印的地址里读回来。数据是共享的——同一个 DSH_HOME，多开的实例看见同一批会话与记忆；
+ * 插件树按 profile 各是各的。同一个组合再点一次启动只会拿回已经在跑的那个。
  */
 const instances = new Map()
+
+/**
+ * 一个实例一个键：`版本@profile`。两边的字符集（VERSION_RE / safeProfile）都不含 @，
+ * 拼起来不会歧义；`proc.key` 记的就是它。
+ */
+function instanceKey(version, profile) {
+  return `${version}@${profile}`
+}
 let installing = null
 let installProgress = null
 // 插件安装/升级的进度（走 dsh 内部的 pnpm，解析方式和 npm 不同，页面按 kind 分给不同的进度条）
@@ -302,8 +310,8 @@ function binPath(version) {
   return managedBin(version)
 }
 
-function profileManifest() {
-  return join(profileDir(), 'package.json')
+function profileManifest(profile = PROFILE_NAME) {
+  return join(profileDirOf(profile), 'package.json')
 }
 
 function scanInstalled() {
@@ -760,6 +768,11 @@ function instanceList() {
   return [...instances.values()]
 }
 
+/** 该版本还有没有任何实例在跑（跑起中或已跑起来，正在停的不算）。 */
+function hasLiveInstance(version) {
+  return liveInstanceList().some((proc) => proc.version === version)
+}
+
 /** 说得上「在跑」的实例：起来中或已经跑起来（正在停的不算）。 */
 function liveInstanceList() {
   return instanceList().filter((proc) => proc.status === 'running' || proc.status === 'starting')
@@ -792,6 +805,9 @@ async function snapshot() {
   return {
     installing,
     installed,
+    // 当前 profile（启动下拉的默认值）+ 可选的 profile 列表（模板名 + 磁盘上已有的）
+    profile: PROFILE_NAME,
+    profiles: listProfiles(),
     instances: all.map(instanceInfo),
     versions: installed.map((version) => {
       // 同一个版本的实例可能不止一个（多开下只会有一个，聚合起来更稳）：跑着的优先，
@@ -1208,8 +1224,17 @@ function emitPluginProgress(state) {
   emit('progress', state ? { ...state, kind: 'plugin', name: pluginProgressName } : { phase: 'idle', kind: 'plugin' })
 }
 
+/**
+ * 指名 profile 的目录。实例按启动时那份 profile 定向（插件操作、补丁层、依赖重建
+ * 都得落到它自己头上）；不传就是当前 profile，跟老的 profileDir() 一个意思。
+ */
+function profileDirOf(profile = PROFILE_NAME) {
+  return join(homeDir(), 'profiles', safeProfile(profile))
+}
+
+/** 当前 profile 目录。 */
 function profileDir() {
-  return join(homeDir(), 'profiles', PROFILE_NAME)
+  return profileDirOf(PROFILE_NAME)
 }
 
 /**
@@ -1383,14 +1408,32 @@ async function testSyncConnection() {
 }
 
 /**
+ * 这个 profile 会不会起 web 应用——只有它认 `--host/--port/--no-open` 这几个 flag，
+ * 别的 app 会把它们打回 `unknown option` 并 exit 1。官方 web 模板直接认名；自定义
+ * profile（比如从 web 模板建出来的）看清单的 bundle 列表里启没启 dsh-web-app。
+ * 清单读不了就当不会起：顶多是启动后没有地址可读（headless 本来就没有）。
+ */
+function bootsWebApp(profile = PROFILE_NAME) {
+  if (profile === 'web') return true
+  try {
+    const manifest = JSON.parse(readFileSync(profileManifest(profile), 'utf8'))
+    const bundles = manifest?.dsh?.profile?.bundles
+    return Array.isArray(bundles) && bundles.includes('@deepseek-ai/dsh-web-app')
+  } catch {
+    return false
+  }
+}
+
+/**
  * dsh 启动参数。`alongside` = 已经有一个实例在跑（多开），局域网下要另给端口。
+ * @param {string} profile 这次启动用的 profile（多开下同一版本可以各用各的）
  * @param {boolean} alongside
  */
-function bootArgs(alongside = false) {
-  // web 以外的 profile（headless / acp / sdk…）不提供 HTTP 服务，也不认这几个 flag：
+function bootArgs(profile = PROFILE_NAME, alongside = false) {
+  // 不起 web 的 profile（headless / acp / sdk…）不提供 HTTP 服务，也不认这几个 flag：
   // 参数是透传给 profile 对应 app 的，会被它自己的 commander 打回 `unknown option`
-  // 并 exit 1（`dsh headless --no-open` 就是这条），所以只对 web 注入
-  if (PROFILE_NAME !== 'web') return [PROFILE_NAME, ...EXTRA_ARGS]
+  // 并 exit 1（`dsh headless --no-open` 就是这条），所以只对会起 web 的注入
+  if (!bootsWebApp(profile)) return [profile, ...EXTRA_ARGS]
   if (lanBindActive()) {
     // 局域网：--host/--port 一个都不传。CLI 硬禁 --host 0.0.0.0，绑定只能走配置层
     // （远程插件的 lan-bind 开关写进 profile 补丁的 webserver 块）；--port 0 也一样
@@ -1398,13 +1441,13 @@ function bootArgs(alongside = false) {
     // 多开是例外：配置层里只有一个端口，第二个实例撞上去就是 EADDRINUSE，
     // 所以给它一个系统挑的端口（--host 照样不传，绑定仍由配置层说了算）。
     return alongside
-      ? [PROFILE_NAME, '--port', '0', '--no-open', ...EXTRA_ARGS]
-      : [PROFILE_NAME, '--no-open', ...EXTRA_ARGS]
+      ? [profile, '--port', '0', '--no-open', ...EXTRA_ARGS]
+      : [profile, '--no-open', ...EXTRA_ARGS]
   }
   // 默认姿势：钉死回环 + 让 OS 挑端口（端口冲突顺延是 dsh 输出的事，启动器读真实地址）。
   // 额外参数放最后：用户可以用它覆盖 --port 之类（启动器是从 dsh 的输出里读真实地址的，
   // 所以换个端口也不影响管理页拿到的链接）
-  return [PROFILE_NAME, '--host', '127.0.0.1', '--port', '0', '--no-open', ...EXTRA_ARGS]
+  return [profile, '--host', '127.0.0.1', '--port', '0', '--no-open', ...EXTRA_ARGS]
 }
 
 /** dsh 子进程的加载钩子：启动加速 + 会话事件词汇兼容（含 worker 线程那份）。 */
@@ -2038,7 +2081,7 @@ async function runProfileInstall(version, options = {}) {
  * 提示重装 profile 依赖即可。
  * @returns 是否值得重试启动
  */
-async function repairProfileDeps(version, error) {
+async function repairProfileDeps(version, error, profile = PROFILE_NAME) {
   const failure = error?.failure || lastFailure
   const bundles = parseUnresolvedBundles(`${failure?.message || ''}\n${(failure?.tail || []).join('\n')}`)
   if (!bundles.length) return false
@@ -2046,12 +2089,12 @@ async function repairProfileDeps(version, error) {
     pushLog(`[兼容] profile 里解析不到 ${bundles.join('、')}，但正在装插件，跳过依赖重建`)
     return false
   }
-  const broken = pruneDanglingLinks(join(profileDir(), 'node_modules'))
+  const broken = pruneDanglingLinks(join(profileDirOf(profile), 'node_modules'))
   if (broken) pushLog(`[兼容] 先清理了 ${broken} 个悬空的链接`)
-  pushLog(`[兼容] profile 里解析不到 ${bundles.join('、')}，重建 profile 依赖（dsh plugin install）…`)
+  pushLog(`[兼容] profile ${profile} 里解析不到 ${bundles.join('、')}，重建 profile 依赖（dsh plugin install）…`)
   pluginBusy = true
   try {
-    await runProfileInstall(version)
+    await runProfileInstall(version, { profile })
     pushLog('[兼容] profile 依赖已重建，重试启动…')
     return true
   } catch (error2) {
@@ -2710,10 +2753,12 @@ function killTree(pid) {
   }
 }
 
-function attachProcess(version, child) {
+function attachProcess(version, profile, child) {
+  const key = instanceKey(version, profile)
   const proc = {
+    key,
     version,
-    profile: PROFILE_NAME,
+    profile,
     child,
     status: 'starting',
     url: null,
@@ -2721,9 +2766,9 @@ function attachProcess(version, child) {
     exit: null,
     startedAt: Date.now(),
   }
-  instances.set(version, proc)
-  // 一个版本一个实例，日志里要能看出是哪一行是哪台在说话（多开时尤其）
-  const tag = `[${version}] `
+  instances.set(key, proc)
+  // 一个组合一个实例，日志里要能看出是哪一行是哪台在说话（多开时尤其）
+  const tag = `[${version}/${profile}] `
   const onChunk = (buf) => {
     const text = buf.toString('utf8')
     for (const line of text.split(/\r?\n/)) {
@@ -2745,8 +2790,8 @@ function attachProcess(version, child) {
   child.on('exit', (code, signal) => {
     proc.exit = { code, signal }
     pushLog(`${tag}已退出 code=${code ?? '-'} signal=${signal ?? '-'}`)
-    if (instances.get(version)?.child === child) {
-      instances.delete(version)
+    if (instances.get(key)?.child === child) {
+      instances.delete(key)
       lastHealth = null
     }
     emitState()
@@ -2756,9 +2801,9 @@ function attachProcess(version, child) {
 
 async function waitUntilReady(proc, version) {
   const started = Date.now()
-  const label = version
+  const label = `${version}/${proc.profile}`
   while (proc.status === 'starting') {
-    if (instances.get(proc.version) !== proc) throw new Error(`${label} 启动失败`)
+    if (instances.get(proc.key) !== proc) throw new Error(`${label} 启动失败`)
     if (Date.now() - started > START_TIMEOUT_MS) {
       killTree(proc.child.pid)
       throw new Error(`${label} 启动超时`)
@@ -2849,14 +2894,18 @@ async function selfCheckPage(url, version) {
 }
 
 /** 起一个 web 子进程并等到它打印就绪 URL；失败时把子进程输出尾巴留给 AI 当证据。 */
-async function bootOnce(ver) {
+async function bootOnce(ver, prof) {
   await mkdir(homeDir(), { recursive: true })
-  await seedMarket(ver)
-  await seedBundledPlugins(ver)
+  // 预装（dshmarket / 内置插件）只对当前 profile 做：起别的 profile——safe、整合包
+  // 环境、别人故意留空的——不该被偷偷塞进一堆包
+  if (prof === PROFILE_NAME) {
+    await seedMarket(ver)
+    await seedBundledPlugins(ver)
+  }
   const alongside = instances.size > 0
-  pushLog(`启动 ${ver} · profile ${PROFILE_NAME}${lanBindActive() ? ' · Web 绑定 局域网(0.0.0.0，由配置层决定)' : ''}${alongside ? '（与已在跑的实例并存）' : ''}`)
-  const child = spawnDsh(ver, bootArgs(alongside))
-  const proc = attachProcess(ver, child)
+  pushLog(`启动 ${ver} · profile ${prof}${lanBindActive() ? ' · Web 绑定 局域网(0.0.0.0，由配置层决定)' : ''}${alongside ? '（与已在跑的实例并存）' : ''}`)
+  const child = spawnDsh(ver, bootArgs(prof, alongside))
+  const proc = attachProcess(ver, prof, child)
   await emitState()
   try {
     const result = await waitUntilReady(proc, ver)
@@ -2883,12 +2932,18 @@ async function bootOnce(ver) {
 }
 
 /**
- * 启动某个版本。多开：已经在跑的那个版本不会被动，新版本在旁边另起一个
- * （同一个版本重复点启动只会拿回已经在跑的那个）。
+ * 启动某个「版本 × profile」。多开：已经在跑的那个组合不会被动，新组合在旁边另起一个
+ * （同一组合重复点启动只会拿回已经在跑的那个）。
  */
-async function startNow(version) {
+async function startNow(version, profile = PROFILE_NAME) {
   const ver = safeVersion(version)
-  const existing = instances.get(ver)
+  const prof = safeProfile(profile)
+  // desktop 是官方 Electron 端的保留名，dsh 的 CLI 会直接拒：提前说人话
+  if (prof === 'desktop') throw new Error('desktop 是官方 Electron 端专用的 profile，命令行启动会被 dsh 拒掉')
+  if (!listProfiles().includes(prof)) {
+    throw new Error(`profile ${prof} 不存在（先用自带模板名起一次，或把装好的 profile 目录放进 .dsh/profiles）`)
+  }
+  const existing = instances.get(instanceKey(ver, prof))
   if (existing?.status === 'running' && existing.url) {
     return { url: existing.url }
   }
@@ -2898,7 +2953,7 @@ async function startNow(version) {
   const config = await loadConfig()
   if (!listedVersions(config).includes(ver)) throw new Error(`${ver} 未安装`)
   if (!existsSync(binPath(ver))) throw new Error('找不到官方入口 lib/bin.js')
-  return bootOnce(ver)
+  return bootOnce(ver, prof)
 }
 
 /** 一次启动尝试里最多按错误自动禁用几个插件（避免连环禁用不可收拾）。 */
@@ -2923,9 +2978,11 @@ export function dshToleratesOptionalFailures(version) {
  * 只信任错误的原始输出（failed to import loader entry <行> (<包>)），官方组件不动。
  * @returns 是否改动了配置（改动后上层立刻重试启动）。
  */
-async function autoDisableFailedPlugins(error, already) {
+async function autoDisableFailedPlugins(error, already, profile = PROFILE_NAME) {
   const settings = await loadSettings()
   if (settings.autoDisablePlugins === false) return false
+  // 补丁层写在出事那份 profile 自己头上：多开下别的 profile 正跑着，不能改错文件
+  const dir = profileDirOf(profile)
   const failure = error?.failure || lastFailure
   // 新版本 dsh 自己扛得住可选插件失败，启动器就别替它做决定（原因见 dshToleratesOptionalFailures）
   const version = failure?.version || primaryInstance()?.version || ''
@@ -2938,7 +2995,7 @@ async function autoDisableFailedPlugins(error, already) {
   // 禁掉一个加载行并记账；返回是否真的动手了（没改动就别重试，免得打转）
   const tryDisable = async (id, name, note) => {
     try {
-      const result = disableRowId(profileDir(), id)
+      const result = disableRowId(dir, id)
       if (!result.changed) return false
       pushLog(`[兼容] ${note}，已写入 cordis.patch.yml 禁用「${id}」，重试启动…`)
       already.add(id)
@@ -2960,7 +3017,7 @@ async function autoDisableFailedPlugins(error, already) {
   for (const row of parseFailedRows(text)) {
     if (already.has(row.id)) continue
     if (/^@deepseek-ai\//.test(row.pkg)) continue
-    const owner = ownerOfRow(profileDir(), row.id)
+    const owner = ownerOfRow(dir, row.id)
     if (owner && /^@deepseek-ai\//.test(owner)) continue
     if (await tryDisable(row.id, row.pkg, `${row.pkg} 的加载行「${row.id}」加载失败`)) return true
   }
@@ -2968,7 +3025,7 @@ async function autoDisableFailedPlugins(error, already) {
   // 二、形状解析没命中时换个方向：顶层命中的可能是个核心 loader，出问题的插件藏在
   //     cause 里（见 pluginsNamedInFailure 的说明）。拿已装插件的名字去报错里找，
   //     按出现顺序一个个试，每次只禁一个再重试。
-  for (const plugin of pluginsNamedInFailure(profileDir(), text)) {
+  for (const plugin of pluginsNamedInFailure(dir, text)) {
     const id = plugin.ids.find((rowId) => !already.has(rowId))
     if (!id) continue
     if (await tryDisable(id, plugin.name, `报错点名了 ${plugin.name}`)) return true
@@ -2979,25 +3036,27 @@ async function autoDisableFailedPlugins(error, already) {
 /**
  * 启动失败 → 自动修复 → 重试（兼容模式），直到成功或无法再修。
  * 先试禁用出问题的插件行，再试重建 profile 依赖（两者各只做一次，避免打转）。
+ * 修复全部落在这次启动的 profile 自己头上（多开下别的 profile 不能被顺手改掉）。
  */
-async function startWithRepair(version) {
+async function startWithRepair(version, profile = PROFILE_NAME) {
   lastAutoFix = null
   const autoDisabled = new Set()
   let depsRepaired = false
   let lastError
   // 每次启动都补齐 profile 的 .npmrc：插件市场的安装也会走这个文件，
-  // 早于任何一次 add 就有这行，市场里点安装才不会撞上 peer 求交那个坑
-  await ensureProfileNpmrc().catch(() => {})
+  // 早于任何一次 add 就有这行，市场里点安装才不会撞上 peer 求交那个坑。
+  // 只对当前 profile 做——起别的 profile 不动它的文件，人家可能就是故意留空的
+  if (profile === PROFILE_NAME) await ensureProfileNpmrc(profile).catch(() => {})
   for (;;) {
     try {
-      return await startNow(version)
+      return await startNow(version, profile)
     } catch (error) {
       lastError = error
       pushLog(`启动失败：${error instanceof Error ? error.message : error}`)
-      if (autoDisabled.size < MAX_AUTO_DISABLE && await autoDisableFailedPlugins(error, autoDisabled)) {
+      if (autoDisabled.size < MAX_AUTO_DISABLE && await autoDisableFailedPlugins(error, autoDisabled, profile)) {
         continue
       }
-      if (!depsRepaired && await repairProfileDeps(version, error)) {
+      if (!depsRepaired && await repairProfileDeps(version, error, profile)) {
         depsRepaired = true
         continue
       }
@@ -3009,8 +3068,8 @@ async function startWithRepair(version) {
 
 let startChain = Promise.resolve()
 
-async function start(version) {
-  const run = startChain.then(() => startWithRepair(version))
+async function start(version, profile) {
+  const run = startChain.then(() => startWithRepair(version, profile))
   startChain = run.then(() => {}, () => {})
   return run
 }
@@ -3032,19 +3091,19 @@ export async function launchInstalled() {
 }
 
 /**
- * 重启：多开下把在跑的实例都重启一遍（每个还用它自己的版本），一个都没跑就起一个。
- * 某个版本起不来不拦着后面的，但错误要往上抛——页面得知道有实例没回来。
+ * 重启：多开下把在跑的实例都重启一遍（每个还用它自己的版本和 profile），一个都没跑就起一个。
+ * 某个起不来不拦着后面的，但错误要往上抛——页面得知道有实例没回来。
  */
 export async function restartInstalled() {
-  const versions = instanceList().map((proc) => proc.version)
-  if (!versions.length) return launchInstalled()
+  const targets = instanceList().map((proc) => ({ version: proc.version, profile: proc.profile }))
+  if (!targets.length) return launchInstalled()
   await stop()
   let last = null
   let failure = null
-  for (const version of versions) {
+  for (const { version, profile } of targets) {
     try {
-      const result = await start(version)
-      last = { version, url: result.url }
+      const result = await start(version, profile)
+      last = { version, profile, url: result.url }
     } catch (error) {
       failure = failure || error
     }
@@ -3420,12 +3479,21 @@ function isLocalHostHeader(host) {
 export { pruneDanglingLinks, pruneVersions, snapshot, stop }
 
 /**
- * 停止实例：给了版本就停那个版本，没给就全停（托盘的「停止」是后者）。
- * 指名了一个没在跑的版本不算错，什么都不做——多开下页面和状态本来就可能差一拍。
+ * 停止实例：版本 + profile 都给就停那一个组合；只给版本就停那个版本的全部
+ * （同版本可能用不同 profile 各跑着一份）；都没给就全停（托盘的「停止」是这条）。
+ * 指名了一个没在跑的组合不算错，什么都不做——多开下页面和状态本来就可能差一拍。
  */
-async function stop(version) {
-  const wanted = typeof version === 'string' && version && VERSION_RE.test(version) ? version : ''
-  const targets = wanted ? [instances.get(wanted)].filter(Boolean) : instanceList()
+async function stop(version, profile = '') {
+  const wantedVersion = typeof version === 'string' && version && VERSION_RE.test(version) ? version : ''
+  let wantedProfile = ''
+  if (wantedVersion && typeof profile === 'string' && profile) {
+    try { wantedProfile = safeProfile(profile) } catch { wantedProfile = '' }
+  }
+  const targets = !wantedVersion
+    ? instanceList()
+    : wantedProfile
+      ? [instances.get(instanceKey(wantedVersion, wantedProfile))].filter(Boolean)
+      : instanceList().filter((proc) => proc.version === wantedVersion)
   if (!targets.length) return
   for (const proc of targets) proc.status = 'stopping'
   await emitState()
@@ -3433,7 +3501,7 @@ async function stop(version) {
     const closed = new Promise((resolve) => proc.child.once('close', resolve))
     killTree(proc.child.pid)
     await Promise.race([closed, new Promise((resolve) => setTimeout(resolve, 5000))])
-    if (instances.get(proc.version)?.child === proc.child) instances.delete(proc.version)
+    if (instances.get(proc.key)?.child === proc.child) instances.delete(proc.key)
   }))
   await emitState()
 }
@@ -3464,7 +3532,8 @@ async function uninstallSystem(ver) {
 
 async function uninstall(version) {
   const ver = safeVersion(version)
-  if (instances.has(ver)) throw new Error('请先停止再移除')
+  // 这个版本可能有多个 profile 的实例在跑，任何一个在都不能卸
+  if (instanceList().some((proc) => proc.version === ver)) throw new Error('请先停止再移除')
   const config = await loadConfig()
   const versions = listedVersions(config)
   if (!versions.includes(ver)) throw new Error(`${ver} 未安装`)
@@ -3708,7 +3777,7 @@ async function handleApi(req, res, url) {
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/start') {
-    send(res, 200, await start(body.version))
+    send(res, 200, await start(body.version, body.profile))
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/launch') {
@@ -3716,7 +3785,7 @@ async function handleApi(req, res, url) {
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/stop') {
-    await stop(body.version)
+    await stop(body.version, body.profile)
     send(res, 200, { ok: true })
     return
   }

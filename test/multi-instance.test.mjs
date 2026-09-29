@@ -157,15 +157,76 @@ test('版本目录里跑着的实例不许改、不许卸', async () => {
   await api('/api/stop', { version: A })
 })
 
+// ---- 多 profile 多开：实例的键是「版本 × profile」，不再只是版本 ----
+
+test('同一个版本可以用两个 profile 各起一个', async () => {
+  // 自定义 profile 得先在盘上有清单，不然 dsh 自己都会拒
+  const work = join(HOME, 'profiles', 'work')
+  mkdirSync(work, { recursive: true })
+  writeFileSync(join(work, 'package.json'), JSON.stringify({
+    name: 'dsh-profile-work',
+    private: true,
+    dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'] } },
+  }), 'utf8')
+  const web = await api('/api/start', { version: A, profile: 'web' })
+  const wk = await api('/api/start', { version: A, profile: 'work' })
+  assert.ok(web.url && wk.url, '两个都拿到地址')
+  assert.notEqual(web.url, wk.url, '端口不抢：各是各的')
+  const snap = await state()
+  const mine = snap.instances.filter((item) => item.version === A)
+  assert.equal(mine.length, 2, '同一版本两个 profile 各一个实例')
+  assert.deepEqual(mine.map((item) => item.profile).sort(), ['web', 'work'])
+  // 同一组合再点一次：拿回已经在跑的那个，不叠加
+  const again = await api('/api/start', { version: A, profile: 'work' })
+  assert.equal(again.url, wk.url)
+  await api('/api/stop', {})
+})
+
+test('按 profile 停：只停那一个组合，别的照跑', async () => {
+  await api('/api/start', { version: A, profile: 'web' })
+  await api('/api/start', { version: A, profile: 'work' })
+  await api('/api/stop', { version: A, profile: 'web' })
+  const snap = await state()
+  assert.deepEqual(snap.instances.map((item) => item.profile), ['work'], '只剩 work 那份')
+  await api('/api/stop', {})
+})
+
+test('按版本停：该版本的全部 profile 一起停', async () => {
+  await api('/api/start', { version: A, profile: 'web' })
+  await api('/api/start', { version: A, profile: 'work' })
+  await api('/api/stop', { version: A })
+  const snap = await state()
+  assert.deepEqual(snap.instances, [], '同版本不管几个 profile 都停了')
+  await api('/api/stop', {})
+})
+
+test('重启把每个实例按原来的 profile 拉回来', async () => {
+  await api('/api/start', { version: A, profile: 'web' })
+  await api('/api/start', { version: A, profile: 'work' })
+  await api('/api/restart', {})
+  const snap = await state()
+  assert.equal(snap.instances.length, 2, '重启不该把多 profile 变成单份')
+  assert.deepEqual(snap.instances.map((item) => item.profile).sort(), ['web', 'work'])
+  assert.ok(snap.instances.every((item) => item.version === A))
+  await api('/api/stop', {})
+})
+
+test('不存在的 profile 与保留名都会被拒', async () => {
+  await assert.rejects(api('/api/start', { version: A, profile: 'ghost' }), /不存在/, '盘上没有的自定义名直接拒')
+  await assert.rejects(api('/api/start', { version: A, profile: 'desktop' }), /desktop/, 'desktop 是官方 Electron 端的保留名')
+})
+
 test('控制页有「在跑的实例」一栏，每行单独打开/停止', () => {
   assert.match(page, /<div class="instances" id="instances" hidden>[\s\S]{0,220}?<span class="instances-title" data-i18n="在跑的实例">/, '实例一栏在控制页')
   assert.match(page, /const show = list\.length > 0/, '有实例就列出来：选中别的版本时，这栏是唯一能看到「还有东西在跑」的地方')
-  assert.match(page, /post\('\/api\/stop', \{ version: el\.dataset\.stop \}\)/, '每行的停止打在它自己那个版本上')
+  assert.match(page, /post\('\/api\/stop', \{ version: el\.dataset\.stopVersion, profile: el\.dataset\.profile \}\)/, '每行的停止打在它自己那个 版本×profile 上')
   assert.match(page, /void openInstance\(item\?\.url\)/, '打开走服务端的打开方式（内嵌窗口 / 应用窗口 / 标签页）')
-  // 主按钮看的是「下拉里选中的这个版本在不在跑」。多开时若还看全局的 running，
-  // 选中没在跑的那个会拿到别的实例，主按钮就会显示「停止」而实际去启动
-  assert.match(page, /const running = runningInfo\(version\)\n      const thisRun = Boolean\(running && running\.version === version\)/, '主按钮按选中版本判断')
-  assert.match(page, /function runningInfo\(version = ''\)/, 'runningInfo 收版本')
+  // 主按钮看的是「下拉里选中的 版本×profile 在不在跑」。若还看全局的 running，
+  // 选中没在跑的组合会拿到别的实例，主按钮就会显示「停止」而实际去启动
+  assert.match(page, /const running = runningInfo\(version, launchProfile\)\n      \/\/ 主按钮看/, '主按钮按选中的组合判断')
+  assert.match(page, /function runningInfo\(version = '', profile = ''\)/, 'runningInfo 收版本和 profile')
+  assert.match(page, /id="launchProfile"/, '控制页有启动 profile 下拉')
+  assert.match(page, /post\('\/api\/start', \{ version, profile: launchProfile \}\)/, '启动带上选的 profile')
   // 跑着的时候下拉还能切：切过去点启动就是在旁边再起一个，这正是多开要的那条路
   assert.match(page, /versionDisabled = loading\n/, '版本下拉不再因为「有实例在跑」而禁用')
 })
