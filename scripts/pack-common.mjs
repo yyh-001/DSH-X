@@ -38,8 +38,14 @@ const APP_FILES = [
   'stdio-unblock.cjs',
   'package.json',
 ]
-// 分层版看板娘的素材暂时不装进包（文件留在仓库里；以后切回分层版就把名字从这份名单去掉）
-const SKIP_PUBLIC = new Set(['head-v2.png', 'accessories-v2.png', 'ear.png'])
+// 不装进安装包的 public 素材（文件留在仓库里备回滚；要重新启用就从这份名单去掉）
+const SKIP_PUBLIC = new Set([
+  'head-v2.png', 'accessories-v2.png', 'ear.png',
+  // v7 换装（docs/mascot-design/compose-v7.py）后退役的原版素材
+  'base.png', 'base-dark.png', 'base-dark-soft.png', 'tuft.svg', 'tuft-dark.svg', 'bow.svg', 'bow-dark.svg',
+  // v8 排布（docs/mascot-design/prepare-v8.py）后退役的 v7 均匀倍率版
+  'head-v7.png', 'tuft-v7.png', 'bow-v7.png', 'ear-v7.png',
+])
 
 export function run(command, args, cwd = ROOT) {
   const result = spawnSync(command, args, { cwd, stdio: 'inherit', windowsHide: false })

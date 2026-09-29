@@ -7,6 +7,8 @@
   body { margin:0; min-height:100vh; background:#e1eff7; color:#253656; font:14px system-ui; }
   html[data-color-scheme="dark"] body { background:#191c25; color:#dce6fa; }
   header { position:relative; padding:24px; display:flex; flex-wrap:wrap; gap:16px; }
+  header { pointer-events:auto; }
+  select { font:inherit; padding:8px; border-radius:10px; }
   button { font:inherit; border:1px solid #8998ae; padding:8px 14px; border-radius:10px; background:transparent; color:inherit; cursor:pointer; }
   p { margin:0; flex-basis:100%; }
   /* Keep the ear tip visible when reviewing secondary motion, without changing the homepage crop. */
@@ -15,7 +17,7 @@
   html.preview-closed [data-part="eye-left"], html.preview-closed [data-part="eye-right"] { opacity:0; }
   html.preview-closed [data-part="lid-left"], html.preview-closed [data-part="lid-right"] { opacity:1; }
 </style>
-<header><button id="theme">切换深浅色</button><button id="motion">暂停动画</button><p>移动鼠标让眼睛跟随，轻点角色查看开心表情。</p></header>
+<header><button id="theme">切换深浅色</button><button id="motion">暂停动画</button><select id="state" aria-label="预览状态"><option value="">自动轮播</option><option value="idle">待机</option><option value="curious">好奇</option><option value="thinking">思考</option><option value="playful">俏皮</option><option value="happy">开心</option><option value="drowsy">犯困</option><option value="sleeping">睡眠</option><option value="waking">醒来</option></select><p>移动鼠标让眼睛跟随，轻点角色查看开心表情。</p></header>
 <script src="/mascot.js" defer></script>
 <script>
   const preview = new URLSearchParams(location.search);
@@ -24,5 +26,8 @@
   if (preview.has('closed')) document.documentElement.classList.add('preview-closed');
   document.querySelector('#theme').onclick = () => { const root = document.documentElement; root.dataset.colorScheme = root.dataset.colorScheme === 'dark' ? 'light' : 'dark'; };
   document.querySelector('#motion').onclick = event => { const paused = document.documentElement.classList.toggle('reduce-motion'); event.target.textContent = paused ? '恢复动画' : '暂停动画'; };
+  document.querySelector('#state').onchange = event => {
+    document.querySelector('.mascot')?.dispatchEvent(new CustomEvent('mascot-preview-state', { detail:event.target.value }));
+  };
 </script>
 </html>
