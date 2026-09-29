@@ -16,22 +16,22 @@
         </defs>
         <g data-part="head">
           <g data-part="ear">
-            <image class="mascot-light-layer" href="${assetRoot}ear-v8.png" x="871" y="863" width="413" height="368"/>
-            <image class="mascot-dark-layer" href="${assetRoot}ear-v9.png" x="871" y="863" width="413" height="368"/>
+            <image class="mascot-light-layer" href="${assetRoot}ear-v8.png" x="871" y="843" width="413" height="368"/>
+            <image class="mascot-dark-layer" href="${assetRoot}ear-v9.png" x="871" y="843" width="413" height="368"/>
           </g>
-          <image class="mascot-light-layer" href="${assetRoot}head-v8.png" x="-325" y="218" width="1398.6" height="1225.8"/>
-          <image class="mascot-dark-layer" href="${assetRoot}head-v9.png" x="-325" y="218" width="1398.6" height="1225.8"/>
+          <image class="mascot-light-layer" href="${assetRoot}head-v8.png" x="-325" y="198" width="1398.6" height="1225.8"/>
+          <image class="mascot-dark-layer" href="${assetRoot}head-v9.png" x="-325" y="198" width="1398.6" height="1225.8"/>
           <g data-part="tuft">
-            <image class="mascot-light-layer" href="${assetRoot}tuft-v8.png" x="250" y="90" width="410" height="293.894"/>
-            <image class="mascot-dark-layer" href="${assetRoot}tuft-v9.png" x="250" y="90" width="410" height="293.894"/>
+            <image class="mascot-light-layer" href="${assetRoot}tuft-v8.png" x="250" y="70" width="410" height="293.894"/>
+            <image class="mascot-dark-layer" href="${assetRoot}tuft-v9.png" x="250" y="70" width="410" height="293.894"/>
           </g>
           <g data-part="bow">
-            <image class="mascot-light-layer" href="${assetRoot}bow-v8.png" x="896" y="847" width="230" height="175"/>
-            <image class="mascot-dark-layer" href="${assetRoot}bow-v9.png" x="896" y="847" width="230" height="175"/>
+            <image class="mascot-light-layer" href="${assetRoot}bow-v8.png" x="896" y="827" width="230" height="175"/>
+            <image class="mascot-dark-layer" href="${assetRoot}bow-v9.png" x="896" y="827" width="230" height="175"/>
           </g>
           <g data-part="gaze">
-            <g transform="translate(246 850) rotate(19)"><g data-part="eye-left"><ellipse rx="52" ry="90" fill="url(#mascot-eye)"/><ellipse cx="-14" cy="-35" rx="9" ry="13" fill="white" opacity=".65"/></g><path data-part="lid-left" d="M-46 8Q0 -30 46 8" fill="none" stroke="#222940" stroke-width="13" stroke-linecap="round" opacity="0"/></g>
-            <g transform="translate(671 998) rotate(19)"><g data-part="eye-right"><ellipse rx="50" ry="87" fill="url(#mascot-eye)"/><ellipse cx="-13" cy="-34" rx="8" ry="12" fill="white" opacity=".65"/></g><path data-part="lid-right" d="M-44 8Q0 -29 44 8" fill="none" stroke="#222940" stroke-width="13" stroke-linecap="round" opacity="0"/></g>
+            <g transform="translate(246 830) rotate(19)"><g data-part="eye-left"><ellipse rx="52" ry="90" fill="url(#mascot-eye)"/><ellipse cx="-14" cy="-35" rx="9" ry="13" fill="white" opacity=".65"/></g><path data-part="lid-left" d="M-46 8Q0 -30 46 8" fill="none" stroke="#222940" stroke-width="13" stroke-linecap="round" opacity="0"/></g>
+            <g transform="translate(671 978) rotate(19)"><g data-part="eye-right"><ellipse rx="50" ry="87" fill="url(#mascot-eye)"/><ellipse cx="-13" cy="-34" rx="8" ry="12" fill="white" opacity=".65"/></g><path data-part="lid-right" d="M-44 8Q0 -29 44 8" fill="none" stroke="#222940" stroke-width="13" stroke-linecap="round" opacity="0"/></g>
           </g>
         </g>
       </svg>
@@ -215,11 +215,11 @@
     const bow = spring('bow', clamp(bowTarget, -7, 7), dt, 85, 19);
     const angle = tilt + x * 2.4;
     const shiftX = x * 8;
-    parts.head.setAttribute('transform', `translate(${shiftX} ${lift + y * 5 - reaction * 16}) rotate(${angle} 440 1405) translate(440 1405) scale(${1 / squash} ${squash}) translate(-440 -1405)`);
-    parts.tuft.setAttribute('transform', `rotate(${tuft} 505 370)`);
-    parts.ear.setAttribute('transform', `rotate(${ear} 990 940)`);
+    parts.head.setAttribute('transform', `translate(${shiftX} ${lift + y * 5 - reaction * 16}) rotate(${angle} 440 1385) translate(440 1385) scale(${1 / squash} ${squash}) translate(-440 -1385)`);
+    parts.tuft.setAttribute('transform', `rotate(${tuft} 505 350)`);
+    parts.ear.setAttribute('transform', `rotate(${ear} 990 920)`);
     const earRadians = ear * Math.PI / 180;
-    parts.bow.setAttribute('transform', `translate(${28 * (Math.cos(earRadians) - 1)} ${28 * Math.sin(earRadians)}) rotate(${bow} 1018 940)`);
+    parts.bow.setAttribute('transform', `translate(${28 * (Math.cos(earRadians) - 1)} ${28 * Math.sin(earRadians)}) rotate(${bow} 1018 920)`);
     const gazeEase = 1 - Math.exp(-dt * (state === 'drowsy' ? 5 : 18));
     gazeX += (clamp(lookX, -1, 1) * 22 - gazeX) * gazeEase;
     gazeY += (clamp(lookY, -1, 1) * 15 - gazeY) * gazeEase;

@@ -1,8 +1,8 @@
 /* Layered character rig. The UI cards stay above the character. */
 .backdrop-character { display: none; }
 .mascot {
-  position: fixed; left: -3vh; bottom: -8vh;
-  width: min(70vh, 48vw); aspect-ratio: 1;
+  position: fixed; left: -2vh; bottom: 0;
+  width: min(72vh, 92vw); aspect-ratio: 1;
   z-index: 2; pointer-events: none;
   /* 入场只做一次平滑的滑入淡入：进设置页会把 .mascot 藏起来（.subpage-open），
      回到主界面时 display 变回来会重放这段动画——以前 68%/84% 有过冲回拉，看着像回弹抖一下。 */
@@ -34,7 +34,6 @@ main, .page { pointer-events: none; }
 /* 设置页外壳：导航和内容列要能点，面板之外的空白照样穿透到看板娘身上 */
 .settings-nav, .pane-inner { pointer-events: auto; }
 @media (max-width: 600px) {
-  .mascot { width: 64vw; bottom: -5vw; }
   .mascot svg { opacity: .58; }
 }
 @media (prefers-reduced-motion: reduce) {
