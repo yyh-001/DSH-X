@@ -2,7 +2,7 @@
  * 内置插件（plugins/ 下的 dsh-x-memory 与 dsh-x-sync）的两条落地路径：
  *
  * 1. 预置：启动器把安装包自带的那两件复制到 $DSH_HOME/bundled/，再按 `file:` 装进当前 profile
- *    （「内置插件」开关，默认开；旧键 seedMemory 当别名读）；
+ *    （「内置插件」开关，默认关；旧键 seedMemory 当别名读）；
  * 2. 内置整合包：推荐包（packs/dsh-x-recommended）里那两条 `"…": "bundled"` 依赖，
  *    安装时解析成同一批 file: 路径。
  *
@@ -91,6 +91,11 @@ test('内置插件与内置整合包', async (t) => {
     name,
     JSON.parse(readFileSync(join(PLUGINS_ROOT, name, 'package.json'), 'utf8')).version,
   ]))
+
+  await t.test('默认关：设置里没写过这个键时，状态里是 false', async () => {
+    const res = await manager.get('/api/settings')
+    assert.equal(res.data.seedBundled, false, '内置插件默认应该是关闭的')
+  })
 
   await t.test('旧键 seedMemory 还认：关掉就什么都不做', async () => {
     const res = await manager.call('/api/settings', { seedMemory: false })

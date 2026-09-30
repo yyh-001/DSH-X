@@ -22,12 +22,12 @@ test('整合包已并进插件页：导航里没有独立入口，卡片区是�
   assert.ok(!/data-pane="packs"/.test(html), '导航里不该再有独立的整合包入口')
   assert.ok(!/id="pane-packs"/.test(html), '独立面板应该已经删掉')
   const pane = slice('<section class="pane" id="pane-plugins">', '<section class="pane fill" id="pane-mcp">')
-  for (const id of ['pluginOverview', 'packGrid', 'packCaption', 'packView', 'packHead', 'packBack', 'packPluginList']) {
+  for (const id of ['pluginOverview', 'packGrid', 'packView', 'packHead', 'packBack', 'packPluginList']) {
     assert.match(pane, new RegExp(`id="${id}"`), `插件页里要有 ${id}`)
   }
-  // 卡片是唯一入口：不再另有一份「全部插件」列表（那是当前 profile 的插件，点开它的卡就有）
-  assert.match(pane, /id="pluginList"/, '选定 Profile 的插件直接列出')
-  assert.match(pane, /<details class="plugin-packs"/, '整合包环境按需展开')
+  // 卡片是唯一入口：环境卡直接铺在页面里，点开卡片才看到该环境的插件行
+  assert.match(pane, /<div id="pluginOverview">/, '环境卡片区直接铺在插件页里')
+  assert.ok(!/id="pluginList"/.test(pane), '不再有平面插件列表（一进去就是插件详情）')
   assert.ok(!/data-i18n="全部插件"/.test(html), '「全部插件」这个误导的名字要撤掉')
   assert.match(html, /<button type="button" class="nav-item" data-pane="settings" data-category="appearance">/, '外观紧跟在插件页后面')
 })
@@ -64,16 +64,17 @@ test('页面逻辑：一张卡就是一个 profile，点开进详情，开关/�
   assert.match(html, /data\?\.kind === 'pack'/, '整合包进度走 SSE 的 pack 事件')
   assert.match(html, /function applyPluginPayload\(data\)/, '插件与整合包状态一次灌进页面')
   assert.match(html, /function openPack\(profile\)/, '点卡片进详情')
-  assert.match(html, /id="packViewToggle"/, '批量插件开关放在环境详情')
+  assert.match(html, /data-pack-bulk/, '批量启停收进更多操作（全部启用/全部禁用）')
   assert.ok(!/data-pack-toggle/.test(html), '列表卡片不再承担批量操作')
   assert.match(html, /<button class="pack-card\$\{/, '环境卡片是可通过键盘操作的按钮')
   assert.match(html, /<details class="pack-more">/, '次要操作收进更多操作')
   assert.match(html, /data-pack-check-updates/, '当前环境详情可检查更新')
   assert.match(html, /<details class="pack-advanced">/, '装包的技术清单可按需展开')
   assert.match(html, /packSourceTags\(item\)/, '来源是以标签形式标在卡片上的')
-  // 卸载（有安装记录）与删除整个 profile（没有记录）是两种动作，各自要确认
-  assert.match(html, /confirm\(t\('卸载 \{name\}/, '卸载要确认')
-  assert.match(html, /confirm\(t\('确认删除「\{profile\}」整个目录/, '删整个 profile 目录要再确认一次')
+  // 卸载（有安装记录）与删除整个 profile（没有记录）是两种动作，各自要确认；确认弹窗用样式化的 appConfirm，不用原生 confirm
+  assert.match(html, /appConfirm\(t\('卸载 \{name\}/, '卸载要确认')
+  assert.match(html, /appConfirm\(t\('确认删除「\{profile\}」整个目录/, '删整个 profile 目录要再确认一次')
+  assert.ok(!/[^p]confirm\(/.test(html), '不再用原生 confirm 弹窗')
 })
 
 test('整合包相关的中文文案都有英文', () => {
@@ -86,7 +87,7 @@ test('整合包相关的中文文案都有英文', () => {
   const dialogs = slice('<div class="ask" id="packImportDialog"', '<div class="ask" id="notice"')
   for (const match of dialogs.matchAll(/data-i18n="([^"]+)"/g)) add(match[1])
   for (const block of [
-    slice('const pluginHintEl = document.getElementById', '// ---- 整合包'),
+    slice('const pluginPanelEl = document.getElementById', '// ---- 整合包'),
     slice('// ---- 整合包', '// ---- MCP 服务器'),
   ]) {
     for (const match of block.matchAll(/t\('([^'\n]+)'/g)) add(match[1])

@@ -467,7 +467,7 @@ test('设置页：网络代理一行齐全，改动即保存，文案都有英�
   assert.match(html, /post\('\/api\/proxy\/test', \{\}\)/, '自检走 /api/proxy/test')
   assert.match(html, /await flushSettings\(\)\n\s+const data = await post\('\/api\/proxy\/test'/, '自检前先把没落盘的改动存掉')
   assert.match(html, /data\.proxyError[\s\S]{0,200}?直连通了（\{url\}），但代理没通/, '代理没通、直连兜住时要如实说出来')
-  const selectList = html.match(/document\.querySelectorAll\('([^']*#profile[^']*)'\)/)?.[1] || ''
+  const selectList = html.match(/document\.querySelectorAll\('([^']*#proxyMode[^']*)'\)/)?.[1] || ''
   assert.ok(selectList.includes('#proxyMode'), '网络代理也进自绘下拉名单')
   // 中文文案（这一行 + 这段 JS）都要有英文
   const dict = new Function(`return (${html.match(/const EN = (\{[\s\S]*?\n\})/)[1]})`)()

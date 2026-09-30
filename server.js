@@ -915,8 +915,8 @@ async function publicSettings() {
     portDefault: DEFAULT_PORT,
     autoStart: await autoStartEnabled(),
     seedMarket: stored.seedMarket !== false,
-    // 旧键 seedMemory 是这版之前的名字，读一次当作别名
-    seedBundled: (stored.seedBundled ?? stored.seedMemory) !== false,
+    // 旧键 seedMemory 是这版之前的名字，读一次当作别名；默认关（只有显式 true 才开）
+    seedBundled: (stored.seedBundled ?? stored.seedMemory) === true,
     autoDisablePlugins: stored.autoDisablePlugins !== false,
     autoCleanVersions: autoCleanEnabled(stored),
     downloadSource: safeDownloadSource(stored.downloadSource),

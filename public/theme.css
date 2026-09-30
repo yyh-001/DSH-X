@@ -16,7 +16,6 @@ html[data-color-scheme="dark"] .backdrop {
   background: radial-gradient(ellipse at 24% 10%, #303035, #1c1c21 62%, #151519);
 }
 html[data-color-scheme="dark"] .water-surface { opacity: .96; }
-html[data-color-scheme="dark"] .mascot svg { opacity: .9; }
 html[data-color-scheme="dark"] header { background: transparent; }
 html[data-color-scheme="dark"] .star-link,
 html[data-color-scheme="dark"] .gear-btn { background: #343438; }

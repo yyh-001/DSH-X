@@ -33,12 +33,13 @@ test('全部更新逐个来：单个失败不影响其它，最后如实汇总',
   assert.match(server, /return \{ checked: names\.length, done, failed \}/)
 })
 
-test('更新入口：刷新顺带查一次，逐个更新按环境走，行内按钮不会误触发开关', () => {
-  // 顶部那排不再有单独的「检查更新 / 全部更新」：刷新会把两者都做掉，
-  // 批量更新收进了每个环境的详情（卡片上的「更新 N 个」→ /api/packs/update）
+test('更新入口：检查更新在环境详情里强制查一次，逐个更新按环境走，行内按钮不会误触发开关', () => {
+  // 顶部没有「检查更新 / 全部更新 / 刷新」：更新入口全部收进每个环境的详情
+  // （详情里的「检查更新」强制查一次，「更新 N 个」走 /api/packs/update）
   assert.ok(!/id="pluginCheckUpdates"/.test(html), '不再有单独的「检查更新」按钮')
   assert.ok(!/id="pluginUpdateAll"/.test(html), '不再有单独的「全部更新」按钮')
-  assert.match(html, /pluginRefreshEl\.onclick = async \(\) => \{[\s\S]{0,200}?await refreshPluginUpdates\(\{ force: true \}\)/, '刷新顺带强制查一次更新')
+  assert.ok(!/id="pluginRefresh"/.test(html), '插件页顶部的刷新按钮也撤了')
+  assert.match(html, /data-pack-check-updates[\s\S]{0,300}?await refreshPluginUpdates\(\{ force: true \}\)/, '环境详情里的检查更新强制查一次')
   assert.match(html, /post\('\/api\/packs\/update', \{ profile: item\.profile \}\)/, '按环境批量更新')
   // 列表保持两行，更新按钮本身说明目标版本，不重复放状态标签。
   assert.match(html, /t\('更新到 \{latest\}', \{ latest: update\.latest \}\)/, '按钮上写清更新到哪版')

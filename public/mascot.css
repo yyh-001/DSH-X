@@ -19,8 +19,8 @@
 }
 .mascot-puppet:active { cursor: pointer; }
 .mascot-puppet:focus-visible { outline: 2px solid #3b6fe0; outline-offset: -14px; border-radius: 45%; }
-.mascot svg { display: block; width: 100%; height: 100%; overflow: visible; opacity: .78; }
-/* 浅色用 v8 蓝发套图，深色用 v9 黑白套图（同位矩形，切换无跳动）。 */
+.mascot svg { display: block; width: 100%; height: 100%; overflow: visible; opacity: .9; }
+/* 浅色用 v8 蓝发套图，深色用 v9 黑白套图（同位矩形，切换无跳动）。两套图透明度相同，透明度不再按配色分档。 */
 .mascot-dark-layer { display: none; }
 html[data-color-scheme="dark"] .mascot-light-layer { display: none; }
 html[data-color-scheme="dark"] .mascot-dark-layer { display: inline; }
@@ -33,9 +33,6 @@ main, .page { pointer-events: none; }
 .page > * { pointer-events: auto; }
 /* 设置页外壳：导航和内容列要能点，面板之外的空白照样穿透到看板娘身上 */
 .settings-nav, .pane-inner { pointer-events: auto; }
-@media (max-width: 600px) {
-  .mascot svg { opacity: .58; }
-}
 @media (prefers-reduced-motion: reduce) {
   .mascot { animation: none; }
 }

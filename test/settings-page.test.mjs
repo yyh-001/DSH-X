@@ -24,7 +24,7 @@ test('设置页有版本目录入口，用整行的设置项样式，旁边是�
   )
   assert.match(html, /post\('\/api\/pick-dir'/, '浏览按钮走 /api/pick-dir')
   assert.match(css, /\.set-row\.stacked \{ display: block; \}/, '整行样式存在')
-  assert.match(html, /<div class="plugin-actions">[\s\S]{0,600}?<select id="profile"/, 'profile 下拉在插件页顶部')
+  assert.ok(!/<select id="profile"/.test(html), '插件页不再有 profile 选择器（环境卡片就是入口）')
   assert.match(html, /<p class="hint" id="dataDirHint"><\/p>/, '提示行复用 .hint（空内容自动隐藏）')
   // 文本输入框本来就在样式表里，新控件不需要额外 CSS（password 也走这条规则）
   assert.match(css, /input\[type=text\], input\[type=number\], input\[type=password\], select \{/)
@@ -52,21 +52,13 @@ test('顶栏四个 tab 已取消，设置分类在左侧导航，主页右上角
     /<section class="set-section" data-category="general"[\s\S]{0,3000}?<div class="set-caption"[^>]*>dsh<\/div>[\s\S]{0,3000}?id="seedMarket"/,
     '插件市场仍在常规设置中',
   )
-  // 启动 profile 的入口挪到了插件页：插件就是按 profile 分的，选择器跟着插件走
-  assert.match(
-    html,
-    /<section class="pane[^"]*" id="pane-plugins"[\s\S]{0,1200}?<select id="profile"[^>]*>/,
-    '插件页能切 profile',
-  )
+  // profile 选择器整体撤了：插件页以环境卡片为入口，常规里也不再重复一份
   assert.doesNotMatch(
     html,
     /<section class="set-section" data-category="general"[\s\S]{0,4000}?<select id="profile"[^>]*>/,
-    '常规里不再重复一份 profile 选择器',
+    '常规里没有 profile 选择器',
   )
-  // 必须等这一次保存真的返回再重读：queueSetting 是排队异步的，等它返回不代表服务端已经换了 profile
-  const browse = html.slice(html.indexOf('profileEl.onchange ='), html.indexOf('argsEl.oninput ='))
-  assert.match(browse, /const value = profileEl.value[\s\S]*pluginProfile = value[\s\S]*await loadPlugins\(\)/)
-  assert.doesNotMatch(browse, /\/api\/settings|\/api\/restart/, '浏览 Profile 不修改启动设置或重启实例')
+  assert.ok(!/profileEl/.test(html), 'profile 选择器的脚本也一并撤掉')
   assert.match(html, /section\.hidden = section\.dataset\.category !== nextCategory/, '切换分类只显示对应设置')
   assert.match(html, /gearEl\.onclick = \(\) => showPane\(currentPane === 'settings' \? 'control' : 'settings', currentSettingsCategory\)/, '齿轮在设置与主界面间切换')
   assert.match(html, /const paneLoaders = \{[^}]*plugins: loadPlugins[^}]*mcp: loadMcp[^}]*\}/, '进面板时才按需加载')
@@ -146,7 +138,7 @@ test('设置页有「打开 dsh 的方式」：两项可选、改动即保存', 
   assert.match(html, /<select id="openMode"><\/select>/, '下拉的选项由服务端给')
   assert.match(html, /queueSetting\('openMode'/, '改动即保存')
   // 用自绘下拉统一处理：认这份 selector 名单里有没有它，别把整行的形状钉死（名单一直在长）
-  const uiSelectList = html.match(/document\.querySelectorAll\('([^']*#profile[^']*)'\)/)?.[1] || ''
+  const uiSelectList = html.match(/document\.querySelectorAll\('([^']*#openMode[^']*)'\)/)?.[1] || ''
   assert.ok(uiSelectList.includes('#openMode'), '打开方式进自绘下拉名单')
 })
 
