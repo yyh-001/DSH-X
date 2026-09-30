@@ -191,6 +191,29 @@ function foundNpm() {
   return null
 }
 
+/** npm 报错里说了等于没说的那几句：收尾语、以及跟着 notarget 一起打印的套话。 */
+const NPM_NOISE = [
+  /A complete log of this run can be found in:/i,
+  /In most cases you or one of your dependencies are requesting/i,
+  /a package version that doesn't exist\.?$/i,
+]
+
+/**
+ * npm 装包失败时给用户看什么：**直接用 npm 自己说的话**（去掉 `npm error ` 前缀和光秃秃的
+ * `code XXX` 行），只把上面那几句套话滤掉 —— 缺哪个包、哪个源 404，它的报错里本来就写着，
+ * 不用我们复述、也不该复述。拿不到真实报错行就返回空串，调用方照旧用最后一行。
+ * 完整输出本来就逐行进了启动器日志，所以这里滤掉不影响排查。
+ */
+export function describeNpmFailure(text) {
+  const lines = String(text || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+  return lines
+    .filter((line) => /^(?:npm )?(?:error|ERR!)/i.test(line))
+    .map((line) => line.replace(/^(?:npm )?(?:error|ERR!)\s*/i, '').trim())
+    .filter((line) => line && !/^code \S+$/i.test(line) && !NPM_NOISE.some((noise) => noise.test(line)))
+    .slice(0, 2)
+    .join('\n')
+}
+
 function runNpm(cli, args, { cwd, onLog, env } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ['--require', join(APP_ROOT, 'stdio-unblock.cjs'), cli, ...args], {
@@ -221,7 +244,7 @@ function runNpm(cli, args, { cwd, onLog, env } = {}) {
     child.on('error', reject)
     child.on('close', (code) => {
       if (code === 0) resolve()
-      else reject(new Error(err.trim().split(/\r?\n/).filter(Boolean).at(-1) || `npm 退出码 ${code}`))
+      else reject(new Error(describeNpmFailure(err) || err.trim().split(/\r?\n/).filter(Boolean).at(-1) || `npm 退出码 ${code}`))
     })
   })
 }
