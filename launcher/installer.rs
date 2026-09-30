@@ -68,6 +68,15 @@ mod installer {
         let stamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos();
         let dir = std::env::temp_dir().join(format!("dsh-x-installer-{}-{stamp}", std::process::id())); fs::create_dir(&dir)?; Ok(dir)
     }
+    /// 解析桥接进度文件：`阶段:百分比`（preparing/files/finishing/cleaning，见 installer-engine.iss）。
+    /// 老引擎只写纯百分号 → 归到 files；认不得的阶段也回落 files；写坏了返回 None（保持上一格）。
+    fn parse_progress(text: &str) -> Option<(String, u32)> {
+        let text = text.trim();
+        let (stage, value) = match text.split_once(':') { Some((stage, value)) => (stage.trim(), value.trim()), None => ("files", text) };
+        let percent = value.parse::<u32>().ok()?.min(100);
+        let stage = match stage { "preparing" | "files" | "finishing" | "cleaning" => stage, _ => "files" };
+        Some((stage.to_string(), percent))
+    }
     fn engine_args(dir: Option<&Path>, desktop: bool, work: &Path) -> Vec<String> {
         let mut args = vec!["/VERYSILENT".into(), "/SUPPRESSMSGBOXES".into(), "/NORESTART".into(), "/SP-".into(), "/WEBUI=1".into(), format!("/STATUSFILE={}", work.join("progress.txt").display()), format!("/RESULTFILE={}", work.join("directory.txt").display()), format!("/LOG={}", work.join("install.log").display())];
         if let Some(dir) = dir { args.push(format!("/DIR={}", dir.display())); args.push(if desktop { "/TASKS=desktopicon".into() } else { "/TASKS=".into() }); }
@@ -82,7 +91,7 @@ mod installer {
         let _ = Command::new(dir.join("node/node.exe")).args(["-e", script, &original, &work.to_string_lossy()]).creation_flags(NO_WINDOW).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn();
     }
     #[derive(Debug)]
-    enum UiEvent { Message(Value), Progress(u32), Finished(i32), Error(String) }
+    enum UiEvent { Message(Value), Progress(String, u32), Finished(i32), Error(String) }
 
     pub fn run() {
         let args: Vec<String> = std::env::args().skip(1).collect();
@@ -139,8 +148,8 @@ mod installer {
                                     let result = Command::new(engine).args(engine_args(Some(&dir), desktop, &work)).creation_flags(NO_WINDOW).spawn();
                                     match result {
                                         Err(e) => { let _ = proxy.send_event(UiEvent::Error(e.to_string())); }
-                                        Ok(mut child) => { let mut last = 101; loop {
-                                            if let Ok(raw) = fs::read_to_string(work.join("progress.txt")) { if let Ok(p) = raw.trim().parse::<u32>() { let p = p.min(100); if p != last { last = p; let _ = proxy.send_event(UiEvent::Progress(p)); } } }
+                                        Ok(mut child) => { let mut last: (String, u32) = (String::new(), 101); loop {
+                                            if let Ok(raw) = fs::read_to_string(work.join("progress.txt")) { if let Some((stage, p)) = parse_progress(&raw) { if (stage.clone(), p) != last { last = (stage.clone(), p); let _ = proxy.send_event(UiEvent::Progress(stage, p)); } } }
                                             match child.try_wait() { Ok(Some(status)) => { let _ = proxy.send_event(UiEvent::Finished(status.code().unwrap_or(1))); break; } Err(e) => { let _ = proxy.send_event(UiEvent::Error(e.to_string())); break; } _ => thread::sleep(Duration::from_millis(120)) }
                                         } }
                                     }
@@ -155,7 +164,7 @@ mod installer {
                     }
                     _ => {}
                 },
-                Event::UserEvent(UiEvent::Progress(percent)) => emit(json!({"type":"progress","percent":percent})),
+                Event::UserEvent(UiEvent::Progress(stage, percent)) => emit(json!({"type":"progress","stage":stage,"percent":percent})),
                 Event::UserEvent(UiEvent::Finished(code)) => {
                     busy = false;
                     if (code == 0 || code == 3010) && installed_dir(&work).is_some() { success = true; destination = installed_dir(&work).unwrap(); emit(json!({"type":"done","reboot":code == 3010})); }
@@ -172,6 +181,16 @@ mod installer {
         use super::*;
         #[test] fn base64_matches_vectors() { assert_eq!(base64(b""), ""); assert_eq!(base64(b"f"), "Zg=="); assert_eq!(base64(b"fo"), "Zm8="); assert_eq!(base64(b"foo"), "Zm9v"); }
         #[test] fn reject_unsafe_install_paths() { for path in ["", "relative", "C:\\", "C:\\bad\"path", "C:\\bad\npath"] { assert!(validate_dir(path).is_err(), "{path:?}"); } assert!(validate_dir("C:\\用户\\DSH X").is_ok()); }
+        #[test] fn parse_progress_accepts_stages_and_bare_percent() {
+            assert_eq!(parse_progress("files:56"), Some(("files".to_string(), 56)));
+            assert_eq!(parse_progress("preparing:0"), Some(("preparing".to_string(), 0)));
+            assert_eq!(parse_progress("finishing:100"), Some(("finishing".to_string(), 100)));
+            assert_eq!(parse_progress("56"), Some(("files".to_string(), 56)), "老引擎只写纯数字");
+            assert_eq!(parse_progress("weird:12"), Some(("files".to_string(), 12)), "认不得的阶段回落 files");
+            assert_eq!(parse_progress("files:120"), Some(("files".to_string(), 100)), "封顶 100");
+            assert_eq!(parse_progress(""), None);
+            assert_eq!(parse_progress("files:abc"), None);
+        }
         #[test] fn engine_paths_stay_single_arguments() { let dir = Path::new("C:\\中文 目录\\DSH"); let args = engine_args(Some(dir), false, Path::new("C:\\Temp\\a b")); assert!(args.contains(&"/DIR=C:\\中文 目录\\DSH".into())); assert!(args.contains(&"/TASKS=".into())); assert!(args.contains(&"/WEBUI=1".into())); }
     }
 }

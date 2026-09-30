@@ -107,8 +107,13 @@ var
   ResultCode: Integer;
   Lang: String;
 begin
+  // 网页界面的分阶段进度：开始写文件前「准备」、文件复制完「完成安装」、收尾「清理」
+  // （文件复制那段由 engine 的 CurInstallProgressChanged 写 files:百分比）
+  if (CurStep = ssInstall) then WriteBridgeStage('preparing', 0);
+
   // 让启动器知道安装时装的是什么语言（界面双语，见 server.js / public/index.html）
   if (CurStep = ssPostInstall) then begin
+    WriteBridgeStage('finishing', 100);
     if ActiveLanguage = 'english' then
       Lang := 'en'
     else
@@ -116,6 +121,8 @@ begin
     SaveStringToFile(ExpandConstant('{app}\lang.txt'), Lang, False);
     WriteBridgeDirectory;
   end;
+
+  if (CurStep = ssDone) then WriteBridgeStage('cleaning', 100);
 
   // 网页外壳负责完成页的启动与清理，避免内层引擎重复执行。
   if ExpandConstant('{param:WEBUI|0}') = '1' then Exit;
