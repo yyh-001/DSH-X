@@ -246,6 +246,7 @@ function removeRowBlock(text, rowId, disabled = true) {
 }
 
 const removeDisableBlock = (text, rowId) => removeRowBlock(text, rowId, true)
+const appendDisableBlock = (text, rowId) => appendRowBlock(text, rowId, true)
 
 /** 补丁层空了就把模板的 `[]` 占位恢复回来（否则 dsh 拒绝启动整个 profile）。 */
 function ensurePlaceholder(text) {

@@ -265,10 +265,12 @@ test('整合包接口', async (t) => {
     assert.equal(off.data.failed.length, 1)
     assert.match(off.data.failed.join(), /dsh-cost-meter/)
 
-    // 整包更新只在「就是当前 profile」时可用：更新走的是单插件升级那条路
+    // 浏览 Profile 不再改变默认启动环境，更新必须按明确的目标环境执行。
     const update = await manager.call('/api/packs/update', { profile: 'grouped' })
-    assert.equal(update.status, 400)
-    assert.match(update.data.error, /不是当前在用的那个/)
+    assert.equal(update.status, 200)
+    assert.equal(update.data.profile, 'grouped')
+    assert.equal(update.data.failed.length, 1, '假 dsh 没有安装依赖，回读失败如实汇总')
+    assert.equal((await manager.get('/api/settings')).data.profile, 'web', '更新其它环境不改变默认值')
 
     const noProfile = await manager.call('/api/packs/toggle', { enabled: false })
     assert.equal(noProfile.status, 400)

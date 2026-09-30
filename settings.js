@@ -212,6 +212,8 @@ export const DEFAULTS = {
   profile: DEFAULT_PROFILE,
   // 钉死端口的实例（键 `版本@profile`）：没钉的组合每次启动由系统挑，见 safeInstancePorts
   instancePorts: {},
+  // 旧设置没有启动项时，读取侧会补上内置默认项，首次使用无需先填参数。
+  launchPresets: [],
   // 界面语言：zh / en（安装时选的语言写进安装目录的 lang.txt，启动器读一次落到这里）
   lang: '',
   theme: 'system',
@@ -316,6 +318,30 @@ export function safeInstancePorts(value) {
     out[key] = port
   }
   return out
+}
+
+export const DEFAULT_LAUNCH_ID = '0000000000000000'
+export const DEFAULT_LAUNCH = { id: DEFAULT_LAUNCH_ID, name: 'DSH', version: 'auto', profile: 'web', port: 0 }
+
+/** 历史设置里的坏启动项直接丢弃；默认入口始终存在，旧用户也无需迁移操作。 */
+export function safeLaunchPresets(value) {
+  const seen = new Set()
+  const presets = (Array.isArray(value) ? value : []).slice(0, 20).flatMap((item) => {
+    if (!item || typeof item !== 'object') return []
+    const id = String(item.id ?? '')
+    const name = String(item.name ?? '').trim()
+    const version = String(item.version ?? '')
+    let profile
+    try { profile = safeProfile(item.profile) } catch { return [] }
+    const port = Number(item.port ?? 0)
+    if (!/^[a-f0-9]{16}$/.test(id) || seen.has(id) || !name || name.length > 32
+      || !VERSION_RE.test(version) || !Number.isInteger(port) || port < 0 || port > 65535) return []
+    seen.add(id)
+    return [{ id, name, version, profile, port }]
+  })
+  const builtin = presets.find((item) => item.id === DEFAULT_LAUNCH_ID) || { ...DEFAULT_LAUNCH }
+  if (builtin.name === '默认启动') builtin.name = 'DSH'
+  return [builtin, ...presets.filter((item) => item.id !== DEFAULT_LAUNCH_ID)].slice(0, 20)
 }
 
 /**
@@ -574,6 +600,7 @@ export async function saveSettings(patch) {
   if ('profile' in patch) merged.profile = safeProfile(patch.profile)
   merged.args = 'args' in patch ? safeArgs(patch.args) : safeArgs(merged.args)
   merged.instancePorts = safeInstancePorts('instancePorts' in patch ? patch.instancePorts : merged.instancePorts)
+  merged.launchPresets = safeLaunchPresets(merged.launchPresets)
   merged.lang = 'lang' in patch ? safeLang(patch.lang) : safeLang(merged.lang)
   merged.theme = safeTheme(merged.theme)
   merged.panelTransparency = safePanelTransparency(merged.panelTransparency)

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { delimiter, join } from 'node:path'
 import test from 'node:test'
 
-import { dshArgs, dshEnv, orderRuntimePaths, pathWithEntry, withBundledRuntime, withVersionBin, writeDshShims } from '../server.js'
+import { dshArgs, dshEnv, orderRuntimePaths, pathWithEntry, pickPnpmDir, profileStoreVersion, withBundledRuntime, withVersionBin, writeDshShims } from '../server.js'
 
 const BUNDLED = 'E:\\DSH\\node'
 
@@ -27,8 +27,8 @@ test('系统没有 pnpm：自带运行时排最前，其余顺序不变', () => 
 })
 
 test('系统有 pnpm：它的目录优先，自带运行时紧随其后（#12）', () => {
-  // 场景：老 profile 的 .modules.yaml 记的是全局 pnpm 11 的 v11 store，
-  // 自带 pnpm 8 顶在前面会让 pnpm 以 ERR_PNPM_UNEXPECTED_STORE 拒绝一切安装
+  // 场景：profile 的 .modules.yaml 记着当初建它的那个 pnpm 的 store（v3/v10/v11 随主版本走），
+  // 顶上来的自带 pnpm 主版本不同，pnpm 会以 ERR_PNPM_UNEXPECTED_STORE 拒绝一切安装
   const npmRoot = dirWithPnpm()
   const other = plainDir()
   const ordered = orderRuntimePaths([other, npmRoot], BUNDLED)
@@ -135,6 +135,66 @@ test('dsh shim 用的是启动器自己的 node：用户那套 node 再老也带
 test('写 shim 时版本入口不存在（还没装好）就安静跳过', () => {
   const dir = mkdtempSync(join(tmpdir(), 'dsh-shim-'))
   assert.equal(writeDshShims('0.1.7-rc.1', { dir: join(dir, 'bin'), bin: join(dir, 'nope.js') }), '')
+})
+
+// desktop 是 dsh CLI 保留给官方 Electron 端、在参数解析阶段就拒掉的名字：入口得换成
+// reserved-profile-boot.mjs（直接调 boot 层），argv 形状一个字不改，别的 profile 照旧。
+test('CLI 保留的 profile 换绕行入口，其余 profile 仍走官方 bin.js', () => {
+  const plain = dshArgs('0.1.7-rc.1', ['web', '--no-open'], 'web')
+  const blocked = dshArgs('0.1.7-rc.1', ['desktop', '--host', '127.0.0.1'], 'desktop')
+  const upper = dshArgs('0.1.7-rc.1', ['Desktop'], 'Desktop')
+
+  assert.ok(plain.some((arg) => arg.endsWith('bin.js')), '普通 profile 还是 lib/bin.js')
+  assert.ok(!plain.some((arg) => arg.endsWith('reserved-profile-boot.mjs')))
+  assert.ok(blocked.some((arg) => arg.endsWith('reserved-profile-boot.mjs')), 'desktop 走绕行入口')
+  assert.ok(upper.some((arg) => arg.endsWith('reserved-profile-boot.mjs')), '大小写不敏感')
+
+  // 入口之后是先 bin.js（绕行入口的解析锚点）、再 profile 名与 app 参数：绕行入口按这个约定读 argv
+  const at = blocked.findIndex((arg) => arg.endsWith('reserved-profile-boot.mjs'))
+  assert.ok(blocked[at + 1].endsWith('bin.js'), '绕行入口的第一个参数是版本目录的 bin.js')
+  assert.deepEqual(blocked.slice(at + 2), ['desktop', '--host', '127.0.0.1'])
+  assert.ok(blocked.slice(0, at).includes('--use-system-ca'), 'node 开关与钩子照旧在前')
+
+  // 普通 profile 不额外插参数
+  const plainAt = plain.findIndex((arg) => arg.endsWith('bin.js'))
+  assert.deepEqual(plain.slice(plainAt + 1), ['web', '--no-open'])
+
+  // 不传 profile 的老调用（插件命令那条路）行为不变
+  assert.deepEqual(dshArgs('0.1.7-rc.1', ['plugin', 'list']), dshArgs('0.1.7-rc.1', ['plugin', 'list'], ''))
+})
+
+// #12 的 store 错配：profile 的 .modules.yaml 记着建它那次用的是哪个 store（v3/v10/v11…），
+// 插件操作要挑 store 对得上的那个 pnpm，否则 pnpm 会以 ERR_PNPM_UNEXPECTED_STORE 拒绝一切安装。
+test('从 profile 读出 store 版本：pnpm 8 与 pnpm 11 两种写法都要认', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-store-'))
+  assert.equal(profileStoreVersion(dir), '', '没有 .modules.yaml 时是空串')
+
+  const modules = join(dir, 'node_modules')
+  mkdirSync(modules, { recursive: true })
+  // pnpm 8：无引号的 yaml
+  writeFileSync(join(modules, '.modules.yaml'), 'storeDir: C:\\Users\\u\\AppData\\Local\\pnpm\\store\\v3\n')
+  assert.equal(profileStoreVersion(dir), 'v3')
+  // pnpm 10/11：带引号的 JSON
+  writeFileSync(join(modules, '.modules.yaml'), '{ "storeDir": "C:\\\\Users\\\\u\\\\AppData\\\\Local\\\\pnpm\\\\store\\\\v11" }\n')
+  assert.equal(profileStoreVersion(dir), 'v11')
+})
+
+test('按 store 挑 pnpm：对得上的优先，全对不上就交回调用方回退', async () => {
+  const stores = { 'C:\\sys': 'v3', 'C:\\bundle': 'v11' }
+  const probe = (dir) => Promise.resolve(stores[dir] || '')
+  assert.equal(await pickPnpmDir(['C:\\sys', 'C:\\bundle'], 'v11', probe), 'C:\\bundle', 'v11 的 profile 用自带那份')
+  assert.equal(await pickPnpmDir(['C:\\sys', 'C:\\bundle'], 'v3', probe), 'C:\\sys', 'v3 的 profile 用系统那份')
+  assert.equal(await pickPnpmDir(['C:\\sys', 'C:\\bundle'], 'v10', probe), '', '都对不上就回退')
+  assert.equal(await pickPnpmDir(['C:\\sys'], '', probe), '', 'profile 没记 store 就按老规矩')
+})
+
+test('指名的 pnpm 目录顶到 PATH 最前（自带那份也可以）', () => {
+  const bundled = dirWithPnpm()
+  const npmRoot = dirWithPnpm()
+  const other = plainDir()
+  assert.deepEqual(orderRuntimePaths([other, npmRoot], bundled, bundled), [bundled, other, npmRoot], '指名自带那份时它在最前')
+  assert.deepEqual(orderRuntimePaths([other, npmRoot], bundled, npmRoot), [npmRoot, bundled, other], '指名系统那份 = 老行为')
+  assert.deepEqual(orderRuntimePaths([other, npmRoot], bundled), [npmRoot, bundled, other], '不指名照旧')
 })
 
 // issue #31：让系统里的 PowerShell / CMD 也能直接用 dsh —— 用户 PATH 里那条 shim 目录的增删

@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process'
 import { createWriteStream, existsSync, readFileSync } from 'node:fs'
-import { copyFile, cp, mkdir, writeFile } from 'node:fs/promises'
+import { copyFile, cp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import { pipeline } from 'node:stream/promises'
 import { fileURLToPath } from 'node:url'
@@ -10,8 +10,10 @@ import { fileURLToPath } from 'node:url'
 export const ROOT = fileURLToPath(new URL('..', import.meta.url))
 export const PKG = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
 export const NODE_VERSION = process.env.DSH_NODE_VERSION || '22.19.0'
-// dsh 的 profile 用 pnpm 8（lockfile 6.0），便携目录带同主版本
-const PNPM_VERSION = process.env.DSH_PNPM_VERSION || '8.15.9'
+// 便携目录兜底的那份 pnpm：要读得动现代 profile —— lockfile 9.0、pnpm-workspace.yaml
+// 里的设置（后者 pnpm 10.6 起才认）。store 主版本也跟着 pnpm 主版本走（8→v3、10→v10、
+// 11/12→v11），8.x 那份拿到 v11 store 的 profile 上会以 ERR_PNPM_UNEXPECTED_STORE 拒绝一切安装。
+const PNPM_VERSION = process.env.DSH_PNPM_VERSION || '11.27.1'
 export const VENDOR = join(ROOT, 'vendor')
 export const NODE_MIRRORS = [
   'https://npmmirror.com/mirrors/node',
@@ -27,7 +29,9 @@ const APP_FILES = [
   'proxy.js',
   'platform.js',
   'plugins.js',
+  'recovery.js',
   'packs.js',
+  'pack-market.js',
   'zip.js',
   'mcp.js',
   'skills.js',
@@ -35,6 +39,7 @@ const APP_FILES = [
   'version.js',
   'zipfile.js',
   'plugin-tool.js',
+  'reserved-profile-boot.mjs',
   'stdio-unblock.cjs',
   'package.json',
 ]
@@ -117,9 +122,10 @@ export async function copyNpmModules(modulesSrc, nodeDir) {
  */
 export async function copyPnpm(nodeDir, npmCli) {
   const target = join(nodeDir, 'node_modules', 'pnpm')
-  if (existsSync(join(target, 'bin', 'pnpm.cjs'))) return
+  if (pnpmVersionOf(target) === PNPM_VERSION) return
   const staging = join(VENDOR, 'pnpm')
-  if (!existsSync(join(staging, 'node_modules', 'pnpm', 'bin', 'pnpm.cjs'))) {
+  const staged = join(staging, 'node_modules', 'pnpm')
+  if (pnpmVersionOf(staged) !== PNPM_VERSION) {
     console.log(`下载 pnpm@${PNPM_VERSION}`)
     await mkdir(staging, { recursive: true })
     await writeFile(join(staging, 'package.json'), JSON.stringify({
@@ -127,8 +133,23 @@ export async function copyPnpm(nodeDir, npmCli) {
       private: true,
       dependencies: { pnpm: PNPM_VERSION },
     }, null, 2))
+    await rm(staged, { recursive: true, force: true })
     run(process.execPath, [npmCli, 'install',
       '--registry=https://registry.npmmirror.com', '--no-audit', '--no-fund'], staging)
   }
-  await cp(join(staging, 'node_modules', 'pnpm'), target, { recursive: true })
+  // 整目录替换：合并拷贝会把上一个版本的残留文件（pnpm 11 起 dist 是分块的）留在里面
+  await rm(target, { recursive: true, force: true })
+  await cp(staged, target, { recursive: true })
+}
+
+/**
+ * 目录里那份 pnpm 的版本，没有或读不出来就是空串。判定看版本号、不看文件在不在 ——
+ * 否则换了版本常量，缓存里那份旧的还会被继续发出去。
+ */
+function pnpmVersionOf(dir) {
+  try {
+    return JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')).version || ''
+  } catch {
+    return ''
+  }
 }

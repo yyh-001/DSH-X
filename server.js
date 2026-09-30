@@ -3,7 +3,7 @@ import { createHash, randomBytes } from 'node:crypto'
 import { createServer } from 'node:http'
 import { createServer as createNetServer } from 'node:net'
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
-import { accessSync, appendFileSync, chmodSync, closeSync, constants as fsConstants, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { accessSync, appendFileSync, chmodSync, closeSync, constants as fsConstants, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, statSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { basename, delimiter, dirname, join, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -20,6 +20,8 @@ import {
   setPluginEnabled,
 } from './plugins.js'
 import { listMcpServers, probeMcpServer, removeMcpServer, saveMcpServer, setMcpEnabled } from './mcp.js'
+import { listPatchBackups, restoreProfileBackup, sanitizeProfile, withProfileLock } from './recovery.js'
+import { createMarketStatsReader, marketRepository } from './pack-market.js'
 import {
   listSkills,
   localSkillsEnabled,
@@ -61,6 +63,7 @@ import {
 import {
   autoStartEnabled,
   DEFAULT_PORT,
+  DEFAULT_LAUNCH_ID,
   DEFAULT_UPDATE_SOURCE,
   defaultDshHome,
   ensureSettings,
@@ -76,6 +79,7 @@ import {
   safeDataDir,
   safeDshHome,
   safeInstancePorts,
+  safeLaunchPresets,
   safeLang,
   safeOpenMode,
   safeSyncSettings,
@@ -200,6 +204,10 @@ const logs = []
  * 插件树按 profile 各是各的。同一个组合再点一次启动只会拿回已经在跑的那个。
  */
 const instances = new Map()
+// 删除环境与启动不能穿插：启动准备期间还没 child，也要算作占用这份 profile。
+const startingProfiles = new Set()
+const maintainingProfiles = new Set()
+let trayInstalledCache = null
 
 /**
  * 一个实例一个键：`版本@profile`。两边的字符集（VERSION_RE / safeProfile）都不含 @，
@@ -430,6 +438,7 @@ async function loadConfig() {
 }
 
 async function saveConfig(config) {
+  trayInstalledCache = null
   await mkdir(DATA, { recursive: true })
   await writeFile(CONFIG, JSON.stringify(config, null, 2))
 }
@@ -784,6 +793,42 @@ function liveInstanceList() {
   return instanceList().filter((proc) => proc.status === 'running' || proc.status === 'starting')
 }
 
+/** 整个环境的删除/卸载需要停干净；默认选择并不代表多开中只有这一份在跑。 */
+async function withIdleProfile(profile, operation) {
+  const name = safeProfile(profile)
+  if (startingProfiles.has(name) || instanceList().some((proc) => proc.profile === name)) {
+    throw new Error(`profile「${name}」仍有实例在运行或启动，请先停止这个环境的全部实例`)
+  }
+  if (maintainingProfiles.has(name) || pluginBusy || syncRunning) {
+    throw new Error('正在修改环境，等操作结束再试')
+  }
+  maintainingProfiles.add(name)
+  pluginBusy = true
+  try {
+    const dir = profileDirOf(name)
+    // 已被外部删掉的环境只清安装记录，不能为了拿锁又创建一份空目录。
+    return await (existsSync(dir) ? withProfileLock(dir, operation) : operation())
+  } finally {
+    pluginBusy = false
+    maintainingProfiles.delete(name)
+  }
+}
+
+/** rm 会连 lock 一起删除；进程内的占用标记补上这段窗口，避免热加载写回已删目录。 */
+async function editProfile(profile, operation) {
+  const name = safeProfile(profile)
+  if (maintainingProfiles.has(name)) throw new Error(`profile「${name}」正在修改，稍后再试`)
+  return withProfileLock(profileDirOf(name), operation)
+}
+
+/** 托盘只需要知道有没有版本；外部安装变化最多等 15 秒，页面刷新会立即更新。 */
+function trayHasInstalled() {
+  if (!trayInstalledCache || Date.now() - trayInstalledCache.at >= 15_000) {
+    trayInstalledCache = { at: Date.now(), value: scanInstalled().length > 0 }
+  }
+  return trayInstalledCache.value
+}
+
 /** 一个实例对外的那一份（页面、托盘都读这个形状）。 */
 function instanceInfo(proc) {
   return {
@@ -807,6 +852,7 @@ function primaryInstance() {
 async function snapshot() {
   const config = await loadConfig()
   const installed = listedVersions(config)
+  trayInstalledCache = { at: Date.now(), value: installed.length > 0 }
   const all = instanceList()
   return {
     installing,
@@ -816,6 +862,7 @@ async function snapshot() {
     profiles: listProfiles(),
     // 手工钉死端口的实例（键 `版本@profile` → 端口）：控制页那个端口输入框回显它
     instancePorts: INSTANCE_PORTS,
+    launchPresets: safeLaunchPresets((await loadSettings()).launchPresets),
     instances: all.map(instanceInfo),
     versions: installed.map((version) => {
       // 同一个版本的实例可能不止一个（多开下只会有一个，聚合起来更稳）：跑着的优先，
@@ -850,6 +897,7 @@ async function applyDataDir(dir) {
   await ensureWritableDir(dir)
   DATA = dir
   CONFIG = join(DATA, 'config.json')
+  trayInstalledCache = null
   pushLog(`版本目录 ${DATA}`)
 }
 
@@ -903,6 +951,7 @@ async function publicSettings() {
     proxyInUse: resolveProxy(stored),
     profile: PROFILE_NAME,
     profiles: listProfiles(),
+    launchPresets: safeLaunchPresets(stored.launchPresets),
     // 回显用户填的原文（带引号），不能回显 parse 后的数组，否则含空格的值再存一次就被拆开了
     args: stored.args ?? '',
     lang: LANG,
@@ -954,6 +1003,50 @@ async function setInstancePort(version, profile, port) {
   await emitState()
   const ours = instanceOnPort(value)
   return { key, port: value, busy: !ours && !(await portAvailable(value)) }
+}
+
+/** 启动项只是已有实例参数的命名入口；固定端口继续走同一套校验和设置。 */
+async function saveLaunchPreset(body) {
+  const name = String(body.name ?? '').trim()
+  if (!name || name.length > 32) throw new Error('启动项名称请填 1-32 个字符')
+  const version = safeVersion(body.version)
+  const profile = safeProfile(body.profile)
+  if (!listProfiles().includes(profile)) throw new Error(`profile ${profile} 不存在`)
+  const portText = String(body.port ?? '').trim()
+  const port = portText && portText !== '0' ? safePort(portText) : 0
+  const stored = await loadSettings()
+  const presets = safeLaunchPresets(stored.launchPresets)
+  const id = body.id ? String(body.id) : randomBytes(8).toString('hex')
+  const index = presets.findIndex((item) => item.id === id)
+  if (body.id && index < 0) throw new Error('这个启动项已不存在，请刷新后重试')
+  if (index < 0 && presets.length >= 20) throw new Error('最多保存 20 个启动项')
+  if (presets.some((item) => item.id !== id && item.version === version && item.profile === profile)) {
+    throw new Error('这个版本与 profile 已有启动项，编辑现有的即可')
+  }
+  if (port) {
+    if (!bootsWebApp(profile)) throw new Error(`profile ${profile} 不起 web 应用，端口对它没用`)
+    if (port === PORT || port === safePort(stored.port)) throw new Error(`端口 ${port} 是管理页自己在用的，换一个`)
+    if (presets.some((item) => item.id !== id && item.port === port)) throw new Error(`端口 ${port} 已被其他启动项使用，换一个`)
+  }
+  // 编辑只保存启动项，不提前改正在使用的实例参数；端口在点击启动时再应用。
+  const entry = { id, name, version, profile, port }
+  if (index >= 0) presets[index] = entry
+  else presets.push(entry)
+  await saveSettings({ launchPresets: presets })
+  await emitState()
+  return { ok: true, entry }
+}
+
+async function removeLaunchPreset(id) {
+  if (id === DEFAULT_LAUNCH_ID) throw new Error('默认启动项不能删除，可以编辑它')
+  const stored = await loadSettings()
+  const presets = safeLaunchPresets(stored.launchPresets)
+  const next = presets.filter((item) => item.id !== id)
+  if (next.length === presets.length) throw new Error('这个启动项已不存在，请刷新后重试')
+  // 删除快捷入口不改实例端口，避免影响同一组合的手动启动设置。
+  await saveSettings({ launchPresets: next })
+  await emitState()
+  return { ok: true }
 }
 
 /** 去掉一个键的副本（不原地改，省得把 map 的引用语义搞混）。 */
@@ -1103,8 +1196,11 @@ async function emitState() {
   }
 }
 
-/** dsh 子进程与 AI 修复命令共用的环境变量（AI 靠这些变量拼出正确的 dsh 命令）。 */
-export function dshEnv(version) {
+/**
+ * dsh 子进程与 AI 修复命令共用的环境变量（AI 靠这些变量拼出正确的 dsh 命令）。
+ * @param options.pnpmDir 这次要让哪个 pnpm 目录排最前（插件操作按 profile 的 store 挑，见 preferredPnpmDir）
+ */
+export function dshEnv(version, options = {}) {
   const home = homeDir()
   const workerCompat = existsSync(WORKER_COMPAT)
   const env = {
@@ -1133,7 +1229,7 @@ export function dshEnv(version) {
     ...proxyEnv(),
     // 末尾追加两个目录：先是启动器写的 dsh shim（node 写死成启动器自己的），再是版本自己的
     // .bin（里面有 cordis 之类的入口）。追加不插队 —— 用户自己的 dsh 仍然优先。
-    PATH: withVersionBin(withBundledRuntime(process.env.PATH || ''), join(DATA, '.bin'), versionBinDir(version)),
+    PATH: withVersionBin(withBundledRuntime(process.env.PATH || '', options.pnpmDir), join(DATA, '.bin'), versionBinDir(version)),
   }
   if (workerCompat) {
     // NODE_PATH 是分号分隔的，条目本身带空格没关系，正好兜住带空格的安装路径
@@ -1153,21 +1249,111 @@ function hasCommand(dir, name) {
 /**
  * 自带运行时的 PATH 排序（纯函数；目录是否真的存在由调用方判断）。
  *
- * 自带目录默认排最前，但系统 PATH 里**已经有 pnpm** 时例外：自带的 pnpm 8 默认
- * store 是 v3，而 pnpm 10/11 用 v11。比启动器装得还早的 profile，`.modules.yaml`
- * 里记的是当年那个全局 pnpm 的 v11 store；把自带 pnpm 顶到前面，pnpm 发现 store
- * 对不上就以 ERR_PNPM_UNEXPECTED_STORE 拒绝一切 add/remove，插件页的卸载、更新
- * 全红（#12）。所以 pnpm 让系统的优先，node/npm 仍用自带的（插件里的原生模块
- * 指望它构建）——自带目录整体紧随其后，系统没有 pnpm 时行为照旧。
+ * 自带目录默认排最前，但系统 PATH 里**已经有 pnpm** 时例外：store 主版本跟着 pnpm
+ * 主版本走（8→v3、10→v10、11/12→v11），而 profile 的 `node_modules/.modules.yaml`
+ * 记着当初建它的那次用的是哪个 store。拿错主版本的 pnpm 去动这个 profile，pnpm 会
+ * 以 ERR_PNPM_UNEXPECTED_STORE 拒绝一切 add/remove，插件页的卸载、更新全红（#12）。
+ * 谁建的 profile 就用谁的 pnpm 最省事 —— 所以插件操作会先按 store 挑一次，把挑中的目录
+ * 经 preferredPnpm 传进来（见 pickPnpmDir）；挑不出来才回到「系统的优先」。node/npm 仍用
+ * 自带的（插件里的原生模块指望它构建），自带目录整体紧随其后。
+ *
+ * @param parts 原始 PATH 片段
+ * @param dir 自带运行时目录
+ * @param preferredPnpm 指定的 pnpm 目录（可以就是 dir）；空 = 按「系统优先」排
  */
-export function orderRuntimePaths(parts, dir) {
+export function orderRuntimePaths(parts, dir, preferredPnpm = '') {
   const rest = parts.filter((item) => item !== dir)
   // 用户自己的工具链优先：有 pnpm 的目录排最前（#12 的 store 错配），其次是带 node 的目录。
   // 自带运行时只是兜底 —— agent 在 shell 里跑的 node 应该是用户自己那个，而不是我们的 22.19。
-  const pnpmDir = rest.find((item) => hasCommand(item, 'pnpm'))
+  const pnpmDir = preferredPnpm && hasCommand(preferredPnpm, 'pnpm') ? preferredPnpm : rest.find((item) => hasCommand(item, 'pnpm'))
   const nodeDir = rest.find((item) => hasCommand(item, 'node'))
-  const head = [pnpmDir, nodeDir].filter((item, index, list) => item && list.indexOf(item) === index)
-  return [...head, dir, ...rest.filter((item) => !head.includes(item))]
+  const ordered = [pnpmDir, nodeDir, dir, ...rest].filter(Boolean)
+  return ordered.filter((item, index) => ordered.indexOf(item) === index)
+}
+
+/**
+ * profile 的 `.modules.yaml` 记着建它那次用的 store 版本（`v3` / `v10` / `v11`…）；没有就是空串。
+ * 两种写法都要认：pnpm 8 写的是无引号 yaml（`storeDir: C:\…\store\v3`），
+ * pnpm 10/11 写的是带引号的 JSON（`"storeDir": "C:\\…\\store\\v11"`）。
+ */
+export function profileStoreVersion(dir) {
+  try {
+    const text = readFileSync(join(dir, 'node_modules', '.modules.yaml'), 'utf8')
+    const found = /"?storeDir"?\s*:\s*("?)([^"\r\n]+)\1/.exec(text)
+    return found ? basename(found[2].replace(/\\/g, '/')) : ''
+  } catch {
+    return ''
+  }
+}
+
+const pnpmStoreCache = new Map()
+
+/** 问一个 pnpm 目录自己用哪个 store，取末段（v3/v10/v11…）。问不到就是空串；结果按目录缓存。 */
+function pnpmStoreVersion(dir) {
+  if (!pnpmStoreCache.has(dir)) pnpmStoreCache.set(dir, probeStoreVersion(dir))
+  return pnpmStoreCache.get(dir)
+}
+
+/**
+ * 直接问 pnpm：优先跑它自己的 `bin/pnpm.cjs`（npm 装的布局都长这样，连 node 都不用猜），
+ * 否则把该目录顶到 PATH 最前面按命令名找 —— 独立安装器那种 `pnpm.exe` 走这条。
+ */
+function probeStoreVersion(dir) {
+  const cli = join(dir, 'node_modules', 'pnpm', 'bin', 'pnpm.cjs')
+  const [command, args] = existsSync(cli)
+    ? [process.execPath, [cli, 'store', 'path']]
+    : process.platform === 'win32'
+      ? ['cmd', ['/c', 'pnpm', 'store', 'path']]
+      : ['pnpm', ['store', 'path']]
+  return new Promise((resolve) => {
+    execFile(command, args, {
+      cwd: dir,
+      timeout: 20_000,
+      windowsHide: true,
+      env: { ...process.env, PATH: `${dir}${delimiter}${process.env.PATH || ''}` },
+    }, (error, stdout) => {
+      resolve(error ? '' : basename(String(stdout).trim().replace(/\\/g, '/')))
+    })
+  })
+}
+
+/**
+ * 候选里哪个 pnpm 的 store 跟 profile 记的对得上（返回目录）；一个都对不上就返回空串，
+ * 调用方回退到「系统的优先」。probe 可换，便于测试。
+ */
+export async function pickPnpmDir(candidates, wanted, probe = pnpmStoreVersion) {
+  if (!wanted) return ''
+  for (const dir of candidates) {
+    if (await probe(dir) === wanted) return dir
+  }
+  return ''
+}
+
+/** 系统 PATH 里最靠前的那个带 pnpm 的目录。 */
+function systemPnpmDir() {
+  const parts = String(process.env.PATH || '').split(delimiter).filter(Boolean)
+  return parts.find((item) => hasCommand(item, 'pnpm')) || ''
+}
+
+/**
+ * 这份 profile 的插件操作该让哪个 pnpm 排最前。挑不出来就返回空串（排序回到「系统优先」），
+ * 并把手上两边的 store 版本写进日志 —— 否则用户只能看到 pnpm 那句英文错。
+ */
+async function preferredPnpmDir(profile) {
+  const wanted = profileStoreVersion(profileDirOf(profile))
+  const system = systemPnpmDir()
+  const candidates = [system, join(ROOT, 'node')].filter((dir) => dir && hasCommand(dir, 'pnpm'))
+  const picked = await pickPnpmDir(candidates, wanted)
+  if (picked) {
+    // 只有「跟老规矩不一样」时才值得记一笔：系统那份仍然优先，改用它自己那份才是新行为
+    if (picked !== system) pushLog(`[插件] 这个 profile 记的是 store ${wanted}，系统那份 pnpm 对不上，改用 ${picked} 里的`)
+    return picked
+  }
+  if (!wanted || !candidates.length) return ''
+  const have = []
+  for (const dir of candidates) have.push((await pnpmStoreVersion(dir)) || '?')
+  pushLog(`[插件] 这个 profile 记的是 store ${wanted}，机器上的 pnpm 是 ${have.join(' / ')}；若 pnpm 报 ERR_PNPM_UNEXPECTED_STORE 就是这个原因`)
+  return ''
 }
 
 /**
@@ -1275,10 +1461,10 @@ export function applySystemPath(enabled) {
   return { ok: true, dir }
 }
 
-export function withBundledRuntime(pathValue) {
+export function withBundledRuntime(pathValue, preferredPnpm = '') {
   const dir = join(ROOT, 'node')
   if (!existsSync(join(dir, NODE_BINARY))) return pathValue
-  return orderRuntimePaths(String(pathValue).split(delimiter).filter(Boolean), dir).join(delimiter)
+  return orderRuntimePaths(String(pathValue).split(delimiter).filter(Boolean), dir, preferredPnpm).join(delimiter)
 }
 
 /** 当前 profile 目录。 */
@@ -1589,6 +1775,53 @@ const WORKER_COMPAT = join(ROOT, 'compat', 'worker-events.cjs')
 const WORKER_COMPAT_DIR = dirname(WORKER_COMPAT)
 
 /**
+ * dsh 的 CLI 会在参数解析阶段就拒掉的 profile 名（现在只有 `desktop` —— 官方把它留给自家
+ * Electron 端），拿 `lib/bin.js` 起它必然当场报错。这个名单上的 profile 改用
+ * `reserved-profile-boot.mjs`：它直接调 boot 层的 `runProfile`（官方桌面端走的也是这条路），
+ * 而 argv 形状与 CLI 一模一样，所以除入口本身，参数、环境、钩子一个字都不用改。
+ */
+const CLI_BLOCKED_PROFILES = new Set(['desktop'])
+const RESERVED_BOOT = join(ROOT, 'reserved-profile-boot.mjs')
+
+/** 这次该跑哪个入口：普通 profile 用版本目录里的 `lib/bin.js`，保留名换成绕行入口。 */
+function bootEntry(version, profile) {
+  return CLI_BLOCKED_PROFILES.has(String(profile ?? '').toLowerCase()) ? RESERVED_BOOT : binPath(version)
+}
+
+/**
+ * 保留名 profile 的「别名目录」名。插件命令走的是官方 CLI（`dsh plugin --profile <名字>`），
+ * 而 dsh 只按名字找 profile、没有传路径的入口 —— 所以要在同一个 profiles/ 下给它一个 CLI 认得出的
+ * 名字，用目录链接指回原目录：**一份目录两个名字**，不复制（官方桌面端改了插件不会有第二份要同步）、
+ * 不依赖 dsh 内部结构（用的是公开的 CLI 参数）。前导点让它不出现在 profile 列表里（listProfiles 也显式跳过）。
+ */
+export function aliasProfileName(profile) {
+  return `.dsh-alias-${String(profile).toLowerCase()}`
+}
+
+/**
+ * 确保别名存在并指向 profile 目录，返回别名；建不出来就返回空串（调用方回退到原名，让 dsh 自己报那句英文错）。
+ * 幂等：已经是链接且指向对就直接返回；那里有别的实体（真目录、指向别处的链接）就不碰它。
+ * Windows 用 junction（普通用户可建，不需要管理员/开发者模式），其余平台用目录软链。
+ */
+export function ensureProfileAlias(profile, root = join(homeDir(), 'profiles')) {
+  const target = join(root, safeProfile(profile))
+  if (!existsSync(join(target, 'package.json'))) return ''
+  const name = aliasProfileName(profile)
+  const path = join(root, name)
+  try {
+    if (lstatSync(path).isSymbolicLink() && realpathSync(path) === realpathSync(target)) return name
+    return ''
+  } catch { /* 还没有：建一个 */ }
+  try {
+    symlinkSync(target, path, process.platform === 'win32' ? 'junction' : 'dir')
+    return name
+  } catch (error) {
+    pushLog(`[插件] 建 ${name} 别名失败（${error instanceof Error ? error.message : error}）：这个保留名 profile 的插件操作仍会被 dsh 拒掉`)
+    return ''
+  }
+}
+
+/**
  * 拉起 dsh 时的命令行参数。
  *
  * dsh 自己的开关（系统证书库、请求头上限、两个 ESM 补丁钩子）放这里而不是 NODE_OPTIONS：
@@ -1596,25 +1829,29 @@ const WORKER_COMPAT_DIR = dirname(WORKER_COMPAT)
  * 撞上 --use-system-ca 这类新开关就直接 bad option 退出。worker 线程那份 CJS 补丁仍在
  * NODE_OPTIONS 里（worker 的 execArgv 是空的，命令行传不进去），见 dshEnv。
  */
-export function dshArgs(version, extra = []) {
+export function dshArgs(version, extra = [], profile = '') {
+  const entry = bootEntry(version, profile)
   return [
     '--use-system-ca',
     '--max-http-header-size=131072',
     ...HOOKS.flatMap((file) => ['--import', pathToFileURL(file).href]),
-    binPath(version),
+    entry,
+    // 换成绕行入口之后版本目录就不在 argv 里了，而它要靠 bin.js 当锚点解析出 dsh 包，
+    // 所以把 bin.js 当第一个参数递过去（普通 profile 走的是官方入口，不需要）
+    ...(entry === RESERVED_BOOT ? [binPath(version)] : []),
     ...extra,
   ]
 }
 
-function spawnDsh(version, extra) {
+function spawnDsh(version, extra, profile = '', options = {}) {
   const home = homeDir()
   // 先把 dsh 的命令行入口写出来（PATH 里要用到），再拼参数
   writeDshShims(version)
   // 用户开了「加到系统 PATH」的话，稳定目录里那份也跟着当前版本走
   if (SYSTEM_PATH) writeDshShims(version, { dir: systemBinDir() })
-  return spawn(process.execPath, dshArgs(version, extra), {
+  return spawn(process.execPath, dshArgs(version, extra, profile), {
     cwd: home,
-    env: dshEnv(version),
+    env: dshEnv(version, options),
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
   })
@@ -1633,11 +1870,12 @@ async function ensureProfileNpmrc(profile = PROFILE_NAME) {
   const missing = []
   if (!/(^|\n)ignore-workspace-root-check\s*=/.test(text)) missing.push('ignore-workspace-root-check=true')
   // dsh 自己的 profile 模板把 autoInstallPeers: false 写在 pnpm-workspace.yaml 里，
-  // 但启动器内置的 pnpm 8 只认 .npmrc（那套设置要 pnpm 10.6 起才读 yaml）。一旦 pnpm
+  // 但那只对 pnpm 10.6+ 生效；机器上更老的 pnpm（8/9，多半还是系统那份，见
+  // orderRuntimePaths）只读 .npmrc。一旦 pnpm
   // 自动装 peer，它会把所有插件对同一 @deepseek-ai/* 的 peer 区间求交，而求交库里
   // 的 stripSemVerPrerelease 会把预发布号删掉——^0.1.0-rc.8 ∩ ^0.1.2-rc.1 变成
   // `>=0.1.2 <0.2.0-0`，可这些包在 registry 上只有预发布版，于是整个安装在
-  // ERR_PNPM_NO_MATCHING_VERSION 上硬失败。补这一行就等于替 pnpm 8 认下 dsh 的本意。
+  // ERR_PNPM_NO_MATCHING_VERSION 上硬失败。补这一行就等于替老 pnpm 认下 dsh 的本意。
   if (!/(^|\n)auto-install-peers\s*=/.test(text)) missing.push('auto-install-peers=false')
   if (!missing.length) return
   const head = text && !text.endsWith('\n') ? `${text}\n` : text
@@ -1912,11 +2150,15 @@ async function installedPlugins() {
  * profile 与进度出口都能换：整合包要把同一套安装跑在别的 profile 上，进度也要画在
  * 整合包页自己的进度条里（默认是插件页那条）。
  */
-function runPluginCommand(ver, args, label, options = {}) {
+async function runPluginCommand(ver, args, label, options = {}) {
   const profile = options.profile || PROFILE_NAME
   const onProgress = options.onProgress || emitPluginProgress
+  // 保留名（desktop）：CLI 会拒，改用同一份目录的别名（见 ensureProfileAlias）
+  const cliProfile = CLI_BLOCKED_PROFILES.has(profile.toLowerCase()) ? ensureProfileAlias(profile) : ''
+  // 先按这份 profile 记的 store 挑 pnpm（#12）：挑得出来就用它，挑不出来按老规矩「系统优先」
+  const pnpmDir = await preferredPnpmDir(profile).catch(() => '')
   return new Promise((resolve, reject) => {
-    const child = spawnDsh(ver, ['plugin', '--profile', profile, ...args])
+    const child = spawnDsh(ver, ['plugin', '--profile', cliProfile || profile, ...args], '', { pnpmDir })
     // 留一份输出尾巴挂在错误上：只报退出码的话调用方没法判断是哪种失败，只能瞎猜着重试
     const tail = []
     // pnpm 的进度：装插件可能几十秒，页面要有条能动的进度条，别只留一句「正在更新…」
@@ -2034,7 +2276,8 @@ function pruneDanglingLinks(dir, depth = 1) {
   return removed
 }
 
-async function addPlugin(version, spec) {
+async function addPlugin(version, spec, { profile = PROFILE_NAME } = {}) {
+  profile = safeProfile(profile)
   const ver = safeVersion(version)
   const pkg = safeSpec(spec)
   if (pluginBusy) throw new Error('正在安装插件')
@@ -2044,34 +2287,34 @@ async function addPlugin(version, spec) {
   pluginProgressName = pkg
   emitPluginProgress({ phase: 'resolve' })
   await mkdir(homeDir(), { recursive: true })
-  await ensureProfileNpmrc()
-  const broken = pruneDanglingLinks(join(profileDir(), 'node_modules'))
+  await ensureProfileNpmrc(profile)
+  const broken = pruneDanglingLinks(join(profileDirOf(profile), 'node_modules'))
   if (broken) pushLog(`先清理了 ${broken} 个悬空的链接（断链会让安装报 unknown error）`)
-  pushLog(`安装插件 ${pkg} 到 web profile`)
+  pushLog(`安装插件 ${pkg} 到 ${profile} profile`)
   try {
     try {
-      await runPluginCommand(ver, ['add', '-w', pkg], `dsh plugin add ${pkg}`)
+      await runPluginCommand(ver, ['add', '-w', pkg], `dsh plugin add ${pkg}`, { profile })
     } catch (error) {
       const text = `${error instanceof Error ? error.message : error}\n${(error?.tail || []).join('\n')}`
       if (looksLikePeerFailure(text)) {
         // 插件声明的 @deepseek-ai/* peer 多为运行时注入、registry 上只有 prerelease，
         // pnpm 自动装 peer 会 404；关掉它重试一次（与插件市场同款做法）
         pushLog(`${error instanceof Error ? error.message : error}；改用不自动装 peer 重试`)
-        await runPluginCommand(ver, ['add', '-w', pkg, '--config.auto-install-peers=false'], `dsh plugin add ${pkg}`)
-      } else if (looksLikeLinkFailure(text) && await useHoistedLinker()) {
+        await runPluginCommand(ver, ['add', '-w', pkg, '--config.auto-install-peers=false'], `dsh plugin add ${pkg}`, { profile })
+      } else if (looksLikeLinkFailure(text) && await useHoistedLinker(profile)) {
         // 这台机器读不了 junction（见 looksLikeLinkFailure 的说明）。让 pnpm 不用任何
         // 链接重来一次——有用户的机器上正是这两行解决了问题。
         pushLog('这台机器读不了目录链接，改用真实目录（node-linker=hoisted）重试')
-        const broken = pruneDanglingLinks(join(profileDir(), 'node_modules'))
+        const broken = pruneDanglingLinks(join(profileDirOf(profile), 'node_modules'))
         if (broken) pushLog(`先清理了 ${broken} 个悬空的链接`)
-        await runPluginCommand(ver, ['add', '-w', pkg], `dsh plugin add ${pkg}`)
+        await runPluginCommand(ver, ['add', '-w', pkg], `dsh plugin add ${pkg}`, { profile })
       } else {
         // 认不出原因就不硬试：装不上就装不上，报出来让人看。
         // 原样重试没有意义——第一次失败的原因第二次还在，只会把终端刷满。
         throw error
       }
     }
-    pushLog(`${pkg} 已在 web profile`)
+    pushLog(`${pkg} 已在 ${profile} profile`)
   } finally {
     pluginBusy = false
     pluginProgressName = ''
@@ -2081,7 +2324,7 @@ async function addPlugin(version, spec) {
 
 // ---- 插件更新：查 registry 上的最新版本，按需升级 profile 里的包 ----
 // 升级复用 addPlugin（peer 404、目录链接读不了这两套回退都在里面），装和升走同一条路。
-const pluginUpdateCache = { at: 0, data: null }
+const pluginUpdateCache = { at: 0, data: null, profile: '' }
 const PLUGIN_UPDATE_TTL = 60 * 1000
 const PLUGIN_UPDATE_CONCURRENCY = 4
 
@@ -2099,10 +2342,11 @@ async function pluginCommandVersion() {
  * 每个第三方插件在 registry 上的最新版本。官方组件（@deepseek-ai/*）跳过——那些版本由 dsh 决定。
  * 插件多是预发布版，dist-tags.latest 不一定指向最新的那个，所以按版本号比出最大的一个。
  */
-async function checkPluginUpdates({ force = false } = {}) {
+async function checkPluginUpdates({ force = false, profile = PROFILE_NAME } = {}) {
+  profile = safeProfile(profile)
   const now = Date.now()
-  if (!force && pluginUpdateCache.data && now - pluginUpdateCache.at < PLUGIN_UPDATE_TTL) return pluginUpdateCache.data
-  const queue = listPlugins(profileDir()).plugins.filter((plugin) => !plugin.official)
+  if (!force && pluginUpdateCache.profile === profile && pluginUpdateCache.data && now - pluginUpdateCache.at < PLUGIN_UPDATE_TTL) return pluginUpdateCache.data
+  const queue = listPlugins(profileDirOf(profile)).plugins.filter((plugin) => !plugin.official)
   const result = {}
   await Promise.all(Array.from({ length: Math.min(PLUGIN_UPDATE_CONCURRENCY, queue.length) }, async () => {
     while (queue.length) {
@@ -2125,23 +2369,25 @@ async function checkPluginUpdates({ force = false } = {}) {
   }))
   const data = { checkedAt: new Date().toISOString(), plugins: result }
   pluginUpdateCache.at = now
+  pluginUpdateCache.profile = profile
   pluginUpdateCache.data = data
   return data
 }
 
 /** 升一个插件到指定版本（缺省用最新版），升完回读磁盘确认版本真的换了。 */
-async function updatePlugin(name, { latest = '' } = {}) {
-  const plugin = listPlugins(profileDir()).plugins.find((item) => item.name === name)
+async function updatePlugin(name, { latest = '', profile = PROFILE_NAME } = {}) {
+  profile = safeProfile(profile)
+  const plugin = listPlugins(profileDirOf(profile)).plugins.find((item) => item.name === name)
   if (!plugin) throw new Error(`这个 profile 里没有 ${name}`)
   if (plugin.official) throw new Error(`${name} 是官方组件，版本跟着 dsh 走，不单独更新`)
-  const target = latest || (await checkPluginUpdates({ force: true })).plugins[name]?.latest
+  const target = latest || (await checkPluginUpdates({ force: true, profile })).plugins[name]?.latest
   if (!target) throw new Error(`查不到 ${name} 的最新版本`)
   if (plugin.version && cmpVer(parseVer(target), parseVer(plugin.version)) <= 0) {
     return { name, from: plugin.version, to: plugin.version, changed: false }
   }
   pushLog(`更新插件 ${name}: ${plugin.version || '未知'} → ${target}`)
-  await addPlugin(await pluginCommandVersion(), `${name}@${target}`)
-  const after = listPlugins(profileDir()).plugins.find((item) => item.name === name)
+  await addPlugin(await pluginCommandVersion(), `${name}@${target}`, { profile })
+  const after = listPlugins(profileDirOf(profile)).plugins.find((item) => item.name === name)
   // addPlugin 只保证命令成功：装完再回读一次，别把「命令没报错」当成「版本真的换了」
   if (after?.version !== target) {
     throw new Error(`${name} 装完是 ${after?.version || '未知'}，不是 ${target}（看终端日志；杀软拦截、store 异常都会这样）`)
@@ -2151,14 +2397,14 @@ async function updatePlugin(name, { latest = '' } = {}) {
 }
 
 /** 依次更新所有可更新的插件：单个失败不影响其它，最后如实汇总。 */
-async function updateAllPlugins() {
-  const check = await checkPluginUpdates({ force: true })
+async function updateAllPlugins(profile = PROFILE_NAME) {
+  const check = await checkPluginUpdates({ force: true, profile })
   const names = Object.entries(check.plugins).filter(([, info]) => info.hasUpdate).map(([name]) => name)
   const done = []
   const failed = []
   for (const name of names) {
     try {
-      done.push(await updatePlugin(name, { latest: check.plugins[name].latest }))
+      done.push(await updatePlugin(name, { latest: check.plugins[name].latest, profile }))
     } catch (error) {
       failed.push({ name, error: error instanceof Error ? error.message : String(error) })
     }
@@ -2676,6 +2922,9 @@ function normalizeMarketEntry(item) {
     displayName: localized(item?.displayName, LANG) || String(item?.name || ''),
     description: localized(item?.description, LANG),
     author: String(item?.author || item?.owner || ''),
+    owner: String(item?.owner || ''),
+    repo: String(item?.repo || ''),
+    repoUrl: marketRepository(item)?.url || '',
     category: String(item?.category || ''),
     dshVersion: String(item?.dshVersion || ''),
     bundleCount: Number(item?.bundleCount) || 0,
@@ -2687,6 +2936,8 @@ function normalizeMarketEntry(item) {
     manifestVersion: Number(item?.manifestVersion) || 0,
   }
 }
+
+const readMarketStats = createMarketStatsReader({ fetchRepo: netFetch })
 
 /** 读整合包市场索引（PackForge 的公开索引：仓库打 dsh-pack topic 就会被采集进去）。 */
 async function marketEntries({ force = false } = {}) {
@@ -3076,8 +3327,7 @@ async function bootOnce(ver, prof) {
 async function startNow(version, profile = PROFILE_NAME) {
   const ver = safeVersion(version)
   const prof = safeProfile(profile)
-  // desktop 是官方 Electron 端的保留名，dsh 的 CLI 会直接拒：提前说人话
-  if (prof === 'desktop') throw new Error('desktop 是官方 Electron 端专用的 profile，命令行启动会被 dsh 拒掉')
+  // 保留名（desktop）也能起：入口换成 RESERVED_BOOT，见 CLI_BLOCKED_PROFILES
   if (!listProfiles().includes(prof)) {
     throw new Error(`profile ${prof} 不存在（先用自带模板名起一次，或把装好的 profile 目录放进 .dsh/profiles）`)
   }
@@ -3098,6 +3348,13 @@ async function startNow(version, profile = PROFILE_NAME) {
 const MAX_AUTO_DISABLE = 3
 /** 最近一次按错误自动禁用的插件（管理页显示 + 一键恢复）。 */
 let lastAutoFix = null
+/** 最近一次「安全启动」（整份补丁层备份 + 摘掉第三方 bundle），管理页显示 + 一键还原。 */
+let lastRecovery = null
+
+/** 管理页的恢复档载荷：最近一次结果 + profile 里现存的补丁层备份。 */
+function recoveryPayload(profile = PROFILE_NAME) {
+  return { profile, last: lastRecovery?.profile === profile ? lastRecovery : null, backups: listPatchBackups(profileDirOf(profile)) }
+}
 
 /**
  * 这个 dsh 版本会不会自己隔离「可选插件启动失败」——0.1.7-rc.1 起会
@@ -3133,7 +3390,8 @@ async function autoDisableFailedPlugins(error, already, profile = PROFILE_NAME) 
   // 禁掉一个加载行并记账；返回是否真的动手了（没改动就别重试，免得打转）
   const tryDisable = async (id, name, note) => {
     try {
-      const result = disableRowId(dir, id)
+      // 改补丁层前拿 profile 写独占：与「安全启动」/还原互斥，别互相踩
+      const result = await withProfileLock(dir, () => disableRowId(dir, id))
       if (!result.changed) return false
       pushLog(`[兼容] ${note}，已写入 cordis.patch.yml 禁用「${id}」，重试启动…`)
       already.add(id)
@@ -3207,7 +3465,16 @@ async function startWithRepair(version, profile = PROFILE_NAME) {
 let startChain = Promise.resolve()
 
 async function start(version, profile) {
-  const run = startChain.then(() => startWithRepair(version, profile))
+  const run = startChain.then(async () => {
+    const name = safeProfile(profile || PROFILE_NAME)
+    if (maintainingProfiles.has(name)) throw new Error(`profile「${name}」正在修改，稍后再启动`)
+    startingProfiles.add(name)
+    try {
+      return await startWithRepair(version, name)
+    } finally {
+      startingProfiles.delete(name)
+    }
+  })
   startChain = run.then(() => {}, () => {})
   return run
 }
@@ -3266,13 +3533,15 @@ export function setHost(next) {
  */
 const TEMPLATE_PROFILES = ['web', 'headless', 'acp', 'sdk', 'sdk-minimal']
 
-/** 可切换的 profile：磁盘上已初始化的 + dsh 自带模板名 + 当前值。 */
-function listProfiles() {
+/**
+ * 可切换的 profile：磁盘上已初始化的 + dsh 自带模板名 + 当前值。
+ * 前导点开头的目录是启动器自己的内部目录（保留名 profile 的别名，见 ensureProfileAlias），不算 profile。
+ */
+export function listProfiles(root = join(homeDir(), 'profiles')) {
   const names = new Set(TEMPLATE_PROFILES)
-  const root = join(homeDir(), 'profiles')
   try {
     for (const entry of readdirSync(root, { withFileTypes: true })) {
-      if (!entry.isDirectory() || entry.name === 'node_modules') continue
+      if (!entry.isDirectory() || entry.name === 'node_modules' || entry.name.startsWith('.')) continue
       if (existsSync(join(root, entry.name, 'package.json'))) names.add(entry.name)
     }
   } catch { /* 还没有 profiles 目录 */ }
@@ -3744,13 +4013,14 @@ async function probeMcpServers(targets, timeoutMs, onResult) {
   return results
 }
 
-function send(res, status, body, type = 'application/json; charset=utf-8') {
+function send(res, status, body, type = 'application/json; charset=utf-8', headers = {}) {
   const payload = Buffer.isBuffer(body) ? body : Buffer.from(typeof body === 'string' ? body : JSON.stringify(body))
   res.writeHead(status, {
     'content-type': type,
     'content-length': payload.length,
     'cache-control': 'no-store',
     connection: 'close',
+    ...headers,
   })
   res.end(payload)
 }
@@ -3792,12 +4062,11 @@ async function handleApi(req, res, url) {
   }
   if (req.method === 'GET' && url.pathname === '/api/tray') {
     // 给 DSH.exe 的原生托盘读状态。纯文本 key=value，省得那边为了三行状态写 JSON 解析。
-    const snap = await snapshot()
-    const running = snap.running
+    const running = primaryInstance()
     send(res, 200, [
       `status=${running?.status || 'stopped'}`,
       `url=${running?.url || ''}`,
-      `installed=${snap.installed.length ? 1 : 0}`,
+      `installed=${trayHasInstalled() ? 1 : 0}`,
       `lang=${LANG}`,
       // 托盘照着它决定「打开 DSH」是叫内嵌窗口还是丢给系统浏览器
       `openmode=${OPEN_MODE}`,
@@ -3825,13 +4094,20 @@ async function handleApi(req, res, url) {
     return
   }
   if (req.method === 'GET' && url.pathname === '/api/plugins') {
-    // 插件页现在同时画整合包卡片，一次请求把两边都带上，省得页面开两次口
-    send(res, 200, { ...listPlugins(profileDir()), autoFix: lastAutoFix, ...packsPayload() })
+    // 浏览插件的 profile 与启动默认值分开；查看另一份配置不能偷偷改变启动行为。
+    const profile = safeProfile(url.searchParams.get('profile') || PROFILE_NAME)
+    send(res, 200, { ...packsPayload(), ...listPlugins(profileDirOf(profile)), profile, autoFix: lastAutoFix, recovery: recoveryPayload(profile) })
+    return
+  }
+  if (req.method === 'GET' && url.pathname === '/api/recover') {
+    const profile = safeProfile(url.searchParams.get('profile') || PROFILE_NAME)
+    send(res, 200, recoveryPayload(profile))
     return
   }
   if (req.method === 'GET' && url.pathname === '/api/plugins/updates') {
     try {
-      send(res, 200, { ...(await checkPluginUpdates({ force: url.searchParams.get('refresh') === '1' })), profile: PROFILE_NAME })
+      const profile = safeProfile(url.searchParams.get('profile') || PROFILE_NAME)
+      send(res, 200, { ...(await checkPluginUpdates({ force: url.searchParams.get('refresh') === '1', profile })), profile })
     } catch (error) {
       send(res, 500, { error: error instanceof Error ? error.message : String(error) })
     }
@@ -3848,6 +4124,20 @@ async function handleApi(req, res, url) {
       // 市场读不到不算页面出错：这条索引在 GitHub 上，直连/镜像都可能拿不到，
       // 手动贴链接或 owner/repo 照样能装。
       send(res, 200, { ok: false, entries: [], error: error instanceof Error ? error.message : String(error) })
+    }
+    return
+  }
+  if (req.method === 'GET' && url.pathname === '/api/packs/market/stats') {
+    try {
+      const market = await marketEntries()
+      const queue = [...market.entries]
+      const entries = []
+      await Promise.all(Array.from({ length: Math.min(3, queue.length) }, async () => {
+        while (queue.length) entries.push(await readMarketStats(queue.shift()))
+      }))
+      send(res, 200, { ok: true, entries })
+    } catch {
+      send(res, 200, { ok: false, entries: [] })
     }
     return
   }
@@ -3923,6 +4213,14 @@ async function handleApi(req, res, url) {
     send(res, 200, await setInstancePort(body.version, body.profile, body.port))
     return
   }
+  if (req.method === 'POST' && url.pathname === '/api/launch-presets') {
+    send(res, 200, await saveLaunchPreset(body))
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/launch-presets/remove') {
+    send(res, 200, await removeLaunchPreset(String(body.id ?? '')))
+    return
+  }
   if (req.method === 'POST' && url.pathname === '/api/launch') {
     send(res, 200, await launchInstalled())
     return
@@ -3945,24 +4243,60 @@ async function handleApi(req, res, url) {
     send(res, 200, await testNetwork())
     return
   }
+  if (req.method === 'POST' && url.pathname === '/api/recover') {
+    // 安全启动：把补丁层整体移出启动路径（备份即改名），清单里只留官方 bundle。
+    // 这是逐行自动禁用都失效时的最后手段；备份路径要回给页面，方便一键还原。
+    try {
+      const profile = body.profile ? String(body.profile) : PROFILE_NAME
+      const dir = profileDirOf(profile)
+      if (maintainingProfiles.has(profile)) throw new Error(`profile「${profile}」正在修改，稍后再试`)
+      const result = await sanitizeProfile(dir)
+      lastRecovery = { at: Date.now(), profile, backup: result.backup, dropped: result.dropped, warning: result.warning || null }
+      pushLog(`[恢复] 安全启动（${profile}）：补丁层${result.backup ? `已备份到 ${basename(result.backup)}` : '本来就没有'}，摘掉第三方 bundle ${result.dropped.length} 个${result.dropped.length ? `（${result.dropped.join('、')}）` : ''}${result.warning ? `；${result.warning}` : ''}`)
+      send(res, 200, { ok: true, ...packsPayload(), ...result, ...listPlugins(dir), profile, autoFix: lastAutoFix, recovery: recoveryPayload(profile) })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      pushLog(`[恢复] 安全启动失败：${message}`)
+      send(res, 500, { error: message })
+    }
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/recover/restore') {
+    try {
+      const profile = body.profile ? String(body.profile) : PROFILE_NAME
+      const dir = profileDirOf(profile)
+      if (maintainingProfiles.has(profile)) throw new Error(`profile「${profile}」正在修改，稍后再试`)
+      const result = await restoreProfileBackup(dir, body.backup)
+      lastRecovery = null
+      pushLog(`[恢复] 已还原补丁层 ${result.restored}${result.movedAside ? `（还原前的补丁挪到了 ${basename(result.movedAside)}）` : ''}${result.restoredBundles.length ? `，放回 bundle ${result.restoredBundles.length} 个` : ''}`)
+      send(res, 200, { ok: true, ...packsPayload(), ...result, ...listPlugins(dir), profile, autoFix: lastAutoFix, recovery: recoveryPayload(profile) })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      pushLog(`[恢复] 还原失败：${message}`)
+      send(res, 500, { error: message })
+    }
+    return
+  }
   if (req.method === 'POST' && url.pathname === '/api/plugins/toggle') {
     const name = String(body.name || '')
     const enabled = body.enabled !== false
     // 整合包卡片可能装在别的 profile 上，切换插件时得能指定目标（不传就是当前 profile）
-    const target = body.profile ? join(homeDir(), 'profiles', safeProfile(String(body.profile))) : profileDir()
-    const result = setPluginEnabled(target, name, enabled)
+    const profile = safeProfile(String(body.profile || PROFILE_NAME))
+    const target = profileDirOf(profile)
+    const result = await editProfile(profile, () => setPluginEnabled(target, name, enabled))
     const where = body.profile && String(body.profile) !== PROFILE_NAME ? `（profile ${body.profile}）` : ''
     pushLog(`插件 ${name} → ${enabled ? '启用' : '禁用'}${where}${result.changed ? '' : '（无变化）'}`)
-    send(res, 200, { ok: true, changed: result.changed, ...listPlugins(profileDir()), ...packsPayload(), autoFix: lastAutoFix })
+    send(res, 200, { ok: true, changed: result.changed, ...packsPayload(), ...listPlugins(target), profile, autoFix: lastAutoFix, recovery: recoveryPayload(profile) })
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/plugins/update') {
     try {
-      const result = body.all ? await updateAllPlugins() : await updatePlugin(String(body.name || ''))
+      const profile = safeProfile(String(body.profile || PROFILE_NAME))
+      const result = body.all ? await updateAllPlugins(profile) : await updatePlugin(String(body.name || ''), { profile })
       pushLog(body.all
         ? `插件更新完成：成功 ${result.done.length} 个${result.failed.length ? `，失败 ${result.failed.length} 个` : ''}（重启 dsh 后生效）`
         : `${result.name} ${result.changed ? `已更新到 ${result.to}` : '已是最新'}（重启 dsh 后生效）`)
-      send(res, 200, { ok: true, ...result, ...listPlugins(profileDir()), profile: PROFILE_NAME, autoFix: lastAutoFix })
+      send(res, 200, { ok: true, ...result, ...listPlugins(profileDirOf(profile)), profile, autoFix: lastAutoFix, recovery: recoveryPayload(profile) })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       pushLog(`插件更新失败：${message}`)
@@ -4091,41 +4425,39 @@ async function handleApi(req, res, url) {
     const packages = plugins.filter((plugin) => !plugin.official).map((plugin) => plugin.name)
     let changed = 0
     const failed = []
-    for (const item of packages) {
-      try {
-        if (setPluginEnabled(target, item, enabled).changed) changed += 1
-      } catch (error) {
-        failed.push(`${item}：${error instanceof Error ? error.message : error}`)
+    await editProfile(profile, () => {
+      for (const item of packages) {
+        try {
+          if (setPluginEnabled(target, item, enabled).changed) changed += 1
+        } catch (error) {
+          failed.push(`${item}：${error instanceof Error ? error.message : error}`)
+        }
       }
-    }
+    })
     pushLog(`profile ${profile} 的插件 → ${enabled ? '启用' : '禁用'}（${changed} 个有变化${failed.length ? `，${failed.length} 个不支持：${failed.join('；')}` : ''}）`)
-    send(res, 200, { ok: true, changed, failed, ...listPlugins(profileDir()), ...packsPayload(), autoFix: lastAutoFix })
+    send(res, 200, { ok: true, changed, failed, ...listPlugins(profileDir()), ...packsPayload(), autoFix: lastAutoFix, recovery: recoveryPayload() })
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/packs/update') {
-    const profile = String(body.profile || '')
+    const profile = body.profile ? safeProfile(String(body.profile)) : ''
     if (!profile) {
       send(res, 400, { error: '要说清是哪个 profile' })
       return
     }
-    // 更新走的是插件页那条单插件升级（含 peer 与目录链接的退路），它只认当前 profile
-    if (profile !== PROFILE_NAME) {
-      send(res, 400, { error: `profile「${profile}」不是当前在用的那个，先在插件页把 profile 切过去再更新` })
-      return
-    }
+    // 使用明确的目标环境，浏览 Profile 不再写入全局启动设置。
     if (pluginBusy) {
       send(res, 400, { error: '正在装插件或整合包，等它结束再试' })
       return
     }
     try {
-      const packages = listPlugins(profileDir()).plugins.filter((plugin) => !plugin.official).map((plugin) => plugin.name)
+      const packages = listPlugins(profileDirOf(profile)).plugins.filter((plugin) => !plugin.official).map((plugin) => plugin.name)
       if (!packages.length) throw new Error(`profile「${profile}」里没有可更新的插件`)
       const done = []
       const failed = []
       const unchanged = []
       for (const item of packages) {
         try {
-          const result = await updatePlugin(item)
+          const result = await updatePlugin(item, { profile })
           if (result.changed) done.push(`${item} → ${result.to}`)
           else unchanged.push(item)
         } catch (error) {
@@ -4138,8 +4470,9 @@ async function handleApi(req, res, url) {
         updated: done.length,
         failed,
         unchanged,
-        ...listPlugins(profileDir()),
         ...packsPayload(),
+        ...listPlugins(profileDirOf(profile)),
+        profile,
         autoFix: lastAutoFix,
       })
     } catch (error) {
@@ -4170,9 +4503,9 @@ async function handleApi(req, res, url) {
       return
     }
     try {
-      await rm(target, { recursive: true, force: true })
+      await withIdleProfile(profile, () => rm(target, { recursive: true, force: true }))
       pushLog(`已删掉整个 profile「${profile}」`)
-      send(res, 200, { ok: true, ...listPlugins(profileDir()), ...packsPayload(), autoFix: lastAutoFix })
+      send(res, 200, { ok: true, ...listPlugins(profileDir()), ...packsPayload(), autoFix: lastAutoFix, recovery: recoveryPayload() })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       pushLog(`删 profile「${profile}」失败：${message}`)
@@ -4204,26 +4537,30 @@ async function handleApi(req, res, url) {
       }
     }
     try {
-      const lines = []
-      const profilePath = join(homeDir(), 'profiles', profile)
-      // profile 目录已经被手动删掉时不硬还原——那等于把空目录重新变出一堆配置文件，更吓人
-      const gone = !existsSync(profilePath)
-      const result = gone
-        ? { ok: true, restored: 0 }
-        : uninstallPack(record, { home: homeDir(), log: (line) => { lines.push(line); pushLog(`[整合包] ${line}`) } })
-      if (gone) lines.push(`profile 目录「${profilePath}」已经不在了，只清掉安装记录，不再还原文件`)
-      forgetPack(DATA, name, profile)
-      let removedProfile = false
-      if (body.removeProfile === true) {
-        await rm(join(homeDir(), 'profiles', record.profile), { recursive: true, force: true })
-        removedProfile = true
-        pushLog(`[整合包] 已删掉整个 profile「${record.profile}」`)
-      }
-      pushLog(`整合包 ${name} 已从 profile「${profile}」卸下（还原 ${result.restored} 个文件${removedProfile ? '，并删除 profile 目录' : ''}）`)
-      if (record.createdProfile && !removedProfile) {
-        lines.push(`这个 profile 是整合包建的，包新建的文件已删掉；node_modules 里装过的插件还在，想清干净可以在整合包页勾「同时删掉整个 profile 目录」`)
-      }
-      send(res, 200, { ok: true, restored: result.restored, lines, removedProfile, ...packsPayload() })
+      const completed = await withIdleProfile(profile, async () => {
+        const lines = []
+        const profilePath = join(homeDir(), 'profiles', profile)
+        // profile 目录已经被手动删掉时不硬还原——那等于把空目录重新变出一堆配置文件，更吓人
+        const gone = !existsSync(profilePath)
+        const result = gone
+          ? { ok: true, restored: 0 }
+          : uninstallPack(record, { home: homeDir(), log: (line) => { lines.push(line); pushLog(`[整合包] ${line}`) } })
+        if (gone) lines.push(`profile 目录「${profilePath}」已经不在了，只清掉安装记录，不再还原文件`)
+        let removedProfile = false
+        if (body.removeProfile === true) {
+          await rm(join(homeDir(), 'profiles', record.profile), { recursive: true, force: true })
+          removedProfile = true
+          pushLog(`[整合包] 已删掉整个 profile「${record.profile}」`)
+        }
+        // 目录删成功才撤销安装记录；失败时至少还有记录可供用户重试。
+        forgetPack(DATA, name, profile)
+        pushLog(`整合包 ${name} 已从 profile「${profile}」卸下（还原 ${result.restored} 个文件${removedProfile ? '，并删除 profile 目录' : ''}）`)
+        if (record.createdProfile && !removedProfile) {
+          lines.push(`这个 profile 是整合包建的，包新建的文件已删掉；node_modules 里装过的插件还在，想清干净可以在整合包页勾「同时删掉整个 profile 目录」`)
+        }
+        return { restored: result.restored, lines, removedProfile }
+      })
+      send(res, 200, { ok: true, ...completed, ...packsPayload() })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       pushLog(`整合包卸载失败：${message}`)
@@ -4294,7 +4631,7 @@ async function handleApi(req, res, url) {
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/mcp/save') {
-    const result = saveMcpServer(patchFile(), body)
+    const result = await editProfile(PROFILE_NAME, () => saveMcpServer(patchFile(), body))
     const extras = [
       result.repaired ? '覆盖了损坏区块' : '',
       ...(result.warnings || []),
@@ -4330,14 +4667,14 @@ async function handleApi(req, res, url) {
   }
   if (req.method === 'POST' && url.pathname === '/api/mcp/toggle') {
     const name = String(body.serverName || '')
-    const result = setMcpEnabled(patchFile(), name, body.enabled !== false)
+    const result = await editProfile(PROFILE_NAME, () => setMcpEnabled(patchFile(), name, body.enabled !== false))
     pushLog(`MCP 服务器 ${name} → ${body.enabled !== false ? '启用' : '停用'}${result.changed ? '' : '（无变化）'}`)
     send(res, 200, { ok: true, changed: result.changed, ...listMcpServers(patchFile()), profile: PROFILE_NAME })
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/mcp/remove') {
     const name = String(body.serverName || '')
-    removeMcpServer(patchFile(), name)
+    await editProfile(PROFILE_NAME, () => removeMcpServer(patchFile(), name))
     pushLog(`MCP 服务器 ${name} 已删除`)
     send(res, 200, { ok: true, ...listMcpServers(patchFile()), profile: PROFILE_NAME })
     return
@@ -4374,7 +4711,7 @@ async function handleApi(req, res, url) {
   }
   if (req.method === 'POST' && url.pathname === '/api/skills/local') {
     const enabled = body.enabled !== false
-    setLocalSkillsEnabled(profileDir(), enabled)
+    await editProfile(PROFILE_NAME, () => setLocalSkillsEnabled(profileDir(), enabled))
     pushLog(`本地技能加载 → ${enabled ? '启用' : '恢复默认'}${enabled ? '' : '（清除覆盖）'}`)
     send(res, 200, { ok: true, ...skillsPayload(), profile: PROFILE_NAME })
     return
@@ -4541,15 +4878,28 @@ export async function startServer() {
         return
       }
       const type = mime(path)
+      // 首页嵌着即时设置，仍不缓存；静态资源允许条件重用，源码修改和升级都能立即生效。
+      const headers = {}
+      if (file !== 'index.html') {
+        const info = statSync(path)
+        headers['cache-control'] = 'no-cache'
+        headers.etag = `W/"${info.size.toString(16)}-${info.mtimeMs.toString(16)}"`
+      }
+      const matches = String(req.headers['if-none-match'] || '').split(',').map((value) => value.trim())
+      if (headers.etag && ['GET', 'HEAD'].includes(req.method) && (matches.includes(headers.etag) || matches.includes('*'))) {
+        res.writeHead(304, headers)
+        res.end()
+        return
+      }
       if (isTextFile(file)) {
         let body = await readFile(path, 'utf8')
         if (file === 'index.html') {
           body = body.replaceAll('__APP_VERSION__', APP_VERSION).replaceAll('__APP_LANG__', LANG).replaceAll('__APP_THEME__', THEME).replaceAll('__APP_PANEL_TRANSPARENCY__', String(PANEL_TRANSPARENCY)).replaceAll('__APP_REDUCE_MOTION__', String(REDUCE_MOTION)).replaceAll('__APP_HIDE_BACKGROUND__', String(HIDE_BACKGROUND)).replaceAll('__APP_HIDE_BIG_FISH__', String(HIDE_BIG_FISH))
         }
-        send(res, 200, body, `${type}; charset=utf-8`)
+        send(res, 200, body, `${type}; charset=utf-8`, headers)
         return
       }
-      send(res, 200, await readFile(path), type)
+      send(res, 200, await readFile(path), type, headers)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       pushLog(`错误: ${message}`)

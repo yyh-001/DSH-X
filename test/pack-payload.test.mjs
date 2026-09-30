@@ -6,6 +6,7 @@
  * 而不是只 grep 源码。
  */
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -41,7 +42,17 @@ test('安装包会带上内置插件与内置整合包，且不带上它们的�
     assert.ok(existsSync(join(out, 'packs', 'dsh-x-recommended', 'README.md')))
     // 启动器源码与静态资源同样在（同一个清单，顺手一起钉住）
     assert.ok(existsSync(join(out, 'server.js')), '启动器源码在')
+    assert.ok(existsSync(join(out, 'reserved-profile-boot.mjs')), '起 desktop profile 用的绕行入口在')
     assert.ok(existsSync(join(out, 'public', 'index.html')), '管理页在')
+    // 光看文件存在抓不住传递依赖遗漏：在复制后的目录解析整棵服务依赖树。
+    const result = spawnSync(process.execPath, ['--input-type=module', '-e', "await import('./server.js')"], {
+      cwd: out,
+      env: { ...process.env, APPDATA: join(out, 'test-user'), DSH_VERSIONS_DATA: join(out, 'test-data') },
+      encoding: 'utf8',
+      timeout: 10_000,
+      windowsHide: true,
+    })
+    assert.equal(result.status, 0, result.error?.message || result.stderr)
   } finally {
     rmSync(out, { recursive: true, force: true })
   }
