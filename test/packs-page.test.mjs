@@ -26,7 +26,8 @@ test('整合包已并进插件页：导航里没有独立入口，卡片区是�
     assert.match(pane, new RegExp(`id="${id}"`), `插件页里要有 ${id}`)
   }
   // 卡片是唯一入口：不再另有一份「全部插件」列表（那是当前 profile 的插件，点开它的卡就有）
-  assert.ok(!/id="pluginList"/.test(html), '不该再有一份重复的插件列表')
+  assert.match(pane, /id="pluginList"/, '选定 Profile 的插件直接列出')
+  assert.match(pane, /<details class="plugin-packs"/, '整合包环境按需展开')
   assert.ok(!/data-i18n="全部插件"/.test(html), '「全部插件」这个误导的名字要撤掉')
   assert.match(html, /<button type="button" class="nav-item" data-pane="settings" data-category="appearance">/, '外观紧跟在插件页后面')
 })
@@ -40,7 +41,9 @@ test('两个弹窗：装包（来源 + 市场）与导出，控件齐全', () =>
   for (const id of ['packExportName', 'packExportVersion', 'packExportHome', 'packExportHint', 'packExportGo', 'packExportCancel']) {
     assert.match(exportDialog, new RegExp(`id="${id}"`), `导出弹窗里要有 ${id}`)
   }
-  assert.match(html, /id="packImportOpen"[^>]*data-i18n="装整合包"/, '插件页顶栏有「装整合包」')
+  assert.doesNotMatch(html, /id="packImportOpen"/, '撤去重复的顶栏装包入口')
+  assert.match(importDialog, /<details class="pack-import-source">/, '文件与链接导入默认折叠')
+  assert.match(importDialog, /id="packMarketDetail"/, '社区卡片可以查看完整详情')
   assert.ok(!/id="packExportProfile"/.test(html), '导出入口统一放到环境详情')
   assert.ok(!/id="pluginCheckUpdates"/.test(html), '更新检查放到当前环境详情')
 })

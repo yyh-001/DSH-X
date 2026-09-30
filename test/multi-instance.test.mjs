@@ -217,18 +217,17 @@ test('不存在的 profile 与保留名都会被拒', async () => {
 })
 
 test('控制页有「在跑的实例」一栏，每行单独打开/停止', () => {
-  assert.match(page, /<div class="instances" id="instances" hidden>[\s\S]{0,220}?<span class="instances-title" data-i18n="在跑的实例">/, '实例一栏在控制页')
+  assert.match(page, /<details class="instances" id="instances" hidden>[\s\S]{0,220}?<summary class="instances-title" data-i18n="其他运行项">/, '实例一栏在控制页')
   assert.match(page, /const show = list\.length > 0/, '有实例就列出来：选中别的版本时，这栏是唯一能看到「还有东西在跑」的地方')
   assert.match(page, /post\('\/api\/stop', \{ version: el\.dataset\.stopVersion, profile: el\.dataset\.profile \}\)/, '每行的停止打在它自己那个 版本×profile 上')
   assert.match(page, /void openInstance\(item\?\.url\)/, '打开走服务端的打开方式（内嵌窗口 / 应用窗口 / 标签页）')
-  // 主按钮看的是「下拉里选中的 版本×profile 在不在跑」。若还看全局的 running，
-  // 选中没在跑的组合会拿到别的实例，主按钮就会显示「停止」而实际去启动
-  assert.match(page, /const running = runningInfo\(version, launchProfile\)\n      \/\/ 主按钮看/, '主按钮按选中的组合判断')
+  assert.match(page, /const live = runningInfo\(version, entry\.profile\)/, '每个启动项只打开自己的版本与 profile')
   assert.match(page, /function runningInfo\(version = '', profile = ''\)/, 'runningInfo 收版本和 profile')
   assert.match(page, /id="launchProfile"/, '控制页有启动 profile 下拉')
-  assert.match(page, /post\('\/api\/start', \{ version, profile: launchProfile \}\)/, '启动带上选的 profile')
+  assert.match(page, /async function startVersion\(version, profile = launchProfile, presetPort = null\)/, '手动启动仍用选中的 profile，启动项可指定自己的 profile')
+  assert.match(page, /post\('\/api\/start', \{ version, profile \}\)/, '启动带上目标 profile')
   // 跑着的时候下拉还能切：切过去点启动就是在旁边再起一个，这正是多开要的那条路
-  assert.match(page, /versionDisabled = loading\n/, '版本下拉不再因为「有实例在跑」而禁用')
+  assert.match(page, /versionDisabled = loading\r?\n/, '版本下拉不再因为「有实例在跑」而禁用')
 })
 
 test('多开相关的中文文案都有英文', () => {

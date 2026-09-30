@@ -5,6 +5,7 @@ import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
 
 const html = readFileSync(fileURLToPath(new URL('../public/index.html', import.meta.url)), 'utf8')
+const css = readFileSync(new URL('../public/launcher.css', import.meta.url), 'utf8')
 
 /** 页面里那段没有打包器的内联脚本（改设置页时最容易碰坏它）。 */
 const inlineScripts = () => {
@@ -22,11 +23,11 @@ test('设置页有版本目录入口，用整行的设置项样式，旁边是�
     '版本目录单独占一行（.set-row.stacked），旁边有目录选择按钮',
   )
   assert.match(html, /post\('\/api\/pick-dir'/, '浏览按钮走 /api/pick-dir')
-  assert.match(html, /\.set-row\.stacked \{ display: block; \}/, '整行样式存在')
-  assert.match(html, /<div class="plugin-actions">[\s\S]{0,200}?<select id="profile"/, 'profile 下拉在插件页顶部')
+  assert.match(css, /\.set-row\.stacked \{ display: block; \}/, '整行样式存在')
+  assert.match(html, /<div class="plugin-actions">[\s\S]{0,600}?<select id="profile"/, 'profile 下拉在插件页顶部')
   assert.match(html, /<p class="hint" id="dataDirHint"><\/p>/, '提示行复用 .hint（空内容自动隐藏）')
   // 文本输入框本来就在样式表里，新控件不需要额外 CSS（password 也走这条规则）
-  assert.match(html, /input\[type=text\], input\[type=number\], input\[type=password\], select \{/)
+  assert.match(css, /input\[type=text\], input\[type=number\], input\[type=password\], select \{/)
 })
 
 test('顶栏四个 tab 已取消，设置分类在左侧导航，主页右上角是齿轮入口', () => {
@@ -35,7 +36,7 @@ test('顶栏四个 tab 已取消，设置分类在左侧导航，主页右上角
   assert.match(html, /<button type="button" class="gear-btn" id="settingsEntry"/, '右上角是设置入口')
   // 控制仍是主界面：落地就是它，回到控制时把左侧导航收起来，主页还是那张控制卡片
   assert.match(html, /<main class="home">/, '落地时是控制面板')
-  assert.match(html, /main\.home \.settings-nav \{ display: none; \}/, '主界面不显示左侧导航')
+  assert.match(css, /main\.home \.settings-nav \{ display: none; \}/, '主界面不显示左侧导航')
   for (const [pane, label] of [['control', '控制'], ['plugins', '插件'], ['log', '日志'], ['settings', '设置']]) {
     assert.match(html, new RegExp(`class="nav-item[^"]*" data-pane="${pane}"`), `${label} 要在左侧导航里`)
     assert.match(html, new RegExp(`<section class="pane[^"]*" id="pane-${pane}">`), `${label} 的面板要在设置页里`)
@@ -48,8 +49,8 @@ test('顶栏四个 tab 已取消，设置分类在左侧导航，主页右上角
   assert.doesNotMatch(html, /data-category="dsh"/, 'dsh 分类已经并进常规')
   assert.match(
     html,
-    /<section class="set-section" data-category="general"[\s\S]{0,3000}?<div class="set-caption"[^>]*>dsh<\/div>[\s\S]{0,3000}?id="seedMarket"[\s\S]{0,2000}?id="args"/,
-    '插件市场 / 额外启动参数现在挂在常规里',
+    /<section class="set-section" data-category="general"[\s\S]{0,3000}?<div class="set-caption"[^>]*>dsh<\/div>[\s\S]{0,3000}?id="seedMarket"/,
+    '插件市场仍在常规设置中',
   )
   // 启动 profile 的入口挪到了插件页：插件就是按 profile 分的，选择器跟着插件走
   assert.match(
@@ -63,7 +64,9 @@ test('顶栏四个 tab 已取消，设置分类在左侧导航，主页右上角
     '常规里不再重复一份 profile 选择器',
   )
   // 必须等这一次保存真的返回再重读：queueSetting 是排队异步的，等它返回不代表服务端已经换了 profile
-  assert.match(html, /await post\('\/api\/settings', \{ profile: value \}\)[\s\S]{0,240}?await loadPlugins\(\)/, '切换 profile 后等保存落地再重读插件列表')
+  const browse = html.slice(html.indexOf('profileEl.onchange ='), html.indexOf('argsEl.oninput ='))
+  assert.match(browse, /const value = profileEl.value[\s\S]*pluginProfile = value[\s\S]*await loadPlugins\(\)/)
+  assert.doesNotMatch(browse, /\/api\/settings|\/api\/restart/, '浏览 Profile 不修改启动设置或重启实例')
   assert.match(html, /section\.hidden = section\.dataset\.category !== nextCategory/, '切换分类只显示对应设置')
   assert.match(html, /gearEl\.onclick = \(\) => showPane\(currentPane === 'settings' \? 'control' : 'settings', currentSettingsCategory\)/, '齿轮在设置与主界面间切换')
   assert.match(html, /const paneLoaders = \{[^}]*plugins: loadPlugins[^}]*mcp: loadMcp[^}]*\}/, '进面板时才按需加载')
@@ -80,10 +83,8 @@ test('设置改变后自动提交，目录留空时拒绝提交', () => {
 test('读到的设置填进输入框，并说明插件/profile 位置与迁移语义', () => {
   assert.match(html, /if \('dataDir' in data\) \{[\s\S]*?dataDirEl\.value = String\(data\.dataDir \?\? ''\)/)
   // 文案走 t()，家目录用 {home} 占位（界面语言切换后同一句话要能换掉）
-  const hint = html.match(/dataDirHint\.textContent = t\('([^']*\{home\}[^']*)', \{ home: data\.dshHome/)
-  assert.ok(hint, '提示行把 dsh 家目录填进 {home}')
-  assert.match(hint[1], /插件和 profile 仍在/)
-  assert.match(hint[1], /已安装版本不会迁移/)
+  assert.match(html, /dataDirHint\.textContent = t\('仅用于新安装的版本，已有版本不迁移。'/)
+  assert.match(html, /数据、插件和 Profile 的位置；留空使用默认目录。/)
 })
 
 test('改过目录的保存提示说明立即生效和不迁移', () => {
@@ -103,8 +104,8 @@ test('自动清理旧版本：开关在 dsh 那组里，改动即保存，读设
   // 开关只是把它变成可选：关掉就一个都不删
   assert.match(
     html,
-    /id="autoDisable"[\s\S]{0,600}?<input id="autoCleanVersions" type="checkbox" \/>[\s\S]{0,1400}?id="args"/,
-    '开关跟在兼容模式后面，额外启动参数仍收在组尾',
+    /<section class="set-section" data-category="general"[\s\S]*?id="autoCleanVersions"[\s\S]*?<section class="set-section" data-category="advanced"[\s\S]*?id="autoDisable"[\s\S]*?id="args"/,
+    '清理留在常规，兼容修复与自由参数移到高级设置',
   )
   assert.match(html, /data-i18n="自动清理旧版本"/, '标题走静态文案那条线')
   assert.match(
@@ -122,7 +123,7 @@ test('自动清理旧版本：开关在 dsh 那组里，改动即保存，读设
   assert.match(settings, /merged\.autoCleanVersions = merged\.autoCleanVersions !== false/, '存盘时归一成布尔')
   // 英文也要有，否则界面切成英文这里还是中文
   const dict = new vm.Script(`(${html.match(/const EN = (\{[\s\S]*?\n\})/)[1]})`).runInNewContext()
-  for (const key of ['自动清理旧版本', '装完新版本后删掉更旧的，只留最新的和最近装的一个（正在运行的除外）。关掉就全部留着——回退时想退到哪个版本都在，代价是每个版本要占几百 MB。']) {
+  for (const key of ['自动清理旧版本', '保留最新版和最近安装的一版，运行中的版本不删除。']) {
     assert.ok(dict[key], `「${key.slice(0, 12)}…」有英文`)
   }
 })
@@ -149,56 +150,10 @@ test('设置页有「打开 dsh 的方式」：两项可选、改动即保存', 
   assert.ok(uiSelectList.includes('#openMode'), '打开方式进自绘下拉名单')
 })
 
-test('同步面板：已从设置页摘下来（引擎与接线留着），面板本身四套配置仍齐全、密钥走 password', () => {
-  // 同步改由 dsh 插件（dsh-x-sync）提供，启动器设置页不再挂这个入口；
-  // 面板结构、加载函数、自绘下拉名单都不删——放回去只差导航项和 paneLoaders 两行
-  assert.ok(!/class="nav-item[^"]*" data-pane="sync"/.test(html), '左侧导航不该再有同步入口')
-  assert.ok(!/const paneLoaders = \{[^}]*sync: loadSync/.test(html), '面板加载表里也不挂它')
-  assert.match(html, /<section class="pane" id="pane-sync">/, '面板结构留着（放回来不用重写）')
-  assert.match(html, /async function loadSync\(\)/, '面板自己的加载函数也留着')
-  for (const id of [
-    'syncStore', 'syncEndpoint', 'syncRegion', 'syncBucket', 'syncPrefix', 'syncAccessKey', 'syncSecretKey',
-    'syncSessionToken', 'syncInsecure', 'syncDavUrl', 'syncDavUser', 'syncDavSecret', 'syncDavPrefix',
-    'syncDavInsecure', 'syncFolderPath', 'syncPickFolder', 'syncZipPath', 'syncPickZip', 'syncPolicy', 'syncStyle', 'syncScopeGroup',
-    'syncTest', 'syncUpload', 'syncDownload', 'syncStop', 'syncProgress', 'syncHint', 'syncDetail',
-  ]) {
-    assert.match(html, new RegExp(`id="${id}"`), `${id} 在页面上`)
-  }
-  assert.match(html, /<input id="syncSecretKey" type="password"/, 'SecretKey 不明文显示')
-  assert.match(html, /<input id="syncSessionToken" type="password"/, '会话令牌不明文显示')
-  assert.match(html, /<input id="syncDavSecret" type="password"/, 'WebDAV 密码不明文显示')
-  // 几组字段靠 data-store 显隐（.set-row 有 display:flex，得有一条 [hidden] 规则压得住）
-  assert.match(html, /\.set-row\[hidden\], \.set-row\.stacked\[hidden\] \{ display: none; \}/, '整行能按存储类型藏起来（权重得压过 .set-row.stacked）')
-  assert.match(html, /showSyncStoreRows\(syncStoreEl\.value\)/, '切类型时显隐对应那组')
-  assert.match(html, /const s3Inputs = \{[\s\S]{0,900}?const davInputs = \{/, '两套输入各存一份')
-  assert.match(html, /post\('\/api\/sync\/save', \{ s3: read\(s3Inputs\), webdav: read\(davInputs\), folder: read\(folderInputs\), zip: read\(zipInputs\), sync \}\)/, '保存时几套配置一起交上去')
-  assert.match(html, /const zipInputs = \{[\s\S]{0,80}?syncZipPath/, 'ZIP 那套输入')
-  assert.match(html, /post\('\/api\/pick-file'/, '「选择…」走文件选择接口')
-  assert.match(html, /const folderInputs = \{[\s\S]{0,80}?syncFolderPath/, '本地目录那套输入')
-  assert.match(html, /local \? '导出' : '上传'/, '本地目录模式下按钮改叫导出/导入')
-  assert.match(html, /post\('\/api\/pick-dir'/, '「浏览…」复用目录选择接口')
-  assert.match(html, /const paneLoaders = \{ plugins: loadPlugins[^}]*\}/, '面板加载表还在（放回来加一行 sync: loadSync）')
-  // 摘下来是临时的：怎么放回来得写在原地，别留给下一个人去猜
-  assert.match(html, /放回来[\s\S]{0,160}?paneLoaders/, 'pane-sync 上方写清了放回来的两步')
-  assert.match(html, /post\('\/api\/sync\/save'/, '配置改动即保存')
-  assert.match(html, /post\('\/api\/sync\/run', \{ mode \}\)/, '上传/下载走同一个接口，用 mode 分方向')
-  assert.match(html, /post\('\/api\/sync\/stop'/, '跑得太久能停')
-  assert.match(html, /addEventListener\('sync'/, '同步进度走 SSE 的 sync 事件')
-  const syncSelects = html.match(/document\.querySelectorAll\('([^']*#syncStore[^']*)'\)/)?.[1] || ''
-  for (const id of ['#openMode', '#syncStore', '#syncPolicy', '#syncStyle']) {
-    assert.ok(syncSelects.includes(id), `新下拉 ${id} 也进自绘下拉名单`)
-  }
-})
-
-test('同步面板的中文文案都有英文', () => {
-  const dict = new vm.Script(`(${html.match(/const EN = (\{[\s\S]*?\n\})/)[1]})`).runInNewContext()
-  const cjk = /[\u4e00-\u9fff]/
-  const missing = []
-  const check = (text) => { if (cjk.test(text) && !dict[text]) missing.push(text) }
-  const pane = html.match(/<section class="pane" id="pane-sync">[\s\S]*?<\/section>/)[0]
-  for (const match of pane.matchAll(/data-i18n="([^"]+)"/g)) check(match[1])
-  // 面板 JS 里的中文：范围/策略/风格的文案表和所有 t('…') 的字面量
-  const block = html.match(/\/\/ ---- 同步[\s\S]*?\n    loadSettings\(\)/)[0]
-  for (const match of block.matchAll(/'([^'\n]+)'/g)) check(match[1])
-  assert.deepEqual([...new Set(missing)], [], '同步面板里没翻的中文')
+test('旧同步界面已撤出首页，兼容接口与插件引擎仍保留', () => {
+  assert.doesNotMatch(html, /id="pane-sync"|async function loadSync|paintSyncActions|\/api\/sync/)
+  const server = readFileSync(new URL('../server.js', import.meta.url), 'utf8')
+  assert.match(server, /url.pathname === '\/api\/sync\/save'/)
+  assert.match(server, /url.pathname === '\/api\/sync\/run'/)
+  assert.match(readFileSync(new URL('../plugins/dsh-x-sync/lib/index.js', import.meta.url), 'utf8'), /engine\/sync\.js/)
 })

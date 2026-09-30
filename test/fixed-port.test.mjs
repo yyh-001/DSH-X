@@ -109,7 +109,7 @@ writeFileSync(join(APP, 'settings.json'), JSON.stringify({
 }), 'utf8')
 
 const { startServer, stopAll } = await import('../server.js')
-const { safeInstancePorts } = await import('../settings.js')
+const { safeInstancePorts, safeLaunchPresets } = await import('../settings.js')
 const base = await startServer()
 
 async function api(path, body) {
@@ -280,24 +280,49 @@ test('版本卸掉之后，它的固定端口跟着清掉', async () => {
   assert.deepEqual(left, [], '卸掉的版本不该继续占着端口号（留着会挡住以后钉同一个端口）')
 })
 
+test('内置项始终存在，编辑启动项不提前改变实例端口', async () => {
+  const builtin = safeLaunchPresets()[0]
+  assert.equal(builtin.name, 'DSH')
+  assert.equal(builtin.version, 'auto')
+  assert.equal((await state()).launchPresets[0].id, builtin.id)
+  const port = await freePort()
+  const created = await api('/api/launch-presets', { name: '工作', version: B, profile: 'work', port })
+  assert.match(created.entry.id, /^[a-f0-9]{16}$/)
+  const find = (snap) => snap.launchPresets.find((item) => item.id === created.entry.id)
+  assert.equal(find(await state()).name, '工作')
+  assert.equal((await state()).instancePorts[`${B}@work`], undefined, '保存只是保存入口，端口在启动时应用')
+  const stored = JSON.parse(readFileSync(join(APP, 'settings.json'), 'utf8'))
+  assert.equal(find(stored).port, port)
+  await assert.rejects(api('/api/launch-presets', { name: '重复', version: B, profile: 'work' }), /已有启动项/)
+  await assert.rejects(api('/api/launch-presets', { name: '无效端口', version: B, profile: 'web', port: 70000 }), /端口要填/)
+  await pin(B, created.entry.port, created.entry.profile)
+  const run = await api('/api/start', { version: B, profile: 'work' })
+  assert.equal(portOf(run.url), port)
+  await api('/api/stop', { version: B, profile: 'work' })
+  await api('/api/launch-presets', { ...created.entry, name: '工作环境', port: 0 })
+  assert.equal(find(await state()).name, '工作环境')
+  assert.equal((await state()).instancePorts[`${B}@work`], port, '编辑也不改已生效的端口')
+  await pin(B, '', 'work')
+  await api('/api/launch-presets/remove', { id: created.entry.id })
+  assert.equal((await state()).launchPresets.length, 1)
+  await assert.rejects(api('/api/launch-presets/remove', { id: builtin.id }), /默认启动项不能删除/)
+  await api('/api/launch-presets', { ...builtin, version: B })
+  assert.equal((await state()).launchPresets[0].version, B, '普通用户可以编辑内置项来选版本')
+  await api('/api/launch-presets', builtin)
+  assert.deepEqual(safeLaunchPresets([{ id: 'bad', name: 'x', version: B, profile: 'web', port: 0 }]), [builtin])
+})
+
 test('控制页有端口输入框，文案有英文', () => {
   assert.match(page, /<div class="home-field port">[\s\S]{0,200}?<input id="launchPort" type="number" min="1" max="65535"/, '端口输入框在控制页的版本/Profile 旁边')
-  assert.match(page, /launchPortEl\.onchange = \(\) => \{ void saveLaunchPort\(\) \}/, '改完自动提交')
-  assert.match(page, /post\('\/api\/instance-port', \{ version, profile: launchProfile, port: text \}\)/, '提交打在 版本×profile 上')
-  assert.match(page, /if \(data\.busy\)/, '被占用时只说问题，不当成保存失败')
-  assert.match(page, /document\.activeElement !== launchPortEl/, 'render 频繁重跑，正在输入时不能覆盖用户手里的字')
-  // applyState 是按字段重建 state 的：漏掉这张表的话，每次状态刷新都会把端口回显清掉
-  // （服务端明明存着，页面上却是空的——改动时踩过一次）
-  assert.match(page, /instancePorts: data\.instancePorts && typeof data\.instancePorts === 'object'/, '状态重建时要带上固定端口表')
-  // 填完端口马上点启动的竞态：blur 先 change、click 后到，启动要等这次保存落地
-  assert.match(page, /await portSave/, '启动前等端口保存落地')
-  assert.match(page, /launchPortEl\.onkeydown = \(event\) => \{/, '回车＝提交（number 输入框自己不会因为回车触发 change）')
+  assert.doesNotMatch(page, /launchPortEl\.onchange/, '弹窗里的端口是草稿，取消无需回滚已保存参数')
+  assert.match(page, /await post\('\/api\/instance-port', \{ version, profile, port: presetPort \}\)/, '启动前应用并等待目标端口保存')
+  assert.match(page, /launchFormEl\.onsubmit/, '所有参数统一由保存动作提交')
   const dict = new vm.Script(`(${page.match(/const EN = (\{[\s\S]*?\n\})/)[1]})`).runInNewContext()
   for (const text of [
     '端口',
     '端口被占用',
     '端口 {port} 现在被别的程序占着：这次启动会失败，先让出它或换一个。',
-    '给这个「版本 × profile」钉一个固定端口：链接每次启动都一样，书签和手机上的地址就留得住。留空＝每次由系统挑一个。下次启动生效。',
+    '留空自动分配端口。固定端口在下次启动时生效。',
   ]) {
     assert.ok(dict[text], `「${text}」缺英文`)
   }

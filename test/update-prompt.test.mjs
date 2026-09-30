@@ -4,6 +4,7 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 const html = readFileSync(fileURLToPath(new URL('../public/index.html', import.meta.url)), 'utf8')
+const css = readFileSync(fileURLToPath(new URL('../public/launcher.css', import.meta.url)), 'utf8')
 const start = readFileSync(fileURLToPath(new URL('../start.js', import.meta.url)), 'utf8')
 
 // dsh 是第三方插件的宿主：新版本可能让插件失效（插件市场就出过），所以升级必须先确认。
@@ -22,7 +23,7 @@ test('启动时不再自动弹更新弹窗', () => {
 test('首页的更新按钮只弹确认，不直接升级', () => {
   assert.match(
     html,
-    /updateEl\.onclick = \(\) => \{[\s\S]{0,400}?showAsk\(\{ dsh: \{ current: versionValue \|\| latest, latest \} \}\)/,
+    /updateEl\.onclick = \(\) => \{[\s\S]{0,400}?showAsk\(\{ dsh: \{ current: selected\(\) \|\| latest, latest \} \}\)/,
     '更新按钮打开确认弹窗',
   )
   assert.ok(!/updateEl\.onclick = async/.test(html), '更新按钮不该再直接跑升级')
@@ -34,7 +35,7 @@ test('首页的更新按钮只弹确认，不直接升级', () => {
 test('dsh 升级确认里写明了风险', () => {
   assert.ok(html.includes(`'${RISK}'`), '风险说明要作为 dsh 那一行的提示传进去')
   assert.ok(html.includes('"Upgrading stops the running dsh'), '英文界面要有对应文案')
-  assert.match(html, /\.ask-risk \{/, '风险块要有自己的样式')
+  assert.match(css, /\.ask-risk \{/, '风险块要有自己的样式')
   assert.match(html, /t\('更新到 \{latest\}', \{ latest: update\.dsh\.latest \}\)/, '按钮文案用「更新到 x」')
 })
 

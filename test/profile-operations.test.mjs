@@ -131,4 +131,27 @@ setTimeout(() => server.listen(0, '127.0.0.1', () => console.log('dsh web: http:
     await api('/api/stop', {})
     assert.match(await (await fetch(base + '/api/tray')).text(), /status=stopped/)
   })
+
+  await t.test('静态资源可条件重用，首页与 API 仍不缓存', async () => {
+    for (const file of ['/launcher.css', '/log-view.js']) {
+      const first = await fetch(base + file)
+      assert.equal(first.status, 200)
+      const etag = first.headers.get('etag')
+      assert.ok(etag)
+      assert.equal(first.headers.get('cache-control'), 'no-cache')
+      await first.text()
+      const unchanged = await fetch(base + file, { headers: { 'if-none-match': etag } })
+      assert.equal(unchanged.status, 304)
+      assert.equal(await unchanged.text(), '')
+      const different = await fetch(base + file, { headers: { 'if-none-match': 'W/"old-version"' } })
+      assert.equal(different.status, 200)
+      await different.text()
+    }
+    for (const file of ['/', '/api/state']) {
+      const res = await fetch(base + file)
+      assert.equal(res.headers.get('cache-control'), 'no-store')
+      assert.equal(res.headers.get('etag'), null)
+      await res.text()
+    }
+  })
 })
