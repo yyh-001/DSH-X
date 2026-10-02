@@ -23,7 +23,7 @@ async function freePort() {
 }
 
 /** 造一个整合包文件：两层、一个依赖、一份补丁层。 */
-function demoPack(file) {
+function demoPack(file, { name = 'demo' } = {}) {
   const buffer = writeZip([
     { name: 'dspack.json', data: '{"format":"dspack","version":3}\n' },
     {
@@ -31,7 +31,7 @@ function demoPack(file) {
       data: JSON.stringify({
         manifestVersion: 5,
         type: 'profile',
-        name: 'demo',
+        name,
         version: '1.2.3',
         displayName: '示例整合包',
         description: '给测试用的整合包',
@@ -249,6 +249,30 @@ test('整合包接口', async (t) => {
     const fromPlugins = (await manager.get('/api/plugins')).data.packs
     assert.equal(fromPlugins.find((item) => item.profile === 'grouped')?.pluginCount, 1, '插件页一次请求就能拿到卡片需要的东西')
 
+    // 按包/其它组操作必须用安装记录归属过滤实际插件，不能误改同 profile 的手动插件。
+    const manifestPath = join(manager.home, 'profiles', 'grouped', 'package.json')
+    const profileManifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+    profileManifest.dependencies['dsh-meme'] = '0.1.43'
+    writeFileSync(manifestPath, JSON.stringify(profileManifest, null, 2))
+    const memeDir = join(manager.home, 'profiles', 'grouped', 'node_modules', 'dsh-meme')
+    mkdirSync(memeDir, { recursive: true })
+    writeFileSync(join(memeDir, 'package.json'), JSON.stringify({ name: 'dsh-meme', version: '0.1.43', dsh: { bundle: { patch: 'cordis.patch.yml' } } }))
+    writeFileSync(join(memeDir, 'cordis.patch.yml'), '- insert:\n    - id: dsh-meme\n')
+
+    const packOff = await manager.call('/api/packs/toggle', { profile: 'grouped', pack: 'demo', enabled: false })
+    assert.equal(packOff.status, 200, packOff.data.error)
+    assert.deepEqual(packOff.data.selected, ['dsh-cost-meter'])
+    assert.equal(packOff.data.group, 'pack')
+    assert.ok(!packOff.data.disables.includes('dsh-meme'), '包开关不碰其它组')
+    const otherOn = await manager.call('/api/packs/toggle', { profile: 'grouped', group: 'other', enabled: false })
+    assert.equal(otherOn.status, 200, otherOn.data.error)
+    assert.deepEqual(otherOn.data.selected, ['dsh-meme'])
+    assert.ok(otherOn.data.disables.includes('dsh-meme'), '其它组开关只动手动插件')
+    const packUpdate = await manager.call('/api/packs/update', { profile: 'grouped', pack: 'demo' })
+    assert.equal(packUpdate.status, 200, packUpdate.data.error)
+    assert.deepEqual(packUpdate.data.selected, ['dsh-cost-meter'])
+    assert.equal(packUpdate.data.group, 'pack')
+
     // 手动拼的 profile（没有任何安装记录）也要出现在卡片里
     const handMade = join(manager.home, 'profiles', 'hand-made')
     mkdirSync(handMade, { recursive: true })
@@ -261,7 +285,7 @@ test('整合包接口', async (t) => {
     // 整包开关按 profile 走：没有可开关的加载行时如实报出来，不当成成功
     const off = await manager.call('/api/packs/toggle', { profile: 'grouped', enabled: false })
     assert.equal(off.status, 200, off.data.error)
-    assert.equal(off.data.changed, 0)
+    assert.equal(off.data.changed, 0, '手动插件已由其它组开关禁用，重复操作幂等')
     assert.equal(off.data.failed.length, 1)
     assert.match(off.data.failed.join(), /dsh-cost-meter/)
 
@@ -269,7 +293,7 @@ test('整合包接口', async (t) => {
     const update = await manager.call('/api/packs/update', { profile: 'grouped' })
     assert.equal(update.status, 200)
     assert.equal(update.data.profile, 'grouped')
-    assert.equal(update.data.failed.length, 1, '假 dsh 没有安装依赖，回读失败如实汇总')
+    assert.equal(update.data.failed.length, 2, '假 dsh 没有安装依赖，回读失败如实汇总')
     assert.equal((await manager.get('/api/settings')).data.profile, 'web', '更新其它环境不改变默认值')
 
     const noProfile = await manager.call('/api/packs/toggle', { enabled: false })
@@ -326,6 +350,61 @@ test('整合包接口', async (t) => {
     assert.match(removed.data.lines.join(), /已经不在了/)
     assert.ok(!existsSync(dir), '不会把目录重新造出来')
     assert.equal((await manager.get('/api/packs')).data.packs.filter((item) => item.profile === 'vanished').length, 0)
+  })
+
+  await t.test('切换环境重新检查：复用下载缓存并重新计算写入位置', async () => {
+    let downloads = 0
+    const fake = createHttpServer((req, res) => { downloads += 1; res.end(readFileSync(packFile)) })
+    await new Promise((resolve) => fake.listen(0, '127.0.0.1', resolve))
+    t.after(() => fake.listening ? new Promise((resolve) => fake.close(resolve)) : undefined)
+    const inspect = await manager.call('/api/packs/inspect', { source: `http://127.0.0.1:${fake.address().port}/demo.dspack`, profile: 'demo' })
+    assert.equal(inspect.status, 200, inspect.data.error)
+    await new Promise((resolve) => fake.close(resolve))
+    const again = await manager.call('/api/packs/inspect', { token: inspect.data.token, profile: 'retargeted' })
+    assert.equal(again.status, 200, again.data.error)
+    assert.equal(downloads, 1)
+    assert.equal(again.data.target.profile, 'retargeted')
+    assert.equal(again.data.target.createsProfile, true)
+    assert.ok(again.data.plan.writes.every((write) => write.rel.startsWith('profiles/retargeted/')))
+    assert.ok(!existsSync(join(manager.home, 'profiles', 'retargeted')), '重算仍不写环境')
+    const expired = await manager.call('/api/packs/inspect', { token: 'expired', profile: 'demo' })
+    assert.equal(expired.status, 400)
+    assert.match(expired.data.error, /过期/)
+  })
+
+  await t.test('多包叠加：拒绝乱序撤销和重装；还原失败保留记录供重试', async () => {
+    const otherFile = demoPack(join(manager.root, 'other.dspack'), { name: 'other' })
+    const dir = join(manager.home, 'profiles', 'stacked')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'package.json'), '{"name":"original","private":true}\n')
+    writeFileSync(join(dir, 'cordis.patch.yml'), 'original\n')
+    for (const source of [packFile, otherFile]) {
+      const inspect = await manager.call('/api/packs/inspect', { source, profile: 'stacked' })
+      const result = await manager.call('/api/packs/install', { token: inspect.data.token, profile: 'stacked' })
+      assert.equal(result.status, 200, result.data.error)
+    }
+    const wrong = await manager.call('/api/packs/uninstall', { name: 'demo', profile: 'stacked' })
+    assert.equal(wrong.status, 400)
+    assert.match(wrong.data.error, /请先撤销/)
+    const inspect = await manager.call('/api/packs/inspect', { source: packFile, profile: 'stacked' })
+    const reinstall = await manager.call('/api/packs/install', { token: inspect.data.token, profile: 'stacked' })
+    assert.equal(reinstall.status, 400)
+    assert.match(reinstall.data.error, /后续安装/)
+    const records = JSON.parse(readFileSync(stateFile, 'utf8')).packs
+    const latest = records.find((item) => item.name === 'other' && item.profile === 'stacked')
+    const backup = join(latest.backupDir, 'files', 'profiles', 'stacked', 'cordis.patch.yml')
+    const contents = readFileSync(backup)
+    rmSync(backup)
+    const failed = await manager.call('/api/packs/uninstall', { name: 'other', profile: 'stacked' })
+    assert.equal(failed.status, 400)
+    assert.match(failed.data.error, /未能还原/)
+    assert.ok(JSON.parse(readFileSync(stateFile, 'utf8')).packs.some((item) => item.name === 'other' && item.profile === 'stacked'))
+    writeFileSync(backup, contents)
+    for (const name of ['other', 'demo']) {
+      const removed = await manager.call('/api/packs/uninstall', { name, profile: 'stacked' })
+      assert.equal(removed.status, 200, removed.data.error)
+    }
+    assert.equal(readFileSync(join(dir, 'cordis.patch.yml'), 'utf8'), 'original\n')
   })
 
   await t.test('市场：索引读回来按 PackForge 的字段收敛', async () => {

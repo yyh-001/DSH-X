@@ -93,6 +93,11 @@ export function safeUpdateSource(value) {
   return UPDATE_SOURCES[name] ? name : DEFAULT_UPDATE_SOURCE
 }
 
+/** 一个下载源统管 npm 与 GitHub，避免界面选择和实际更新路径互相矛盾。 */
+export function updateSourceForDownload(value) {
+  return safeDownloadSource(value) === 'official' ? 'direct' : 'mirror'
+}
+
 /**
  * 网络代理的三种模式：跟随系统（默认，自己探测系统代理）/ 手动填地址 / 不走代理。
  *
@@ -616,6 +621,8 @@ export async function saveSettings(patch) {
   }
   if ('webBind' in patch) merged.webBind = safeWebBind(patch.webBind)
   merged.downloadSource = safeDownloadSource(merged.downloadSource)
+  merged.updateSource = updateSourceForDownload(merged.downloadSource)
+  merged.updateSourceMigrated = true
   merged.openMode = safeOpenMode(merged.openMode)
   if ('openMode' in patch) merged.openMode = safeOpenMode(patch.openMode)
   merged.proxyMode = safeProxyMode(merged.proxyMode)
@@ -667,9 +674,11 @@ export async function ensureSettings() {
   const dataDir = stored.dataDir ? safeDataDir(stored.dataDir) : inferDataDir()
   const patch = {}
   if (stored.dataDir !== dataDir) patch.dataDir = dataDir
-  // 一次性迁移：老配置里的「下载源：直连」改成新默认「国内加速」（详见 migrateUpdateSource）
-  const migration = migrateUpdateSource(stored)
-  if (migration) Object.assign(patch, migration)
+  // 保留既有的下载源选择，旧更新源字段只作为兼容副本。
+  const updateSource = updateSourceForDownload(stored.downloadSource)
+  if (stored.updateSource !== updateSource || stored.updateSourceMigrated !== true) {
+    Object.assign(patch, { updateSource, updateSourceMigrated: true })
+  }
   if (!Object.keys(patch).length) return stored
   return saveSettings(patch)
 }

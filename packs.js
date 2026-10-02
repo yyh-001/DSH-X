@@ -602,7 +602,11 @@ function profileWrites({ home, profile, bundles, specs, patch, overrides, notes,
 /** 备份目录名：时间戳 + 包名，一眼能看出是哪次安装留下的。 */
 export function backupDirFor(dataDir, name, now = new Date()) {
   const stamp = now.toISOString().replace(/[-:T]/g, '').slice(0, 14)
-  return join(dataDir, 'packs', 'backups', `${stamp}-${slugName(name)}`)
+  const base = join(dataDir, 'packs', 'backups', `${stamp}-${slugName(name)}`)
+  let dir = base
+  // 同一秒内重装也不能覆盖上一次的备份。
+  for (let index = 1; existsSync(dir); index += 1) dir = `${base}-${index}`
+  return dir
 }
 
 function copyInto(from, to) {
@@ -623,6 +627,7 @@ export async function applyInstall(plan, {
   source = '',
   now = new Date(),
   runInstall,
+  previousRecord = null,
   log = () => {},
 }) {
   const backupDir = backupDirFor(dataDir, plan.profile || pack.fields.name, now)
@@ -673,6 +678,22 @@ export async function applyInstall(plan, {
       dshVersion: pack.fields.dshVersion,
       manifestVersion: Number(pack.manifest?.manifestVersion) || 0,
     }
+    if (previousRecord) {
+      // 重装只留一条记录，但撤销仍要回到第一次安装前。另存撤销备份，
+      // 不覆盖这次安装的即时备份，合并失败时才能准确回滚到重装前。
+      const originalFiles = new Map(previousRecord.files.map((item) => [item.rel, item]))
+      const undoDir = join(backupDir, 'undo')
+      const combined = [...previousRecord.files, ...records.filter((item) => !originalFiles.has(item.rel))]
+      for (const item of combined) {
+        if (!item.existed) continue
+        const from = originalFiles.has(item.rel) ? previousRecord.backupDir : backupDir
+        copyInto(readFileSync(join(from, 'files', item.rel)), join(undoDir, 'files', item.rel))
+      }
+      record.files = combined
+      record.backupDir = undoDir
+      record.createdProfile = previousRecord.createdProfile === true
+      mkdirSync(join(undoDir, 'files'), { recursive: true })
+    }
     return { ok: true, record, backupDir, log: records.map((item) => `${item.existed ? '覆盖' : '新建'} ${item.rel}`) }
   } catch (error) {
     const rolledBack = rollbackFiles({ files: records, backupDir }, home, log)
@@ -703,6 +724,8 @@ export function rollbackFiles(record, home, log = () => {}) {
 /** 卸载：把安装时备份的文件还原回去。 */
 export function uninstallPack(record, { home, log = () => {} }) {
   const ok = rollbackFiles(record, home, log)
+  // 还原不完整时保留安装记录，用户修复备份后仍可重试，不能当成卸载成功。
+  if (!ok) throw new Error(`有文件未能还原，请检查备份后重试：${record.backupDir}`)
   return { ok, restored: record.files.length }
 }
 

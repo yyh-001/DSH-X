@@ -125,13 +125,14 @@ test('内联脚本仍能解析', () => {
   for (const script of inlineScripts()) new vm.Script(script)
 })
 
-test('设置页有 dsh 用户目录与更新下载源两项：前者可浏览、后者是下拉', () => {
+test('设置页用一个下载源选择统管插件、整合包和启动器更新', () => {
   assert.match(html, /<input id="dshHome" type="text"/, 'dsh 用户目录是文本框')
   assert.match(html, /<button class="ghost" id="pickDshHome"[\s\S]{0,120}?浏览…/, 'dsh 用户目录带「浏览…」')
-  assert.match(html, /<select id="updateSource"><\/select>/, '更新下载源是下拉（选项由服务端给）')
-  // 两项都要能存：一处漏了就会变成「改了没反应」
+  assert.match(html, /<select id="downloadSource"><\/select>/, '统一下载源下拉选项由服务端给')
+  assert.doesNotMatch(html, /<select id="updateSource"/, '不再单独暴露启动器更新源')
   assert.match(html, /queueSetting\('dshHome'/, 'dsh 用户目录改动即保存')
-  assert.match(html, /queueSetting\('updateSource'/, '更新下载源改动即保存')
+  assert.match(html, /queueSetting\('downloadSource'/, '统一下载源改动即保存')
+  assert.match(html, /用于版本、插件、整合包和启动器更新/, '提示明确说明统管范围')
 })
 
 test('设置页有「打开 dsh 的方式」：两项可选、改动即保存', () => {

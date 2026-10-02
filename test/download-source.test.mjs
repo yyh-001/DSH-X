@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 
 import { currentRegistry } from '../registry.js'
 import { dshEnv } from '../server.js'
-import { DEFAULTS, DEFAULT_SOURCE, DEFAULT_UPDATE_SOURCE, DOWNLOAD_SOURCES, migrateUpdateSource, safeDownloadSource, safeUpdateSource, updateUrlCandidates } from '../settings.js'
+import { DEFAULTS, DEFAULT_SOURCE, DEFAULT_UPDATE_SOURCE, DOWNLOAD_SOURCES, safeDownloadSource, safeUpdateSource, updateSourceForDownload, updateUrlCandidates } from '../settings.js'
 
 const read = (name) => readFileSync(fileURLToPath(new URL(`../${name}`, import.meta.url)), 'utf8')
 const html = read('public/index.html')
@@ -72,7 +72,7 @@ test('服务端把可选项给页面，切源顺手作废更新检查缓存', ()
   assert.match(server, /\('downloadSource' in body \? \{ downloadSource: safeDownloadSource\(body\.downloadSource\) \}/, '保存时校验')
   assert.match(
     server,
-    /if \('downloadSource' in body\) \{\s*remoteCache = \{ at: 0, data: null \}/,
+    /if \('downloadSource' in body \|\| 'updateSource' in body\) \{[\s\S]{0,100}?remoteCache = \{ at: 0, data: null \}/,
     '更新检查有 60s 缓存，切源要立刻作废，否则新源要等一分钟才生效',
   )
 })
@@ -107,20 +107,15 @@ test('更新下载源：默认国内加速，但候选永远是「直连排第�
   assert.equal(safeUpdateSource('瞎填的'), 'mirror', '脏值回新的默认')
 })
 
-// 老配置里存着老默认值「直连」的用户迁移到「国内加速」；用户自己选过的源不许动
-test('老配置迁移：仍是老默认「直连」的改成国内加速，打过标记的就不动', () => {
-  assert.deepEqual(
-    migrateUpdateSource({ updateSource: 'direct' }),
-    { updateSource: 'mirror', updateSourceMigrated: true },
-    '老默认值一次性改成新默认',
-  )
-  assert.equal(migrateUpdateSource({ updateSource: 'direct', updateSourceMigrated: true }), null, '迁移过就不再动')
-  assert.equal(migrateUpdateSource({ updateSource: 'mirror', updateSourceMigrated: true }), null)
-  assert.deepEqual(migrateUpdateSource({ updateSource: 'mirror' }), { updateSourceMigrated: true }, '已经是新默认，只补标记')
-  assert.deepEqual(migrateUpdateSource({}), { updateSource: 'mirror', updateSourceMigrated: true }, '没存过这个字段的也算老配置')
-  assert.equal(migrateUpdateSource(null), null)
-  // ensureSettings 里要真接上这条迁移，否则老用户永远停在「直连」
+test('统一下载源映射到兼容的 GitHub 更新源', () => {
+  assert.equal(updateSourceForDownload('official'), 'direct')
+  assert.equal(updateSourceForDownload('mirror'), 'mirror')
+  assert.equal(updateSourceForDownload('invalid'), 'mirror', '脏下载源沿用镜像默认')
+  assert.match(server, /updateSource: updateSourceForDownload\(stored\.downloadSource\)/, '旧 UI 字段由统一下载源推导')
+  assert.match(server, /'updateSource' in body \? \{ downloadSource: safeUpdateSource\(body\.updateSource\) === 'direct' \? 'official' : 'mirror' \}/, '旧 API 写入会映射回统一下载源')
+  assert.match(server, /if \('downloadSource' in body \|\| 'updateSource' in body\)/, '兼容 API 也刷新下载与更新缓存')
+  assert.match(server, /UPDATE_SOURCE = updateSourceForDownload\(stored\.downloadSource\)/, 'GitHub 更新源跟随保存后的统一源')
   const settings = read('settings.js')
-  assert.match(settings, /const migration = migrateUpdateSource\(stored\)/)
-  assert.match(settings, /if \(migration\) Object\.assign\(patch, migration\)/)
+  assert.match(settings, /merged\.updateSource = updateSourceForDownload\(merged\.downloadSource\)/, '保存配置时写兼容副本')
+  assert.match(settings, /const updateSource = updateSourceForDownload\(stored\.downloadSource\)/, '旧配置读取时修复兼容副本')
 })

@@ -5,10 +5,10 @@ import { createServer as createNetServer } from 'node:net'
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { accessSync, appendFileSync, chmodSync, closeSync, constants as fsConstants, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, statSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
-import { basename, delimiter, dirname, join, sep } from 'node:path'
+import { basename, delimiter, dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
-import { cmpVer, currentRegistry, installSpec, listPackage, parsePnpmProgress, parseVer } from './registry.js'
+import { cmpVer, currentRegistry, describeNpmFailure, installSpec, listPackage, parsePnpmProgress, parseVer } from './registry.js'
 import pkg from './package.json' with { type: 'json' }
 import {
   disableRowId,
@@ -56,6 +56,7 @@ import {
   parsePackDir,
   parsePackSource,
   planInstall,
+  profileSkeleton,
   readPackState,
   rememberPack,
   uninstallPack,
@@ -64,7 +65,6 @@ import {
   autoStartEnabled,
   DEFAULT_PORT,
   DEFAULT_LAUNCH_ID,
-  DEFAULT_UPDATE_SOURCE,
   defaultDshHome,
   ensureSettings,
   ensureWritableDir,
@@ -85,6 +85,7 @@ import {
   safeSyncSettings,
   safeTheme,
   safeUpdateSource,
+  updateSourceForDownload,
   updateUrlCandidates,
   safePanelTransparency,
   safeDownloadSource,
@@ -170,7 +171,7 @@ let HIDE_BIG_FISH = loadSettingsSync().hideBigFish === true
 // 在这里指回去，否则启动器会按默认位置重建一个、dsh 也就跑到那份空数据上去了。
 let DSH_HOME_DIR = safeDshHome(loadSettingsSync().dshHome)
 // 启动器更新的下载源：direct（默认直连 GitHub）/ mirror（国内加速，直连失败时走前缀镜像）
-let UPDATE_SOURCE = safeUpdateSource(loadSettingsSync().updateSource)
+let UPDATE_SOURCE = updateSourceForDownload(loadSettingsSync().downloadSource)
 // 打开 dsh 页面的方式：tab（默认，系统浏览器标签页）/ app（Chromium 应用窗口）/
 // window（启动器内嵌窗口；只在被原生外壳拉起时成立，判断见 openRoute）
 let OPEN_MODE = safeOpenMode(loadSettingsSync().openMode)
@@ -221,6 +222,7 @@ let installProgress = null
 // 插件安装/升级的进度（走 dsh 内部的 pnpm，解析方式和 npm 不同，页面按 kind 分给不同的进度条）
 let pluginProgress = null
 let pluginProgressName = ''
+let pluginProgressProfile = ''
 let pluginBusy = false
 let remoteCache = { at: 0, data: null }
 let selfCache = { at: 0, data: null }
@@ -572,7 +574,7 @@ async function downloadSelfUpdate() {
     }
   }
   if (!res) {
-    const hint = UPDATE_SOURCE === 'mirror' ? '' : '；可以在设置页把「更新下载源」改成「国内加速」再试'
+    const hint = UPDATE_SOURCE === 'mirror' ? '' : '；可以在设置页把「下载源」改成「镜像源」再试'
     throw new Error(`下载失败：${describeFetchError(lastError, info.url)}${hint}`)
   }
   const total = Number(res.headers.get('content-length') || 0)
@@ -886,7 +888,7 @@ async function snapshot() {
     health: lastHealth,
     dataDir: DATA,
     progress: installProgress,
-    pluginProgress,
+    pluginProgress: pluginProgress ? { ...pluginProgress, name: pluginProgressName, profile: pluginProgressProfile } : null,
     sync: syncState,
     syncRunning,
   }
@@ -934,7 +936,7 @@ async function publicSettings() {
     ],
     systemPath: SYSTEM_PATH,
     systemBinDir: systemBinDir(),
-    updateSource: safeUpdateSource(stored.updateSource),
+    updateSource: updateSourceForDownload(stored.downloadSource),
     updateSources: [
       { id: 'mirror', label: '国内加速（先直连，连不上走镜像）' },
       { id: 'direct', label: '只直连（不用镜像）' },
@@ -1080,8 +1082,8 @@ async function saveManagerSettings(body) {
     ...('port' in body ? { port: safePort(body.port) } : {}),
     ...('profile' in body ? { profile: safeProfile(body.profile) } : {}),
     ...('args' in body ? { args: safeArgs(body.args) } : {}),
-    ...('downloadSource' in body ? { downloadSource: safeDownloadSource(body.downloadSource) } : {}),
-    ...('updateSource' in body ? { updateSource: safeUpdateSource(body.updateSource) } : {}),
+    ...('downloadSource' in body ? { downloadSource: safeDownloadSource(body.downloadSource) }
+      : 'updateSource' in body ? { downloadSource: safeUpdateSource(body.updateSource) === 'direct' ? 'official' : 'mirror' } : {}),
     ...('proxyMode' in body ? { proxyMode: safeProxyMode(body.proxyMode) } : {}),
     ...('proxyUrl' in body ? { proxyUrl: safeProxyUrl(body.proxyUrl) } : {}),
     ...('openMode' in body ? { openMode: safeOpenMode(body.openMode) } : {}),
@@ -1109,13 +1111,12 @@ async function saveManagerSettings(body) {
     }
   }
   // 切换下载源后清掉更新检查的缓存，让新源立即生效（下载那侧每次现读，不用清）
-  if ('downloadSource' in body) {
+  if ('downloadSource' in body || 'updateSource' in body) {
     remoteCache = { at: 0, data: null }
-  }
-  if ('updateSource' in body) {
-    UPDATE_SOURCE = safeUpdateSource(stored.updateSource)
+    pluginUpdateCache.at = 0
+    UPDATE_SOURCE = updateSourceForDownload(stored.downloadSource)
     selfCache = { at: 0, data: null }
-    pushLog(`更新下载源改为 ${UPDATE_SOURCE === 'mirror' ? '国内加速' : '直连 GitHub'}`)
+    pushLog(`下载源改为 ${UPDATE_SOURCE === 'mirror' ? '镜像源' : '官方源'}`)
   }
   if ('proxyMode' in body || 'proxyUrl' in body) {
     // 探测结果有缓存，改了设置要立刻重新探一次；请求那侧每次现读设置，不用重启
@@ -1474,7 +1475,7 @@ export function withBundledRuntime(pathValue, preferredPnpm = '') {
  */
 function emitPluginProgress(state) {
   pluginProgress = state
-  emit('progress', state ? { ...state, kind: 'plugin', name: pluginProgressName } : { phase: 'idle', kind: 'plugin' })
+  emit('progress', state ? { ...state, kind: 'plugin', name: pluginProgressName, profile: pluginProgressProfile } : { phase: 'idle', kind: 'plugin' })
 }
 
 /**
@@ -1911,7 +1912,7 @@ async function checkSelfUpdate() {
     if (!latest) {
       // 连不上 GitHub 时别一声不吭：用户会以为「一直没有新版本」
       if (UPDATE_SOURCE !== 'mirror') {
-        pushLog(`[更新] 检查更新失败（连不上 GitHub）；设置页可把「更新下载源」改成「国内加速」再试${proxyHint()}`)
+        pushLog(`[更新] 检查更新失败（连不上 GitHub）；设置页可把「下载源」改成「镜像源」再试${proxyHint()}`)
       } else {
         pushLog('[更新] 检查更新失败：直连和加速镜像都没取到版本号')
       }
@@ -2144,6 +2145,26 @@ async function installedPlugins() {
   }
 }
 
+/** 兼容检查的拒绝不是 pnpm 故障；保留原因，别引导用户绕过检查强装。 */
+function describePluginFailure(output, label, code) {
+  const text = String(output || '').replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, '')
+  const incompatible = text.match(/Plugin\s+(\S+)\s+is incompatible with dsh\s+([^\s:]+):\s*peerDependencies\s*(\{[\s\S]*?\})/i)
+  if (incompatible) {
+    let required = []
+    try {
+      const peers = JSON.parse(incompatible[3])
+      required = [...new Set(Object.entries(peers).filter(([name]) => name.startsWith('@deepseek-ai/')).map(([, spec]) => String(spec)))]
+    } catch { /* 声明格式变化时仍显示拒绝原因，不退回只有退出码。 */ }
+    return `${incompatible[1]} 与当前使用的 DSH ${incompatible[2]} 不兼容。\n${required.length ? `插件要求的 DSH 组件版本：${required.join('、')}。\n` : ''}请先在版本管理中安装兼容的 DSH；如果此 Profile 正在运行旧版，请停止旧版后再更新插件。`
+  }
+  const npmReason = describeNpmFailure(text)
+  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+  const reasons = lines.filter((line) => /ERR_PNPM_|\bdsh:\s*(?:error|installation rejected|failed|cannot|could not)|\b(?:Error|EACCES|EPERM|ENOSPC|ECONNRESET|ETIMEDOUT|ENOTFOUND)\b/i.test(line))
+    .filter((line) => !/plugin command failed; diagnostics:|nothing was installed|to accept the risk|--accept-risk/i.test(line))
+  const reason = (npmReason || reasons.slice(0, 3).join('\n') || lines.filter((line) => !/plugin command failed; diagnostics:|nothing was installed|--accept-risk|^Progress:/i.test(line)).slice(-3).join('\n')).slice(0, 3000)
+  return reason ? `${label} 失败\n${reason}` : `${label} 失败（退出码 ${code}，命令未提供具体原因；请查看日志）`
+}
+
 /**
  * 跑一条 `dsh plugin …`（透传给 pnpm），输出进日志。
  *
@@ -2157,29 +2178,41 @@ async function runPluginCommand(ver, args, label, options = {}) {
   const cliProfile = CLI_BLOCKED_PROFILES.has(profile.toLowerCase()) ? ensureProfileAlias(profile) : ''
   // 先按这份 profile 记的 store 挑 pnpm（#12）：挑得出来就用它，挑不出来按老规矩「系统优先」
   const pnpmDir = await preferredPnpmDir(profile).catch(() => '')
+  pushLog(`插件命令使用 DSH ${ver} · profile ${profile}`)
   return new Promise((resolve, reject) => {
     const child = spawnDsh(ver, ['plugin', '--profile', cliProfile || profile, ...args], '', { pnpmDir })
     // 留一份输出尾巴挂在错误上：只报退出码的话调用方没法判断是哪种失败，只能瞎猜着重试
     const tail = []
+    // 兼容拒绝常在输出开头；尾部可能只剩诊断文件路径，另留有界的首段用于解释原因。
+    let diagnostics = ''
     // pnpm 的进度：装插件可能几十秒，页面要有条能动的进度条，别只留一句「正在更新…」
     const progressState = { resolved: 0, reused: 0, downloaded: 0, added: 0, total: 0 }
-    const keep = (buf) => {
-      for (const line of buf.toString('utf8').split(/\r?\n/)) {
-        const text = redact(line, secretValues)
-        tail.push(text)
-        if (tail.length > 40) tail.shift()
-        pushLog(`[plugin] ${text}`)
-        const progress = parsePnpmProgress(text, progressState)
-        if (progress) onProgress(progress)
-      }
+    const keepLine = (line) => {
+      const text = redact(line, secretValues)
+      if (!text.trim()) return
+      if (diagnostics.length < 64 * 1024) diagnostics += `${text}\n`.slice(0, 64 * 1024 - diagnostics.length)
+      tail.push(text)
+      if (tail.length > 40) tail.shift()
+      pushLog(`[plugin] ${text}`)
+      const progress = parsePnpmProgress(text, progressState)
+      if (progress) onProgress(progress)
     }
-    child.stdout.on('data', keep)
-    child.stderr.on('data', keep)
+    // 两条流分别拼完整行，避免中文或 peer 声明跨 chunk 时被截断。
+    const pending = { stdout: '', stderr: '' }
+    for (const name of ['stdout', 'stderr']) {
+      child[name].setEncoding('utf8')
+      child[name].on('data', (chunk) => {
+        const lines = (pending[name] + chunk).split(/\r?\n|\r/)
+        pending[name] = lines.pop()
+        for (const line of lines) keepLine(line)
+      })
+    }
     child.on('error', reject)
     child.on('close', (code) => {
+      for (const line of Object.values(pending)) keepLine(line)
       if (code === 0) resolve()
       else {
-        const error = new Error(`${label} 退出码 ${code}`)
+        const error = new Error(describePluginFailure(`${diagnostics}\n${tail.join('\n')}`, label, code))
         error.tail = tail.slice(-40)
         reject(error)
       }
@@ -2193,6 +2226,7 @@ async function runPluginCommand(ver, args, label, options = {}) {
  * 失败或 404。
  */
 function looksLikePeerFailure(text) {
+  if (/installation rejected|incompatible with dsh|与当前使用的 DSH .*不兼容/i.test(String(text || ''))) return false
   return /ERR_PNPM_NO_MATCHING_VERSION|ERR_PNPM_PEER_DEP|auto-install-peers|peer dep|no matching version|404 Not Found/i.test(String(text || ''))
 }
 
@@ -2285,6 +2319,7 @@ async function addPlugin(version, spec, { profile = PROFILE_NAME } = {}) {
 
   pluginBusy = true
   pluginProgressName = pkg
+  pluginProgressProfile = profile
   emitPluginProgress({ phase: 'resolve' })
   await mkdir(homeDir(), { recursive: true })
   await ensureProfileNpmrc(profile)
@@ -2318,6 +2353,7 @@ async function addPlugin(version, spec, { profile = PROFILE_NAME } = {}) {
   } finally {
     pluginBusy = false
     pluginProgressName = ''
+    pluginProgressProfile = ''
     emitPluginProgress(null)
   }
 }
@@ -2328,12 +2364,14 @@ const pluginUpdateCache = { at: 0, data: null, profile: '' }
 const PLUGIN_UPDATE_TTL = 60 * 1000
 const PLUGIN_UPDATE_CONCURRENCY = 4
 
-/** 跑 dsh plugin 命令用哪个版本：正在跑的优先，其次配置里最新那个装好的。 */
-async function pluginCommandVersion() {
-  // 多开时按「最近起来的那个」定：插件命令只认一个版本（profile 是共用的）
-  const live = primaryInstance()
+/** 插件命令与启动页自动选择一致：目标 Profile 的运行版本优先，其次已装的最高版本。 */
+async function pluginCommandVersion(profile = PROFILE_NAME) {
+  // 配置顺序是安装顺序；装过旧版、或别的 Profile 在运行，都不应把这里切到旧版。
+  const live = liveInstanceList().filter((proc) => proc.profile === profile)
+    .sort((a, b) => cmpVer(parseVer(b.version), parseVer(a.version)))[0]
   if (live?.version) return live.version
   const versions = listedVersions(await loadConfig()).filter((ver) => existsSync(binPath(ver)))
+    .sort((a, b) => cmpVer(parseVer(b), parseVer(a)))
   if (!versions.length) throw new Error('没有可用的 dsh 版本，插件页暂时用不了')
   return versions[0]
 }
@@ -2386,7 +2424,7 @@ async function updatePlugin(name, { latest = '', profile = PROFILE_NAME } = {}) 
     return { name, from: plugin.version, to: plugin.version, changed: false }
   }
   pushLog(`更新插件 ${name}: ${plugin.version || '未知'} → ${target}`)
-  await addPlugin(await pluginCommandVersion(), `${name}@${target}`, { profile })
+  await addPlugin(await pluginCommandVersion(profile), `${name}@${target}`, { profile })
   const after = listPlugins(profileDirOf(profile)).plugins.find((item) => item.name === name)
   // addPlugin 只保证命令成功：装完再回读一次，别把「命令没报错」当成「版本真的换了」
   if (after?.version !== target) {
@@ -2679,10 +2717,10 @@ function packsPayload() {
     } catch {
       continue
     }
-    // 空 profile（dsh 自带模板、刚建还没装东西的）不发卡：列出来全是空盒子
-    if (!plugins.length) continue
     const thirdParty = plugins.filter((plugin) => !plugin.official)
     const records = state.packs.filter((record) => record.profile === profile)
+    // 用户新建的空环境也需要在插件页管理；尚未初始化的模板不占列表。
+    if (!existsSync(join(profilesRoot, profile, 'package.json')) && !records.length) continue
     const latest = records.length ? records[records.length - 1] : null
     cards.push({
       profile,
@@ -2702,6 +2740,7 @@ function packsPayload() {
       packVersion: latest?.version || '',
       createdProfile: records.some((record) => record.createdProfile === true),
       template: TEMPLATE_PROFILES.includes(profile),
+      removable: profile.toLowerCase() !== PROFILE_NAME.toLowerCase() && !TEMPLATE_PROFILES.includes(profile.toLowerCase()) && !CLI_BLOCKED_PROFILES.has(profile.toLowerCase()),
     })
   }
   // 当前 profile 排最前，其余按插件数量从多到少
@@ -2720,6 +2759,26 @@ function packsPayload() {
     progress: packProgress,
     builtin: builtinPack(),
   }
+}
+
+/** 从安装记录声明里取插件归属，再与当前 profile 的真实依赖取交集。 */
+function packPluginSelection(profile, plugins, selector) {
+  const installed = readPackState(DATA).packs.filter((record) => record.profile === profile)
+  const byName = new Map(plugins.map((plugin) => [plugin.name, plugin]))
+  if (selector?.group === 'other') {
+    const owned = new Set()
+    for (const record of installed) {
+      for (const name of [...(record.bundles || []), ...Object.keys(record.dependencies || {}), ...Object.keys(record.specs || {})]) owned.add(String(name))
+    }
+    return { names: plugins.filter((plugin) => !plugin.official && !owned.has(plugin.name)).map((plugin) => plugin.name), group: 'other' }
+  }
+  if (selector?.pack) {
+    const record = installed.find((item) => item.name === String(selector.pack))
+    if (!record) throw new Error(`profile「${profile}」没有「${selector.pack}」这条整合包记录`)
+    const declared = new Set([...((record.bundles || []).map(String)), ...Object.keys(record.dependencies || {}), ...Object.keys(record.specs || {})])
+    return { names: [...declared].filter((name) => byName.has(name) && !byName.get(name).official), group: 'pack', pack: record.name }
+  }
+  return { names: plugins.filter((plugin) => !plugin.official).map((plugin) => plugin.name), group: 'profile' }
 }
 
 /**
@@ -2869,7 +2928,7 @@ async function downloadToFile(url, dest, { sha256 = '', log = pushLog, onProgres
   }
   // 直连 GitHub 在国内基本拿不到 release 资产，而「更新下载源」默认是直连——
   // 失败时把出路写进错误里（和启动器自更新那句同样的写法），否则用户只看到「下载失败」
-  const hint = UPDATE_SOURCE === 'mirror' ? '' : '；如果直连 GitHub 不通，可以在设置页把「更新下载源」改成「国内加速」再试'
+  const hint = UPDATE_SOURCE === 'mirror' ? '' : '；如果直连 GitHub 不通，可以在设置页把「下载源」改成「镜像源」再试'
   throw new Error(`下载失败：${describeFetchError(last, url)}${proxyHint()}${hint}`)
 }
 
@@ -3549,6 +3608,66 @@ export function listProfiles(root = join(homeDir(), 'profiles')) {
   return [...names].sort()
 }
 
+/** 复制清单与配置后重装依赖，不能直接复制 pnpm 链接，否则副本仍指向原环境的 store。 */
+async function createProfile(profile, source = '') {
+  const name = safeProfile(profile)
+  const from = source ? safeProfile(source) : ''
+  if (name.startsWith('.') || name.toLowerCase() === 'node_modules' || TEMPLATE_PROFILES.includes(name.toLowerCase()) || CLI_BLOCKED_PROFILES.has(name.toLowerCase())) {
+    throw new Error('这个名称是系统保留名称，请换一个 Profile 名称')
+  }
+  const root = join(homeDir(), 'profiles')
+  await mkdir(root, { recursive: true })
+  if (readdirSync(root).some((entry) => entry.toLowerCase() === name.toLowerCase())) throw new Error(`Profile「${name}」已存在`)
+  const original = from ? profileDirOf(from) : ''
+  if (from && !existsSync(join(original, 'package.json'))) throw new Error(`Profile「${from}」尚未初始化，不能复制`)
+  const target = profileDirOf(name)
+  await withIdleProfile(from || name, async () => {
+    if (from) maintainingProfiles.add(name)
+    const staging = mkdtempSync(join(root, '.dsh-profile-'))
+    let created = false
+    try {
+      if (from) {
+        await cp(original, staging, {
+          recursive: true,
+          filter: (path) => !['node_modules', '.git', 'lock'].includes(basename(path)) && !lstatSync(path).isSymbolicLink(),
+        })
+      }
+      const manifest = from ? JSON.parse(await readFile(join(staging, 'package.json'), 'utf8')) : profileSkeleton(name)
+      manifest.name = `dsh-profile-${name}`
+      manifest.private = true
+      // file: 相对依赖以原环境为基准解析，搬目录后不能指到另一份不存在的插件。
+      for (const key of ['dependencies', 'devDependencies', 'optionalDependencies']) {
+        for (const [pkgName, spec] of Object.entries(manifest[key] || {})) {
+          if (from && typeof spec === 'string' && spec.startsWith('file:')) {
+            const dependency = resolve(original, spec.slice(5))
+            manifest[key][pkgName] = `file:${dependency.startsWith(`${original}${sep}`) ? join(target, relative(original, dependency)) : dependency}`
+          }
+        }
+      }
+      await writeFile(join(staging, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`)
+      // file: 依赖的路径已经改变，旧锁文件不能继续锁住原目录。
+      if (from) await rm(join(staging, 'pnpm-lock.yaml'), { force: true })
+      if (!existsSync(join(staging, 'pnpm-workspace.yaml'))) await writeFile(join(staging, 'pnpm-workspace.yaml'), 'packages:\n  - .\n\nnodeLinker: hoisted\nautoInstallPeers: false\n')
+      // 独占建目录，避免与外部进程同名创建时覆盖别人的 Profile。
+      await mkdir(target)
+      created = true
+      await cp(staging, target, { recursive: true })
+      if (['dependencies', 'devDependencies', 'optionalDependencies'].some((key) => Object.keys(manifest[key] || {}).length)) {
+        await runProfileInstall(await pluginCommandVersion(name), { profile: name })
+      }
+      pushLog(from ? `已复制 Profile「${from}」为「${name}」` : `已创建 Profile「${name}」`)
+    } catch (error) {
+      if (created) await rm(target, { recursive: true, force: true })
+      throw error
+    } finally {
+      await rm(staging, { recursive: true, force: true })
+      if (from) maintainingProfiles.delete(name)
+    }
+  })
+  await emitState()
+  return { ok: true, createdProfile: name, ...packsPayload() }
+}
+
 /**
  * 弹系统「选择文件夹」对话框，返回选中的绝对路径（取消/失败就返回空串）。
  *
@@ -4099,6 +4218,13 @@ async function handleApi(req, res, url) {
     send(res, 200, { ...packsPayload(), ...listPlugins(profileDirOf(profile)), profile, autoFix: lastAutoFix, recovery: recoveryPayload(profile) })
     return
   }
+  if (req.method === 'POST' && ['/api/profiles/create', '/api/profiles/copy'].includes(url.pathname)) {
+    const copying = url.pathname === '/api/profiles/copy'
+    if (copying && !body.source) { send(res, 400, { error: '请选择要复制的 Profile' }); return }
+    try { send(res, 200, await createProfile(body.profile, copying ? body.source : '')) }
+    catch (error) { send(res, 400, { error: error instanceof Error ? error.message : String(error) }) }
+    return
+  }
   if (req.method === 'GET' && url.pathname === '/api/recover') {
     const profile = safeProfile(url.searchParams.get('profile') || PROFILE_NAME)
     send(res, 200, recoveryPayload(profile))
@@ -4152,7 +4278,7 @@ async function handleApi(req, res, url) {
     res.write(`event: log\ndata: ${JSON.stringify({ lines: logs.slice(-120) })}\n\n`)
     res.write(`event: state\ndata: ${JSON.stringify(await snapshot())}\n\n`)
     if (installProgress) res.write(`event: progress\ndata: ${JSON.stringify(installProgress)}\n\n`)
-    if (pluginProgress) res.write(`event: progress\ndata: ${JSON.stringify({ ...pluginProgress, kind: 'plugin', name: pluginProgressName })}\n\n`)
+    if (pluginProgress) res.write(`event: progress\ndata: ${JSON.stringify({ ...pluginProgress, kind: 'plugin', name: pluginProgressName, profile: pluginProgressProfile })}\n\n`)
     // 整合包：检查和安装都可能几十秒（下载 + 解包 + pnpm），刷新页面要能接着显示
     if (packProgress) res.write(`event: progress\ndata: ${JSON.stringify({ ...packProgress, kind: 'pack', name: packProgressName })}\n\n`)
     // 同步跑得久，页面中途刷新也要能接着显示进度
@@ -4308,17 +4434,25 @@ async function handleApi(req, res, url) {
 
   if (req.method === 'POST' && url.pathname === '/api/packs/inspect') {
     const token = String(body.token || '') || newPackToken()
+    const cached = body.token ? packInspectCache.get(token) : null
+    if (body.token && !cached) {
+      send(res, 400, { error: '这次检查已经过期，重新选择整合包再试' })
+      return
+    }
     const source = body.market
       ? { kind: 'market', id: String(body.market.id || ''), url: String(body.market.downloadUrl || ''), sha256: String(body.market.sha256 || ''), size: Number(body.market.size) || 0, name: String(body.market.name || '') }
       : String(body.source || '')
     packProgressName = body.market ? String(body.market.displayName || body.market.name || '') : String(body.source || '')
     emitPackProgress({ phase: 'fetch', done: 0, total: 0 })
     try {
-      const opened = await openPackSource(source, { token, onProgress: (state) => emitPackProgress(state) })
+      // 切换安装环境只重算计划，复用已下载的包，不再请求下载源。
+      const opened = cached
+        ? { pack: statSync(cached.file).isDirectory() ? parsePackDir(cached.file) : parsePackArchive(await readFile(cached.file)), file: cached.file, source: cached.source, token, bytes: cached.bytes }
+        : await openPackSource(source, { token, onProgress: (state) => emitPackProgress(state) })
       // 检查会往 inbox 落一份包，顺手清掉过期的：一次会话里检查很多个也不会把磁盘堆满
       void prunePackInbox()
       if (opened.token) {
-        packInspectCache.set(opened.token, { file: opened.file, source: opened.source, raw: source, at: Date.now() })
+        packInspectCache.set(opened.token, { file: opened.file, source: opened.source, raw: cached ? cached.raw : source, bytes: opened.bytes || 0, at: Date.now() })
       }
       const payload = { ok: true, token: opened.token, source: opened.source, bytes: opened.bytes || 0, ...packPlanPayload(opened.pack, String(body.profile || '')) }
       pushLog(`整合包检查：${payload.pack.displayName || payload.pack.name} ${payload.pack.version}（${payload.pack.bundles.length} 层、${payload.pack.dependencies.length} 个依赖）${payload.ok ? '' : '，有问题'}`)
@@ -4368,7 +4502,10 @@ async function handleApi(req, res, url) {
       resolveBundledDependencies(pack)
       const plan = planInstall(pack, { home: homeDir(), profile, hostProfile: PROFILE_NAME })
       if (!plan.ok) throw new Error(plan.errors.join('；'))
-      const version = await pluginCommandVersion()
+      const records = readPackState(DATA).packs.filter((item) => item.profile === profile)
+      const previousRecord = records.find((item) => item.name === pack.fields.name)
+      if (previousRecord && previousRecord !== records.at(-1)) throw new Error('这个整合包后面还安装了其他包，请先撤销后续安装再重装')
+      const version = await pluginCommandVersion(profile)
       pushLog(`安装整合包 ${pack.fields.name} ${pack.fields.version} → profile ${profile}（${plan.writes.length} 个文件）`)
       emitPackProgress({ phase: 'write', done: 0, total: plan.writes.length })
       const result = await applyInstall(plan, {
@@ -4376,6 +4513,7 @@ async function handleApi(req, res, url) {
         dataDir: DATA,
         pack,
         source: opened.source,
+        previousRecord,
         runInstall: async (target) => {
           emitPackProgress({ phase: 'install', step: 'resolve', done: 0, total: 0 })
           await runProfileInstall(version, {
@@ -4421,8 +4559,18 @@ async function handleApi(req, res, url) {
       send(res, 404, { error: `profile「${profile}」里没有已安装的插件` })
       return
     }
-    // 卡片代表一整个 profile：开关管的是这个环境里所有第三方插件（官方组件不提供开关）
-    const packages = plugins.filter((plugin) => !plugin.official).map((plugin) => plugin.name)
+    let selection
+    try {
+      selection = packPluginSelection(profile, plugins, body)
+    } catch (error) {
+      send(res, 404, { error: error instanceof Error ? error.message : String(error) })
+      return
+    }
+    const packages = selection.names
+    if (!packages.length) {
+      send(res, 404, { error: selection.group === 'pack' ? `整合包「${selection.pack}」在 profile「${profile}」里没有已安装插件` : `profile「${profile}」里没有属于这个分组的插件` })
+      return
+    }
     let changed = 0
     const failed = []
     await editProfile(profile, () => {
@@ -4435,7 +4583,7 @@ async function handleApi(req, res, url) {
       }
     })
     pushLog(`profile ${profile} 的插件 → ${enabled ? '启用' : '禁用'}（${changed} 个有变化${failed.length ? `，${failed.length} 个不支持：${failed.join('；')}` : ''}）`)
-    send(res, 200, { ok: true, changed, failed, ...listPlugins(profileDir()), ...packsPayload(), autoFix: lastAutoFix, recovery: recoveryPayload() })
+    send(res, 200, { ok: true, changed, failed, selected: packages, pack: selection.pack || '', group: selection.group, profile, ...listPlugins(profileDirOf(profile)), ...packsPayload(), autoFix: lastAutoFix, recovery: recoveryPayload(profile) })
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/packs/update') {
@@ -4450,7 +4598,8 @@ async function handleApi(req, res, url) {
       return
     }
     try {
-      const packages = listPlugins(profileDirOf(profile)).plugins.filter((plugin) => !plugin.official).map((plugin) => plugin.name)
+      const selection = packPluginSelection(profile, listPlugins(profileDirOf(profile)).plugins, body)
+      const packages = selection.names
       if (!packages.length) throw new Error(`profile「${profile}」里没有可更新的插件`)
       const done = []
       const failed = []
@@ -4470,6 +4619,9 @@ async function handleApi(req, res, url) {
         updated: done.length,
         failed,
         unchanged,
+        selected: packages,
+        pack: selection.pack || '',
+        group: selection.group,
         ...packsPayload(),
         ...listPlugins(profileDirOf(profile)),
         profile,
@@ -4482,18 +4634,21 @@ async function handleApi(req, res, url) {
     }
     return
   }
-  if (req.method === 'POST' && url.pathname === '/api/packs/remove-profile') {
-    // 手动拼出来的 profile 没有安装记录，撤不掉「安装时改过的文件」，只能整个删掉
+  if (req.method === 'POST' && ['/api/packs/remove-profile', '/api/profiles/delete'].includes(url.pathname)) {
     const profile = String(body.profile || '')
     if (!profile) {
       send(res, 400, { error: '要说清是哪个 profile' })
       return
     }
-    if (profile === PROFILE_NAME) {
-      send(res, 400, { error: `profile「${profile}」是启动器正在用的那个，先在插件页换一个 profile 再删` })
+    if (profile.startsWith('.') || profile.toLowerCase() === 'node_modules') {
+      send(res, 400, { error: '启动器内部目录不能作为 Profile 删除' })
       return
     }
-    if (TEMPLATE_PROFILES.includes(profile)) {
+    if (profile.toLowerCase() === PROFILE_NAME.toLowerCase()) {
+      send(res, 400, { error: `profile「${profile}」是启动器的默认环境，不能删除` })
+      return
+    }
+    if (TEMPLATE_PROFILES.includes(profile.toLowerCase()) || CLI_BLOCKED_PROFILES.has(profile.toLowerCase())) {
       send(res, 400, { error: `「${profile}」是 dsh 自带的 profile 模板，不能删` })
       return
     }
@@ -4503,8 +4658,16 @@ async function handleApi(req, res, url) {
       return
     }
     try {
-      await withIdleProfile(profile, () => rm(target, { recursive: true, force: true }))
+      await withIdleProfile(profile, async () => {
+        await rm(target, { recursive: true, force: true })
+        // 整个环境删除后，安装记录和快捷入口不能继续指向不存在的目录。
+        for (const record of readPackState(DATA).packs.filter((item) => item.profile === profile)) forgetPack(DATA, record.name, profile)
+        const stored = await loadSettings()
+        const presets = safeLaunchPresets(stored.launchPresets).filter((entry) => entry.profile !== profile)
+        await saveSettings({ launchPresets: presets })
+      })
       pushLog(`已删掉整个 profile「${profile}」`)
+      await emitState()
       send(res, 200, { ok: true, ...listPlugins(profileDir()), ...packsPayload(), autoFix: lastAutoFix, recovery: recoveryPayload() })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -4516,9 +4679,15 @@ async function handleApi(req, res, url) {
   if (req.method === 'POST' && url.pathname === '/api/packs/uninstall') {
     const name = String(body.name || '')
     const profile = String(body.profile || '')
-    const record = readPackState(DATA).packs.find((item) => item.name === name && item.profile === profile)
+    const records = readPackState(DATA).packs.filter((item) => item.profile === profile)
+    const record = records.find((item) => item.name === name)
     if (!record) {
       send(res, 404, { error: `没有「${name} 装在 ${profile}」这条安装记录` })
+      return
+    }
+    // 备份是按安装顺序叠起来的，先撤旧包会覆盖后来装的包的配置。
+    if (record !== records.at(-1)) {
+      send(res, 400, { error: `请先撤销最近安装的整合包「${records.at(-1).displayName || records.at(-1).name}」，再撤销「${record.displayName || name}」` })
       return
     }
     if (pluginBusy) {

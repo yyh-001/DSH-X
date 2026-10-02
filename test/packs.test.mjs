@@ -422,6 +422,27 @@ test('回滚：备份缺失时报出来而不是假装成功', () => {
   }, home, (line) => logs.push(line))
   assert.equal(ok, false)
   assert.match(logs.join(), /还原 .* 失败/)
+  assert.throws(() => uninstallPack({ backupDir: join(home, 'missing'), files: [{ rel: 'profiles/x/package.json', existed: true }] }, { home }), /未能还原/)
+})
+
+test('连续重装同一个包：独立备份，撤销仍回到首次安装前', async () => {
+  const home = tempDir()
+  const dataDir = tempDir()
+  const profileDir = join(home, 'profiles', 'demo')
+  mkdirSync(profileDir, { recursive: true })
+  writeFileSync(join(profileDir, 'package.json'), '{"name":"original","private":true}\n')
+  writeFileSync(join(profileDir, 'cordis.patch.yml'), 'original\n')
+  const before = readFileSync(join(profileDir, 'package.json'), 'utf8')
+  const pack = parsePackArchive(makePack({ entries: [{ name: 'overrides/cordis.patch.yml', data: 'first\n' }] }))
+  const now = new Date('2026-10-01T01:00:00Z')
+  const first = await applyInstall(planInstall(pack, { home, profile: 'demo' }), { home, dataDir, pack, now })
+  const next = parsePackArchive(makePack({ manifest: { version: '2.0.0' }, entries: [{ name: 'overrides/cordis.patch.yml', data: 'second\n' }] }))
+  const second = await applyInstall(planInstall(next, { home, profile: 'demo' }), { home, dataDir, pack: next, now, previousRecord: first.record })
+  assert.notEqual(first.backupDir, second.backupDir, '同一秒内的备份不能覆盖')
+  uninstallPack(second.record, { home })
+  assert.equal(readFileSync(join(profileDir, 'package.json'), 'utf8'), before)
+  assert.equal(readFileSync(join(profileDir, 'cordis.patch.yml'), 'utf8'), 'original\n')
+  assert.equal(existsSync(join(profileDir, 'pnpm-workspace.yaml')), false)
 })
 
 // ---- 导出 ----

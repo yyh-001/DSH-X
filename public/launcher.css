@@ -303,6 +303,8 @@ main:not(.home) .pane { padding-right: 14px; }
 .pane.fill.active { display: flex; flex-direction: column; overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   main:not(.home) .settings-nav { animation: none; }
+  #pane-plugins #packView { animation: none; }
+  .pack-more-actions { animation: none; }
   header, .nav-item, .gear-btn, .gear-btn svg, .nav-pill { transition: none; }
 }
 .pane-inner { width: min(760px, 100%); margin: 0 auto; }
@@ -375,9 +377,15 @@ main.home .settings-body { padding-top: 34px; }
 .home-field .ui-select { width: 100%; flex: 1 1 auto; }
 /* 首页统一为启动项列表；参数在编辑窗口里一次保存。 */
 .launch-presets { display: grid; }
-.launch-preset { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.launch-preset { display: flex; align-items: center; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--line); }
 .launch-preset:last-child { border-bottom: 0; }
 .launch-preset-copy { flex: 1; min-width: 0; }
+.launch-app-icon { display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; border-radius: 13px; background: var(--accent-soft); color: var(--text); }
+.launch-app-icon svg { width: 25px; height: 25px; }
+.launch-new-version { display: inline-flex; align-items: center; gap: 4px; border: 0; padding: 3px 0; margin-top: 4px; background: transparent; color: var(--accent); font: inherit; font-size: 11.5px; cursor: pointer; }
+.launch-new-version svg { width: 12px; height: 12px; transition: transform 140ms ease; }
+.launch-new-version:hover svg { transform: translateX(2px); }
+.launch-new-version:disabled { opacity: .45; cursor: default; }
 .launch-preset-heading { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .launch-preset-name { color: var(--text); font-size: 17px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .launch-preset-name { padding: 0; border: 0; background: transparent; font-family: inherit; text-align: left; }
@@ -393,7 +401,13 @@ main.home .settings-body { padding-top: 34px; }
 #launchPluginsDialog .plugin-actions { justify-content: flex-end; }
 #launchPluginsDialog .pane-inner { width: 100%; }
 .launch-builtin { flex: 0 0 auto; color: var(--muted); border: 1px solid var(--line); padding: 1px 6px; border-radius: 5px; font-size: 10px; }
-.launch-preset-meta { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.launch-preset-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 9px; margin-top: 4px; color: var(--muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.launch-status { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; font-size: 11px; }
+.launch-status::before { content: ''; flex: 0 0 4px; width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
+.launch-status.is-working::before { animation: launch-status-pulse 1.2s ease-in-out infinite; }
+@keyframes launch-status-pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+html.reduce-motion .launch-status.is-working::before { animation: none; }
+@media (prefers-reduced-motion: reduce) { .launch-status.is-working::before { animation: none; } }
 .launch-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 .launch-preset .launch-primary { width: 34px; height: 34px; min-width: 0; padding: 0; color: #fff; }
 .launch-actions .icon-btn { width: 34px; height: 34px; border-radius: 9px; }
@@ -407,14 +421,14 @@ main.home .settings-body { padding-top: 34px; }
 .launch-edit:disabled { opacity: .4; cursor: default; }
 /* 添加入口是启动项列表末尾的一行弱按钮，跟着列表排版，不再漂在卡片角落。 */
 /* 主卡片不跟内容列通栏：就一列启动项，按卡片默认宽度居中就够了 */
-#pane-control .card.home { position: relative; width: min(640px, 100%); margin-inline: auto; }
+#pane-control .card.home { position: relative; width: min(640px, 100%); margin-inline: auto; padding: 18px 24px 12px; border-radius: 22px; }
 .launch-add {
   display: flex;
   align-items: center;
   gap: 7px;
-  width: calc(100% + 20px);
-  margin: 2px -10px 0;
-  padding: 9px 10px;
+  width: 100%;
+  margin: 8px 0 0;
+  padding: 11px 8px;
   color: var(--muted);
   background: transparent;
   border: 0;
@@ -429,17 +443,23 @@ main.home .settings-body { padding-top: 34px; }
 .launch-add:disabled { opacity: .4; cursor: default; }
 .launch-add[hidden] { display: none; }
 #pane-control #hint:empty { display: none; }
-#launchDialog .ask-card { width: min(640px, 100%); overflow-y: auto; padding: 28px 30px 24px; }
-.launch-modal-fields { display: grid; gap: 16px; margin-top: 8px; }
+#launchDialog .ask-card { width: min(520px, 100%); overflow-y: auto; padding: 24px; border-radius: 18px; }
+.launch-modal-fields { display: grid; gap: 18px; margin-top: 0; }
+#launchDialog .home-field > label { font-size: 12px; letter-spacing: 0; }
 .launch-version-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
 .launch-version-tools[hidden] { display: none; }
 .launch-version-tools .hint { flex-basis: 100%; margin: 0; }
-.launch-save-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 22px; }
-.launch-save-actions button { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; width: 88px; min-width: 88px; height: 40px; padding: 0 16px; border: 1px solid var(--line); border-radius: 10px; font-size: 13px; font-weight: 600; line-height: 1; }
+.launch-save-actions { display: flex; align-items: center; gap: 8px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
+.launch-save-actions button { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; width: 80px; min-width: 80px; height: 36px; padding: 0 14px; border: 1px solid var(--line); border-radius: 9px; font-size: 12px; font-weight: 600; line-height: 1; }
 .launch-save-actions button[hidden] { display: none; }
 .launch-save-actions .primary { border-color: transparent; }
-.launch-save-actions .launch-delete { margin-right: auto; color: var(--danger); }
+.launch-save-actions .launch-delete { color: var(--danger); }
 .launch-save-actions .launch-delete { width: auto; min-width: 0; }
+.launch-save-actions .launch-delete { padding: 0 6px; border-color: transparent; background: transparent; font-weight: 500; white-space: nowrap; }
+.launch-save-spacer { flex: 1 1 auto; }
+.launch-save-actions .launch-repair { flex: 0 0 auto; width: auto; min-width: 0; padding: 0 4px; gap: 6px; border-color: transparent; background: transparent; color: var(--muted); font-weight: 500; white-space: nowrap; }
+.launch-save-actions .launch-repair:hover:not(:disabled) { color: var(--text); background: var(--accent-soft); }
+.launch-repair svg { flex: 0 0 14px; width: 14px; height: 14px; }
 .launch-actions button, #launchAdd, #launchDialog button { transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, opacity 140ms ease, transform 140ms ease; }
 .launch-actions button:active:not(:disabled), #launchAdd:active:not(:disabled), #launchDialog button:active:not(:disabled) { transform: scale(.96); }
 .launch-actions [data-restart-id] svg { transition: transform 180ms ease; }
@@ -616,7 +636,7 @@ select {
   border-radius: 999px;
   position: relative;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background-color 220ms ease;
 }
 .toggle input::after {
   content: "";
@@ -628,11 +648,19 @@ select {
   background: #fff;
   box-shadow: 0 1px 3px rgba(22, 35, 61, 0.25);
   border-radius: 50%;
-  transition: transform 0.15s ease;
+  transition: transform 220ms cubic-bezier(.2,.8,.2,1);
 }
 .toggle input:checked { background: var(--accent); }
 .toggle input:checked::after { transform: translateX(18px); }
 .toggle input:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
+.toggle input.is-switching { opacity: 1; cursor: default; }
+.plugin-row .plugin-main { transition: opacity 180ms ease; }
+.plugin-row:has(input:checked) .plugin-main { opacity: 1; }
+.plugin-row:has(input:not(:checked)) .plugin-main { opacity: .65; }
+.ghost, .icon-btn, .launch-edit, .pack-more > summary { transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, opacity 140ms ease, transform 160ms ease; }
+.ghost:active:not(:disabled), .icon-btn:active:not(:disabled), .launch-edit:active:not(:disabled), .pack-more > summary:active { transform: scale(.96); }
+html.reduce-motion .toggle input, html.reduce-motion .toggle input::after, html.reduce-motion .toggle input::before { transition: none; animation: none; }
+@media (prefers-reduced-motion: reduce) { .toggle input, .toggle input::after, .toggle input::before { transition: none; animation: none; } }
 /* 设置项按主题归组，减少长页面上重复的卡片边框。 */
 .set-section + .set-section { margin-top: 26px; }
 /* 同一个分类里并列的多组之间留点缝 */
@@ -943,6 +971,8 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
   border-radius: 16px;
   overflow: hidden;
 }
+/* 技能/MCP 面板是定高 fill 面板：列表自己滚（grow=0，行少时不撑高卡片），不然超出部分被裁掉 */
+#skillList, #mcpList { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
 .plugin-row {
   margin: 0;
   padding: 12px 16px;
@@ -967,6 +997,34 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 .plugin-version, .plugin-status { flex: 0 0 auto; color: var(--muted); font-size: 11.5px; letter-spacing: 0; font-variant-numeric: tabular-nums; }
 .plugin-desc { color: var(--muted); font-size: 12.5px; letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .plugin-empty { color: var(--muted); font-size: 13px; padding: 10px 8px; }
+.plugin-source { color: var(--muted); font-size: 11.5px; line-height: 1.5; overflow-wrap: anywhere; }
+#packPluginList.is-grouped { border: 0; border-radius: 0; background: transparent; }
+.plugin-group { border: 1px solid var(--line); border-radius: 12px; background: var(--card); overflow: hidden; }
+.plugin-group-card { position: relative; }
+.plugin-group-card + .plugin-group-card { margin-top: 14px; }
+.plugin-group-tools { position: absolute; z-index: 1; top: 0; right: 17px; height: 62px; display: flex; align-items: center; gap: 7px; }
+.plugin-group-tools .icon-btn { position: relative; width: 28px; min-width: 28px; height: 28px; padding: 6px; border: 0; background: transparent; }
+.plugin-group-tools .icon-btn svg { width: 16px; height: 16px; }
+.plugin-group-toggle { margin: 0 0 0 5px; align-self: center; }
+.plugin-group-toggle input { width: 44px; height: 26px; }
+.group-update.loading .pack-update-count { display: none; }
+.plugin-group > summary { display: flex; align-items: center; gap: 10px; height: 62px; min-height: 62px; padding: 10px 146px 10px 16px; color: var(--text); cursor: pointer; list-style: none; }
+.plugin-group > summary::-webkit-details-marker { display: none; }
+.plugin-group-chevron { width: 13px; height: 13px; flex: 0 0 auto; color: var(--muted); transition: transform 220ms ease; }
+.plugin-group[open]:not([data-expanded="false"]) > summary .plugin-group-chevron { transform: rotate(90deg); }
+.plugin-group > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
+.plugin-group-heading { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.plugin-group-name { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plugin-group-version, .plugin-group-count { color: var(--muted); font-size: 11.5px; }
+.plugin-group-count { flex: 0 0 auto; }
+.plugin-group-body { border-top: 1px solid var(--line); }
+.plugin-item { border-bottom: 1px solid var(--line); }
+.plugin-item:last-child { border-bottom: 0; }
+.plugin-item > .plugin-row { border-bottom: 0; }
+.plugin-row-progress { padding: 0 16px 13px; animation: pack-view-in 180ms ease both; }
+.plugin-row-progress[hidden] { display: none; }
+.plugin-progress-label { display: block; margin-bottom: 7px; color: var(--muted); font-size: 11.5px; }
+.plugin-row-progress .progress { height: 3px; margin: 0; }
 .plugin-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 /* 顶栏里的 profile 下拉：和旁边的 ghost 按钮同高、同字号、同圆角，排成一行才齐。
    顶部按钮还有一条 .pane-top .ghost 的 4px 下移微调，这里得跟上，否则下拉比按钮高 2px */
@@ -1018,6 +1076,14 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 .ask-card.wide { width: min(760px, 100%); }
 .ask-card.wide .plugin-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .pack-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.profile-card { position: relative; min-width: 0; }
+.profile-card .pack-card { height: 100%; padding-right: 58px; }
+.profile-card .pack-card-arrow { display: none; }
+.profile-card .profile-menu { position: absolute; top: 13px; right: 12px; }
+.profile-card:has(.profile-menu[open]) { z-index: 3; }
+.profile-menu > summary { background: transparent; }
+.profile-add { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 9px; font-size: 12px; white-space: nowrap; }
+.profile-add svg { width: 15px; height: 15px; }
 .pack-card {
   display: flex;
   align-items: flex-start;
@@ -1034,7 +1100,6 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 }
 .pack-card:hover { border-color: #b9ccf0; background: var(--accent-soft); }
 .pack-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-.pack-card.is-current { border-color: #b9ccf0; }
 .pack-card-arrow { align-self: center; color: var(--muted); font-size: 21px; line-height: 1; }
 /* 封面块：包基本没有图标，用包名首字 + 名字定的色相，一眼能认出来 */
 .pack-tile {
@@ -1073,15 +1138,35 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 .pack-advanced summary { color: var(--accent); cursor: pointer; font-size: 12.5px; }
 .pack-advanced-content { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; }
 .pack-inspect-summary { color: var(--text); font-size: 12.5px; line-height: 1.5; }
-/* 包详情顶栏：左上返回图标，右上全部操作；「更多操作」是右对齐的下拉面板 */
-.pack-detail-top { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
-/* 返回按钮跟同行操作按钮同尺寸：.icon-btn 基准是 46×46，放这行会大一圈 */
-.pack-detail-top .pack-back { width: var(--control-height); height: var(--control-height); padding: 0; border-radius: var(--control-radius); }
-.pack-detail-top .pack-back svg { width: 17px; height: 17px; }
+/* 包详情顶栏：左上返回图标 + 环境名（下挂一行插件概况），右上全部操作；「更多操作」是右对齐的下拉面板 */
+.pack-detail-top { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+/* 返回是导航不是操作：去边框去底色，悬停才铺软底，别和右侧一排实体按钮抢视觉 */
+.pack-detail-top .pack-back {
+  width: var(--control-height); height: var(--control-height); padding: 0;
+  border-radius: var(--control-radius);
+  background: transparent; border-color: transparent; color: var(--muted);
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.pack-detail-top .pack-back:hover:not(:disabled) { background: var(--accent-soft); border-color: transparent; color: var(--text); }
+.pack-detail-top .pack-back svg { width: 18px; height: 18px; }
+/* 环境名升格成标题：和各面板的 pane-title/pane-sub 同一层级，下挂插件概况 */
+.pack-detail-heading { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pack-detail-top .pack-detail-name { font-size: 17px; font-weight: 700; color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pack-detail-sub { color: var(--muted); font-size: 12px; line-height: 1.4; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* 整行统一到控件高：.ghost 默认 30px、更新药丸 28px、返回键 36px，混着排上下沿对不齐 */
 .pack-detail-actions .ghost, .pack-detail-actions .plugin-update { height: var(--control-height); padding: 0 var(--control-padding); border-radius: var(--control-radius); font-size: var(--control-font-size); transition: border-color 0.12s ease, background 0.12s ease; }
 .pack-detail-actions .ghost:hover:not(:disabled) { border-color: #b9ccf0; background: var(--accent-soft); }
-.pack-detail-top .pack-detail-name { font-size: 15px; font-weight: 650; color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pack-detail-actions .pack-tool { position: relative; width: 34px; min-width: 34px; height: 34px; padding: 7px; }
+.pack-tool svg { width: 18px; height: 18px; }
+.pack-tool.is-checking svg { animation: spin 900ms linear infinite; }
+.pack-update-count { position: absolute; top: -5px; right: -5px; min-width: 16px; height: 16px; display: grid; place-items: center; padding: 0 3px; border-radius: 8px; background: var(--accent); color: var(--bg); font-size: 9px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.pack-update.loading .pack-update-count { display: none; }
+/* 进环境详情：整块自下而上淡入（包络两端归零、不回弹）；作用域只在主页面，弹窗里另有开卡动画 */
+@keyframes pack-view-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+#pane-plugins #packView { animation: pack-view-in 0.28s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
 /* 进环境详情后页顶标题整条让位（pane-top 是 flex，hidden 属性会被盖掉） */
 #pluginPanel .pane-top[hidden] { display: none; }
 .pack-detail-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
@@ -1110,7 +1195,7 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
   right: 0;
   top: calc(100% + 6px);
   z-index: 30;
-  min-width: 150px;
+  min-width: 168px;
   display: grid;
   gap: 2px;
   padding: 6px;
@@ -1118,9 +1203,27 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
   border: 1px solid var(--line);
   border-radius: 12px;
   box-shadow: 0 14px 34px rgba(22, 35, 61, 0.16);
+  animation: pack-menu-in 0.14s ease both;
+  max-height: min(50vh, 380px);
+  overflow-y: auto;
 }
-.pack-more-actions .ghost { justify-content: flex-start; height: 32px; padding: 0 10px; border: 0; background: transparent; font-size: 13px; }
+/* 菜单项：图标 + 中性色文字，悬停铺软底；危险项（卸载/删除）用玫瑰红拉开层级 */
+.pack-more-actions .ghost {
+  display: flex; align-items: center;
+  justify-content: flex-start; gap: 9px;
+  height: 32px; padding: 0 10px;
+  border: 0; border-radius: 8px; background: transparent;
+  font-size: 13px; color: var(--text);
+}
+.pack-more-actions .ghost svg { width: 15px; height: 15px; flex: 0 0 auto; color: var(--muted); }
 .pack-more-actions .ghost:hover:not(:disabled) { background: var(--accent-soft); }
+.pack-more-actions .ghost.danger { color: var(--danger); }
+.pack-more-actions .ghost.danger svg { color: inherit; }
+.pack-more-actions .ghost.danger:hover:not(:disabled) { background: #fff1f2; }
+@keyframes pack-menu-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
 .pack-more-meta { padding: 6px 10px 2px; border-top: 1px solid var(--line); margin-top: 4px; color: var(--muted); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
 .pack-source { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
 .pack-source input { flex: 1 1 auto; min-width: 0; }
@@ -1280,6 +1383,7 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 #notice { z-index: 40; }
 .notice-text {
   margin: 0;
+  white-space: pre-line;
   max-height: 40vh;
   overflow-y: auto;
   color: var(--text);
@@ -1317,10 +1421,17 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 #mcpList .plugin-desc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #mcpList .plugin-actions .plugin-update { font-variant-numeric: normal; }
 
-#launchDialog .select-panel { position: static; margin-top: 6px; max-height: min(250px, 32vh); }
+#launchDialog .home-field:has(#versionPicker) { position: relative; }
+#launchDialog .launch-version-select-row { display: flex; align-items: center; gap: 8px; }
+#launchDialog .launch-version-select-row .select { flex: 1 1 auto; min-width: 0; }
+#launchDialog .launch-manage-version { flex: 0 0 42px; width: 42px; height: 42px; padding: 11px; border-radius: 10px; }
+#launchDialog .launch-manage-version svg { width: 18px; height: 18px; }
+#launchDialog .select-trigger { min-height: 42px; height: 42px; border-radius: 10px; font-size: 13px; }
+#launchDialog input[type=text], #launchDialog input[type=number], #launchDialog select { height: 42px; border-radius: 10px; font-size: 13px; }
+#launchDialog .select-panel { position: absolute; z-index: 30; inset: calc(100% + 6px) 0 auto; margin: 0; max-height: min(250px, 32vh); box-shadow: 0 12px 32px #0003; }
 /* 启动项弹窗的版本下拉保留宽松行高与徽章；紧凑控件只压设置行和筛选框。 */
-#launchDialog .select-option { padding: 9px 11px; font-size: 14px; }
-#launchDialog .select-option.more { font-size: 13px; }
+#versionPanel .select-option { padding: 9px 11px; font-size: 14px; }
+#versionPanel .select-option.more { font-size: 13px; }
 #launchDialog .ask-title, #launchDialog .launch-save-actions { flex: 0 0 auto; }
 .pack-import-source { margin: 6px 0 18px; color: var(--muted); font-size: 12px; }
 .pack-import-source > summary { cursor: pointer; }
@@ -1331,9 +1442,10 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 #packImportDialog, #packExportDialog { z-index: 32; }
 #packDetailDialog { z-index: 34; }
 #packInstallDialog { z-index: 36; }
-html .ask.is-underlay { background: transparent; }
+/* 每一步只显示当前卡片，关闭后保留上一步的搜索、页码与环境。 */
+html .ask.is-underlay { background: transparent; visibility: hidden; }
 #notice { z-index: 50; }
-.dialog-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex: 0 0 auto; }
+.dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex: 0 0 auto; }
 .dialog-heading .ask-title { margin: 0; font-size: 18px; line-height: 1.4; }
 .dialog-subtitle { margin: 5px 0 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
 .dialog-heading .icon-btn { width: 30px; height: 30px; padding: 6px; border-radius: 8px; }
@@ -1342,7 +1454,7 @@ html .ask.is-underlay { background: transparent; }
 .market-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
 .market-toolbar input { flex: 1; min-width: 0; }
 input[type=search] { background: var(--card); border: 1px solid var(--line); color: var(--text); font: inherit; font-size: var(--control-font-size); border-radius: var(--control-radius); height: var(--control-height); padding: 0 var(--control-padding); outline-offset: 2px; }
-.market-toolbar select { width: 130px; flex: 0 0 auto; height: var(--control-height); padding: 0 var(--control-padding); border-radius: var(--control-radius); font-size: var(--control-font-size); }
+.market-toolbar .ui-select { width: 130px; flex: 0 0 auto; }
 #packMarketTitle { margin: 0 0 10px; font-size: 12px; color: var(--muted); }
 .market-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; overflow-y: auto; min-height: 0; padding: 1px; scrollbar-width: thin; }
 .market-grid[hidden], .market-detail[hidden] { display: none; }
@@ -1360,19 +1472,41 @@ input[type=search] { background: var(--card); border: 1px solid var(--line); col
 .market-stars { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 11.5px; white-space: nowrap; }
 .market-stars svg { width: 13px; height: 13px; }
 .market-install { flex: 0 0 auto; width: auto; min-width: 62px; height: 30px; padding: 0 12px; border-radius: 8px; font-size: 12px; }
-.market-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--line); padding-top: 14px; margin-top: 4px; flex: 0 0 auto; color: var(--muted); font-size: 11.5px; }
-.market-pagination { display: flex; align-items: center; gap: 8px; }
+.market-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid var(--line); padding-top: 16px; margin-top: 8px; flex: 0 0 auto; color: var(--muted); font-size: 12px; }
+.market-pagination { display: flex; align-items: center; gap: 10px; }
 .market-pagination label { display: inline-flex; align-items: center; gap: 7px; }
-.market-pagination select { width: 54px; height: var(--control-height); font-size: var(--control-font-size); padding: 0 var(--control-padding); background-position: right 7px center; border-radius: var(--control-radius); }
+.market-pagination .ui-select { width: 74px; margin-right: 8px; }
+.market-pagination .ui-select .select-trigger { padding: 0 10px; gap: 10px; font-variant-numeric: tabular-nums; }
 .market-pagination .icon-btn { width: var(--control-height); height: var(--control-height); padding: 5px; border-radius: 7px; }
 .market-pagination svg { width: 16px; height: 16px; }
-#marketPage { font-variant-numeric: tabular-nums; min-width: 30px; text-align: center; }
+#marketPage { font-variant-numeric: tabular-nums; min-width: 42px; text-align: center; color: var(--text); }
 .market-browser .pack-import-source { margin: 16px 0; flex: 0 0 auto; }
 .market-browser .pack-source { flex-wrap: wrap; }
 .market-browser .pack-source input { height: var(--control-height); font-size: var(--control-font-size); }
 #packMarketHint { margin: 9px 0 0; font-size: 11px; }
 #packMarketHint:empty { display: none; }
 .market-empty { grid-column: 1 / -1; padding: 45px 12px; text-align: center; color: var(--muted); font-size: 13px; }
+/* 市场读取中的骨架占位：一道两端透明的扫光来回摆，循环处不跳变 */
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.market-card.is-skeleton { pointer-events: none; }
+.skel-line { position: relative; overflow: hidden; height: 12px; border-radius: 6px; background: var(--accent-dim); }
+.skel-line::after { content: ''; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .7), transparent); animation: skel-sweep 1.5s ease-in-out infinite; }
+html[data-color-scheme="dark"] .skel-line::after { background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .12), transparent); }
+@keyframes skel-sweep { to { transform: translateX(100%); } }
+.is-skeleton .skel-name { height: 14px; width: 58%; }
+.is-skeleton .skel-short { width: 68%; }
+.is-skeleton .skel-author { flex: 1; }
+.is-skeleton .skel-pill { width: 62px; height: 30px; border-radius: 8px; }
+.is-skeleton:nth-child(2) .skel-line::after { animation-delay: .12s; }
+.is-skeleton:nth-child(3) .skel-line::after { animation-delay: .24s; }
+.is-skeleton:nth-child(4) .skel-line::after { animation-delay: .36s; }
+@media (prefers-reduced-motion: reduce) {
+  .skel-line::after { animation: none; }
+}
+/* 安装信息读取中：文字前转圈（hidden 别被 display 盖掉） */
+.pack-preparing { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+.pack-preparing[hidden] { display: none; }
+.pack-preparing .spin { display: inline-block; flex: 0 0 auto; width: 14px; height: 14px; border-width: 2px; }
 .market-detail-card, .pack-confirm-card { width: min(620px, 100%); max-height: calc(100dvh - 48px); overflow: hidden; }
 .market-detail { overflow-y: auto; min-height: 0; }
 .market-detail-meta { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--muted); }
@@ -1399,18 +1533,29 @@ input[type=search] { background: var(--card); border: 1px solid var(--line); col
 #packInstallDialog .select-option { padding: 8px 11px; font-size: var(--control-font-size); border-radius: var(--control-radius); }
 #packInstallDialog .pack-actions { border-top: 1px solid var(--line); padding-top: 16px; justify-content: flex-start; flex-direction: row-reverse; }
 #packInstallDialog .pack-actions button { width: 88px; flex: 0 0 88px; height: 36px; min-width: 88px; border-radius: 9px; font-size: 12px; }
+#packInstallDialog .pack-actions .primary .spin { width: 14px; height: 14px; border-width: 2px; }
 #packPreparing { color: var(--muted); font-size: 13px; margin: 16px 0 24px; }
 /* 插件筛选保留在标题右侧，列表独立滚动，统计仅作次要说明。 */
 #launchPluginsCard { position: relative; width: min(760px, 100%); max-height: calc(100dvh - 48px); overflow: hidden; padding: 24px; }
-.launch-plugins-head { align-items: flex-start; margin-bottom: 18px; }
+.launch-plugins-head { position: absolute; top: 24px; right: 24px; align-items: center; margin: 0; }
+#launchPluginsDialog .pack-detail-top { padding-right: 0; gap: 8px; }
+#launchPluginsClose { display: none; }
+#launchPluginsDialog #launchPluginsClose { display: inline-flex; flex: 0 0 34px; align-items: center; justify-content: center; width: 34px; min-width: 34px; height: 34px; padding: 7px; margin: 0; border-radius: var(--control-radius); }
+#launchPluginsClose svg { width: 18px; height: 18px; }
 .launch-plugins-head > div { min-width: 0; max-width: calc(100% - 240px); }
 .launch-plugins-head .ask-title { font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.8; }
 #launchPluginsHost, #launchPluginsHost #pluginPanel { display: flex; flex-direction: column; min-height: 0; }
 /* 弹窗的卡片是 overflow: hidden，滚动原来由平面列表承担；列表并进环境详情后，
    这里接班：详情占满剩余高度，插件列表内部滚，顶部那行操作保持固定 */
 #launchPluginsDialog #packView { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+#launchPluginsDialog #packView[hidden] { display: none; }
 #launchPluginsDialog #packPluginList { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
-#launchPluginsDialog .pane-top { margin: 0 0 12px; gap: 0; }
+#packPluginList.is-empty { border: 0; background: transparent; }
+#launchPluginsCard.is-loading .plugin-empty-state { min-height: 220px; justify-content: center; }
+.plugin-empty-spinner { width: 20px; height: 20px; border: 2px solid var(--line); border-top-color: var(--muted); border-radius: 50%; animation: spin 900ms linear infinite; }
+html.reduce-motion .plugin-empty-spinner { animation: none; }
+@media (prefers-reduced-motion: reduce) { .plugin-empty-spinner { animation: none; } }
+#launchPluginsDialog .pane-top, #launchPluginsDialog #profileAdd { display: none; }
 .plugin-profile-label { font-size: 11px; color: var(--muted); }
 #launchPluginsDialog .plugin-profile-label { display: none; }
 #pluginSearch { flex: 1 1 180px; min-width: 0; width: 100%; }
@@ -1421,6 +1566,7 @@ input[type=search] { background: var(--card); border: 1px solid var(--line); col
 #launchPluginsDialog .plugin-desc { font-size: 11.5px; }
 #launchPluginsDialog .plugin-version, #launchPluginsDialog .plugin-status { font-size: 10.5px; }
 #launchPluginsDialog .plugin-row { padding: 12px 14px; }
+#launchPluginsDialog .plugin-group-tools { right: 15px; }
 .plugin-empty-state { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 30px 16px; text-align: center; }
 .plugin-empty-state > svg { width: 28px; height: 28px; color: var(--muted); }
 .plugin-empty-state strong { font-size: 13px; color: var(--text); }
@@ -1436,19 +1582,46 @@ html .set-row:focus-within { background: transparent; box-shadow: none; }
 .set-control .ghost { height: 36px; border-radius: 9px; font-size: 12px; }
 .set-control input[type=text], .set-control input[type=number], .set-row > input[type=number] { height: var(--control-height); padding-top: 0; padding-bottom: 0; font-size: var(--control-font-size); border-radius: var(--control-radius); }
 .set-control .ui-select:has(#proxyMode) { width: 160px; }
-.launch-tool-actions { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
-.launch-tool-actions .launch-version-tools { display: contents; }
-.launch-tool-actions .launch-version-tools[hidden] { display: none; }
-.launch-tool-actions .hint { margin: 0 auto 0 0; font-size: 11px; }
+.launch-tool-actions { display: none; }
+.launch-tool-actions #launchVersionTools { display: none !important; }
+.launch-tool-actions #launchRecover { height: 36px; border-radius: 9px; font-size: 12px; }
+.version-manage-card { width: min(480px, 100%); min-height: 0; padding: 24px; border-radius: 18px; }
+.version-manage-latest { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--accent-soft); }
+.version-manage-latest-copy { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.version-manage-latest-copy span { color: var(--muted); font-size: 11px; }
+.version-manage-latest-copy strong { overflow: hidden; color: var(--text); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
+/* 最新版状态只占内容宽度，不能继承主按钮的通栏宽度把版本号挤成竖排。 */
+.version-manage-latest .primary { flex: 0 0 auto; width: auto; min-width: 82px; height: 34px; margin: 0; padding: 0 12px; border-radius: 9px; font-size: 12px; }
+.version-manage-latest .is-current:disabled { opacity: 1; border: 1px solid var(--line); color: var(--muted); background: transparent; }
+.version-manage-list { flex: 1 1 auto; min-height: 0; max-height: min(48vh, 360px); overflow: auto; scrollbar-width: thin; }
+.version-manage-row { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 10px 2px; border-bottom: 1px solid var(--line); }
+.version-manage-row:last-child { border-bottom: 0; }
+.version-manage-info { display: flex; flex: 1 1 auto; align-items: baseline; justify-content: space-between; gap: 12px; min-width: 0; }
+.version-manage-info strong { overflow: hidden; color: var(--text); font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.version-manage-info span { flex: 0 0 auto; color: var(--muted); font-size: 11px; }
+.version-manage-row .version-remove { flex: 0 0 auto; min-width: 62px; height: 32px; padding: 0 10px; border-radius: 8px; color: var(--danger); font-size: 11px; }
+.version-manage-row .version-remove { width: 62px; min-height: 32px; white-space: nowrap; }
+.version-manage-empty { padding: 14px 0; }
 .launch-tool-actions .icon-btn, .plugin-actions .action-icon { width: 32px; height: 32px; padding: 6px; border-radius: 8px; }
 .launch-tool-actions svg, .plugin-actions .action-icon svg { width: 18px; height: 18px; }
+.profile-dialog-card { width: min(420px, 100%); padding: 24px; border-radius: 18px; }
+.profile-dialog-card > label { margin-bottom: 8px; color: var(--muted); font-size: 12px; }
+.profile-dialog-card > input { height: 42px; border-radius: 10px; }
+.profile-dialog-card .dialog-subtitle { margin-top: 10px; line-height: 1.7; }
+.profile-error { color: var(--danger); }
+.profile-error[hidden] { display: none; }
+.profile-dialog-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 24px; }
+.profile-dialog-actions button { width: auto; min-width: 80px; height: 36px; padding: 0 14px; border-radius: 9px; font-size: 12px; }
+.profile-dialog-actions .spin { width: 14px; height: 14px; border-width: 2px; }
 @media (max-width: 560px) {
   .ask { padding: 14px; }
-  #launchDialog .ask-card, #launchPluginsCard, #packImportDialog .market-browser, .market-detail-card, .pack-confirm-card { padding: 18px; max-height: calc(100dvh - 28px); }
+  #launchDialog .ask-card, #launchPluginsCard, .version-manage-card, .profile-dialog-card, #packImportDialog .market-browser, .market-detail-card, .pack-confirm-card { padding: 18px; max-height: calc(100dvh - 28px); }
+  .launch-save-actions { flex-wrap: wrap; }
+  .launch-save-actions .launch-repair { font-size: 11px; }
   .market-grid { grid-template-columns: 1fr; }
   .market-card { gap: 12px; padding: 14px; }
   .market-toolbar { gap: 8px; }
-  .market-toolbar select { width: 108px; }
+  .market-toolbar .ui-select { width: 108px; }
   .market-footer { flex-wrap: wrap; gap: 10px; }
   .market-pagination { margin-left: auto; gap: 6px; }
   .market-facts { grid-template-columns: repeat(2, 1fr); gap: 14px 0; }
@@ -1458,4 +1631,3 @@ html .set-row:focus-within { background: transparent; box-shadow: none; }
   #launchPluginsDialog .plugin-head { flex-wrap: wrap; gap: 3px 7px; }
   #launchPluginsDialog .plugin-actions { width: auto; flex-wrap: nowrap; }
 }
-

@@ -86,6 +86,14 @@ html[data-color-scheme="dark"] .select-option.selected .opt-badge { border-color
 html[data-color-scheme="dark"] .toggle input { background: #66656d; }
 html[data-color-scheme="dark"] .toggle input:checked { background: #a6a7ad; }
 html[data-color-scheme="dark"] .ghost { color: var(--accent); }
+/* 环境详情的返回键是导航不是操作：保持无边框透明，悬停只铺软底 */
+html[data-color-scheme="dark"] .pack-detail-top .pack-back { background: transparent; border-color: transparent; color: var(--muted); }
+html[data-color-scheme="dark"] .pack-detail-top .pack-back:hover:not(:disabled) { background: var(--accent-soft); border-color: transparent; color: var(--text); }
+/* 「更多操作」菜单项：压掉暗色 .ghost 的实底，浮层里保持平铺；危险项用淡玫瑰红 */
+html[data-color-scheme="dark"] .pack-more-actions .ghost { background: transparent; border: 0; color: var(--text); }
+html[data-color-scheme="dark"] .pack-more-actions .ghost:hover:not(:disabled) { background: var(--accent-soft); border-color: transparent; }
+html[data-color-scheme="dark"] .pack-more-actions .ghost.danger { color: #f2797f; }
+html[data-color-scheme="dark"] .pack-more-actions .ghost.danger:hover:not(:disabled) { background: rgba(225, 29, 72, 0.16); }
 html[data-color-scheme="dark"] .ghost:hover:not(:disabled),
 html[data-color-scheme="dark"] #restart.icon-btn:hover:not(:disabled),
 html[data-color-scheme="dark"] #update.icon-btn:hover:not(:disabled),
@@ -142,3 +150,6 @@ html[data-color-scheme="dark"] .settings-nav::-webkit-scrollbar-thumb { backgrou
 
 html[data-color-scheme="dark"] .ask.is-underlay { background: transparent; }
 html[data-color-scheme="dark"] .set-row:focus-within { background: transparent; box-shadow: none; }
+html[data-color-scheme="dark"] .version-manage-latest .is-current:disabled { background: transparent; color: var(--muted); opacity: 1; }
+html[data-color-scheme="dark"] .launch-save-actions .launch-repair,
+html[data-color-scheme="dark"] .launch-save-actions .launch-delete { background: transparent; border-color: transparent; }

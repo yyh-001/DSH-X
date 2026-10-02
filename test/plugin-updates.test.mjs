@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
+import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
 
 import { parsePnpmProgress } from '../registry.js'
@@ -40,7 +41,7 @@ test('更新入口：检查更新在环境详情里强制查一次，逐个更�
   assert.ok(!/id="pluginUpdateAll"/.test(html), '不再有单独的「全部更新」按钮')
   assert.ok(!/id="pluginRefresh"/.test(html), '插件页顶部的刷新按钮也撤了')
   assert.match(html, /data-pack-check-updates[\s\S]{0,300}?await refreshPluginUpdates\(\{ force: true \}\)/, '环境详情里的检查更新强制查一次')
-  assert.match(html, /post\('\/api\/packs\/update', \{ profile: item\.profile \}\)/, '按环境批量更新')
+  assert.match(html, /post\('\/api\/packs\/update', \{ profile: item\.profile, \.\.\.\(group \? pluginGroupScope\(group\) : \{\}\) \}\)/, '按环境及插件组批量更新')
   // 列表保持两行，更新按钮本身说明目标版本，不重复放状态标签。
   assert.match(html, /t\('更新到 \{latest\}', \{ latest: update\.latest \}\)/, '按钮上写清更新到哪版')
   assert.match(html, /class="plugin-update"[^>]*data-update=/, '可更新的行有更新按钮')
@@ -70,18 +71,78 @@ test('插件装/升级的进度：认得出 pnpm 的输出，也认百分比', (
   assert.equal(parsePnpmProgress('http fetch GET 200 https://registry/x/-/y.tgz', state), null)
 })
 
-test('插件页有独立进度条，并按 kind 与装 dsh 的那条分开', () => {
-  assert.match(html, /<div class="progress" id="pluginProgress" hidden><div class="progress-bar" id="pluginProgressBar"><\/div><\/div>/, '插件页要有自己的进度条')
-  assert.match(html, /if \(data\?\.kind === 'plugin'\) \{[\s\S]{0,160}?setPluginProgress\(Boolean\(pluginProgress\)\)/, '插件进度事件走插件页那条')
-  // 峰值与相位记在条子自己身上，两条条子互不干扰
-  assert.match(html, /wrap\.dataset\.max = String\(max\)/)
-  assert.match(html, /paintProgress\(document\.getElementById\('pluginProgress'\), document\.getElementById\('pluginProgressBar'\)/, '两条条子共用同一套画法')
+test('插件更新进度属于具体插件行和环境', () => {
+  assert.match(html, /class="plugin-row-progress" data-plugin-progress="\$\{escapeHtml\(plugin\.name\)\}" data-profile="\$\{escapeHtml\(profile\)\}" hidden/)
+  assert.match(html, /function setPluginProgress\(busy\) \{[\s\S]{0,650}?row\.hidden = !active/)
+  assert.match(html, /if \(data\?\.kind === 'plugin'\) \{[\s\S]{0,260}?pluginProgress = !data \|\| data\.phase === 'idle' \? null : data[\s\S]{0,120}?setPluginProgress\(Boolean\(pluginProgress\)\)/)
+})
+
+function extractFunction(source, signature) {
+  const start = source.indexOf(signature)
+  assert.notEqual(start, -1, `找到 ${signature}`)
+  let depth = 0, quote = '', escaped = false
+  const open = source.indexOf('{', start)
+  for (let i = open; i < source.length; i++) {
+    const ch = source[i]
+    if (quote) {
+      if (escaped) escaped = false
+      else if (ch === '\\') escaped = true
+      else if (ch === quote) quote = ''
+      continue
+    }
+    if (ch === "'" || ch === '\"' || ch === '`') { quote = ch; continue }
+    if (ch === '{') depth++
+    else if (ch === '}' && --depth === 0) return source.slice(start, i + 1)
+  }
+  assert.fail(`函数 ${signature} 没有闭合`)
+}
+
+test('更新期间重画按钮，成功和失败都会在 finally 恢复', async () => {
+  const functions = [
+    extractFunction(html, 'function setPluginProgress(busy)'),
+    extractFunction(html, 'function pluginButtons()'),
+    extractFunction(html, 'async function updatePlugin(name, profile = pluginProfile)'),
+  ].join('\n')
+  for (const fails of [false, true]) {
+    let settle
+    const pending = new Promise((resolve, reject) => { settle = fails ? () => reject(new Error('failed')) : resolve })
+    let buttonsDisabled = false
+    const context = {
+      pluginProfile: 'web', pluginUpdating: '', pluginUpdatingProfile: '', pluginProgress: null, packBusy: false,
+      document: { querySelectorAll: () => [] }, paintProgress() {},
+      renderPackGrid() { buttonsDisabled = Boolean(context.pluginUpdating) },
+      renderPackView() { buttonsDisabled = Boolean(context.pluginUpdating) },
+      post: () => pending, loadPlugins: async () => {}, refreshPluginUpdates: async () => {}, notify() {},
+    }
+    vm.createContext(context)
+    vm.runInContext(functions, context)
+    const run = vm.runInContext("updatePlugin('alpha', 'web')", context)
+    assert.equal(buttonsDisabled, true, 'DOM 重画后的更新按钮被锁定')
+    settle()
+    await run
+    assert.equal(context.pluginUpdating, '')
+    assert.equal(context.pluginUpdatingProfile, '')
+    assert.equal(buttonsDisabled, false, 'DOM 重画后的其它更新按钮恢复')
+  }
+})
+
+test('行内进度仅显示在名称和 profile 均匹配的行', () => {
+  const fn = extractFunction(html, 'function setPluginProgress(busy)')
+  const makeRow = (name, profile) => {
+    const button = { classList: { toggle() {} }, setAttribute() {} }
+    return { dataset: { pluginProgress: name, profile }, hidden: true, previousElementSibling: { querySelector: () => button }, querySelector: () => ({ classList: { add() {}, remove() {} }, dataset: {}, style: {} }) }
+  }
+  const rows = [makeRow('alpha', 'web'), makeRow('alpha', 'dev'), makeRow('beta', 'web')]
+  const context = { pluginProgress: { name: 'alpha@2.0.0', profile: 'web' }, pluginUpdating: 'alpha', pluginUpdatingProfile: 'web', document: { querySelectorAll: () => rows }, paintProgress() {} }
+  vm.createContext(context)
+  vm.runInContext(fn + '\nsetPluginProgress(true)', context)
+  assert.deepEqual(rows.map((row) => row.hidden), [false, true, true])
 })
 
 test('服务端在插件操作期间发进度，结束时收掉', () => {
   assert.match(server, /function emitPluginProgress\(state\) \{/, '有专门的发进度函数')
-  assert.match(server, /kind: 'plugin', name: pluginProgressName/, '事件要带 kind 和插件名')
+  assert.match(server, /\{ \.\.\.state, kind: 'plugin', name: pluginProgressName, profile: pluginProgressProfile \}/, '事件要带 kind、插件名和 profile')
   assert.match(server, /const progress = parsePnpmProgress\(text, progressState\)/, 'runPluginCommand 里解析 pnpm 输出')
-  assert.match(server, /pluginProgressName = pkg\s*\n\s*emitPluginProgress\(\{ phase: 'resolve' \}\)/, '开始时就摆出进度条')
+  assert.match(server, /pluginProgressName = pkg\s*\n\s*pluginProgressProfile = profile\s*\n\s*emitPluginProgress\(\{ phase: 'resolve' \}\)/, '开始时就绑定插件名与 profile')
   assert.match(server, /emitPluginProgress\(null\)/, '结束时收掉（成功失败都要收）')
 })

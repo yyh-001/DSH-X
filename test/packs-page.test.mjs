@@ -54,7 +54,7 @@ test('页面逻辑：一张卡就是一个 profile，点开进详情，开关/�
   assert.match(html, /function pluginRowHtml\(/, '插件行抽成共用函数')
   assert.match(html, /bindPluginRowEvents\(packPluginListEl, item\.profile\)/, '详情里的插件行按该 profile 绑定')
   assert.match(html, /post\('\/api\/packs\/toggle', \{ profile: item\.profile, enabled \}\)/, '整包开关按 profile 走')
-  assert.match(html, /post\('\/api\/packs\/update', \{ profile: item\.profile \}\)/, '整包更新按 profile 走')
+  assert.match(html, /post\('\/api\/packs\/update', \{ profile: item\.profile, \.\.\.\(group \? pluginGroupScope\(group\) : \{\}\) \}\)/, '整包更新按 profile 和插件组走')
   assert.match(html, /post\('\/api\/packs\/remove-profile'/, '手动拼的 profile 走「删除 profile」')
   assert.match(html, /post\('\/api\/packs\/install'/, '安装走 install')
   assert.match(html, /post\('\/api\/packs\/export'/, '导出走 export')
@@ -64,7 +64,8 @@ test('页面逻辑：一张卡就是一个 profile，点开进详情，开关/�
   assert.match(html, /data\?\.kind === 'pack'/, '整合包进度走 SSE 的 pack 事件')
   assert.match(html, /function applyPluginPayload\(data\)/, '插件与整合包状态一次灌进页面')
   assert.match(html, /function openPack\(profile\)/, '点卡片进详情')
-  assert.match(html, /data-pack-bulk/, '批量启停收进更多操作（全部启用/全部禁用）')
+  assert.match(html, /data-group-toggle/, '整体开关放到对应分组头部')
+  assert.match(html, /data-group-remove/, '卸载入口放到对应整合包分组头部')
   assert.ok(!/data-pack-toggle/.test(html), '列表卡片不再承担批量操作')
   assert.match(html, /<button class="pack-card\$\{/, '环境卡片是可通过键盘操作的按钮')
   assert.match(html, /<details class="pack-more">/, '次要操作收进更多操作')
@@ -72,9 +73,50 @@ test('页面逻辑：一张卡就是一个 profile，点开进详情，开关/�
   assert.match(html, /<details class="pack-advanced">/, '装包的技术清单可按需展开')
   assert.match(html, /packSourceTags\(item\)/, '来源是以标签形式标在卡片上的')
   // 卸载（有安装记录）与删除整个 profile（没有记录）是两种动作，各自要确认；确认弹窗用样式化的 appConfirm，不用原生 confirm
-  assert.match(html, /appConfirm\(t\('卸载 \{name\}/, '卸载要确认')
+  assert.match(html, /appConfirm\(t\('撤销 \{name\}/, '撤销明确点名包和环境，并要求确认')
   assert.match(html, /appConfirm\(t\('确认删除「\{profile\}」整个目录/, '删整个 profile 目录要再确认一次')
   assert.ok(!/[^p]confirm\(/.test(html), '不再用原生 confirm 弹窗')
+})
+
+test('切换安装目标会重新检查，关闭后的旧请求不能复活预览', async () => {
+  let resolvePost
+  const calls = []
+  const context = vm.createContext({
+    packBusy: false, packInspection: { token: 'cached', ok: true }, packTargetProfile: '', packInspectRequest: 0,
+    openedPack: { profile: 'work' }, pluginProfile: 'web', packState: {}, state: {},
+    packInstallDialog: {}, document: { getElementById: () => ({}) },
+    openImportDialog() {}, closeMarketDetail() {}, showPackDialog() {}, renderPackMarket() {}, renderPackBuiltin() {}, renderPackInspect() {},
+    packHintEl: {}, t: (text) => text, notify() {},
+    post: (path, body) => { calls.push({ path, body }); return new Promise((resolve) => { resolvePost = resolve }) },
+  })
+  new vm.Script(slice('async function inspectPack(payload)', 'async function installPack()')).runInContext(context)
+  const pending = context.inspectPack({ token: 'cached', profile: 'other' })
+  assert.equal(calls[0].body.token, 'cached', '重用已下载的包')
+  assert.equal(calls[0].body.profile, 'other')
+  assert.equal(context.packTargetProfile, 'other')
+  assert.equal(context.packInspection.ok, false, '重算完成前不能安装旧计划')
+  context.packInspectRequest += 1
+  context.packInspection = null
+  resolvePost({ ok: true, target: { profile: 'other' } })
+  await pending
+  assert.equal(context.packInspection, null, '关闭后到达的结果被丢弃')
+  assert.equal(context.packBusy, false)
+})
+
+test('安装前必须有对应目标的有效检查结果；安装中取消不清空状态', async () => {
+  let calls = 0
+  const context = vm.createContext({
+    packBusy: false, packInspection: { ok: true, target: { profile: 'old' } }, packTargetProfile: 'new',
+    post() { calls += 1 }, packInstalling: true,
+    hidePackDialog() { calls += 1 }, packInstallDialog: {}, renderPackInspect() {},
+  })
+  new vm.Script(slice('async function installPack()', 'async function removePack(')).runInContext(context)
+  await context.installPack()
+  assert.equal(calls, 0, '目标变化不能沿用旧检查')
+  new vm.Script(slice('function closeInstallDialog()', "document.getElementById('packDetailClose')")).runInContext(context)
+  context.closeInstallDialog()
+  assert.equal(calls, 0)
+  assert.equal(context.packInspection.ok, true, '安装期间的关闭操作不清空检查状态')
 })
 
 test('整合包相关的中文文案都有英文', () => {
@@ -93,4 +135,26 @@ test('整合包相关的中文文案都有英文', () => {
     for (const match of block.matchAll(/t\('([^'\n]+)'/g)) add(match[1])
   }
   assert.deepEqual([...missing], [], '插件页 / 整合包相关没翻的中文')
+})
+
+test('按整合包清单分组：共同插件只出现一次，别名可归类，其余插件保持独立', () => {
+  const context = vm.createContext({ t: (text) => text })
+  new vm.Script(slice('function groupPackPlugins(item)', '/** 卡详情')).runInContext(context)
+  const groups = context.groupPackPlugins({
+    records: [
+      { name: 'first', displayName: '第一包', version: '1.0', dependencies: { a: '1', shared: '1', 'github:someone/source': 'main' }, specs: { alias: 'github:someone/source' } },
+      { name: 'second', displayName: '第二包', version: '2.0', bundles: ['b', 'shared', 'removed'] },
+    ],
+    plugins: ['a', 'b', 'shared', 'alias', 'manual'].map((name) => ({ name })),
+  })
+  assert.deepEqual(Array.from(groups, (group) => [group.name, group.version, Array.from(group.plugins, (entry) => entry.plugin.name)]), [
+    ['第一包', '1.0', ['a', 'alias']],
+    ['第二包', '2.0', ['b', 'shared']],
+    ['其他插件', '', ['manual']],
+  ])
+  assert.deepEqual(Array.from(groups[1].plugins[1].sharedPacks), ['第一包'])
+  const empty = context.groupPackPlugins({ records: [{ name: 'old', bundles: ['gone'] }], plugins: [{ name: 'manual' }] })
+  assert.equal(empty.length, 1, '已移除的插件不生成空分组')
+  assert.equal(empty[0].key, 'other')
+  assert.doesNotMatch(html, /class="pack-history"/, '菜单撤去安装记录展示')
 })

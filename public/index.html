@@ -40,9 +40,9 @@
       })
     })()
   </script>
-  <link rel="stylesheet" href="/launcher.css" />
+  <link rel="stylesheet" href="/launcher.css?v=profile-ui-20261002g" />
   <link rel="stylesheet" href="/mascot.css" />
-  <link rel="stylesheet" href="/theme.css" />
+  <link rel="stylesheet" href="/theme.css?v=profile-ui-20261002" />
 </head>
 <body>
   <div class="backdrop" aria-hidden="true">
@@ -144,9 +144,9 @@
               <div>
                 <h1 class="pane-title" data-i18n="插件">插件</h1>
               </div>
+              <button class="ghost profile-add" id="profileAdd" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span data-i18n="新建 Profile">新建 Profile</span></button>
             </div>
-            <!-- 一份 profile 一张卡；dsh 一次只加载一份，正在用的那张标出来。
-                 插件行只在「环境详情」里画（点开那张卡就是它），这里不再铺平面列表。 -->
+            <!-- 一份 profile 一张卡。插件行只在「环境详情」里画（点开那张卡就是它），这里不再铺平面列表。 -->
             <div id="pluginOverview">
               <div class="pack-grid" id="packGrid"></div>
             </div>
@@ -154,10 +154,12 @@
             <div id="packView" hidden>
               <div class="pack-detail-top">
                 <button class="ghost icon-btn pack-back" id="packBack" type="button" title="返回环境列表" aria-label="返回环境列表"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 5-7 7 7 7M5 12h14"/></svg></button>
-                <span class="pack-detail-name" id="packDetailName"></span>
+                <div class="pack-detail-heading">
+                  <span class="pack-detail-name" id="packDetailName"></span>
+                  <span class="pack-detail-sub" id="packDetailSub"></span>
+                </div>
                 <div class="pack-detail-actions" id="packHead"></div>
               </div>
-              <div class="progress" id="pluginProgress" hidden><div class="progress-bar" id="pluginProgressBar"></div></div>
               <div class="plugin-list" id="packPluginList"></div>
             </div>
             <!-- 插件装/升级可能几十秒，光一句「正在更新…」看不出在动 -->
@@ -408,15 +410,6 @@
                   </div>
                   <p class="hint" id="dshHomeHint"></p>
                 </div>
-                <div class="set-row">
-                  <div class="set-text">
-                    <span class="set-name" data-i18n="更新下载源">更新下载源</span>
-                    <p class="hint" id="updateSourceHint"></p>
-                  </div>
-                  <div class="set-control">
-                    <select id="updateSource"></select>
-                  </div>
-                </div>
                 <div class="set-row stacked">
                   <div class="set-text">
                     <span class="set-name" data-i18n="网络代理">网络代理</span>
@@ -510,7 +503,7 @@
   <div class="ask" id="packInstallDialog" hidden>
     <div class="ask-card pack-confirm-card" role="dialog" aria-modal="true" aria-labelledby="packInstallTitle">
       <div class="dialog-heading"><div><h2 class="ask-title" id="packInstallTitle" data-i18n="确认安装">确认安装</h2><p class="dialog-subtitle" data-i18n="选择安装环境，确认后开始安装。">选择安装环境，确认后开始安装。</p></div><button class="ghost icon-btn dialog-close" id="packInstallClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
-      <div class="pack-preparing" id="packPreparing" hidden data-i18n="正在读取安装信息…">正在读取安装信息…</div>
+      <div class="pack-preparing" id="packPreparing" hidden><span class="spin" aria-hidden="true"></span><span data-i18n="正在读取安装信息…">正在读取安装信息…</span></div>
       <div class="pack-detail" id="packInspect" hidden></div>
       <div class="progress" id="packProgress" hidden><div class="progress-bar" id="packProgressBar"></div></div>
       <p class="hint" id="packHint" role="status" aria-live="polite"></p>
@@ -534,7 +527,7 @@
   </div>
   <div class="ask" id="launchDialog" hidden>
     <form class="ask-card" id="launchForm" role="dialog" aria-modal="true" aria-labelledby="launchDialogTitle">
-      <h2 class="ask-title" id="launchDialogTitle" data-i18n="编辑启动项">编辑启动项</h2>
+      <div class="dialog-heading launch-dialog-heading"><h2 class="ask-title" id="launchDialogTitle" data-i18n="编辑启动项">编辑启动项</h2><button class="ghost icon-btn dialog-close" id="launchDialogClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
       <div class="launch-modal-fields">
         <div class="home-field">
           <label for="launchName" data-i18n="名称">名称</label>
@@ -542,12 +535,15 @@
         </div>
         <div class="home-field">
           <label for="versionTrigger" data-i18n="版本">版本</label>
-          <div class="select" id="versionPicker">
-            <button type="button" class="select-trigger" id="versionTrigger" aria-haspopup="listbox" aria-expanded="false">
-              <span class="select-value" id="versionValue" data-i18n="推荐版本（自动）">推荐版本（自动）</span>
-              <svg class="select-caret" viewBox="0 0 12 8" aria-hidden="true"><path fill="currentColor" d="M0 0h12L6 8z"/></svg>
-            </button>
-            <div class="select-panel" id="versionPanel" role="listbox" hidden></div>
+          <div class="launch-version-select-row">
+            <div class="select" id="versionPicker">
+              <button type="button" class="select-trigger" id="versionTrigger" aria-haspopup="listbox" aria-expanded="false">
+                <span class="select-value" id="versionValue" data-i18n="自动选择已安装版本">自动选择已安装版本</span>
+                <svg class="select-caret" viewBox="0 0 12 8" aria-hidden="true"><path fill="currentColor" d="M0 0h12L6 8z"/></svg>
+              </button>
+              <div class="select-panel" id="versionPanel" role="listbox" hidden></div>
+            </div>
+            <button class="ghost icon-btn launch-manage-version" id="launchManageVersions" type="button" title="管理版本" aria-label="管理版本" data-i18n-title="管理版本" data-i18n-aria-label="管理版本"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></button>
           </div>
         </div>
         <div class="home-pickers">
@@ -567,23 +563,39 @@
           <button class="ghost icon-btn" id="update" type="button" hidden title="更新版本" aria-label="更新版本"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4m-5 5 5-5 5 5M5 16v4h14v-4"/></svg></button>
           <button class="ghost icon-btn" id="remove" type="button" hidden title="卸载版本" aria-label="卸载版本"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg></button>
         </div>
-        <div class="launch-version-tools">
-          <button class="ghost icon-btn" id="launchRecover" type="button" title="修复环境" aria-label="修复环境"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14 6 4 4M4 20l7-7m2-10a6 6 0 0 0-2 8L3 19l2 2 8-8a6 6 0 0 0 8-7l-4 4-3-3 4-4a6 6 0 0 0-5 0Z"/></svg></button>
-        </div>
         </div>
         <p class="hint" id="recoveryHint" hidden></p>
       <div class="launch-save-actions">
+        <button class="ghost launch-repair" id="launchRecover" type="button" title="修复环境" aria-label="修复环境"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14 6 4 4M4 20l7-7m2-10a6 6 0 0 0-2 8L3 19l2 2 8-8a6 6 0 0 0 8-7l-4 4-3-3 4-4a6 6 0 0 0-5 0Z"/></svg><span data-i18n="修复环境">修复环境</span></button>
         <button class="ghost launch-delete" id="launchDelete" type="button" hidden data-i18n="删除启动项">删除启动项</button>
+        <span class="launch-save-spacer"></span>
         <button class="ghost" id="launchCancel" type="button" data-i18n="取消">取消</button>
         <button class="primary" id="launchSave" type="submit" data-i18n="保存">保存</button>
       </div>
+    </form>
+  </div>
+  <div class="ask" id="versionManageDialog" hidden>
+    <div class="ask-card version-manage-card" role="dialog" aria-modal="true" aria-labelledby="versionManageTitle">
+      <div class="dialog-heading"><h2 class="ask-title" id="versionManageTitle" data-i18n="版本管理">版本管理</h2><button class="ghost icon-btn dialog-close" id="versionManageClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
+      <div class="version-manage-latest"><div class="version-manage-latest-copy"><span data-i18n="最新版本">最新版本</span><strong id="versionManageLatestNote"></strong></div><button class="primary" id="versionManageUpdate" type="button" data-i18n="安装最新版">安装最新版</button></div>
+      <div class="version-manage-list" id="versionManageList" role="list"></div>
+    </div>
+  </div>
+  <div class="ask" id="profileDialog" hidden>
+    <form class="ask-card profile-dialog-card" id="profileForm" role="dialog" aria-modal="true" aria-labelledby="profileDialogTitle">
+      <div class="dialog-heading"><h2 class="ask-title" id="profileDialogTitle" data-i18n="新建 Profile">新建 Profile</h2><button class="ghost icon-btn dialog-close" id="profileDialogClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
+      <label for="profileName" data-i18n="Profile 名称">Profile 名称</label>
+      <input id="profileName" type="text" required maxlength="32" pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,31}" autocomplete="off" placeholder="my-work" />
+      <p class="dialog-subtitle" id="profileDialogNote"></p>
+      <p class="hint profile-error" id="profileDialogError" role="alert" hidden></p>
+      <div class="profile-dialog-actions"><button class="ghost" id="profileCancel" type="button" data-i18n="取消">取消</button><button class="primary" id="profileSave" type="submit"><span class="spin" aria-hidden="true"></span><span id="profileSaveText" data-i18n="创建">创建</span></button></div>
     </form>
   </div>
   <div class="ask" id="launchPluginsDialog" hidden>
     <div class="ask-card" id="launchPluginsCard" role="dialog" aria-modal="true" aria-labelledby="launchPluginsTitle">
       <div class="launch-plugins-head">
         <div>
-          <h2 class="ask-title" id="launchPluginsTitle" data-i18n="管理插件">管理插件</h2>
+          <h2 class="sr-only" id="launchPluginsTitle" data-i18n="管理插件">管理插件</h2>
         </div>
         <button class="ghost icon-btn" id="launchPluginsClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button>
       </div>
@@ -647,7 +659,6 @@
   "删除 profile": "Delete profile",
   "还没有装过插件：从文件、链接或市场里挑一个整合包": "Nothing installed yet — pick a modpack from a file, a link or the market",
   "这个环境里的插件没有可开关的加载行（客户端插件由插件市场管理）": "The plugins here have no toggleable loader rows (client plugins are managed by the plugin market)",
-  "安装记录：{name} v{version} · {time} · {source}": "Install record: {name} v{version} · {time} · {source}",
   "这份 profile 里没有已安装的插件。": "This profile has no installed plugins.",
   "正在更新 profile {name} 的插件…": "Updating the plugins in profile {name}…",
   "profile {name} 更新完成：{n} 个升级{failed}": "Profile {name} updated: {n} upgraded{failed}",
@@ -711,6 +722,15 @@
   "选文件…": "Choose file…",
   "认生态里的 .dspack 整合包（PackForge 的 manifest）：本地文件、直链，或 GitHub 的 owner/repo（取它最新 Release 里的包）。": "Works with ecosystem .dspack modpacks (PackForge manifests): a local file, a direct link, or a GitHub owner/repo (it takes the .dspack from the latest release).",
   "社区整合包": "Community modpacks",
+  "撤销最近安装": "Undo latest installation",
+  "最近安装：{name} v{version}": "Latest install: {name} v{version}",
+  "其他插件": "Other plugins",
+  "同时包含于：{names}": "Also included in: {names}",
+  "包含 {n} 个插件": "Contains {n} plugins",
+  "整机快照会安装包内声明的环境，详见安装详情。": "This snapshot installs its declared profiles. See installation details.",
+  "将创建这个环境，安装后可在列表中管理。": "This profile will be created and added to the list.",
+  "撤销 {name} 在环境「{profile}」的安装？配置文件将还原到这次安装前，安装后对这些文件的修改也会撤销。": "Undo installation of {name} in profile “{profile}”? Config files will return to their state before installation, including undoing later edits to those files.",
+  "已撤销 {name} 的安装，重启环境后生效。": "Installation of {name} undone. Restart the profile to apply.",
   "内置整合包": "Built-in modpack",
   "装进 {profile} 环境": "Installs into the {profile} environment",
   "随安装包发，不用联网": "Ships with the installer; no network needed",
@@ -1064,6 +1084,45 @@
   "编辑启动项": "Edit launch",
   "编辑 {name}": "Edit {name}",
   "推荐版本（自动）": "Recommended version (automatic)",
+  "自动选择已安装版本": "Use latest installed version",
+  "优先使用正在运行的版本，否则选择本机最新已安装版本；未安装时会在首次启动下载最新版。新版本需要手动更新。": "Keep the running version, otherwise use the latest installed version. If none is installed, download the latest on first launch. New releases require a manual update.",
+  "新版本 {version}": "New version {version}",
+  "版本管理": "Version management",
+  "管理版本": "Manage versions",
+  "最新版本": "Latest version",
+  "新建 Profile": "New profile",
+  "复制 Profile": "Duplicate profile",
+  "删除 Profile": "Delete profile",
+  "Profile 名称": "Profile name",
+  "创建": "Create",
+  "复制": "Duplicate",
+  "创建独立环境，之后可以安装整合包或插件。名称只支持字母、数字、点、下划线和连字符。": "Create an independent environment, then add packs or plugins. Use letters, numbers, dots, underscores or hyphens in the name.",
+  "复制「{profile}」的插件与配置，依赖会重新安装，可能需要一些时间。": "Duplicate plugins and settings from {profile}. Dependencies will be reinstalled and may take a little while.",
+  "删除「{profile}」？其中的 {n} 个插件、配置和对应启动项会一并移除，会话与记忆保留。此操作无法撤销。": "Delete {profile}? Its {n} plugins, settings and launch entries will be removed. Sessions and memories will remain. This cannot be undone.",
+  "系统环境不能删除": "System profiles cannot be deleted",
+  "这个 Profile 尚未初始化": "This profile has not been initialized",
+  "请先启动一次这个环境，再管理插件。": "Start this environment once before managing its plugins.",
+  "正在加载插件…": "Loading plugins…",
+  "部分启用": "Partly enabled",
+  "完成": "Done",
+  "修复环境": "Repair environment",
+  "安装最新版": "Install latest version",
+  "安装最新版 {version}": "Install latest version {version}",
+  "重新安装最新版 {version}": "Reinstall latest version {version}",
+  "最新版已安装": "Latest version is installed",
+  "最新版本：{version}": "Latest version: {version}",
+  "暂时无法获取最新版本": "The latest version is temporarily unavailable",
+  "正在运行 · {profile}": "Running · {profile}",
+  "未运行": "Not running",
+  "尚未安装任何版本": "No versions installed",
+  "用于版本、插件、整合包和启动器更新。": "Used for versions, plugins, packs and launcher updates. ",
+  "卸载整合包": "Uninstall pack",
+  "卸载 {name}": "Uninstall {name}",
+  "更新 {name} 的 {n} 个插件": "Update {n} plugins in {name}",
+  "启用 {name}": "Enable {name}",
+  "禁用 {name}": "Disable {name}",
+  "请先卸载此后安装的整合包": "Uninstall packs installed after this one first",
+  "导出当前环境": "Export this environment",
   "自动选择版本": "Version selected automatically",
   "首次启动会自动安装": "Installs automatically on first start",
   "高级选项": "Advanced options",
@@ -1157,6 +1216,8 @@
       for (const el of document.querySelectorAll('[data-i18n]')) {
         el.textContent = t(el.dataset.i18n) || el.dataset.i18n
       }
+      const versionManagerTrigger = document.getElementById('launchManageVersions')
+      if (versionManagerTrigger) versionManagerTrigger.title = versionManagerTrigger.ariaLabel = t('管理版本')
       for (const el of document.querySelectorAll('[data-placeholder-i18n]')) el.placeholder = t(el.dataset.placeholderI18n)
       for (const id of ['update', 'remove', 'launchRecover', 'mcpAdd', 'mcpProbe', 'mcpRefresh']) {
         const el = document.getElementById(id)
@@ -1196,8 +1257,10 @@
     const launchNameEl = document.getElementById('launchName')
     const launchSaveEl = document.getElementById('launchSave')
     const launchDialogEl = document.getElementById('launchDialog')
+    const versionManageDialogEl = document.getElementById('versionManageDialog')
     const launchFormEl = document.getElementById('launchForm')
     const launchAddEl = document.getElementById('launchAdd')
+    const manageVersionsEl = document.getElementById('launchManageVersions')
     const launchDeleteEl = document.getElementById('launchDelete')
     const launchPresetsEl = document.getElementById('launchPresets')
     const DEFAULT_LAUNCH_ID = '0000000000000000'
@@ -1258,6 +1321,18 @@
       versionActive = Math.max(0, versionOptions.findIndex((option) => option.value === versionValue))
       paintVersionPanel()
       paintVersionTrigger()
+      const rect = versionTriggerEl.getBoundingClientRect()
+      const below = window.innerHeight - rect.bottom - 12
+      const above = rect.top - 12
+      const maxHeight = Math.min(250, Math.max(120, Math.max(below, above)))
+      const openAbove = below < Math.min(180, versionOptions.length * 42) && above > below
+      document.body.append(versionPanelEl)
+      Object.assign(versionPanelEl.style, {
+        position: 'fixed', zIndex: '100', left: `${rect.left}px`, width: `${rect.width}px`,
+        top: openAbove ? 'auto' : `${rect.bottom + 6}px`,
+        bottom: openAbove ? `${window.innerHeight - rect.top + 6}px` : 'auto',
+        maxHeight: `${maxHeight}px`,
+      })
       versionPanelEl.hidden = false
       scrollVersionActive()
       versionTriggerEl.focus()
@@ -1267,6 +1342,8 @@
       if (!versionOpen) return
       versionOpen = false
       versionPanelEl.hidden = true
+      versionRootEl.append(versionPanelEl)
+      versionPanelEl.removeAttribute('style')
       paintVersionTrigger()
     }
 
@@ -1333,7 +1410,7 @@
       }
     })
     document.addEventListener('click', (event) => {
-      if (!versionRootEl.contains(event.target)) closeVersionPanel()
+      if (!versionRootEl.contains(event.target) && !versionPanelEl.contains(event.target)) closeVersionPanel()
     })
 
     // 设置中的四个原生 select 共享一套菜单。select 本身仍保存值并触发原有 change 处理。
@@ -1393,7 +1470,12 @@
 
     function positionUiSelect(item) {
       const rect = item.trigger.getBoundingClientRect()
-      const width = Math.min(Math.max(rect.width, item.select.id === 'launchProfile' ? 180 : 160), innerWidth - 24)
+      const min = Math.max(rect.width, item.select.id === 'launchProfile' ? 180 : 0)
+      // 面板先按内容量自然宽，再夹到不小于触发器宽：面板与触发器左右边缘对齐
+      item.panel.style.width = 'auto'
+      item.panel.style.left = '12px'
+      const natural = item.panel.getBoundingClientRect().width
+      const width = Math.min(Math.max(min, natural), innerWidth - 24)
       item.panel.style.width = `${width}px`
       item.panel.style.left = `${Math.max(12, Math.min(rect.left, innerWidth - width - 12))}px`
       const height = item.panel.getBoundingClientRect().height
@@ -1427,7 +1509,7 @@
       if (changed) item.select.dispatchEvent(new Event('change', { bubbles: true }))
     }
 
-    for (const select of document.querySelectorAll('#launchProfile, #uiLang, #webBind, #downloadSource, #updateSource, #proxyMode, #openMode, #mcpTransport')) {
+    function createUiSelect(select) {
       const root = document.createElement('div')
       root.className = 'select ui-select'
       const trigger = document.createElement('button')
@@ -1447,7 +1529,7 @@
       panel.role = 'listbox'
       panel.hidden = true
       trigger.setAttribute('aria-controls', panel.id)
-      const label = () => select.id === 'launchProfile' ? 'Profile' : select.closest('.set-row')?.querySelector('.set-name')?.textContent || select.closest('label')?.querySelector(':scope > span')?.textContent || select.title
+      const label = () => select.id === 'launchProfile' ? 'Profile' : select.closest('.set-row')?.querySelector('.set-name')?.textContent || select.closest('label')?.querySelector(':scope > span')?.textContent || (select.id ? document.querySelector(`label[for="${select.id}"]`)?.textContent : '') || select.getAttribute('aria-label') || select.title
       const item = { select, root, trigger, value, panel, label, active: 0 }
       select.before(root)
       root.append(select, trigger)
@@ -1479,11 +1561,9 @@
       })
       syncUiSelect(select)
     }
+    for (const select of document.querySelectorAll('#launchProfile, #uiLang, #webBind, #downloadSource, #proxyMode, #openMode, #mcpTransport, #marketSort, #marketPageSize')) createUiSelect(select)
     document.addEventListener('pointerdown', (event) => {
       if (openUiSelect && !openUiSelect.root.contains(event.target) && !openUiSelect.panel.contains(event.target)) closeUiSelect()
-      // 整合包安装环境的候选面板：点触发器外面就收起（面板每次渲染都会重建，只能按 id 现查）
-      const packPanel = document.getElementById('packProfilePanel')
-      if (packPanel && !packPanel.hidden && !event.target.closest?.('#packProfileTrigger') && !packPanel.contains(event.target)) packPanel.hidden = true
       // 环境详情的「更多操作」下拉同理：点外面就合上
       document.querySelectorAll('details.pack-more[open]').forEach((el) => {
         if (!el.contains(event.target)) el.removeAttribute('open')
@@ -1493,6 +1573,38 @@
       if (openUiSelect && !openUiSelect.panel.contains(event.target)) closeUiSelect()
     }, true)
     window.addEventListener('resize', closeUiSelect)
+
+    const disclosureAnimations = new WeakMap()
+    // 原生 details 关闭时会立即移走内容；先完成高度过渡再关闭，快速连点可从当前高度反向。
+    document.addEventListener('click', (event) => {
+      const summary = event.target.closest('summary')
+      const details = summary?.parentElement
+      if (!details?.matches('.plugin-group, .pack-advanced, .pack-import-source, .plugin-packs')
+        || event.target.closest('button, a, input, select')) return
+      if (document.documentElement.classList.contains('reduce-motion') || matchMedia('(prefers-reduced-motion: reduce)').matches) return
+      event.preventDefault()
+      const previous = disclosureAnimations.get(details)
+      const opening = previous ? !previous.opening : !details.open
+      const from = details.getBoundingClientRect().height
+      previous?.animation.cancel()
+      details.style.height = ''
+      details.open = opening
+      const to = details.getBoundingClientRect().height
+      details.open = true
+      details.dataset.expanded = String(opening)
+      details.style.overflow = 'hidden'
+      const animation = details.animate([{ height: `${from}px` }, { height: `${to}px` }], {
+        duration: 220, easing: 'cubic-bezier(.22,.61,.36,1)', fill: 'both',
+      })
+      disclosureAnimations.set(details, { animation, opening })
+      animation.onfinish = () => {
+        details.open = opening
+        animation.cancel()
+        details.style.overflow = ''
+        delete details.dataset.expanded
+        disclosureAnimations.delete(details)
+      }
+    })
 
     const hintEl = document.getElementById('hint')
     const updateEl = document.getElementById('update')
@@ -1528,6 +1640,43 @@
     let launchFollowed = false
     let launchRequested = false
 
+    const dialogMotions = new WeakMap()
+    // 所有弹窗走同一套过渡；关闭完成后再隐藏，重新打开会取消旧动画，避免晚到的关闭回调误关新窗口。
+    function transitionDialog(dialog, opening) {
+      const previous = dialogMotions.get(dialog)
+      if (!opening && (dialog.hidden || previous?.opening === false)) return previous?.finished || Promise.resolve(true)
+      const card = dialog.querySelector('.ask-card')
+      const opacity = previous || !opening ? getComputedStyle(dialog).opacity : '0'
+      const transform = previous || !opening ? getComputedStyle(card).transform : 'translateY(10px) scale(.985)'
+      previous?.animations.forEach((animation) => animation.cancel())
+      dialog.hidden = false
+      dialog.inert = !opening
+      if (opening) delete dialog.dataset.dialogClosing
+      else dialog.dataset.dialogClosing = 'true'
+      const motion = { opening, animations: [], finished: null }
+      dialogMotions.set(dialog, motion)
+      const reduced = document.documentElement.classList.contains('reduce-motion') || matchMedia('(prefers-reduced-motion: reduce)').matches
+      if (!reduced && typeof dialog.animate === 'function') {
+        const options = { duration: opening ? 220 : 170, easing: opening ? 'cubic-bezier(.2,.8,.2,1)' : 'ease-in', fill: 'both' }
+        motion.animations = [
+          dialog.animate([{ opacity }, { opacity: opening ? 1 : 0 }], options),
+          card.animate([{ transform }, { transform: opening ? 'translateY(0) scale(1)' : 'translateY(6px) scale(.985)' }], options),
+        ]
+      }
+      motion.finished = Promise.allSettled(motion.animations.map((animation) => animation.finished)).then(() => {
+        if (dialogMotions.get(dialog) !== motion) return false
+        dialog.hidden = !opening
+        dialog.inert = false
+        delete dialog.dataset.dialogClosing
+        motion.animations.forEach((animation) => animation.cancel())
+        dialogMotions.delete(dialog)
+        return true
+      })
+      return motion.finished
+    }
+    function showDialog(dialog) { return transitionDialog(dialog, true) }
+    function hideDialog(dialog) { return transitionDialog(dialog, false) }
+
     // 原生 alert 在 app 窗口里是系统弹窗，和界面风格割裂，统一换成页面内的提示
     const noticeEl = document.getElementById('notice')
     const noticeTitleEl = document.getElementById('noticeTitle')
@@ -1535,9 +1684,9 @@
     function notify(message, title = t('操作失败')) {
       noticeTitleEl.textContent = title
       noticeTextEl.textContent = message == null ? '' : String(message)
-      noticeEl.hidden = false
+      showDialog(noticeEl)
     }
-    document.getElementById('noticeOk').onclick = () => { noticeEl.hidden = true }
+    document.getElementById('noticeOk').onclick = () => { void hideDialog(noticeEl) }
 
     // 样式化确认弹窗，替代浏览器原生确认框：WebView/桌面窗口里原生框跟整套界面割裂。
     const confirmDialogEl = document.getElementById('confirmDialog')
@@ -1547,23 +1696,22 @@
         confirmResolve = resolve
         document.getElementById('confirmTitle').textContent = title
         document.getElementById('confirmText').textContent = message == null ? '' : String(message)
-        confirmDialogEl.hidden = false
+        showDialog(confirmDialogEl)
         document.getElementById('confirmCancel').focus()
       })
     }
-    function settleConfirm(ok) {
-      if (confirmDialogEl.hidden) return
-      confirmDialogEl.hidden = true
+    async function settleConfirm(ok) {
+      if (confirmDialogEl.hidden || confirmDialogEl.dataset.dialogClosing) return
       const resolve = confirmResolve
       confirmResolve = null
-      resolve?.(ok)
+      if (await hideDialog(confirmDialogEl)) resolve?.(ok)
     }
     document.getElementById('confirmOk').onclick = () => settleConfirm(true)
     document.getElementById('confirmCancel').onclick = () => settleConfirm(false)
     confirmDialogEl.onclick = (event) => { if (event.target === confirmDialogEl) settleConfirm(false) }
     document.addEventListener('keydown', (event) => {
       if (event.key !== 'Escape') return
-      if (!noticeEl.hidden) noticeEl.hidden = true
+      if (!noticeEl.hidden) void hideDialog(noticeEl)
       else if (!confirmDialogEl.hidden) settleConfirm(false)
       else if (!launchDialogEl.hidden) closeLaunchEditor()
     })
@@ -1771,9 +1919,20 @@
       paintProgress(document.getElementById('progress'), document.getElementById('progress-bar'), installProgress, busy)
     }
 
-    /** 插件安装/升级那条：状态由 kind === 'plugin' 的 progress 事件驱动。 */
+    /** 进度跟着当前插件走；批量更新时服务端会逐个给出插件名。 */
     function setPluginProgress(busy) {
-      paintProgress(document.getElementById('pluginProgress'), document.getElementById('pluginProgressBar'), pluginProgress, busy)
+      const name = pluginProgress?.name?.replace(/@[^@/]+$/, '') || (pluginUpdating !== '*' ? pluginUpdating : '')
+      for (const row of document.querySelectorAll('[data-plugin-progress]')) {
+        const active = row.dataset.pluginProgress === name && row.dataset.profile === (pluginProgress?.profile || pluginUpdatingProfile)
+          && (busy || Boolean(pluginUpdating))
+        row.hidden = !active
+        paintProgress(row.querySelector('.progress'), row.querySelector('.progress-bar'), pluginProgress, active)
+        const button = row.previousElementSibling?.querySelector('[data-update]')
+        if (button) {
+          button.classList.toggle('loading', active)
+          button.setAttribute('aria-busy', String(active))
+        }
+      }
     }
 
     function progressHint(prefix) {
@@ -1928,7 +2087,7 @@
 
     function preferredPick() {
       const versions = versionList()
-      const installed = installedList()
+      const installed = [...installedList()].sort((a, b) => compareVersion(b, a))
       if (userPicked && picked && versions.includes(picked)) return picked
       const running = runningInfo()
       if (running?.version && versions.includes(running.version)) return running.version
@@ -2038,13 +2197,18 @@
         const label = ownAction === 'install' ? t('安装中') : busy || ownAction
           ? t(live?.status === 'stopping' || ownAction === 'stop' ? '停止中' : '启动中')
           : live?.status === 'running' ? t(live.url ? '打开' : '运行中') : t('启动')
-        const note = [version || t('自动选择版本'), live?.status === 'running' ? t('运行中')
-          : entry.version === 'auto' ? t('推荐版本（自动）') : entry.profile !== 'web' ? `${entry.profile} profile` : ''].filter(Boolean).join(' · ')
+        const note = [version || t('自动选择版本'), entry.profile].filter(Boolean).join(' · ')
+        const rowStatus = busy || ownAction ? label : live?.status === 'running' ? t('运行中') : ''
+        const automaticHint = entry.version === 'auto' ? t('优先使用正在运行的版本，否则选择本机最新已安装版本；未安装时会在首次启动下载最新版。新版本需要手动更新。') : ''
+        const latest = latestRemoteVersion()
+        const hasNewVersion = version && latest && compareVersion(latest, version) > 0
         const installNote = !installedList().includes(version) && !live ? t('首次启动会自动安装') : ''
         return `<div class="launch-preset">
+          <span class="launch-app-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="13" rx="3"/><path d="m7 8 3 2.5L7 13m6 0h4M9 21h6m-3-4v4"/></svg></span>
           <span class="launch-preset-copy"><span class="launch-preset-heading">
             <span class="launch-preset-name">${escapeHtml(name)}</span>${builtin ? `<span class="launch-builtin">${escapeHtml(t('内置'))}</span>` : ''}</span>
-            <span class="launch-preset-meta">${escapeHtml([note, installNote].filter(Boolean).join(' · '))}</span></span>
+            <span class="launch-preset-meta" title="${escapeHtml(automaticHint)}"><span>${escapeHtml([note, installNote].filter(Boolean).join(' · '))}</span>${rowStatus ? `<span class="launch-status${busy || ownAction ? ' is-working' : ''}" role="status">${escapeHtml(rowStatus)}</span>` : ''}</span>
+            ${hasNewVersion ? `<button class="launch-new-version" type="button" data-version-id="${entry.id}" ${action || state.installing ? 'disabled' : ''}>${escapeHtml(t('新版本 {version}', { version: latest }))}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button>` : ''}</span>
           <span class="launch-actions"><button class="launch-edit launch-plugins" type="button" data-plugins-id="${entry.id}" title="${escapeHtml(t('管理插件'))}" aria-label="${escapeHtml(t('管理 {name} 的插件', { name }))}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9M8 5.25l8 4.5"/></svg></button><button class="launch-edit" type="button" data-edit-id="${entry.id}" title="${escapeHtml(t('编辑 {name}', { name }))}" aria-label="${escapeHtml(t('编辑 {name}', { name }))}" ${action || state.installing ? 'disabled' : ''}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 4 4 4M4 20l4-1 12-12a2.8 2.8 0 0 0-4-4L4 15l-1 6Z"/></svg></button>
@@ -2084,6 +2248,14 @@
       launchPresetsEl.querySelectorAll('[data-edit-id]').forEach((button) => {
         button.onclick = () => openLaunchEditor(launchEntries().find((item) => item.id === button.dataset.editId))
       })
+      launchPresetsEl.querySelectorAll('[data-version-id]').forEach((button) => {
+        button.onclick = () => {
+          const entry = launchEntries().find((item) => item.id === button.dataset.versionId)
+          if (!entry) return
+          openVersionManager(entry)
+          document.getElementById('versionManageUpdate').click()
+        }
+      })
       launchPresetsEl.querySelectorAll('[data-plugins-id]').forEach((button) => {
         button.onclick = () => openLaunchPlugins(launchEntries().find((item) => item.id === button.dataset.pluginsId))
       })
@@ -2114,25 +2286,110 @@
       finally { action = ''; activeLaunchId = ''; render() }
     }
 
-    let launchDialogMotion = []
     let launchDialogRevision = 0
     let launchDialogClosing = false
-    function animateLaunchDialog(open) {
-      const opacity = getComputedStyle(launchDialogEl).opacity
-      const transform = getComputedStyle(launchFormEl).transform
-      launchDialogMotion.forEach((animation) => animation.cancel())
-      launchDialogMotion = []
-      if (document.documentElement.classList.contains('reduce-motion')
-        || matchMedia('(prefers-reduced-motion: reduce)').matches || typeof launchDialogEl.animate !== 'function') return []
-      const duration = open ? 180 : 130
-      const easing = open ? 'cubic-bezier(.2, .8, .2, 1)' : 'ease-in'
-      launchDialogMotion = [
-        launchDialogEl.animate(open ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity }, { opacity: 0 }], { duration, easing, fill: 'both' }),
-        launchFormEl.animate(open
-          ? [{ transform: 'translateY(8px) scale(.985)' }, { transform: 'translateY(0) scale(1)' }]
-          : [{ transform }, { transform: 'translateY(4px) scale(.99)' }], { duration, easing, fill: 'both' }),
-      ]
-      return launchDialogMotion
+
+    let versionManageReturnToEditor = false
+    let versionManageTarget = null
+    let versionManageSnapshot = null
+    function openVersionManager(entry) {
+      versionManageReturnToEditor = !launchDialogEl.hidden
+      versionManageSnapshot = {
+        picked, versionValue, launchProfile, userPicked,
+        focus: document.activeElement,
+      }
+      versionManageTarget = entry
+        ? { version: resolveLaunchVersion(entry), profile: entry.profile || 'web' }
+        : { version: selected(), profile: launchProfile }
+      closeVersionPanel()
+      if (versionManageReturnToEditor) {
+        launchFormEl.inert = true
+        launchDialogEl.classList.add('is-underlay')
+      }
+      else closeLaunchPanelForVersionManager()
+      paintVersionManager()
+      showDialog(versionManageDialogEl)
+      document.getElementById('versionManageClose').focus()
+    }
+    function closeLaunchPanelForVersionManager() {
+      launchPresetsEl?.setAttribute('inert', '')
+    }
+    async function closeVersionManager() {
+      if (versionManageDialogEl.hidden || versionManageDialogEl.dataset.dialogClosing) return
+      if (!(await hideDialog(versionManageDialogEl))) return
+      if (versionManageReturnToEditor) {
+        launchFormEl.inert = false
+        launchDialogEl.classList.remove('is-underlay')
+      }
+      else launchPresetsEl?.removeAttribute('inert')
+      if (versionManageSnapshot) {
+        picked = versionManageSnapshot.picked
+        versionValue = versionManageSnapshot.versionValue
+        launchProfile = versionManageSnapshot.launchProfile
+        userPicked = versionManageSnapshot.userPicked
+      }
+      const focus = versionManageSnapshot?.focus
+      versionManageReturnToEditor = false
+      versionManageSnapshot = null
+      versionManageTarget = null
+      focus?.isConnected ? focus.focus() : manageVersionsEl.focus()
+    }
+    manageVersionsEl.onclick = () => openVersionManager()
+    document.getElementById('versionManageClose').onclick = closeVersionManager
+    document.getElementById('versionManageUpdate').onclick = async () => {
+      const latest = latestRemoteVersion()
+      if (!latest || installedList().includes(latest)) return
+      const target = { ...versionManageTarget, preserveSelection: true }
+      const current = target.version || latest
+      await closeVersionManager()
+      showAsk({ dsh: { current, latest, target } })
+    }
+    versionManageDialogEl.onclick = (event) => { if (event.target === versionManageDialogEl) closeVersionManager() }
+    versionManageDialogEl.onkeydown = (event) => {
+      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); void closeVersionManager(); return }
+      if (event.key !== 'Tab') return
+      const controls = [...versionManageDialogEl.querySelectorAll('button')].filter((el) => !el.disabled && !el.hidden)
+      const first = controls[0], last = controls.at(-1)
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
+    }
+
+    function paintVersionManager() {
+      const list = document.getElementById('versionManageList')
+      const latest = latestRemoteVersion()
+      const installed = [...installedList()].sort((a, b) => compareVersion(b, a))
+      const latestNote = document.getElementById('versionManageLatestNote')
+      const latestButton = document.getElementById('versionManageUpdate')
+      latestNote.textContent = latest || t('暂时无法获取最新版本')
+      latestButton.disabled = !latest || installed.includes(latest) || Boolean(action) || Boolean(state.installing)
+      latestButton.textContent = latest && installed.includes(latest)
+        ? t('已安装')
+        : t('安装最新版')
+      latestButton.classList.toggle('is-current', Boolean(latest && installed.includes(latest)))
+      list.innerHTML = installed.map((version) => {
+        const live = runningInfo(version)
+        const status = live ? t('正在运行 · {profile}', { profile: live.profile || t('运行中') }) : t('未运行')
+        const disabled = Boolean(action) || Boolean(state.installing) || Boolean(live)
+        return `<div class="version-manage-row" role="listitem"><div class="version-manage-info"><strong>${escapeHtml(version)}</strong><span>${escapeHtml(status)}</span></div><button class="ghost version-remove" type="button" data-remove-version="${escapeHtml(version)}" ${disabled ? 'disabled' : ''}>${escapeHtml(t('卸载'))}</button></div>`
+      }).join('') || `<p class="hint version-manage-empty">${escapeHtml(t('尚未安装任何版本'))}</p>`
+      list.querySelectorAll('[data-remove-version]').forEach((button) => {
+        button.onclick = () => { void uninstallVersion(button.dataset.removeVersion) }
+      })
+    }
+
+    async function uninstallVersion(version) {
+      if (!version || action || state.installing || runningInfo(version)) return
+      const system = !isManagedVersion(version)
+      const ok = await appConfirm(system
+        ? t('卸载 {version}？这是系统里的 DSH，会从本机移除。插件和数据会保留。', { version })
+        : t('卸载 {version}？插件和数据会保留。', { version }))
+      if (!ok) return
+      action = 'uninstall'
+      render()
+      paintVersionManager()
+      try { await post('/api/uninstall', { version }) }
+      catch (error) { notify(error.message) }
+      finally { action = ''; render(); paintVersionManager() }
     }
 
     function openLaunchEditor(entry) {
@@ -2148,11 +2405,10 @@
       launchPortEl.value = entry?.port ? String(entry.port) : ''
       launchDeleteEl.hidden = !entry || entry.id === DEFAULT_LAUNCH_ID
       document.getElementById('launchDialogTitle').textContent = t(entry ? '编辑启动项' : '添加启动项')
-      launchDialogEl.hidden = false
+      showDialog(launchDialogEl)
       paintLaunchProfiles()
       render()
       void loadRecovery(launchProfile)
-      animateLaunchDialog(true)
       launchNameEl.focus()
     }
 
@@ -2162,13 +2418,9 @@
       launchDialogClosing = true
       closeVersionPanel()
       launchFormEl.inert = true
-      const animations = animateLaunchDialog(false)
-      if (animations.length) await Promise.allSettled(animations.map((animation) => animation.finished))
+      const closed = await hideDialog(launchDialogEl)
       // 连续开关时，较早的关闭动画不能把新打开的编辑窗口隐藏。
-      if (revision !== launchDialogRevision) return
-      launchDialogEl.hidden = true
-      launchDialogMotion.forEach((animation) => animation.cancel())
-      launchDialogMotion = []
+      if (!closed || revision !== launchDialogRevision) return
       launchDialogClosing = false
       launchFormEl.inert = false
       editingLaunchId = ''
@@ -2176,6 +2428,7 @@
     }
     launchAddEl.onclick = () => openLaunchEditor()
     document.getElementById('launchCancel').onclick = closeLaunchEditor
+    document.getElementById('launchDialogClose').onclick = closeLaunchEditor
     launchDialogEl.onclick = (event) => { if (event.target === launchDialogEl) closeLaunchEditor() }
     launchDialogEl.onkeydown = (event) => {
       if (event.key !== 'Tab') return
@@ -2219,7 +2472,7 @@
       const versions = visibleVersionList(allVersions)
       const hidden = allVersions.length - versions.length
       const latest = latestRemoteVersion()
-      const nextOptions = [{ value: 'auto', text: t('推荐版本（自动）') }, ...versions.map((version) => ({
+      const nextOptions = [{ value: 'auto', text: t('自动选择已安装版本') }, ...versions.map((version) => ({
         value: version, text: version,
         badge: [have.has(version) ? t('已装') : '', version === latest ? t('最新') : ''].filter(Boolean).join(' · '),
       }))]
@@ -2245,10 +2498,11 @@
       paintLaunchHome()
       paintInstances()
       hintEl.textContent = action === 'install' || action === 'update' || state.installing ? progressHint(t('正在安装'))
-        : action === 'start' ? t('正在启动…') : action === 'stop' ? t('正在停止…') : action === 'uninstall' ? t('正在卸载…') : ''
+        : action === 'uninstall' ? t('正在卸载…') : ''
       const fixed = stateAutoFix()
       if (!hintEl.textContent && fixed) hintEl.textContent = t('启动时自动禁用了：{names}（插件页可恢复）', { names: fixed })
       if (!hintEl.textContent && state.health?.failed?.length) hintEl.textContent = t('⚠ 页面自检：{failed}/{total} 个插件包加载失败', { failed: state.health.failed.length, total: state.health.total })
+      if (!versionManageDialogEl.hidden) paintVersionManager()
     }
 
     versionOnChange = (value, keepOpen) => {
@@ -2293,9 +2547,15 @@
     }
 
     /** 升级到最新版：正在跑就先停掉，装完再按原样拉起来。 */
+    let pendingUpdateTarget = null
     async function updateToLatest(latest) {
-      // 升级的是「下拉里选中的那个版本」：只停它自己的实例，旁边多开的实例不动
-      const running = runningInfo(selected(), launchProfile)
+      const target = pendingUpdateTarget
+      pendingUpdateTarget = null
+      const original = { picked, versionValue, launchProfile, userPicked }
+      const targetVersion = target?.version || selected()
+      const targetProfile = target?.profile || launchProfile
+      // 管理器指定目标时只升级那份实例；编辑器内的选择作为草稿保留，不能被一次更新改写。
+      const running = runningInfo(targetVersion, targetProfile)
       const wasLive = Boolean(running && (running.status === 'running' || running.status === 'starting'))
       try {
         if (wasLive) {
@@ -2303,15 +2563,18 @@
           render()
            await post('/api/stop', { version: running.version, profile: running.profile })
         }
-        picked = latest
-        userPicked = true
+        if (!target?.preserveSelection) {
+          picked = latest
+          versionValue = latest
+          userPicked = true
+        }
         if (!installedList().includes(latest)) {
           action = 'update'
           render()
           await post('/api/install', { version: latest })
         }
         if (wasLive) {
-          await startVersion(latest)
+          await startVersion(latest, targetProfile)
           return
         }
         action = ''
@@ -2320,6 +2583,14 @@
         action = ''
         render()
         notify(error.message)
+      } finally {
+        if (target?.preserveSelection) {
+          picked = original.picked
+          versionValue = original.versionValue
+          launchProfile = original.launchProfile
+          userPicked = original.userPicked
+          render()
+        }
       }
     }
     updateEl.onclick = () => {
@@ -2328,25 +2599,7 @@
       // 升级会停掉运行中的实例，还可能让第三方插件失效：先弹确认，风险写在弹窗里
        showAsk({ dsh: { current: selected() || latest, latest } })
     }
-    removeEl.onclick = async () => {
-      const version = selected()
-      if (!version) return
-      const system = !isManagedVersion(version)
-      const ok = await appConfirm(system
-        ? t('卸载 {version}？这是系统里的 DSH，会从本机移除。插件和数据会保留。', { version })
-        : t('卸载 {version}？插件和数据会保留。', { version }))
-      if (!ok) return
-      action = 'uninstall'
-      render()
-      try {
-        await post('/api/uninstall', { version })
-      } catch (error) {
-        notify(error.message)
-      } finally {
-        action = ''
-        render()
-      }
-    }
+    removeEl.onclick = () => { void uninstallVersion(selected()) }
     document.getElementById('clear').onclick = () => logView.clear()
     document.getElementById('exportLogs').onclick = async () => {
       try {
@@ -2674,7 +2927,7 @@
     // handled=true：这次启动由调用方自己接管，别再走自动启动那条路
     function dismissAsk(handled) {
       askBlocking = false
-      askEl.hidden = true
+      void hideDialog(askEl)
       if (handled) launchFollowed = true
       history.replaceState({}, '', homePath)
     }
@@ -2697,6 +2950,7 @@
             btn.disabled = true
             btn.textContent = t('正在更新…')
             dismissAsk(true)
+            pendingUpdateTarget = update.dsh.target || null
             await updateToLatest(update.dsh.latest)
           },
           t('升级会先停掉正在运行的 dsh，再下载安装新版本。插件由第三方维护、通常滞后于 dsh，新版本可能让插件失效或页面打不开（插件市场就出过这种情况）。已装的其他版本会保留，随时可以切回。'),
@@ -2768,7 +3022,7 @@
           askActionsEl.append(row.action)
         }
       }
-      askEl.hidden = false
+      showDialog(askEl)
     }
 
     askSkipEl.onclick = () => {
@@ -2796,9 +3050,9 @@
     const sourceEl = document.getElementById('downloadSource')
     const sourceHint = document.getElementById('sourceHint')
     // 下拉里只放短词，两种源各自的代价写在提示行里
-    const describeSource = (value) => value === 'official'
+    const describeSource = (value) => t('用于版本、插件、整合包和启动器更新。') + (value === 'official'
       ? t('官方源更新及时，国内直连可能较慢。')
-      : t('镜像较快，新版本可能稍有延迟。')
+      : t('镜像较快，新版本可能稍有延迟。'))
     const argsEl = document.getElementById('args')
     const uiLangEl = document.getElementById('uiLang')
     const webBindEl = document.getElementById('webBind')
@@ -2822,12 +3076,6 @@
     const openModeEl = document.getElementById('openMode')
     const openModeHint = document.getElementById('openModeHint')
     const describeOpenMode = () => ''
-    const updateSourceEl = document.getElementById('updateSource')
-    const updateSourceHint = document.getElementById('updateSourceHint')
-    // 更新下载源：直连 GitHub，或者走国内加速镜像（第三方转发同一个文件，所以默认直连）
-    const describeUpdateSource = (value) => value === 'mirror'
-      ? t('直连失败时使用镜像。')
-      : t('仅从 GitHub 下载。')
     const proxyModeEl = document.getElementById('proxyMode')
     const proxyUrlEl = document.getElementById('proxyUrl')
     const proxyHintEl = document.getElementById('proxyHint')
@@ -2939,14 +3187,6 @@
         openModeHint.textContent = openModeEl.value === 'window' && data.openModeWindow === false
           ? t('当前预览使用浏览器标签页。')
           : describeOpenMode(openModeEl.value)
-      }
-      if ('updateSource' in data) {
-        const list = Array.isArray(data.updateSources) && data.updateSources.length
-          ? data.updateSources
-          : [{ id: 'mirror', label: '国内加速（先直连，连不上走镜像）' }, { id: 'direct', label: '只直连（不用镜像）' }]
-        updateSourceEl.innerHTML = list.map((item) => `<option value="${escapeHtml(item.id)}" data-i18n="${escapeHtml(item.label)}">${escapeHtml(t(item.label))}</option>`).join('')
-        updateSourceEl.value = String(data.updateSource || 'mirror')
-        updateSourceHint.textContent = describeUpdateSource(updateSourceEl.value)
       }
       if ('proxyMode' in data || 'proxyUrl' in data) {
         const list = Array.isArray(data.proxyModes) && data.proxyModes.length
@@ -3123,10 +3363,6 @@
       openModeHint.textContent = describeOpenMode(openModeEl.value)
       queueSetting('openMode', openModeEl.value)
     }
-    updateSourceEl.onchange = () => {
-      updateSourceHint.textContent = describeUpdateSource(updateSourceEl.value)
-      queueSetting('updateSource', updateSourceEl.value)
-    }
     proxyModeEl.onchange = () => {
       showProxyUrl(proxyModeEl.value)
       // 提示行先按新模式说一句；保存回来的 proxyInUse 会再校正一次
@@ -3205,45 +3441,71 @@
     }
 
     const packDetailNameEl = document.getElementById('packDetailName')
+    const packDetailSubEl = document.getElementById('packDetailSub')
     const pluginPanelEl = document.getElementById('pluginPanel')
     const paneTopEl = pluginPanelEl.querySelector('.pane-top')
     const launchPluginsDialogEl = document.getElementById('launchPluginsDialog')
     const launchPluginsCardEl = document.getElementById('launchPluginsCard')
     let pluginLaunchEntry = null
+    let pluginDialogLoading = false
+    let pluginDialogRequest = 0
     let pluginDialogOrigin = null
-    let pluginDialogMotion = null
 
     async function openLaunchPlugins(entry) {
       if (!entry) return
+      const requestId = ++pluginDialogRequest
       pluginDialogOrigin = document.activeElement
       pluginLaunchEntry = entry
       pluginProfile = entry.profile
       pluginUpdates = {}
       paintPluginProfiles()
-      openedPack = null
+      openedPack = { profile: entry.profile }
+      pluginDialogLoading = true
+      // 这个弹窗只管理启动项对应的环境，新建入口留在设置页的环境列表。
+      paneTopEl.hidden = true
       document.getElementById('launchPluginsTitle').textContent = `${entry.name} · ${t('插件')}`
+      launchPluginsCardEl.querySelector('.launch-plugins-head').append(document.getElementById('launchPluginsClose'))
       document.getElementById('launchPluginsHost').append(pluginPanelEl)
-      launchPluginsDialogEl.hidden = false
-      if (!document.documentElement.classList.contains('reduce-motion') && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        pluginDialogMotion?.cancel()
-        pluginDialogMotion = launchPluginsCardEl.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 180, easing: 'cubic-bezier(.2, .8, .2, 1)' })
-      }
+      const opening = showDialog(launchPluginsDialogEl)
+      packPluginListEl.dataset.profile = ''
+      renderPackView()
       document.getElementById('launchPluginsClose').focus()
-      await loadPlugins()
+      // 网络与入场同时进行，先播完入场再画大量插件行，避免渲染抢走动画帧。
+      const response = getJson(`/api/plugins?profile=${encodeURIComponent(entry.profile)}`)
+        .then((data) => ({ data }), (error) => ({ error }))
+      if (!(await opening)) return
+      const result = await response
+      if (launchPluginsDialogEl.hidden || launchPluginsDialogEl.dataset.dialogClosing || requestId !== pluginDialogRequest) return
+      pluginDialogLoading = false
+      if (result.error) {
+        renderPackView()
+        notify(result.error.message)
+        return
+      }
+      paintPluginProfiles(result.data.profiles || [])
+      applyPluginPayload(result.data)
+      pluginsLoaded = true
       // 启动项的插件管理直接进这个环境的详情（卡片 → 详情那一套），没有平面列表可藏
       openedPack = { profile: entry.profile }
+      packPluginListEl.dataset.profile = ''
       renderPackView()
+      if (!document.documentElement.classList.contains('reduce-motion') && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        packPluginListEl.animate([{ opacity: 0, transform: 'translateY(5px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 180, easing: 'ease-out' })
+      }
+      void refreshPluginUpdates({ quiet: true }).catch(() => {})
     }
 
-    function closeLaunchPlugins() {
-      if (launchPluginsDialogEl.hidden) return
+    async function closeLaunchPlugins() {
+      if (launchPluginsDialogEl.hidden || launchPluginsDialogEl.dataset.dialogClosing) return
+      ++pluginDialogRequest
       closeUiSelect()
-      pluginDialogMotion?.cancel()
-      launchPluginsDialogEl.hidden = true
+      if (!(await hideDialog(launchPluginsDialogEl))) return
       document.getElementById('pane-plugins').append(pluginPanelEl)
       // 弹窗里停在某个环境的详情上，关掉后回卡片列表，别把详情视图带到主页面
       closePack()
       pluginLaunchEntry = null
+      pluginDialogLoading = false
+      launchPluginsCardEl.classList.remove('is-loading')
       if (pluginDialogOrigin?.isConnected) pluginDialogOrigin.focus()
       else launchAddEl.focus()
     }
@@ -3261,6 +3523,21 @@
     // 插件更新：name → { current, latest, hasUpdate, error? }（服务端查 registry，页面上只做展示）
     let pluginUpdates = {}
     let pluginUpdating = ''
+    let pluginUpdatingProfile = ''
+    let pluginUpdatingGroup = ''
+    let pluginChecking = false
+    const pluginTogglePending = new Map()
+    const pluginGroupPending = new Map()
+    function markSwitchPending(control, enabled) {
+      if (!control) return
+      control.indeterminate = false
+      control.checked = enabled
+      control.disabled = true
+      control.classList.add('is-switching')
+      control.setAttribute('aria-busy', 'true')
+    }
+    // 等滑块走完再接收重画；网络请求同时进行，不会把点击动画截断。
+    const switchMotionFinished = () => new Promise((resolve) => setTimeout(resolve, 220))
     function escapeHtml(value) {
       return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -3278,40 +3555,43 @@
      * profile 决定开关写到哪份 profile 上（空 = 当前 profile）；updates 是这一行的
      * 远程版本信息，整合包在别的 profile 上时传空对象——那边没查过，别显示假状态。
      */
-    function pluginRowHtml(plugin, { profile = '', updates = pluginUpdates } = {}) {
+    function pluginRowHtml(plugin, { profile = '', updates = pluginUpdates, sharedPacks = [] } = {}) {
+      const pending = pluginTogglePending.get(`${profile}:${plugin.name}`)
+      const enabled = pending ? pending.enabled : plugin.enabled
       const update = updates[plugin.name]
       const scoped = /^(@[^/]+\/)(.+)$/.exec(plugin.name)
       const nameHtml = scoped
         ? `<span class="plugin-scope">${escapeHtml(scoped[1])}</span>${escapeHtml(scoped[2])}`
         : escapeHtml(plugin.name)
       const details = [plugin.name, plugin.description, plugin.ids?.length ? t('行 {ids}', { ids: plugin.ids.join(', ') }) : '', plugin.toggleable ? '' : t(plugin.reason || '')].filter(Boolean).join('\n')
-      const status = plugin.enabled ? (update?.error ? t('查不到远程版本') : '') : t('已禁用')
-      return `<label class="toggle plugin-row${plugin.enabled ? '' : ' off'}" title="${escapeHtml(details)}">
+      const status = enabled ? (update?.error ? t('查不到远程版本') : '') : t('已禁用')
+      return `<div class="plugin-item"><label class="toggle plugin-row${enabled ? '' : ' off'}" title="${escapeHtml(details)}">
         <span class="plugin-main">
           <span class="plugin-head">
             <span class="plugin-name">${nameHtml}</span>
             ${plugin.version ? `<span class="plugin-version">v${escapeHtml(plugin.version)}</span>` : ''}
             ${status ? `<span class="plugin-status">${escapeHtml(status)}</span>` : ''}
           </span>
+          ${sharedPacks.length ? `<span class="plugin-source">${escapeHtml(t('同时包含于：{names}', { names: sharedPacks.join('、') }))}</span>` : ''}
           ${plugin.description ? `<span class="plugin-desc">${escapeHtml(plugin.description)}</span>` : ''}
         </span>
         ${update?.hasUpdate ? `<button class="plugin-update" type="button" data-update="${escapeHtml(plugin.name)}" data-profile="${escapeHtml(profile)}" aria-label="${escapeHtml(`${plugin.name} ${t('更新到 {latest}', { latest: update.latest })}`)}" ${pluginUpdating ? 'disabled' : ''}><span class="spin" aria-hidden="true"></span><span class="update-label">${escapeHtml(t('更新到 {latest}', { latest: update.latest }))}</span></button>` : ''}
-        <input type="checkbox" data-plugin="${escapeHtml(plugin.name)}" data-profile="${escapeHtml(profile)}" ${plugin.enabled ? 'checked' : ''} ${plugin.toggleable ? '' : 'disabled'} />
-      </label>`
+        <input type="checkbox" data-plugin="${escapeHtml(plugin.name)}" data-profile="${escapeHtml(profile)}" ${enabled ? 'checked' : ''} ${!plugin.toggleable || pending || packBusy ? 'disabled' : ''} ${pending ? 'class="is-switching" aria-busy="true"' : ''} />
+      </label><div class="plugin-row-progress" data-plugin-progress="${escapeHtml(plugin.name)}" data-profile="${escapeHtml(profile)}" hidden>
+        <span class="plugin-progress-label">${escapeHtml(t('正在更新…'))}</span><div class="progress" role="progressbar" aria-label="${escapeHtml(`${plugin.name} ${t('正在更新…')}`)}"><div class="progress-bar"></div></div>
+      </div></div>`
     }
 
     function bindPluginRowEvents(root, profile = '') {
       root.querySelectorAll('input[data-plugin]').forEach((el) => {
-        el.onchange = () => { void togglePlugin(el.dataset.plugin, el.checked, el.dataset.profile || profile) }
+        el.onchange = () => { void togglePlugin(el.dataset.plugin, el.checked, el.dataset.profile || profile, el) }
       })
       root.querySelectorAll('button[data-update]').forEach((el) => {
         el.onclick = (event) => {
           // 整行是个 label（点哪都能开关），按钮的点击不能顺带把插件关掉
           event.preventDefault()
           event.stopPropagation()
-          el.classList.add('loading')
           void updatePlugin(el.dataset.update, el.dataset.profile || profile || pluginProfile)
-            .finally(() => el.classList.remove('loading'))
         }
       })
     }
@@ -3413,18 +3693,27 @@
       finally { packBusy = false; renderPackView() }
     }
 
-    async function togglePlugin(name, enabled, profile = '') {
+    async function togglePlugin(name, enabled, profile = '', control = null) {
+      profile = profile || pluginProfile
+      const key = `${profile}:${name}`
+      if (packBusy || pluginUpdating || pluginTogglePending.has(key)) return
+      pluginTogglePending.set(key, { enabled })
+      markSwitchPending(control, enabled)
       try {
-        const data = await post('/api/plugins/toggle', { name, enabled, profile })
+        const [data] = await Promise.all([post('/api/plugins/toggle', { name, enabled, profile }), switchMotionFinished()])
+        pluginTogglePending.delete(key)
         applyPluginPayload(data)
         if (profile && profile !== pluginProfile) return
       } catch (error) {
         notify(error.message)
-        void loadPlugins()
+        await loadPlugins({ checkUpdates: false })
+      } finally {
+        pluginTogglePending.delete(key)
+        renderPackView()
       }
     }
 
-    function loadPlugins() {
+    function loadPlugins({ checkUpdates = true } = {}) {
       if (!pluginProfile) paintPluginProfiles()
       const profile = pluginProfile
       return getJson(`/api/plugins?profile=${encodeURIComponent(profile)}`).then((data) => {
@@ -3432,22 +3721,25 @@
         paintPluginProfiles(data.profiles || [])
         applyPluginPayload(data)
         // 版本信息拿到后再查一次 registry：查不到（离线/私有包）就静默跳过，别打扰
-        void refreshPluginUpdates({ quiet: true }).catch(() => {})
+        if (checkUpdates) void refreshPluginUpdates({ quiet: true }).catch(() => {})
         const names = (data.autoFix?.plugins || []).map((item) => item.name || item.id).filter(Boolean)
         if (names.length) notify(t('上次启动自动禁用了：{names}（点开正在用的那张卡可以重新打开）。', { names: names.join('、') }), t('兼容模式'))
         pluginsLoaded = true
       }).catch((error) => { if (profile === pluginProfile) notify(error.message) })
     }
 
-    function pluginButtons(list = []) {
-      for (const el of list) if (el) el.disabled = Boolean(pluginUpdating)
+    function pluginButtons() {
+      // 检查结果会替换 DOM，必须按当前状态重画，不能只恢复发起操作的旧按钮。
+      renderPackGrid()
+      renderPackView()
+      setPluginProgress(Boolean(pluginProgress))
     }
 
     /** 拉一次更新检查结果；force=true 会绕过服务端 60s 缓存。 */
     async function refreshPluginUpdates({ force = false, quiet = false } = {}) {
       const profile = pluginProfile
       const url = `/api/plugins/updates?profile=${encodeURIComponent(profile)}${force ? '&refresh=1' : ''}`
-      const data = await fetch(url).then((res) => res.json())
+      const data = await getJson(url)
       if (profile !== pluginProfile) return {}
       pluginUpdates = data.plugins || {}
       // 更新信息影响卡片上的「更新 N 个」与详情里的行，两处都重画
@@ -3457,30 +3749,38 @@
     }
 
     async function updatePlugin(name, profile = pluginProfile) {
-      if (pluginUpdating) return
+      if (pluginUpdating || packBusy) return
       pluginUpdating = name
+      pluginUpdatingProfile = profile
+      pluginProgress = null
       pluginButtons()
       try {
         const data = await post('/api/plugins/update', { name, profile })
         if (profile !== pluginProfile) return
+        await loadPlugins({ checkUpdates: false })
         await refreshPluginUpdates({ force: true, quiet: true })
       } catch (error) {
         notify(error.message)
-        await loadPlugins()
+        if (profile === pluginProfile) await loadPlugins({ checkUpdates: false })
       } finally {
         pluginUpdating = ''
+        pluginUpdatingProfile = ''
+        pluginProgress = null
         pluginButtons()
       }
     }
 
     async function updateAllPlugins() {
-      if (pluginUpdating) return
+      if (pluginUpdating || packBusy) return
       const profile = pluginProfile
       pluginUpdating = '*'
+      pluginUpdatingProfile = profile
+      pluginProgress = null
       pluginButtons()
       try {
         const data = await post('/api/plugins/update', { all: true, profile })
         if (profile !== pluginProfile) return
+        await loadPlugins({ checkUpdates: false })
         await refreshPluginUpdates({ force: true, quiet: true })
         const failed = data.failed || []
         if (failed.length) notify(t('更新了 {ok} 个，{failed} 个失败（{names}），重启 dsh 后生效。', {
@@ -3490,9 +3790,11 @@
         }), t('插件更新'))
       } catch (error) {
         notify(error.message)
-        await loadPlugins()
+        if (profile === pluginProfile) await loadPlugins({ checkUpdates: false })
       } finally {
         pluginUpdating = ''
+        pluginUpdatingProfile = ''
+        pluginProgress = null
         pluginButtons()
       }
     }
@@ -3545,12 +3847,14 @@
     const packHintEl = document.getElementById('packHint')
     let packState = { packs: [], profile: '', profiles: [], busy: false }
     let packInspection = null
+    let packTargetProfile = ''
+    let packInspectRequest = 0
     let packMarket = null
     let packBuiltin = null
     let packProgress = null
     let packBusy = false
     let packMarketLoaded = false
-    /** 现在打开的是哪个包（点卡片进来的），空表示在列表视图。 */
+    /** 现在查看的环境；不改变任何启动项的 profile。 */
     let openedPack = null
 
     /** 封面块：包基本没有图标，用包名首字 + 名字定的色相，一眼能认出来。 */
@@ -3561,19 +3865,11 @@
       return `<div class="pack-tile${big ? ' big' : ''}" style="--tile-hue:${hue}" aria-hidden="true">${escapeHtml([...name][0] || '?')}</div>`
     }
 
-    /** 记的是 ISO（UTC），显示成本机时间——直接切片会差 8 小时。 */
-    function localTime(value) {
-      const at = new Date(value || '')
-      if (Number.isNaN(at.getTime())) return ''
-      const pad = (number) => String(number).padStart(2, '0')
-      return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())} ${pad(at.getHours())}:${pad(at.getMinutes())}`
-    }
-
     /**
      * 一个 profile 卡片的公共内容（列表卡片与详情页头共用）。
      *
      * 「几个开着」是配置状态（写在那份 profile 的补丁层里），和「正在运行」是两件事：
-     * dsh 一次只加载一份 profile，所以开着多少个插件不等于这份环境在跑。
+     * 开着多少个插件不等于这份环境在跑。
      */
     function packMetaLine(item) {
       const plugins = item.plugins || []
@@ -3586,15 +3882,12 @@
 
     /**
      * 一张卡就是一个 profile（整合包装完的产物就是它），所以卡片标题用 profile 名，
-     * 来源放标签里：装过整合包的标包名与版本，手动拼的标「手动创建」；
-     * 正在用的那份单独标「正在用」——其余的环境没在跑，只是配置在这儿。
+     * 来源放标签里：装过整合包的标包名与版本。
      */
     function packSourceTags(item) {
-      return [
-        item.packName
-          ? t('整合包：{name}{version}', { name: item.packName, version: item.packVersion ? ` v${item.packVersion}` : '' })
-          : t('手动创建'),
-      ]
+      return item.packName
+        ? [t('整合包：{name}{version}', { name: item.packName, version: item.packVersion ? ` v${item.packVersion}` : '' })]
+        : []
     }
 
     /** 整包开关：把这个 profile 里的第三方插件一起启停。 */
@@ -3610,41 +3903,147 @@
       }
     }
 
-    /** 列表只负责选环境，环境内的操作放进详情，避免一张卡上挤满按钮。 */
-    function packRuntimeTag(item) {
-      const instances = (state.instances || []).filter((proc) => proc.profile === item.profile)
-      const status = instances.some((proc) => proc.status === 'running') ? '运行中'
-        : instances.some((proc) => proc.status === 'starting') ? '启动中' : ''
-      return status ? `<span class="pack-tag">${escapeHtml(t(status))}</span>` : ''
+    function pluginGroupScope(group) {
+      return group.key === 'other' ? { group: 'other' } : { pack: group.key.slice(5) }
     }
 
+    async function togglePluginGroup(item, group, enabled, control) {
+      if (packBusy || pluginUpdating || pluginTogglePending.size || !group) return
+      packBusy = true
+      const key = `${item.profile}:${group.key}`
+      pluginGroupPending.set(key, enabled)
+      const names = group.plugins.map(({ plugin }) => plugin).filter((plugin) => plugin.toggleable).map((plugin) => plugin.name)
+      for (const name of names) pluginTogglePending.set(`${item.profile}:${name}`, { enabled })
+      markSwitchPending(control, enabled)
+      // 直接更新现有滑块，保留 CSS 过渡；服务端返回后再更新插件文字与统计。
+      packPluginListEl.querySelectorAll('input[data-plugin]').forEach((input) => {
+        if (names.includes(input.dataset.plugin)) markSwitchPending(input, enabled)
+        else input.disabled = true
+      })
+      packViewEl.querySelectorAll('button:not(#launchPluginsClose), input').forEach((element) => { element.disabled = true })
+      try {
+        const [data] = await Promise.all([post('/api/packs/toggle', { profile: item.profile, ...pluginGroupScope(group), enabled }), switchMotionFinished()])
+        pluginGroupPending.delete(key)
+        for (const name of names) pluginTogglePending.delete(`${item.profile}:${name}`)
+        applyPluginPayload(data)
+        if (data.failed?.length) notify(t('有 {n} 个插件不支持开关：{names}', { n: data.failed.length, names: data.failed.join('、') }))
+      } catch (error) {
+        notify(error.message)
+        await loadPlugins({ checkUpdates: false })
+      } finally {
+        pluginGroupPending.delete(key)
+        for (const name of names) pluginTogglePending.delete(`${item.profile}:${name}`)
+        packBusy = false
+        renderPackGrid()
+        renderPackView()
+      }
+    }
+
+    const profileDialogEl = document.getElementById('profileDialog')
+    const profileNameEl = document.getElementById('profileName')
+    const profileSaveEl = document.getElementById('profileSave')
+    const profileErrorEl = document.getElementById('profileDialogError')
+    let profileCopySource = ''
+    let profileSaving = false
+    function openProfileDialog(source = '') {
+      if (packBusy || pluginUpdating || profileSaving) return
+      profileCopySource = source
+      const title = source ? '复制 Profile' : '新建 Profile'
+      document.getElementById('profileDialogTitle').textContent = t(title)
+      document.getElementById('profileSaveText').textContent = t(source ? '复制' : '创建')
+      document.getElementById('profileDialogNote').textContent = source
+        ? t('复制「{profile}」的插件与配置，依赖会重新安装，可能需要一些时间。', { profile: source })
+        : t('创建独立环境，之后可以安装整合包或插件。名称只支持字母、数字、点、下划线和连字符。')
+      let proposed = source ? `${source.slice(0, 27)}-copy` : ''
+      let suffix = 2
+      while (proposed && (packState.profiles || []).some((name) => name.toLowerCase() === proposed.toLowerCase())) proposed = `${source.slice(0, 24)}-copy-${suffix++}`
+      profileNameEl.value = proposed
+      profileErrorEl.hidden = true
+      showPackDialog(profileDialogEl, profileNameEl)
+      profileNameEl.select()
+    }
+    function closeProfileDialog() {
+      if (profileSaving) return
+      void hidePackDialog(profileDialogEl)
+    }
+    document.getElementById('profileAdd').onclick = () => openProfileDialog()
+    document.getElementById('profileDialogClose').onclick = closeProfileDialog
+    document.getElementById('profileCancel').onclick = closeProfileDialog
+    document.getElementById('profileForm').onsubmit = async (event) => {
+      event.preventDefault()
+      if (profileSaving || packBusy) return
+      profileSaving = true
+      packBusy = true
+      profileSaveEl.disabled = true
+      profileNameEl.disabled = true
+      profileSaveEl.classList.add('loading')
+      profileErrorEl.hidden = true
+      renderPackGrid()
+      renderPackView()
+      try {
+        const data = await post(profileCopySource ? '/api/profiles/copy' : '/api/profiles/create', { profile: profileNameEl.value.trim(), source: profileCopySource })
+        await hidePackDialog(profileDialogEl)
+        applyPluginPayload(data)
+      } catch (error) {
+        profileErrorEl.textContent = error.message
+        profileErrorEl.hidden = false
+      } finally {
+        profileSaving = false
+        packBusy = false
+        profileSaveEl.disabled = false
+        profileNameEl.disabled = false
+        profileSaveEl.classList.remove('loading')
+        renderPackGrid()
+        renderPackView()
+      }
+    }
+
+    /** 卡片保留唯一主入口，复制与删除收进角落的菜单。 */
     function renderPackGrid() {
       const list = Array.isArray(packState.packs) ? packState.packs : []
+      document.getElementById('profileAdd').disabled = Boolean(packBusy || pluginUpdating)
       const cards = list.map((item) => {
-        return `<button class="pack-card${item.profile === packState.profile ? ' is-current' : ''}" type="button" data-pack-open="1" data-profile="${escapeHtml(item.profile)}" aria-label="${escapeHtml(t('查看环境 {name} 的插件', { name: item.profile }))}">
+        const tags = packSourceTags(item)
+        const removable = item.removable === true
+        return `<div class="profile-card"><button class="pack-card${openedPack?.profile === item.profile ? ' is-selected' : ''}" type="button" data-pack-open="1" data-profile="${escapeHtml(item.profile)}" aria-label="${escapeHtml(t('查看环境 {name} 的插件', { name: item.profile }))}">
           ${packTileHtml(item)}
           <div class="pack-card-body">
             <div class="pack-card-head">
               <span class="pack-card-name">${escapeHtml(item.profile)}</span>
-              ${item.profile === state.profile ? `<span class="pack-tag">${escapeHtml(t('默认环境'))}</span>` : ''}
-              ${packRuntimeTag(item)}
             </div>
             <div class="pack-card-meta">${escapeHtml(packMetaLine(item))}</div>
-            <div class="pack-card-tags">${packSourceTags(item).map((tag) => `<span class="pack-tag">${escapeHtml(tag)}</span>`).join('')}</div>
+            ${tags.length ? `<div class="pack-card-tags">${tags.map((tag) => `<span class="pack-tag">${escapeHtml(tag)}</span>`).join('')}</div>` : ''}
           </div>
           <span class="pack-card-arrow" aria-hidden="true">›</span>
-        </button>`
+        </button><details class="pack-more profile-menu"><summary title="${escapeHtml(t('更多操作'))}" aria-label="${escapeHtml(t('更多操作'))}"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></summary><div class="pack-more-actions">
+          <button class="ghost" type="button" data-profile-copy="${escapeHtml(item.profile)}" ${packBusy || pluginUpdating ? 'disabled' : ''}>${packMoreIcons.copy}${escapeHtml(t('复制 Profile'))}</button>
+          <button class="ghost danger" type="button" data-profile-delete="${escapeHtml(item.profile)}" ${!removable || packBusy || pluginUpdating ? 'disabled' : ''} ${!removable ? `title="${escapeHtml(t('系统环境不能删除'))}"` : ''}>${packMoreIcons.trash}${escapeHtml(t('删除 Profile'))}</button>
+        </div></details></div>`
       }).join('')
       // 安装整合包的入口在环境详情里（装进这个环境），网格里不再放独立的加卡
       packGridEl.innerHTML = cards
       packGridEl.querySelectorAll('[data-pack-open]').forEach((el) => {
         el.onclick = () => openPack(el.dataset.profile)
       })
+      packGridEl.querySelectorAll('[data-profile-copy]').forEach((button) => {
+        button.onclick = () => { button.closest('details').open = false; openProfileDialog(button.dataset.profileCopy) }
+      })
+      packGridEl.querySelectorAll('[data-profile-delete]').forEach((button) => {
+        button.onclick = () => { button.closest('details').open = false; void removeProfileDir(list.find((item) => item.profile === button.dataset.profileDelete)) }
+      })
     }
 
     function openPack(profile) {
       openedPack = { profile }
+      // 每次进入详情默认展开，只有当前查看过程中的重画才保留手动折叠。
+      packPluginListEl.dataset.profile = ''
       renderPackView()
+      // 卡片已经代表这个环境，不再要求点一次「查看插件」才能管理它。
+      if (pluginProfile !== profile) {
+        pluginProfile = profile
+        paintPluginProfiles()
+        void loadPlugins()
+      }
       void loadRecovery(profile)
       document.getElementById('pane-plugins')?.scrollTo({ top: 0 })
     }
@@ -3652,6 +4051,37 @@
     function closePack() {
       openedPack = null
       renderPackView()
+    }
+
+    /** 「更多操作」菜单的行首图标：stroke 风格跟顶栏按钮一套。 */
+    const packMoreIcons = {
+      copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>',
+      install: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9M12 5v4M10 7h4"/></svg>',
+      refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16M8 16H3v5"/></svg>',
+      update: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4m-5 5 5-5 5 5M4 16v4h16v-4"/></svg>',
+      enable: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.4 12.4 2.5 2.5 5-5.2"/></svg>',
+      disable: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m5.9 5.9 12.2 12.2"/></svg>',
+      export: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V4"/><path d="m7 8 5-4.8L17 8"/><path d="M5 20h14"/></svg>',
+      trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M9.5 7V4.5h5V7"/><path d="m6.5 7 .8 12.5h9.4L17.5 7"/></svg>',
+    }
+
+    /** 按包声明的组成归类，而不是按包名猜插件名。共享插件只显示一行，
+     * 放进最近安装的包并标出其他包含它的包，避免同一个开关出现多份。 */
+    function groupPackPlugins(item) {
+      const groups = (item.records || []).map((record) => ({
+        key: `pack:${record.name}`,
+        name: record.displayName || record.name,
+        version: record.version || '',
+        members: new Set([...(record.bundles || []), ...Object.keys(record.dependencies || {}), ...Object.keys(record.specs || {})]),
+        plugins: [],
+      }))
+      const other = { key: 'other', name: t('其他插件'), version: '', plugins: [] }
+      for (const plugin of item.plugins || []) {
+        const owners = groups.filter((group) => group.members.has(plugin.name))
+        const owner = owners.at(-1) || other
+        owner.plugins.push({ plugin, sharedPacks: owners.slice(0, -1).map((group) => group.name) })
+      }
+      return [...groups, other].filter((group) => group.plugins.length)
     }
 
     /** 卡详情：这个环境里的插件（每个都能单独开关）+ 这个环境的操作。 */
@@ -3664,6 +4094,8 @@
         return
       }
       const item = (packState.packs || []).find((one) => one.profile === openedPack.profile)
+        || (!launchPluginsDialogEl.hidden && pluginLaunchEntry?.profile === openedPack.profile
+          ? { profile: openedPack.profile, plugins: [], records: [], uninitialized: true } : null)
       if (!item) {
         openedPack = null
         packViewEl.hidden = true
@@ -3673,72 +4105,119 @@
       }
       pluginOverviewEl.hidden = true
       packViewEl.hidden = false
+      // 关闭按钮参加同一行布局，避免标题两行高时与工具按钮错开。
+      if (!launchPluginsDialogEl.hidden) packViewEl.querySelector('.pack-detail-top').append(document.getElementById('launchPluginsClose'))
       // 详情自带返回与操作那行，页顶标题整条让位，环境名跟着返回图标走
       paneTopEl.hidden = true
       if (packDetailNameEl) packDetailNameEl.textContent = item.profile
+      if (packDetailSubEl) packDetailSubEl.textContent = packMetaLine(item)
+      const empty = !item.plugins?.length
+      launchPluginsCardEl.classList.toggle('is-loading', pluginDialogLoading)
+      packPluginListEl.setAttribute('aria-busy', String(pluginDialogLoading))
+      packPluginListEl.classList.toggle('is-empty', empty || pluginDialogLoading)
+      // 未初始化的模板不在环境卡片里，弹窗仍显示名称与提示，不能退回一个空列表边框。
+      if (!launchPluginsDialogEl.hidden && (pluginDialogLoading || item.uninitialized)) {
+        packDetailSubEl.textContent = ''
+        packHeadEl.innerHTML = ''
+        packPluginListEl.classList.remove('is-grouped')
+        packPluginListEl.innerHTML = pluginDialogLoading
+          ? `<div class="plugin-empty-state"><span class="plugin-empty-spinner" aria-hidden="true"></span><p role="status">${escapeHtml(t('正在加载插件…'))}</p></div>`
+          : `<div class="plugin-empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/></svg><strong>${escapeHtml(t('这个 Profile 尚未初始化'))}</strong><p>${escapeHtml(t('请先启动一次这个环境，再管理插件。'))}</p></div>`
+        return
+      }
       const pending = item.profile === packState.profile
         ? (item.plugins || []).filter((plugin) => pluginUpdates[plugin.name]?.hasUpdate).length
         : 0
       const records = item.records || []
+      const latest = records.at(-1)
       // 顶部只剩一行：左上返回图标（在静态结构里），右上全部操作；批量启停收进「更多操作」
       packHeadEl.innerHTML = `
-        ${item.profile === packState.profile ? `<button class="ghost" type="button" data-pack-import="1">${escapeHtml(t('装整合包'))}</button>` : ''}
-        ${item.profile === packState.profile ? `<button class="ghost" type="button" data-pack-check-updates="1">${escapeHtml(t('检查更新'))}</button>` : ''}
-        ${pending ? `<button class="plugin-update" type="button" data-pack-update="1"><span class="spin" aria-hidden="true"></span><span class="update-label">${escapeHtml(t('更新 {n} 个', { n: pending }))}</span></button>` : ''}
-        ${item.profile === packState.profile ? '' : `<button class="ghost" type="button" data-pack-switch-profile="1">${escapeHtml(t('查看插件'))}</button>`}
+        <button class="ghost icon-btn pack-tool" type="button" data-pack-import="1" title="${escapeHtml(t('装整合包'))}" aria-label="${escapeHtml(t('装整合包'))}" ${packBusy || pluginUpdating ? 'disabled' : ''}>${packMoreIcons.install}</button>
+        ${item.profile === packState.profile ? `<button class="ghost icon-btn pack-tool${pluginChecking ? ' is-checking' : ''}" type="button" data-pack-check-updates="1" title="${escapeHtml(t('检查更新'))}" aria-label="${escapeHtml(t('检查更新'))}" aria-busy="${pluginChecking}" ${pluginChecking || pluginUpdating || packBusy ? 'disabled' : ''}>${packMoreIcons.refresh}</button>` : ''}
+        ${pending || pluginUpdating === '*' ? `<button class="ghost icon-btn pack-tool pack-update${pluginUpdating === '*' ? ' loading' : ''}" type="button" data-pack-update="1" title="${escapeHtml(t('更新 {n} 个', { n: pending }))}" aria-label="${escapeHtml(t('更新 {n} 个', { n: pending }))}" aria-busy="${pluginUpdating === '*'}" ${pluginUpdating || packBusy ? 'disabled' : ''}><span class="spin" aria-hidden="true"></span>${packMoreIcons.update}<span class="pack-update-count" aria-hidden="true">${pending}</span></button>` : ''}
         <details class="pack-more">
           <summary title="${escapeHtml(t('更多操作'))}" aria-label="${escapeHtml(t('更多操作'))}"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></summary>
           <div class="pack-more-actions">
-            ${item.profile === packState.profile ? `<button class="ghost" type="button" data-pack-bulk="1" data-enabled="1" ${item.toggleable && !packBusy ? '' : 'disabled'} ${item.toggleable ? '' : `title="${escapeHtml(t('这个环境里的插件没有可开关的加载行（客户端插件由插件市场管理）'))}"`}>${escapeHtml(t('全部启用'))}</button>` : ''}
-            ${item.profile === packState.profile ? `<button class="ghost" type="button" data-pack-bulk="1" data-enabled="0" ${item.toggleable && !packBusy ? '' : 'disabled'} ${item.toggleable ? '' : `title="${escapeHtml(t('这个环境里的插件没有可开关的加载行（客户端插件由插件市场管理）'))}"`}>${escapeHtml(t('全部禁用'))}</button>` : ''}
-            <button class="ghost" type="button" data-pack-export="1" ${packBusy ? 'disabled' : ''}>${escapeHtml(t('导出整合包'))}</button>
-            ${records.length ? `<button class="ghost" type="button" data-pack-remove="1" ${packBusy ? 'disabled' : ''}>${escapeHtml(t('卸载整合包'))}</button>` : ''}
-            ${!records.length && item.profile !== packState.profile && !item.template ? `<button class="ghost" type="button" data-pack-delete="1" ${packBusy ? 'disabled' : ''}>${escapeHtml(t('删除 profile'))}</button>` : ''}
+            <button class="ghost" type="button" data-pack-export="1" ${packBusy || pluginUpdating ? 'disabled' : ''}>${packMoreIcons.export}${escapeHtml(t('导出当前环境'))}</button>
+            <button class="ghost" type="button" data-profile-copy="1" ${packBusy || pluginUpdating ? 'disabled' : ''}>${packMoreIcons.copy}${escapeHtml(t('复制 Profile'))}</button>
+            ${item.removable ? `<button class="ghost danger" type="button" data-pack-delete="1" ${packBusy || pluginUpdating ? 'disabled' : ''}>${packMoreIcons.trash}${escapeHtml(t('删除 Profile'))}</button>` : ''}
           </div>
-          ${records.map((record) => `<div class="pack-more-meta">${escapeHtml(t('安装记录：{name} v{version} · {time} · {source}', { name: record.displayName || record.name, version: record.version, time: localTime(record.installedAt), source: record.source || '' }))}</div>`).join('')}
         </details>`
       const actions = packHeadEl
-      actions.querySelectorAll('[data-pack-bulk]').forEach((el) => {
-        el.addEventListener('click', () => { void togglePack(item, el.dataset.enabled === '1') })
-      })
-      actions.querySelector('[data-pack-switch-profile]')?.addEventListener('click', () => switchProfileSafe(item.profile))
       actions.querySelector('[data-pack-import]')?.addEventListener('click', () => openImportDialog())
-      actions.querySelector('[data-pack-check-updates]')?.addEventListener('click', async (event) => {
-        event.currentTarget.disabled = true
+      actions.querySelector('[data-pack-check-updates]')?.addEventListener('click', async () => {
+        if (pluginChecking) return
+        pluginChecking = true
+        renderPackView()
         try { await refreshPluginUpdates({ force: true }) }
         catch (error) { notify(error.message) }
+        finally { pluginChecking = false; renderPackView() }
       })
       actions.querySelector('[data-pack-export]')?.addEventListener('click', () => openExportDialog(item))
       actions.querySelector('[data-pack-delete]')?.addEventListener('click', () => { void removeProfileDir(item) })
-      actions.querySelector('[data-pack-update]')?.addEventListener('click', (event) => {
-        const el = event.currentTarget
-        el.classList.add('loading')
-        void updatePack(item).finally(() => el.classList.remove('loading'))
-      })
-      actions.querySelector('[data-pack-remove]')?.addEventListener('click', () => {
-        // 一个 profile 上可能装过不止一个整合包：从最新那条开始还原，剩下的在列表里逐条撤
-        const latest = records[records.length - 1]
-        void removePack(latest.name, latest.profile, latest.createdProfile === true)
+      actions.querySelector('[data-profile-copy]')?.addEventListener('click', () => { actions.querySelector('.pack-more').open = false; openProfileDialog(item.profile) })
+      actions.querySelector('[data-pack-update]')?.addEventListener('click', () => {
+        void updatePack(item)
       })
 
-      const rows = (item.plugins || []).map((plugin) => pluginRowHtml(plugin, {
-        profile: item.profile,
-        updates: item.profile === packState.profile ? pluginUpdates : {},
-      }))
-      packPluginListEl.innerHTML = rows.length
-        ? rows.join('')
+      const groups = groupPackPlugins(item)
+      // 开关或更新会重画插件列表，保留当前环境各组的展开状态。
+      const expanded = new Map(packPluginListEl.dataset.profile === item.profile
+        ? [...packPluginListEl.querySelectorAll('[data-plugin-group]')].map((el) => [el.dataset.pluginGroup, el.dataset.expanded ? el.dataset.expanded === 'true' : el.open]) : [])
+      const grouped = groups.some((group) => group.key !== 'other')
+      packPluginListEl.dataset.profile = item.profile
+      packPluginListEl.classList.toggle('is-grouped', grouped)
+      packPluginListEl.innerHTML = groups.length
+        ? groups.map((group) => {
+          const rows = group.plugins.map(({ plugin, sharedPacks }) => pluginRowHtml(plugin, {
+            profile: item.profile, updates: item.profile === packState.profile ? pluginUpdates : {}, sharedPacks,
+          })).join('')
+          if (!grouped) return rows
+          const members = group.key === 'other' ? group.plugins.map(({ plugin }) => plugin) : (item.plugins || []).filter((plugin) => group.members.has(plugin.name))
+          const toggleable = members.filter((plugin) => plugin.toggleable)
+          const pendingKey = `${item.profile}:${group.key}`
+          const switching = pluginGroupPending.has(pendingKey)
+          const enabled = switching ? pluginGroupPending.get(pendingKey) : toggleable.some((plugin) => plugin.enabled)
+          const mixed = !switching && enabled && !toggleable.every((plugin) => plugin.enabled)
+          const updates = item.profile === packState.profile ? members.filter((plugin) => pluginUpdates[plugin.name]?.hasUpdate).length : 0
+          const record = records.find((one) => group.key === `pack:${one.name}`)
+          const updating = pluginUpdating === '*' && pluginUpdatingGroup === group.key
+          const disabled = packBusy || pluginUpdating || pluginTogglePending.size
+          return `<div class="plugin-group-card"><div class="plugin-group-tools">
+            ${updates || updating ? `<button class="ghost icon-btn group-update${updating ? ' loading' : ''}" type="button" data-group-update="${escapeHtml(group.key)}" title="${escapeHtml(t('更新 {name} 的 {n} 个插件', { name: group.name, n: updates }))}" aria-label="${escapeHtml(t('更新 {name} 的 {n} 个插件', { name: group.name, n: updates }))}" ${disabled ? 'disabled' : ''}><span class="spin" aria-hidden="true"></span>${packMoreIcons.update}<span class="pack-update-count" aria-hidden="true">${updates}</span></button>` : ''}
+            ${record ? `<button class="ghost icon-btn danger" type="button" data-group-remove="${escapeHtml(group.key)}" title="${escapeHtml(record === latest ? t('卸载 {name}', { name: group.name }) : t('请先卸载此后安装的整合包'))}" aria-label="${escapeHtml(t('卸载 {name}', { name: group.name }))}" ${disabled || record !== latest ? 'disabled' : ''}>${packMoreIcons.trash}</button>` : ''}
+            <label class="toggle plugin-group-toggle" title="${escapeHtml([mixed ? t('部分启用') : '', t(enabled ? '禁用 {name}' : '启用 {name}', { name: group.name })].filter(Boolean).join(' · '))}"><input type="checkbox" data-group-toggle="${escapeHtml(group.key)}" aria-label="${escapeHtml(t(enabled ? '禁用 {name}' : '启用 {name}', { name: group.name }))}" ${enabled ? 'checked' : ''} ${switching ? 'class="is-switching" aria-busy="true"' : ''} ${disabled || !toggleable.length ? 'disabled' : ''}/></label>
+          </div><details class="plugin-group" data-plugin-group="${escapeHtml(group.key)}" ${expanded.get(group.key) !== false ? 'open' : ''}>
+            <summary><svg class="plugin-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg><span class="plugin-group-heading"><span class="plugin-group-name">${escapeHtml(group.name)}</span><span class="plugin-group-version">${escapeHtml([group.version ? `v${group.version}` : '', t('{n} 个插件', { n: group.plugins.length }), mixed ? t('部分启用') : ''].filter(Boolean).join(' · '))}</span></span></summary>
+            <div class="plugin-group-body">${rows}</div>
+          </details></div>`
+        }).join('')
         : `<div class="plugin-empty">${escapeHtml(t('这份 profile 里没有已安装的插件。'))}</div>`
       bindPluginRowEvents(packPluginListEl, item.profile)
+      packPluginListEl.querySelectorAll('[data-group-toggle]').forEach((el) => {
+        el.onchange = () => { void togglePluginGroup(item, groups.find((group) => group.key === el.dataset.groupToggle), el.checked, el) }
+      })
+      packPluginListEl.querySelectorAll('[data-group-update]').forEach((el) => {
+        el.onclick = () => { void updatePack(item, groups.find((group) => group.key === el.dataset.groupUpdate)) }
+      })
+      packPluginListEl.querySelectorAll('[data-group-remove]').forEach((el) => {
+        el.onclick = () => { void removePack(records.find((record) => `pack:${record.name}` === el.dataset.groupRemove)) }
+      })
+      setPluginProgress(Boolean(pluginProgress))
     }
 
     /** 更新正在查看的 profile，不改各启动项的环境设置。 */
-    async function updatePack(item) {
-      if (packBusy) return
+    async function updatePack(item, group = null) {
+      if (packBusy || pluginUpdating) return
       packBusy = true
+      pluginUpdating = '*'
+      pluginUpdatingGroup = group?.key || ''
+      pluginUpdatingProfile = item.profile
+      pluginProgress = null
       renderPackGrid()
       renderPackView()
       try {
-        const data = await post('/api/packs/update', { profile: item.profile })
+        const data = await post('/api/packs/update', { profile: item.profile, ...(group ? pluginGroupScope(group) : {}) })
         applyPluginPayload(data)
         if ((data.failed || []).length) notify(data.failed.join('\n'), t('有插件没更新成功'))
         await refreshPluginUpdates({ force: true, quiet: true }).catch(() => {})
@@ -3746,22 +4225,26 @@
         notify(error.message, t('整合包更新失败'))
       } finally {
         packBusy = false
+        pluginUpdating = ''
+        pluginUpdatingGroup = ''
+        pluginUpdatingProfile = ''
+        pluginProgress = null
         renderPackGrid()
         renderPackView()
       }
     }
 
-    /** 手动拼的 profile 没有安装记录可还原，只能整个删掉。 */
+    /** 删除的是整个 Profile，与整合包按安装顺序撤销是两种操作。 */
     async function removeProfileDir(item) {
-      if (packBusy) return
-      if (!(await appConfirm(t('删除 profile「{profile}」？它里面的插件与配置会一起没（{n} 个插件）。', { profile: item.profile, n: item.pluginCount }), { title: t('删除 profile') }))) return
-      if (!(await appConfirm(t('确认删除「{profile}」整个目录？这一步撤不回来。', { profile: item.profile }), { title: t('删除 profile') }))) return
+      if (!item || packBusy || pluginUpdating) return
+      if (!(await appConfirm(t('删除「{profile}」？其中的 {n} 个插件、配置和对应启动项会一并移除，会话与记忆保留。此操作无法撤销。', { profile: item.profile, n: item.pluginCount }), { title: t('删除 Profile') }))) return
       packBusy = true
       renderPackGrid()
       renderPackView()
       try {
-        const data = await post('/api/packs/remove-profile', { profile: item.profile })
+        const data = await post('/api/profiles/delete', { profile: item.profile })
         if (openedPack && openedPack.profile === item.profile) openedPack = null
+        if (pluginProfile === item.profile) pluginProfile = state.profile || 'web'
         applyPluginPayload(data)
       } catch (error) {
         notify(error.message, t('删除失败'))
@@ -3772,35 +4255,28 @@
       }
     }
 
-    /** 只改变插件浏览目标；启动环境由各启动项自己的 profile 决定。 */
-    async function switchProfileSafe(profile) {
-      pluginProfile = profile
-      paintPluginProfiles()
-      openedPack = null
-      await loadPlugins()
-    }
-
     // ---- 装整合包 / 导出 ----
-    const packDialogContext = new WeakMap()
+    const packDialogContext = new Map()
     function showPackDialog(dialog, focus) {
-      if (!dialog.hidden) return
+      if (!dialog.hidden && !dialog.dataset.dialogClosing) return
       closeUiSelect()
-      const parent = [packInstallDialog, packDetailDialog, packImportDialog, packExportDialog, launchPluginsDialogEl].find((one) => one !== dialog && !one.hidden)
+      const parent = [profileDialogEl, packInstallDialog, packDetailDialog, packImportDialog, packExportDialog, launchPluginsDialogEl].find((one) => one !== dialog && !one.hidden && !one.dataset.dialogClosing)
       packDialogContext.set(dialog, { parent, origin: document.activeElement })
       if (parent) {
         parent.querySelector('.ask-card').inert = true
         parent.classList.add('is-underlay')
       }
-      dialog.hidden = false
-      const card = dialog.querySelector('.ask-card')
-      if (!document.documentElement.classList.contains('reduce-motion') && !matchMedia('(prefers-reduced-motion: reduce)').matches) card.animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 160, easing: 'ease-out' })
+      showDialog(dialog)
       focus?.focus()
     }
-    function hidePackDialog(dialog) {
-      if (dialog.hidden) return
+    async function hidePackDialog(dialog) {
+      if (dialog.hidden || dialog.dataset.dialogClosing) return
       closeUiSelect()
-      dialog.hidden = true
       const context = packDialogContext.get(dialog)
+      if (!(await hideDialog(dialog))) return
+      packDialogContext.delete(dialog)
+      const covered = context?.parent && [...packDialogContext].some(([other, entry]) => entry.parent === context.parent && !other.hidden)
+      if (covered) return
       if (context?.parent) {
         context.parent.querySelector('.ask-card').inert = false
         context.parent.classList.remove('is-underlay')
@@ -3820,13 +4296,20 @@
       dialog.addEventListener('click', (event) => { if (event.target === dialog) close() })
     }
     function closeMarketDetail() { hidePackDialog(packDetailDialog); marketDetailIndex = null }
-    function closeInstallDialog() { if (!packInstalling) hidePackDialog(packInstallDialog) }
+    function closeInstallDialog() {
+      if (packInstalling) return
+      packInspectRequest += 1
+      packInspection = null
+      hidePackDialog(packInstallDialog)
+      renderPackInspect()
+    }
     document.getElementById('packDetailClose').onclick = closeMarketDetail
     document.getElementById('packInstallClose').onclick = closeInstallDialog
     trapPackDialog(packImportDialog, closeImportDialog)
     trapPackDialog(packDetailDialog, closeMarketDetail)
     trapPackDialog(packInstallDialog, closeInstallDialog)
     trapPackDialog(packExportDialog, closeExportDialog)
+    trapPackDialog(profileDialogEl, closeProfileDialog)
     marketSearchEl.oninput = marketSortEl.onchange = () => { marketPage = 1; renderPackMarket() }
     marketPageSizeEl.onchange = () => {
       marketPageSize = Number(marketPageSizeEl.value)
@@ -3834,14 +4317,24 @@
       try { localStorage.setItem('dsh-market-page-size', String(marketPageSize)) } catch {}
       renderPackMarket()
     }
-    document.getElementById('marketPrev').onclick = () => { marketPage -= 1; renderPackMarket(); packMarketEl.scrollTop = 0 }
-    document.getElementById('marketNext').onclick = () => { marketPage += 1; renderPackMarket(); packMarketEl.scrollTop = 0 }
+    function turnMarketPage(direction) {
+      marketPage += direction
+      renderPackMarket()
+      packMarketEl.scrollTop = 0
+      if (document.documentElement.classList.contains('reduce-motion') || matchMedia('(prefers-reduced-motion: reduce)').matches) return
+      packMarketEl.animate([{ opacity: .3, transform: `translateX(${direction * 10}px)` }, { opacity: 1, transform: 'translateX(0)' }], {
+        duration: 180, easing: 'ease-out',
+      })
+    }
+    document.getElementById('marketPrev').onclick = () => turnMarketPage(-1)
+    document.getElementById('marketNext').onclick = () => turnMarketPage(1)
 
 
     function openImportDialog() {
       showPackDialog(packImportDialog, marketSearchEl)
       if (!packMarketLoaded) {
         packMarketLoaded = true
+        renderPackMarket()
         void loadMarket({ quiet: true })
       }
       renderPackBuiltin()
@@ -3911,7 +4404,13 @@
       document.getElementById('marketPrev').disabled = marketPage <= 1
       document.getElementById('marketNext').disabled = marketPage >= pages
       if (!packMarket || packMarket.error || !list.length) {
-        packMarketEl.innerHTML = `<div class="market-empty">${escapeHtml(!packMarket ? t('正在读市场…') : packMarket.error ? t('市场没读到：{error}', { error: packMarket.error }) : t('没有匹配的整合包'))}</div>`
+        if (!packMarket) {
+          // 首次读取市场：骨架卡占位，扫光见 launcher.css 的 skel-sweep
+          const skeletonCard = '<div class="market-card is-skeleton" aria-hidden="true"><div class="market-card-info"><div class="market-card-heading"><span class="market-card-icon"></span><span class="skel-line skel-name"></span></div><span class="skel-line"></span><span class="skel-line skel-short"></span></div><div class="market-card-footer"><span class="skel-line skel-author"></span><span class="skel-line skel-pill"></span></div></div>'
+          packMarketEl.innerHTML = `${skeletonCard.repeat(4)}<span class="sr-only" role="status">${escapeHtml(t('正在读市场…'))}</span>`
+          return
+        }
+        packMarketEl.innerHTML = `<div class="market-empty">${escapeHtml(packMarket.error ? t('市场没读到：{error}', { error: packMarket.error }) : t('没有匹配的整合包'))}</div>`
         return
       }
       packMarketEl.innerHTML = list.slice((marketPage - 1) * marketPageSize, marketPage * marketPageSize).map(({entry, index}) => `<article class="market-card">
@@ -3972,6 +4471,14 @@
 
     /** 检查结果：把「装什么、装到哪、会覆盖什么」摆出来，再让人点安装。 */
     function renderPackInspect() {
+      // 动态下拉复用全站控件；重画前销毁旧面板，避免残留到 body 和控件表里。
+      const oldSelect = document.getElementById('packProfile')
+      const oldControl = uiSelects.get(oldSelect)
+      if (oldControl) {
+        if (openUiSelect === oldControl) closeUiSelect()
+        oldControl.panel.remove()
+        uiSelects.delete(oldSelect)
+      }
       document.getElementById('packInstallClose').disabled = packInstalling
       document.getElementById('packPreparing').hidden = Boolean(packInspection) || !packBusy
       if (!packInspection) {
@@ -3981,9 +4488,7 @@
       }
       const data = packInspection
       const pack = data.pack
-      // 弹窗会因进度/busy 状态反复重画：输入框已在的话留住用户正在填的安装环境，别被检查结果里的建议名冲掉
-      const previousInput = document.getElementById('packProfile')
-      const targetProfile = previousInput ? previousInput.value : (data.target?.profile || '')
+      const targetProfile = packTargetProfile || data.target?.profile || ''
       const plan = data.plan || {}
       const deps = (pack.dependencies || []).map((item) => (item.installAs ? `${item.name} → ${item.installAs.name} ${item.installAs.spec}` : `${item.name} ${item.spec}`))
       const bundleRows = (pack.bundles || []).map((item) => (item.dependency ? item.name : t('{name}（dsh 自带）', { name: item.name })))
@@ -3997,6 +4502,7 @@
       ].filter(Boolean).join(' · ')
       const creates = data.target?.createsProfile
       const notes = (plan.notes || []).map(packNoteText).filter(Boolean)
+      const contentWasHidden = packInspectEl.hidden
       packInspectEl.hidden = false
       packInspectEl.innerHTML = `
         <div class="pack-title">
@@ -4004,13 +4510,20 @@
           <span class="pack-meta">v${escapeHtml(pack.version)}${meta ? ` · ${escapeHtml(meta)}` : ''}</span>
         </div>
 
-        <div class="pack-install-summary">${escapeHtml(t('将添加 {n} 个插件', { n: deps.length }))}</div>
+        <div class="pack-install-summary">${escapeHtml(t('包含 {n} 个插件', { n: deps.length }))}</div>
+        <div class="pack-target">
+          <label for="packProfileTrigger">${escapeHtml(t('安装环境'))}</label>
+          <select id="packProfile" aria-label="${escapeHtml(t('安装环境'))}" ${packBusy || pack.type === 'dshhome' ? 'disabled' : ''}>
+            ${[...new Set([targetProfile, ...(packState.profiles || [])])].filter(Boolean).map((name) => `<option value="${escapeHtml(name)}" ${name === targetProfile ? 'selected' : ''}>${escapeHtml(name)}</option>`).join('')}
+          </select>
+          <span class="pack-meta" id="packTargetNote">${escapeHtml(t(pack.type === 'dshhome' ? '整机快照会安装包内声明的环境，详见安装详情。' : creates ? '将创建这个环境，安装后可在列表中管理。' : '合并到已有环境，同名文件会先备份。'))}</span>
+        </div>
         ${packNotes(t('问题（先解决这些）'), plan.errors || [], 'warn')}
+        ${packNotes(t('要注意'), plan.warnings || [], 'warn')}
         <details class="pack-advanced">
           <summary>${escapeHtml(t('查看安装详情'))}</summary>
           <div class="pack-advanced-content">
             ${packNotes(t('会怎么装'), notes)}
-            ${packNotes(t('要注意'), plan.warnings || [], 'warn')}
             ${packRows(t('层栈（dsh 按顺序加载）'), bundleRows)}
             ${packRows(t('依赖'), deps)}
             ${packRows(t('要写的文件'), (plan.writes || []).map((write) => `${write.rel}${write.note ? `（${write.note}）` : ''}`))}
@@ -4019,61 +4532,19 @@
             ${packNotes(t('包里没装的内容'), [...(pack.skipped || []).map((item) => `${item.path}：${item.reason}`), ...(pack.warnings || [])])}
           </div>
         </details>
-        <div class="pack-target">
-          <label for="packProfileTrigger">${escapeHtml(t('安装环境'))}</label>
-          <input id="packProfile" type="hidden" value="${escapeHtml(targetProfile)}" />
-          <button type="button" class="select-trigger" id="packProfileTrigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="packProfilePanel">
-            <span class="select-value" id="packProfileValue">${escapeHtml(targetProfile)}</span>
-            <svg class="select-caret" viewBox="0 0 12 8" aria-hidden="true"><path fill="currentColor" d="M0 0h12L6 8z"/></svg>
-          </button>
-          <div class="select-panel" id="packProfilePanel" role="listbox" aria-label="${escapeHtml(t('安装环境'))}" hidden></div>
-          <span class="pack-meta" id="packTargetNote">${escapeHtml(t('合并到已有环境，同名文件会先备份。'))}</span>
-        </div>
         <div class="pack-actions">
-          <button class="primary" type="button" id="packInstall" ${(data.ok && !packBusy) ? '' : 'disabled'}>${escapeHtml(t('安装'))}</button>
-          <button class="ghost" type="button" id="packCancel">${escapeHtml(t('取消'))}</button>
+          <button class="primary${packInstalling ? ' loading' : ''}" type="button" id="packInstall" ${(data.ok && !packBusy) ? '' : 'disabled'}>${packInstalling ? '<span class="spin" aria-hidden="true"></span>' : ''}${escapeHtml(t('安装'))}</button>
+          <button class="ghost" type="button" id="packCancel" ${packInstalling ? 'disabled' : ''}>${escapeHtml(t('取消'))}</button>
         </div>`
-      // 安装环境是纯下拉：只在已有环境里选，不再手输名字新开 profile。
-      // 目标值放在 hidden input 里，installPack 从这读；弹窗重画时由 targetProfile 逻辑保值。
-      const profilePanel = document.getElementById('packProfilePanel')
-      const profileTrigger = document.getElementById('packProfileTrigger')
-      const closeProfilePanel = () => {
-        profilePanel.hidden = true
-        profileTrigger.setAttribute('aria-expanded', 'false')
-      }
-      const paintProfileOptions = () => {
-        const current = document.getElementById('packProfile').value
-        profilePanel.replaceChildren(...(packState.profiles || []).map((name) => {
-          const row = document.createElement('div')
-          row.className = `select-option${name === current ? ' selected' : ''}`
-          row.role = 'option'
-          row.setAttribute('aria-selected', String(name === current))
-          row.textContent = name
-          row.onclick = () => {
-            document.getElementById('packProfile').value = name
-            document.getElementById('packProfileValue').textContent = name
-            closeProfilePanel()
-          }
-          return row
-        }))
-      }
-      profileTrigger.onclick = () => {
-        if (profilePanel.hidden) {
-          paintProfileOptions()
-          profilePanel.hidden = false
-          profileTrigger.setAttribute('aria-expanded', 'true')
-        } else closeProfilePanel()
-      }
-      profileTrigger.onkeydown = (event) => {
-        if (event.key === 'Escape' && !profilePanel.hidden) { closeProfilePanel(); event.stopPropagation() }
-      }
+      const profileSelect = document.getElementById('packProfile')
+      createUiSelect(profileSelect)
+      profileSelect.addEventListener('change', () => { void inspectPack({ token: data.token, profile: profileSelect.value }) })
       const installEl = document.getElementById('packInstall')
       if (installEl) installEl.onclick = () => { void installPack() }
-      document.getElementById('packCancel').onclick = () => {
-        packInspection = null
-        renderPackInspect()
-        packHintEl.textContent = ''
-        closeInstallDialog()
+      document.getElementById('packCancel').onclick = closeInstallDialog
+      // 读取完成内容首显时轻淡入；busy 轮询重画不重播（reduce-motion 直接跳过）
+      if (contentWasHidden && !document.documentElement.classList.contains('reduce-motion') && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        packInspectEl.animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 160, easing: 'ease-out' })
       }
     }
 
@@ -4114,24 +4585,32 @@
 
     async function inspectPack(payload) {
       if (packBusy) return
-      // 从环境详情进来的：安装目标就定在这个环境（服务端会回显到确认弹窗；空着才让服务端按包名建议）
-      if (!payload.profile && openedPack) payload.profile = openedPack.profile
+      const rechecking = Boolean(payload.token)
+      payload = { ...payload, profile: payload.profile || openedPack?.profile || pluginProfile || packState.profile || state.profile || 'web' }
+      packTargetProfile = payload.profile
+      const request = ++packInspectRequest
       packBusy = true
-      openImportDialog()
+      if (!rechecking) openImportDialog()
+      // 从详情安装时先回到市场再确认，避免叠三层弹窗。
+      closeMarketDetail()
       showPackDialog(packInstallDialog, document.getElementById('packInstallClose'))
       renderPackMarket()
       renderPackBuiltin()
-      packInspection = null
+      if (!rechecking) packInspection = null
+      else packInspection = { ...packInspection, ok: false, plan: {} }
       renderPackInspect()
       packHintEl.textContent = t('正在准备安装…')
       try {
         const data = await post('/api/packs/inspect', payload)
+        if (request !== packInspectRequest) return
         packInspection = data
         renderPackInspect()
         packHintEl.textContent = data.ok
           ? ''
           : t('这个包有问题，先看上面的原因。')
       } catch (error) {
+        if (request !== packInspectRequest) return
+        if (packInspection) packInspection = { ...packInspection, ok: false, plan: { errors: [error.message] } }
         packHintEl.textContent = error.message
         notify(error.message, t('整合包检查失败'))
       } finally {
@@ -4140,11 +4619,12 @@
         renderPackInspect()
         renderPackMarket()
         renderPackBuiltin()
+        if (rechecking && request === packInspectRequest && !packInstallDialog.hidden) document.getElementById('packProfileTrigger')?.focus()
       }
     }
 
     async function installPack() {
-      if (!packInspection || packBusy) return
+      if (!packInspection?.ok || packBusy || packInspection.target?.profile !== packTargetProfile) return
       // 必须先取安装环境再重画：renderPackInspect 会按检查结果重置输入框，晚一步就丢用户指定的 profile
       const profile = String(document.getElementById('packProfile')?.value || '').trim()
       packInstalling = true
@@ -4167,6 +4647,7 @@
         closeMarketDetail()
         closeImportDialog()
         openPack(installed.profile)
+        notify(t('{name} 已装进 profile「{profile}」，重启 dsh 后生效。', { name: installed.displayName || installed.name, profile: installed.profile }))
       } catch (error) {
         packHintEl.textContent = error.message
         notify(error.message, t('整合包安装失败'))
@@ -4175,25 +4656,23 @@
         packBusy = false
         renderPackMarket()
         renderPackInspect()
+        renderPackGrid()
+        renderPackView()
       }
     }
 
-    async function removePack(name, profile, createdProfile) {
+    async function removePack(record) {
       if (packBusy) return
-      const record = (packState.packs || []).find((item) => item.name === name && item.profile === profile)
-      const label = record?.displayName || name
-      if (!(await appConfirm(t('卸载 {name}（profile「{profile}」）？安装时覆盖的文件会还原。', { name: label, profile }), { title: t('卸载整合包') }))) return
-      let removeProfile = false
-      if (createdProfile) {
-        removeProfile = await appConfirm(t('这个 profile 是整合包装的。要不要连整个 profile 目录一起删掉？里面的插件和配置会一起没。'), { title: t('卸载整合包') })
-      }
+      const { name, profile } = record
+      const label = record.displayName || name
+      if (!(await appConfirm(t('撤销 {name} 在环境「{profile}」的安装？配置文件将还原到这次安装前，安装后对这些文件的修改也会撤销。', { name: label, profile }), { title: t('撤销最近安装') }))) return
       packBusy = true
       renderPackGrid()
       renderPackView()
       try {
-        const data = await post('/api/packs/uninstall', { name, profile, removeProfile })
-        if (openedPack && openedPack.name === name && openedPack.profile === profile) openedPack = null
+        const data = await post('/api/packs/uninstall', { name, profile, removeProfile: false })
         applyPluginPayload(data)
+        notify(t('已撤销 {name} 的安装，重启环境后生效。', { name: label }))
       } catch (error) {
         notify(error.message, t('整合包卸载失败'))
       } finally {
@@ -4424,11 +4903,11 @@
       mcpTimeoutEl.value = server?.toolCallTimeoutMs ?? ''
       mcpDialogNoteEl.hidden = true
       syncMcpRows()
-      mcpDialogEl.hidden = false
+      showDialog(mcpDialogEl)
       if (!server) mcpNameEl.focus()
     }
 
-    const closeMcpDialog = () => { mcpDialogEl.hidden = true }
+    const closeMcpDialog = () => { void hideDialog(mcpDialogEl) }
     const noteInDialog = (text) => { mcpDialogNoteEl.textContent = text; mcpDialogNoteEl.hidden = !text }
 
     async function saveMcp() {
