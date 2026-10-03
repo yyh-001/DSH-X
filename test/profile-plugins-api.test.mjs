@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { isolateUserHome } from './isolated-home.mjs'
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -8,7 +9,7 @@ import test from 'node:test'
 test('查看与开关指定 profile 的插件，不改变启动默认值或其它 profile', async (t) => {
   const root = mkdtempSync(join(tmpdir(), 'dsh-profile-plugins-'))
   const home = join(root, 'home')
-  const app = join(root, 'DSH')
+  const app = isolateUserHome(root)
   mkdirSync(app, { recursive: true })
   const port = await new Promise((resolve) => {
     const probe = createServer().listen(0, '127.0.0.1', () => {

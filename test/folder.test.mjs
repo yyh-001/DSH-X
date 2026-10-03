@@ -38,18 +38,21 @@ const contextOf = (home, profile = 'web') => ({ home, profile, profileDir: join(
 const configOf = (target) => ({ store: 'folder', folder: { path: target } })
 
 test('本地目录配置：只认绝对路径，别的都算没填', () => {
-  assert.deepEqual(safeFolderConfig({ path: ' D:\\dsh-backup ' }), { path: 'D:\\dsh-backup' })
+  // 绝对路径按宿主平台解释，Windows 盘符在 macOS 上不是绝对路径。
+  const backup = process.platform === 'win32' ? String.raw`D:\dsh-backup` : '/tmp/dsh-backup'
+  const target = process.platform === 'win32' ? String.raw`D:\x` : '/tmp/x'
+  assert.deepEqual(safeFolderConfig({ path: ` ${backup} ` }), { path: backup })
   assert.deepEqual(safeFolderConfig({}), { path: '' })
   assert.throws(() => safeFolderConfig({ path: 'backup' }), /绝对路径/)
-  assert.equal(folderConfigured({ path: 'D:\\x' }), true)
+  assert.equal(folderConfigured({ path: target }), true)
   assert.deepEqual(folderMissing({}), ['导出目录'])
-  assert.equal(folderDisplayUrl({ path: 'D:\\dsh-backup' }), 'D:\\dsh-backup')
+  assert.equal(folderDisplayUrl({ path: backup }), backup)
   assert.equal(safeStoreType('folder'), 'folder')
   assert.equal(storeLabel({ store: 'folder' }), '本地目录')
-  assert.equal(storeConfigured({ store: 'folder', folder: { path: 'D:\\x' } }), true)
+  assert.equal(storeConfigured({ store: 'folder', folder: { path: target } }), true)
   assert.deepEqual(storeMissing({ store: 'folder', folder: {} }), ['导出目录'])
-  assert.equal(storeDisplayUrl({ store: 'folder', folder: { path: 'D:\\x' } }), 'D:\\x')
-  assert.ok(storeClient({ store: 'folder', folder: { path: 'D:\\x' } }) instanceof LocalDir)
+  assert.equal(storeDisplayUrl({ store: 'folder', folder: { path: target } }), target)
+  assert.ok(storeClient({ store: 'folder', folder: { path: target } }) instanceof LocalDir)
 })
 
 test('导出 → 增量 → 从目录导入：内容、时间戳、清单合并都对得上', async (t) => {

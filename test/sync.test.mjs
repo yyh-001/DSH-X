@@ -298,8 +298,10 @@ test('本地路径依赖两边不一样：本机那份留着，桶里那份摘�
 })
 
 test('本地依赖路径：file:/link:/portal: 才算，相对路径按 profile 目录补', () => {
-  assert.equal(localDepPath('/p', 'file:C:/x'), 'C:/x')
-  assert.equal(localDepPath('C:/p/web', 'file:./local'), join('C:/p/web', 'local'))
+  const absolute = process.platform === 'win32' ? 'C:/x' : '/x'
+  assert.equal(localDepPath('/p', `file:${absolute}`), absolute)
+  const profile = process.platform === 'win32' ? 'C:/p/web' : '/p/web'
+  assert.equal(localDepPath(profile, 'file:./local'), join(profile, 'local'))
   assert.equal(localDepPath('/p', '^1.2.3'), '')
   assert.equal(localDepPath('/p', 'github:a/b'), '')
 })

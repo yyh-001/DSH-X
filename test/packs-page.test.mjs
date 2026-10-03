@@ -55,7 +55,7 @@ test('页面逻辑：一张卡就是一个 profile，点开进详情，开关/�
   assert.match(html, /bindPluginRowEvents\(packPluginListEl, item\.profile\)/, '详情里的插件行按该 profile 绑定')
   assert.match(html, /post\('\/api\/packs\/toggle', \{ profile: item\.profile, enabled \}\)/, '整包开关按 profile 走')
   assert.match(html, /post\('\/api\/packs\/update', \{ profile: item\.profile, \.\.\.\(group \? pluginGroupScope\(group\) : \{\}\) \}\)/, '整包更新按 profile 和插件组走')
-  assert.match(html, /post\('\/api\/packs\/remove-profile'/, '手动拼的 profile 走「删除 profile」')
+  assert.match(html, /post\('\/api\/profiles\/delete'/, '手动拼的 profile 走「删除 profile」')
   assert.match(html, /post\('\/api\/packs\/install'/, '安装走 install')
   assert.match(html, /post\('\/api\/packs\/export'/, '导出走 export')
   assert.match(html, /post\('\/api\/packs\/pick-file'/, '选本地文件走 pick-file')
@@ -74,7 +74,7 @@ test('页面逻辑：一张卡就是一个 profile，点开进详情，开关/�
   assert.match(html, /packSourceTags\(item\)/, '来源是以标签形式标在卡片上的')
   // 卸载（有安装记录）与删除整个 profile（没有记录）是两种动作，各自要确认；确认弹窗用样式化的 appConfirm，不用原生 confirm
   assert.match(html, /appConfirm\(t\('撤销 \{name\}/, '撤销明确点名包和环境，并要求确认')
-  assert.match(html, /appConfirm\(t\('确认删除「\{profile\}」整个目录/, '删整个 profile 目录要再确认一次')
+  assert.match(html, /appConfirm\(t\('删除「\{profile\}」？其中的 \{n\} 个插件/, '删整个 profile 目录要再确认一次')
   assert.ok(!/[^p]confirm\(/.test(html), '不再用原生 confirm 弹窗')
 })
 
@@ -157,4 +157,24 @@ test('按整合包清单分组：共同插件只出现一次，别名可归类�
   assert.equal(empty.length, 1, '已移除的插件不生成空分组')
   assert.equal(empty[0].key, 'other')
   assert.doesNotMatch(html, /class="pack-history"/, '菜单撤去安装记录展示')
+})
+
+// 接口更名和确认文案不能削弱保护：执行页面函数验证取消和确认两条分支。
+test('删除 Profile 先确认，取消不发请求，确认后定向删除', async () => {
+  const calls = []
+  let approved = false
+  const context = { packBusy: false, pluginUpdating: '', openedPack: null, pluginProfile: 'web', state: { profile: 'web' }, t: (s) => s,
+    appConfirm: async () => approved, renderPackGrid() {}, renderPackView() {}, applyPluginPayload() {}, notify() {},
+    post: async (...args) => { calls.push(args); return {} } }
+  const source = html.match(/    async function removeProfileDir\(item\) \{[\s\S]*?\n    \}/)[0]
+  vm.runInNewContext(source, context)
+  const item = { profile: 'work', pluginCount: 2 }
+  await context.removeProfileDir(item)
+  assert.equal(calls.length, 0)
+  approved = true
+  await context.removeProfileDir(item)
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0][0], '/api/profiles/delete')
+  assert.equal(calls[0][1].profile, 'work')
+  assert.equal(context.packBusy, false)
 })

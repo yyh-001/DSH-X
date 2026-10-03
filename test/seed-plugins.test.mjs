@@ -10,6 +10,7 @@
  * 只有 pnpm 那一步被假入口挡掉，正是这里要验的边界。
  */
 import assert from 'node:assert/strict'
+import { isolateUserHome } from './isolated-home.mjs'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -33,7 +34,7 @@ async function freePort() {
 async function startManager() {
   const root = mkdtempSync(join(tmpdir(), 'dsh-seed-plugins-'))
   const appData = join(root, 'appdata')
-  const appDir = join(appData, 'DSH')
+  const appDir = isolateUserHome(root, appData)
   const dataDir = join(root, 'data')
   const home = join(root, 'dsh-home')
   mkdirSync(appDir, { recursive: true })

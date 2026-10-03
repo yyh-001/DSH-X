@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { isolateUserHome } from './isolated-home.mjs'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -8,7 +9,7 @@ import { readPackState, rememberPack } from '../packs.js'
 
 test('环境操作保护：多实例、写锁、恢复目标与托盘状态', async (t) => {
   const root = mkdtempSync(join(tmpdir(), 'dsh-profile-ops-'))
-  const app = join(root, 'DSH')
+  const app = isolateUserHome(root)
   const home = join(root, 'home')
   const data = join(root, 'data')
   const probe = createServer()

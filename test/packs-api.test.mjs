@@ -3,6 +3,7 @@
  * 并且放一个「假 dsh 入口」当 plugin 命令的落点（真跑 pnpm 装几十个包不是单测该干的事）。
  */
 import assert from 'node:assert/strict'
+import { isolateUserHome } from './isolated-home.mjs'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs'
 import { createServer as createHttpServer } from 'node:http'
 import { createServer } from 'node:net'
@@ -49,13 +50,13 @@ function demoPack(file, { name = 'demo' } = {}) {
 /**
  * 起一套隔离的管理页。
  *
- * 隔离靠三件事：APPDATA 指向临时目录（settings.json 与日志都写在那儿）、DSH_VERSIONS_DATA
+ * 隔离靠三件事：HOME / APPDATA 指向临时目录（settings.json 与日志都写在那儿）、DSH_VERSIONS_DATA
  * 指向临时版本目录、settings.json 里的 dshHome 指向临时家目录。假 dsh 入口只是个立刻退出的
  * 空脚本——`dsh plugin …` 那条路走通了就够，装依赖本身不是这里要测的。
  */
 async function startManager() {
   const root = mkdtempSync(join(tmpdir(), 'dsh-packs-api-'))
-  const appDir = join(root, 'appdata', 'DSH')
+  const appDir = isolateUserHome(root, join(root, 'appdata'))
   const dataDir = join(root, 'data')
   const home = join(root, 'dsh-home')
   mkdirSync(appDir, { recursive: true })
@@ -302,7 +303,7 @@ test('整合包接口', async (t) => {
     // 删除整个 profile：当前 profile 与 dsh 自带模板都不许删
     const current = await manager.call('/api/packs/remove-profile', { profile: 'web' })
     assert.equal(current.status, 400)
-    assert.match(current.data.error, /正在用的那个/)
+    assert.match(current.data.error, /启动器的默认环境，不能删除/)
     const template = await manager.call('/api/packs/remove-profile', { profile: 'sdk' })
     assert.equal(template.status, 400)
     assert.match(template.data.error, /自带的 profile 模板/)

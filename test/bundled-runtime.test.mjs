@@ -199,8 +199,8 @@ test('指名的 pnpm 目录顶到 PATH 最前（自带那份也可以）', () =>
 
 // issue #31：让系统里的 PowerShell / CMD 也能直接用 dsh —— 用户 PATH 里那条 shim 目录的增删
 test('pathWithEntry：追加在末尾（不抢用户已有的命令），撤销时清干净', () => {
-  const dir = 'C:\Users\a\AppData\Roaming\DSH\bin'
-  const pathValue = ['C:\Windows', 'C:\Program Files\nodejs'].join(delimiter)
+  const dir = process.platform === 'win32' ? String.raw`C:\Users\a\AppData\Roaming\DSH\bin` : '/tmp/Test Home/DSH/bin'
+  const pathValue = (process.platform === 'win32' ? [String.raw`C:\Windows`, String.raw`C:\Program Files\nodejs`] : ['/usr/bin', '/bin']).join(delimiter)
   const on = pathWithEntry(pathValue, dir, true)
   assert.equal(on.split(delimiter).pop(), dir, '追加在末尾')
   assert.equal(pathWithEntry(on, dir, true), on, '重复开启不叠加')

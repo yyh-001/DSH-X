@@ -28,15 +28,18 @@ const contextOf = (home, profile = 'web') => ({ home, profile, profileDir: join(
 const configOf = (file) => ({ store: 'zip', zip: { path: file } })
 
 test('ZIP 配置：绝对路径 + .zip 结尾，脏值回默认', () => {
-  assert.deepEqual(safeZipConfig({ path: ' D:\\a\\b.zip ' }), { path: 'D:\\a\\b.zip' })
+  const backup = WIN ? String.raw`D:\a\b.zip` : '/tmp/a/b.zip'
+  const target = WIN ? String.raw`D:\x.zip` : '/tmp/x.zip'
+  const wrongSuffix = WIN ? String.raw`D:\backup.txt` : '/tmp/backup.txt'
+  assert.deepEqual(safeZipConfig({ path: ` ${backup} ` }), { path: backup })
   assert.deepEqual(safeZipConfig({}), { path: '' })
   assert.throws(() => safeZipConfig({ path: 'backup.zip' }), /绝对路径/)
-  assert.throws(() => safeZipConfig({ path: 'D:\\backup.txt' }), /\.zip/)
+  assert.throws(() => safeZipConfig({ path: wrongSuffix }), /\.zip/)
   assert.equal(storeLabel({ store: 'zip' }), 'ZIP 文件')
-  assert.equal(storeConfigured({ store: 'zip', zip: { path: 'D:\\x.zip' } }), true)
+  assert.equal(storeConfigured({ store: 'zip', zip: { path: target } }), true)
   assert.deepEqual(storeMissing({ store: 'zip', zip: {} }), ['ZIP 文件'])
-  assert.equal(storeDisplayUrl({ store: 'zip', zip: { path: 'D:\\x.zip' } }), 'D:\\x.zip')
-  assert.ok(storeClient({ store: 'zip', zip: { path: 'D:\\x.zip' } }) instanceof ZipStore)
+  assert.equal(storeDisplayUrl({ store: 'zip', zip: { path: target } }), target)
+  assert.ok(storeClient({ store: 'zip', zip: { path: target } }) instanceof ZipStore)
 })
 
 test('导出成一个包 → 增量再导 → 换台机器导入：内容、清单、时间戳都对', async (t) => {

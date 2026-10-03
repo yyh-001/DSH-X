@@ -8,6 +8,7 @@
  * APP_DIR / 版本目录都是 import 时定下的，所以环境要在 import server.js 之前摆好。
  */
 import assert from 'node:assert/strict'
+import { isolateUserHome } from './isolated-home.mjs'
 import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -26,7 +27,7 @@ function freePort() {
 }
 
 const appDir = mkdtempSync(join(tmpdir(), 'dsh-autoclean-'))
-const APP = join(appDir, 'DSH')
+const APP = isolateUserHome(appDir)
 const DATA = join(appDir, 'data')
 const ROOT = join(DATA, 'versions')
 process.env.APPDATA = appDir
@@ -57,7 +58,13 @@ function installVersions(...versions) {
 
 const onDisk = () => readdirSync(ROOT).sort()
 
-const { pruneVersions } = await import('../server.js')
+const { pruneVersions, snapshot } = await import('../server.js')
+
+// 受管 fixture 还未生成，只精确允许此时已发现的全局版本，不能过滤掉后来混入的条目。
+const initialVersions = (await snapshot()).versions
+assert.ok(initialVersions.every((item) => item.managed === false), '临时版本目录起初应为空')
+assert.ok(initialVersions.length <= 1, '系统发现逻辑最多提供一个全局版本')
+const knownSystemVersions = initialVersions.map((item) => item.version)
 
 test.after(() => rmSync(appDir, { recursive: true, force: true }))
 
@@ -66,7 +73,8 @@ test('默认（设置里没这个键）：装完新版留下最新的和最近�
   const config = { versions: ['0.1.13', '0.1.12', '0.1.11'] }
   assert.deepEqual(await pruneVersions(config), ['0.1.11'])
   assert.deepEqual(onDisk(), ['0.1.12', '0.1.13'])
-  assert.deepEqual(config.versions, ['0.1.13', '0.1.12'], '顺手把配置里的版本列表也收拾干净')
+  const expectedVersions = [...new Set(['0.1.13', '0.1.12', ...knownSystemVersions])]
+  assert.deepEqual(config.versions, expectedVersions, '完整列表只保留存活的受管版本和预先记录的全局版本，拒绝额外条目')
 })
 
 test('设置里关掉之后：一个都不删，配置也不动', async () => {
