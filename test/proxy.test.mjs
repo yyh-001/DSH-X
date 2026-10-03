@@ -11,6 +11,7 @@
  * 「设置里选了什么，netFetch 就往哪走」，所以先把 APPDATA 指到临时目录，再动态导入。
  */
 import assert from 'node:assert/strict'
+import { isolateUserHome } from './isolated-home.mjs'
 import { createServer as createHttpServer, get } from 'node:http'
 import { createServer as createHttpsServer } from 'node:https'
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
@@ -21,9 +22,9 @@ import { Readable } from 'node:stream'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-// 换成临时 APPDATA 必须在导入 settings.js / platform.js 之前（它们导入时就读环境变量）
+// 换成临时 HOME / APPDATA 必须在导入 settings.js / platform.js 之前（它们导入时就读环境变量）
 const APP_DATA = mkdtempSync(join(tmpdir(), 'dsh-proxy-appdata-'))
-process.env.APPDATA = APP_DATA
+const SETTINGS_DIR = isolateUserHome(APP_DATA)
 process.env.XDG_CONFIG_HOME = APP_DATA
 delete process.env.HTTPS_PROXY
 delete process.env.https_proxy
@@ -52,10 +53,10 @@ const {
 } = core
 const { DEFAULTS, normalizeProxyUrl, safeProxyMode, safeProxyUrl } = settings
 
-const SETTINGS_FILE = join(APP_DATA, 'DSH', 'settings.json')
+const SETTINGS_FILE = join(SETTINGS_DIR, 'settings.json')
 /** 把设置写进临时 settings.json，然后按它解析一遍（探测缓存要清掉）。 */
 async function writeSettings(patch) {
-  await mkdir(join(APP_DATA, 'DSH'), { recursive: true })
+  await mkdir(SETTINGS_DIR, { recursive: true })
   writeFileSync(SETTINGS_FILE, JSON.stringify(patch, null, 2))
   resetProxyCache()
 }

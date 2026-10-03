@@ -13,6 +13,7 @@
  * 除此之外什么都不做——这条链路上只有启动器与 dsh 之间的协议是真的。
  */
 import assert from 'node:assert/strict'
+import { isolateUserHome } from './isolated-home.mjs'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -50,7 +51,7 @@ function freePort() {
 
 // 环境要在 import server.js 之前摆好：APP_DIR / 版本目录 / dsh 用户目录都是模块加载时定的
 const appDir = mkdtempSync(join(tmpdir(), 'dsh-multi-'))
-const APP = join(appDir, 'DSH')
+const APP = isolateUserHome(appDir)
 const DATA = join(appDir, 'data')
 const HOME = join(appDir, 'home')
 process.env.APPDATA = appDir

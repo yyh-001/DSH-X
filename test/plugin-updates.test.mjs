@@ -22,7 +22,7 @@ test('更新检查跳过官方组件，且不盲信 dist-tags 的最新', () => 
 
 test('装完回读磁盘确认版本真的换了，失败要说清', () => {
   assert.match(server, /async function updatePlugin\(name, \{ latest = '', profile = PROFILE_NAME \} = \{\}\)/)
-  assert.match(server, /await addPlugin\(await pluginCommandVersion\(\), `\$\{name\}@\$\{target\}`, \{ profile \}\)/, '升级复用 addPlugin，并定向到目标 profile')
+  assert.match(server, /await addPlugin\(await pluginCommandVersion\(profile\), `\$\{name\}@\$\{target\}`, \{ profile \}\)/, '升级复用 addPlugin，并定向到目标 profile')
   assert.match(server, /const after = listPlugins\(profileDirOf\(profile\)\)\.plugins\.find/, '装完回读同一 profile 清单')
   assert.match(server, /不是 \$\{target\}（看终端日志/, '版本没换要报出来，而不是看成成功')
   assert.match(server, /pluginUpdateCache\.at = 0/, '更新完让下次检查重新拉')

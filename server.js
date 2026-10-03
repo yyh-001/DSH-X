@@ -936,6 +936,8 @@ async function publicSettings() {
     ],
     systemPath: SYSTEM_PATH,
     systemBinDir: systemBinDir(),
+    systemPathMode: IS_WINDOWS ? 'automatic' : 'manual',
+    systemPathCommand: manualPathCommand(systemBinDir()),
     updateSource: updateSourceForDownload(stored.downloadSource),
     updateSources: [
       { id: 'mirror', label: '国内加速（先直连，连不上走镜像）' },
@@ -1071,6 +1073,7 @@ async function dropInstancePorts(version) {
 }
 
 async function saveManagerSettings(body) {
+  let systemPathResult
   if (body.dataDir) {
     const dir = safeDataDir(body.dataDir)
     if (dir !== DATA && instances.size) throw new Error('请先停止再改版本目录')
@@ -1140,6 +1143,7 @@ async function saveManagerSettings(body) {
   if ('systemPath' in body) {
     SYSTEM_PATH = stored.systemPath === true
     const result = applySystemPath(SYSTEM_PATH)
+    systemPathResult = result
     if (!result.ok) pushLog(`系统 PATH 未改：${result.message}`)
     else if (SYSTEM_PATH) writeDshShims(activeVersion() || '', { dir: result.dir })
   }
@@ -1186,7 +1190,7 @@ async function saveManagerSettings(body) {
     if (versions[0] && !pluginBusy) await seedBundledPlugins(versions[0])
   }
   await emitState()
-  return publicSettings()
+  return { ...await publicSettings(), ...(systemPathResult ? { systemPathResult } : {}) }
 }
 
 async function emitState() {
@@ -1433,6 +1437,17 @@ export function pathWithEntry(pathValue, dir, enabled) {
   return next.join(delimiter)
 }
 
+/** 手动指令追加在末尾，让用户已有命令优先；目录作为 shell 字面量，不展开其中的 $。 */
+export function manualPathCommand(dir) {
+  return `export PATH="$PATH":'${String(dir).replaceAll("'", "'\\''")}'`
+}
+
+export function manualPathMessage(enabled, dir) {
+  return enabled
+    ? `需要在 shell 配置中手动添加：${manualPathCommand(dir)}；保存后重新打开终端。启动器不会修改 shell 配置。`
+    : `如曾手动添加，请在 shell 配置中移除添加 ${dir} 的 PATH 配置，再重新打开终端。启动器不会修改 shell 配置。`
+}
+
 /** 读/写用户级 PATH（Windows：HKCU\Environment，按 REG_EXPAND_SZ 原样写，不展开变量）。 */
 function readUserPath() {
   const out = spawnSync('reg', ['query', 'HKCU\\Environment', '/v', 'Path'], { encoding: 'utf8', windowsHide: true })
@@ -1454,7 +1469,7 @@ function writeUserPath(value) {
 export function applySystemPath(enabled) {
   const dir = systemBinDir()
   if (!IS_WINDOWS) {
-    return { ok: false, dir, message: `${IS_MAC ? 'macOS' : '当前平台'}需要在 shell 配置里自己加：export PATH="${dir}:$PATH"` }
+    return { ok: false, dir, message: manualPathMessage(enabled, dir) }
   }
   const next = pathWithEntry(readUserPath(), dir, enabled)
   if (!writeUserPath(next)) return { ok: false, dir, message: '写用户 PATH 失败（注册表 HKCU\Environment 不可写？）' }

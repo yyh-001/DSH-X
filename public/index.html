@@ -395,7 +395,7 @@
                 <label class="toggle set-row" id="systemPathRow">
                   <span class="set-text">
                     <span class="set-name" data-i18n="把 dsh 加到系统 PATH">把 dsh 加到系统 PATH</span>
-                    <span class="set-desc" data-i18n="在终端直接运行 dsh，开启后请重新打开终端。">在终端直接运行 dsh，开启后请重新打开终端。</span>
+                    <span class="set-desc" data-i18n="在终端直接运行 dsh；请按下方提示完成 PATH 配置。">在终端直接运行 dsh；请按下方提示完成 PATH 配置。</span>
                     <p class="hint" id="systemPathHint"></p>
                   </span>
                   <input type="checkbox" id="systemPath" />
@@ -908,8 +908,11 @@
   "已强制启用 host 层技能行（与 agent 预设那份叠加）。dsh 在跑会热加载。": "Host skill rows force-enabled (layered with the agent preset). dsh hot-reloads while running.",
   "已清除覆盖，host 层两行回到模板默认。本地技能不受影响。": "Override cleared; the two host rows are back to the template default. Local skills are unaffected.",
   "把 dsh 加到系统 PATH": "Add dsh to the system PATH",
-  "在终端直接运行 dsh，开启后请重新打开终端。": "Run dsh from the terminal. Reopen the terminal after enabling.",
+  "在终端直接运行 dsh；请按下方提示完成 PATH 配置。": "Run dsh from the terminal; follow the PATH instructions below.",
   "shim 目录：{dir}": "Shim folder: {dir}",
+  "请在 shell 配置中手动添加：{command}；保存后重新打开终端。启动器不会修改 shell 配置。": "Add this to your shell configuration: {command}; then reopen the terminal. The launcher does not edit shell configuration.",
+  "如曾手动添加，请在 shell 配置中移除添加 {dir} 的 PATH 配置，再重新打开终端。启动器不会修改 shell 配置。": "If you added it manually, remove the PATH entry for {dir} from your shell configuration, then reopen the terminal. The launcher does not edit shell configuration.",
+  "用户 PATH 未能修改，请查看日志。": "Could not update the user PATH. Check the logs.",
   "已写入用户 PATH，新开一个终端就能用 dsh。": "Added to the user PATH; open a new terminal to use dsh.",
   "已从用户 PATH 移除。": "Removed from the user PATH.",
   "日志": "Logs",
@@ -3073,6 +3076,22 @@
     const pickDshHomeEl = document.getElementById('pickDshHome')
     const systemPathEl = document.getElementById('systemPath')
     const systemPathHint = document.getElementById('systemPathHint')
+    let savedSystemPath = false
+    function showSystemPathSettings(data) {
+      savedSystemPath = data.systemPath === true
+      systemPathEl.checked = savedSystemPath
+      if (data.systemPathMode === 'manual') {
+        systemPathHint.textContent = savedSystemPath
+          ? t('请在 shell 配置中手动添加：{command}；保存后重新打开终端。启动器不会修改 shell 配置。', { command: data.systemPathCommand })
+          : t('如曾手动添加，请在 shell 配置中移除添加 {dir} 的 PATH 配置，再重新打开终端。启动器不会修改 shell 配置。', { dir: data.systemBinDir })
+      } else if (data.systemPathResult) {
+        systemPathHint.textContent = data.systemPathResult.ok
+          ? t(savedSystemPath ? '已写入用户 PATH，新开一个终端就能用 dsh。' : '已从用户 PATH 移除。')
+          : t('用户 PATH 未能修改，请查看日志。')
+      } else {
+        systemPathHint.textContent = t('shim 目录：{dir}', { dir: data.systemBinDir })
+      }
+    }
     const openModeEl = document.getElementById('openMode')
     const openModeHint = document.getElementById('openModeHint')
     const describeOpenMode = () => ''
@@ -3174,8 +3193,7 @@
           : t('正在用默认位置：{path}', { path: fallback })
       }
       if ('systemPath' in data) {
-        systemPathEl.checked = data.systemPath === true
-        systemPathHint.textContent = ''
+        showSystemPathSettings(data)
       }
       if ('openMode' in data) {
         const modes = Array.isArray(data.openModes) && data.openModes.length
@@ -3270,6 +3288,11 @@
       settingsHint.textContent = ''
       try {
         const data = await post('/api/settings', patch)
+        if ('systemPath' in patch) {
+          // 更新点击只保护界面意图；后续请求失败时仍要回到最近一次成功保存的值。
+          savedSystemPath = data.systemPath === true
+          if (!pendingSettings.has('systemPath')) showSystemPathSettings(data)
+        }
         if ('autoStart' in patch && !pendingSettings.has('autoStart')) {
           autoStartEl.checked = Boolean(data.autoStart)
         }
@@ -3322,6 +3345,10 @@
           settingsHint.textContent = ''
         }
       } catch (error) {
+        if ('systemPath' in patch && !pendingSettings.has('systemPath')) {
+          systemPathEl.checked = savedSystemPath
+          systemPathHint.textContent = error.message
+        }
         if ('theme' in patch && !pendingSettings.has('theme')) {
           window.setLauncherTheme(savedTheme)
           themeEls.forEach((input) => { input.checked = input.value === savedTheme })
@@ -3357,7 +3384,7 @@
     }
     systemPathEl.onchange = () => {
       queueSetting('systemPath', systemPathEl.checked)
-      settingsHint.textContent = systemPathEl.checked ? t('已写入用户 PATH，新开一个终端就能用 dsh。') : t('已从用户 PATH 移除。')
+      systemPathHint.textContent = t('正在保存…')
     }
     openModeEl.onchange = () => {
       openModeHint.textContent = describeOpenMode(openModeEl.value)

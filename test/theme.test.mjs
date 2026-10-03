@@ -16,7 +16,7 @@ test('外观默认跟随系统，历史错误值退回系统主题', () => {
 
 test('外观页提供三种主题，选择后立即应用并自动提交', () => {
   assert.match(html, /data-theme="__APP_THEME__"/)
-  assert.match(html, /href="\/theme\.css"/)
+  assert.match(html, /href="\/theme\.css(?:\?[^"\s]*)?"/)
   for (const value of ['system', 'light', 'dark']) {
     assert.match(html, new RegExp(`name="theme" value="${value}"`))
   }
