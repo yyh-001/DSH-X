@@ -576,7 +576,7 @@
         <p class="hint" id="recoveryHint" hidden></p>
       <div class="launch-save-actions">
         <button class="ghost launch-repair" id="launchRecover" type="button" title="修复环境" aria-label="修复环境"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg></button>
-        <button class="ghost launch-delete" id="launchDelete" type="button" hidden data-i18n="删除启动项">删除启动项</button>
+        <button class="ghost launch-delete" id="launchDelete" type="button" hidden title="删除启动项" aria-label="删除启动项" data-i18n-title="删除启动项" data-i18n-aria-label="删除启动项"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg></button>
         <span class="launch-save-spacer"></span>
         <button class="ghost" id="launchCancel" type="button" data-i18n="取消">取消</button>
         <button class="primary" id="launchSave" type="submit" data-i18n="保存">保存</button>
@@ -2428,7 +2428,10 @@
         const rowStatus = busy || ownAction ? label : live?.status === 'running' ? t('运行中') : ''
         const automaticHint = entry.version === 'auto' ? t('优先使用正在运行的版本，否则选择本机最新已安装版本；未安装时会在首次启动下载最新版。新版本需要手动更新。') : ''
         const latest = latestRemoteVersion()
-        const hasNewVersion = version && latest && compareVersion(latest, version) > 0
+        // 「新版本」只给 auto 条目看：钉死版本的启动项是故意留的，冒一个更新按钮出来
+        // 会把钉子拔掉、跟别的条目撞成同一个实例（两张一样的卡就是这么来的）；
+        // 想动钉子走「编辑启动项」的版本下拉。
+        const hasNewVersion = entry.version === 'auto' && version && latest && compareVersion(latest, version) > 0
         const installNote = !installedList().includes(version) && !live ? t('首次启动会自动安装') : ''
         return `<div class="launch-preset">
           <span class="launch-app-icon" aria-hidden="true">${launchIconMarkup(entry.icon)}</span>
@@ -2479,8 +2482,18 @@
         button.onclick = () => {
           const entry = launchEntries().find((item) => item.id === button.dataset.versionId)
           if (!entry) return
-          openVersionManager(entry)
-          document.getElementById('versionManageUpdate').click()
+          // 直达带风险提示的更新确认框；版本管理是管理已装版本的地方，不是必经跳板
+          // （旧走法还要程序化点一下「安装最新版」，最新版已装时那按钮是禁用的，点了就晾在版本管理里）。
+          // 拿不到远端版本号才退回版本管理，那里有「暂时无法获取」的提示。
+          const latest = latestRemoteVersion()
+          if (!latest) { openVersionManager(entry); return }
+          showAsk({
+            dsh: {
+              current: resolveLaunchVersion(entry) || latest,
+              latest,
+              target: { version: resolveLaunchVersion(entry) || latest, profile: entry.profile || 'web', dshHome: entry.dshHome || state.dshHome, launchId: entry.id, preserveSelection: true },
+            },
+          })
         }
       })
       launchPresetsEl.querySelectorAll('[data-plugins-id]').forEach((button) => {
@@ -2813,6 +2826,15 @@
           action = 'update'
           render()
           await post('/api/install', { version: latest })
+        }
+        // 启动项钉在旧版时把钉子拔到新版：不然「新版已装 + 实例没在跑」的组合下，
+        // 这次更新没有任何可见效果，卡片会永远挂着「新版本」（auto 条目自己会漂到最新，不用管）。
+        const entry = target?.launchId ? launchEntries().find((item) => item.id === target.launchId) : null
+        if (entry && entry.version !== 'auto' && entry.version !== latest) {
+          try {
+            const data = await post('/api/launch-presets', { ...entry, version: latest })
+            state.launchPresets = [...launchEntries().filter((item) => item.id !== data.entry.id), data.entry]
+          } catch (error) { notify(error.message) }
         }
         if (wasLive) {
           await startVersion(latest, targetProfile, null, target?.launchId)

@@ -95,6 +95,8 @@ html[data-color-scheme="dark"] .pack-more-actions .ghost { background: transpare
 html[data-color-scheme="dark"] .pack-more-actions .ghost:hover:not(:disabled) { background: var(--accent-soft); border-color: transparent; }
 html[data-color-scheme="dark"] .pack-more-actions .ghost.danger { color: #f2797f; }
 html[data-color-scheme="dark"] .pack-more-actions .ghost.danger:hover:not(:disabled) { background: rgba(225, 29, 72, 0.16); }
+/* 编辑启动项的删除图标钮：悬停铺同款淡玫瑰红（浅色主题那条 #fff1f2 在暗色里太亮） */
+html[data-color-scheme="dark"] .launch-save-actions .launch-delete:hover:not(:disabled) { background: rgba(225, 29, 72, 0.16); border-color: rgba(225, 29, 72, 0.35); }
 html[data-color-scheme="dark"] .ghost:hover:not(:disabled),
 html[data-color-scheme="dark"] #restart.icon-btn:hover:not(:disabled),
 html[data-color-scheme="dark"] #update.icon-btn:hover:not(:disabled),

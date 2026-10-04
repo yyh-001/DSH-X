@@ -389,14 +389,15 @@ const KEEP_VERSIONS = 2
  * `versions[0]` 是 install() 刚插到最前面的那个，**不是**「版本号最高的那个」——
  * 用户可以挑一个旧版本装。只按位置取前两个的话，装旧版就会把最新版删掉。
  * `running` 收多开的全部实例（历史调用传单个版本号，一起认）。
+ * `pinned` 收启动项钉住的版本：删了它，那张卡下次启动就得整个重装一遍（也是「在用」）。
  */
-export function versionsToKeep(versions, running, limit = KEEP_VERSIONS) {
+export function versionsToKeep(versions, running, limit = KEEP_VERSIONS, pinned = []) {
   if (!versions.length) return new Set()
   const [installed, ...rest] = versions
   const ranked = [...rest].sort((a, b) =>
     cmpVer(parseVer(b) ?? parseVer('0'), parseVer(a) ?? parseVer('0')))
   const keep = new Set([installed, ...ranked.slice(0, Math.max(0, limit - 1))])
-  for (const version of [running ?? []].flat()) {
+  for (const version of [...[running ?? []].flat(), ...[pinned ?? []].flat()]) {
     if (version) keep.add(version)
   }
   return keep
@@ -411,7 +412,7 @@ export function autoCleanEnabled(settings) {
 }
 
 /**
- * 装完新版后按设置保留指定数量，正在运行的版本额外保留。
+ * 装完新版后按设置保留指定数量；正在运行的版本、启动项钉住的版本额外保留。
  * 设置里关掉「自动清理旧版本」后一个都不删。
  * @returns 被清理掉的版本号
  */
@@ -424,7 +425,9 @@ async function pruneVersions(config) {
     pushLog(`自动清理旧版本已关闭，${versions.length} 个已装版本全部保留`)
     return []
   }
-  const keep = versionsToKeep(versions, instanceList().map((proc) => proc.version), limit)
+  const keep = versionsToKeep(versions, instanceList().map((proc) => proc.version), limit,
+    // 钉住（version ≠ auto）的启动项哪怕没在跑，它要的版本也不能清
+    (settings.launchPresets ?? []).filter((preset) => preset.version && preset.version !== 'auto').map((preset) => preset.version))
   const removed = []
   for (const version of versions) {
     if (keep.has(version)) continue

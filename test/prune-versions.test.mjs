@@ -61,6 +61,14 @@ test('多开时每个在跑的版本都要留下', () => {
   )
 })
 
+test('启动项钉住的版本也是「在用」，最旧也不清', () => {
+  // DSH-X 卡钉着 0.2.0-rc.2，装了 rc.1 之后清理把它删了，那张卡只能「首次启动会自动安装」
+  const keep = versionsToKeep(['0.2.0-rc.1', '0.2.1-alpha.1', '0.2.0-rc.2'], [], 2, ['0.2.0-rc.2'])
+  assert.equal(keep.has('0.2.0-rc.2'), true)
+  assert.equal(keep.has('0.2.0-rc.1'), true)
+  assert.equal(keep.has('0.2.1-alpha.1'), true)
+})
+
 test('预发布版按 semver 比，不按字符串比', () => {
   // alpha.10 比 alpha.2 新，所以它该排在 alpha.2 前面、被优先保留
   assert.deepEqual(

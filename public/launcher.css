@@ -473,9 +473,10 @@ html.reduce-motion .launch-status.is-working::before { animation: none; }
 .launch-save-actions button { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; width: 80px; min-width: 80px; height: 36px; padding: 0 14px; border: 1px solid var(--line); border-radius: 9px; font-size: 12px; font-weight: 600; line-height: 1; }
 .launch-save-actions button[hidden] { display: none; }
 .launch-save-actions .primary { border-color: transparent; }
-.launch-save-actions .launch-delete { color: var(--danger); }
-.launch-save-actions .launch-delete { width: auto; min-width: 0; }
-.launch-save-actions .launch-delete { padding: 0 6px; border-color: transparent; background: transparent; font-weight: 500; white-space: nowrap; }
+/* 删除与旁边的修复扳手同规格：36px 图标方框，但用危险色、悬停铺红底 */
+.launch-save-actions .launch-delete { flex: 0 0 auto; width: 36px; min-width: 36px; height: 36px; padding: 8px; color: var(--danger); }
+.launch-save-actions .launch-delete svg { flex: 0 0 18px; width: 18px; height: 18px; }
+.launch-save-actions .launch-delete:hover:not(:disabled) { background: #fff1f2; border-color: #fecdd3; }
 .launch-save-spacer { flex: 1 1 auto; }
 .launch-save-actions .launch-repair { flex: 0 0 auto; width: auto; min-width: 0; padding: 0 4px; gap: 6px; border-color: transparent; background: transparent; color: var(--muted); font-weight: 500; white-space: nowrap; }
 .launch-save-actions .launch-repair:hover:not(:disabled) { color: var(--text); background: var(--accent-soft); }
