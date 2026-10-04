@@ -691,9 +691,10 @@ async function installSelfUpdate() {
     {
       stdio: 'ignore',
       windowsHide: true,
-      // 跟 VS Code 学的一招：压掉继承来的兼容性设置，免得启动器被提权运行时
-      // 安装程序跟着提权——我们装的是用户目录，提权反而会装到别处去
-      env: { ...process.env, __COMPAT_LAYER: 'RunAsInvoker' },
+      // 千万别设 __COMPAT_LAYER（哪怕只是想压掉继承来的兼容层）：新版 Inno 是双进程模型，
+      // 外层 exe 要自己拉起 .tmp 引擎进程，带了这个变量引擎永远起不来——不弹窗、不写日志、
+      // 不报错，就那么挂着（2026-10-04 更新卡死就是这么来的）。安装脚本本来就是
+      // PrivilegesRequired=lowest，装的是用户目录，不需要任何兼容层去压提权。
     },
   ).unref()
 
