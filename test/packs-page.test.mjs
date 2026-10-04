@@ -82,10 +82,11 @@ test('切换安装目标会重新检查，关闭后的旧请求不能复活预�
   let resolvePost
   const calls = []
   const context = vm.createContext({
+    AbortController, packInspectAbort: null,
     packBusy: false, packInspection: { token: 'cached', ok: true }, packTargetProfile: '', packInspectRequest: 0,
     openedPack: { profile: 'work' }, pluginProfile: 'web', packState: {}, state: {},
     packInstallDialog: {}, document: { getElementById: () => ({}) },
-    openImportDialog() {}, closeMarketDetail() {}, showPackDialog() {}, renderPackMarket() {}, renderPackBuiltin() {}, renderPackInspect() {},
+    openImportDialog() {}, closeMarketDetail() {}, showPackDialog() {}, hidePackDialog() {}, renderPackMarket() {}, renderPackBuiltin() {}, renderPackInspect() {}, renderPackView() {}, packInstalling: false,
     packHintEl: {}, t: (text) => text, notify() {},
     post: (path, body) => { calls.push({ path, body }); return new Promise((resolve) => { resolvePost = resolve }) },
   })
@@ -95,17 +96,23 @@ test('切换安装目标会重新检查，关闭后的旧请求不能复活预�
   assert.equal(calls[0].body.profile, 'other')
   assert.equal(context.packTargetProfile, 'other')
   assert.equal(context.packInspection.ok, false, '重算完成前不能安装旧计划')
+  new vm.Script(slice('function closeInstallDialog()', "document.getElementById('packDetailClose')")).runInContext(context)
+  const signal = context.packInspectAbort.signal
+  context.closeInstallDialog()
+  assert.equal(signal.aborted, true, '关闭时中止下载，不等远端响应才恢复操作')
+  assert.equal(context.packBusy, false)
+  context.packBusy = true
   context.packInspectRequest += 1
-  context.packInspection = null
   resolvePost({ ok: true, target: { profile: 'other' } })
   await pending
   assert.equal(context.packInspection, null, '关闭后到达的结果被丢弃')
-  assert.equal(context.packBusy, false)
+  assert.equal(context.packBusy, true, '旧响应不能清掉新检查的忙碌状态')
 })
 
 test('安装前必须有对应目标的有效检查结果；安装中取消不清空状态', async () => {
   let calls = 0
   const context = vm.createContext({
+    launcherRunning: () => false,
     packBusy: false, packInspection: { ok: true, target: { profile: 'old' } }, packTargetProfile: 'new',
     post() { calls += 1 }, packInstalling: true,
     hidePackDialog() { calls += 1 }, packInstallDialog: {}, renderPackInspect() {},

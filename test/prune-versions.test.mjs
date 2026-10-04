@@ -30,7 +30,7 @@ test('只有显式 false 才算关掉', () => {
 test('闸门在删文件之前：关掉后一个版本都不删', () => {
   assert.match(
     server,
-    /if \(!autoCleanEnabled\(await loadSettings\(\)\)\) \{[\s\S]{0,240}?return \[\]/,
+    /if \(!autoCleanEnabled\(settings\)\) \{[\s\S]{0,240}?return \[\]/,
     '关掉设置就直接返回，走不到下面的 rm',
   )
   assert.match(server, /自动清理旧版本已关闭/, '日志里说清为什么没清理')

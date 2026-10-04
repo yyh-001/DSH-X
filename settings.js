@@ -217,6 +217,8 @@ export const DEFAULTS = {
   profile: DEFAULT_PROFILE,
   // 钉死端口的实例（键 `版本@profile`）：没钉的组合每次启动由系统挑，见 safeInstancePorts
   instancePorts: {},
+  // 额外 DSH_HOME 的固定端口；默认目录仍沿用 instancePorts。
+  environmentPorts: {},
   // 旧设置没有启动项时，读取侧会补上内置默认项，首次使用无需先填参数。
   launchPresets: [],
   // 界面语言：zh / en（安装时选的语言写进安装目录的 lang.txt，启动器读一次落到这里）
@@ -251,6 +253,7 @@ export const DEFAULTS = {
   // 装完新版本后自动清理更旧的版本（只留最新的和最近装的一个）。
   // 关掉就全部留着：回退时想退到哪个版本都在，代价是每个版本好几百 MB
   autoCleanVersions: true,
+  keepVersions: 2,
   // 把 dsh 的 shim 目录写进用户 PATH（HKCU\Environment），让系统里也能直接用 dsh
   systemPath: false,
   // 用户在更新弹窗里点过「不更新」的版本 { dsh?, self? }：同一个版本不再提示
@@ -326,8 +329,44 @@ export function safeInstancePorts(value) {
   return out
 }
 
+/** 按绝对目录隔离固定端口，坏的历史数据直接丢弃。 */
+export function safeEnvironmentPorts(value) {
+  const out = {}
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return out
+  for (const [rawHome, ports] of Object.entries(value)) {
+    let home
+    try { home = safeDshHome(rawHome) } catch { continue }
+    if (home) out[home] = safeInstancePorts(ports)
+  }
+  return out
+}
+
 export const DEFAULT_LAUNCH_ID = '0000000000000000'
 export const DEFAULT_LAUNCH = { id: DEFAULT_LAUNCH_ID, name: 'DSH', version: 'auto', profile: 'web', port: 0 }
+
+/** 保留数量有下限，填错不能被当成 0 导致历史版本全部被清走。 */
+export function safeKeepVersions(value) {
+  if (value === undefined || value === null) return 2
+  const count = Number(value)
+  if (!Number.isInteger(count) || count < 1 || count > 20) throw new Error('保留版本数量应为 1 到 20')
+  return count
+}
+
+export const LAUNCH_ICONS = ['terminal', 'code', 'globe', 'folder', 'sparkles', 'rocket']
+
+/** 图标只收固定名称或小型位图，避免把任意 SVG/外链放进管理页。 */
+export function safeLaunchIcon(value) {
+  if (value === undefined || value === '' || LAUNCH_ICONS.includes(value)) return value || 'terminal'
+  if (typeof value !== 'string' || value.length > 131072) throw new Error('图标图片过大或格式不支持')
+  const match = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(value)
+  if (!match) throw new Error('图标只支持 PNG、JPEG 或 WebP 图片')
+  const bytes = Buffer.from(match[2], 'base64')
+  const valid = match[1] === 'png' ? bytes.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]))
+    : match[1] === 'jpeg' ? bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255
+      : bytes.toString('ascii', 0, 4) === 'RIFF' && bytes.toString('ascii', 8, 12) === 'WEBP'
+  if (!valid) throw new Error('图标图片格式无效')
+  return value
+}
 
 /** 历史设置里的坏启动项直接丢弃；默认入口始终存在，旧用户也无需迁移操作。 */
 export function safeLaunchPresets(value) {
@@ -343,7 +382,11 @@ export function safeLaunchPresets(value) {
     if (!/^[a-f0-9]{16}$/.test(id) || seen.has(id) || !name || name.length > 32
       || !VERSION_RE.test(version) || !Number.isInteger(port) || port < 0 || port > 65535) return []
     seen.add(id)
-    return [{ id, name, version, profile, port }]
+    let icon = 'terminal'
+    try { icon = safeLaunchIcon(item.icon) } catch { /* 旧设置里的坏图片退回默认图标，保留启动项。 */ }
+    let dshHome = ''
+    try { dshHome = safeDshHome(item.dshHome) } catch { return [] }
+    return [{ id, name, version, profile, port, ...(dshHome ? { dshHome } : {}), ...(icon !== 'terminal' ? { icon } : {}) }]
   })
   const builtin = presets.find((item) => item.id === DEFAULT_LAUNCH_ID) || { ...DEFAULT_LAUNCH }
   if (builtin.name === '默认启动') builtin.name = 'DSH'
@@ -546,6 +589,7 @@ function mergeStoredSettings(stored) {
     merged.hideBackground = stored.disableBackgroundAnimation === true
   }
   delete merged.disableBackgroundAnimation
+  try { merged.keepVersions = safeKeepVersions(merged.keepVersions) } catch { merged.keepVersions = 2 }
   return merged
 }
 
@@ -606,6 +650,7 @@ export async function saveSettings(patch) {
   if ('profile' in patch) merged.profile = safeProfile(patch.profile)
   merged.args = 'args' in patch ? safeArgs(patch.args) : safeArgs(merged.args)
   merged.instancePorts = safeInstancePorts('instancePorts' in patch ? patch.instancePorts : merged.instancePorts)
+  merged.environmentPorts = safeEnvironmentPorts(merged.environmentPorts)
   merged.launchPresets = safeLaunchPresets(merged.launchPresets)
   merged.lang = 'lang' in patch ? safeLang(patch.lang) : safeLang(merged.lang)
   merged.theme = safeTheme(merged.theme)
@@ -642,6 +687,8 @@ export async function saveSettings(patch) {
   merged.seedBundled = merged.seedBundled === true
   merged.autoDisablePlugins = merged.autoDisablePlugins !== false
   merged.autoCleanVersions = merged.autoCleanVersions !== false
+  if ('keepVersions' in patch) merged.keepVersions = safeKeepVersions(patch.keepVersions)
+  else { try { merged.keepVersions = safeKeepVersions(merged.keepVersions) } catch { merged.keepVersions = 2 } }
   merged.skippedUpdate = normalizeSkippedUpdate(merged.skippedUpdate)
   // S3 同步：脏值顺手补全（密钥缺失只是「没配好」，不该让保存失败），显式填错才抛
   merged.s3 = safeS3Config('s3' in patch ? patch.s3 : merged.s3)

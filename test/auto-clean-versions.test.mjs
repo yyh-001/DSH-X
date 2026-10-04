@@ -100,6 +100,23 @@ test('不足两个以外还有余量时不动手：只有两个版本时开关�
   assert.deepEqual(onDisk(), ['0.1.12', '0.1.13'])
 })
 
+test('自定义保留数量实际控制清理；运行中的版本始终额外保留', async () => {
+  writeSettings({ keepVersions: 3 })
+  installVersions('0.1.10', '0.1.11', '0.1.12', '0.1.13')
+  assert.deepEqual(await pruneVersions({ versions: ['0.1.13', '0.1.12', '0.1.11', '0.1.10'] }), ['0.1.10'])
+  assert.deepEqual(onDisk(), ['0.1.11', '0.1.12', '0.1.13'])
+  writeSettings({ keepVersions: 1 })
+  installVersions('0.1.12', '0.1.13')
+  assert.deepEqual(await pruneVersions({ versions: ['0.1.13', '0.1.12'] }), ['0.1.12'])
+  assert.deepEqual(onDisk(), ['0.1.13'])
+  const { versionsToKeep } = await import('../server.js')
+  assert.deepEqual([...versionsToKeep(['0.1.13', '0.1.12', '0.1.11'], ['0.1.11'], 1)], ['0.1.13', '0.1.11'])
+  writeSettings({ keepVersions: 0 })
+  installVersions('0.1.11', '0.1.12', '0.1.13')
+  assert.deepEqual(await pruneVersions({ versions: ['0.1.13', '0.1.12', '0.1.11'] }), ['0.1.11'])
+  assert.deepEqual(onDisk(), ['0.1.12', '0.1.13'], '损坏的配置回退为保留两版')
+})
+
 test('设置页那一下开关走真接口：POST /api/settings 存下去，GET /api/settings 读回来', async () => {
   writeSettings()
   const { startServer, stopAll } = await import('../server.js')
@@ -115,6 +132,13 @@ test('设置页那一下开关走真接口：POST /api/settings 存下去，GET 
     assert.equal((await save({ autoCleanVersions: false })).autoCleanVersions, false)
     assert.equal((await read()).autoCleanVersions, false, '再读一遍还是关着')
     assert.equal((await save({ autoCleanVersions: true })).autoCleanVersions, true, '还能再打开')
+    assert.equal((await read()).keepVersions, 2)
+    assert.equal((await save({ keepVersions: 5 })).keepVersions, 5)
+    assert.equal((await read()).keepVersions, 5)
+    for (const keepVersions of [0, -1, 21, 1.5, 'bad']) {
+      assert.match((await save({ keepVersions })).error, /保留版本数量/)
+      assert.equal((await read()).keepVersions, 5, '无效输入不改变已保存的数量')
+    }
   } finally {
     await stopAll()
   }

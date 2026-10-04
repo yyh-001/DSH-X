@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import { listSkills, setSkillEnabled } from '../skills.js'
+import { createSkill, listSkills, readSkill, removeSkill, setSkillEnabled } from '../skills.js'
 
 // 技能开关只动 frontmatter 里那一行，其余字节一个字不碰（用户手写的 YAML 不该被重排）。
 // 技能根有两层（~/.dsh/skills 与 ~/.agents/skills），测试里用临时目录充当其中一层。
@@ -24,6 +24,27 @@ function sandbox() {
   const dir = mkdtempSync(join(tmpdir(), 'dsh-skills-'))
   return { dir, roots: [{ key: 'dsh', dir }], done: () => rmSync(dir, { recursive: true, force: true }) }
 }
+
+test('详情保留完整原文，不改变开关，且拒绝越界读取', () => {
+  const box = sandbox()
+  try {
+    mkdirSync(join(box.dir, 'my-skill'))
+    const file = join(box.dir, 'my-skill', 'SKILL.md')
+    const text = `${GOOD}<script>alert('local')</script>\n完整的技能正文\n`
+    writeFileSync(file, text)
+    const detail = readSkill(box.dir, 'my-skill/SKILL.md')
+    assert.equal(detail.content, text)
+    assert.equal(detail.description, '干点什么')
+    assert.equal(detail.disableModelInvocation, false)
+    assert.equal(readFileSync(file, 'utf8'), text)
+    mkdirSync(join(box.dir, 'my-skill-1.0.1'))
+    writeFileSync(join(box.dir, 'my-skill-1.0.1', 'SKILL.md'), text)
+    assert.equal(readSkill(box.dir, 'my-skill-1.0.1/SKILL.md').content, text)
+    setSkillEnabled(box.dir, 'my-skill-1.0.1/SKILL.md', false)
+    assert.equal(readSkill(box.dir, 'my-skill-1.0.1/SKILL.md').disableModelInvocation, true)
+    assert.throws(() => readSkill(box.dir, '../outside.md'), /不支持的技能路径/)
+  } finally { box.done() }
+})
 
 test('列表：目录包与平文件都认，frontmatter 按 dsh 的规则校验', () => {
   const box = sandbox()
@@ -166,4 +187,50 @@ test('没有 frontmatter 的文件不能开关，但要给出人能看懂的原�
   } finally {
     box.done()
   }
+})
+
+
+test('新增技能生成有效 frontmatter，拒绝同名、保留名、越界和缺正文', () => {
+  const box = sandbox()
+  try {
+    const spec = { name: 'new-skill', description: '说明："引用" #标签\n第二行', content: '# 完整正文\n带资源说明' }
+    const created = createSkill(box.dir, spec)
+    const skill = listSkills(box.roots)[0]
+    assert.equal(skill.frontmatterOk, true)
+    assert.equal(skill.description, '说明："引用" #标签 第二行')
+    assert.match(readSkill(box.dir, created.relPath).content, /# 完整正文/)
+    const before = readFileSync(join(box.dir, created.relPath), 'utf8')
+    assert.throws(() => createSkill(box.dir, spec), /已存在/)
+    writeFileSync(join(box.dir, 'flat-skill.MD'), GOOD)
+    assert.throws(() => createSkill(box.dir, { ...spec, name: 'flat-skill' }), /已存在/)
+    for (const name of ['../outside', 'UPPER', 'nul', 'con', 'x'.repeat(65)]) assert.throws(() => createSkill(box.dir, { ...spec, name }), /技能名称/)
+    assert.throws(() => createSkill(box.dir, { ...spec, name: 'bad', description: '' }), /技能说明/)
+    assert.throws(() => createSkill(box.dir, { ...spec, name: 'bad', content: '' }), /技能正文/)
+    assert.equal(existsSync(join(box.dir, 'bad')), false)
+    assert.equal(readFileSync(join(box.dir, created.relPath), 'utf8'), before)
+  } finally { box.done() }
+})
+
+test('删除清理整个技能包和单文件，链接技能保留外部原件及资源', () => {
+  const box = sandbox()
+  const external = mkdtempSync(join(tmpdir(), 'dsh-external-skill-'))
+  try {
+    createSkill(box.dir, { name: 'regular', description: '说明', content: '正文' })
+    writeFileSync(join(box.dir, 'regular', 'resource.txt'), '资源')
+    assert.throws(() => removeSkill(box.dir, '../outside/SKILL.md'), /不支持/)
+    assert.throws(() => removeSkill(box.dir, './SKILL.md'), /不支持/)
+    removeSkill(box.dir, 'regular/SKILL.md')
+    assert.equal(existsSync(join(box.dir, 'regular')), false)
+    writeFileSync(join(box.dir, 'flat.md'), GOOD)
+    removeSkill(box.dir, 'flat.md')
+    assert.equal(existsSync(join(box.dir, 'flat.md')), false)
+    writeFileSync(join(external, 'SKILL.md'), GOOD)
+    writeFileSync(join(external, 'resource.txt'), '外部资源')
+    symlinkSync(external, join(box.dir, 'linked'), process.platform === 'win32' ? 'junction' : 'dir')
+    assert.equal(listSkills(box.roots)[0].linked, true)
+    assert.equal(removeSkill(box.dir, 'linked/SKILL.md').linked, true)
+    assert.equal(existsSync(join(box.dir, 'linked')), false)
+    assert.equal(readFileSync(join(external, 'resource.txt'), 'utf8'), '外部资源')
+    assert.equal(readFileSync(join(external, 'SKILL.md'), 'utf8'), GOOD)
+  } finally { box.done(); rmSync(external, { recursive: true, force: true }) }
 })

@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { delimiter, join } from 'node:path'
+import { delimiter, dirname, join } from 'node:path'
 import test from 'node:test'
 
-import { dshArgs, dshEnv, orderRuntimePaths, pathWithEntry, pickPnpmDir, profileStoreVersion, withBundledRuntime, withVersionBin, writeDshShims } from '../server.js'
+import { decodeProcessOutput, describePluginFailure, dshArgs, dshEnv, orderRuntimePaths, pathWithEntry, pickPnpmDir, pnpmCandidates, profileStoreVersion, withBundledRuntime, withVersionBin, writeDshShims } from '../server.js'
 
 const BUNDLED = 'E:\\DSH\\node'
 
@@ -63,10 +63,26 @@ test('pnpm 只在自带目录里：不算系统的，照旧排最前', () => {
   assert.deepEqual(orderRuntimePaths([BUNDLED, other], BUNDLED), [BUNDLED, other])
 })
 
-test('withBundledRuntime：没有自带 node.exe 时原样返回', () => {
-  // 开发环境（仓库里没有 node/ 目录）不走重排，直接交回原 PATH
-  const original = process.env.PATH || ''
-  assert.equal(withBundledRuntime(original), original)
+test('源码启动：pnpm shim 能找到正在使用的 Node，指定 pnpm 仍然优先', () => {
+  const pnpm = dirWithPnpm()
+  const original = plainDir()
+  const parts = withBundledRuntime(original, pnpm).split(delimiter)
+  assert.equal(parts[0], pnpm)
+  assert.ok(parts.includes(dirname(process.execPath)))
+  assert.ok(parts.includes(original))
+})
+
+test('Windows 命令输出：UTF-8 与 GBK 中文都可读，不把 UTF-8 错当本地编码', () => {
+  assert.equal(decodeProcessOutput(Buffer.from('插件更新失败：权限不足'), 'win32'), '插件更新失败：权限不足')
+  assert.equal(decodeProcessOutput(Buffer.from('d5d2b2bbb5bdd6b8b6a8b5c4cec4bcfe', 'hex'), 'win32'), '找不到指定的文件')
+  assert.equal(decodeProcessOutput(Buffer.from('Progress: resolved 7'), 'win32'), 'Progress: resolved 7')
+})
+
+test('缺少 pnpm 的中英报错与已经被上游损坏的中文都有可操作的提示', () => {
+  for (const output of ["'pnpm' 不是内部或外部命令", 'dsh: pnpm was not found; install pnpm', "'pnpm' �����������"]) {
+    assert.match(describePluginFailure(output, '更新插件', 1), /找不到 pnpm.*加入 PATH/)
+  }
+  assert.match(describePluginFailure('Error: permission denied', '更新插件', 1), /permission denied/)
 })
 
 // 第 1 条：agent 在 shell 里要能直接调 dsh（版本跟着启动器选的那个走）。
@@ -209,4 +225,19 @@ test('pathWithEntry：追加在末尾（不抢用户已有的命令），撤销�
   const upper = pathWithEntry(pathValue + delimiter + dir.toUpperCase(), dir, false)
   assert.ok(!upper.toLowerCase().includes(dir.toLowerCase()), '大写的旧条目也要清掉')
   assert.equal(pathWithEntry('', dir, true), dir, '空 PATH 也能加')
+})
+
+
+test('旧 PATH 也能发现 PNPM_HOME、全局 npm 和已安装 DSH 自带 pnpm，PATH 优先', () => {
+  const root = plainDir(), local = plainDir(), app = plainDir(), pnpmHome = dirWithPnpm(), system = dirWithPnpm()
+  const installed = join(local, 'Programs', 'DSH', 'node')
+  const npm = join(app, 'npm')
+  for (const dir of [installed, npm]) {
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'), '')
+  }
+  const env = { LOCALAPPDATA: local, APPDATA: app, PNPM_HOME: pnpmHome }
+  assert.deepEqual(pnpmCandidates(system, env, root), [system, pnpmHome, npm, installed])
+  assert.deepEqual(pnpmCandidates('', env, root), [pnpmHome, npm, installed])
+  assert.deepEqual(pnpmCandidates(system + delimiter + system, env, root), [system, pnpmHome, npm, installed])
 })

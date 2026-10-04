@@ -25,6 +25,7 @@ html[data-color-scheme="dark"] main:not(.home) .shell {
   box-shadow: 0 18px 52px rgba(0, 0, 0, .28), 0 3px 12px rgba(0, 0, 0, .16);
 }
 html[data-color-scheme="dark"] .settings-nav { background: #222226; }
+html[data-color-scheme="dark"] #pane-control .card.home { background: rgba(39, 39, 43, var(--panel-opacity)); }
 html[data-color-scheme="dark"] main:not(.home) .settings-nav { background: transparent; }
 html[data-color-scheme="dark"] main:not(.home) .settings-body {
   background: transparent;
@@ -148,7 +149,7 @@ html[data-color-scheme="dark"] #log::-webkit-scrollbar-thumb,
 html[data-color-scheme="dark"] .pane::-webkit-scrollbar-thumb,
 html[data-color-scheme="dark"] .settings-nav::-webkit-scrollbar-thumb { background: #77787d; background-clip: content-box; }
 
-html[data-color-scheme="dark"] .ask.is-underlay { background: transparent; }
+html[data-color-scheme="dark"] .ask.is-child-dialog { background: transparent; }
 html[data-color-scheme="dark"] .set-row:focus-within { background: transparent; box-shadow: none; }
 html[data-color-scheme="dark"] .version-manage-latest .is-current:disabled { background: transparent; color: var(--muted); opacity: 1; }
 html[data-color-scheme="dark"] .launch-save-actions .launch-repair,

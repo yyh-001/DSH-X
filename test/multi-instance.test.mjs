@@ -27,7 +27,7 @@ const page = readFileSync(fileURLToPath(new URL('../public/index.html', import.m
 const FAKE_DSH = `import { createServer } from 'node:http'
 const srv = createServer((req, res) => {
   res.setHeader('content-type', 'text/html; charset=utf-8')
-  res.end('<!doctype html><html><body>fake dsh</body></html>')
+  res.end(req.url === '/home' ? process.env.DSH_HOME : '<!doctype html><html><body>fake dsh</body></html>')
 })
 srv.listen(0, '127.0.0.1', () => {
   const { port } = srv.address()
@@ -75,10 +75,10 @@ writeFileSync(join(APP, 'settings.json'), JSON.stringify({
 const { startServer, stopAll } = await import('../server.js')
 const base = await startServer()
 
-async function api(path, body) {
+async function api(path, body, launchId = '') {
   const response = await fetch(`${base}${path}`, body === undefined
-    ? undefined
-    : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+    ? { headers: launchId ? { 'x-dsh-launch-id': launchId } : {} }
+    : { method: 'POST', headers: { 'content-type': 'application/json', ...(launchId ? { 'x-dsh-launch-id': launchId } : {}) }, body: JSON.stringify(body) })
   const data = await response.json()
   if (!response.ok) throw new Error(data?.error || `HTTP ${response.status}`)
   return data
@@ -217,16 +217,64 @@ test('不存在的 profile 与保留名都会被拒', async () => {
   await assert.rejects(api('/api/start', { version: A, profile: 'desktop' }), /desktop/, 'desktop 是官方 Electron 端的保留名')
 })
 
+test('同版本同 Profile 可在不同 DSH_HOME 并存，管理和停止按启动项隔离', async () => {
+  const otherHome = join(appDir, 'other-home')
+  const saved = await api('/api/launch-presets', { name: 'Other home', version: A, profile: 'web', port: 0, dshHome: otherHome })
+  const launchId = saved.entry.id
+  assert.equal(saved.entry.dshHome, otherHome)
+  const headless = join(otherHome, 'profiles', 'work')
+  mkdirSync(headless, { recursive: true })
+  writeFileSync(join(headless, 'package.json'), JSON.stringify({ name: 'other-work', dsh: { profile: { bundles: ['@deepseek-ai/dsh-base'] } } }))
+  await assert.rejects(api('/api/launch-presets', { name: 'Headless other', version: A, profile: 'work', port: 4567, dshHome: otherHome }), /不起 web/)
+  const plugin = join(headless, 'node_modules', 'alt-only')
+  mkdirSync(plugin, { recursive: true })
+  writeFileSync(join(headless, 'package.json'), JSON.stringify({ name: 'other-work', dependencies: { 'alt-only': '1.0.0' }, dsh: { profile: { bundles: ['alt-only'] } } }))
+  writeFileSync(join(plugin, 'package.json'), JSON.stringify({ name: 'alt-only', version: '1.0.0', dsh: { bundle: { patch: 'cordis.patch.yml' } } }))
+  writeFileSync(join(plugin, 'cordis.patch.yml'), '- insert:\n    - id: alt-row\n      name: alt-only\n')
+  assert.ok((await api('/api/plugins?profile=work', undefined, launchId)).plugins.some((item) => item.name === 'alt-only'))
+  assert.ok(!(await api('/api/plugins?profile=work')).plugins.some((item) => item.name === 'alt-only'))
+  const first = await api('/api/start', { version: A, profile: 'web' })
+  const second = await api('/api/start', { version: A, profile: 'web' }, launchId)
+  assert.notEqual(first.url, second.url)
+  await assert.rejects(api('/api/stop', { version: A, profile: '../bad', home: otherHome }), /profile 名/)
+  assert.equal((await state()).instances.filter((item) => item.version === A && item.profile === 'web').length, 2)
+  assert.equal(await (await fetch(new URL('/home', first.url))).text(), HOME)
+  assert.equal(await (await fetch(new URL('/home', second.url))).text(), otherHome)
+  const snap = await state()
+  assert.deepEqual(snap.instances.filter((item) => item.version === A && item.profile === 'web').map((item) => item.home).sort(), [HOME, otherHome].sort())
+  assert.equal((await api('/api/packs', undefined, launchId)).home, otherHome)
+  assert.equal((await api('/api/plugins?profile=web', undefined, launchId)).home, otherHome)
+  const port = await freePort()
+  await api('/api/instance-port', { version: A, profile: 'web', port }, launchId)
+  const stored = JSON.parse(readFileSync(join(APP, 'settings.json'), 'utf8'))
+  assert.equal(stored.environmentPorts[otherHome][`${A}@web`], port)
+  assert.equal(stored.instancePorts?.[`${A}@web`], undefined)
+  const { writePackState } = await import('../packs.js')
+  writePackState(DATA, { packs: [{ name: 'only-default', profile: 'web' }] })
+  assert.ok((await api('/api/packs')).packs.some((item) => item.records.some((record) => record.name === 'only-default')))
+  assert.ok(!(await api('/api/packs', undefined, launchId)).packs.some((item) => item.records.some((record) => record.name === 'only-default')))
+  assert.equal((await api('/api/start', { version: A, profile: 'web' }, launchId)).url, second.url)
+  await api('/api/stop', { version: A, profile: 'web' }, launchId)
+  assert.equal((await state()).instances.find((item) => item.home === HOME)?.url, first.url)
+  await api('/api/start', { version: A, profile: 'web' }, launchId)
+  await api('/api/restart', {})
+  assert.deepEqual((await state()).instances.filter((item) => item.version === A && item.profile === 'web').map((item) => item.home).sort(), [HOME, otherHome].sort())
+  await api('/api/stop', { version: A, profile: 'web', home: otherHome })
+  assert.equal((await state()).instances.filter((item) => item.version === A && item.profile === 'web').length, 1)
+  await api('/api/stop', { version: A, profile: 'web' })
+  await assert.rejects(api('/api/start', { version: A, profile: 'web' }, 'missing'), /启动项已不存在/)
+})
+
 test('控制页有「在跑的实例」一栏，每行单独打开/停止', () => {
   assert.match(page, /<details class="instances" id="instances" hidden>[\s\S]{0,220}?<summary class="instances-title" data-i18n="其他运行项">/, '实例一栏在控制页')
   assert.match(page, /const show = list\.length > 0/, '有实例就列出来：选中别的版本时，这栏是唯一能看到「还有东西在跑」的地方')
-  assert.match(page, /post\('\/api\/stop', \{ version: el\.dataset\.stopVersion, profile: el\.dataset\.profile \}\)/, '每行的停止打在它自己那个 版本×profile 上')
+  assert.match(page, /post\('\/api\/stop', \{ version: el\.dataset\.stopVersion, profile: el\.dataset\.profile, home: el\.dataset\.home \}\)/, '每行的停止打在它自己那个 版本×profile×home 上')
   assert.match(page, /void openInstance\(item\?\.url\)/, '打开走服务端的打开方式（内嵌窗口 / 应用窗口 / 标签页）')
-  assert.match(page, /const live = runningInfo\(version, entry\.profile\)/, '每个启动项只打开自己的版本与 profile')
-  assert.match(page, /function runningInfo\(version = '', profile = ''\)/, 'runningInfo 收版本和 profile')
+  assert.match(page, /const live = runningInfo\(version, entry\.profile, entry\.dshHome \|\| state\.dshHome\)/, '每个启动项只打开自己的版本、profile 与 home')
+  assert.match(page, /function runningInfo\(version = '', profile = '', home = ''\)/, 'runningInfo 收版本、profile 与 home')
   assert.match(page, /id="launchProfile"/, '控制页有启动 profile 下拉')
-  assert.match(page, /async function startVersion\(version, profile = launchProfile, presetPort = null\)/, '手动启动仍用选中的 profile，启动项可指定自己的 profile')
-  assert.match(page, /post\('\/api\/start', \{ version, profile \}\)/, '启动带上目标 profile')
+  assert.match(page, /async function startVersion\(version, profile = launchProfile, presetPort = null, launchId = ''\)/, '手动启动仍用选中的 profile，启动项可指定自己的 profile 和 home')
+  assert.match(page, /post\('\/api\/start', \{ version, profile \}, \{ launchId \}\)/, '启动带上目标 profile 与启动项')
   // 跑着的时候下拉还能切：切过去点启动就是在旁边再起一个，这正是多开要的那条路
   assert.match(page, /versionDisabled = loading\r?\n/, '版本下拉不再因为「有实例在跑」而禁用')
 })

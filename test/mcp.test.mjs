@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import { listMcpServers, removeMcpServer, saveMcpServer, setMcpEnabled } from '../mcp.js'
+import { listMcpServers, parseMcpCommand, removeMcpServer, saveMcpServer, setMcpEnabled } from '../mcp.js'
 import { looksLikeEntryList } from '../plugins.js'
 
 // MCP 条目是写进 profile 补丁层 cordis.patch.yml 的：只动自己那对标记之间的字节，
@@ -158,4 +158,23 @@ test('文件不存在时也能创建（新 profile 没写过补丁层）', () =>
   } finally {
     box.done()
   }
+})
+
+
+test('完整 MCP 命令拆成 argv，保存和编辑保留空格、引号与 Windows 路径', () => {
+  const box = sandbox()
+  try {
+    const argv = ['C:\\Program Files\\nodejs\\node.exe', '-y', 'C:\\MCP Servers\\entry.js', 'say "hello"', '', 'a-n-b']
+    const commandLine = argv.map(value => JSON.stringify(value)).join(' ')
+    assert.deepEqual(parseMcpCommand(commandLine), { command: argv[0], args: argv.slice(1) })
+    assert.deepEqual(parseMcpCommand("npx -y '@scope/my server'"), { command: 'npx', args: ['-y', '@scope/my server'] })
+    assert.deepEqual(parseMcpCommand('node "C:\\test\\entry.js"'), { command: 'node', args: ['C:\\test\\entry.js'] })
+    assert.throws(() => parseMcpCommand('npx "unfinished'), /引号没有闭合/)
+    assert.throws(() => parseMcpCommand(''), /填写启动命令/)
+    saveMcpServer(box.patch, { serverName: 'quoted', transport: 'stdio', commandLine })
+    const saved = listMcpServers(box.patch).servers[0]
+    assert.equal(saved.command, argv[0])
+    // 现有 schema 会滤掉空参数；非空的引用、换行和路径必须完整保留。
+    assert.deepEqual(saved.args, argv.slice(1).filter(Boolean))
+  } finally { box.done() }
 })

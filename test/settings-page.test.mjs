@@ -60,7 +60,7 @@ test('顶栏四个 tab 已取消，设置分类在左侧导航，主页右上角
   )
   assert.ok(!/profileEl/.test(html), 'profile 选择器的脚本也一并撤掉')
   assert.match(html, /section\.hidden = section\.dataset\.category !== nextCategory/, '切换分类只显示对应设置')
-  assert.match(html, /gearEl\.onclick = \(\) => showPane\(currentPane === 'settings' \? 'control' : 'settings', currentSettingsCategory\)/, '齿轮在设置与主界面间切换')
+  assert.match(html, /gearEl\.onclick = \(\) => showPane\(currentPane !== 'control' \? 'control' : 'settings', currentSettingsCategory\)/, '齿轮在设置与主界面间切换')
   assert.match(html, /const paneLoaders = \{[^}]*plugins: loadPlugins[^}]*mcp: loadMcp[^}]*\}/, '进面板时才按需加载')
 })
 

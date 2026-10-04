@@ -81,7 +81,7 @@ If it does: add the install directory (default `%LOCALAPPDATA%\Programs\DSH`) to
 
 Windows: install [DSH-Setup.exe](https://github.com/yyh-001/DSH-X/releases/latest), then open **DSH-X** from the desktop.
 
-macOS: open `DSH-X-mac-arm64.dmg` (Apple Silicon) or `DSH-X-mac-x64.dmg` (Intel) and drag **DSH-X** into Applications. The app is not notarized, so the first launch needs right-click → **Open**; self-update also needs the app to sit in a writable folder. Settings and logs live in `~/Library/Application Support/DSH`.
+macOS: open `DSH-X-mac-arm64.dmg` (Apple Silicon) or `DSH-X-mac-x64.dmg` (Intel) and drag **DSH-X** into Applications. The app is not notarized, so the first launch needs right-click → **Open**; self-update also needs the app to sit in a writable folder. Settings and logs live in `~/Library/Application Support/DSH`. Future release builds require a persistent signing certificate ([setup guide](docs/mac-signing.md)).
 
 The manager page and dsh's own web page open in your default browser; the manager defaults to `http://127.0.0.1:3780/` (the port can be changed on the settings page). To reach dsh from a phone or another computer: settings → Advanced → **Web binding** → LAN, applied the next time dsh starts.
 

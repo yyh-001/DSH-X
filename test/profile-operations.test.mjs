@@ -42,6 +42,7 @@ setTimeout(() => server.listen(0, '127.0.0.1', () => console.log('dsh web: http:
   process.env.APPDATA = root
   process.env.PORT = String(port)
   process.env.DSH_VERSIONS_DATA = data
+  process.env.DSH_AGENTS_HOME = join(root, 'agents')
   const server = await import('../server.js')
   const base = await server.startServer()
   t.after(async () => {
@@ -58,6 +59,35 @@ setTimeout(() => server.listen(0, '127.0.0.1', () => console.log('dsh web: http:
     return result
   }
 
+  await t.test('技能接口分别管理两层目录，完整读取、开关、删除，坏请求不覆盖文件', async () => {
+    for (const key of ['dsh', 'agents']) {
+      const body = { root: key, name: 'api-skill', description: '接口说明', content: '# 技能正文' }
+      const created = await api('/api/skills/create', body)
+      assert.ok(created.skills.some(item => item.root === key && item.name === body.name))
+      const detail = await api(`/api/skills/detail?root=${key}&path=api-skill/SKILL.md`)
+      assert.match(detail.content, /# 技能正文/)
+      await assert.rejects(api('/api/skills/create', body), /已存在/)
+      const disabled = await api('/api/skills/toggle', { root: key, path: 'api-skill/SKILL.md', enabled: false })
+      assert.equal(disabled.skills.find(item => item.root === key && item.name === body.name).disableModelInvocation, true)
+      await assert.rejects(api('/api/skills/delete', { root: key, path: '../api-skill/SKILL.md' }), /不支持/)
+      const removed = await api('/api/skills/delete', { root: key, path: 'api-skill/SKILL.md' })
+      assert.equal(removed.skills.some(item => item.root === key && item.name === body.name), false)
+    }
+    await assert.rejects(api('/api/skills/create', { root: 'outside', name: 'api-skill', description: '说明', content: '正文' }), /未知/)
+  })
+
+  await t.test('创建和复制 Profile 会先读取请求体，重复名和缺少来源给出可读提示', async () => {
+    const created = await api('/api/profiles/create', { profile: 'fresh' })
+    assert.equal(created.createdProfile, 'fresh')
+    assert.ok(existsSync(join(home, 'profiles', 'fresh', 'package.json')))
+    assert.deepEqual(JSON.parse(readFileSync(join(home, 'profiles', 'fresh', 'package.json'), 'utf8')).dependencies, {})
+    const copied = await api('/api/profiles/copy', { profile: 'fresh-copy', source: 'fresh' })
+    assert.equal(copied.createdProfile, 'fresh-copy')
+    await assert.rejects(api('/api/profiles/create', { profile: 'fresh' }), /已存在/)
+    await assert.rejects(api('/api/profiles/copy', { profile: 'missing-source' }), /请选择要复制/)
+    assert.equal(existsSync(join(home, 'profiles', 'missing-source')), false)
+  })
+
   await t.test('默认选择之外，启动中与多版本运行的环境都不能删除或卸载', async () => {
     rememberPack(data, { name: 'demo', profile: 'guarded', createdProfile: true, files: [] })
     const launching = api('/api/start', { version: versions[0], profile: 'guarded' })
@@ -68,6 +98,9 @@ setTimeout(() => server.listen(0, '127.0.0.1', () => console.log('dsh web: http:
       await new Promise((resolve) => setTimeout(resolve, 20))
     }
     await assert.rejects(api('/api/packs/remove-profile', { profile: 'guarded' }), /请先停止/)
+    await assert.rejects(api('/api/launch-presets', { name: 'blocked', version: 'auto', profile: 'web' }), /请先停止/)
+    await assert.rejects(api('/api/launch-presets/remove', { id: 'blocked' }), /请先停止/)
+    await assert.rejects(api('/api/packs/install', {}), /请先停止/)
     await launching
     await api('/api/start', { version: versions[1], profile: 'guarded' })
     assert.equal((await api('/api/state')).profile, 'web')

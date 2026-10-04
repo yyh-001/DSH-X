@@ -316,7 +316,7 @@ test('内置项始终存在，编辑启动项不提前改变实例端口', async
 test('控制页有端口输入框，文案有英文', () => {
   assert.match(page, /<div class="home-field port">[\s\S]{0,200}?<input id="launchPort" type="number" min="1" max="65535"/, '端口输入框在控制页的版本/Profile 旁边')
   assert.doesNotMatch(page, /launchPortEl\.onchange/, '弹窗里的端口是草稿，取消无需回滚已保存参数')
-  assert.match(page, /await post\('\/api\/instance-port', \{ version, profile, port: presetPort \}\)/, '启动前应用并等待目标端口保存')
+  assert.match(page, /await post\('\/api\/instance-port', \{ version, profile, port: presetPort \}, \{ launchId \}\)/, '启动前应用并等待目标环境的端口保存')
   assert.match(page, /launchFormEl\.onsubmit/, '所有参数统一由保存动作提交')
   const dict = new vm.Script(`(${page.match(/const EN = (\{[\s\S]*?\n\})/)[1]})`).runInNewContext()
   for (const text of [

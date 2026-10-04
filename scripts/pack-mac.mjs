@@ -14,6 +14,7 @@ import {
   run,
 } from './pack-common.mjs'
 import { LAUNCHER_NAME, MAC_APP_NAME, MAC_BUNDLE_ID, NODE_BINARY } from '../platform.js'
+import { macSigningIdentity, signMacBundle } from './mac-signing.mjs'
 
 /**
  * macOS 打包：release/DSH-X.app + release/DSH-X-mac-<arch>.dmg。
@@ -31,6 +32,7 @@ const ARCH = process.env.DSH_MAC_ARCH || process.arch
 const RUST_TARGETS = { arm64: 'aarch64-apple-darwin', x64: 'x86_64-apple-darwin' }
 const RUST_TARGET = RUST_TARGETS[ARCH]
 if (!RUST_TARGET) throw new Error(`不支持的架构：${ARCH}（只支持 ${Object.keys(RUST_TARGETS).join(' / ')}）`)
+macSigningIdentity() // 缺固定证书时在下载 Node / 编译 Rust 前就中止正式构建
 
 const DIST = `node-v${NODE_VERSION}-darwin-${ARCH}`
 const TARBALL = `${DIST}.tar.gz`
@@ -149,9 +151,7 @@ async function assemble(launcher) {
   buildIcon(join(CONTENTS, 'Resources', ICON_FILE))
   await writeFile(join(CONTENTS, 'Info.plist'), infoPlist())
   await writeFile(join(CONTENTS, 'PkgInfo'), 'APPL????')
-  // 没有开发者证书，做一次 ad-hoc 签名：Apple Silicon 上完全没签名的二进制直接不让跑，
-  // 包内文件改动后也要重签，所以放在最后。用户第一次打开仍会被 Gatekeeper 拦（见 README）。
-  run('codesign', ['--force', '--deep', '--sign', '-', BUNDLE])
+  signMacBundle(BUNDLE)
   console.log(`已打包到 ${BUNDLE}`)
 }
 
@@ -161,6 +161,7 @@ function buildDmg() {
   rmSync(staging, { recursive: true, force: true })
   run('mkdir', ['-p', staging])
   run('ditto', [BUNDLE, join(staging, MAC_APP_NAME)])
+  run('codesign', ['--verify', '--deep', '--strict', '--verbose=2', join(staging, MAC_APP_NAME)])
   run('ln', ['-s', '/Applications', join(staging, 'Applications')])
   rmSync(DMG, { force: true })
   run('hdiutil', ['create', '-volname', DMG_VOLUME, '-srcfolder', staging, '-ov', '-format', 'UDZO', DMG])

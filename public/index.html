@@ -125,7 +125,7 @@
              <!-- 控制面板就是主界面本身，不加标题：进来看到的就是这张卡片 -->
              <div class="card home">
         <div class="launch-presets" id="launchPresets"></div>
-        <button class="launch-add" id="launchAdd" type="button" title="添加启动项" aria-label="添加启动项" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span data-i18n="添加启动项">添加启动项</span></button>
+        <button class="launch-add" id="launchAdd" type="button" title="添加启动项" aria-label="添加启动项" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span class="sr-only" data-i18n="添加启动项">添加启动项</span></button>
         <p class="hint" id="hint"></p>
         <!-- 只列没有对应启动项的实例，避免同一个运行状态出现两遍。 -->
         <details class="instances" id="instances" hidden>
@@ -173,8 +173,8 @@
               </div>
               <div class="plugin-actions">
                 <button class="ghost icon-btn action-icon" id="mcpAdd" type="button" title="添加" aria-label="添加"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
-                <button class="ghost icon-btn action-icon" id="mcpProbe" type="button" title="检测" aria-label="检测"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 12 5-5 4 10 4-7h5"/></svg></button>
-                <button class="ghost icon-btn action-icon" id="mcpRefresh" type="button" title="刷新" aria-label="刷新"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5M20 12a8 8 0 1 0-2 5"/></svg></button>
+                <button class="ghost icon-btn action-icon" id="mcpProbe" type="button" title="检测" aria-label="检测"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="m8 12 3 3 5-6"/></svg></button>
+                <button class="ghost icon-btn action-icon" id="mcpRefresh" type="button" title="刷新" aria-label="刷新"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16M8 16H3v5"/></svg></button>
               </div>
             </div>
             <div class="plugin-list" id="mcpList"></div>
@@ -189,9 +189,10 @@
                 <p class="pane-sub" id="skillSub" data-i18n="dsh 与 agents 两个用户级技能目录。">dsh 与 agents 两个用户级技能目录。</p>
               </div>
               <div class="plugin-actions">
-                <button class="ghost" id="skillOpenDsh" type="button" data-i18n="dsh 目录">dsh 目录</button>
-                <button class="ghost" id="skillOpenAgents" type="button" data-i18n="agents 目录">agents 目录</button>
-                <button class="ghost" id="skillRefresh" type="button" data-i18n="刷新">刷新</button>
+                <button class="ghost icon-btn action-icon" id="skillAdd" type="button" title="安装技能" aria-label="安装技能" data-i18n-title="安装技能" data-i18n-aria-label="安装技能"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 16v5h16v-5"/></svg></button><button class="ghost icon-btn action-icon" id="skillCreate" type="button" title="创建技能" aria-label="创建技能" data-i18n-title="创建技能" data-i18n-aria-label="创建技能"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+                <button class="ghost icon-btn action-icon" id="skillOpenDsh" type="button" title="dsh 目录" aria-label="dsh 目录" data-i18n-title="dsh 目录" data-i18n-aria-label="dsh 目录"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5h6l2 3h10v12H3V7Z"/><path d="m7 11 3 2-3 2m5 0h4"/></svg></button>
+                <button class="ghost icon-btn action-icon" id="skillOpenAgents" type="button" title="agents 目录" aria-label="agents 目录" data-i18n-title="agents 目录" data-i18n-aria-label="agents 目录"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5h6l2 3h10v12H3V7Z"/><circle cx="12" cy="12" r="2"/><path d="M8 18a4 4 0 0 1 8 0"/></svg></button>
+                <button class="ghost icon-btn action-icon" id="skillRefresh" type="button" title="刷新" aria-label="刷新" data-i18n-title="刷新" data-i18n-aria-label="刷新"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16M8 16H3v5"/></svg></button>
               </div>
             </div>
             <div class="plugin-list" id="skillList"></div>
@@ -267,7 +268,7 @@
                 <label class="toggle set-row">
                   <span class="set-text">
                     <span class="set-name" data-i18n="自动清理旧版本">自动清理旧版本</span>
-                    <span class="set-desc" data-i18n="保留最新版和最近安装的一版，运行中的版本不删除。">保留最新版和最近安装的一版，运行中的版本不删除。</span>
+                    <span class="set-desc" data-i18n="下次安装后清理，运行中的版本额外保留。">下次安装后清理，运行中的版本额外保留。</span>
                   </span>
                   <input id="autoCleanVersions" type="checkbox" />
                 </label>
@@ -451,17 +452,18 @@
       <h2 class="ask-title" id="mcpDialogTitle" data-i18n="MCP 服务器">MCP 服务器</h2>
       <div class="mcp-form">
         <label class="mcp-field"><span data-i18n="名称">名称</span><input id="mcpName" type="text" placeholder="my-mcp-server" autocomplete="off" spellcheck="false" /></label>
-        <label class="mcp-field"><span data-i18n="传输">传输</span>
+        <label class="mcp-field"><span data-i18n="连接方式">连接方式</span>
           <select id="mcpTransport">
-            <option value="stdio" data-i18n="stdio（本机程序）">stdio（本机程序）</option>
-            <option value="streamable-http" data-i18n="streamable-http（HTTP 端点）">streamable-http（HTTP 端点）</option>
+            <option value="stdio" data-i18n="本机命令">本机命令</option>
+            <option value="streamable-http" data-i18n="远程地址">远程地址</option>
           </select>
         </label>
-        <label class="mcp-field" data-mcp-row="stdio"><span data-i18n="启动命令">启动命令</span><input id="mcpCommand" type="text" placeholder="npx" autocomplete="off" spellcheck="false" /></label>
-        <label class="mcp-field" data-mcp-row="stdio"><span data-i18n="参数">参数</span><input id="mcpArgs" type="text" placeholder="-y @modelcontextprotocol/server-memory" autocomplete="off" spellcheck="false" /></label>
+        <label class="mcp-field" data-mcp-row="stdio"><span data-i18n="启动命令">启动命令</span><input id="mcpCommand" type="text" placeholder="npx -y @modelcontextprotocol/server-memory" autocomplete="off" spellcheck="false" /></label>
         <label class="mcp-field" data-mcp-row="http"><span data-i18n="地址">地址</span><input id="mcpUrl" type="text" placeholder="https://mcp.example.com/mcp" autocomplete="off" spellcheck="false" /></label>
-        <label class="mcp-field" data-mcp-row="http"><span data-i18n="请求头（可选，JSON）">请求头（可选，JSON）</span><input id="mcpHeaders" type="text" placeholder='{"Authorization":"Bearer …"}' autocomplete="off" spellcheck="false" /></label>
-        <label class="mcp-field"><span data-i18n="超时（毫秒，可选）">超时（毫秒，可选）</span><input id="mcpTimeout" type="number" min="1" step="1" placeholder="60000" inputmode="numeric" /></label>
+        <details class="mcp-advanced" id="mcpAdvanced"><summary data-i18n="高级选项">高级选项</summary>
+          <label class="mcp-field" data-mcp-row="http"><span data-i18n="请求头（可选，JSON）">请求头（可选，JSON）</span><input id="mcpHeaders" type="text" placeholder='{"Authorization":"Bearer …"}' autocomplete="off" spellcheck="false" /></label>
+          <label class="mcp-field"><span data-i18n="超时（毫秒，可选）">超时（毫秒，可选）</span><input id="mcpTimeout" type="number" min="1" step="1" placeholder="60000" inputmode="numeric" /></label>
+        </details>
       </div>
       <p class="ask-note" id="mcpDialogNote" hidden></p>
       <div class="ask-actions">
@@ -473,14 +475,14 @@
   <div class="ask" id="packImportDialog" hidden>
     <div class="ask-card market-browser" id="packMarketCard" role="dialog" aria-modal="true" aria-labelledby="packImportTitle">
       <div class="dialog-heading">
-        <div><h2 class="ask-title" id="packImportTitle" data-i18n="整合包市场">整合包市场</h2><p class="dialog-subtitle" data-i18n="为你的环境添加插件与功能">为你的环境添加插件与功能</p></div>
+        <h2 class="ask-title" id="packImportTitle" data-i18n="整合包市场">整合包市场</h2>
         <button type="button" class="ghost icon-btn dialog-close" id="packImportClose" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button>
       </div>
       <div class="market-toolbar">
         <input id="marketSearch" type="search" autocomplete="off" data-placeholder-i18n="搜索名称、作者或功能" aria-label="搜索整合包" />
         <select id="marketSort" aria-label="整合包排序"><option value="updated" data-i18n="最近更新">最近更新</option><option value="stars" data-i18n="Star 最多">Star 最多</option><option value="name" data-i18n="按名称">按名称</option></select>
       </div>
-      <div class="set-caption" id="packMarketTitle" data-i18n="社区整合包">社区整合包</div>
+      <div class="sr-only" id="packMarketTitle" data-i18n="社区整合包">社区整合包</div>
       <div class="market-grid" id="packMarket"></div>
       <div id="packBuiltinTitle" hidden></div><div id="packBuiltin" hidden></div>
       <details class="pack-import-source">
@@ -489,7 +491,7 @@
       </details>
       <div class="market-footer">
         <span id="marketCount" role="status" aria-live="polite"></span>
-        <div class="market-pagination"><label for="marketPageSize" data-i18n="每页">每页</label><select id="marketPageSize"><option value="4">4</option><option value="8">8</option><option value="12">12</option><option value="24">24</option></select><button class="ghost icon-btn" id="marketPrev" type="button" title="上一页" aria-label="上一页"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m14 6-6 6 6 6"/></svg></button><span id="marketPage"></span><button class="ghost icon-btn" id="marketNext" type="button" title="下一页" aria-label="下一页"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m10 6 6 6-6 6"/></svg></button></div>
+        <div class="market-pagination"><div class="market-page-size"><label for="marketPageSize" data-i18n="每页">每页</label><select id="marketPageSize"><option value="4">4</option><option value="8">8</option><option value="12">12</option><option value="24">24</option></select></div><div class="market-page-nav"><button class="ghost icon-btn" id="marketPrev" type="button" title="上一页" aria-label="上一页"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m14 6-6 6 6 6"/></svg></button><span id="marketPage"></span><button class="ghost icon-btn" id="marketNext" type="button" title="下一页" aria-label="下一页"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m10 6 6 6-6 6"/></svg></button></div></div>
       </div>
       <p class="hint" id="packMarketHint" role="status" aria-live="polite"></p>
     </div>
@@ -529,9 +531,11 @@
     <form class="ask-card" id="launchForm" role="dialog" aria-modal="true" aria-labelledby="launchDialogTitle">
       <div class="dialog-heading launch-dialog-heading"><h2 class="ask-title" id="launchDialogTitle" data-i18n="编辑启动项">编辑启动项</h2><button class="ghost icon-btn dialog-close" id="launchDialogClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
       <div class="launch-modal-fields">
-        <div class="home-field">
+        <div class="home-field launch-identity-field" id="launchIdentityField">
           <label for="launchName" data-i18n="名称">名称</label>
-          <input id="launchName" type="text" required maxlength="32" autocomplete="off" data-placeholder-i18n="例如：我的工作环境" />
+          <div class="launch-name-row"><button class="launch-icon-trigger" id="launchIconTrigger" type="button" title="修改图标" aria-label="修改图标" data-i18n-title="修改图标" data-i18n-aria-label="修改图标" aria-expanded="false" aria-controls="launchIconPopover"></button><input id="launchName" type="text" required maxlength="32" autocomplete="off" data-placeholder-i18n="例如：我的工作环境" /></div>
+          <div class="launch-icon-popover" id="launchIconPopover" hidden><div class="launch-icon-picker" id="launchIconPicker" role="group" aria-label="启动项图标"></div><div class="launch-icon-upload"><button class="ghost icon-btn" id="launchIconUpload" type="button" title="选择图片" aria-label="选择图片" data-i18n-title="选择图片" data-i18n-aria-label="选择图片"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 4-7 5 8"/></svg></button><button class="ghost icon-btn" id="launchIconReset" type="button" title="恢复默认" aria-label="恢复默认" data-i18n-title="恢复默认" data-i18n-aria-label="恢复默认"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v5h5M4 9a8 8 0 1 1-1 6"/></svg></button></div></div>
+          <input id="launchIconFile" type="file" accept="image/png,image/jpeg,image/webp" hidden /><span class="hint launch-icon-error" id="launchIconHint"></span>
         </div>
         <div class="home-field">
           <label for="versionTrigger" data-i18n="版本">版本</label>
@@ -545,6 +549,11 @@
             </div>
             <button class="ghost icon-btn launch-manage-version" id="launchManageVersions" type="button" title="管理版本" aria-label="管理版本" data-i18n-title="管理版本" data-i18n-aria-label="管理版本"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></button>
           </div>
+        </div>
+        <div class="home-field">
+          <label for="launchDshHome" data-i18n="DSH_HOME 目录">DSH_HOME 目录</label>
+          <div class="launch-home-row"><select id="launchDshHome"></select><button class="ghost icon-btn" id="launchPickHome" type="button" title="选择文件夹" aria-label="选择文件夹" data-i18n-title="选择文件夹" data-i18n-aria-label="选择文件夹"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v2M3 7v12h16l3-9H7l-4 9"/></svg></button></div>
+          <p class="hint" data-i18n="dsh 的数据根目录：Profile、会话、插件都存在这里；换一个目录就是另一套数据。">dsh 的数据根目录：Profile、会话、插件都存在这里；换一个目录就是另一套数据。</p>
         </div>
         <div class="home-pickers">
           <div class="home-field">
@@ -566,7 +575,7 @@
         </div>
         <p class="hint" id="recoveryHint" hidden></p>
       <div class="launch-save-actions">
-        <button class="ghost launch-repair" id="launchRecover" type="button" title="修复环境" aria-label="修复环境"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14 6 4 4M4 20l7-7m2-10a6 6 0 0 0-2 8L3 19l2 2 8-8a6 6 0 0 0 8-7l-4 4-3-3 4-4a6 6 0 0 0-5 0Z"/></svg><span data-i18n="修复环境">修复环境</span></button>
+        <button class="ghost launch-repair" id="launchRecover" type="button" title="修复环境" aria-label="修复环境"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg></button>
         <button class="ghost launch-delete" id="launchDelete" type="button" hidden data-i18n="删除启动项">删除启动项</button>
         <span class="launch-save-spacer"></span>
         <button class="ghost" id="launchCancel" type="button" data-i18n="取消">取消</button>
@@ -601,6 +610,38 @@
       </div>
       <div id="launchPluginsHost"></div>
     </div>
+  </div>
+  <div class="ask" id="skillDetailDialog" hidden>
+    <div class="ask-card skill-detail-card" role="dialog" aria-modal="true" aria-labelledby="skillDetailTitle">
+      <div class="dialog-heading"><h2 class="ask-title" id="skillDetailTitle" data-i18n="技能详情">技能详情</h2><button class="ghost icon-btn dialog-close" id="skillDetailClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
+      <p class="skill-detail-path" id="skillDetailPath"></p>
+      <p class="skill-detail-description" id="skillDetailDescription"></p>
+      <pre class="skill-detail-content" id="skillDetailContent" tabindex="0"></pre>
+    </div>
+  </div>
+  <div class="ask" id="skillInstallDialog" hidden>
+    <form class="ask-card skill-editor-card skill-install-card" id="skillInstallForm" role="dialog" aria-modal="true" aria-labelledby="skillInstallTitle">
+      <div class="dialog-heading"><h2 class="ask-title" id="skillInstallTitle" data-i18n="安装技能">安装技能</h2><div class="skill-install-heading-actions"><a class="skill-catalog-link" href="https://github.com/openai/skills/tree/main/skills/.curated" target="_blank" rel="noopener noreferrer" title="浏览 Codex 技能库" aria-label="浏览 Codex 技能库" data-i18n-title="浏览 Codex 技能库" data-i18n-aria-label="浏览 Codex 技能库"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6c-3-2-6-2-9-1v14c3-1 6-1 9 1 3-2 6-2 9-1V5c-3-1-6-1-9 1Zm0 0v14"/></svg></a><button class="ghost icon-btn dialog-close" id="skillInstallClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div></div>
+      <div class="skill-source-tabs" role="group" aria-label="安装来源"><button class="ghost" type="button" data-skill-source="github" aria-pressed="true">GitHub</button><button class="ghost" type="button" data-skill-source="local" aria-pressed="false" data-i18n="本地导入">本地导入</button></div>
+      <div id="skillGithubFields"><label class="sr-only" for="skillSource" data-i18n="仓库或技能目录链接">仓库或技能目录链接</label><input id="skillSource" type="text" placeholder="owner/repo 或 GitHub 技能链接" data-placeholder-i18n="owner/repo 或 GitHub 技能链接" autocomplete="off" /><details class="skill-install-advanced"><summary data-i18n="指定分支">指定分支</summary><input id="skillRef" type="text" data-placeholder-i18n="留空使用链接中的分支或仓库默认分支" /></details></div>
+      <div id="skillLocalFields" hidden><div class="skill-file-actions"><button class="ghost" id="skillChooseFolder" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5h6l2 3h10v12H3V7Z"/></svg><span data-i18n="选择文件夹">选择文件夹</span></button><button class="ghost" id="skillChooseZip" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h10l4 4v14H5V3Z"/><path d="M11 3v10m-1 0h3v4h-3v-4"/></svg><span data-i18n="选择 ZIP">选择 ZIP</span></button></div><input id="skillFolderFiles" type="file" webkitdirectory multiple hidden /><input id="skillZipFile" type="file" accept=".zip" hidden /><p class="hint" id="skillLocalName" data-i18n="导入包含 SKILL.md 的文件夹或 ZIP">导入包含 SKILL.md 的文件夹或 ZIP</p></div>
+      <div class="skill-install-check"><button class="ghost icon-btn" id="skillInspect" type="button" title="检查来源" aria-label="检查来源" data-i18n-title="检查来源" data-i18n-aria-label="检查来源"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-6-6 6 6-6 6"/></svg><span class="spin" aria-hidden="true"></span></button><span class="hint" id="skillInspectHint" role="status"></span></div>
+      <div class="skill-import-list" id="skillImportList" hidden></div>
+      <p class="skill-form-error" id="skillInstallError" role="alert"></p>
+      <div class="ask-actions skill-install-footer"><label class="skill-install-destination"><span class="sr-only" data-i18n="安装到">安装到</span><select id="skillInstallRoot" title="安装到" aria-label="安装到"><option value="dsh">.dsh / skills</option><option value="agents">.agents / skills</option></select></label><button class="ghost" id="skillInstallCancel" type="button" data-i18n="取消">取消</button><button class="primary" id="skillInstallGo" type="submit" disabled><span data-i18n="安装">安装</span><span class="spin" aria-hidden="true"></span></button></div>
+    </form>
+  </div>
+  <div class="ask" id="skillEditorDialog" hidden>
+    <form class="ask-card skill-editor-card" id="skillForm" role="dialog" aria-modal="true" aria-labelledby="skillEditorTitle">
+      <h2 class="ask-title" id="skillEditorTitle" data-i18n="创建技能">创建技能</h2>
+      <label><span data-i18n="技能名称">技能名称</span><input id="skillName" required type="text" maxlength="64" pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="my-skill" autocomplete="off" /></label>
+      <label><span data-i18n="保存目录">保存目录</span><select id="skillRoot"><option value="dsh">.dsh / skills</option><option value="agents">.agents / skills</option></select></label>
+      <label><span data-i18n="技能说明">技能说明</span><input id="skillDescription" required type="text" maxlength="4096" /></label>
+      <label><span data-i18n="技能正文（Markdown）">技能正文（Markdown）</span><textarea id="skillContent" required rows="7" maxlength="262144" spellcheck="false"></textarea></label>
+      <p class="hint" data-i18n="名称使用小写字母、数字和连字符。保存后会自动生成 SKILL.md。">名称使用小写字母、数字和连字符。保存后会自动生成 SKILL.md。</p>
+      <p class="skill-form-error" id="skillFormError" role="alert"></p>
+      <div class="ask-actions"><button class="ghost" id="skillCancel" type="button" data-i18n="取消">取消</button><button class="primary" id="skillSave" type="submit" data-i18n="创建">创建</button></div>
+    </form>
   </div>
   <div class="ask" id="notice" hidden>
     <div class="ask-card" role="alertdialog" aria-modal="true" aria-labelledby="noticeTitle">
@@ -874,6 +915,55 @@
   "检测": "Probe",
   "检测会真的起进程或连端点，可能需要几秒。": "Probing really starts the process or calls the endpoint; it can take a few seconds.",
   "技能": "Skills",
+  "技能详情": "Skill details",
+  "请先停止正在运行的 DSH，再编辑启动项或安装整合包": "Stop the running DSH before editing launch entries or installing modpacks.",
+  "下次安装后清理，运行中的版本额外保留。": "Clean up after the next install; running versions are also kept.",
+  "owner/repo 或 GitHub 技能链接": "owner/repo or GitHub skill URL",
+  "导入包含 SKILL.md 的文件夹或 ZIP": "Import a folder or ZIP containing SKILL.md",
+  "修改图标": "Change icon",
+  "选择文件夹": "Choose folder",
+  "安装技能": "Install skills",
+  "创建技能": "Create skill",
+  "启动项图标": "Launch icon",
+  "选择图片": "Choose image",
+  "恢复默认": "Reset to default",
+  "终端": "Terminal",
+  "代码": "Code",
+  "网页": "Web",
+  "文件夹": "Folder",
+  "星光": "Sparkles",
+  "火箭": "Rocket",
+  "自定义图片": "Custom image",
+  "请选择 5 MB 以内的 PNG、JPEG 或 WebP 图片": "Choose a PNG, JPEG or WebP image under 5 MB",
+  "本地导入": "Local import",
+  "仓库或技能目录链接": "Repository or skill directory URL",
+  "指定分支": "Specify branch",
+  "留空使用链接中的分支或仓库默认分支": "Leave blank to use the URL branch or repository default",
+  "浏览 Codex 技能库": "Browse Codex skills",
+  "选择 ZIP": "Choose ZIP",
+  "选择包含 SKILL.md 的完整技能目录，也可一次导入多个技能。": "Choose a complete folder containing SKILL.md; multiple skills can be imported.",
+  "检查来源": "Check source",
+  "安装到": "Install to",
+  "完整保留技能的脚本与资源，同名技能不会覆盖。": "Keeps skill scripts and resources. Existing skills are never overwritten.",
+  "已选择 {n} 个文件": "{n} files selected",
+  "文件读取失败": "Could not read file",
+  "正在检查技能…": "Checking skills\u2026",
+  "ZIP 最大 32 MB": "ZIP limit: 32 MB",
+  "请先选择技能文件夹或 ZIP": "Choose a skill folder or ZIP first",
+  "技能包过大：单文件最多 2 MB，总计最多 16 MB，2000 个文件": "Skill limit: 2 MB per file, 16 MB total and 2,000 files",
+  "{n} 个文件": "{n} files",
+  "找到 {n} 个技能": "Found {n} skills",
+  "已安装 {n} 个技能，dsh 在跑会热加载。": "Installed {n} skills. Running dsh will load them automatically.",
+  "新增技能": "Add skill",
+  "技能名称": "Skill name",
+  "保存目录": "Save to",
+  "技能说明": "Description",
+  "技能正文（Markdown）": "Instructions (Markdown)",
+  "名称使用小写字母、数字和连字符。保存后会自动生成 SKILL.md。": "Use lowercase letters, numbers and hyphens. SKILL.md is generated on save.",
+  "删除技能 {name}": "Delete skill {name}",
+  "删除技能「{name}」及其目录内的资源？此操作无法撤销。": "Delete skill “{name}” and the resources in its folder? This cannot be undone.",
+  "移除技能「{name}」的链接？原始文件会保留。": "Remove the link to skill “{name}”? The original files will be kept.",
+  "正在读取…": "Loading…",
   "dsh 与 agents 两个用户级技能目录。": "The two per-user skill folders: dsh and agents.",
   "dsh 目录": "dsh folder",
   "agents 目录": "agents folder",
@@ -881,6 +971,10 @@
   "默认由 agent 预设挂载本地技能；这个开关只是往补丁层写覆盖，一般不用动。": "Agent presets own local skill discovery by default; this switch only writes an override into the patch layer and is rarely needed.",
   "名称": "Name",
   "传输": "Transport",
+  "连接方式": "Connection",
+  "本机命令": "Local command",
+  "远程地址": "Remote URL",
+  "高级选项": "Advanced options",
   "stdio（本机程序）": "stdio (local process)",
   "streamable-http（HTTP 端点）": "streamable-http (HTTP endpoint)",
   "启动命令": "Command",
@@ -1153,6 +1247,10 @@
   "保留最新版和最近安装的一版，运行中的版本不删除。": "Keep the latest and most recently installed versions, plus running versions.",
   "环境": "Environments",
   "默认环境": "Default environment",
+  "DSH_HOME 目录": "DSH_HOME directory",
+  "留空使用默认目录": "Leave blank for the default directory",
+  "默认目录": "Default directory",
+  "dsh 的数据根目录：Profile、会话、插件都存在这里；换一个目录就是另一套数据。": "Root of dsh's data: profiles, sessions and plugins live here. A different directory is a separate set of data.",
   "启动与修复": "Startup and recovery",
   "修复环境": "Repair environment",
   "正在修复环境…": "Repairing environment…",
@@ -1256,6 +1354,7 @@
     const instancesEl = document.getElementById('instances')
     const instancesListEl = document.getElementById('instancesList')
     const launchProfileEl = document.getElementById('launchProfile')
+    const launchDshHomeEl = document.getElementById('launchDshHome')
     const launchPortEl = document.getElementById('launchPort')
     const launchNameEl = document.getElementById('launchName')
     const launchSaveEl = document.getElementById('launchSave')
@@ -1564,7 +1663,7 @@
       })
       syncUiSelect(select)
     }
-    for (const select of document.querySelectorAll('#launchProfile, #uiLang, #webBind, #downloadSource, #proxyMode, #openMode, #mcpTransport, #marketSort, #marketPageSize')) createUiSelect(select)
+    for (const select of document.querySelectorAll('#launchProfile, #launchDshHome, #uiLang, #webBind, #downloadSource, #proxyMode, #openMode, #mcpTransport, #marketSort, #marketPageSize, #skillRoot, #skillInstallRoot')) createUiSelect(select)
     document.addEventListener('pointerdown', (event) => {
       if (openUiSelect && !openUiSelect.root.contains(event.target) && !openUiSelect.panel.contains(event.target)) closeUiSelect()
       // 环境详情的「更多操作」下拉同理：点外面就合上
@@ -1736,9 +1835,12 @@
       })
     }
 
-    const post = (path, body = {}) => fetch(path, {
+    let launchPluginScope = ''
+    const scopedLaunchId = (path, explicit = '') => explicit || (launchPluginScope && /^\/api\/(plugins|packs|profiles|recover|sync|mcp|skills|start|stop|instance-port)(?:\/|\?|$)/.test(path) ? launchPluginScope : '')
+    const post = (path, body = {}, options = {}) => fetch(path, {
+      signal: options.signal,
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...(scopedLaunchId(path, options.launchId) ? { 'x-dsh-launch-id': scopedLaunchId(path, options.launchId) } : {}) },
       body: JSON.stringify(body),
     }).then(async (res) => {
       const data = await res.json()
@@ -1835,10 +1937,10 @@
       // 控制是主界面：回到它就把左侧导航收起来，主页还是那张干净的控制卡片
       mainViewEl.classList.toggle('home', name === 'control')
       document.body.classList.toggle('subpage-open', name !== 'control')
-      document.body.classList.toggle('settings-open', name === 'settings')
-      gearEl.classList.toggle('active', name === 'settings')
-      gearEl.setAttribute('aria-pressed', String(name === 'settings'))
-      gearEl.title = t(name === 'settings' ? '返回' : '设置')
+      document.body.classList.toggle('settings-open', name !== 'control')
+      gearEl.classList.toggle('active', name !== 'control')
+      gearEl.setAttribute('aria-pressed', String(name !== 'control'))
+      gearEl.title = t(name !== 'control' ? '返回' : '设置')
       gearEl.setAttribute('aria-label', gearEl.title)
       navItems.forEach((item) => {
         const on = item.dataset.pane === name && (name !== 'settings' || item.dataset.category === currentSettingsCategory)
@@ -1867,7 +1969,7 @@
       }
     }
     navItems.forEach((item) => { item.onclick = () => showPane(item.dataset.pane, item.dataset.category) })
-    gearEl.onclick = () => showPane(currentPane === 'settings' ? 'control' : 'settings', currentSettingsCategory)
+    gearEl.onclick = () => showPane(currentPane !== 'control' ? 'control' : 'settings', currentSettingsCategory)
     placeNavPill({ instant: true })
     window.addEventListener('resize', () => placeNavPill({ instant: true }))
 
@@ -1966,11 +2068,11 @@
      * （自动选版本、打开 DSH 这类只认一个地址的地方）就用服务端给的 running
      * （最近起来的那个）。
      */
-    function runningInfo(version = '', profile = '') {
+    function runningInfo(version = '', profile = '', home = '') {
       const isLive = (item) => item && (item.status === 'running' || item.status === 'starting')
       if (version) {
         const mine = (state.instances || []).find((item) => item && item.version === version
-          && (!profile || item.profile === profile) && isLive(item))
+          && (!profile || item.profile === profile) && (!home || (item.home || state.dshHome) === home) && isLive(item))
         if (mine) return mine
         // 指名了 profile 就到此为止：没有这个组合就是没有，别拿同版本别的实例充数
         if (profile) return null
@@ -1985,11 +2087,30 @@
     }
 
     /**
+     * DSH_HOME 只能选、不能手填：下拉里是默认目录 + 其它启动项用过的目录，
+     * 全新目录走旁边的「选择文件夹」按钮，选完/被服务器解析后补进下拉。
+     */
+    function ensureLaunchHomeOption(home) {
+      if (!home || [...launchDshHomeEl.options].some((option) => option.value === home)) return
+      launchDshHomeEl.insertAdjacentHTML('beforeend', `<option value="${escapeHtml(home)}">${escapeHtml(home)}</option>`)
+    }
+    function paintLaunchHomes(selected) {
+      const current = selected ?? launchDshHomeEl.value
+      launchDshHomeEl.innerHTML = `<option value="">${escapeHtml(t('默认目录'))} (${escapeHtml(state.dshHome || '~/.dsh')})</option>` +
+        [...new Set(launchEntries().map((item) => item.dshHome).filter(Boolean))]
+          .map((home) => `<option value="${escapeHtml(home)}">${escapeHtml(home)}</option>`).join('')
+      ensureLaunchHomeOption(current)
+      launchDshHomeEl.value = current || ''
+      syncUiSelect(launchDshHomeEl)
+    }
+
+    /**
      * 启动 profile 下拉的选项：全部列出来，保留名（desktop）也能选 —— 它只是 dsh CLI 不让用，
      * 启动器起它时换成了 reserved-profile-boot.mjs（见 server.js 的 CLI_BLOCKED_PROFILES）。
      */
     function paintLaunchProfiles() {
-      const options = (state.profiles || []).filter((name) => name && name !== '')
+      const home = launchDshHomeEl.value.trim() || state.dshHome
+      const options = (state.profilesByHome?.[home] || (home === state.dshHome ? state.profiles : ['web'] ) || []).filter((name) => name && name !== '')
       // 已保存的 profile 被外部移走时保留原值，让保存报错，避免悄悄改成另一份环境。
       if (!launchDialogEl.hidden && launchProfile && !options.includes(launchProfile)) options.push(launchProfile)
       if (!options.length) {
@@ -2011,6 +2132,37 @@
       launchProfile = launchProfileEl.value
       void loadRecovery(launchProfile)
       render()
+    }
+    let launchHomeRevision = 0
+    async function refreshLaunchHomeProfiles(resetMissing = false) {
+      const home = launchDshHomeEl.value.trim()
+      const revision = ++launchHomeRevision
+      if (!home) {
+        if (resetMissing && !state.profiles?.includes(launchProfile)) launchProfile = state.profiles?.includes('web') ? 'web' : state.profiles?.[0] || 'web'
+        paintLaunchProfiles()
+        return
+      }
+      try {
+        const data = await getJson(`/api/launch-home/profiles?home=${encodeURIComponent(home)}`)
+        if (revision !== launchHomeRevision || launchDshHomeEl.value.trim() !== home) return
+        ensureLaunchHomeOption(data.home)
+        launchDshHomeEl.value = data.home
+        syncUiSelect(launchDshHomeEl)
+        state.profilesByHome = { ...(state.profilesByHome || {}), [data.home]: data.profiles }
+        if (resetMissing && !data.profiles.includes(launchProfile)) launchProfile = data.profiles.includes('web') ? 'web' : data.profiles[0] || 'web'
+        paintLaunchProfiles()
+      } catch (error) { notify(error.message) }
+    }
+    launchDshHomeEl.onchange = () => refreshLaunchHomeProfiles(true)
+    document.getElementById('launchPickHome').onclick = async () => {
+      const button = document.getElementById('launchPickHome')
+      button.disabled = true
+      try {
+        const data = await post('/api/pick-dir')
+        if (data.path) { ensureLaunchHomeOption(data.path); launchDshHomeEl.value = data.path; syncUiSelect(launchDshHomeEl); await refreshLaunchHomeProfiles(true) }
+        else if (data.error) notify(data.error)
+      } catch (error) { notify(error.message) }
+      finally { button.disabled = false }
     }
 
     function allVersionList() {
@@ -2121,7 +2273,7 @@
      */
     function paintInstances() {
       const list = (state.instances || []).filter((item) => !launchEntries().some((entry) =>
-        resolveLaunchVersion(entry) === item.version && entry.profile === item.profile))
+        resolveLaunchVersion(entry) === item.version && entry.profile === item.profile && (entry.dshHome || state.dshHome) === (item.home || state.dshHome)))
       const show = list.length > 0
       instancesEl.hidden = !show
       if (!show) {
@@ -2137,20 +2289,21 @@
             <span class="instance-head">
               <span class="instance-name">${escapeHtml(item.version)}</span>
               ${item.profile ? `<span class="instance-profile">${escapeHtml(item.profile)} profile</span>` : ''}
+              ${item.home && item.home !== state.dshHome ? `<span class="instance-profile">${escapeHtml(item.home)}</span>` : ''}
               ${stateText ? `<span class="instance-state">${escapeHtml(stateText)}</span>` : ''}
             </span>
             <span class="instance-url" title="${escapeHtml(url)}">${escapeHtml(url)}</span>
           </span>
           <span class="instance-actions">
-            <button class="ghost" type="button" data-open="${escapeHtml(item.version)}" data-profile="${escapeHtml(item.profile || '')}" ${item.status === 'running' && url ? '' : 'disabled'}>${escapeHtml(t('打开'))}</button>
-            <button class="ghost" type="button" data-stop-version="${escapeHtml(item.version)}" data-profile="${escapeHtml(item.profile || '')}" ${busy ? 'disabled' : ''}>${escapeHtml(t('停止'))}</button>
+            <button class="ghost" type="button" data-open="${escapeHtml(item.version)}" data-profile="${escapeHtml(item.profile || '')}" data-home="${escapeHtml(item.home || state.dshHome)}" ${item.status === 'running' && url ? '' : 'disabled'}>${escapeHtml(t('打开'))}</button>
+            <button class="ghost" type="button" data-stop-version="${escapeHtml(item.version)}" data-profile="${escapeHtml(item.profile || '')}" data-home="${escapeHtml(item.home || state.dshHome)}" ${busy ? 'disabled' : ''}>${escapeHtml(t('停止'))}</button>
           </span>
         </div>`
       }).join('')
       instancesListEl.querySelectorAll('button[data-open]').forEach((el) => {
         el.onclick = () => {
           const item = (state.instances || []).find((row) => row.version === el.dataset.open
-            && (row.profile || '') === el.dataset.profile)
+            && (row.profile || '') === el.dataset.profile && (row.home || state.dshHome) === el.dataset.home)
           void openInstance(item?.url)
         }
       })
@@ -2158,7 +2311,7 @@
         el.onclick = async () => {
           el.disabled = true
           try {
-            await post('/api/stop', { version: el.dataset.stopVersion, profile: el.dataset.profile })
+            await post('/api/stop', { version: el.dataset.stopVersion, profile: el.dataset.profile, home: el.dataset.home })
           } catch (error) {
             notify(error.message)
           } finally {
@@ -2168,6 +2321,8 @@
       })
     }
 
+    function launcherRunning() { return (state.instances || []).length > 0 }
+
     function launchEntries() {
       const entries = state.launchPresets || []
       const builtin = entries.find((item) => item.id === DEFAULT_LAUNCH_ID) || { ...DEFAULT_LAUNCH }
@@ -2175,8 +2330,9 @@
     }
 
     /** 自动项优先沿用这个 profile 的运行版本，其次用已装版本；首次安装使用官方 latest 标签。 */
-    function recommendedVersion(profile = 'web') {
+    function recommendedVersion(profile = 'web', home = state.dshHome) {
       const live = (state.instances || []).filter((item) => item.profile === profile
+        && (item.home || state.dshHome) === home
         && (item.status === 'running' || item.status === 'starting'))
         .sort((a, b) => compareVersion(b.version, a.version))[0]
       const installed = [...installedList()].sort((a, b) => compareVersion(b, a))
@@ -2184,15 +2340,83 @@
     }
 
     function resolveLaunchVersion(entry) {
-      return entry.version === 'auto' ? recommendedVersion(entry.profile) : entry.version
+      return entry.version === 'auto' ? recommendedVersion(entry.profile, entry.dshHome || state.dshHome) : entry.version
     }
 
+    const LAUNCH_ICON_PATHS = {
+      terminal: '<rect x="3" y="4" width="18" height="13" rx="3"/><path d="m7 8 3 2.5L7 13m6 0h4M9 21h6m-3-4v4"/>',
+      code: '<path d="m8 7-5 5 5 5m8-10 5 5-5 5m-3-13-2 16"/>',
+      globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c5 5 5 13 0 18-5-5-5-13 0-18Z"/>',
+      folder: '<path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11H3V7Z"/>',
+      sparkles: '<path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3Z"/>',
+      rocket: '<path d="M14 4c3-1 6-1 6-1s0 3-1 6l-6 7-5-5 6-7ZM8 11H4l-1 5 5-1m5 1v4l-5 1 1-5M4 20l2-2"/><circle cx="16" cy="7" r="1"/>',
+    }
+    const LAUNCH_ICON_NAMES = { terminal: '终端', code: '代码', globe: '网页', folder: '文件夹', sparkles: '星光', rocket: '火箭' }
+    function launchIconMarkup(icon) {
+      if (/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(icon || '')) return `<img src="${escapeHtml(icon)}" alt="" />`
+      return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${LAUNCH_ICON_PATHS[icon] || LAUNCH_ICON_PATHS.terminal}</svg>`
+    }
+    let launchIcon = 'terminal'
+    let launchIconMotion = null, launchIconsOpen = false, paintedLaunchIcon = null
+    function setLaunchIcons(open, immediate = false) {
+      const popover = document.getElementById('launchIconPopover')
+      if (launchIconsOpen === open && !immediate) return
+      const wasHidden = popover.hidden
+      const current = getComputedStyle(popover)
+      const from = { opacity: wasHidden ? 0 : current.opacity, transform: wasHidden ? 'translateY(-6px) scale(.96)' : current.transform }
+      launchIconMotion?.cancel(); launchIconMotion = null
+      launchIconsOpen = open
+      document.getElementById('launchIconTrigger').setAttribute('aria-expanded', String(open))
+      popover.inert = !open
+      if (immediate || document.documentElement.classList.contains('reduce-motion') || matchMedia('(prefers-reduced-motion: reduce)').matches) { popover.hidden = !open; return }
+      popover.hidden = false
+      // 收起完成后才隐藏；连续点击时取消旧动画，避免旧回调关掉新面板。
+      const animation = popover.animate([from, { opacity: open ? 1 : 0, transform: open ? 'translateY(0) scale(1)' : 'translateY(-6px) scale(.96)' }], { duration: open ? 200 : 160, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'both' })
+      launchIconMotion = animation
+      animation.finished.then(() => {
+        if (launchIconMotion !== animation) return
+        popover.hidden = !open; launchIconMotion = null; animation.cancel()
+      }).catch(() => {})
+    }
+    function closeLaunchIcons(immediate = false) { setLaunchIcons(false, immediate) }
+    document.getElementById('launchIconTrigger').onclick = () => setLaunchIcons(!launchIconsOpen)
+    document.addEventListener('pointerdown', (event) => { if (!document.getElementById('launchIdentityField').contains(event.target)) closeLaunchIcons() })
+    document.getElementById('launchIdentityField').onkeydown = (event) => {
+      if (event.key === 'Escape' && !document.getElementById('launchIconPopover').hidden) { event.preventDefault(); event.stopPropagation(); closeLaunchIcons(); document.getElementById('launchIconTrigger').focus() }
+    }
+    function paintLaunchIcons() {
+      const trigger = document.getElementById('launchIconTrigger')
+      trigger.innerHTML = launchIconMarkup(launchIcon)
+      if (paintedLaunchIcon !== null && paintedLaunchIcon !== launchIcon && !launchDialogEl.hidden && !document.documentElement.classList.contains('reduce-motion') && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        trigger.firstElementChild.animate([{ opacity: .25, transform: 'scale(.65) rotate(-10deg)' }, { opacity: 1, transform: 'scale(1) rotate(0)' }], { duration: 220, easing: 'cubic-bezier(.2,.8,.2,1)' })
+      }
+      paintedLaunchIcon = launchIcon
+      const picker = document.getElementById('launchIconPicker')
+      const choices = [...Object.keys(LAUNCH_ICON_PATHS), ...(launchIcon.startsWith('data:') ? [launchIcon] : [])]
+      picker.innerHTML = choices.map((icon) => `<button type="button" class="launch-icon-choice" aria-label="${escapeHtml(t(LAUNCH_ICON_NAMES[icon] || '自定义图片'))}" aria-pressed="${icon === launchIcon}" title="${escapeHtml(t(LAUNCH_ICON_NAMES[icon] || '自定义图片'))}">${launchIconMarkup(icon)}</button>`).join('')
+      picker.querySelectorAll('button').forEach((button, i) => { button.onclick = () => { launchIcon = choices[i]; paintLaunchIcons(); closeLaunchIcons() } })
+    }
+    document.getElementById('launchIconReset').onclick = () => { launchIcon = 'terminal'; paintLaunchIcons(); closeLaunchIcons() }
+    document.getElementById('launchIconUpload').onclick = () => { closeLaunchIcons(); document.getElementById('launchIconFile').click() }
+    document.getElementById('launchIconFile').onchange = async (event) => {
+      const file = event.target.files[0], hint = document.getElementById('launchIconHint')
+      if (!file) return
+      try {
+        if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) throw new Error(t('请选择 5 MB 以内的 PNG、JPEG 或 WebP 图片'))
+        const bitmap = await createImageBitmap(file)
+        const canvas = document.createElement('canvas'); canvas.width = canvas.height = 96
+        const ctx = canvas.getContext('2d'), scale = Math.min(96 / bitmap.width, 96 / bitmap.height)
+        ctx.drawImage(bitmap, (96 - bitmap.width * scale) / 2, (96 - bitmap.height * scale) / 2, bitmap.width * scale, bitmap.height * scale)
+        bitmap.close(); launchIcon = canvas.toDataURL('image/png'); paintLaunchIcons(); hint.textContent = ''
+      } catch (error) { hint.textContent = error.message }
+      event.target.value = ''
+    }
     let activeLaunchId = ''
     let launchHomeMarkup = ''
     function paintLaunchHome() {
       const markup = launchEntries().map((entry) => {
         const version = resolveLaunchVersion(entry)
-        const live = version ? runningInfo(version, entry.profile) : null
+        const live = version ? runningInfo(version, entry.profile, entry.dshHome || state.dshHome) : null
         const builtin = entry.id === DEFAULT_LAUNCH_ID
         const name = builtin && entry.name === '默认启动' ? 'DSH' : entry.name
         const busy = live?.status === 'starting' || live?.status === 'stopping'
@@ -2200,20 +2424,20 @@
         const label = ownAction === 'install' ? t('安装中') : busy || ownAction
           ? t(live?.status === 'stopping' || ownAction === 'stop' ? '停止中' : '启动中')
           : live?.status === 'running' ? t(live.url ? '打开' : '运行中') : t('启动')
-        const note = [version || t('自动选择版本'), entry.profile].filter(Boolean).join(' · ')
+        const note = [version || t('自动选择版本'), entry.profile, entry.dshHome || t('默认目录')].filter(Boolean).join(' · ')
         const rowStatus = busy || ownAction ? label : live?.status === 'running' ? t('运行中') : ''
         const automaticHint = entry.version === 'auto' ? t('优先使用正在运行的版本，否则选择本机最新已安装版本；未安装时会在首次启动下载最新版。新版本需要手动更新。') : ''
         const latest = latestRemoteVersion()
         const hasNewVersion = version && latest && compareVersion(latest, version) > 0
         const installNote = !installedList().includes(version) && !live ? t('首次启动会自动安装') : ''
         return `<div class="launch-preset">
-          <span class="launch-app-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="13" rx="3"/><path d="m7 8 3 2.5L7 13m6 0h4M9 21h6m-3-4v4"/></svg></span>
+          <span class="launch-app-icon" aria-hidden="true">${launchIconMarkup(entry.icon)}</span>
           <span class="launch-preset-copy"><span class="launch-preset-heading">
             <span class="launch-preset-name">${escapeHtml(name)}</span>${builtin ? `<span class="launch-builtin">${escapeHtml(t('内置'))}</span>` : ''}</span>
             <span class="launch-preset-meta" title="${escapeHtml(automaticHint)}"><span>${escapeHtml([note, installNote].filter(Boolean).join(' · '))}</span>${rowStatus ? `<span class="launch-status${busy || ownAction ? ' is-working' : ''}" role="status">${escapeHtml(rowStatus)}</span>` : ''}</span>
             ${hasNewVersion ? `<button class="launch-new-version" type="button" data-version-id="${entry.id}" ${action || state.installing ? 'disabled' : ''}>${escapeHtml(t('新版本 {version}', { version: latest }))}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button>` : ''}</span>
           <span class="launch-actions"><button class="launch-edit launch-plugins" type="button" data-plugins-id="${entry.id}" title="${escapeHtml(t('管理插件'))}" aria-label="${escapeHtml(t('管理 {name} 的插件', { name }))}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9M8 5.25l8 4.5"/></svg></button><button class="launch-edit" type="button" data-edit-id="${entry.id}" title="${escapeHtml(t('编辑 {name}', { name }))}" aria-label="${escapeHtml(t('编辑 {name}', { name }))}" ${action || state.installing ? 'disabled' : ''}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9M8 5.25l8 4.5"/></svg></button><button class="launch-edit" type="button" data-edit-id="${entry.id}" title="${escapeHtml(t(launcherRunning() ? '请先停止正在运行的 DSH，再编辑启动项或安装整合包' : '编辑 {name}', { name }))}" aria-label="${escapeHtml(t('编辑 {name}', { name }))}" ${action || state.installing || launcherRunning() ? 'disabled' : ''}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 4 4 4M4 20l4-1 12-12a2.8 2.8 0 0 0-4-4L4 15l-1 6Z"/></svg></button>
           ${live ? `<button class="icon-btn launch-action" type="button" data-restart-id="${entry.id}" title="${escapeHtml(t('重启'))}" aria-label="${escapeHtml(t('重启'))}" ${action || state.installing || busy ? 'disabled' : ''}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/></svg></button>
@@ -2241,10 +2465,10 @@
           if (!entry) return
           const version = resolveLaunchVersion(entry)
           if (!version) return
-          const live = runningInfo(version, entry.profile)
+          const live = runningInfo(version, entry.profile, entry.dshHome || state.dshHome)
           if (live?.status === 'running') { if (live.url) await openInstance(live.url); return }
           activeLaunchId = entry.id
-          try { await startVersion(version, entry.profile, entry.port) }
+          try { await startVersion(version, entry.profile, entry.port, entry.id) }
           catch (error) { notify(error.message) }
         }
       })
@@ -2268,7 +2492,7 @@
       launchPresetsEl.querySelectorAll('[data-restart-id]').forEach((button) => {
         button.onclick = () => manageLaunchEntry(button.dataset.restartId, true)
       })
-      launchAddEl.disabled = Boolean(action) || Boolean(state.installing)
+      launchAddEl.disabled = Boolean(action) || Boolean(state.installing) || launcherRunning()
       launchAddEl.title = launchAddEl.ariaLabel = t('添加启动项')
     }
 
@@ -2278,13 +2502,13 @@
       if (!entry) return
       // 停止后自动推荐可能切到其他版本，重启必须沿用点击时的版本和 profile。
       const version = resolveLaunchVersion(entry), profile = entry.profile
-      if (runningInfo(version, profile)?.status !== 'running') return
+      if (runningInfo(version, profile, entry.dshHome || state.dshHome)?.status !== 'running') return
       activeLaunchId = id
       action = 'stop'
       render()
       try {
-        await post('/api/stop', { version, profile })
-        if (restart) await startVersion(version, profile, entry.port)
+        await post('/api/stop', { version, profile }, { launchId: entry.id })
+        if (restart) await startVersion(version, profile, entry.port, entry.id)
       } catch (error) { notify(error.message) }
       finally { action = ''; activeLaunchId = ''; render() }
     }
@@ -2302,7 +2526,7 @@
         focus: document.activeElement,
       }
       versionManageTarget = entry
-        ? { version: resolveLaunchVersion(entry), profile: entry.profile || 'web' }
+        ? { version: resolveLaunchVersion(entry), profile: entry.profile || 'web', dshHome: entry.dshHome || state.dshHome, launchId: entry.id }
         : { version: selected(), profile: launchProfile }
       closeVersionPanel()
       if (versionManageReturnToEditor) {
@@ -2311,6 +2535,7 @@
       }
       else closeLaunchPanelForVersionManager()
       paintVersionManager()
+      versionManageDialogEl.classList.toggle('is-child-dialog', versionManageReturnToEditor)
       showDialog(versionManageDialogEl)
       document.getElementById('versionManageClose').focus()
     }
@@ -2319,7 +2544,10 @@
     }
     async function closeVersionManager() {
       if (versionManageDialogEl.hidden || versionManageDialogEl.dataset.dialogClosing) return
+      // 子卡片退出的同时恢复父卡片，遮罩始终由编辑窗口维持。
+      if (versionManageReturnToEditor) launchDialogEl.classList.remove('is-underlay')
       if (!(await hideDialog(versionManageDialogEl))) return
+      versionManageDialogEl.classList.remove('is-child-dialog')
       if (versionManageReturnToEditor) {
         launchFormEl.inert = false
         launchDialogEl.classList.remove('is-underlay')
@@ -2396,20 +2624,28 @@
     }
 
     function openLaunchEditor(entry) {
+      if (launcherRunning()) { notify(t('请先停止正在运行的 DSH，再编辑启动项或安装整合包')); return }
       ++launchDialogRevision
+      ++launchHomeRevision
       launchDialogClosing = false
       launchFormEl.inert = false
       editingLaunchId = entry?.id || ''
       launchNameEl.value = entry?.name || ''
+      launchIcon = entry?.icon || 'terminal'
+      closeLaunchIcons(true)
+      document.getElementById('launchIconHint').textContent = ''
+      paintLaunchIcons()
       picked = entry?.version || 'auto'
       versionValue = picked
       userPicked = true
       launchProfile = entry?.profile || 'web'
+      paintLaunchHomes(entry?.dshHome || '')
       launchPortEl.value = entry?.port ? String(entry.port) : ''
       launchDeleteEl.hidden = !entry || entry.id === DEFAULT_LAUNCH_ID
       document.getElementById('launchDialogTitle').textContent = t(entry ? '编辑启动项' : '添加启动项')
       showDialog(launchDialogEl)
       paintLaunchProfiles()
+      if (entry?.dshHome) void refreshLaunchHomeProfiles()
       render()
       void loadRecovery(launchProfile)
       launchNameEl.focus()
@@ -2418,6 +2654,7 @@
     async function closeLaunchEditor() {
       if (launchSaveEl.disabled || launchDialogEl.hidden || launchDialogClosing) return
       const revision = ++launchDialogRevision
+      ++launchHomeRevision
       launchDialogClosing = true
       closeVersionPanel()
       launchFormEl.inert = true
@@ -2446,8 +2683,9 @@
       launchSaveEl.disabled = true
       try {
         const data = await post('/api/launch-presets', {
-          id: editingLaunchId || undefined, name: launchNameEl.value,
+          id: editingLaunchId || undefined, name: launchNameEl.value, icon: launchIcon,
           version: versionValue || 'auto', profile: launchProfile, port: launchPortEl.value.trim(),
+          dshHome: launchDshHomeEl.value.trim(),
         })
         state.launchPresets = [...launchEntries().filter((item) => item.id !== data.entry.id), data.entry]
         launchSaveEl.disabled = false
@@ -2528,11 +2766,11 @@
       render()
     }
 
-    async function startVersion(version, profile = launchProfile, presetPort = null) {
+    async function startVersion(version, profile = launchProfile, presetPort = null, launchId = '') {
       try {
         action = 'start'
         render()
-        if (presetPort !== null) await post('/api/instance-port', { version, profile, port: presetPort })
+        if (presetPort !== null) await post('/api/instance-port', { version, profile, port: presetPort }, { launchId })
         if (!installedList().includes(version)) {
           action = 'install'
           render()
@@ -2540,7 +2778,7 @@
         }
         action = 'start'
         render()
-        const data = await post('/api/start', { version, profile })
+        const data = await post('/api/start', { version, profile }, { launchId })
         if (data.url) await openInstance(data.url)
       } finally {
         action = ''
@@ -2558,13 +2796,13 @@
       const targetVersion = target?.version || selected()
       const targetProfile = target?.profile || launchProfile
       // 管理器指定目标时只升级那份实例；编辑器内的选择作为草稿保留，不能被一次更新改写。
-      const running = runningInfo(targetVersion, targetProfile)
+      const running = runningInfo(targetVersion, targetProfile, target?.dshHome || state.dshHome)
       const wasLive = Boolean(running && (running.status === 'running' || running.status === 'starting'))
       try {
         if (wasLive) {
           action = 'stop'
           render()
-           await post('/api/stop', { version: running.version, profile: running.profile })
+           await post('/api/stop', { version: running.version, profile: running.profile }, { launchId: target?.launchId })
         }
         if (!target?.preserveSelection) {
           picked = latest
@@ -2577,7 +2815,7 @@
           await post('/api/install', { version: latest })
         }
         if (wasLive) {
-          await startVersion(latest, targetProfile)
+          await startVersion(latest, targetProfile, null, target?.launchId)
           return
         }
         action = ''
@@ -2672,6 +2910,7 @@
         const row = data.versions.find((item) => item && (item.status === 'running' || item.status === 'starting'))
         if (row?.version) running = { version: row.version, status: row.status, url: row.url }
       }
+      const previouslyRunning = launcherRunning()
       state = {
         installing: data.installing ?? null,
         installed,
@@ -2679,6 +2918,9 @@
         instances: Array.isArray(data.instances) ? data.instances : [],
         running,
         profile: typeof data.profile === 'string' ? data.profile : (state.profile || ''),
+        dshHome: typeof data.dshHome === 'string' ? data.dshHome : (state.dshHome || ''),
+        profilesByHome: data.profilesByHome && typeof data.profilesByHome === 'object'
+          ? { ...(state.profilesByHome || {}), ...data.profilesByHome } : (state.profilesByHome || {}),
         // 旧服务进程（改动前起的）的 state 里没有 profiles：保留旧值，别把下拉清空
         profiles: Array.isArray(data.profiles) ? data.profiles : (state.profiles || []),
         // 同上：instancePorts 是后加的字段，老服务的 state 里没有它
@@ -2690,6 +2932,11 @@
         recovery: state.recovery,
         health: data.health ?? null,
         loaded: true,
+      }
+      if (previouslyRunning !== launcherRunning()) {
+        if (!packImportDialog.hidden) renderPackMarket()
+        if (!packDetailDialog.hidden) renderMarketDetail()
+        if (!packInstallDialog.hidden) renderPackInspect()
       }
       if (data.progress) installProgress = data.progress
       if (!data.installing) installProgress = data.progress || null
@@ -2811,8 +3058,9 @@
       }
     }
 
-    function getJson(path) {
-      return fetch(path, { cache: 'no-store' }).then(async (res) => {
+    function getJson(path, options = {}) {
+      const launchId = scopedLaunchId(path, options.launchId)
+      return fetch(path, { cache: 'no-store', headers: launchId ? { 'x-dsh-launch-id': launchId } : {} }).then(async (res) => {
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || res.statusText)
         return data
@@ -3483,6 +3731,7 @@
       const requestId = ++pluginDialogRequest
       pluginDialogOrigin = document.activeElement
       pluginLaunchEntry = entry
+      launchPluginScope = entry.id
       pluginProfile = entry.profile
       pluginUpdates = {}
       paintPluginProfiles()
@@ -3531,6 +3780,7 @@
       // 弹窗里停在某个环境的详情上，关掉后回卡片列表，别把详情视图带到主页面
       closePack()
       pluginLaunchEntry = null
+      launchPluginScope = ''
       pluginDialogLoading = false
       launchPluginsCardEl.classList.remove('is-loading')
       if (pluginDialogOrigin?.isConnected) pluginDialogOrigin.focus()
@@ -3876,6 +4126,7 @@
     let packInspection = null
     let packTargetProfile = ''
     let packInspectRequest = 0
+    let packInspectAbort = null
     let packMarket = null
     let packBuiltin = null
     let packProgress = null
@@ -4078,6 +4329,17 @@
     function closePack() {
       openedPack = null
       renderPackView()
+      // 返回列表也走一次入场动效：进详情是自下而上升入（CSS pack-view-in），返回就自上而下落定
+      const reduced = document.documentElement.classList.contains('reduce-motion') || matchMedia('(prefers-reduced-motion: reduce)').matches
+      if (!reduced && typeof pluginOverviewEl.animate === 'function') {
+        pluginOverviewEl.animate(
+          [
+            { opacity: 0, transform: 'translateY(-8px)' },
+            { opacity: 1, transform: 'translateY(0)' },
+          ],
+          { duration: 280, easing: 'cubic-bezier(0.22, 0.61, 0.36, 1)' },
+        )
+      }
     }
 
     /** 「更多操作」菜单的行首图标：stroke 风格跟顶栏按钮一套。 */
@@ -4287,8 +4549,10 @@
     function showPackDialog(dialog, focus) {
       if (!dialog.hidden && !dialog.dataset.dialogClosing) return
       closeUiSelect()
-      const parent = [profileDialogEl, packInstallDialog, packDetailDialog, packImportDialog, packExportDialog, launchPluginsDialogEl].find((one) => one !== dialog && !one.hidden && !one.dataset.dialogClosing)
+      const parent = [profileDialogEl, packInstallDialog, packDetailDialog, packImportDialog, packExportDialog, launchPluginsDialogEl].find((one) => one !== dialog && !one.hidden && !one.dataset.dialogClosing && !one.classList.contains('is-underlay'))
       packDialogContext.set(dialog, { parent, origin: document.activeElement })
+      dialog.classList.toggle('is-child-dialog', Boolean(parent))
+      if (parent) dialog.style.zIndex = Math.max(Number(getComputedStyle(dialog).zIndex), Number(getComputedStyle(parent).zIndex) + 2)
       if (parent) {
         parent.querySelector('.ask-card').inert = true
         parent.classList.add('is-underlay')
@@ -4300,35 +4564,47 @@
       if (dialog.hidden || dialog.dataset.dialogClosing) return
       closeUiSelect()
       const context = packDialogContext.get(dialog)
+      // 返回时让父卡片与子卡片交叉淡入淡出；遮罩留在父层，整段动画都不会露出主页。
+      const parentCovered = () => context?.parent && [...packDialogContext].some(([other, entry]) => other !== dialog && entry.parent === context.parent && !other.hidden && !other.dataset.dialogClosing)
+      if (context?.parent && !parentCovered()) context.parent.classList.remove('is-underlay')
       if (!(await hideDialog(dialog))) return
       packDialogContext.delete(dialog)
-      const covered = context?.parent && [...packDialogContext].some(([other, entry]) => entry.parent === context.parent && !other.hidden)
-      if (covered) return
+      dialog.classList.remove('is-child-dialog')
+      dialog.style.removeProperty('z-index')
+      if (parentCovered()) return
       if (context?.parent) {
         context.parent.querySelector('.ask-card').inert = false
         context.parent.classList.remove('is-underlay')
       }
-      if (context?.origin?.isConnected && context.origin.getClientRects().length && !context.origin.closest('[inert]')) context.origin.focus()
+      if (context?.origin?.isConnected && context.origin.getClientRects().length && !context.origin.closest('[inert]')) context.origin.focus({ preventScroll: true })
       else if (context?.parent && !context.parent.hidden) context.parent.querySelector('button')?.focus()
     }
     function trapPackDialog(dialog, close) {
       dialog.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); return }
         if (event.key !== 'Tab' || openUiSelect) return
-        const controls = [...dialog.querySelectorAll('button, input, select:not(.ui-select-native), summary, a[href]')].filter((el) => !el.disabled && el.getClientRects().length)
+        const controls = [...dialog.querySelectorAll('button, input, textarea, select:not(.ui-select-native), summary, a[href], [tabindex="0"]')].filter((el) => !el.disabled && el.getClientRects().length)
         const first = controls[0], last = controls.at(-1)
         if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
       })
       dialog.addEventListener('click', (event) => { if (event.target === dialog) close() })
     }
-    function closeMarketDetail() { hidePackDialog(packDetailDialog); marketDetailIndex = null }
+    async function closeMarketDetail() {
+      await hidePackDialog(packDetailDialog)
+      if (packDetailDialog.hidden) marketDetailIndex = null
+    }
     function closeInstallDialog() {
       if (packInstalling) return
       packInspectRequest += 1
+      packInspectAbort?.abort()
+      packInspectAbort = null
+      packBusy = false
       packInspection = null
       hidePackDialog(packInstallDialog)
       renderPackInspect()
+      renderPackMarket()
+      renderPackView()
     }
     document.getElementById('packDetailClose').onclick = closeMarketDetail
     document.getElementById('packInstallClose').onclick = closeInstallDialog
@@ -4407,7 +4683,7 @@
         </div>
         <p class="market-description">${escapeHtml(entry.description || t('暂无说明'))}</p>
         ${entry.dshVersion ? `<p class="hint">${escapeHtml(t('需要 dsh {version}', { version: entry.dshVersion }))}</p>` : ''}
-        <div class="market-detail-actions">${entry.repoUrl ? `<a class="ghost" href="${escapeHtml(entry.repoUrl)}" target="_blank" rel="noreferrer">GitHub</a>` : '<span></span>'}<button class="primary market-install" type="button" ${packBusy ? 'disabled' : ''}>${escapeHtml(t('安装'))}</button></div>`
+        <div class="market-detail-actions">${entry.repoUrl ? `<a class="ghost" href="${escapeHtml(entry.repoUrl)}" target="_blank" rel="noreferrer">GitHub</a>` : '<span></span>'}<button class="primary market-install" type="button" ${packBusy || launcherRunning() ? 'disabled' : ''}>${escapeHtml(t('安装'))}</button></div>`
       packMarketDetailEl.querySelector('.market-install').onclick = () => inspectPack({ market: entry })
     }
     function openMarketDetail(index) {
@@ -4445,7 +4721,7 @@
           <span class="market-card-heading"><span class="market-card-icon">${marketCube}</span><span class="market-card-name">${escapeHtml(entry.displayName || entry.name)}</span></span>
           <span class="market-card-desc">${escapeHtml(entry.description || t('暂无说明'))}</span>
         </button>
-        <div class="market-card-footer"><span class="market-card-author">${escapeHtml(entry.author || entry.name)}<small>${escapeHtml(entry.version ? `v${entry.version}` : '')}</small></span><span class="market-stars" title="GitHub Star">${marketStar} ${marketStars(entry)}</span><button class="ghost market-install" type="button" data-market="${index}" ${packBusy ? 'disabled' : ''}>${escapeHtml(t('安装'))}</button></div>
+        <div class="market-card-footer"><span class="market-card-author">${escapeHtml(entry.author || entry.name)}<small>${escapeHtml(entry.version ? `v${entry.version}` : '')}</small></span><span class="market-stars" title="GitHub Star">${marketStar} ${marketStars(entry)}</span><button class="ghost market-install" type="button" data-market="${index}" ${packBusy || launcherRunning() ? 'disabled' : ''}>${escapeHtml(t('安装'))}</button></div>
       </article>`).join('')
       packMarketEl.querySelectorAll('[data-market-detail]').forEach((el) => { el.onclick = () => openMarketDetail(Number(el.dataset.marketDetail)) })
       packMarketEl.querySelectorAll('button[data-market]').forEach((el) => { el.onclick = () => { const entry = all[Number(el.dataset.market)]; if (entry) void inspectPack({ market: entry }) } })
@@ -4560,7 +4836,7 @@
           </div>
         </details>
         <div class="pack-actions">
-          <button class="primary${packInstalling ? ' loading' : ''}" type="button" id="packInstall" ${(data.ok && !packBusy) ? '' : 'disabled'}>${packInstalling ? '<span class="spin" aria-hidden="true"></span>' : ''}${escapeHtml(t('安装'))}</button>
+          <button class="primary${packInstalling ? ' loading' : ''}" type="button" id="packInstall" ${(data.ok && !packBusy && !launcherRunning()) ? '' : 'disabled'}>${packInstalling ? '<span class="spin" aria-hidden="true"></span>' : ''}${escapeHtml(t('安装'))}</button>
           <button class="ghost" type="button" id="packCancel" ${packInstalling ? 'disabled' : ''}>${escapeHtml(t('取消'))}</button>
         </div>`
       const profileSelect = document.getElementById('packProfile')
@@ -4616,10 +4892,11 @@
       payload = { ...payload, profile: payload.profile || openedPack?.profile || pluginProfile || packState.profile || state.profile || 'web' }
       packTargetProfile = payload.profile
       const request = ++packInspectRequest
+      const controller = new AbortController()
+      packInspectAbort = controller
       packBusy = true
       if (!rechecking) openImportDialog()
-      // 从详情安装时先回到市场再确认，避免叠三层弹窗。
-      closeMarketDetail()
+      // 保留详情作为返回目标；父层只留遮罩，屏幕上仍只显示当前卡片。
       showPackDialog(packInstallDialog, document.getElementById('packInstallClose'))
       renderPackMarket()
       renderPackBuiltin()
@@ -4628,7 +4905,7 @@
       renderPackInspect()
       packHintEl.textContent = t('正在准备安装…')
       try {
-        const data = await post('/api/packs/inspect', payload)
+        const data = await post('/api/packs/inspect', payload, { signal: controller.signal })
         if (request !== packInspectRequest) return
         packInspection = data
         renderPackInspect()
@@ -4641,6 +4918,9 @@
         packHintEl.textContent = error.message
         notify(error.message, t('整合包检查失败'))
       } finally {
+        // 取消后可以立即重新打开；晚到的旧请求不能把新请求的 busy 状态清掉。
+        if (request !== packInspectRequest) return
+        packInspectAbort = null
         packBusy = false
         // 详情卡里的「安装」要等 packBusy 复位后才画得成可用状态
         renderPackInspect()
@@ -4651,6 +4931,7 @@
     }
 
     async function installPack() {
+      if (launcherRunning()) { notify(t('请先停止正在运行的 DSH，再编辑启动项或安装整合包')); return }
       if (!packInspection?.ok || packBusy || packInspection.target?.profile !== packTargetProfile) return
       // 必须先取安装环境再重画：renderPackInspect 会按检查结果重置输入框，晚一步就丢用户指定的 profile
       const profile = String(document.getElementById('packProfile')?.value || '').trim()
@@ -4817,7 +5098,6 @@
     const mcpNameEl = document.getElementById('mcpName')
     const mcpTransportEl = document.getElementById('mcpTransport')
     const mcpCommandEl = document.getElementById('mcpCommand')
-    const mcpArgsEl = document.getElementById('mcpArgs')
     const mcpUrlEl = document.getElementById('mcpUrl')
     const mcpHeadersEl = document.getElementById('mcpHeaders')
     const mcpTimeoutEl = document.getElementById('mcpTimeout')
@@ -4915,6 +5195,7 @@
       }
     }
 
+    let mcpOriginalCommand = null
     function openMcpDialog(server) {
       mcpDialogEl.dataset.edit = server ? server.serverName : ''
       document.getElementById('mcpDialogTitle').textContent = server ? t('编辑 MCP 服务器') : t('添加 MCP 服务器')
@@ -4923,11 +5204,14 @@
       mcpTransportEl.value = server?.transport === 'streamable-http' ? 'streamable-http' : 'stdio'
       // 直改 value 不会触发 change，触发器文案要手动同步（顺带把 i18n 后的选项文案刷上）
       syncUiSelect(mcpTransportEl)
-      mcpCommandEl.value = server?.command ?? ''
-      mcpArgsEl.value = Array.isArray(server?.args) ? server.args.join(' ') : ''
+      const quoteArg = (value) => /^[A-Za-z0-9_@./:=+-]+$/.test(String(value)) ? String(value) : JSON.stringify(String(value))
+      mcpCommandEl.value = server?.command ? [server.command, ...(server.args || [])].map(quoteArg).join(' ') : ''
+      // 文本框无法原样显示多行参数；用户没改命令时直接沿用 argv，避免编辑超时顺带改坏参数。
+      mcpOriginalCommand = server ? { line: mcpCommandEl.value, command: server.command, args: server.args || [] } : null
       mcpUrlEl.value = server?.url ?? ''
       mcpHeadersEl.value = server?.headers ? JSON.stringify(server.headers) : ''
       mcpTimeoutEl.value = server?.toolCallTimeoutMs ?? ''
+      resetMcpAdvanced(Boolean(server?.headers || server?.toolCallTimeoutMs))
       mcpDialogNoteEl.hidden = true
       syncMcpRows()
       showDialog(mcpDialogEl)
@@ -4953,11 +5237,15 @@
       const spec = {
         serverName: mcpDialogEl.dataset.edit || name,
         transport,
-        command: transport === 'stdio' ? mcpCommandEl.value.trim() : '',
-        args: transport === 'stdio' ? mcpArgsEl.value.trim().split(/\s+/).filter(Boolean) : [],
+        commandLine: transport === 'stdio' ? mcpCommandEl.value.trim() : undefined,
         url: transport === 'stdio' ? '' : mcpUrlEl.value.trim(),
         headers: transport === 'stdio' || !headers ? undefined : JSON.parse(headers),
         toolCallTimeoutMs: mcpTimeoutEl.value.trim() || undefined,
+      }
+      if (transport === 'stdio' && mcpOriginalCommand && mcpCommandEl.value === mcpOriginalCommand.line) {
+        delete spec.commandLine
+        spec.command = mcpOriginalCommand.command
+        spec.args = mcpOriginalCommand.args
       }
       button.disabled = true
       try {
@@ -4978,6 +5266,30 @@
     document.getElementById('mcpCancel').onclick = closeMcpDialog
     mcpTransportEl.onchange = syncMcpRows
     document.getElementById('mcpSave').onclick = saveMcp
+    const mcpAdvancedEl = document.getElementById('mcpAdvanced')
+    let mcpAdvancedMotion = null, mcpAdvancedOpening = null
+    function resetMcpAdvanced(open) {
+      mcpAdvancedMotion?.cancel(); mcpAdvancedMotion = null; mcpAdvancedOpening = null
+      mcpAdvancedEl.style.overflow = ''; mcpAdvancedEl.open = open
+    }
+    mcpAdvancedEl.querySelector('summary').onclick = (event) => {
+      event.preventDefault()
+      const opening = !(mcpAdvancedOpening ?? mcpAdvancedEl.open)
+      const from = mcpAdvancedEl.getBoundingClientRect().height
+      mcpAdvancedMotion?.cancel()
+      const reduced = document.documentElement.classList.contains('reduce-motion') || matchMedia('(prefers-reduced-motion: reduce)').matches
+      if (reduced || typeof mcpAdvancedEl.animate !== 'function') { resetMcpAdvanced(opening); return }
+      mcpAdvancedEl.open = true
+      mcpAdvancedEl.style.overflow = 'hidden'
+      const target = opening ? mcpAdvancedEl.getBoundingClientRect().height : mcpAdvancedEl.querySelector('summary').getBoundingClientRect().height
+      mcpAdvancedOpening = opening
+      const animation = mcpAdvancedEl.animate([{ height: `${from}px` }, { height: `${target}px` }], { duration: 220, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'both' })
+      mcpAdvancedMotion = animation
+      animation.finished.then(() => {
+        if (mcpAdvancedMotion !== animation) return
+        mcpAdvancedEl.open = opening; mcpAdvancedEl.style.overflow = ''; mcpAdvancedOpening = null; mcpAdvancedMotion = null; animation.cancel()
+      }).catch(() => {})
+    }
     document.getElementById('mcpRefresh').onclick = loadMcp
     document.getElementById('mcpProbe').onclick = async () => {
       const button = document.getElementById('mcpProbe')
@@ -4998,26 +5310,213 @@
     const skillListEl = document.getElementById('skillList')
     const skillHintEl = document.getElementById('skillHint')
     const skillSubEl = document.getElementById('skillSub')
+    const skillDetailDialogEl = document.getElementById('skillDetailDialog')
+    const skillDetailContentEl = document.getElementById('skillDetailContent')
+    let skillDetailRequest = 0
+    let skillDetailOrigin = null
+    async function openSkillDetail(skill, origin) {
+      const request = ++skillDetailRequest
+      skillDetailOrigin = origin
+      document.getElementById('skillDetailTitle').textContent = skill.name || skill.dirName
+      document.getElementById('skillDetailPath').textContent = skill.file || skill.relPath
+      document.getElementById('skillDetailDescription').textContent = skill.description || skill.frontmatterIssue || ''
+      skillDetailContentEl.textContent = t('正在读取…')
+      skillDetailContentEl.scrollTop = 0
+      showDialog(skillDetailDialogEl)
+      document.getElementById('skillDetailClose').focus()
+      try {
+        const data = await getJson(`/api/skills/detail?${new URLSearchParams({ root: skill.root, path: skill.relPath })}`)
+        if (request !== skillDetailRequest) return
+        // 技能里的 Markdown/HTML 只显示原文，避免本地技能文件变成页面脚本。
+        skillDetailContentEl.textContent = data.content
+      } catch (error) {
+        if (request === skillDetailRequest) skillDetailContentEl.textContent = error.message
+      }
+    }
+    async function closeSkillDetail() {
+      skillDetailRequest += 1
+      if (await hideDialog(skillDetailDialogEl)) skillDetailOrigin?.focus({ preventScroll: true })
+    }
+    document.getElementById('skillDetailClose').onclick = closeSkillDetail
+    trapPackDialog(skillDetailDialogEl, closeSkillDetail)
+
+    const skillInstallDialogEl = document.getElementById('skillInstallDialog')
+    const skillInspectEl = document.getElementById('skillInspect')
+    const skillInstallGoEl = document.getElementById('skillInstallGo')
+    const skillImportListEl = document.getElementById('skillImportList')
+    const skillInstallErrorEl = document.getElementById('skillInstallError')
+    let skillSourceMode = 'github', skillImportToken = '', skillImportBusy = false, skillLocalFiles = [], skillLocalZip = null
+    function resetSkillImport() {
+      skillImportToken = ''; skillImportListEl.replaceChildren(); skillImportListEl.hidden = true
+      skillInstallGoEl.disabled = true
+      document.getElementById('skillInspectHint').textContent = ''
+      skillInstallErrorEl.textContent = ''
+    }
+    function positionSkillInspect() {
+      const parent = document.getElementById(skillSourceMode === 'github' ? 'skillGithubFields' : 'skillLocalFields')
+      parent.append(skillInspectEl)
+      skillInspectEl.classList.toggle('is-local-source', skillSourceMode === 'local')
+    }
+    function animateSkillPart(element) {
+      if (document.documentElement.classList.contains('reduce-motion') || matchMedia('(prefers-reduced-motion: reduce)').matches) return
+      element.animate([{ opacity: 0, transform: 'translateY(5px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 180, easing: 'cubic-bezier(.2,.8,.2,1)' })
+    }
+    positionSkillInspect()
+    function selectedSkillImports() { return [...skillImportListEl.querySelectorAll('input:checked')].map((input) => input.value) }
+    function setSkillImportBusy(busy) {
+      skillImportBusy = busy
+      skillInspectEl.classList.toggle('loading', busy)
+      skillInstallGoEl.classList.toggle('loading', busy && Boolean(skillImportToken))
+      for (const element of document.querySelectorAll('#skillSource, #skillRef, [data-skill-source], #skillChooseFolder, #skillChooseZip, #skillInspect')) element.disabled = busy
+      skillInstallGoEl.disabled = busy || !skillImportToken || !selectedSkillImports().length
+    }
+    async function closeSkillInstall() {
+      if (skillImportBusy) return
+      if (await hideDialog(skillInstallDialogEl)) document.getElementById('skillAdd').focus()
+    }
+    document.getElementById('skillAdd').onclick = () => {
+      resetSkillImport(); showDialog(skillInstallDialogEl)
+      if (skillSourceMode === 'github') document.getElementById('skillSource').focus()
+      else document.getElementById('skillChooseFolder').focus()
+    }
+    document.getElementById('skillInstallCancel').onclick = closeSkillInstall
+    document.getElementById('skillInstallClose').onclick = closeSkillInstall
+    trapPackDialog(skillInstallDialogEl, closeSkillInstall)
+    document.querySelectorAll('[data-skill-source]').forEach((button) => {
+      button.onclick = () => {
+        if (skillImportBusy) return
+        skillSourceMode = button.dataset.skillSource; resetSkillImport()
+        document.querySelectorAll('[data-skill-source]').forEach((one) => one.setAttribute('aria-pressed', String(one === button)))
+        document.getElementById('skillGithubFields').hidden = skillSourceMode !== 'github'
+        document.getElementById('skillLocalFields').hidden = skillSourceMode !== 'local'
+        positionSkillInspect(); animateSkillPart(document.getElementById(skillSourceMode === 'github' ? 'skillGithubFields' : 'skillLocalFields'))
+      }
+    })
+    for (const id of ['skillSource', 'skillRef']) document.getElementById(id).oninput = resetSkillImport
+    document.getElementById('skillChooseFolder').onclick = () => document.getElementById('skillFolderFiles').click()
+    document.getElementById('skillChooseZip').onclick = () => document.getElementById('skillZipFile').click()
+    document.getElementById('skillFolderFiles').onchange = (event) => {
+      skillLocalFiles = [...event.target.files].filter((file) => !file.webkitRelativePath.split('/').some((part) => part === '.git' || part === 'node_modules'))
+      skillLocalZip = null; resetSkillImport()
+      document.getElementById('skillLocalName').textContent = t('已选择 {n} 个文件', { n: skillLocalFiles.length })
+    }
+    document.getElementById('skillZipFile').onchange = (event) => {
+      skillLocalZip = event.target.files[0] || null; skillLocalFiles = []; resetSkillImport()
+      document.getElementById('skillLocalName').textContent = skillLocalZip?.name || ''
+    }
+    function fileBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(String(reader.result).split(',')[1])
+        reader.onerror = () => reject(new Error(t('文件读取失败')))
+        reader.readAsDataURL(file)
+      })
+    }
+    skillInspectEl.onclick = async () => {
+      if (skillImportBusy) return
+      resetSkillImport(); setSkillImportBusy(true)
+      document.getElementById('skillInspectHint').textContent = t('正在检查技能…')
+      try {
+        let payload
+        if (skillSourceMode === 'github') payload = { source: document.getElementById('skillSource').value.trim(), ref: document.getElementById('skillRef').value.trim() }
+        else if (skillLocalZip) {
+          if (skillLocalZip.size > 32 * 1024 * 1024) throw new Error(t('ZIP 最大 32 MB'))
+          payload = { zip: await fileBase64(skillLocalZip) }
+        } else {
+          if (!skillLocalFiles.length) throw new Error(t('请先选择技能文件夹或 ZIP'))
+          if (skillLocalFiles.length > 2000 || skillLocalFiles.reduce((sum, file) => sum + file.size, 0) > 16 * 1024 * 1024 || skillLocalFiles.some((file) => file.size > 2 * 1024 * 1024)) throw new Error(t('技能包过大：单文件最多 2 MB，总计最多 16 MB，2000 个文件'))
+          payload = { files: [] }
+          for (const file of skillLocalFiles) payload.files.push({ path: file.webkitRelativePath || file.name, base64: await fileBase64(file) })
+        }
+        const data = await post('/api/skills/preview', payload)
+        skillImportToken = data.token
+        skillImportListEl.innerHTML = data.skills.map((skill) => `<label class="skill-import-choice"><input type="checkbox" value="${escapeHtml(skill.id)}" ${skill.issue ? 'disabled' : 'checked'} /><span><strong>${escapeHtml(skill.name)}</strong><small>${escapeHtml(skill.description)}</small><small>${escapeHtml(t('{n} 个文件', { n: skill.fileCount }))}</small>${skill.issue ? `<small class="skill-import-issue">${escapeHtml(skill.issue)}</small>` : ''}</span></label>`).join('')
+        skillImportListEl.hidden = false
+        animateSkillPart(skillImportListEl)
+        skillImportListEl.onchange = () => { skillInstallGoEl.disabled = skillImportBusy || !selectedSkillImports().length }
+        document.getElementById('skillInspectHint').textContent = t('找到 {n} 个技能', { n: data.skills.length })
+      } catch (error) {
+        skillInstallErrorEl.textContent = error.message
+        document.getElementById('skillInspectHint').textContent = ''
+      } finally { setSkillImportBusy(false) }
+    }
+    document.getElementById('skillInstallForm').onsubmit = async (event) => {
+      event.preventDefault()
+      if (skillImportBusy || !skillImportToken) return
+      const selected = selectedSkillImports(); if (!selected.length) return
+      setSkillImportBusy(true); skillInstallErrorEl.textContent = ''
+      try {
+        const data = await post('/api/skills/install', { token: skillImportToken, selected, root: document.getElementById('skillInstallRoot').value })
+        renderSkills(data); skillHintEl.textContent = t('已安装 {n} 个技能，dsh 在跑会热加载。', { n: data.installed.length })
+        setSkillImportBusy(false); await closeSkillInstall(); resetSkillImport()
+      } catch (error) { skillInstallErrorEl.textContent = error.message }
+      finally { setSkillImportBusy(false) }
+    }
+
+    const skillEditorDialogEl = document.getElementById('skillEditorDialog')
+    const skillFormEl = document.getElementById('skillForm')
+    const skillSaveEl = document.getElementById('skillSave')
+    let skillSaving = false
+    async function closeSkillEditor() {
+      if (skillSaving) return
+      if (await hideDialog(skillEditorDialogEl)) document.getElementById('skillCreate').focus()
+    }
+    document.getElementById('skillCreate').onclick = () => {
+      skillFormEl.reset()
+      syncUiSelect(document.getElementById('skillRoot'))
+      document.getElementById('skillFormError').textContent = ''
+      showDialog(skillEditorDialogEl)
+      document.getElementById('skillName').focus()
+    }
+    document.getElementById('skillCancel').onclick = closeSkillEditor
+    trapPackDialog(skillEditorDialogEl, closeSkillEditor)
+    skillFormEl.onsubmit = async (event) => {
+      event.preventDefault()
+      if (skillSaving) return
+      skillSaving = true
+      skillSaveEl.disabled = true
+      document.getElementById('skillFormError').textContent = ''
+      try {
+        const name = document.getElementById('skillName').value.trim()
+        const data = await post('/api/skills/create', {
+          root: document.getElementById('skillRoot').value, name,
+          description: document.getElementById('skillDescription').value,
+          content: document.getElementById('skillContent').value,
+        })
+        renderSkills(data)
+        skillHintEl.textContent = t('{name} 已保存，dsh 在跑会热加载。', { name })
+        skillSaving = false
+        await closeSkillEditor()
+      } catch (error) {
+        document.getElementById('skillFormError').textContent = error.message
+      } finally {
+        skillSaving = false
+        skillSaveEl.disabled = false
+      }
+    }
 
     function skillRow(skill) {
-      // 和插件行同一套结构：整行是一个 label.toggle，右侧开关，中间名字 + 来源 + 一行自述
+      // 详情按钮和开关各管一件事，点正文查看说明不会顺带停用技能。
       const displayName = skill.name || skill.dirName
       const title = [displayName, skill.relPath, skill.frontmatterOk ? '' : skill.frontmatterIssue].filter(Boolean).join(' · ')
       const status = skill.frontmatterOk ? (skill.disableModelInvocation ? t('已停用') : '') : t('frontmatter 有问题')
       const full = skill.frontmatterOk ? (skill.description || '') : (skill.frontmatterIssue || '')
       const truncated = full.length > 110 ? `${full.slice(0, 110)}…` : full
-      const row = document.createElement('label')
+      const row = document.createElement('div')
       row.className = `toggle plugin-row${skill.disableModelInvocation ? ' off' : ''}`
       row.title = title
-      row.innerHTML = `<span class="plugin-main">
+      row.innerHTML = `<button type="button" class="plugin-main skill-open" aria-haspopup="dialog">
           <span class="plugin-head">
             <span class="plugin-name">${escapeHtml(displayName)}</span>
             <span class="plugin-version">${escapeHtml(skill.root === 'agents' ? '.agents' : '.dsh')}</span>
             ${status ? `<span class="plugin-status">${escapeHtml(status)}</span>` : ''}
           </span>
           ${truncated ? `<span class="plugin-desc" title="${escapeHtml(full)}">${escapeHtml(truncated)}</span>` : ''}
-        </span>
-        <input type="checkbox" ${skill.disableModelInvocation ? '' : 'checked'} ${skill.frontmatterOk ? '' : 'disabled'} aria-label="${escapeHtml(t('启用 {name}', { name: displayName }))}" />`
+        </button>
+        <input type="checkbox" ${skill.disableModelInvocation ? '' : 'checked'} ${skill.frontmatterOk ? '' : 'disabled'} aria-label="${escapeHtml(t('启用 {name}', { name: displayName }))}" />
+        <button type="button" class="skill-delete" aria-label="${escapeHtml(t('删除技能 {name}', { name: displayName }))}" title="${escapeHtml(t('删除'))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6m4-6v6"/></svg></button>`
+      const detail = row.querySelector('.skill-open')
+      detail.onclick = () => openSkillDetail(skill, detail)
       const input = row.querySelector('input')
       input.onchange = async () => {
         const enabled = input.checked
@@ -5028,6 +5527,21 @@
           skillHintEl.textContent = error.message
           input.checked = !enabled
           input.disabled = false
+        }
+      }
+      const remove = row.querySelector('.skill-delete')
+      remove.onclick = async () => {
+        remove.disabled = true
+        try {
+          if (!await appConfirm(t(skill.linked ? '移除技能「{name}」的链接？原始文件会保留。' : '删除技能「{name}」及其目录内的资源？此操作无法撤销。', { name: displayName }), { title: t('删除技能 {name}', { name: displayName }) })) return
+          renderSkills(await post('/api/skills/delete', { root: skill.root, path: skill.relPath }))
+          skillHintEl.textContent = t('已删除 {name}。dsh 在跑会热加载。', { name: displayName })
+          document.getElementById('skillAdd').focus()
+        } catch (error) {
+          notify(error.message)
+        } finally {
+          remove.disabled = false
+          if (remove.isConnected) remove.focus()
         }
       }
       return row

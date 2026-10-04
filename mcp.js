@@ -43,12 +43,42 @@ const CARRY_KEYS = ['toolCallTimeoutMs', 'maxInstructionBytes', 'failOnStartupEr
 
 const has = (object, key) => Object.prototype.hasOwnProperty.call(object ?? {}, key) && object[key] !== undefined
 
+/** 完整命令只拆 argv，不交给 shell；只转义引号和反斜杠，不能把 Windows 的 \t 当成制表符。 */
+export function parseMcpCommand(text) {
+  const tokens = []
+  let token = '', quote = '', started = false
+  const input = String(text || '')
+  for (let i = 0; i < input.length; i += 1) {
+    const ch = input[i]
+    if (quote) {
+      if (ch === quote) quote = ''
+      else if (quote === '"' && ch === '\\' && /["\\]/.test(input[i + 1] || '')) token += input[++i]
+      else token += ch
+    } else if (ch === '"' || ch === "'") {
+      quote = ch
+      started = true
+    } else if (/\s/.test(ch)) {
+      if (started) tokens.push(token)
+      token = ''
+      started = false
+    } else {
+      token += ch
+      started = true
+    }
+  }
+  if (quote) throw new Error('启动命令的引号没有闭合')
+  if (started) tokens.push(token)
+  if (!tokens[0]) throw new Error('stdio 传输需要填写启动命令')
+  return { command: tokens[0], args: tokens.slice(1) }
+}
+
 /**
  * 只放行认识的配置字段，别的键一律丢弃——写进补丁层的东西必须是我们能解释的
  * （官方 config 是 schemastery 校验的 union，塞未知键会让整行加载失败）。
  * 上一次条目里认识、这次没提到的字段会原样带回来，编辑不再丢配置。
  */
 function buildConfig(spec, previous) {
+  if (typeof spec.commandLine === 'string' && spec.transport !== 'streamable-http') spec = { ...spec, ...parseMcpCommand(spec.commandLine) }
   const serverName = String(spec.serverName || '').trim()
   if (!SERVER_NAME_RE.test(serverName)) {
     throw new Error('名称只能用字母、数字、下划线、连字符（1-32 个字符）')

@@ -400,7 +400,7 @@ main.home .settings-body { padding-top: 34px; }
 #launchPluginsDialog .pane-top > div:first-child { display: none; }
 #launchPluginsDialog .plugin-actions { justify-content: flex-end; }
 #launchPluginsDialog .pane-inner { width: 100%; }
-.launch-builtin { flex: 0 0 auto; color: var(--muted); border: 1px solid var(--line); padding: 1px 6px; border-radius: 5px; font-size: 10px; }
+.launch-builtin { display: inline-flex; align-items: center; flex: 0 0 auto; height: 18px; padding: 0 7px; border: 0; border-radius: 9px; background: var(--accent-soft); color: var(--muted); font-size: 10px; line-height: 1; font-weight: 500; }
 .launch-preset-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 9px; margin-top: 4px; color: var(--muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
 .launch-status { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; font-size: 11px; }
 .launch-status::before { content: ''; flex: 0 0 4px; width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
@@ -414,37 +414,57 @@ html.reduce-motion .launch-status.is-working::before { animation: none; }
 .launch-actions .icon-btn svg { width: 18px; height: 18px; }
 .launch-action { border: 1px solid var(--line); background: var(--card); color: var(--text); }
 .launch-action:hover:not(:disabled) { background: var(--accent-soft); }
+.launch-actions [data-stop-id], .instance-actions [data-stop-version] { background: #fff; border-color: var(--line); color: #e5484d; }
+.launch-actions [data-stop-id]:hover:not(:disabled), .instance-actions [data-stop-version]:hover:not(:disabled) { background: #fff; border-color: #e5484d; color: #ce353b; }
 .launch-action:disabled { opacity: .45; cursor: default; }
 .launch-edit { width: 32px; height: 32px; padding: 7px; flex: 0 0 auto; border: 0; border-radius: 8px; color: var(--muted); background: transparent; cursor: pointer; }
 .launch-edit:hover { background: var(--accent-soft); color: var(--text); }
 .launch-edit svg { width: 18px; height: 18px; }
 .launch-edit:disabled { opacity: .4; cursor: default; }
-/* 添加入口是启动项列表末尾的一行弱按钮，跟着列表排版，不再漂在卡片角落。 */
+/* 加号从卡片右侧滑出，不参与卡片高度；留一段命中桥，移向按钮时不会丢掉悬停。 */
 /* 主卡片不跟内容列通栏：就一列启动项，按卡片默认宽度居中就够了 */
-#pane-control .card.home { position: relative; width: min(640px, 100%); margin-inline: auto; padding: 18px 24px 12px; border-radius: 22px; }
+#pane-control .card.home { position: relative; width: min(540px, 100%); margin-inline: auto; padding: 32px; border-radius: 22px; background: rgba(255, 255, 255, var(--panel-opacity)); backdrop-filter: blur(12px); }
+.launch-presets .launch-preset:only-child { padding: 0; }
 .launch-add {
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
   display: flex;
   align-items: center;
   gap: 7px;
-  width: 100%;
-  margin: 8px 0 0;
-  padding: 11px 8px;
-  color: var(--muted);
-  background: transparent;
-  border: 0;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0;
+  padding: 7px;
+  color: var(--accent);
+  background: var(--card);
+  border: 1px solid var(--line);
   border-radius: 9px;
   font-family: inherit;
   font-size: 13px;
   text-align: left;
   cursor: pointer;
+  opacity: 0;
+  transform: translateX(-14px);
+  pointer-events: none;
+  box-shadow: 0 4px 14px rgba(22, 35, 61, .08);
 }
-.launch-add svg { width: 14px; height: 14px; flex: 0 0 auto; }
+.launch-add::before { content: ''; position: absolute; top: -8px; bottom: -8px; right: 100%; width: 14px; }
+.launch-add svg { width: 18px; height: 18px; flex: 0 0 auto; }
+/* 禁用只降低展开后的透明度；鼠标点击留下的焦点不应阻止按钮收回。 */
+.card.home:hover .launch-add, .card.home:has(:focus-visible) .launch-add { opacity: var(--launch-add-visible-opacity, 1); transform: none; pointer-events: auto; }
+@media (hover: none), (pointer: coarse) { .launch-add { opacity: var(--launch-add-visible-opacity, 1); transform: none; pointer-events: auto; } }
+@media (max-width: 820px) { #pane-control .card.home { width: calc(100% - 46px); margin-left: 0; padding: 16px; } }
 .launch-add:hover:not(:disabled) { background: var(--accent-soft); color: var(--text); }
-.launch-add:disabled { opacity: .4; cursor: default; }
+.launch-add:disabled { --launch-add-visible-opacity: .4; cursor: default; }
 .launch-add[hidden] { display: none; }
 #pane-control #hint:empty { display: none; }
 #launchDialog .ask-card { width: min(520px, 100%); overflow-y: auto; padding: 24px; border-radius: 18px; }
 .launch-modal-fields { display: grid; gap: 18px; margin-top: 0; }
+.launch-home-row { display: flex; gap: 8px; }
+.launch-home-row input { min-width: 0; flex: 1; }
+.launch-home-row button { white-space: nowrap; }
 #launchDialog .home-field > label { font-size: 12px; letter-spacing: 0; }
 .launch-version-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
 .launch-version-tools[hidden] { display: none; }
@@ -462,6 +482,7 @@ html.reduce-motion .launch-status.is-working::before { animation: none; }
 .launch-repair svg { flex: 0 0 14px; width: 14px; height: 14px; }
 .launch-actions button, #launchAdd, #launchDialog button { transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, opacity 140ms ease, transform 140ms ease; }
 .launch-actions button:active:not(:disabled), #launchAdd:active:not(:disabled), #launchDialog button:active:not(:disabled) { transform: scale(.96); }
+#launchAdd { transition: opacity 180ms ease, transform 220ms cubic-bezier(.2,.8,.2,1), background-color 140ms ease, border-color 140ms ease; }
 .launch-actions [data-restart-id] svg { transition: transform 180ms ease; }
 .launch-actions [data-restart-id]:hover:not(:disabled) svg { transform: rotate(25deg); }
 html.reduce-motion .launch-actions button, html.reduce-motion .launch-actions svg,
@@ -470,9 +491,10 @@ html.reduce-motion #launchAdd, html.reduce-motion #launchDialog button { transit
   .launch-actions button, .launch-actions svg, #launchAdd, #launchDialog button { transition: none !important; transform: none !important; }
 }
 @media (max-width: 560px) {
-  .launch-preset { gap: 8px; }
+  .launch-preset { gap: 8px; flex-wrap: wrap; }
+  .launch-preset-copy { flex-basis: calc(100% - 52px); }
   .launch-preset-name { font-size: 16px; }
-  .launch-actions { gap: 6px; }
+  .launch-actions { gap: 6px; margin-left: auto; }
   .launch-actions .icon-btn, .launch-preset .launch-primary { width: 34px; height: 34px; }
   .launch-edit { width: 28px; padding: 5px; }
 }
@@ -1079,7 +1101,8 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 .profile-card { position: relative; min-width: 0; }
 .profile-card .pack-card { height: 100%; padding-right: 58px; }
 .profile-card .pack-card-arrow { display: none; }
-.profile-card .profile-menu { position: absolute; top: 13px; right: 12px; }
+/* 菜单钮在卡片里垂直居中：卡片高度随标签行伸缩，钉死 top 会偏上 */
+.profile-card .profile-menu { position: absolute; top: 50%; right: 12px; transform: translateY(-50%); }
 .profile-card:has(.profile-menu[open]) { z-index: 3; }
 .profile-menu > summary { background: transparent; }
 .profile-add { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 9px; font-size: 12px; white-space: nowrap; }
@@ -1415,7 +1438,38 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 .mcp-field input, .mcp-field select { width: 62%; }
 .mcp-field .ui-select { width: 62%; }
 .mcp-field[hidden] { display: none; }
+#mcpDialog .ask-card { width: min(540px, 100%); overflow-y: auto; }
+#mcpDialog .mcp-form { gap: 16px; }
+#mcpDialog .mcp-field { align-items: stretch; flex-direction: column; gap: 7px; font-size: 12px; }
+#mcpDialog .mcp-field input, #mcpDialog .mcp-field .ui-select { width: 100%; }
+.mcp-advanced { color: var(--muted); font-size: 12px; }
+.mcp-advanced summary { cursor: pointer; padding: 4px 0; }
+.mcp-advanced[open] { display: block; }
+.mcp-advanced .mcp-field { margin-top: 14px; }
+#pane-mcp .pane-top .plugin-actions { gap: 8px; padding: 0; background: transparent; }
+#pane-mcp .pane-top .action-icon { width: 34px; height: 34px; margin: 0; padding: 8px; border: 1px solid var(--line); border-radius: 9px; background: var(--card); color: var(--muted); }
+#pane-mcp .pane-top .action-icon:hover:not(:disabled) { background: var(--card); color: var(--accent); }
+#pane-mcp .pane-top #mcpAdd { background: var(--accent); color: var(--card); }
+#mcpRefresh:hover:not(:disabled) svg { transform: rotate(35deg); }
+#mcpProbe:hover:not(:disabled) svg { transform: scale(1.08); }
 #skillList .plugin-desc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.skill-open { display: flex; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.skill-open:hover .plugin-name { color: var(--accent); }
+.skill-open:focus-visible { outline: 2px solid var(--accent); outline-offset: 5px; border-radius: 4px; }
+.skill-detail-card { width: min(720px, 100%); max-height: calc(100dvh - 48px); }
+.skill-detail-path { margin: 0; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.skill-detail-description { margin: 14px 0; font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
+.skill-detail-content { flex: 1 1 auto; min-height: 0; overflow: auto; margin: 0; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--accent-soft); color: var(--text); font: 12px/1.8 ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere; scrollbar-width: thin; }
+.skill-delete { flex: 0 0 auto; width: 30px; height: 30px; padding: 6px; border: 0; color: var(--muted); background: transparent; border-radius: 8px; cursor: pointer; }
+.skill-delete:hover:not(:disabled) { background: #e5484d15; color: #e5484d; }
+.skill-delete svg { width: 18px; height: 18px; }
+.skill-editor-card { width: min(580px, 100%); overflow-y: auto; gap: 14px; }
+.skill-editor-card label { display: flex; flex-direction: column; gap: 7px; color: var(--muted); font-size: 12px; }
+.skill-editor-card input, .skill-editor-card textarea, .skill-editor-card .ui-select { width: 100%; }
+.skill-editor-card textarea { resize: vertical; min-height: 150px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--text); font: 12px/1.7 ui-monospace, monospace; }
+.skill-editor-card textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.skill-editor-card .hint { margin: 0; }
+.skill-form-error { margin: 0; color: #e5484d; font-size: 12px; }
 /* MCP 行是 div 不是 label：横向排版和右侧开关都靠 .toggle 那套（和插件行一致） */
 #mcpList .plugin-row { display: flex; align-items: center; gap: 12px; }
 #mcpList .plugin-desc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1442,15 +1496,20 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 #packImportDialog, #packExportDialog { z-index: 32; }
 #packDetailDialog { z-index: 34; }
 #packInstallDialog { z-index: 36; }
-/* 每一步只显示当前卡片，关闭后保留上一步的搜索、页码与环境。 */
-html .ask.is-underlay { background: transparent; visibility: hidden; }
+/* 遮罩留在最初那层，子层只切卡片，返回时背景亮度不会先淡出再跳暗。 */
+.ask.is-underlay { pointer-events: none; }
+.ask.is-child-dialog { background: transparent; }
+.ask > .ask-card { transition: opacity 170ms ease, transform 170ms ease; }
+.ask.is-underlay > .ask-card { opacity: 0; transform: translateY(-6px) scale(.985); }
+html.reduce-motion .ask > .ask-card { transition: none; }
+@media (prefers-reduced-motion: reduce) { .ask > .ask-card { transition: none; } }
 #notice { z-index: 50; }
 .dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex: 0 0 auto; }
 .dialog-heading .ask-title { margin: 0; font-size: 18px; line-height: 1.4; }
 .dialog-subtitle { margin: 5px 0 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
 .dialog-heading .icon-btn { width: 30px; height: 30px; padding: 6px; border-radius: 8px; }
 .dialog-heading .icon-btn svg { width: 17px; height: 17px; }
-#packImportDialog .market-browser { width: min(840px, 100%); max-height: calc(100dvh - 48px); overflow: hidden; padding: 24px; }
+#packImportDialog .market-browser { width: min(800px, 100%); max-height: calc(100dvh - 48px); overflow: hidden; padding: 24px; }
 .market-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
 .market-toolbar input { flex: 1; min-width: 0; }
 input[type=search] { background: var(--card); border: 1px solid var(--line); color: var(--text); font: inherit; font-size: var(--control-font-size); border-radius: var(--control-radius); height: var(--control-height); padding: 0 var(--control-padding); outline-offset: 2px; }
@@ -1458,8 +1517,8 @@ input[type=search] { background: var(--card); border: 1px solid var(--line); col
 #packMarketTitle { margin: 0 0 10px; font-size: 12px; color: var(--muted); }
 .market-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; overflow-y: auto; min-height: 0; padding: 1px; scrollbar-width: thin; }
 .market-grid[hidden], .market-detail[hidden] { display: none; }
-.market-card { display: flex; flex-direction: column; gap: 18px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); min-width: 0; transition: border-color 140ms ease; }
-.market-card:hover { border-color: var(--muted); }
+.market-card { display: flex; flex-direction: column; gap: 12px; padding: 14px; border: 1px solid transparent; border-radius: 12px; background: color-mix(in srgb, var(--accent-soft) 48%, var(--card)); min-width: 0; transition: border-color 140ms ease, background-color 140ms ease; }
+.market-card:hover { border-color: var(--line); background: var(--accent-soft); }
 .market-card-info { display: flex; flex-direction: column; gap: 12px; width: 100%; padding: 0; border: 0; text-align: left; color: var(--text); background: transparent; font: inherit; cursor: pointer; flex: 1; min-width: 0; }
 .market-card-heading { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .market-card-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: var(--accent-soft); color: var(--muted); flex: 0 0 auto; }
@@ -1468,16 +1527,22 @@ input[type=search] { background: var(--card); border: 1px solid var(--line); col
 .market-card-desc { font-size: 12px; line-height: 1.65; height: 40px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .market-card-footer { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .market-card-author { flex: 1; min-width: 0; font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.market-card-author small { display: block; font-size: 10.5px; margin-top: 3px; }
+.market-card-author small { display: inline; font-size: 10.5px; margin-left: 7px; }
 .market-stars { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 11.5px; white-space: nowrap; }
 .market-stars svg { width: 13px; height: 13px; }
 .market-install { flex: 0 0 auto; width: auto; min-width: 62px; height: 30px; padding: 0 12px; border-radius: 8px; font-size: 12px; }
-.market-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid var(--line); padding-top: 16px; margin-top: 8px; flex: 0 0 auto; color: var(--muted); font-size: 12px; }
-.market-pagination { display: flex; align-items: center; gap: 10px; }
-.market-pagination label { display: inline-flex; align-items: center; gap: 7px; }
-.market-pagination .ui-select { width: 74px; margin-right: 8px; }
+.market-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid var(--line); padding: 12px 0 0; margin-top: 0; flex: 0 0 auto; color: var(--muted); font-size: 12px; }
+input[type=search]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#marketCount { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.market-pagination { display: flex; align-items: center; gap: 14px; }
+.market-page-size { display: flex; align-items: center; gap: 8px; }
+.market-page-nav { display: flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
+.market-pagination label { display: inline-flex; align-items: center; gap: 7px; margin: 0; letter-spacing: 0; }
+.market-pagination .ui-select { width: 58px; }
 .market-pagination .ui-select .select-trigger { padding: 0 10px; gap: 10px; font-variant-numeric: tabular-nums; }
-.market-pagination .icon-btn { width: var(--control-height); height: var(--control-height); padding: 5px; border-radius: 7px; }
+.market-pagination .icon-btn { width: 28px; height: 28px; padding: 5px; border: 0; border-radius: 7px; background: transparent; }
+.market-pagination .icon-btn:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent); }
+.market-pagination .icon-btn:disabled { opacity: .3; }
 .market-pagination svg { width: 16px; height: 16px; }
 #marketPage { font-variant-numeric: tabular-nums; min-width: 42px; text-align: center; color: var(--text); }
 .market-browser .pack-import-source { margin: 16px 0; flex: 0 0 auto; }
@@ -1631,3 +1696,96 @@ html .set-row:focus-within { background: transparent; box-shadow: none; }
   #launchPluginsDialog .plugin-head { flex-wrap: wrap; gap: 3px 7px; }
   #launchPluginsDialog .plugin-actions { width: auto; flex-wrap: nowrap; }
 }
+
+/* 图标融入名称行，选择器按需展开，不额外占用整段表单。 */
+.launch-identity-field { position: relative; }
+.launch-name-row { display: flex; align-items: center; gap: 10px; }
+.launch-name-row input { min-width: 0; flex: 1; }
+.launch-icon-trigger { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 42px; width: 42px; height: 42px; padding: 9px; border: 1px solid var(--line); border-radius: 11px; color: var(--muted); background: var(--accent-soft); cursor: pointer; }
+.launch-icon-trigger:hover, .launch-icon-trigger[aria-expanded=true] { border-color: var(--accent); color: var(--accent); }
+.launch-icon-trigger svg, .launch-icon-trigger img { display: block; width: 24px; height: 24px; flex: 0 0 24px; object-fit: contain; }
+.launch-icon-popover { position: absolute; z-index: 5; top: calc(100% + 6px); left: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; max-width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: 0 8px 24px #00000020; }
+.launch-icon-popover[hidden] { display: none; }
+.launch-icon-picker { display: flex; flex-wrap: wrap; gap: 4px; }
+#launchDialog .launch-icon-choice { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 6px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; }
+#launchDialog .launch-icon-choice[aria-pressed=true] { background: var(--accent-soft); color: var(--accent); }
+.launch-icon-choice svg, .launch-icon-choice img { display: block; flex: 0 0 20px; width: 20px; height: 20px; object-fit: contain; }
+.launch-app-icon img { width: 30px; height: 30px; object-fit: contain; }
+.launch-icon-upload { display: flex; align-items: center; gap: 4px; padding-left: 8px; border-left: 1px solid var(--line); }
+#launchDialog .launch-icon-upload button { width: 32px; height: 32px; padding: 7px; border: 0; background: transparent; }
+.launch-icon-upload svg { width: 18px; height: 18px; }
+.launch-icon-error:empty { display: none; }
+.launch-icon-error { color: #e5484d; margin: 6px 0 0; }
+#launchDialog .launch-save-actions .launch-repair { width: 36px; height: 36px; padding: 8px; border: 1px solid var(--line); border-radius: 9px; }
+.launch-repair svg { width: 18px; height: 18px; flex-basis: 18px; }
+.skill-source-tabs, .skill-file-actions, .skill-install-check { display: flex; align-items: center; gap: 8px; }
+.skill-source-tabs { padding: 4px; background: var(--accent-soft); border-radius: 11px; }
+.skill-source-tabs button { flex: 1; border: 0; border-radius: 8px; }
+.skill-source-tabs button[aria-pressed=true] { background: var(--card); color: var(--text); box-shadow: 0 2px 6px #0000000d; }
+.skill-install-advanced { margin-top: 10px; color: var(--muted); font-size: 12px; }
+.skill-install-advanced input { margin-top: 8px; }
+.skill-catalog-link { display: inline-block; margin-top: 12px; color: var(--accent); font-size: 12px; }
+.skill-import-list { max-height: 240px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
+.skill-import-list .skill-import-choice { display: flex; flex-direction: row; gap: 12px; align-items: flex-start; margin: 0; padding: 12px; letter-spacing: 0; border-bottom: 1px solid var(--line); }
+.skill-import-choice:last-child { border-bottom: 0; }
+.skill-import-choice input { width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--accent); }
+.skill-import-choice span { min-width: 0; overflow-wrap: anywhere; }
+.skill-import-choice strong { display: block; color: var(--text); font-size: 13px; }
+.skill-import-choice small { display: block; line-height: 1.6; margin-top: 3px; }
+.skill-import-choice .skill-import-issue { color: #e5484d; }
+.skill-install-card [hidden] { display: none !important; }
+
+/* 安装表单压成来源、检测结果、目标三段；空状态不留无意义的占位间距。 */
+#skillInstallDialog .skill-install-card { width: min(460px, 100%); padding: 22px; gap: 14px; }
+.skill-install-card .dialog-heading { margin: 0 0 2px; }
+.skill-install-heading-actions { display: flex; align-items: center; gap: 8px; }
+.skill-install-heading-actions .skill-catalog-link { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; margin: 0; border-radius: 8px; color: var(--muted); }
+.skill-install-heading-actions .skill-catalog-link:hover { background: var(--accent-soft); color: var(--accent); }
+.skill-catalog-link svg { width: 18px; height: 18px; }
+.skill-install-card .skill-source-tabs { padding: 0; gap: 16px; background: transparent; border-radius: 0; border-bottom: 1px solid var(--line); }
+.skill-install-card .skill-source-tabs button { flex: 0 0 auto; height: 36px; padding: 0 2px 8px; border-radius: 0; border-bottom: 2px solid transparent; background: transparent; box-shadow: none; color: var(--muted); transition: border-color 160ms ease, color 160ms ease; }
+.skill-install-card .skill-source-tabs button[aria-pressed=true] { border-bottom-color: var(--accent); color: var(--text); }
+#skillGithubFields, #skillLocalFields { position: relative; }
+#skillSource { padding-right: 44px; }
+#skillInstallDialog #skillInspect { position: absolute; top: 4px; right: 4px; width: 30px; height: 30px; padding: 6px; border-radius: 8px; background: var(--accent-soft); border: 0; }
+#skillInspect svg { width: 18px; height: 18px; }
+#skillInspect .spin { width: 16px; height: 16px; }
+#skillInspect.loading svg { display: none; }
+#skillInspect .spin, #skillInstallGo .spin { display: none; }
+#skillInspect.loading .spin, #skillInstallGo.loading .spin { display: inline-block; }
+#skillInspect.is-local-source { top: 5px; }
+.skill-install-card .skill-file-actions { gap: 8px; padding-right: 44px; }
+.skill-file-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 40px; border-radius: 9px; }
+.skill-file-actions svg { width: 18px; height: 18px; }
+#skillLocalName { margin-top: 8px; font-size: 11px; overflow-wrap: anywhere; }
+.skill-install-card .skill-install-check:has(#skillInspectHint:empty), .skill-form-error:empty { display: none; }
+.skill-install-card .skill-install-advanced { margin-top: 7px; }
+.skill-install-card .skill-install-footer { gap: 8px; margin: 0; padding-top: 14px; border-top: 1px solid var(--line); }
+.skill-install-footer .skill-install-destination { flex: 1; margin: 0 auto 0 0; min-width: 0; }
+.skill-install-footer .ui-select { max-width: 155px; }
+.skill-install-footer button { border-radius: 9px; }
+.skill-install-footer #skillInstallGo { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-width: 65px; }
+.skill-install-card .skill-import-list { max-height: 210px; }
+
+
+html.reduce-motion #launchIconPopover { animation: none; }
+@media (prefers-reduced-motion: reduce) { #launchIconPopover { animation: none; } }
+
+/* 目录入口与名称图标共用轻量反馈，选择目录时禁止重复拉起系统对话框。 */
+#launchDialog .launch-home-row { position: relative; display: block; }
+#launchDialog .launch-home-row .select-trigger { padding-right: 48px; }
+#launchDialog .launch-home-row .select-caret { display: none; }
+#launchDialog .launch-home-row + .hint { margin: 6px 0 0; }
+#launchDialog #launchPickHome { position: absolute; top: 4px; right: 4px; width: 34px; height: 34px; padding: 8px; border: 0; border-radius: 8px; color: var(--muted); background: transparent; }
+#launchPickHome svg { display: block; width: 18px; height: 18px; }
+#launchIconTrigger, #launchPickHome, #launchDialog .launch-icon-choice { transition: transform 160ms ease, color 160ms ease, background 160ms ease, border-color 160ms ease; }
+#launchIconTrigger:hover:not(:disabled), #launchPickHome:hover:not(:disabled) { transform: translateY(-1px) scale(1.04); color: var(--accent); background: var(--accent-soft); }
+#launchDialog .launch-icon-choice:hover { transform: translateY(-2px); background: var(--accent-soft); }
+#launchIconTrigger:active:not(:disabled), #launchPickHome:active:not(:disabled), #launchDialog .launch-icon-choice:active { transform: scale(.92); }
+.launch-icon-popover { transform-origin: top left; }
+html.reduce-motion #launchIconTrigger, html.reduce-motion #launchPickHome, html.reduce-motion #launchDialog .launch-icon-choice { transition: none; transform: none; }
+@media (prefers-reduced-motion: reduce) { #launchIconTrigger, #launchPickHome, #launchDialog .launch-icon-choice { transition: none; transform: none !important; } }
+
+#skillInstallDialog .skill-source-tabs button { background: transparent; box-shadow: none; }
+#skillInstallDialog .skill-source-tabs button:hover:not(:disabled) { color: var(--accent); background: transparent; border-bottom-color: var(--muted); }
+#skillInstallDialog .skill-source-tabs button[aria-pressed=true] { border-bottom-color: var(--accent); }

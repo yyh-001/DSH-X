@@ -81,7 +81,7 @@ DeepSeek Harness 轻量启动器。选一个版本，启动 DSH web。
 
 Windows：[下载 DSH-Setup.exe](https://github.com/yyh-001/DSH-X/releases/latest) 安装，从桌面打开 **DSH-X**。
 
-macOS：打开 `DSH-X-mac-arm64.dmg`（Apple Silicon）或 `DSH-X-mac-x64.dmg`（Intel），把 **DSH-X** 拖进「应用程序」。应用没做公证，第一次打开要右键选「打开」；自更新也要求放在这种可写目录里。设置和日志在 `~/Library/Application Support/DSH`。
+macOS：打开 `DSH-X-mac-arm64.dmg`（Apple Silicon）或 `DSH-X-mac-x64.dmg`（Intel），把 **DSH-X** 拖进「应用程序」。应用没做公证，第一次打开要右键选「打开」；自更新也要求放在这种可写目录里。设置和日志在 `~/Library/Application Support/DSH`。后续正式包要求固定证书签名（[配置说明](docs/mac-signing.md)）。
 
 管理页和 dsh 的界面都在系统浏览器里打开，管理页默认 `http://127.0.0.1:3780/`（端口可在设置页改）。想让手机或其他电脑访问 dsh：设置页 → 高级设置 → **Web 绑定**选「局域网」，下次启动 dsh 生效。
 

@@ -87,6 +87,7 @@ jobs:
     timeout-minutes: 40
     env:
       DSH_MAC_ARCH: ${{ matrix.arch }}
+      DSH_MAC_REQUIRE_SIGNED: ${{ startsWith(github.ref, 'refs/tags/v') && '1' || '0' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -103,7 +104,16 @@ jobs:
         if: steps.probe.outputs.ready == 'yes'
         run: npm test
 
-      - name: 打包（.app + .dmg，ad-hoc 签名）
+      - name: 导入固定 macOS 签名证书
+        if: steps.probe.outputs.ready == 'yes'
+        shell: bash
+        env:
+          DSH_MAC_CERT_P12_BASE64: ${{ secrets.DSH_MAC_CERT_P12_BASE64 }}
+          DSH_MAC_CERT_PASSWORD: ${{ secrets.DSH_MAC_CERT_PASSWORD }}
+          DSH_MAC_EXPECTED_SHA1: ${{ vars.DSH_MAC_SIGNING_SHA1 }}
+        run: bash scripts/setup-mac-signing.sh
+
+      - name: 打包（.app + .dmg，签名按配置）
         if: steps.probe.outputs.ready == 'yes'
         run: npm run dist
 
@@ -126,4 +136,11 @@ jobs:
             gh release upload "$tag" release/DSH-X-mac-*.dmg --clobber
           else
             echo "还没有 $tag 的 Release，dmg 先留在 workflow artifacts 里"
+          fi
+
+      - name: 清理临时签名钥匙串
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/dsh-mac-signing.keychain-db" ]; then
+            security delete-keychain "$RUNNER_TEMP/dsh-mac-signing.keychain-db"
           fi
