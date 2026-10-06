@@ -20,76 +20,43 @@ A lightweight launcher for DeepSeek Harness. Pick a version, start DSH web.
 
 ## Features
 
-- **Pick a version and go**: start / stop / restart / update / uninstall
-- **Multi-platform**: native packages for both Windows and macOS (with separate Apple Silicon and Intel builds for macOS); self-update, launch at login and the folder picker use each system's own mechanisms
-- **Plugins page**: list installed plugins and toggle each with one click, check for and install updates (one or all), and switch profiles
-- **Modpacks**: install a batch of plugins and their config in one go (community market and import/export included) — see the Modpacks section below
-- **Compatibility mode**: on a failed start, disable the plugins named in the error (one click to restore); after boot it checks the client plugin bundles that the page references and reports the verdict, telling a broken install apart from a stale tab
-- **Dark appearance**: follow the system or pick a theme, plus floating-panel transparency and mascot switches
-- **Faster startup**: equivalent fast implementations at the bundle composition point (saves about 1–2 s), skipped automatically once dsh changes underneath
-- **Plugins stay where dsh puts them**: data lives in `~/.dsh`, so switching versions needs no plugin reinstall
-- **Keeps one older version**: only the newest and the most recently installed are kept (enough to roll back); older ones are pruned after install (this can be turned off in Settings)
-- **Resident in the background**: closing the page does not quit (Windows tray / macOS menu bar icon); the UI uses your system browser
-- **Bundled Node / npm / pnpm**: a portable runtime ships inside the package, packages come from the npmmirror registry, and plugin installs need nothing from the host system
-- **Network proxy**: follow the system proxy (default), enter an address, or turn it off; unreachable proxies fall back to a direct connection. The version list, GitHub, the market and plugin installs all go through it
-- **Run several versions at once**: one instance per version, each on the port it picked (data in `.dsh` is shared anyway); open and stop them one by one on the control page. To keep one address across restarts, pin a port to a version × profile (applies on the next start)
-- **Optional marketplace**: `dshmarket` can be installed on first launch
+- **Launch entries and multiple instances**: choose a dsh home directory, profile, version and port for each entry; different profiles of the same version can run together.
+- **Plugins and packs**: install, toggle and update plugins by environment; import packs from the community market or a file, and export your own environment.
+- **MCP and skills**: configure MCP servers and import, manage and toggle skills.
+- **Opening modes**: a system browser tab, browser app window or desktop window.
+- **Appearance**: light / dark themes, transparency, and separate background and Big Fish switches.
+- **Updates and recovery**: self-update, profile recovery and configurable old-version retention; each launch entry's current and previous versions are kept additionally.
+- **Windows / macOS**: a Windows installer and Apple Silicon / Intel dmgs, tray / menu bar operation and launch at login, with Node / npm / pnpm included.
 
 Feedback: **QQ group [993579665](https://qm.qq.com/q/7AD2g70HqS)**
 
 ## Modpacks
 
-Install a batch of plugins and their config in one go — no installing one by one and hand-editing files. Every modpack is a card on the Plugins page: **one card is one profile** (which is exactly what installing a pack produces), profiles you assembled by hand show up too, and a card that came from a pack says where it came from. Click one to see the plugins in that profile, each still toggleable on its own. The format is the ecosystem's [DSH-PackForge](https://github.com/DSH-PackForge/DSH-PackForge) `.dspack` (manifest v5, older versions accepted), so packs are interchangeable with other launchers.
+Packs install a group of plugins and configuration into a selected environment (profile). The Plugins page lists environments, identifies installed packs and lets you toggle individual plugins. Packs use the [DSH-PackForge](https://github.com/DSH-PackForge/DSH-PackForge) `.dspack` format (manifest v5, older versions accepted).
 
-- **Where from**: a local `.dspack` file, a direct link, or a GitHub `owner/repo` (it takes the `.dspack` from the latest release); or pick one from the built-in community market right on the page.
-- **Where to**: a profile of its own by default, so your current setup is untouched — or point it at an existing profile such as `web`. Switch to it and restart from the same page.
-- **You see it first**: layers, dependencies, files to write, what gets overridden, and what in the pack will not be installed (credentials, `.npmrc` and machine-wide settings never land on disk). Nothing happens before you confirm.
-- **You can get back**: files it overwrites are backed up first, a failed install rolls back, removing a pack restores your files, and a profile the pack created can be deleted along with it.
-- **Share your own**: export the current profile as a `.dspack` (pinned dependencies + patch layer + config files, never `node_modules` or credentials), and whoever installs it gets the same plugin setup.
+- **Import**: the community market, a local file, a direct link or GitHub `owner/repo`. The selected environment is the default target; change it before confirming if needed.
+- **Install**: review plugins and file changes before confirming; overwritten files are backed up and failed installs roll back.
+- **Export**: package the current environment's dependencies, patch layer and configuration as a `.dspack`, without `node_modules` or credentials.
 
-The repo ships one: [**`packs/dsh-x-recommended`**](packs/dsh-x-recommended/README.md) — DSH-X's own starter set, which currently installs the ecosystem's config-manager plugin (`dsh-config-manager`). `node scripts/make-pack.mjs` builds it into `release/packs/`, then install it from the page as a local file.
-
-## Screenshots
-
-<p align="center">
-  <img src="docs/screenshot-home-en.png" alt="DSH-X control page" width="820" />
-</p>
-
-<p align="center">
-  <img src="docs/screenshot-plugins-en.png" alt="DSH-X plugins page" width="820" />
-</p>
-
-<p align="center">
-  <img src="docs/screenshot-modpacks-en.png" alt="DSH-X modpack cards on the plugins page" width="820" />
-</p>
-
-<p align="center">
-  <img src="docs/screenshot-modpack-detail-en.png" alt="DSH-X modpack detail: the plugins it brought" width="820" />
-</p>
-
-<p align="center">
-  <img src="docs/screenshot-settings-en.png" alt="DSH-X settings page" width="820" />
-</p>
+The [recommended pack recipe](packs/dsh-x-recommended/manifest.json) includes configuration, memory, sync and Big Fish decoration plugins, all installed from npm. Sync is provided by the optional `dsh-x-sync` plugin. Run `node scripts/make-pack.mjs` to build a `.dspack`, then import it as a local file.
 
 ## Antivirus false positives
 
-The launcher is not code-signed and behaves a bit like a downloader to heuristics (it spawns `cmd` / `powershell`, can write an autostart entry, ships its own Node runtime, downloads an installer to self-update), so Windows Defender or another antivirus may occasionally block it.
-
-If it does: add the install directory (default `%LOCALAPPDATA%\Programs\DSH`) to the exclusions, and report the false positive to [Microsoft](https://www.microsoft.com/en-us/wdsi/filesubmission) (choose "software developer", upload `DSH-Setup.exe`) — usually reverted in a day or two; other vendors (360, Huorong, …) have their own forms. A SmartScreen "unknown publisher" prompt after downloading is expected: click "Run anyway".
+The Windows installer is not code-signed, so SmartScreen may show an "unknown publisher" prompt or antivirus software may report a false positive. Submit `DSH-Setup.exe` to [Microsoft](https://www.microsoft.com/en-us/wdsi/filesubmission) or the relevant antivirus vendor to report a false positive.
 
 ## Usage
 
 Windows: install [DSH-Setup.exe](https://github.com/yyh-001/DSH-X/releases/latest), then open **DSH-X** from the desktop.
 
-macOS: open `DSH-X-mac-arm64.dmg` (Apple Silicon) or `DSH-X-mac-x64.dmg` (Intel) and drag **DSH-X** into Applications. The app is not notarized, so the first launch needs right-click → **Open**; self-update also needs the app to sit in a writable folder. Settings and logs live in `~/Library/Application Support/DSH`. Future release builds require a persistent signing certificate ([setup guide](docs/mac-signing.md)).
+macOS: open `DSH-X-mac-arm64.dmg` (Apple Silicon) or `DSH-X-mac-x64.dmg` (Intel) and drag **DSH-X** into Applications. v0.1.15 uses ad-hoc signing and is not notarized; the first launch may require manual approval through macOS security prompts.
 
-The manager page and dsh's own web page open in your default browser; the manager defaults to `http://127.0.0.1:3780/` (the port can be changed on the settings page). To reach dsh from a phone or another computer: settings → Advanced → **Web binding** → LAN, applied the next time dsh starts.
+Add or edit a launch entry on the home page, select its environment and version, then start it. Choose how dsh opens in Settings. The manager defaults to port `3780` and tries the next port if occupied. To reach dsh from another device: Settings → Advanced → **Web binding** → LAN, applied on the next start.
 
 Verifying a download (optional): the releases page lists a sha256 next to every file — compare it locally with `certutil -hashfile DSH-Setup.exe SHA256` (Windows) or `shasum -a 256 DSH-X-mac-arm64.dmg` (macOS).
 
 ## Development
 
-Needs Node.js 22.18+ locally. `npm install`, then `npm start`; web page only: `npm run server`.
+Needs Node.js 22.18+ locally, with no third-party dependencies to install. Run `npm start` for the manager, `npm run server` for the server only, and `npm test` for tests.
 
 ## Packaging
 
@@ -99,12 +66,13 @@ npm run dist
 
 On Windows (Rust and Inno Setup 6) this produces `release/DSH/` and `release/DSH-Setup.exe`; on macOS (Rust and the Xcode command line tools) it produces `release/DSH-X.app` and `release/DSH-X-mac-<arch>.dmg` (Intel: `DSH_MAC_ARCH=x64 npm run dist`).
 
-The build also writes an SBOM and a release manifest for self-checking (not uploaded to the release). To publish, run the two gates and upload the installer together with the dmgs:
+Windows builds also write an SBOM and release manifest for local checking (not uploaded to the release). Check the version and artifacts before publishing:
 
 ```sh
-node scripts/release-manifest.mjs check-tag v0.1.14   # tag must match the version in package.json
-node scripts/release-manifest.mjs verify              # every artifact hash; also checks the signature when a key is present
-gh release create v0.1.14 release/DSH-Setup.exe release/mac/DSH-X-mac-*.dmg --latest
+node scripts/release-manifest.mjs check-tag v0.1.15
+node scripts/release-manifest.mjs verify
 ```
 
-The private key lives in `release/release-key.pem` (git-ignored, **back it up**). The header comments in `scripts/release-manifest.mjs` document `keygen` and verifying a directory of files.
+The GitHub Actions `build` workflow builds installers for all three platforms; publish once all are ready. Mac tag builds require [a persistent signing certificate](docs/mac-signing.md); manual builds use ad-hoc signing when no certificate is configured.
+
+The release-manifest private key lives in `release/release-key.pem` (git-ignored, **back it up**).
