@@ -31,8 +31,16 @@ const APP = isolateUserHome(appDir)
 const DATA = join(appDir, 'data')
 const ROOT = join(DATA, 'versions')
 process.env.APPDATA = appDir
+process.env.LOCALAPPDATA = appDir
+process.env.npm_config_prefix = join(appDir, 'global')
 process.env.PORT = String(await freePort())
 mkdirSync(APP, { recursive: true })
+
+// 固定放一份更新的全局版本，证明它既不会被清理，也不会挤掉受管版本的回退名额。
+const globalDsh = join(process.env.npm_config_prefix, 'node_modules', '@deepseek-ai', 'dsh')
+mkdirSync(join(globalDsh, 'lib'), { recursive: true })
+writeFileSync(join(globalDsh, 'lib', 'bin.js'), '// 假的全局 dsh\n', 'utf8')
+writeFileSync(join(globalDsh, 'package.json'), JSON.stringify({ version: '9.9.9' }), 'utf8')
 
 /** 一份配置的写法：假的版本目录 + settings.json（dataDir 指到临时目录）。 */
 function writeSettings(extra = {}) {
@@ -59,11 +67,11 @@ const onDisk = () => readdirSync(ROOT).sort()
 
 const { pruneVersions, snapshot } = await import('../server.js')
 
-// 受管 fixture 还未生成，只精确允许此时已发现的全局版本，不能过滤掉后来混入的条目。
+// 受管 fixture 还未生成，必须只发现隔离目录中的全局版本。
 const initialVersions = (await snapshot()).versions
 assert.ok(initialVersions.every((item) => item.managed === false), '临时版本目录起初应为空')
-assert.ok(initialVersions.length <= 1, '系统发现逻辑最多提供一个全局版本')
 const knownSystemVersions = initialVersions.map((item) => item.version)
+assert.deepEqual(knownSystemVersions, ['9.9.9'])
 
 test.after(() => rmSync(appDir, { recursive: true, force: true }))
 
@@ -74,6 +82,7 @@ test('默认（设置里没这个键）：装完新版留下最新的和最近�
   assert.deepEqual(onDisk(), ['0.1.12', '0.1.13'])
   const expectedVersions = [...new Set(['0.1.13', '0.1.12', ...knownSystemVersions])]
   assert.deepEqual(config.versions, expectedVersions, '完整列表只保留存活的受管版本和预先记录的全局版本，拒绝额外条目')
+  assert.equal(readFileSync(join(globalDsh, 'package.json'), 'utf8'), JSON.stringify({ version: '9.9.9' }), '全局安装保持原样')
 })
 
 test('设置里关掉之后：一个都不删，配置也不动', async () => {

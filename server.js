@@ -416,7 +416,8 @@ export function autoCleanEnabled(settings) {
  * @returns 被清理掉的版本号
  */
 async function pruneVersions(config) {
-  const versions = listedVersions(config)
+  // 系统全局安装不归启动器清理，也不能占用受管版本的回退名额。
+  const versions = listedVersions(config).filter(isManaged)
   const settings = await loadSettings()
   const limit = safeKeepVersions(settings.keepVersions)
   if (versions.length <= limit) return []
