@@ -153,6 +153,5 @@ html[data-color-scheme="dark"] .settings-nav::-webkit-scrollbar-thumb { backgrou
 
 html[data-color-scheme="dark"] .ask.is-child-dialog { background: transparent; }
 html[data-color-scheme="dark"] .set-row:focus-within { background: transparent; box-shadow: none; }
-html[data-color-scheme="dark"] .version-manage-latest .is-current:disabled { background: transparent; color: var(--muted); opacity: 1; }
 html[data-color-scheme="dark"] .launch-save-actions .launch-repair,
 html[data-color-scheme="dark"] .launch-save-actions .launch-delete { background: transparent; border-color: transparent; }

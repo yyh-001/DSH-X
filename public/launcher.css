@@ -809,7 +809,29 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 .theme-option-desc { display: block; margin: 0 3px 3px; color: var(--muted); font-size: 12px; line-height: 1.5; letter-spacing: 0; }
 .panel-opacity-group { margin-top: 16px; }
 .panel-opacity-control { width: min(250px, 45%); }
-#panelTransparency { width: 100%; min-width: 80px; accent-color: var(--accent); cursor: pointer; }
+/* 透明度滑杆：细轨道（已填充段用主题色，跟随数值）+ 浮起的圆滑块，替掉原生灰杆 */
+#panelTransparency {
+  --panel-fill: 30%;
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%; min-width: 80px; height: 14px;
+  margin: 0;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--accent) var(--panel-fill), var(--line) var(--panel-fill)) no-repeat center / 100% 6px;
+  cursor: pointer;
+}
+#panelTransparency::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid var(--line);
+  box-shadow: 0 1px 4px rgb(22 35 61 / 25%);
+  transition: transform 120ms ease;
+}
+#panelTransparency:hover::-webkit-slider-thumb { transform: scale(1.15); }
+#panelTransparency:active::-webkit-slider-thumb { transform: scale(1.22); }
+#panelTransparency:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 #panelTransparencyValue { min-width: 3ch; color: var(--text); font-variant-numeric: tabular-nums; text-align: right; }
 @media (max-width: 560px) {
   .theme-options { grid-template-columns: 1fr; }
@@ -1479,8 +1501,6 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 #launchDialog .home-field:has(#versionPicker) { position: relative; }
 #launchDialog .launch-version-select-row { display: flex; align-items: center; gap: 8px; }
 #launchDialog .launch-version-select-row .select { flex: 1 1 auto; min-width: 0; }
-#launchDialog .launch-manage-version { flex: 0 0 42px; width: 42px; height: 42px; padding: 11px; border-radius: 10px; }
-#launchDialog .launch-manage-version svg { width: 18px; height: 18px; }
 #launchDialog .select-trigger { min-height: 42px; height: 42px; border-radius: 10px; font-size: 13px; }
 #launchDialog input[type=text], #launchDialog input[type=number], #launchDialog select { height: 42px; border-radius: 10px; font-size: 13px; }
 #launchDialog .select-panel { position: absolute; z-index: 30; inset: calc(100% + 6px) 0 auto; margin: 0; max-height: min(250px, 32vh); box-shadow: 0 12px 32px #0003; }
@@ -1651,23 +1671,6 @@ html .set-row:focus-within { background: transparent; box-shadow: none; }
 .launch-tool-actions { display: none; }
 .launch-tool-actions #launchVersionTools { display: none !important; }
 .launch-tool-actions #launchRecover { height: 36px; border-radius: 9px; font-size: 12px; }
-.version-manage-card { width: min(480px, 100%); min-height: 0; padding: 24px; border-radius: 18px; }
-.version-manage-latest { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--accent-soft); }
-.version-manage-latest-copy { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-.version-manage-latest-copy span { color: var(--muted); font-size: 11px; }
-.version-manage-latest-copy strong { overflow: hidden; color: var(--text); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
-/* 最新版状态只占内容宽度，不能继承主按钮的通栏宽度把版本号挤成竖排。 */
-.version-manage-latest .primary { flex: 0 0 auto; width: auto; min-width: 82px; height: 34px; margin: 0; padding: 0 12px; border-radius: 9px; font-size: 12px; }
-.version-manage-latest .is-current:disabled { opacity: 1; border: 1px solid var(--line); color: var(--muted); background: transparent; }
-.version-manage-list { flex: 1 1 auto; min-height: 0; max-height: min(48vh, 360px); overflow: auto; scrollbar-width: thin; }
-.version-manage-row { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 10px 2px; border-bottom: 1px solid var(--line); }
-.version-manage-row:last-child { border-bottom: 0; }
-.version-manage-info { display: flex; flex: 1 1 auto; align-items: baseline; justify-content: space-between; gap: 12px; min-width: 0; }
-.version-manage-info strong { overflow: hidden; color: var(--text); font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.version-manage-info span { flex: 0 0 auto; color: var(--muted); font-size: 11px; }
-.version-manage-row .version-remove { flex: 0 0 auto; min-width: 62px; height: 32px; padding: 0 10px; border-radius: 8px; color: var(--danger); font-size: 11px; }
-.version-manage-row .version-remove { width: 62px; min-height: 32px; white-space: nowrap; }
-.version-manage-empty { padding: 14px 0; }
 .launch-tool-actions .icon-btn, .plugin-actions .action-icon { width: 32px; height: 32px; padding: 6px; border-radius: 8px; }
 .launch-tool-actions svg, .plugin-actions .action-icon svg { width: 18px; height: 18px; }
 .profile-dialog-card { width: min(420px, 100%); padding: 24px; border-radius: 18px; }
@@ -1681,7 +1684,7 @@ html .set-row:focus-within { background: transparent; box-shadow: none; }
 .profile-dialog-actions .spin { width: 14px; height: 14px; border-width: 2px; }
 @media (max-width: 560px) {
   .ask { padding: 14px; }
-  #launchDialog .ask-card, #launchPluginsCard, .version-manage-card, .profile-dialog-card, #packImportDialog .market-browser, .market-detail-card, .pack-confirm-card { padding: 18px; max-height: calc(100dvh - 28px); }
+  #launchDialog .ask-card, #launchPluginsCard, .profile-dialog-card, #packImportDialog .market-browser, .market-detail-card, .pack-confirm-card { padding: 18px; max-height: calc(100dvh - 28px); }
   .launch-save-actions { flex-wrap: wrap; }
   .launch-save-actions .launch-repair { font-size: 11px; }
   .market-grid { grid-template-columns: 1fr; }

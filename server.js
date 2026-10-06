@@ -204,7 +204,6 @@ const LOG_MAX_BYTES = 5 * 1024 * 1024
 const NOISY_LOG_RE = /^(?:已安装 \d+\/\d+|已解析 \d+)/
 
 const clients = new Set()
-const stateListeners = new Set()
 let host = {
   onWake: async () => {},
 }
@@ -812,11 +811,6 @@ function instanceList() {
   return [...instances.values()]
 }
 
-/** 该版本还有没有任何实例在跑（跑起中或已跑起来，正在停的不算）。 */
-function hasLiveInstance(version) {
-  return liveInstanceList().some((proc) => proc.version === version)
-}
-
 /** 说得上「在跑」的实例：起来中或已经跑起来（正在停的不算）。 */
 function liveInstanceList() {
   return instanceList().filter((proc) => proc.status === 'running' || proc.status === 'starting')
@@ -1306,9 +1300,6 @@ async function saveManagerSettings(body) {
 async function emitState() {
   const snap = await snapshot()
   emit('state', snap)
-  for (const listener of stateListeners) {
-    try { listener(snap) } catch { /* ignore tray listener errors */ }
-  }
 }
 
 /**
@@ -2872,8 +2863,7 @@ function packPluginSelection(profile, plugins, selector) {
 /**
  * 随安装包发的那份整合包（安装目录 packs/ 下第一份带 manifest.json 的目录）。
  *
- * 页面拿它画「内置整合包」那一栏：点一下就按本地目录走检查 → 安装，不联网、
- * 也不用去 Release 里找 .dspack。仓库里改了 packs/ 重新打包即生效。
+ * 推荐包暂无前端入口；保留 API 元数据与本地配方，供按目录检查和安装。
  */
 function builtinPack() {
   const root = join(ROOT, 'packs')
@@ -3662,11 +3652,6 @@ export async function restartInstalled() {
   }
   if (failure) throw failure
   return last
-}
-
-export function onState(listener) {
-  stateListeners.add(listener)
-  return () => stateListeners.delete(listener)
 }
 
 export function setHost(next) {

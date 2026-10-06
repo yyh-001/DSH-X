@@ -154,22 +154,6 @@ export function safeProxyUrl(value) {
 }
 
 /**
- * 老配置的一次性迁移：把仍是老默认值「直连」的设置改成「国内加速」。
- *
- * 为什么值得替用户改：新默认只是「多一条退路」，而「直连」在国内根本走不通——市场
- * 索引的域名被 DNS 污染、release 资产的 443 连不上——失败时用户只看到一句 fetch failed。
- * 迁移过就记一笔标记，用户之后自己选回「直连」不会再被动。返回要补写的字段，没什么要改就返回 null。
- */
-export function migrateUpdateSource(stored) {
-  if (!stored || typeof stored !== 'object') return null
-  if (stored.updateSourceMigrated === true) return null
-  const chosen = String(stored.updateSource || '').trim()
-  // 没存过这个字段、或用户自己选过别的源：只补标记，不动他的选择
-  if (chosen && chosen !== 'direct') return { updateSourceMigrated: true }
-  return { updateSource: DEFAULT_UPDATE_SOURCE, updateSourceMigrated: true }
-}
-
-/**
  * 打开 dsh 页面的方式：
  *
  * - tab：系统默认浏览器的标签页（默认）；
@@ -224,7 +208,7 @@ export const DEFAULTS = {
   // 界面语言：zh / en（安装时选的语言写进安装目录的 lang.txt，启动器读一次落到这里）
   lang: '',
   theme: 'system',
-  panelTransparency: 0,
+  panelTransparency: 30,
   reduceMotion: false,
   hideBackground: false,
   hideBigFish: false,

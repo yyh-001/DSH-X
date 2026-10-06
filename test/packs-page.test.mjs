@@ -53,7 +53,7 @@ test('页面逻辑：一张卡就是一个 profile，点开进详情，开关/�
   assert.ok(!/paneLoaders = \{[^}]*packs:/.test(html), '整合包不再单独按需加载')
   assert.match(html, /function pluginRowHtml\(/, '插件行抽成共用函数')
   assert.match(html, /bindPluginRowEvents\(packPluginListEl, item\.profile\)/, '详情里的插件行按该 profile 绑定')
-  assert.match(html, /post\('\/api\/packs\/toggle', \{ profile: item\.profile, enabled \}\)/, '整包开关按 profile 走')
+  assert.match(html, /post\('\/api\/packs\/toggle', \{ profile: item\.profile, \.\.\.pluginGroupScope\(group\), enabled \}\)/, '批量开关按 profile 和插件组走')
   assert.match(html, /post\('\/api\/packs\/update', \{ profile: item\.profile, \.\.\.\(group \? pluginGroupScope\(group\) : \{\}\) \}\)/, '整包更新按 profile 和插件组走')
   assert.match(html, /post\('\/api\/profiles\/delete'/, '手动拼的 profile 走「删除 profile」')
   assert.match(html, /post\('\/api\/packs\/install'/, '安装走 install')

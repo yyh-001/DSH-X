@@ -26,11 +26,11 @@ test('外观页提供三种主题，选择后立即应用并自动提交', () =>
 })
 
 test('悬浮窗透明度限制在 0-100，外观页即时预览并自动保存', () => {
-  assert.equal(DEFAULTS.panelTransparency, 0)
+  assert.equal(DEFAULTS.panelTransparency, 30)
   assert.equal(safePanelTransparency(-5), 0)
   assert.equal(safePanelTransparency(43.6), 44)
   assert.equal(safePanelTransparency(120), 100)
-  assert.equal(safePanelTransparency('bad'), 0)
+  assert.equal(safePanelTransparency('bad'), 30)
   assert.match(html, /id="panelTransparency" type="range" min="0" max="100"/)
   assert.match(html, /window\.setPanelTransparency\(value\)/)
   assert.match(html, /queueSetting\('panelTransparency', transparency\)/)

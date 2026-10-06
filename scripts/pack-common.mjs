@@ -46,6 +46,8 @@ const APP_FILES = [
 // 不装进安装包的 public 素材（文件留在仓库里备回滚；要重新启用就从这份名单去掉）
 const SKIP_PUBLIC = new Set([
   'head-v2.png', 'accessories-v2.png', 'ear.png',
+  // v3 设计稿仅供回看；运行时使用 v8 / v9，不把旧图带进安装包
+  'head-v3.png', 'tuft-v3.png', 'bow-v3.png',
   // v7 换装（docs/mascot-design/compose-v7.py）后退役的原版素材
   'base.png', 'base-dark.png', 'base-dark-soft.png', 'tuft.svg', 'tuft-dark.svg', 'bow.svg', 'bow-dark.svg',
   // v8 排布（docs/mascot-design/prepare-v8.py）后退役的 v7 均匀倍率版

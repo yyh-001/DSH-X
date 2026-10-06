@@ -304,8 +304,8 @@
                     <span class="set-desc" data-i18n="调整下方悬浮窗的背景透明度，文字和控件保持清晰。">调整下方悬浮窗的背景透明度，文字和控件保持清晰。</span>
                   </div>
                   <div class="set-control panel-opacity-control">
-                    <input id="panelTransparency" type="range" min="0" max="100" step="1" value="0" />
-                    <output id="panelTransparencyValue" for="panelTransparency">0%</output>
+                    <input id="panelTransparency" type="range" min="0" max="100" step="1" value="30" />
+                    <output id="panelTransparencyValue" for="panelTransparency">30%</output>
                   </div>
                 </div>
               </div>
@@ -534,18 +534,18 @@
           <div class="launch-version-select-row">
             <div class="select" id="versionPicker">
               <button type="button" class="select-trigger" id="versionTrigger" aria-haspopup="listbox" aria-expanded="false">
-                <span class="select-value" id="versionValue" data-i18n="自动选择已安装版本">自动选择已安装版本</span>
+                <span class="select-value" id="versionValue" data-i18n="自动最新版本">自动最新版本</span>
                 <svg class="select-caret" viewBox="0 0 12 8" aria-hidden="true"><path fill="currentColor" d="M0 0h12L6 8z"/></svg>
               </button>
               <div class="select-panel" id="versionPanel" role="listbox" hidden></div>
             </div>
-            <button class="ghost icon-btn launch-manage-version" id="launchManageVersions" type="button" title="管理版本" aria-label="管理版本" data-i18n-title="管理版本" data-i18n-aria-label="管理版本"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></button>
           </div>
         </div>
-        <div class="home-field">
+        <!-- DSH_HOME 暂时收起：多数用户只有一套数据；元素留着，已有自定义目录的启动项编辑时照常回填保存，要恢复去掉 hidden 即可 -->
+        <div class="home-field" hidden>
           <label for="launchDshHome" data-i18n="DSH_HOME 目录">DSH_HOME 目录</label>
           <div class="launch-home-row"><select id="launchDshHome"></select><button class="ghost icon-btn" id="launchPickHome" type="button" title="选择文件夹" aria-label="选择文件夹" data-i18n-title="选择文件夹" data-i18n-aria-label="选择文件夹"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v2M3 7v12h16l3-9H7l-4 9"/></svg></button></div>
-          <p class="hint" data-i18n="dsh 的数据根目录：Profile、会话、插件都存在这里；换一个目录就是另一套数据。">dsh 的数据根目录：Profile、会话、插件都存在这里；换一个目录就是另一套数据。</p>
+          <p class="hint" data-i18n="dsh 的数据根目录，换一个目录就是另一套数据。">dsh 的数据根目录，换一个目录就是另一套数据。</p>
         </div>
         <div class="home-pickers">
           <div class="home-field">
@@ -574,13 +574,6 @@
         <button class="primary" id="launchSave" type="submit" data-i18n="保存">保存</button>
       </div>
     </form>
-  </div>
-  <div class="ask" id="versionManageDialog" hidden>
-    <div class="ask-card version-manage-card" role="dialog" aria-modal="true" aria-labelledby="versionManageTitle">
-      <div class="dialog-heading"><h2 class="ask-title" id="versionManageTitle" data-i18n="版本管理">版本管理</h2><button class="ghost icon-btn dialog-close" id="versionManageClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
-      <div class="version-manage-latest"><div class="version-manage-latest-copy"><span data-i18n="最新版本">最新版本</span><strong id="versionManageLatestNote"></strong></div><button class="primary" id="versionManageUpdate" type="button" data-i18n="安装最新版">安装最新版</button></div>
-      <div class="version-manage-list" id="versionManageList" role="list"></div>
-    </div>
   </div>
   <div class="ask" id="profileDialog" hidden>
     <form class="ask-card profile-dialog-card" id="profileForm" role="dialog" aria-modal="true" aria-labelledby="profileDialogTitle">
@@ -1048,7 +1041,6 @@
   "版本目录不能为空": "The version directory cannot be empty.",
   "例如：--log-level debug": "e.g. --log-level debug",
   "DSH-X 已退出": "DSH-X has exited",
-  "卸载": "Uninstall",
   "停止": "Stop",
   "打开": "Open",
   "在跑的实例": "Running instances",
@@ -1077,7 +1069,6 @@
   "暂无版本": "No versions",
   "读不到远程版本。": "Cannot read the remote version list.",
   "尚未安装。": "Not installed.",
-  "最新版本，尚未安装。": "Latest version, not installed yet.",
   "已安装。插件和数据在用户目录的 .dsh。": "Installed. Plugins and data live in .dsh in your home directory.",
   "收起旧版本": "Show fewer versions",
   "dsh 本体": "dsh itself",
@@ -1130,6 +1121,7 @@
   "更新启动器到 {latest}": "Update the launcher to {latest}",
   "更多版本…（还有 {n} 个）": "More versions… ({n} left)",
   "卸载 {version}？插件和数据会保留。": "Uninstall {version}? Plugins and data are kept.",
+  "删除启动项「{name}」？已装的版本和数据不受影响。": "Delete launch entry “{name}”? Installed versions and data are not affected.",
   "卸载 {version}？这是系统里的 DSH，会从本机移除。插件和数据会保留。": "Uninstall {version}? This is the system DSH and will be removed from this machine. Plugins and data are kept.",
   "正在更新到 {latest}": "Updating to {latest}",
   "已保存。重启启动器后管理页改到 {port} 端口。": "Saved. The manager moves to port {port} after a restart.",
@@ -1146,6 +1138,7 @@
   "{prefix}… 已解析 {done} 个依赖": "{prefix}… resolved {done} dependencies",
   "{prefix}… 已安装 {done} 个包": "{prefix}… installed {done} packages",
   "{prefix} {done}/{total}（{percent}%）": "{prefix} {done}/{total} ({percent}%)",
+  "正在收尾…": "Finishing up…",
   "正在下载新版本 {pct}%（{mb} / {size}）": "Downloading the new version: {pct}% ({mb} / {size})",
   "行 {ids}": "rows {ids}",
   "{profile} profile · 共 {total} 个 · {on} 个启用": "{profile} profile · {total} total · {on} enabled",
@@ -1169,12 +1162,9 @@
   "编辑启动项": "Edit launch",
   "编辑 {name}": "Edit {name}",
   "推荐版本（自动）": "Recommended version (automatic)",
-  "自动选择已安装版本": "Use latest installed version",
+  "自动最新版本": "Latest version (auto)",
   "优先使用正在运行的版本，否则选择本机最新已安装版本；未安装时会在首次启动下载最新版。新版本需要手动更新。": "Keep the running version, otherwise use the latest installed version. If none is installed, download the latest on first launch. New releases require a manual update.",
   "新版本 {version}": "New version {version}",
-  "版本管理": "Version management",
-  "管理版本": "Manage versions",
-  "最新版本": "Latest version",
   "新建 Profile": "New profile",
   "复制 Profile": "Duplicate profile",
   "删除 Profile": "Delete profile",
@@ -1191,15 +1181,11 @@
   "部分启用": "Partly enabled",
   "完成": "Done",
   "修复环境": "Repair environment",
-  "安装最新版": "Install latest version",
   "安装最新版 {version}": "Install latest version {version}",
   "重新安装最新版 {version}": "Reinstall latest version {version}",
   "最新版已安装": "Latest version is installed",
   "最新版本：{version}": "Latest version: {version}",
   "暂时无法获取最新版本": "The latest version is temporarily unavailable",
-  "正在运行 · {profile}": "Running · {profile}",
-  "未运行": "Not running",
-  "尚未安装任何版本": "No versions installed",
   "用于版本、插件、整合包和启动器更新。": "Used for versions, plugins, packs and launcher updates. ",
   "卸载整合包": "Uninstall pack",
   "卸载 {name}": "Uninstall {name}",
@@ -1238,7 +1224,7 @@
   "DSH_HOME 目录": "DSH_HOME directory",
   "留空使用默认目录": "Leave blank for the default directory",
   "默认目录": "Default directory",
-  "dsh 的数据根目录：Profile、会话、插件都存在这里；换一个目录就是另一套数据。": "Root of dsh's data: profiles, sessions and plugins live here. A different directory is a separate set of data.",
+  "dsh 的数据根目录，换一个目录就是另一套数据。": "Root of dsh's data. A different directory is a separate set of data.",
   "启动与修复": "Startup and recovery",
   "修复环境": "Repair environment",
   "正在修复环境…": "Repairing environment…",
@@ -1304,8 +1290,6 @@
       for (const el of document.querySelectorAll('[data-i18n]')) {
         el.textContent = t(el.dataset.i18n) || el.dataset.i18n
       }
-      const versionManagerTrigger = document.getElementById('launchManageVersions')
-      if (versionManagerTrigger) versionManagerTrigger.title = versionManagerTrigger.ariaLabel = t('管理版本')
       for (const el of document.querySelectorAll('[data-placeholder-i18n]')) el.placeholder = t(el.dataset.placeholderI18n)
       for (const id of ['update', 'remove', 'launchRecover', 'mcpAdd', 'mcpProbe', 'mcpRefresh']) {
         const el = document.getElementById(id)
@@ -1346,10 +1330,8 @@
     const launchNameEl = document.getElementById('launchName')
     const launchSaveEl = document.getElementById('launchSave')
     const launchDialogEl = document.getElementById('launchDialog')
-    const versionManageDialogEl = document.getElementById('versionManageDialog')
     const launchFormEl = document.getElementById('launchForm')
     const launchAddEl = document.getElementById('launchAdd')
-    const manageVersionsEl = document.getElementById('launchManageVersions')
     const launchDeleteEl = document.getElementById('launchDelete')
     const launchPresetsEl = document.getElementById('launchPresets')
     const DEFAULT_LAUNCH_ID = '0000000000000000'
@@ -1410,7 +1392,9 @@
       versionActive = Math.max(0, versionOptions.findIndex((option) => option.value === versionValue))
       paintVersionPanel()
       paintVersionTrigger()
-      const rect = versionTriggerEl.getBoundingClientRect()
+      // 量外层 .select 容器而不是按钮：按钮在 :active 等瞬时变换下量到的是缩过的宽度，
+      // 面板会把那一下的宽度冻住（键盘开面板时必现）。容器没有这些变换，几何是稳定的。
+      const rect = versionRootEl.getBoundingClientRect()
       const below = window.innerHeight - rect.bottom - 12
       const above = rect.top - 12
       const maxHeight = Math.min(250, Math.max(120, Math.max(below, above)))
@@ -1559,12 +1543,8 @@
 
     function positionUiSelect(item) {
       const rect = item.trigger.getBoundingClientRect()
-      const min = Math.max(rect.width, item.select.id === 'launchProfile' ? 180 : 0)
-      // 面板先按内容量自然宽，再夹到不小于触发器宽：面板与触发器左右边缘对齐
-      item.panel.style.width = 'auto'
-      item.panel.style.left = '12px'
-      const natural = item.panel.getBoundingClientRect().width
-      const width = Math.min(Math.max(min, natural), innerWidth - 24)
+      // 面板与触发器严格等宽、左缘对齐；窄触发器装不下的长选项靠省略号截断，不再横向长开
+      const width = Math.min(Math.max(rect.width, 96), innerWidth - 24)
       item.panel.style.width = `${width}px`
       item.panel.style.left = `${Math.max(12, Math.min(rect.left, innerWidth - width - 12))}px`
       const height = item.panel.getBoundingClientRect().height
@@ -2035,6 +2015,9 @@
         return done ? t('{prefix}… 已解析 {done} 个依赖', { prefix, done }) : `${prefix}…`
       }
       if (!total) return done ? t('{prefix}… 已安装 {done} 个包', { prefix, done }) : `${prefix}…`
+      // 计数到满后还有一段没有进度事件的收尾（npm 写盘、seed 插件、清理旧版本），
+      // 再挂「100% 正在安装」就像卡死了；换成收尾文案，事件归零后进度条自然消失。
+      if (done >= total) return t('正在收尾…')
       return t('{prefix} {done}/{total}（{percent}%）', { prefix, done, total, percent: Math.round((done / total) * 100) })
     }
 
@@ -2419,8 +2402,9 @@
         const label = ownAction === 'install' ? t('安装中') : busy || ownAction
           ? t(live?.status === 'stopping' || ownAction === 'stop' ? '停止中' : '启动中')
           : live?.status === 'running' ? t(live.url ? '打开' : '运行中') : t('启动')
-        const note = [version || t('自动选择版本'), entry.profile, entry.dshHome || t('默认目录')].filter(Boolean).join(' · ')
-        const rowStatus = busy || ownAction ? label : live?.status === 'running' ? t('运行中') : ''
+        // 「默认目录」不显示（现在的编辑器也不提供改它）；自定义目录仍然标出来
+        const note = [version || t('自动选择版本'), entry.profile, entry.dshHome].filter(Boolean).join(' · ')
+        // 状态不占文字：启动/停止/安装中的反馈由按钮上的转圈表示，运行中由停止按钮表示
         const automaticHint = entry.version === 'auto' ? t('优先使用正在运行的版本，否则选择本机最新已安装版本；未安装时会在首次启动下载最新版。新版本需要手动更新。') : ''
         const latest = latestRemoteVersion()
         // 「新版本」只给 auto 条目看：钉死版本的启动项是故意留的，冒一个更新按钮出来
@@ -2432,7 +2416,7 @@
           <span class="launch-app-icon" aria-hidden="true">${launchIconMarkup(entry.icon)}</span>
           <span class="launch-preset-copy"><span class="launch-preset-heading">
             <span class="launch-preset-name">${escapeHtml(name)}</span>${builtin ? `<span class="launch-builtin">${escapeHtml(t('内置'))}</span>` : ''}</span>
-            <span class="launch-preset-meta" title="${escapeHtml(automaticHint)}"><span>${escapeHtml([note, installNote].filter(Boolean).join(' · '))}</span>${rowStatus ? `<span class="launch-status${busy || ownAction ? ' is-working' : ''}" role="status">${escapeHtml(rowStatus)}</span>` : ''}</span>
+            <span class="launch-preset-meta" title="${escapeHtml(automaticHint)}"><span>${escapeHtml([note, installNote].filter(Boolean).join(' · '))}</span></span>
             ${hasNewVersion ? `<button class="launch-new-version" type="button" data-version-id="${entry.id}" ${action || state.installing ? 'disabled' : ''}>${escapeHtml(t('新版本 {version}', { version: latest }))}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button>` : ''}</span>
           <span class="launch-actions"><button class="launch-edit launch-plugins" type="button" data-plugins-id="${entry.id}" title="${escapeHtml(t('管理插件'))}" aria-label="${escapeHtml(t('管理 {name} 的插件', { name }))}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9M8 5.25l8 4.5"/></svg></button><button class="launch-edit" type="button" data-edit-id="${entry.id}" title="${escapeHtml(t(launcherRunning() ? '请先停止正在运行的 DSH，再编辑启动项或安装整合包' : '编辑 {name}', { name }))}" aria-label="${escapeHtml(t('编辑 {name}', { name }))}" ${action || state.installing || launcherRunning() ? 'disabled' : ''}>
@@ -2477,11 +2461,9 @@
         button.onclick = () => {
           const entry = launchEntries().find((item) => item.id === button.dataset.versionId)
           if (!entry) return
-          // 直达带风险提示的更新确认框；版本管理是管理已装版本的地方，不是必经跳板
-          // （旧走法还要程序化点一下「安装最新版」，最新版已装时那按钮是禁用的，点了就晾在版本管理里）。
-          // 拿不到远端版本号才退回版本管理，那里有「暂时无法获取」的提示。
+          // 直达带风险提示的更新确认框；拿不到远端版本号就只提示。
           const latest = latestRemoteVersion()
-          if (!latest) { openVersionManager(entry); return }
+          if (!latest) { notify(t('暂时无法获取最新版本')); return }
           showAsk({
             dsh: {
               current: resolveLaunchVersion(entry) || latest,
@@ -2524,98 +2506,6 @@
     let launchDialogRevision = 0
     let launchDialogClosing = false
 
-    let versionManageReturnToEditor = false
-    let versionManageTarget = null
-    let versionManageSnapshot = null
-    function openVersionManager(entry) {
-      versionManageReturnToEditor = !launchDialogEl.hidden
-      versionManageSnapshot = {
-        picked, versionValue, launchProfile, userPicked,
-        focus: document.activeElement,
-      }
-      versionManageTarget = entry
-        ? { version: resolveLaunchVersion(entry), profile: entry.profile || 'web', dshHome: entry.dshHome || state.dshHome, launchId: entry.id }
-        : { version: selected(), profile: launchProfile }
-      closeVersionPanel()
-      if (versionManageReturnToEditor) {
-        launchFormEl.inert = true
-        launchDialogEl.classList.add('is-underlay')
-      }
-      else closeLaunchPanelForVersionManager()
-      paintVersionManager()
-      versionManageDialogEl.classList.toggle('is-child-dialog', versionManageReturnToEditor)
-      showDialog(versionManageDialogEl)
-      document.getElementById('versionManageClose').focus()
-    }
-    function closeLaunchPanelForVersionManager() {
-      launchPresetsEl?.setAttribute('inert', '')
-    }
-    async function closeVersionManager() {
-      if (versionManageDialogEl.hidden || versionManageDialogEl.dataset.dialogClosing) return
-      // 子卡片退出的同时恢复父卡片，遮罩始终由编辑窗口维持。
-      if (versionManageReturnToEditor) launchDialogEl.classList.remove('is-underlay')
-      if (!(await hideDialog(versionManageDialogEl))) return
-      versionManageDialogEl.classList.remove('is-child-dialog')
-      if (versionManageReturnToEditor) {
-        launchFormEl.inert = false
-        launchDialogEl.classList.remove('is-underlay')
-      }
-      else launchPresetsEl?.removeAttribute('inert')
-      if (versionManageSnapshot) {
-        picked = versionManageSnapshot.picked
-        versionValue = versionManageSnapshot.versionValue
-        launchProfile = versionManageSnapshot.launchProfile
-        userPicked = versionManageSnapshot.userPicked
-      }
-      const focus = versionManageSnapshot?.focus
-      versionManageReturnToEditor = false
-      versionManageSnapshot = null
-      versionManageTarget = null
-      focus?.isConnected ? focus.focus() : manageVersionsEl.focus()
-    }
-    manageVersionsEl.onclick = () => openVersionManager()
-    document.getElementById('versionManageClose').onclick = closeVersionManager
-    document.getElementById('versionManageUpdate').onclick = async () => {
-      const latest = latestRemoteVersion()
-      if (!latest || installedList().includes(latest)) return
-      const target = { ...versionManageTarget, preserveSelection: true }
-      const current = target.version || latest
-      await closeVersionManager()
-      showAsk({ dsh: { current, latest, target } })
-    }
-    versionManageDialogEl.onclick = (event) => { if (event.target === versionManageDialogEl) closeVersionManager() }
-    versionManageDialogEl.onkeydown = (event) => {
-      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); void closeVersionManager(); return }
-      if (event.key !== 'Tab') return
-      const controls = [...versionManageDialogEl.querySelectorAll('button')].filter((el) => !el.disabled && !el.hidden)
-      const first = controls[0], last = controls.at(-1)
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
-    }
-
-    function paintVersionManager() {
-      const list = document.getElementById('versionManageList')
-      const latest = latestRemoteVersion()
-      const installed = [...installedList()].sort((a, b) => compareVersion(b, a))
-      const latestNote = document.getElementById('versionManageLatestNote')
-      const latestButton = document.getElementById('versionManageUpdate')
-      latestNote.textContent = latest || t('暂时无法获取最新版本')
-      latestButton.disabled = !latest || installed.includes(latest) || Boolean(action) || Boolean(state.installing)
-      latestButton.textContent = latest && installed.includes(latest)
-        ? t('已安装')
-        : t('安装最新版')
-      latestButton.classList.toggle('is-current', Boolean(latest && installed.includes(latest)))
-      list.innerHTML = installed.map((version) => {
-        const live = runningInfo(version)
-        const status = live ? t('正在运行 · {profile}', { profile: live.profile || t('运行中') }) : t('未运行')
-        const disabled = Boolean(action) || Boolean(state.installing) || Boolean(live)
-        return `<div class="version-manage-row" role="listitem"><div class="version-manage-info"><strong>${escapeHtml(version)}</strong><span>${escapeHtml(status)}</span></div><button class="ghost version-remove" type="button" data-remove-version="${escapeHtml(version)}" ${disabled ? 'disabled' : ''}>${escapeHtml(t('卸载'))}</button></div>`
-      }).join('') || `<p class="hint version-manage-empty">${escapeHtml(t('尚未安装任何版本'))}</p>`
-      list.querySelectorAll('[data-remove-version]').forEach((button) => {
-        button.onclick = () => { void uninstallVersion(button.dataset.removeVersion) }
-      })
-    }
-
     async function uninstallVersion(version) {
       if (!version || action || state.installing || runningInfo(version)) return
       const system = !isManagedVersion(version)
@@ -2625,10 +2515,9 @@
       if (!ok) return
       action = 'uninstall'
       render()
-      paintVersionManager()
       try { await post('/api/uninstall', { version }) }
       catch (error) { notify(error.message) }
-      finally { action = ''; render(); paintVersionManager() }
+      finally { action = ''; render() }
     }
 
     function openLaunchEditor(entry) {
@@ -2704,6 +2593,10 @@
     }
     launchDeleteEl.onclick = async () => {
       if (!editingLaunchId || editingLaunchId === DEFAULT_LAUNCH_ID) return
+      // 删除没有后悔药，弹窗确认一下；版本和数据不动，说清楚打消顾虑。
+      const entry = launchEntries().find((item) => item.id === editingLaunchId)
+      const ok = await appConfirm(t('删除启动项「{name}」？已装的版本和数据不受影响。', { name: entry?.name || '' }))
+      if (!ok) return
       launchDeleteEl.disabled = true
       try {
         const id = editingLaunchId
@@ -2721,7 +2614,7 @@
       const versions = visibleVersionList(allVersions)
       const hidden = allVersions.length - versions.length
       const latest = latestRemoteVersion()
-      const nextOptions = [{ value: 'auto', text: t('自动选择已安装版本') }, ...versions.map((version) => ({
+      const nextOptions = [{ value: 'auto', text: t('自动最新版本') }, ...versions.map((version) => ({
         value: version, text: version,
         badge: [have.has(version) ? t('已装') : '', version === latest ? t('最新') : ''].filter(Boolean).join(' · '),
       }))]
@@ -2751,7 +2644,6 @@
       const fixed = stateAutoFix()
       if (!hintEl.textContent && fixed) hintEl.textContent = t('启动时自动禁用了：{names}（插件页可恢复）', { names: fixed })
       if (!hintEl.textContent && state.health?.failed?.length) hintEl.textContent = t('⚠ 页面自检：{failed}/{total} 个插件包加载失败', { failed: state.health.failed.length, total: state.health.total })
-      if (!versionManageDialogEl.hidden) paintVersionManager()
     }
 
     versionOnChange = (value, keepOpen) => {
@@ -3396,6 +3288,8 @@
     function showPanelTransparency(value) {
       const transparency = window.setPanelTransparency(value)
       panelTransparencyEl.value = String(transparency)
+      // 滑杆的已填充段靠这个变量画（launcher.css 的渐变轨道）
+      panelTransparencyEl.style.setProperty('--panel-fill', `${transparency}%`)
       panelTransparencyValueEl.value = `${transparency}%`
       return transparency
     }
@@ -4179,19 +4073,6 @@
       return item.packName
         ? [t('整合包：{name}{version}', { name: item.packName, version: item.packVersion ? ` v${item.packVersion}` : '' })]
         : []
-    }
-
-    /** 整包开关：把这个 profile 里的第三方插件一起启停。 */
-    async function togglePack(item, enabled) {
-      try {
-        const data = await post('/api/packs/toggle', { profile: item.profile, enabled })
-        applyPluginPayload(data)
-        const failed = data.failed || []
-        if (failed.length) notify(t('有 {n} 个插件不支持开关：{names}', { n: failed.length, names: failed.join('、') }), t('批量开关'))
-      } catch (error) {
-        notify(error.message)
-        void loadPlugins()
-      }
     }
 
     function pluginGroupScope(group) {
