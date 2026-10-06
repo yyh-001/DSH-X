@@ -14,6 +14,7 @@ import pkg from './package.json' with { type: 'json' }
 import {
   disableRowId,
   listPlugins,
+  ensureBundleMounted,
   ownerOfRow,
   parseFailedRows,
   parseUnresolvedBundles,
@@ -2448,6 +2449,11 @@ async function addPlugin(version, spec, { profile = PROFILE_NAME } = {}) {
         throw error
       }
     }
+    // 0.2.x 的 dsh plugin add 是纯 pnpm 透传、不再写挂载清单（0.1.x 会写）：
+    // 启动器接管这一步，不补的话插件在 dsh 里永远是关闭状态。
+    const mounted = ensureBundleMounted(profileDirOf(profile), pkg)
+    if (mounted.ok && mounted.changed) pushLog(`已挂载 ${mounted.name}（写入 ${profile} 的 dsh.profile.bundles）`)
+    else if (!mounted.ok) pushLog(`挂载 ${pkg} 没做成：${mounted.reason}`)
     pushLog(`${pkg} 已在 ${profile} profile`)
   } finally {
     pluginBusy = false
@@ -4439,7 +4445,7 @@ async function handleApi(req, res, url) {
     const target = profileDirOf(profile)
     const result = await editProfile(profile, () => setPluginEnabled(target, name, enabled))
     const where = body.profile && String(body.profile) !== PROFILE_NAME ? `（profile ${body.profile}）` : ''
-    pushLog(`插件 ${name} → ${enabled ? '启用' : '禁用'}${where}${result.changed ? '' : '（无变化）'}`)
+    pushLog(`插件 ${name} → ${enabled ? '启用' : '禁用'}${where}${result.changed ? '' : result.mounted ? '（补挂载）' : '（无变化）'}`)
     send(res, 200, { ok: true, changed: result.changed, ...packsPayload(), ...listPlugins(target), profile, autoFix: autoFixForHome(), recovery: recoveryPayload(profile) })
     return
   }

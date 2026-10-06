@@ -349,7 +349,43 @@ export function setPluginEnabled(profileDir, packageName, enabled) {
     backupOnce(patchPath)
     writeFileSync(patchPath, ensurePlaceholder(text))
   }
-  return { ok: true, changed, ids: targets }
+  // 「启用」要保证真的挂上：0.2.x 的 dsh 只挂载清单 bundles 里的插件，已挂载时是空操作
+  const mounted = enabled ? ensureBundleMounted(profileDir, packageName).changed : false
+  return { ok: true, changed, ids: targets, mounted }
+}
+
+/** 从安装 spec（`pkg@1.2`、`@scope/pkg@1.2`、file:/git: 源）里取出纯包名；本地/远端源取不出，返回空串。 */
+function bundleNameOf(spec) {
+  if (/^(?:file:|git\+|github:|https?:)/.test(spec)) return ''
+  if (spec.startsWith('@')) {
+    const [scope, name] = spec.slice(1).split('@')
+    return scope && name ? `@${scope}/${name}` : ''
+  }
+  return spec.split('@')[0] || ''
+}
+
+/**
+ * 把插件写进 profile 清单的 `dsh.profile.bundles`（0.2.x 起这是唯一挂载依据）。
+ * 0.1.x 的 `dsh plugin add` 会顺手写，0.2.1-alpha.1 起是纯 pnpm 透传不再写——
+ * 不补的话，启动器装完/启用的插件在 dsh 里永远是关闭状态，只能进 dsh 手动开。
+ * bundles 不是数组的老清单不动（语义拿不准的东西别碰）。
+ */
+export function ensureBundleMounted(profileDir, spec) {
+  const packageName = bundleNameOf(spec)
+  if (!packageName) return { ok: false, changed: false, name: '', reason: '本地/远端源取不出包名' }
+  const manifestPath = join(profileDir, 'package.json')
+  let manifest
+  try {
+    manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+  } catch {
+    return { ok: false, changed: false, name: packageName, reason: 'profile 清单读不了' }
+  }
+  const bundles = manifest?.dsh?.profile?.bundles
+  if (!Array.isArray(bundles)) return { ok: false, changed: false, name: packageName, reason: '清单里没有 bundles 字段' }
+  if (bundles.includes(packageName)) return { ok: true, changed: false, name: packageName }
+  bundles.push(packageName)
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+  return { ok: true, changed: true, name: packageName }
 }
 
 /** 找到某条 loader 行属于哪个已装插件（找不到返回空串，例如传递挂载的行）。 */

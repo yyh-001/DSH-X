@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import { enableRowId, readPatchState } from '../plugins.js'
+import { enableRowId, ensureBundleMounted, readPatchState } from '../plugins.js'
 
 function patchFile(content) {
   const dir = mkdtempSync(join(tmpdir(), 'dsh-patch-'))
@@ -67,4 +67,24 @@ test('本来就没禁用的行：幂等，不动文件', () => {
   const { profile, file } = patchFile(content)
   assert.equal(enableRowId(profile, 'my-plugin').changed, false)
   assert.equal(readFileSync(file, 'utf8'), content)
+})
+
+test('ensureBundleMounted：补写挂载清单，剥掉版本号，重复挂是空操作', () => {
+  const { profile } = patchFile('[]')
+  writeFileSync(join(profile, 'package.json'), JSON.stringify({
+    dependencies: { 'dsh-filesnap': '0.2.2' },
+    dsh: { profile: { bundles: ['@deepseek-ai/dsh-base'] } },
+  }), 'utf8')
+  assert.deepEqual(ensureBundleMounted(profile, 'dsh-filesnap@0.2.2'), { ok: true, changed: true, name: 'dsh-filesnap' })
+  const manifest = JSON.parse(readFileSync(join(profile, 'package.json'), 'utf8'))
+  assert.deepEqual(manifest.dsh.profile.bundles, ['@deepseek-ai/dsh-base', 'dsh-filesnap'])
+  assert.deepEqual(ensureBundleMounted(profile, 'dsh-filesnap'), { ok: true, changed: false, name: 'dsh-filesnap' })
+})
+
+test('ensureBundleMounted：file:/git: 源和没有 bundles 字段的清单不碰', () => {
+  const { profile } = patchFile('[]')
+  writeFileSync(join(profile, 'package.json'), JSON.stringify({ dependencies: {} }), 'utf8')
+  assert.equal(ensureBundleMounted(profile, 'file:C:/x/plugin').ok, false)
+  assert.equal(ensureBundleMounted(profile, 'pkg@1.0').ok, false, '没有 bundles 字段的老清单不动')
+  assert.deepEqual(JSON.parse(readFileSync(join(profile, 'package.json'), 'utf8')), { dependencies: {} })
 })
