@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DSH-X · 大肥鱼桌面终端</title>
+  <link rel="stylesheet" href="assets/mascot.css">
+  <link rel="stylesheet" href="terminal.css">
+  <script src="wallpaper.js"></script>
+</head>
+<body>
+  <div class="backdrop" aria-hidden="true">
+    <canvas class="water-surface"></canvas>
+    <div class="backdrop-character"></div>
+  </div>
+  <div class="technical-grid" aria-hidden="true"></div>
+  <div class="orbital-diagram" aria-hidden="true"><svg viewBox="0 0 640 640"><circle class="orbit-fine" cx="320" cy="320" r="288"/><circle class="orbit-dash" cx="320" cy="320" r="268"/><circle class="orbit-inner" cx="320" cy="320" r="232"/><path class="orbit-axis" d="M320 0v640M0 320h640M116 116l408 408M116 524l408-408"/><path class="orbit-highlight" d="M320 32a288 288 0 0 1 288 288"/><path class="orbit-marks" d="M314 18h12M314 622h12M18 314v12M622 314v12"/></svg></div>
+  <header class="terminal-header">
+    <span class="header-label">DEEPSEEK HARNESS</span>
+    <div class="header-status"><span class="status-dot"></span><span>PERSONAL WORKSTATION</span><button id="toggleTheme" class="display-mode" type="button" aria-label="切换昼夜模式" aria-pressed="false"><svg class="mode-day" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="3.3"/><path d="M10 1v3M10 16v3M1 10h3M16 10h3M3.6 3.6l2.1 2.1M14.3 14.3l2.1 2.1M3.6 16.4l2.1-2.1M14.3 5.7l2.1-2.1"/></svg><svg class="mode-night" viewBox="0 0 20 20" aria-hidden="true"><path d="M15.6 12.2A6.6 6.6 0 0 1 7.8 4.4a6.6 6.6 0 1 0 7.8 7.8Z"/></svg><span class="mode-day">DAY DISPLAY</span><span class="mode-night">NIGHT DISPLAY</span></button></div>
+  </header>
+  <div class="hero-label"><p class="eyebrow"><span class="section-number">01</span> COMPANION SYSTEM</p><h1>DSH<span class="hero-dash">—</span>X<span class="hero-dot">.</span></h1></div>
+  <div class="companion-callout" aria-hidden="true"><span class="callout-line"></span><span>COMPANION<br><b>大肥鱼 / ONLINE</b></span></div>
+  <main class="workspace">
+    <section class="clock-panel" aria-label="本机时间"><div class="module-heading"><span class="section-number">02</span><span>LOCAL TIME</span><span class="module-end">本地时间</span></div><time class="wallpaper-clock" id="clockTime" aria-label="当前本机时间"><span id="clockHour">--</span><span class="clock-separator">:</span><span id="clockMinute">--</span></time><div class="date-strip"><time id="clockDate"></time><span id="clockWeekday"></span><span class="date-divider"></span><span>UTC<span id="clockTimezone"></span></span></div></section>
+    <section class="music-spectrum" aria-label="音乐频谱"><div class="module-heading"><span class="section-number">03</span><span>AUDIO SIGNAL</span><span class="audio-live"><i></i> AUDIO</span></div><div class="spectrum-chart"><div class="spectrum-guides" aria-hidden="true"></div><div class="spectrum-bars" aria-hidden="true"></div></div><div class="spectrum-caption"><span class="spectrum-status">等待音乐</span><span>LOW <span class="frequency-rule">────────</span> HIGH</span></div></section>
+    <div class="workspace-footer"><span class="mini-mark">×</span><span>YOUR SPACE. YOUR RHYTHM.</span><span class="workspace-code">DSH / 001</span></div>
+  </main>
+  <footer class="terminal-footer"><div class="footer-identity"><span class="barcode" aria-hidden="true"></span><span>DSH-X<span class="footer-sub">DESKTOP TERMINAL</span></span></div><div class="footer-right"><span class="footer-note">让桌面，有一点生命。</span><button id="replayIntro" type="button">重播开场 <span aria-hidden="true">↗</span></button></div></footer>
+  <section class="boot-screen" id="bootScreen" aria-label="DSH-X 桌面终端开场" hidden><div class="boot-corner">PERSONAL WORKSTATION</div><button id="skipIntro" type="button">跳过开场 ↗</button><div class="boot-center"><div class="boot-copy"><span class="boot-kicker">WELCOME TO YOUR SPACE</span><strong>DSH-X<span>.</span></strong><span class="boot-description">桌面终端已就绪</span><div class="boot-progress"></div></div></div><div class="boot-bottom"><span>COMPANION / TIME / AUDIO</span><span>DEEPSEEK HARNESS</span></div></section>
+  <script src="assets/mascot.js"></script>
+  <script src="assets/water.js"></script>
+  <script src="spectrum.js"></script>
+  <script src="intro.js"></script>
+</body>
+</html>

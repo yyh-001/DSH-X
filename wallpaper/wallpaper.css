@@ -1,0 +1,42 @@
+:root { color-scheme: light; --ink: #33506d; --mascot-scale: 1; }
+* { box-sizing: border-box; }
+html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+body { background: #d9eaf7; color: var(--ink); }
+.backdrop { position: fixed; inset: 0; overflow: hidden; pointer-events: none; }
+.backdrop-character {
+  position: absolute; left: -3vh; bottom: -7vh; width: min(76vh, 62vw);
+  aspect-ratio: 1; background: url('assets/background-character.png') center / contain no-repeat;
+  opacity: .46;
+}
+/* 相同的分层构图只按桌面尺寸缩放，避免改动已经确认的角色外观。 */
+.mascot { width: min(calc(72vh * var(--mascot-scale)), 94vw); }
+.signature {
+  position: fixed; top: clamp(28px, 5.5vh, 90px); right: clamp(28px, 5vw, 140px);
+  display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+  z-index: 3; opacity: .76; pointer-events: none; user-select: none;
+}
+.branding { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.wallpaper-clock {
+  margin-top: clamp(14px, 2vh, 30px); min-width: 5ch; text-align: right;
+  font: 300 clamp(36px, 4vw, 80px)/1.15 'Segoe UI Light', 'Segoe UI', sans-serif;
+  font-variant-numeric: tabular-nums; letter-spacing: .025em;
+}
+.music-spectrum { width: clamp(180px, 18vw, 360px); margin-top: clamp(12px, 2vh, 24px); }
+.spectrum-bars { display: flex; align-items: flex-end; gap: 4px; height: clamp(42px, 5vh, 80px); }
+.spectrum-bar {
+  flex: 1; height: 100%; min-width: 1px; border-radius: 3px;
+  background: currentColor; opacity: .72; transform: scaleY(.035); transform-origin: center bottom;
+  transition: transform 85ms ease-out;
+}
+.spectrum-status { display: block; margin-top: 10px; text-align: right; font: 11px/1.5 'Segoe UI', sans-serif; opacity: .65; letter-spacing: .06em; }
+.brand { font: 600 clamp(20px, 2vw, 38px)/1.2 'Segoe UI', sans-serif; letter-spacing: .12em; }
+.subtitle { font: 400 clamp(10px, .75vw, 14px)/1.5 'Segoe UI', sans-serif; letter-spacing: .08em; }
+html[data-color-scheme="dark"] { color-scheme: dark; --ink: #d5d9e1; }
+html[data-color-scheme="dark"] body { background: #18181b; }
+html[data-color-scheme="dark"] .backdrop { background: radial-gradient(ellipse at 24% 10%, #303035, #1c1c21 62%, #151519); }
+html[data-color-scheme="dark"] .water-surface { opacity: .96; }
+html.hide-logo .branding, html.hide-clock .wallpaper-clock { display: none; }
+html.hide-spectrum .music-spectrum { display: none; }
+html.reduce-motion .spectrum-bar, html.wallpaper-paused .spectrum-bar { transition: none; }
+html.reduce-motion *, html.wallpaper-paused * { animation-play-state: paused !important; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; } .spectrum-bar { transition: none; } }

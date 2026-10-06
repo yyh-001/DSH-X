@@ -1,0 +1,26 @@
+{
+  "title": "DSH-X · 水面与大肥鱼",
+  "description": "DeepSeek 蓝色桌面终端：DSH-X 品牌开场、互动大肥鱼、本机时间与系统音乐频谱，按时间自动切换深浅配色。",
+  "type": "web",
+  "file": "index.html",
+  "preview": "preview.jpg",
+  "visibility": "private",
+  "general": {
+    "supportsaudioprocessing": true,
+    "properties": {
+      "theme": { "order": 0, "type": "combo", "text": "主题", "value": "schedule", "options": [
+        { "label": "按时间自动（07:00–19:00 浅色）", "value": "schedule" },
+        { "label": "浅色蓝白终端", "value": "light" },
+        { "label": "深色蓝黑终端", "value": "dark" },
+        { "label": "跟随系统", "value": "system" }
+      ] },
+      "motion": { "order": 1, "type": "bool", "text": "启用动画与鼠标互动", "value": true },
+      "charactersize": { "order": 2, "type": "slider", "text": "看板娘大小（%）", "value": 100, "min": 50, "max": 120, "step": 1, "precision": 0 },
+      "showlogo": { "order": 3, "type": "bool", "text": "显示 DSH-X 标识", "value": true },
+      "showclock": { "order": 4, "type": "bool", "text": "显示时间", "value": true },
+      "showspectrum": { "order": 5, "type": "bool", "text": "显示音乐频谱", "value": true },
+      "audiosensitivity": { "order": 6, "type": "slider", "text": "频谱灵敏度（%）", "value": 100, "min": 50, "max": 200, "step": 1, "precision": 0 },
+      "showintro": { "order": 7, "type": "bool", "text": "启用 DSH-X 开场", "value": true }
+    }
+  }
+}
