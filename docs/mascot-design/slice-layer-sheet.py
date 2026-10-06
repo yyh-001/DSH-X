@@ -4,11 +4,18 @@
 总图要求：透明背景，部件互不接触（部件之间有透明空隙）。
 输出：每个部件一张裁剪 PNG（保留全图坐标系信息打印在 stdout），供人工确认后再合成。
 """
+import os
 import sys
 from PIL import Image
 
 def main():
-    src, outdir = sys.argv[1], sys.argv[2]
+    if len(sys.argv) != 3:
+        sys.exit('用法: python slice-layer-sheet.py <sheet.png> <输出目录>')
+    src = os.path.realpath(sys.argv[1])
+    outdir = os.path.realpath(sys.argv[2])
+    if not os.path.isfile(src):
+        sys.exit(f'输入文件不存在: {src}')
+    os.makedirs(outdir, exist_ok=True)
     im = Image.open(src).convert('RGBA')
     w, h = im.size
     alpha = im.getchannel('A')
