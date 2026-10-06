@@ -2097,7 +2097,11 @@
      */
     function paintLaunchProfiles() {
       const home = launchDshHomeEl.value.trim() || state.dshHome
-      const options = (state.profilesByHome?.[home] || (home === state.dshHome ? state.profiles : ['web'] ) || []).filter((name) => name && name !== '')
+      const all = (state.profilesByHome?.[home] || (home === state.dshHome ? state.profiles : ['web'] ) || []).filter((name) => name && name !== '')
+      // 启动项只服务「起网页」的 profile：sdk/headless/acp 这类 stdio 应用拉不起来，不给人选；
+      // 已保存的非 web profile（老启动项）仍保留显示，避免编辑时被悄悄改掉。
+      const web = new Set(home === state.dshHome ? (state.webProfiles || all) : (state.webProfilesByHome?.[home] || all))
+      const options = all.filter((name) => web.has(name))
       // 已保存的 profile 被外部移走时保留原值，让保存报错，避免悄悄改成另一份环境。
       if (!launchDialogEl.hidden && launchProfile && !options.includes(launchProfile)) options.push(launchProfile)
       if (!options.length) {
@@ -2125,7 +2129,10 @@
       const home = launchDshHomeEl.value.trim()
       const revision = ++launchHomeRevision
       if (!home) {
-        if (resetMissing && !state.profiles?.includes(launchProfile)) launchProfile = state.profiles?.includes('web') ? 'web' : state.profiles?.[0] || 'web'
+        if (resetMissing && !state.profiles?.includes(launchProfile)) {
+          const pool = state.webProfiles?.length ? state.webProfiles : (state.profiles || [])
+          launchProfile = pool.includes('web') ? 'web' : pool[0] || 'web'
+        }
         paintLaunchProfiles()
         return
       }
@@ -2135,6 +2142,7 @@
         ensureLaunchHomeOption(data.home)
         launchDshHomeEl.value = data.home
         syncUiSelect(launchDshHomeEl)
+        state.webProfilesByHome = { ...(state.webProfilesByHome || {}), [data.home]: data.webProfiles || data.profiles }
         state.profilesByHome = { ...(state.profilesByHome || {}), [data.home]: data.profiles }
         if (resetMissing && !data.profiles.includes(launchProfile)) launchProfile = data.profiles.includes('web') ? 'web' : data.profiles[0] || 'web'
         paintLaunchProfiles()
@@ -2932,6 +2940,9 @@
           ? { ...(state.profilesByHome || {}), ...data.profilesByHome } : (state.profilesByHome || {}),
         // 旧服务进程（改动前起的）的 state 里没有 profiles：保留旧值，别把下拉清空
         profiles: Array.isArray(data.profiles) ? data.profiles : (state.profiles || []),
+        webProfiles: Array.isArray(data.webProfiles) ? data.webProfiles : (state.webProfiles || []),
+        webProfilesByHome: data.webProfilesByHome && typeof data.webProfilesByHome === 'object'
+          ? { ...(state.webProfilesByHome || {}), ...data.webProfilesByHome } : (state.webProfilesByHome || {}),
         // 同上：instancePorts 是后加的字段，老服务的 state 里没有它
         instancePorts: data.instancePorts && typeof data.instancePorts === 'object'
           ? data.instancePorts

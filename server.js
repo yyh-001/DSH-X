@@ -891,6 +891,8 @@ async function snapshotDefault() {
   const all = instanceList()
   const presets = safeLaunchPresets((await loadSettings()).launchPresets)
   const profiles = listProfiles()
+  // 启动项编辑器只提供「起网页」的 profile；sdk/headless/acp 这类 stdio 应用拉不起来
+  const webProfiles = profiles.filter((name) => profileBootsWebIn(defaultHome(), name))
   return {
     installing,
     installed,
@@ -898,7 +900,9 @@ async function snapshotDefault() {
     profile: PROFILE_NAME,
     dshHome: defaultHome(),
     profiles,
+    webProfiles,
     profilesByHome: { [defaultHome()]: profiles },
+    webProfilesByHome: { [defaultHome()]: webProfiles },
     // 手工钉死端口的实例（键 `版本@profile` → 端口）：控制页那个端口输入框回显它
     instancePorts: INSTANCE_PORTS,
     launchPresets: presets,
@@ -1810,9 +1814,14 @@ async function testSyncConnection() {
  * 清单读不了就当不会起：顶多是启动后没有地址可读（headless 本来就没有）。
  */
 function bootsWebApp(profile = PROFILE_NAME) {
-  if (profile === 'web') return true
+  return profileBootsWebIn(homeDir(), profile)
+}
+
+/** 同上，但 home 由调用方给定（别的 DSH_HOME 环境下的 profile 也认）。 */
+function profileBootsWebIn(home, name) {
+  if (name === 'web') return true
   try {
-    const manifest = JSON.parse(readFileSync(profileManifest(profile), 'utf8'))
+    const manifest = JSON.parse(readFileSync(join(home, 'profiles', name, 'package.json'), 'utf8'))
     const bundles = manifest?.dsh?.profile?.bundles
     return Array.isArray(bundles) && bundles.includes('@deepseek-ai/dsh-web-app')
   } catch {
@@ -3676,7 +3685,10 @@ const TEMPLATE_PROFILES = ['web', 'headless', 'acp', 'sdk', 'sdk-minimal']
  * 前导点开头的目录是启动器自己的内部目录（保留名 profile 的别名，见 ensureProfileAlias），不算 profile。
  */
 export function listProfiles(root = join(homeDir(), 'profiles')) {
-  const names = new Set(TEMPLATE_PROFILES)
+  // 只列磁盘上真实存在的档案（目录里有清单才算）。官方模板名不再无条件种进来——
+  // 模板目录清掉后还列着，插件页会留一张「0 个插件」的空壳卡片。
+  // 默认 profile 始终在：首次启动时 dsh 会按模板自动初始化它。
+  const names = new Set()
   try {
     for (const entry of readdirSync(root, { withFileTypes: true })) {
       if (!entry.isDirectory() || entry.name === 'node_modules' || entry.name.startsWith('.')) continue
@@ -4296,7 +4308,8 @@ async function handleApi(req, res, url) {
   }
   if (req.method === 'GET' && url.pathname === '/api/launch-home/profiles') {
     const home = safeDshHome(url.searchParams.get('home')) || defaultHome()
-    send(res, 200, { home, profiles: listProfiles(join(home, 'profiles')) })
+    const profiles = listProfiles(join(home, 'profiles'))
+    send(res, 200, { home, profiles, webProfiles: profiles.filter((name) => profileBootsWebIn(home, name)) })
     return
   }
   if (req.method === 'GET' && url.pathname === '/api/plugins') {
