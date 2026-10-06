@@ -9,7 +9,7 @@
  */
 import assert from 'node:assert/strict'
 import { isolateUserHome } from './isolated-home.mjs'
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -38,9 +38,8 @@ mkdirSync(APP, { recursive: true })
 function writeSettings(extra = {}) {
   writeFileSync(join(APP, 'settings.json'), JSON.stringify({
     dataDir: DATA,
-    // 预置市场/内置插件要联网跑 pnpm，测试里关掉
+    // 预置市场要联网跑 pnpm，测试里关掉
     seedMarket: false,
-    seedBundled: false,
     ...extra,
   }), 'utf8')
 }
@@ -115,6 +114,33 @@ test('自定义保留数量实际控制清理；运行中的版本始终额外�
   installVersions('0.1.11', '0.1.12', '0.1.13')
   assert.deepEqual(await pruneVersions({ versions: ['0.1.13', '0.1.12', '0.1.11'] }), ['0.1.11'])
   assert.deepEqual(onDisk(), ['0.1.12', '0.1.13'], '损坏的配置回退为保留两版')
+})
+
+test('每个启动项各自保留「当前用 + 上一次用」：不被全局只留两个的底线挤掉', async () => {
+  writeSettings({ launchPresets: [
+    { id: 'a'.repeat(16), name: '旧版专用', version: '0.1.11', profile: 'web', port: 0, usedVersion: '0.1.11', prevVersion: '0.1.10' },
+    { id: 'b'.repeat(16), name: 'DSH', version: 'auto', profile: 'web', port: 0, usedVersion: '0.1.13', prevVersion: '0.1.12' },
+  ] })
+  installVersions('0.1.9', '0.1.10', '0.1.11', '0.1.12', '0.1.13')
+  const config = { versions: ['0.1.13', '0.1.12', '0.1.11', '0.1.10', '0.1.9'] }
+  assert.deepEqual(await pruneVersions(config), ['0.1.9'], '两个启动项各自的两个版本都留下，只清没人用的')
+  assert.deepEqual(onDisk(), ['0.1.10', '0.1.11', '0.1.12', '0.1.13'])
+})
+
+test('启动时记下用的版本：当前用让位给上一次用；重复启动和陌生 ID 都不动历史', async () => {
+  writeSettings({ launchPresets: [
+    { id: 'c'.repeat(16), name: 'DSH', version: 'auto', profile: 'web', port: 0, usedVersion: '0.1.12' },
+  ] })
+  const { recordLaunchUse } = await import('../server.js')
+  await recordLaunchUse('c'.repeat(16), '0.1.13')
+  let stored = JSON.parse(readFileSync(join(APP, 'settings.json'), 'utf8'))
+  assert.deepEqual(stored.launchPresets.find((item) => item.id === 'c'.repeat(16)), {
+    id: 'c'.repeat(16), name: 'DSH', version: 'auto', profile: 'web', port: 0, usedVersion: '0.1.13', prevVersion: '0.1.12',
+  })
+  await recordLaunchUse('c'.repeat(16), '0.1.13')
+  await recordLaunchUse('d'.repeat(16), '0.1.13')
+  stored = JSON.parse(readFileSync(join(APP, 'settings.json'), 'utf8'))
+  assert.equal(stored.launchPresets.find((item) => item.id === 'c'.repeat(16)).prevVersion, '0.1.12', '重复启动不洗牌')
 })
 
 test('设置页那一下开关走真接口：POST /api/settings 存下去，GET /api/settings 读回来', async () => {

@@ -388,7 +388,8 @@ const KEEP_VERSIONS = 2
  * `versions[0]` 是 install() 刚插到最前面的那个，**不是**「版本号最高的那个」——
  * 用户可以挑一个旧版本装。只按位置取前两个的话，装旧版就会把最新版删掉。
  * `running` 收多开的全部实例（历史调用传单个版本号，一起认）。
- * `pinned` 收启动项钉住的版本：删了它，那张卡下次启动就得整个重装一遍（也是「在用」）。
+ * `pinned` 收启动项需要的版本：钉住的版本（删了那张卡下次启动就得整个重装一遍）
+ * 和每个启动项「当前用/上一次用」的版本（删了回退就没了）——都算「在用」。
  */
 export function versionsToKeep(versions, running, limit = KEEP_VERSIONS, pinned = []) {
   if (!versions.length) return new Set()
@@ -425,8 +426,10 @@ async function pruneVersions(config) {
     return []
   }
   const keep = versionsToKeep(versions, instanceList().map((proc) => proc.version), limit,
-    // 钉住（version ≠ auto）的启动项哪怕没在跑，它要的版本也不能清
-    (settings.launchPresets ?? []).filter((preset) => preset.version && preset.version !== 'auto').map((preset) => preset.version))
+    // 钉住（version ≠ auto）的启动项哪怕没在跑，它要的版本也不能清；
+    // 每个启动项再各自保留「当前用 + 上一次用」两个版本——回退跟着启动项走，不是全局只留两个。
+    (settings.launchPresets ?? []).flatMap((preset) =>
+      [preset.version !== 'auto' ? preset.version : '', preset.usedVersion, preset.prevVersion]).filter(Boolean))
   const removed = []
   for (const version of versions) {
     if (keep.has(version)) continue
@@ -1054,6 +1057,21 @@ async function setInstancePort(version, profile, port) {
 }
 
 /** 启动项只是已有实例参数的命名入口；固定端口继续走同一套校验和设置。 */
+/**
+ * 启动项「auto」实际会解析到的版本：同 profile/目录下在跑的优先（多个取最高），
+ * 否则已装的最高版本；两者都没有就返回空串（首次启动才下载，跟明写版本比不出重复）。
+ * 客户端 recommendedVersion 的服务端镜像——查重必须用解析后的版本。
+ */
+function resolvePresetVersion(entry, home, config) {
+  if (entry.version !== 'auto') return entry.version
+  const live = liveInstanceList().filter((item) => item.profile === entry.profile && (item.home || defaultHome()) === home)
+    .sort((a, b) => cmpVer(parseVer(b.version), parseVer(a.version)))[0]
+  if (live?.version) return live.version
+  const installed = listedVersions(config).filter((ver) => existsSync(binPath(ver)))
+    .sort((a, b) => cmpVer(parseVer(b), parseVer(a)))
+  return installed[0] || ''
+}
+
 async function saveLaunchPreset(body) {
   assertLauncherIdle()
   if (installing || packInstalling) throw new Error('正在安装，稍后再编辑启动项')
@@ -1075,7 +1093,18 @@ async function saveLaunchPreset(body) {
   const index = presets.findIndex((item) => item.id === id)
   if (body.id && index < 0) throw new Error('这个启动项已不存在，请刷新后重试')
   if (index < 0 && presets.length >= 20) throw new Error('最多保存 20 个启动项')
-  if (presets.some((item) => item.id !== id && item.version === version && item.profile === profile && (item.dshHome || defaultHome()) === home)) {
+  // 查重要比「解析后」的版本：auto 要落到它实际会用的版本再比，不然 auto 项和明写
+  // 同一个版本的项能摆出两张一模一样的卡（两张还同时显示运行中——其实是同一个实例）。
+  const config = await loadConfig()
+  const effectiveVersion = resolvePresetVersion({ version, profile }, home, config)
+  const existingEntry = index >= 0 ? presets[index] : null
+  const tripleChanged = !existingEntry || existingEntry.version !== version || existingEntry.profile !== profile
+    || (existingEntry.dshHome || defaultHome()) !== home
+  if (tripleChanged && effectiveVersion && presets.some((item) => {
+    if (item.id === id) return false
+    if (item.profile !== profile || (item.dshHome || defaultHome()) !== home) return false
+    return resolvePresetVersion(item, home, config) === effectiveVersion
+  })) {
     throw new Error('这个目录中的版本与 profile 已有启动项，编辑现有的即可')
   }
   if (port) {
@@ -1085,7 +1114,12 @@ async function saveLaunchPreset(body) {
   }
   // 编辑只保存启动项，不提前改正在使用的实例参数；端口在点击启动时再应用。
   const icon = safeLaunchIcon(body.icon)
-  const entry = { id, name, version, profile, port, ...(dshHome ? { dshHome } : {}), ...(icon !== 'terminal' ? { icon } : {}) }
+  const previous = index >= 0 ? presets[index] : null
+  const entry = { id, name, version, profile, port,
+    // 用过的版本记录跟着启动项走，编辑参数不该抹掉回退历史。
+    ...(previous?.usedVersion ? { usedVersion: previous.usedVersion } : {}),
+    ...(previous?.prevVersion ? { prevVersion: previous.prevVersion } : {}),
+    ...(dshHome ? { dshHome } : {}), ...(icon !== 'terminal' ? { icon } : {}) }
   if (index >= 0) presets[index] = entry
   else presets.push(entry)
   await saveSettings({ launchPresets: presets })
@@ -1107,6 +1141,26 @@ async function removeLaunchPreset(id) {
   await saveSettings({ launchPresets: next })
   await emitState()
   return { ok: true }
+}
+
+/**
+ * 记下启动项这次实际启动的版本：当前用让位成上一次用，两个版本清理时都按启动项保留。
+ * 记不上不拦启动——这只是回退用的历史，不是启动的依赖。
+ */
+async function recordLaunchUse(launchId, version) {
+  if (!launchId) return
+  try {
+    const ver = safeVersion(version)
+    const stored = await loadSettings()
+    const presets = safeLaunchPresets(stored.launchPresets)
+    const entry = presets.find((item) => item.id === launchId)
+    if (!entry || entry.usedVersion === ver) return
+    if (entry.usedVersion) entry.prevVersion = entry.usedVersion
+    entry.usedVersion = ver
+    await saveSettings({ launchPresets: presets })
+  } catch (error) {
+    pushLog(`记录启动项版本失败：${error instanceof Error ? error.message : error}`)
+  }
 }
 
 /** 去掉一个键的副本（不原地改，省得把 map 的引用语义搞混）。 */
@@ -4027,7 +4081,7 @@ function isLocalHostHeader(host) {
   return !match[2] || Number(match[2]) === PORT
 }
 
-export { pruneDanglingLinks, pruneVersions, snapshot, stop }
+export { pruneDanglingLinks, pruneVersions, recordLaunchUse, snapshot, stop }
 
 /**
  * 停止实例：版本 + profile + 目录都给就停那一个组合；只给版本就停那个版本的全部
@@ -4366,6 +4420,8 @@ async function handleApi(req, res, url) {
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/start') {
+    // 先记后启：启动项这次实际用的版本要留给清理规则当「当前用」。
+    await recordLaunchUse(launchScope.getStore()?.launchId, body.version)
     send(res, 200, await start(body.version, body.profile))
     return
   }

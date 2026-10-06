@@ -383,7 +383,13 @@ export function safeLaunchPresets(value) {
     try { icon = safeLaunchIcon(item.icon) } catch { /* 旧设置里的坏图片退回默认图标，保留启动项。 */ }
     let dshHome = ''
     try { dshHome = safeDshHome(item.dshHome) } catch { return [] }
-    return [{ id, name, version, profile, port, ...(dshHome ? { dshHome } : {}), ...(icon !== 'terminal' ? { icon } : {}) }]
+    // 启动项最近用过的两个版本（当前用/上一次用）：清理旧版本时按启动项保留，给回退用。
+    const usedVersion = String(item.usedVersion ?? '')
+    const prevVersion = String(item.prevVersion ?? '')
+    return [{ id, name, version, profile, port,
+      ...(VERSION_RE.test(usedVersion) ? { usedVersion } : {}),
+      ...(VERSION_RE.test(prevVersion) ? { prevVersion } : {}),
+      ...(dshHome ? { dshHome } : {}), ...(icon !== 'terminal' ? { icon } : {}) }]
   })
   const builtin = presets.find((item) => item.id === DEFAULT_LAUNCH_ID) || { ...DEFAULT_LAUNCH }
   if (builtin.name === '默认启动') builtin.name = 'DSH'
