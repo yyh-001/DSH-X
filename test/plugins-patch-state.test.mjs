@@ -81,6 +81,33 @@ test('ensureBundleMounted：补写挂载清单，剥掉版本号，重复挂是�
   assert.deepEqual(ensureBundleMounted(profile, 'dsh-filesnap'), { ok: true, changed: false, name: 'dsh-filesnap' })
 })
 
+test('ensureBundleMounted：带 scope 的包名整段保留，版本号照样剥掉', () => {
+  const { profile } = patchFile('[]')
+  writeFileSync(join(profile, 'package.json'), JSON.stringify({
+    dependencies: { '@linxin666/dsh-remote-web-ui': '1.2.3' },
+    dsh: { profile: { bundles: ['@deepseek-ai/dsh-base'] } },
+  }), 'utf8')
+  // 启用路径（setPluginEnabled）传的是依赖名，不带版本；装完路径传的是 spec，带版本。
+  // 两种形状都必须归一成 npm 的包名 `@scope/name`，否则写进 bundles 的
+  // `@scope/name/1.2.3` 是个不存在的包名，dsh 解析不到会让插件一直起不来。
+  assert.deepEqual(
+    ensureBundleMounted(profile, '@linxin666/dsh-remote-web-ui'),
+    { ok: true, changed: true, name: '@linxin666/dsh-remote-web-ui' },
+  )
+  assert.deepEqual(
+    JSON.parse(readFileSync(join(profile, 'package.json'), 'utf8')).dsh.profile.bundles,
+    ['@deepseek-ai/dsh-base', '@linxin666/dsh-remote-web-ui'],
+  )
+  assert.deepEqual(
+    ensureBundleMounted(profile, '@linxin666/dsh-remote-web-ui@1.2.3'),
+    { ok: true, changed: false, name: '@linxin666/dsh-remote-web-ui' },
+  )
+  assert.deepEqual(
+    JSON.parse(readFileSync(join(profile, 'package.json'), 'utf8')).dsh.profile.bundles,
+    ['@deepseek-ai/dsh-base', '@linxin666/dsh-remote-web-ui'],
+  )
+})
+
 test('ensureBundleMounted：file:/git: 源和没有 bundles 字段的清单不碰', () => {
   const { profile } = patchFile('[]')
   writeFileSync(join(profile, 'package.json'), JSON.stringify({ dependencies: {} }), 'utf8')
