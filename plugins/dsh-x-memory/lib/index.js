@@ -13,7 +13,7 @@
  * 记忆落在 <DSH_HOME>/memories/<工作区>/：一条事实一个 .md，加一份 MEMORY.md 索引。
  * 纯文件，随时能看能改能进 git；插件卸载了它们也还在。
  */
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { INDEX_MAX_BYTES, INDEX_MAX_LINES, MEMORY_TYPES, MemoryStore, workspaceKey } from './store.js'

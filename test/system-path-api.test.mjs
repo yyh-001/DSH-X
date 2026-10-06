@@ -13,7 +13,7 @@ test('macOS/Linux PATH API：重复开关、持久化与进程重启，shell 文
   const app = process.platform === 'darwin' ? join(root, 'Library', 'Application Support', 'DSH') : join(root, 'DSH')
   await mkdir(app, { recursive: true })
   const settingsFile = join(app, 'settings.json')
-  await writeFile(settingsFile, JSON.stringify({ dataDir: join(root, 'data'), dshHome: join(root, '.dsh'), systemPath: false, seedMarket: false, seedBundled: false }))
+  await writeFile(settingsFile, JSON.stringify({ dataDir: join(root, 'data'), dshHome: join(root, '.dsh'), systemPath: false, seedMarket: false }))
   const names = ['.zshrc', '.zprofile', '.zshenv', '.bashrc', '.bash_profile', '.profile']
   for (const name of names) await writeFile(join(root, name), `# untouched ${name}\n`)
   let child

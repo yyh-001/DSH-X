@@ -120,8 +120,6 @@ const PUBLIC = join(ROOT, 'public')
 let CONFIG = join(DATA, 'config.json')
 const PKG = '@deepseek-ai/dsh'
 const MARKET_PKG = 'dshmarket'
-/** 内置 dsh 插件：随安装包发在 plugins/ 下，启动时复制到 DSH_HOME 再装进 profile。 */
-const BUNDLED_PLUGINS = ['dsh-x-memory', 'dsh-x-sync']
 const APP_VERSION = String(pkg.version || '0.0.0')
 const APP_REPO = 'yyh-001/DSH-X'
 // 发布页上的安装包名：scripts/pack.mjs 按平台产出同名文件
@@ -952,8 +950,6 @@ async function publicSettings() {
     portDefault: DEFAULT_PORT,
     autoStart: await autoStartEnabled(),
     seedMarket: stored.seedMarket !== false,
-    // 旧键 seedMemory 是这版之前的名字，读一次当作别名；默认关（只有显式 true 才开）
-    seedBundled: (stored.seedBundled ?? stored.seedMemory) === true,
     autoDisablePlugins: stored.autoDisablePlugins !== false,
     autoCleanVersions: autoCleanEnabled(stored),
     keepVersions: safeKeepVersions(stored.keepVersions),
@@ -1164,8 +1160,6 @@ async function saveManagerSettings(body) {
     ...('hideBigFish' in body ? { hideBigFish: body.hideBigFish === true } : {}),
     ...('autoStart' in body ? { autoStart: Boolean(body.autoStart) } : {}),
     ...('seedMarket' in body ? { seedMarket: body.seedMarket !== false } : {}),
-    ...('seedBundled' in body ? { seedBundled: body.seedBundled !== false } : {}),
-    ...('seedMemory' in body ? { seedBundled: body.seedMemory !== false } : {}),
     ...('autoDisablePlugins' in body ? { autoDisablePlugins: body.autoDisablePlugins !== false } : {}),
     ...('autoCleanVersions' in body ? { autoCleanVersions: body.autoCleanVersions !== false } : {}),
     ...('keepVersions' in body ? { keepVersions: safeKeepVersions(body.keepVersions) } : {}),
@@ -1245,14 +1239,6 @@ async function saveManagerSettings(body) {
   if ('seedMarket' in body && stored.seedMarket) {
     const versions = listedVersions(await loadConfig())
     if (versions[0] && !pluginBusy) await seedMarket(versions[0])
-  }
-  if ('seedMemory' in body && stored.seedMemory) {
-    const versions = listedVersions(await loadConfig())
-    if (versions[0] && !pluginBusy) await seedBundledPlugins(versions[0])
-  }
-  if ('seedBundled' in body && stored.seedBundled) {
-    const versions = listedVersions(await loadConfig())
-    if (versions[0] && !pluginBusy) await seedBundledPlugins(versions[0])
   }
   await emitState()
   return { ...await publicSettings(), ...(systemPathResult ? { systemPathResult } : {}) }
@@ -2626,7 +2612,6 @@ async function repairProfileDeps(version, error, profile = PROFILE_NAME) {
 // 这次运行里预装已经失败过。启动失败时的自动修复会重跑启动流程，每次都重试预装的话
 // 会把失败信息刷满终端，而失败原因并不会自己消失——留到下次启动再试。
 let marketSeedFailed = false
-let bundledSeedFailed = false
 
 /**
  * dsh 实际加载哪些插件，看的是 profile 清单里的 dsh.profile.bundles。
@@ -2687,86 +2672,6 @@ async function seedMarket(version) {
   } catch (error) {
     marketSeedFailed = true
     pushLog(`预装 dshmarket 失败: ${error instanceof Error ? error.message : error}（本次运行不再重试，可在插件页手动安装）`)
-  }
-}
-
-/** 安装包自带插件的落地位置：<DSH_HOME>/bundled/<包名>。 */
-function bundledPluginPath(name) {
-  return join(homeDir(), 'bundled', name)
-}
-
-/** 把安装包 plugins/<包名> 复制到 DSH_HOME/bundled/（版本不同才复制），返回目标路径；安装包里没有则 null。 */
-async function ensureBundledPlugin(name) {
-  const source = join(ROOT, 'plugins', name)
-  if (!existsSync(join(source, 'package.json'))) return null
-  const target = bundledPluginPath(name)
-  const sourceVersion = readPackageVersion(source)
-  const targetVersion = readPackageVersion(target)
-  if (sourceVersion !== targetVersion) {
-    await rm(target, { recursive: true, force: true })
-    await cp(source, target, {
-      recursive: true,
-      filter: (src) => !['test', 'node_modules'].includes(basename(src)) && !basename(src).startsWith('.'),
-    })
-    pushLog(`内置插件已${targetVersion ? '更新到' : '就位'} ${name}${sourceVersion ? ` ${sourceVersion}` : ''}`)
-  }
-  return target
-}
-
-/** 整合包里把依赖版本写成 `bundled`（或 `bundled:<包名>`）的，指向安装包自带的那份。 */
-function bundledDependencyNames(pack) {
-  const deps = pack?.fields?.dependencies
-  if (!deps) return []
-  return Object.entries(deps)
-    .filter(([name, spec]) => spec === 'bundled' || spec === `bundled:${name}`)
-    .map(([name]) => name)
-}
-
-/** 把 `bundled` 依赖改写成 `file:` 绝对路径（路径是确定的，同步也能改，检查阶段就能显示对）。 */
-function resolveBundledDependencies(pack) {
-  for (const name of bundledDependencyNames(pack)) {
-    const spec = `file:${bundledPluginPath(name)}`
-    pack.fields.dependencies[name] = spec
-    // planInstall 用的是解析时算好的 installSpecs（line: specs: pack.installSpecs || fields.dependencies），
-    // 只改 fields 不生效——两份一起改。
-    if (pack.installSpecs) pack.installSpecs[name] = spec
-  }
-  return pack
-}
-
-/**
- * 内置插件（DSH-X 自带的两件：记忆 dsh-x-memory、同步 dsh-x-sync）：复制到 DSH_HOME/bundled/
- * 再按 `file:` 装进 profile。
- *
- * 为什么要先复制、而不是直接指向安装目录：profile 的 package.json 里会记下这条 `file:` 依赖，
- * 指向安装目录的话，卸载 DSH-X 就把它变成断链（dsh 起不来）。复制到 DSH_HOME 下，卸载之后
- * 插件仍是一份完好的本地包。
- */
-async function seedBundledPlugins(version) {
-  const settings = await loadSettings()
-  if (settings.seedBundled === false) return
-  if (bundledSeedFailed) return
-  // 首次启动时 profile 还没建出来（dsh 自己会建）：这一步等下次启动再做，
-  // 不然只会往日志里写一条注定失败的「预置失败」。
-  if (!existsSync(profileManifest())) return
-  try {
-    for (const name of BUNDLED_PLUGINS) {
-      const target = await ensureBundledPlugin(name)
-      if (!target) continue
-      // 和预装 dshmarket 同一套三条判据：清单里有、文件真的在、bundle 里启用了
-      const plugins = await installedPlugins()
-      const listed = plugins.includes(name)
-      const onDisk = existsSync(join(profileDir(), 'node_modules', name, 'package.json'))
-      const bundled = (await registeredBundles()).includes(name)
-      if (listed && onDisk && bundled) continue
-      if (!listed || !onDisk) await addPlugin(version, `file:${target}`)
-      if (await registerBundle(name)) {
-        pushLog(`已把 ${name} 加入 profile 的 bundle 列表，重启后它就会出现`)
-      }
-    }
-  } catch (error) {
-    bundledSeedFailed = true
-    pushLog(`预置内置插件失败: ${error instanceof Error ? error.message : error}（本次运行不再重试，可在插件页手动安装）`)
   }
 }
 
@@ -3189,7 +3094,6 @@ function packPlanPayload(pack, profile = '') {
   const target = safeProfile(profile || defaultProfileFor(pack))
   const base = { pack: packSummary(pack), target: { profile: target } }
   try {
-    resolveBundledDependencies(pack)
     const plan = planInstall(pack, { home: homeDir(), profile: target, hostProfile: PROFILE_NAME })
     return {
       ...base,
@@ -3265,7 +3169,6 @@ async function install(version) {
     await saveConfig(config)
     pushLog(`${ver} 安装完成`)
     await seedMarket(ver)
-    await seedBundledPlugins(ver)
     // 装完新版顺手清掉更旧的（保留最新 + 最近装的一个，正在跑的除外）
     await pruneVersions(config)
   } catch (error) {
@@ -3441,12 +3344,9 @@ async function selfCheckPage(url, version) {
 /** 起一个 web 子进程并等到它打印就绪 URL；失败时把子进程输出尾巴留给 AI 当证据。 */
 async function bootOnce(ver, prof) {
   await mkdir(homeDir(), { recursive: true })
-  // 预装（dshmarket / 内置插件）只对当前 profile 做：起别的 profile——safe、整合包
+  // 预装 dshmarket 只对当前 profile 做：起别的 profile——safe、整合包
   // 环境、别人故意留空的——不该被偷偷塞进一堆包
-  if (prof === PROFILE_NAME) {
-    await seedMarket(ver)
-    await seedBundledPlugins(ver)
-  }
+  if (prof === PROFILE_NAME) await seedMarket(ver)
   const alongside = instances.size > 0
   const pinned = pinnedPort(ver, prof)
   if (pinned && !(await portAvailable(pinned))) {
@@ -4631,11 +4531,6 @@ async function handleApi(req, res, url) {
       if (!pack.ok) throw new Error(pack.errors.join('；'))
       const profile = safeProfile(String(body.profile || '') || defaultProfileFor(pack))
       assertLauncherIdle()
-      // `bundled` 依赖先把安装包自带的那份复制到 DSH_HOME，再落成 file: 路径
-      for (const name of bundledDependencyNames(pack)) {
-        if (!(await ensureBundledPlugin(name))) throw new Error(`整合包依赖 ${name} 写的是 bundled，但安装包里没有这个插件`)
-      }
-      resolveBundledDependencies(pack)
       const plan = planInstall(pack, { home: homeDir(), profile, hostProfile: PROFILE_NAME })
       if (!plan.ok) throw new Error(plan.errors.join('；'))
       const records = readPackState(packDataDir()).packs.filter((item) => item.profile === profile)

@@ -422,13 +422,6 @@
                   </div>
                   <p class="hint" id="proxyHint"></p>
                 </div>
-                <label class="toggle set-row">
-                  <span class="set-text">
-                    <span class="set-name" data-i18n="内置插件（实验性）">内置插件（实验性）</span>
-                    <span class="set-desc" data-i18n="自动安装记忆与同步插件，功能仍在实验阶段。">自动安装记忆与同步插件，功能仍在实验阶段。</span>
-                  </span>
-                  <input id="seedBundled" type="checkbox" />
-                </label>
               </div>
             </section>
           </div>
@@ -484,7 +477,6 @@
       </div>
       <div class="sr-only" id="packMarketTitle" data-i18n="社区整合包">社区整合包</div>
       <div class="market-grid" id="packMarket"></div>
-      <div id="packBuiltinTitle" hidden></div><div id="packBuiltin" hidden></div>
       <details class="pack-import-source">
         <summary data-i18n="从文件或链接导入">从文件或链接导入</summary>
         <div class="pack-source"><input id="packSource" type="text" data-placeholder-i18n="文件路径、下载链接或 owner/repo" autocomplete="off" spellcheck="false" /><button class="ghost" id="packPick" type="button" data-i18n="选文件…">选文件…</button><button class="ghost" id="packCheck" type="button" data-i18n="继续">继续</button></div>
@@ -1109,10 +1101,6 @@
   "目录与端口": "Folders and ports",
   "重启启动器后生效。": "Takes effect after restarting the launcher.",
   "安装新版本时加入插件市场。": "Include the plugin market when installing a version.",
-  "记忆插件": "Memory plugin",
-  "内置的文件式长期记忆：一条事实一个 Markdown 文件 + MEMORY.md 索引，按工作区分开。启用后 dsh 设置页里出现「记忆」面板。": "Built-in file-based long-term memory: one fact per Markdown file plus a MEMORY.md index, kept per workspace. A Memory panel shows up in dsh Settings once it is installed.",
-  "内置插件": "Built-in plugins",
-  "自动安装记忆与同步插件，功能仍在实验阶段。": "Automatically install memory and sync plugins. These features are experimental.",
   "这一页文案的语言。": "The language used on these pages.",
   "启动器": "Launcher",
   "已安装。可更新到 {latest}。": "Installed. {latest} is available.",
@@ -1266,7 +1254,6 @@
   "管理 {name} 的插件": "Manage plugins for {name}",
   "正在读取插件…": "Loading plugins…",
   "查看插件": "View plugins",
-  "内置插件（实验性）": "Bundled plugins (experimental)",
   "实验功能": "Experimental features",
   "从文件或链接导入": "Import a file or link",
   "文件路径、下载链接或 owner/repo": "File path, download link or owner/repo",
@@ -3309,7 +3296,6 @@
 
     const autoStartEl = document.getElementById('autoStart')
     const seedMarketEl = document.getElementById('seedMarket')
-    const seedBundledEl = document.getElementById('seedBundled')
     const autoDisableEl = document.getElementById('autoDisable')
     const autoCleanEl = document.getElementById('autoCleanVersions')
     let pluginProfile = ''
@@ -3500,8 +3486,6 @@
       }
       if ('autoStart' in data) autoStartEl.checked = Boolean(data.autoStart)
       if ('seedMarket' in data) seedMarketEl.checked = data.seedMarket !== false
-      if ('seedMemory' in data) seedBundledEl.checked = data.seedMemory === true
-      if ('seedBundled' in data) seedBundledEl.checked = data.seedBundled === true
       if ('autoDisablePlugins' in data) autoDisableEl.checked = data.autoDisablePlugins !== false
       if ('autoCleanVersions' in data) autoCleanEl.checked = data.autoCleanVersions !== false
       syncUiSelects()
@@ -3643,7 +3627,6 @@
     }
     autoStartEl.onchange = () => queueSetting('autoStart', autoStartEl.checked)
     seedMarketEl.onchange = () => queueSetting('seedMarket', seedMarketEl.checked)
-    seedBundledEl.onchange = () => queueSetting('seedBundled', seedBundledEl.checked)
     autoDisableEl.onchange = () => queueSetting('autoDisablePlugins', autoDisableEl.checked)
     autoCleanEl.onchange = () => queueSetting('autoCleanVersions', autoCleanEl.checked)
     uiLangEl.onchange = () => queueSetting('lang', uiLangEl.value)
@@ -4138,8 +4121,6 @@
     const packMarketEl = document.getElementById('packMarket')
     const packMarketDetailEl = document.getElementById('packMarketDetail')
     let marketDetailIndex = null
-    const packBuiltinEl = document.getElementById('packBuiltin')
-    const packBuiltinTitleEl = document.getElementById('packBuiltinTitle')
     const packSourceEl = document.getElementById('packSource')
     const packCheckEl = document.getElementById('packCheck')
     const packPickEl = document.getElementById('packPick')
@@ -4150,7 +4131,6 @@
     let packInspectRequest = 0
     let packInspectAbort = null
     let packMarket = null
-    let packBuiltin = null
     let packProgress = null
     let packBusy = false
     let packMarketLoaded = false
@@ -4662,8 +4642,6 @@
         renderPackMarket()
         void loadMarket({ quiet: true })
       }
-      renderPackBuiltin()
-
     }
 
     function closeImportDialog() {
@@ -4890,24 +4868,6 @@
       }
     }
 
-    /** 内置整合包：随安装包发的那份，点一下就按本地目录走检查 → 安装，不联网。 */
-    async function loadBuiltinPack() {
-      try {
-        const data = await getJson('/api/packs')
-        packBuiltin = data.builtin || null
-      } catch {
-        packBuiltin = null
-      }
-      renderPackBuiltin()
-    }
-
-    function renderPackBuiltin() {
-      // 推荐包仍在实验阶段，保留后端配方，暂不作为普通用户入口。
-      packBuiltinTitleEl.hidden = true
-      packBuiltinEl.hidden = true
-      packBuiltinEl.innerHTML = ''
-    }
-
     async function inspectPack(payload) {
       if (packBusy) return
       const rechecking = Boolean(payload.token)
@@ -4921,7 +4881,6 @@
       // 保留详情作为返回目标；父层只留遮罩，屏幕上仍只显示当前卡片。
       showPackDialog(packInstallDialog, document.getElementById('packInstallClose'))
       renderPackMarket()
-      renderPackBuiltin()
       if (!rechecking) packInspection = null
       else packInspection = { ...packInspection, ok: false, plan: {} }
       renderPackInspect()
@@ -4947,7 +4906,6 @@
         // 详情卡里的「安装」要等 packBusy 复位后才画得成可用状态
         renderPackInspect()
         renderPackMarket()
-        renderPackBuiltin()
         if (rechecking && request === packInspectRequest && !packInstallDialog.hidden) document.getElementById('packProfileTrigger')?.focus()
       }
     }

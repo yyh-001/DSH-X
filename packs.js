@@ -466,6 +466,15 @@ export function profileSkeleton(profile) {
 
 const WORKSPACE_TEMPLATE = 'packages:\n  - .\n\nnodeLinker: hoisted\nautoInstallPeers: false\n'
 
+/** 依赖写成 `bundled`（安装包自带的插件）的：这条路已撤，直接给一句人话，别让 pnpm 报 ETARGET。 */
+function bundledSpecErrors(dependencies, errors) {
+  for (const [name, spec] of Object.entries(dependencies || {})) {
+    if (spec === 'bundled' || spec === `bundled:${name}`) {
+      errors.push(`依赖 ${name} 写的是 bundled（安装包自带插件），DSH-X 不再随包发插件了；改成版本号（例如 ^1.0.0）从 npm 装`)
+    }
+  }
+}
+
 /**
  * 生成安装计划：要写哪些文件、内容是什么、会覆盖什么。
  *
@@ -480,6 +489,7 @@ export function planInstall(pack, { home, profile, hostProfile = '' }) {
   const profileDir = join(home, 'profiles', profile)
   const existed = existsSync(join(profileDir, 'package.json'))
   const writes = []
+  bundledSpecErrors(fields.dependencies, errors)
 
   if (fields.type === 'dshhome') {
     warnings.push('这是整机快照形态（dshhome）：只安装它声明的 profile 与允许的用户级文件，其余内容跳过')
@@ -496,6 +506,7 @@ export function planInstall(pack, { home, profile, hostProfile = '' }) {
       const spec = declared.length ? declared.find(([key]) => key === name)?.[1] : null
       const bundles = Array.isArray(spec?.bundles) && spec.bundles.length ? spec.bundles.map(String) : []
       const dependencies = spec?.dependencies && typeof spec.dependencies === 'object' ? spec.dependencies : {}
+      bundledSpecErrors(dependencies, errors)
       if (!bundles.length && !Object.keys(dependencies).length) {
         warnings.push(`dshhome 里的 profile ${name} 没有声明组成，跳过`)
         continue

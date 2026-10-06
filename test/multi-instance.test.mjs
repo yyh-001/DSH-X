@@ -67,9 +67,8 @@ writeFileSync(join(APP, 'settings.json'), JSON.stringify({
   dataDir: DATA,
   dshHome: HOME,
   profile: 'web',
-  // 预装市场/内置插件要跑 pnpm 和联网，测试里关掉（与设置页里那两项开关同一套语义）
+  // 预装市场要跑 pnpm 和联网，测试里关掉（与设置页里那个开关同一套语义）
   seedMarket: false,
-  seedBundled: false,
 }), 'utf8')
 
 const { startServer, stopAll } = await import('../server.js')

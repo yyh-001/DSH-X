@@ -106,7 +106,6 @@ writeFileSync(join(APP, 'settings.json'), JSON.stringify({
   dshHome: HOME,
   profile: 'web',
   seedMarket: false,
-  seedBundled: false,
 }), 'utf8')
 
 const { startServer, stopAll } = await import('../server.js')

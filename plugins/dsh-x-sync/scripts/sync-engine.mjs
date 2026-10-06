@@ -7,7 +7,7 @@
  * 引擎三件套本身零依赖（只用 Node 内置模块），所以拷进来就能跑；
  * 插件侧只加一段「这几只文件是拷过来的、别在这里改」的文件头。
  */
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 

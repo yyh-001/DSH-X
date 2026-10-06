@@ -19,7 +19,7 @@ test('查看与开关指定 profile 的插件，不改变启动默认值或其�
   })
   process.env.APPDATA = root
   process.env.PORT = String(port)
-  const settings = { dataDir: join(root, 'data'), dshHome: home, profile: 'web', seedMarket: false, seedBundled: false }
+  const settings = { dataDir: join(root, 'data'), dshHome: home, profile: 'web', seedMarket: false }
   writeFileSync(join(app, 'settings.json'), JSON.stringify(settings))
   for (const profile of ['web', 'work']) {
     const dir = join(home, 'profiles', profile)

@@ -1,6 +1,6 @@
 {
   "name": "dsh-x-memory",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "文件式长期记忆：一条事实一个 Markdown 文件 + MEMORY.md 索引，按工作区隔离、会话级注入，给 agent 六个读写工具，设置页里可浏览与编辑。照 ZCode 那套记忆语义实现。File-based long-term memory for DeepSeek Harness — one fact per Markdown file plus a MEMORY.md index, per-workspace, injected per session, with six agent tools and a settings-page browser.",
   "type": "module",
   "main": "lib/index.js",
@@ -67,8 +67,8 @@
   "author": "yyh",
   "license": "MIT",
   "peerDependencies": {
-    "@deepseek-ai/dsh-tools": "^0.1.0-rc.6",
-    "@deepseek-ai/dsh-client-ui-renderer": "^0.1.2-rc.1",
-    "@deepseek-ai/dsh-client-locale": "^0.1.2-rc.1"
+    "@deepseek-ai/dsh-tools": ">=0.1.6",
+    "@deepseek-ai/dsh-client-ui-renderer": ">=0.1.6",
+    "@deepseek-ai/dsh-client-locale": ">=0.1.6"
   }
 }

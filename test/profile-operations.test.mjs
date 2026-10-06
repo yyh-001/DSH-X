@@ -38,7 +38,7 @@ const server = createServer((req, res) => res.end('<!doctype html><html><body>ok
 setTimeout(() => server.listen(0, '127.0.0.1', () => console.log('dsh web: http://127.0.0.1:' + server.address().port + '/?token=fake')), 300)
 `)
   }
-  writeFileSync(join(app, 'settings.json'), JSON.stringify({ dataDir: data, dshHome: home, profile: 'web', seedMarket: false, seedBundled: false }))
+  writeFileSync(join(app, 'settings.json'), JSON.stringify({ dataDir: data, dshHome: home, profile: 'web', seedMarket: false }))
   process.env.APPDATA = root
   process.env.PORT = String(port)
   process.env.DSH_VERSIONS_DATA = data

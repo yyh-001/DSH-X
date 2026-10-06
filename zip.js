@@ -9,6 +9,9 @@
  * 这里是纯字节层，不猜任何业务语义。
  */
 import { deflateRawSync, inflateRawSync } from 'node:zlib'
+// 内存与流式 ZIP 的接口不同，但 CRC 与时间编码必须保持一致。
+import { crc32, toDosTime } from './zipfile.js'
+export { crc32 } from './zipfile.js'
 
 const SIG_LOCAL = 0x04034b50
 const SIG_CENTRAL = 0x02014b50
@@ -17,25 +20,6 @@ const SIG_EOCD = 0x06054b50
 const ZIP64_MARK = 0xffffffff
 /** ZIP 里的文件名按规范是 UTF-8，但 Windows 老工具会写本地代码页，这里只认 UTF-8。 */
 const FLAG_UTF8 = 0x0800
-
-const CRC_TABLE = (() => {
-  const table = new Uint32Array(256)
-  for (let index = 0; index < 256; index += 1) {
-    let value = index
-    for (let bit = 0; bit < 8; bit += 1) value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1
-    table[index] = value >>> 0
-  }
-  return table
-})()
-
-/** ZIP 条目与整包校验都用它（和 PNG / gzip 同一个多项式）。 */
-export function crc32(buffer) {
-  let value = 0xffffffff
-  for (let index = 0; index < buffer.length; index += 1) {
-    value = CRC_TABLE[(value ^ buffer[index]) & 0xff] ^ (value >>> 8)
-  }
-  return (value ^ 0xffffffff) >>> 0
-}
 
 /**
  * 从尾部找中央目录结束记录：注释最长 65535，所以只扫最后这么多字节。
@@ -59,14 +43,6 @@ function findEndOfCentralDirectory(buffer) {
     return at
   }
   return -1
-}
-
-function dosDateTime(date) {
-  const year = Math.max(1980, date.getFullYear())
-  return {
-    time: (date.getHours() << 11) | (date.getMinutes() << 5) | (date.getSeconds() >> 1),
-    date: ((year - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate(),
-  }
 }
 
 /** 条目名统一用正斜杠；写包的调用方给什么都按这个归一。 */
@@ -154,7 +130,7 @@ export function readZip(input) {
  * 原样存，省得包比内容还大。
  */
 export function writeZip(entries, { date = new Date() } = {}) {
-  const stamp = dosDateTime(date)
+  const stamp = toDosTime(date)
   const chunks = []
   const central = []
   let offset = 0

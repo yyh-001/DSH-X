@@ -58,7 +58,7 @@ Node 服务  start.js → server.js     管理页后端 + 版本 / 插件 / 整�
 | `stdio-unblock.cjs` | stdout/stderr 阻塞模式修补（`--require` 注入用） |
 | `public/` | 管理界面与看板娘素材（`index.html` 是主体） |
 | `scripts/` | 打包（`pack.mjs` / `pack-mac.mjs` / `pack-common.mjs` / `dsh-setup.iss`）、图标（`make-icons.py`）、落地页素材、发版清单与 SBOM |
-| `plugins/` `packs/` | 内置插件与内置整合包（见「关键机制」，**两个目录别合并**） |
+| `plugins/` `packs/` | 插件源码（发 npm）与随包发的整合包配方（见「关键机制」，**两个目录别合并**） |
 | `compat/` `perf/` | 注入 dsh 进程的钩子：兼容修补与加速 |
 | `launcher/` | Rust 外壳（`main.rs`、托盘 / 窗口 / 自更新） |
 | `test/` | 用例与假服务器 |
@@ -84,12 +84,12 @@ dsh 的环境隔离单位。模板名（web / headless / acp / sdk / …）会�
 
 恢复档（`recovery.js`，官方 desktop `sanitizeProfile` 的同款语义）：`POST /api/recover` 把补丁层**改名**成 `cordis.patch.yml.bak-<时间戳>`（备份即改名、不解析补丁内容），再按侧车记录摘掉清单里非 `@deepseek-ai/*` 的 bundle；`POST /api/recover/restore` 把备份改回来、现役补丁先挪到新备份、并按侧车放回被摘的 bundle。改补丁层/清单前都过 `withProfileLock`（profile 目录里一个存 PID 的 `lock` 文件，`wx` 独占创建、属主僵死才清理）——与官方锁同名同语义。这是逐行自动禁用都失效时的最后手段；清单 JSON 坏掉时只告警、补丁层照样移走（救援优先，官方是整单失败）。
 
-### 内置插件与内置整合包（两个目录，别合并）
+### 插件与整合包（两个目录，别合并）
 
-- `plugins/<包名>/` 是**插件实现**（npm 包：`dsh-x-memory`、`dsh-x-sync`）。启动器首次启动把它们复制到 `$DSH_HOME/bundled/<包名>/`，再以 `file:` 依赖装进 profile（`BUNDLED_PLUGINS` 常量 + `ensureBundledPlugin`）。复制到 DSH_HOME 而不是直接指向安装目录，是为了卸载启动器后依赖不断链。
-- `packs/dsh-x-recommended/` 是**整合包配方**（`manifest.json` + `dspack.json` + README），**不含代码**；依赖里 `"dsh-x-memory": "bundled"` 会被解析成 `file:$DSH_HOME/bundled/dsh-x-memory`。
-- 为什么不能合并：`.dspack` 只认 `overrides/`、`home/`、`profiles/` 与几个根文件，插件源码放进去会被当"不属于整合包"跳过（`packs.js` 的解析）；反过来 `plugins/` 下每个子目录都被当成一个 npm 包。实现只存一份，配方用引用指过来。
-- 改了内置插件的代码：**版本号必须跟着变**（复制逻辑按版本判断），而且要重新打包才会更新到用户机器上。
+- `plugins/<包名>/` 是**插件实现的源码与发布源**（npm 包：`dsh-x-memory`、`dsh-x-sync`、`dsh-x-aquarium`），**不随安装包发**：插件都发到 npm，用户从插件页 / 整合包装，装完能看远程版本、能更新。改了这里的代码要 `npm publish`（版本号记得加）。
+- `packs/dsh-x-recommended/` 是**整合包配方**（`manifest.json` + `dspack.json` + README），**不含代码**，随安装包发；依赖一律写 npm 版本号。
+- 没有「内置插件」这条路：预置到当前 profile 的开关、随包发插件的复制逻辑、整合包里的 `"…": "bundled"` 依赖解析都已撤（`planInstall` 见到 `bundled` 会直接报错）。
+- 为什么不能合并：`.dspack` 只认 `overrides/`、`home/`、`profiles/` 与几个根文件，插件源码放进去会被当"不属于整合包"跳过（`packs.js` 的解析）；反过来 `plugins/` 下每个子目录都被当成一个 npm 包。
 
 ### 注入进 dsh 的钩子（compat / perf）
 
@@ -101,7 +101,7 @@ dsh 的环境隔离单位。模板名（web / headless / acp / sdk / …）会�
 ### 打包与安装布局
 
 - `APP_FILES`（`scripts/pack-common.mjs`）= 安装目录里的启动器源码清单；`copyAppFiles` 把它们平铺拷到安装根（macOS 是 `DSH-X.app/Contents/Resources/app/`）。
-- 安装目录里还有 `node/`（自带运行时）、`public/`、`assets/`、`compat/`、`perf/`、`plugins/`、`packs/`、`lang.txt`（安装语言）。
+- 安装目录里还有 `node/`（自带运行时）、`public/`、`assets/`、`compat/`、`perf/`、`packs/`、`lang.txt`（安装语言）。
 - Rust 外壳由 `cargo build` 出 `DSH.exe`，图标走 `build.rs`；Windows 安装包由 Inno Setup（`scripts/dsh-setup.iss`）打。
 - 网页安装界面的进度桥：引擎往 `/STATUSFILE` 写 `阶段:百分比`（`preparing`/`files`/`finishing`/`cleaning`，见 `scripts/installer-engine.iss` 与 `dsh-setup.iss` 的 `CurStepChanged`），`launcher/installer.rs` 每 120ms 读一次、以 `{type:'progress',stage,percent}` 交给 `installer/index.html` 取本地化文案。两侧互相容忍：新引擎配旧外壳，旧外壳解析不动就停在上一个数；旧引擎只写纯数字，新外壳回落 `files`。`DSH-Setup.exe --preview` 单跑界面（demo 会走完四个阶段）。
 - 自更新：下载 `DSH-Setup.exe` → 静默安装 → 由安装程序拉起新版。改这条链路时，父进程必须**等安装程序真的起来再退**，否则复刻流程会误判成"更新坏了"。

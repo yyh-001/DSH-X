@@ -7,10 +7,11 @@ DSH-X 挑出来的一套开箱可用插件。**装它 = 得到一个独立 profi
 | 插件 | 干什么 | 为什么选它 |
 |---|---|---|
 | [`dsh-config-manager`](https://github.com/xiajiajun516/dsh-config-manager) | 配置的备份 / 恢复 / 导出 / 导入 / 迁移 / 多机同步：设置、插件清单、MCP server、技能、Agent 预设、工作区，凭据可选且加密；通道支持 S3 兼容存储、WebDAV、私有 git 仓库、本地 ZIP | 这类插件里覆盖最全、维护最活跃（月下载一万多），有独立的设置页入口 |
-| [`dsh-x-memory`](https://github.com/yyh-001/DSH-X) | 文件式长期记忆：一条事实一个 Markdown 文件 + `MEMORY.md` 索引，按工作区分开存放，会话开始时把索引注入上下文；模型用六个 `memory_*` 工具读写，设置页里能直接看、改、删 | DSH-X 自带的那件（随安装包发，清单里写 `bundled`，不需要联网装）；文件就是记忆本体，随时可看可改可进 git |
-| [`dsh-x-sync`](https://github.com/yyh-001/DSH-X) | 会话、附件、插件配置、技能、记忆同步到 S3 兼容存储 / WebDAV / 本地目录 / 单个 ZIP：与 DSH-X 启动器共用同一只桶、同一套目录结构，双向并集合并、不丢插件 | DSH-X 自带的那件；插件跑在 dsh 里管日常，dsh 起不来时用启动器那条路，两边同一只桶 |
+| [`dsh-x-memory`](https://www.npmjs.com/package/dsh-x-memory) | 文件式长期记忆：一条事实一个 Markdown 文件 + `MEMORY.md` 索引，按工作区分开存放，会话开始时把索引注入上下文；模型用六个 `memory_*` 工具读写，设置页里能直接看、改、删 | DSH-X 自己的那件；文件就是记忆本体，随时可看可改可进 git |
+| [`dsh-x-sync`](https://www.npmjs.com/package/dsh-x-sync) | 会话、附件、插件配置、技能、记忆同步到 S3 兼容存储 / WebDAV / 本地目录 / 单个 ZIP：与 DSH-X 启动器共用同一只桶、同一套目录结构，双向并集合并、不丢插件 | DSH-X 自己的那件；插件跑在 dsh 里管日常，dsh 起不来时用启动器那条路，两边同一只桶 |
+| [`dsh-x-aquarium`](https://www.npmjs.com/package/dsh-x-aquarium) | dsh 网页里的水面与看板娘：一块纯装饰的固定背景层（WebGL 水面 + 漂浮的看板娘），深浅色自适应，不碰任何界面功能 | DSH-X 自己的那件；纯装饰、`pointer-events: none` 不挡操作，不想要就在插件页关掉 |
 
-> 一句话：三件合起来就是「记忆在本地、同步到远端、配置可迁移」。自带的这两件随安装包发（`bundled`），不依赖 npm 与网络；`dsh-config-manager` 管的是 **dsh 内部的配置**（设置、插件清单、MCP、技能、预设、凭据），和同步插件不冲突。
+> 一句话：四件合起来就是「界面好看、记忆在本地、同步到远端、配置可迁移」。**四件都从 npm 装**，装完在插件页能看到远程版本、随时更新。
 
 ## 怎么装
 
@@ -24,9 +25,7 @@ DSH-X 挑出来的一套开箱可用插件。**装它 = 得到一个独立 profi
 
 ## 想往里加插件
 
-改 `manifest.json` 两个地方就行：`dependencies` 加一行「包名 → 版本」，`bundles` 加一行包名（`bundles` 决定 dsh 会不会加载它——包自身必须声明 `dsh.bundle`，否则 dsh 起不来）。版本建议钉 `^x.y.z`，别写 `latest`。
-
-`dsh-x-memory` 用的是另一种写法：`"dsh-x-memory": "bundled"`。它表示「安装包自带这件插件」——安装时启动器把 `<安装目录>/plugins/dsh-x-memory` 复制到 `$DSH_HOME/bundled/` 再按 `file:` 路径装进 profile，所以不需要联网、也不怕卸载启动器之后断链。
+改 `manifest.json` 两个地方就行：`dependencies` 加一行「包名 → 版本」，`bundles` 加一行包名（`bundles` 决定 dsh 会不会加载它——包自身必须声明 `dsh.bundle`，否则 dsh 起不来）。版本钉 `^x.y.z`，别写 `latest`。
 
 ## 自己打包
 

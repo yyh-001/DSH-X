@@ -1,6 +1,6 @@
 {
   "name": "dsh-x-sync",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "把 dsh 的会话记录、附件、插件配置、技能和记忆同步到 S3 兼容存储 / WebDAV / 本地目录 / 单个 ZIP：和 DSH-X 启动器共用同一只桶、同一套目录结构，双向并集合并、不丢插件。Sync DSH sessions, attachments, plugin config, skills and memory to S3-compatible storage / WebDAV / a local folder / a single ZIP — same bucket and layout as the DSH-X launcher, merged in both directions.",
   "type": "module",
   "main": "lib/index.js",
@@ -69,8 +69,8 @@
   "author": "yyh",
   "license": "MIT",
   "peerDependencies": {
-    "@deepseek-ai/dsh-tools": "^0.1.0-rc.6",
-    "@deepseek-ai/dsh-client-ui-renderer": "^0.1.2-rc.1",
-    "@deepseek-ai/dsh-client-locale": "^0.1.2-rc.1"
+    "@deepseek-ai/dsh-tools": ">=0.1.6",
+    "@deepseek-ai/dsh-client-ui-renderer": ">=0.1.6",
+    "@deepseek-ai/dsh-client-locale": ">=0.1.6"
   }
 }

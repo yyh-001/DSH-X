@@ -360,12 +360,6 @@ export async function writeZip(target, entries) {
   }
 }
 
-/** 简单读一下 zip 里有哪些名字（给测试和人看用）。 */
-export async function listZipNames(file) {
-  const { entries } = await readZipIndex(file)
-  return [...entries.keys()]
-}
-
 /** 文件存在且像是个 zip（不用解压，看头四个字节）。 */
 export async function looksLikeZip(file) {
   try {

@@ -245,9 +245,6 @@ export const DEFAULTS = {
   webBind: DEFAULT_WEB_BIND,
   autoStart: false,
   seedMarket: true,
-  // 预置 DSH-X 自带的两件插件（plugins/：记忆 dsh-x-memory、同步 dsh-x-sync）。
-  // 功能还在实验阶段，默认关，想要的用户自己打开。
-  seedBundled: false,
   // 启动失败时按错误点名自动禁用问题插件（兼容模式），再重试
   autoDisablePlugins: true,
   // 装完新版本后自动清理更旧的版本（只留最新的和最近装的一个）。
@@ -589,6 +586,9 @@ function mergeStoredSettings(stored) {
     merged.hideBackground = stored.disableBackgroundAnimation === true
   }
   delete merged.disableBackgroundAnimation
+  // 内置插件的预置开关已撤（插件改由整合包分发），旧文件里的键顺手清掉
+  delete merged.seedBundled
+  delete merged.seedMemory
   try { merged.keepVersions = safeKeepVersions(merged.keepVersions) } catch { merged.keepVersions = 2 }
   return merged
 }
@@ -681,10 +681,6 @@ export async function saveSettings(patch) {
   if ('proxyUrl' in patch) merged.proxyUrl = safeProxyUrl(patch.proxyUrl)
   merged.autoStart = Boolean(merged.autoStart)
   merged.seedMarket = merged.seedMarket !== false
-  // 旧键 seedMemory（这版之前的名字）当作别名读一次
-  if (!('seedBundled' in patch) && 'seedMemory' in patch) merged.seedBundled = patch.seedMemory
-  // 默认关：只有显式 true 才开（!== false 会让缺省值也变成开）
-  merged.seedBundled = merged.seedBundled === true
   merged.autoDisablePlugins = merged.autoDisablePlugins !== false
   merged.autoCleanVersions = merged.autoCleanVersions !== false
   if ('keepVersions' in patch) merged.keepVersions = safeKeepVersions(patch.keepVersions)

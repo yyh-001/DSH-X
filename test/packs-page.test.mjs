@@ -86,7 +86,7 @@ test('切换安装目标会重新检查，关闭后的旧请求不能复活预�
     packBusy: false, packInspection: { token: 'cached', ok: true }, packTargetProfile: '', packInspectRequest: 0,
     openedPack: { profile: 'work' }, pluginProfile: 'web', packState: {}, state: {},
     packInstallDialog: {}, document: { getElementById: () => ({}) },
-    openImportDialog() {}, closeMarketDetail() {}, showPackDialog() {}, hidePackDialog() {}, renderPackMarket() {}, renderPackBuiltin() {}, renderPackInspect() {}, renderPackView() {}, packInstalling: false,
+    openImportDialog() {}, closeMarketDetail() {}, showPackDialog() {}, hidePackDialog() {}, renderPackMarket() {}, renderPackInspect() {}, renderPackView() {}, packInstalling: false,
     packHintEl: {}, t: (text) => text, notify() {},
     post: (path, body) => { calls.push({ path, body }); return new Promise((resolve) => { resolvePost = resolve }) },
   })
