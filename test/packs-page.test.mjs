@@ -126,6 +126,81 @@ test('安装前必须有对应目标的有效检查结果；安装中取消不�
   assert.equal(context.packInspection.ok, true, '安装期间的关闭操作不清空检查状态')
 })
 
+test('整合包安装成功只显示已安装，真实失败才弹出安装失败', async () => {
+  const notices = [], closed = []
+  let fail = false
+  const context = vm.createContext({
+    launcherRunning: () => false,
+    packBusy: false, packInstalling: false, packTargetProfile: 'desktop',
+    packInspection: { ok: true, token: 'checked', source: 'smooth', target: { profile: 'desktop' } },
+    packHintEl: { textContent: '' }, packInstallDialog: {},
+    document: { getElementById: () => ({ value: 'desktop' }) },
+    t: (text) => text,
+    notify: (...args) => notices.push(args),
+    post: async () => {
+      if (fail) throw new Error('依赖安装失败')
+      return { installed: { name: 'smooth', profile: 'desktop' } }
+    },
+    applyPluginPayload() {}, renderPackMarket() {}, renderPackInspect() {}, renderPackGrid() {}, renderPackView() {},
+    hidePackDialog: async () => closed.push('install'),
+    closeMarketDetail: async () => closed.push('detail'),
+    openPack: (profile) => { context.selectedProfile = profile },
+  })
+  new vm.Script(slice('async function installPack()', 'async function removePack(')).runInContext(context)
+  await context.installPack()
+  assert.deepEqual(notices, [], '成功不能复用默认标题为操作失败的提示框')
+  assert.equal(context.packHintEl.textContent, '已安装')
+  assert.equal(context.selectedProfile, 'desktop')
+  assert.deepEqual(closed, ['install', 'detail'], '关闭确认和详情后，保留市场展示安装结果')
+  assert.equal(context.packBusy, false)
+  fail = true
+  context.packInspection = { ok: true, token: 'checked', target: { profile: 'desktop' } }
+  await context.installPack()
+  assert.deepEqual(notices, [['依赖安装失败', '整合包安装失败']])
+  assert.equal(context.packInstalling, false)
+})
+
+test('市场卡片与详情从安装记录显示已安装，其他环境和新版本仍可安装', () => {
+  const nodes = new Map()
+  const node = (id) => {
+    if (!nodes.has(id)) nodes.set(id, { textContent: '', disabled: false })
+    return nodes.get(id)
+  }
+  const panel = () => ({ innerHTML: '', querySelectorAll: () => [], querySelector: () => ({}) })
+  const entry = { id: 'author/smooth', name: 'smooth', displayName: '丝滑的DSH', version: '1.0.0' }
+  const context = vm.createContext({
+    openedPack: { profile: 'desktop' }, pluginProfile: 'desktop', state: {},
+    packState: { packs: [{ profile: 'desktop', records: [{ name: 'smooth', source: entry.id, version: '1.0.0' }] }] },
+    packMarket: { entries: [entry] }, packBusy: false, launcherRunning: () => false,
+    marketDetailIndex: 0, marketSearchEl: { value: '' }, marketSortEl: { value: 'name' }, marketPage: 1, marketPageSize: 4,
+    packMarketEl: panel(), packMarketDetailEl: panel(), document: { getElementById: node },
+    t: (text) => text, escapeHtml: (text) => String(text ?? ''), marketStar: '', marketCube: '',
+  })
+  new vm.Script(slice('function marketDate(value)', 'async function loadMarketStats()')).runInContext(context)
+  const render = () => { context.renderPackMarket(); context.renderMarketDetail() }
+  const installed = () => {
+    for (const el of [context.packMarketEl, context.packMarketDetailEl]) assert.match(el.innerHTML, /class="[^"]*market-install"[^>]*disabled[^>]*>已安装<\/button>/)
+  }
+  const available = () => {
+    for (const el of [context.packMarketEl, context.packMarketDetailEl]) assert.match(el.innerHTML, /class="[^"]*market-install"[^>]*>安装<\/button>/)
+  }
+  render()
+  installed()
+  context.openedPack = { profile: 'web' }
+  render()
+  available()
+  context.openedPack = { profile: 'desktop' }
+  entry.version = '2.0.0'
+  render()
+  available()
+  entry.version = '1.0.0'
+  render()
+  installed()
+  context.packState.packs[0].records = []
+  render()
+  available()
+})
+
 test('整合包相关的中文文案都有英文', () => {
   const dict = new vm.Script(`(${html.match(/const EN = (\{[\s\S]*?\n\})/)[1]})`).runInNewContext()
   const cjk = /[\u4e00-\u9fff]/

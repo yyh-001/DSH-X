@@ -792,6 +792,7 @@
   "新建一个 profile，和现有环境互不影响": "a new profile, your current one stays untouched",
   "这个 profile 已存在，依赖与层栈会并进去": "this profile exists — dependencies and layers are merged in",
   "安装": "Install",
+  "已安装": "Installed",
   "不看这个了": "Dismiss",
   "正在读社区整合包列表…": "Reading the community modpack list…",
   "市场里现在有 {n} 个整合包。": "The market has {n} modpack(s) right now.",
@@ -800,7 +801,6 @@
   "这个包有问题，先看上面的原因。": "This pack has problems — see the reasons above.",
   "整合包检查失败": "Modpack check failed",
   "正在安装…（下面有进度）": "Installing… (progress below)",
-  "{name} 已装进 profile「{profile}」，重启 dsh 后生效。": "{name} is installed into profile \"{profile}\". Restart dsh to load it.",
   "现在切过去并重启": "Switch and restart now",
   "整合包安装失败": "Modpack install failed",
   "卸载 {name}（profile「{profile}」）？安装时覆盖的文件会还原。": "Remove {name} from profile \"{profile}\"? Files it overwrote are restored.",
@@ -3856,6 +3856,7 @@
         packState = { ...packState, ...data, profile: pluginProfile }
         renderPackGrid()
         renderPackView()
+        if (!packImportDialog.hidden) renderPackMarket()
       }
       if (data?.recovery && data.recovery.profile === launchProfile) {
         state.recovery = data.recovery
@@ -4629,9 +4630,17 @@
       return Number.isFinite(date.getTime()) ? date.toISOString().slice(0, 10) : ''
     }
     function marketStars(entry) { return Number.isInteger(entry.stars) && entry.stars >= 0 ? String(entry.stars) : '—' }
+    function marketPackInstalled(entry) {
+      // 安装状态按当前目标环境判断，不能因为装在别的 profile 就挡住这次安装。
+      const profile = openedPack?.profile || pluginProfile || packState.profile || state.profile || 'web'
+      const records = (packState.packs || []).find((item) => item.profile === profile)?.records || []
+      return records.some((record) => ((entry.id && record.source === entry.id) || (entry.name && record.name === entry.name))
+        && (!entry.version || record.version === entry.version))
+    }
     function renderMarketDetail() {
       const entry = marketDetailIndex === null ? null : packMarket?.entries?.[marketDetailIndex]
       if (!entry) return
+      const installed = marketPackInstalled(entry)
       document.getElementById('marketDetailTitle').textContent = entry.displayName || entry.name
       packMarketDetailEl.innerHTML = `<div class="market-detail-meta"><span class="pack-version">v${escapeHtml(entry.version)}</span><span>${escapeHtml(entry.author || '')}</span><span class="market-stars">${marketStar} ${marketStars(entry)}</span></div>
         <div class="market-facts">
@@ -4642,7 +4651,7 @@
         </div>
         <p class="market-description">${escapeHtml(entry.description || t('暂无说明'))}</p>
         ${entry.dshVersion ? `<p class="hint">${escapeHtml(t('需要 dsh {version}', { version: entry.dshVersion }))}</p>` : ''}
-        <div class="market-detail-actions">${entry.repoUrl ? `<a class="ghost" href="${escapeHtml(entry.repoUrl)}" target="_blank" rel="noreferrer">GitHub</a>` : '<span></span>'}<button class="primary market-install" type="button" ${packBusy || launcherRunning() ? 'disabled' : ''}>${escapeHtml(t('安装'))}</button></div>`
+        <div class="market-detail-actions">${entry.repoUrl ? `<a class="ghost" href="${escapeHtml(entry.repoUrl)}" target="_blank" rel="noreferrer">GitHub</a>` : '<span></span>'}<button class="primary market-install" type="button" ${installed || packBusy || launcherRunning() ? 'disabled' : ''}>${escapeHtml(t(installed ? '已安装' : '安装'))}</button></div>`
       packMarketDetailEl.querySelector('.market-install').onclick = () => inspectPack({ market: entry })
     }
     function openMarketDetail(index) {
@@ -4675,13 +4684,16 @@
         packMarketEl.innerHTML = `<div class="market-empty">${escapeHtml(packMarket.error ? t('市场没读到：{error}', { error: packMarket.error }) : t('没有匹配的整合包'))}</div>`
         return
       }
-      packMarketEl.innerHTML = list.slice((marketPage - 1) * marketPageSize, marketPage * marketPageSize).map(({entry, index}) => `<article class="market-card">
+      packMarketEl.innerHTML = list.slice((marketPage - 1) * marketPageSize, marketPage * marketPageSize).map(({entry, index}) => {
+        const installed = marketPackInstalled(entry)
+        return `<article class="market-card">
         <button class="market-card-info" type="button" data-market-detail="${index}">
           <span class="market-card-heading"><span class="market-card-icon">${marketCube}</span><span class="market-card-name">${escapeHtml(entry.displayName || entry.name)}</span></span>
           <span class="market-card-desc">${escapeHtml(entry.description || t('暂无说明'))}</span>
         </button>
-        <div class="market-card-footer"><span class="market-card-author">${escapeHtml(entry.author || entry.name)}<small>${escapeHtml(entry.version ? `v${entry.version}` : '')}</small></span><span class="market-stars" title="GitHub Star">${marketStar} ${marketStars(entry)}</span><button class="ghost market-install" type="button" data-market="${index}" ${packBusy || launcherRunning() ? 'disabled' : ''}>${escapeHtml(t('安装'))}</button></div>
-      </article>`).join('')
+        <div class="market-card-footer"><span class="market-card-author">${escapeHtml(entry.author || entry.name)}<small>${escapeHtml(entry.version ? `v${entry.version}` : '')}</small></span><span class="market-stars" title="GitHub Star">${marketStar} ${marketStars(entry)}</span><button class="ghost market-install" type="button" data-market="${index}" ${installed || packBusy || launcherRunning() ? 'disabled' : ''}>${escapeHtml(t(installed ? '已安装' : '安装'))}</button></div>
+      </article>`
+      }).join('')
       packMarketEl.querySelectorAll('[data-market-detail]').forEach((el) => { el.onclick = () => openMarketDetail(Number(el.dataset.marketDetail)) })
       packMarketEl.querySelectorAll('button[data-market]').forEach((el) => { el.onclick = () => { const entry = all[Number(el.dataset.market)]; if (entry) void inspectPack({ market: entry }) } })
     }
@@ -4889,12 +4901,10 @@
         packInspection = null
         applyPluginPayload(data)
         renderPackInspect()
-        packHintEl.textContent = t('{name} 已装进 profile「{profile}」，重启 dsh 后生效。', { name: installed.displayName || installed.name, profile: installed.profile })
-        hidePackDialog(packInstallDialog)
-        closeMarketDetail()
-        closeImportDialog()
+        packHintEl.textContent = t('已安装')
+        await hidePackDialog(packInstallDialog)
+        await closeMarketDetail()
         openPack(installed.profile)
-        notify(t('{name} 已装进 profile「{profile}」，重启 dsh 后生效。', { name: installed.displayName || installed.name, profile: installed.profile }))
       } catch (error) {
         packHintEl.textContent = error.message
         notify(error.message, t('整合包安装失败'))
