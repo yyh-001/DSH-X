@@ -1,0 +1,4 @@
+# dsh-x-aquarium bundle patch: one decoration row over the web profile.
+- insert:
+    - id: x-aquarium
+      name: dsh-x-aquarium

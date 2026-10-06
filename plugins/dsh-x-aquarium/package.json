@@ -1,0 +1,54 @@
+{
+  "name": "dsh-x-aquarium",
+  "version": "0.1.3",
+  "description": "把 DSH-X 启动器主页的水面和大肥鱼搬进 dsh 网页：一块纯装饰的固定背景层（WebGL 水面 + 漂浮的大肥鱼），深浅色自适应，不碰任何界面功能。Bring the DSH-X launcher's water surface and big fish to the dsh web page as a pure-decoration background layer with day/night support.",
+  "type": "module",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./lib/client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml"
+  },
+  "files": [
+    "index.js",
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "decoration",
+    "aquarium"
+  ],
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": []
+    },
+    "compatibility": {
+      "dsh": ">=0.1.6"
+    }
+  },
+  "dshhub": {
+    "schemaVersion": 1,
+    "displayName": "DSH-X 水族箱",
+    "summary": "把启动器主页的水面和大肥鱼搬进 dsh 网页：纯装饰背景层，深浅色自适应，不动任何界面功能。",
+    "categories": [
+      "界面美化"
+    ],
+    "homepage": "https://github.com/yyh-001/DSH-X"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yyh-001/DSH-X.git"
+  },
+  "author": "yyh",
+  "license": "MIT"
+}
