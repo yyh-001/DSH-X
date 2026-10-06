@@ -1,7 +1,7 @@
 /* Layered character rig. The UI cards stay above the character. */
 .backdrop-character { display: none; }
 .mascot {
-  position: fixed; left: -6vh; bottom: -5vh;
+  position: fixed; left: -2vh; bottom: -1vh;
   width: min(72vh, 92vw); aspect-ratio: 1;
   z-index: 2; pointer-events: none;
   /* 入场只做一次平滑的滑入淡入：进设置页会把 .mascot 藏起来（.subpage-open），

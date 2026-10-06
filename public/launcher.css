@@ -409,6 +409,19 @@ main.home .settings-body { padding-top: 34px; }
 html.reduce-motion .launch-status.is-working::before { animation: none; }
 @media (prefers-reduced-motion: reduce) { .launch-status.is-working::before { animation: none; } }
 .launch-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.launch-open { position: relative; display: inline-flex; flex: 0 0 auto; }
+.launch-link-popover { position: absolute; right: 0; bottom: calc(100% + 10px); z-index: 8; width: min(340px, calc(100vw - 32px)); padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--text); box-shadow: 0 8px 24px #16233d1a; opacity: 0; visibility: hidden; pointer-events: none; transform: translate(var(--link-offset, 0px), 6px); transition: opacity 160ms ease, transform 160ms ease, visibility 160ms; }
+/* 浮层和「打开」之间留出命中桥，鼠标移去复制时不收起。 */
+.launch-link-popover::after { content: ''; position: absolute; right: 0; bottom: -10px; width: 100%; height: 10px; }
+.launch-open:not(.link-dismissed):is(:hover, :focus-within) .launch-link-popover { opacity: 1; visibility: visible; pointer-events: auto; transform: translate(var(--link-offset, 0px), 0); }
+.launch-open.link-below .launch-link-popover { top: calc(100% + 10px); bottom: auto; }
+.launch-open.link-below .launch-link-popover::after { top: -10px; bottom: auto; }
+.launch-link-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 12px; font-weight: 600; }
+.launch-link-copy { display: grid; place-items: center; width: 28px; height: 28px; padding: 5px; border: 0; border-radius: 7px; background: var(--accent-soft); color: var(--accent); cursor: pointer; }
+.launch-link-copy:hover { background: var(--accent-dim); }
+.launch-link-copy svg { width: 16px; height: 16px; }
+.launch-link-value { display: block; margin-top: 8px; color: var(--muted); font: 12px/1.6 Consolas, ui-monospace, monospace; overflow-wrap: anywhere; user-select: text; text-decoration: none; }
+.launch-link-value:hover { color: var(--accent); text-decoration: underline; }
 .launch-preset .launch-primary { width: 34px; height: 34px; min-width: 0; padding: 0; color: #fff; }
 .launch-actions .icon-btn { width: 34px; height: 34px; border-radius: 9px; }
 .launch-actions .icon-btn svg { width: 18px; height: 18px; }

@@ -1043,6 +1043,10 @@
   "DSH-X 已退出": "DSH-X has exited",
   "停止": "Stop",
   "打开": "Open",
+  "访问链接": "Access link",
+  "复制链接": "Copy link",
+  "链接已复制": "Link copied",
+  "复制失败，请选中链接后复制": "Could not copy. Select the link and copy it manually.",
   "在跑的实例": "Running instances",
   "重试": "Retry",
   "最新": "Latest",
@@ -2234,6 +2238,55 @@
       return versionValue === 'auto' ? recommendedVersion(launchProfile) : (versionValue || preferredPick())
     }
 
+    const launchCopyFeedback = new WeakMap()
+    async function copyLaunchLink(button) {
+      const url = button.closest('.launch-open').querySelector('.launch-link-value').getAttribute('href')
+      try {
+        try {
+          await navigator.clipboard.writeText(url)
+        } catch {
+          // 部分 WebView 不提供 Clipboard API；保留用户点击这一手势，用选区复制完整地址。
+          const field = document.createElement('textarea')
+          field.value = url
+          field.readOnly = true
+          field.style.cssText = 'position:fixed;left:0;top:0;opacity:0;pointer-events:none'
+          document.body.appendChild(field)
+          field.select()
+          try {
+            if (!document.execCommand('copy')) throw new Error('copy failed')
+          } finally {
+            field.remove()
+            button.focus({ preventScroll: true })
+          }
+        }
+        const feedback = launchCopyFeedback.get(button) || { icon: button.innerHTML }
+        clearTimeout(feedback.timer)
+        launchCopyFeedback.set(button, feedback)
+        button.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>'
+        button.title = t('链接已复制')
+        feedback.timer = setTimeout(() => {
+          button.innerHTML = feedback.icon
+          button.title = t('复制链接')
+          launchCopyFeedback.delete(button)
+        }, 1400)
+      } catch {
+        notify(t('复制失败，请选中链接后复制'))
+      }
+    }
+
+    function positionLaunchLink(event) {
+      const wrap = event.currentTarget
+      const panel = wrap.querySelector('.launch-link-popover')
+      if (!panel) return
+      wrap.classList.remove('link-dismissed')
+      panel.style.setProperty('--link-offset', '0px')
+      const rect = panel.getBoundingClientRect()
+      // 窄窗口贴边、列表顶端都要能点到复制按钮，不能把浮层裁到视口外。
+      const offset = Math.max(12 - rect.left, Math.min(0, innerWidth - 12 - rect.right))
+      panel.style.setProperty('--link-offset', `${offset}px`)
+      wrap.classList.toggle('link-below', wrap.getBoundingClientRect().top < panel.offsetHeight + 80)
+    }
+
     /** 打开一个地址：交给服务端按「打开方式」办（内嵌窗口 / 应用窗口 / 标签页）。 */
     async function openInstance(url) {
       if (!url) return
@@ -2425,10 +2478,11 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/></svg></button>
           <button class="icon-btn launch-action" type="button" data-stop-id="${entry.id}" title="${escapeHtml(t('停止'))}" aria-label="${escapeHtml(t('停止'))}" ${action || state.installing || busy ? 'disabled' : ''}>
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg></button>` : ''}
-          <button class="primary icon-btn launch-primary${busy || ownAction ? ' loading' : ''}" type="button" data-launch-id="${entry.id}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" ${!version || action || state.installing || busy || (live?.status === 'running' && !live.url) ? 'disabled' : ''}>
+          <span class="launch-open"><button class="primary icon-btn launch-primary${busy || ownAction ? ' loading' : ''}" type="button" data-launch-id="${entry.id}" title="${escapeHtml(live?.status === 'running' && live.url ? '' : label)}" aria-label="${escapeHtml(label)}" ${!version || action || state.installing || busy || (live?.status === 'running' && !live.url) ? 'disabled' : ''}>
             <span class="spin" aria-hidden="true"></span>${live?.status === 'running'
               ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-10 10M10 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"/></svg>'
-              : '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5a1 1 0 0 1 1.5-.86l10 6.5a1 1 0 0 1 0 1.72l-10 6.5A1 1 0 0 1 8 18.5Z"/></svg>'}</button></span>
+              : '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5a1 1 0 0 1 1.5-.86l10 6.5a1 1 0 0 1 0 1.72l-10 6.5A1 1 0 0 1 8 18.5Z"/></svg>'}</button>
+          ${live?.status === 'running' && live.url ? `<span class="launch-link-popover" role="group" aria-label="${escapeHtml(t('访问链接'))}"><span class="launch-link-head"><span>${escapeHtml(t('访问链接'))}</span><button class="launch-link-copy" type="button" data-copy-launch-link title="${escapeHtml(t('复制链接'))}" aria-label="${escapeHtml(t('复制链接'))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg></button></span><a class="launch-link-value" href="${escapeHtml(live.url)}" target="_blank" rel="noopener">${escapeHtml(live.url)}</a></span>` : ''}</span></span>
         </div>`
       }).join('')
       // 状态推送很频繁；内容没变就保留节点，避免悬停动效和键盘焦点反复重置。
@@ -2453,6 +2507,19 @@
           try { await startVersion(version, entry.profile, entry.port, entry.id) }
           catch (error) { notify(error.message) }
         }
+      })
+      launchPresetsEl.querySelectorAll('.launch-open').forEach((wrap) => {
+        wrap.onpointerenter = positionLaunchLink
+        wrap.onfocusin = positionLaunchLink
+        wrap.onkeydown = (event) => {
+          if (event.key === 'Escape') { event.preventDefault(); wrap.classList.add('link-dismissed') }
+        }
+      })
+      launchPresetsEl.querySelectorAll('[data-copy-launch-link]').forEach((button) => {
+        button.onclick = () => copyLaunchLink(button)
+      })
+      launchPresetsEl.querySelectorAll('.launch-link-value').forEach((link) => {
+        link.onclick = (event) => { event.preventDefault(); void openInstance(link.getAttribute('href')) }
       })
       launchPresetsEl.querySelectorAll('[data-edit-id]').forEach((button) => {
         button.onclick = () => openLaunchEditor(launchEntries().find((item) => item.id === button.dataset.editId))
