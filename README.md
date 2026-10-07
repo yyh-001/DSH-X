@@ -23,7 +23,7 @@ DeepSeek Harness 轻量桌面启动器：启动项与多实例，版本、插件
 - **启动项与多实例**：每项可选择 dsh 用户目录、profile、版本和端口；同一版本的不同 profile 也能同时运行。
 - **插件与整合包**：按环境安装、开关和更新插件；从社区市场或文件导入整合包，也可导出自己的环境。
 - **MCP 与技能**：配置 MCP 服务器，导入、管理和开关技能。
-- **多种打开方式**：系统浏览器标签页、浏览器独立窗口或桌面窗口。
+- **多种打开方式**：DSH-X 内部标签页、系统浏览器标签页、浏览器独立窗口或桌面窗口。
 - **外观**：浅色 / 深色主题、透明度，以及独立的背景和大肥鱼开关。
 - **更新与恢复**：自更新、故障恢复、可设置保留数量的旧版本清理；启动项当前与上一次使用的版本额外保留。
 - **Windows / macOS**：提供 Windows 安装包与 Apple Silicon / Intel 两种 dmg，支持托盘 / 菜单栏常驻和开机自启，自带 Node / npm / pnpm。
@@ -66,7 +66,7 @@ DeepSeek Harness 轻量桌面启动器：启动项与多实例，版本、插件
 
 ## 动态壁纸
 
-配套的 Wallpaper Engine 壁纸[《DSH-X · 大肥鱼桌面终端》](https://steamcommunity.com/sharedfiles/filedetails/?id=3814706575)：DSH-X 品牌开场、看板娘、本机时间与音乐频谱，按时间自动切换深浅配色。源码在 [`wallpaper/`](wallpaper/)，`node scripts/export-wallpaper.mjs` 导出 Wallpaper Engine 工程。
+配套的 Wallpaper Engine 壁纸[《DSH-X · 大肥鱼桌面终端》](https://steamcommunity.com/sharedfiles/filedetails/?id=3814706575)：DSH-X 品牌开场、大肥鱼、本机时间与音乐频谱，按时间自动切换深浅配色。源码在 [`wallpaper/`](wallpaper/)，`node scripts/export-wallpaper.mjs` 导出 Wallpaper Engine 工程。
 
 <p align="center">
   <img src="wallpaper/preview.jpg" alt="DSH-X 动态壁纸" width="820" />
@@ -80,7 +80,7 @@ DeepSeek Harness 轻量桌面启动器：启动项与多实例，版本、插件
 
 Windows：[下载 DSH-Setup.exe](https://github.com/yyh-001/DSH-X/releases/latest) 安装，从桌面打开 **DSH-X**。
 
-macOS：打开 `DSH-X-mac-arm64.dmg`（Apple Silicon）或 `DSH-X-mac-x64.dmg`（Intel），把 **DSH-X** 拖进「应用程序」。v0.1.15 使用临时签名，未做公证，首次打开可能需要在系统安全提示中手动允许。
+macOS：打开 `DSH-X-mac-arm64.dmg`（Apple Silicon）或 `DSH-X-mac-x64.dmg`（Intel），把 **DSH-X** 拖进「应用程序」。v0.1.16 使用临时签名，未做公证，首次打开可能需要在系统安全提示中手动允许。
 
 在主页添加或编辑启动项，选择环境与版本后启动；设置中可选择浏览器、独立窗口或 **DSH-X 内部标签页**。管理页默认端口为 `3780`，被占用时会顺延。手机或其他电脑访问 dsh：设置 → 高级设置 → **Web 绑定**选「局域网」，下次启动生效。
 
@@ -101,7 +101,7 @@ Windows（需要 Rust 与 Inno Setup 6）产出 `release/DSH/` 便携目录和 `
 Windows 打包同时生成 SBOM 与发布清单（本地自查，不上传 Release）。发版前检查版本与产物：
 
 ```sh
-node scripts/release-manifest.mjs check-tag v0.1.15
+node scripts/release-manifest.mjs check-tag v0.1.16
 node scripts/release-manifest.mjs verify
 ```
 

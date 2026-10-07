@@ -40,7 +40,7 @@
       })
     })()
   </script>
-  <link rel="stylesheet" href="/launcher.css?v=profile-ui-20261007b" />
+  <link rel="stylesheet" href="/launcher.css?v=market-detail-footer-20261007" />
   <link rel="stylesheet" href="/mascot.css" />
   <link rel="stylesheet" href="/theme.css?v=profile-ui-20261002" />
   <link rel="stylesheet" href="/launcher-boot.css?v=20261007e" />
@@ -56,6 +56,7 @@
   </div>
   <script src="/launcher-boot.js?v=20261007e"></script>
   <script src="/launch-list.js?v=20261007"></script>
+  <script src="/market-layout.js?v=20261007"></script>
   <div class="backdrop" aria-hidden="true">
     <canvas class="water-surface" aria-hidden="true"></canvas>
     <div class="backdrop-character"></div>
@@ -449,7 +450,7 @@
     </div>
   </main>
   <div class="ask" id="ask" hidden>
-    <div class="ask-card" role="dialog" aria-modal="true" aria-labelledby="askTitle">
+    <div class="ask-card" role="dialog" aria-modal="true" aria-labelledby="askTitle" data-dialog-size="medium">
       <h2 class="ask-title" id="askTitle" data-i18n="检测到新版本">检测到新版本</h2>
       <div class="ask-items" id="askItems"></div>
       <p class="ask-note" id="askNote" hidden></p>
@@ -460,9 +461,9 @@
     </div>
   </div>
   <div class="ask" id="mcpDialog" hidden>
-    <div class="ask-card" role="dialog" aria-modal="true" aria-labelledby="mcpDialogTitle">
+    <div class="ask-card" role="dialog" aria-modal="true" aria-labelledby="mcpDialogTitle" data-dialog-size="medium">
       <h2 class="ask-title" id="mcpDialogTitle" data-i18n="MCP 服务器">MCP 服务器</h2>
-      <div class="mcp-form">
+      <div class="mcp-form dialog-body">
         <label class="mcp-field"><span data-i18n="名称">名称</span><input id="mcpName" type="text" placeholder="my-mcp-server" autocomplete="off" spellcheck="false" /></label>
         <label class="mcp-field"><span data-i18n="连接方式">连接方式</span>
           <select id="mcpTransport">
@@ -485,13 +486,13 @@
     </div>
   </div>
   <div class="ask" id="packImportDialog" hidden>
-    <div class="ask-card market-browser" id="packMarketCard" role="dialog" aria-modal="true" aria-labelledby="packImportTitle">
+    <div class="ask-card market-browser" id="packMarketCard" role="dialog" aria-modal="true" aria-labelledby="packImportTitle" tabindex="-1" data-dialog-size="large">
       <div class="dialog-heading">
         <h2 class="ask-title" id="packImportTitle" data-i18n="整合包市场">整合包市场</h2>
         <button type="button" class="ghost icon-btn dialog-close" id="packImportClose" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button>
       </div>
       <div class="market-toolbar">
-        <input id="marketSearch" type="search" autocomplete="off" data-placeholder-i18n="搜索名称、作者或功能" aria-label="搜索整合包" />
+        <div class="market-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg><input id="marketSearch" type="search" autocomplete="off" data-placeholder-i18n="搜索名称、作者或功能" aria-label="搜索整合包" /></div>
         <select id="marketSort" aria-label="整合包排序"><option value="updated" data-i18n="最近更新">最近更新</option><option value="stars" data-i18n="Star 最多">Star 最多</option><option value="name" data-i18n="按名称">按名称</option></select>
       </div>
       <div class="sr-only" id="packMarketTitle" data-i18n="社区整合包">社区整合包</div>
@@ -502,29 +503,33 @@
       </details>
       <div class="market-footer">
         <span id="marketCount" role="status" aria-live="polite"></span>
-        <div class="market-pagination"><div class="market-page-size"><label for="marketPageSize" data-i18n="每页">每页</label><select id="marketPageSize"><option value="4">4</option><option value="8">8</option><option value="12">12</option><option value="24">24</option></select></div><div class="market-page-nav"><button class="ghost icon-btn" id="marketPrev" type="button" title="上一页" aria-label="上一页"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m14 6-6 6 6 6"/></svg></button><span id="marketPage"></span><button class="ghost icon-btn" id="marketNext" type="button" title="下一页" aria-label="下一页"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m10 6 6 6-6 6"/></svg></button></div></div>
       </div>
       <p class="hint" id="packMarketHint" role="status" aria-live="polite"></p>
     </div>
   </div>
   <div class="ask" id="packDetailDialog" hidden>
-    <div class="ask-card market-detail-card" role="dialog" aria-modal="true" aria-labelledby="marketDetailTitle">
+    <div class="ask-card market-detail-card" role="dialog" aria-modal="true" aria-labelledby="marketDetailTitle" data-dialog-size="medium">
       <div class="dialog-heading"><h2 class="ask-title" id="marketDetailTitle" data-i18n="整合包详情">整合包详情</h2><button class="ghost icon-btn dialog-close" id="packDetailClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
       <div class="market-detail" id="packMarketDetail"></div>
+      <div class="market-detail-actions" id="packMarketActions"></div>
     </div>
   </div>
   <div class="ask" id="packInstallDialog" hidden>
-    <div class="ask-card pack-confirm-card" role="dialog" aria-modal="true" aria-labelledby="packInstallTitle">
+    <div class="ask-card pack-confirm-card" role="dialog" aria-modal="true" aria-labelledby="packInstallTitle" data-dialog-size="medium">
       <div class="dialog-heading"><div><h2 class="ask-title" id="packInstallTitle" data-i18n="确认安装">确认安装</h2><p class="dialog-subtitle" data-i18n="选择安装环境，确认后开始安装。">选择安装环境，确认后开始安装。</p></div><button class="ghost icon-btn dialog-close" id="packInstallClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
       <div class="pack-preparing" id="packPreparing" hidden><span class="spin" aria-hidden="true"></span><span data-i18n="正在读取安装信息…">正在读取安装信息…</span></div>
       <div class="pack-detail" id="packInspect" hidden></div>
-      <div class="progress" id="packProgress" hidden><div class="progress-bar" id="packProgressBar"></div></div>
-      <p class="hint" id="packHint" role="status" aria-live="polite"></p>
+      <div class="pack-install-footer">
+        <div class="progress" id="packProgress" hidden><div class="progress-bar" id="packProgressBar"></div></div>
+        <p class="hint" id="packHint" role="status" aria-live="polite"></p>
+        <div class="pack-actions" id="packInstallActions" hidden></div>
+      </div>
     </div>
   </div>
   <div class="ask" id="packExportDialog" hidden>
-    <div class="ask-card" role="dialog" aria-modal="true" aria-labelledby="packExportTitle">
+    <div class="ask-card" role="dialog" aria-modal="true" aria-labelledby="packExportTitle" data-dialog-size="small">
       <h2 class="ask-title" id="packExportTitle" data-i18n="导出整合包">导出整合包</h2>
+      <div class="dialog-body">
       <p class="ask-note" data-i18n="把这份 profile 现在装着的东西打成一个 .dspack：钉版依赖、补丁层与 profile 根下的配置文件，不含 node_modules、会话与凭据。">把这份 profile 现在装着的东西打成一个 .dspack：钉版依赖、补丁层与 profile 根下的配置文件，不含 node_modules、会话与凭据。</p>
       <div class="mcp-form">
         <label class="mcp-field"><span data-i18n="名称">名称</span><input id="packExportName" type="text" autocomplete="off" spellcheck="false" /></label>
@@ -532,6 +537,7 @@
       </div>
       <label class="pack-check"><input type="checkbox" id="packExportHome" /><span data-i18n="带上技能与预设">带上技能与预设</span></label>
       <p class="hint" id="packExportHint"></p>
+      </div>
       <div class="ask-actions">
         <button type="button" class="ghost" id="packExportCancel" data-i18n="取消">取消</button>
         <button type="button" class="primary" id="packExportGo" data-i18n="导出…">导出…</button>
@@ -539,7 +545,7 @@
     </div>
   </div>
   <div class="ask" id="launchDialog" hidden>
-    <form class="ask-card" id="launchForm" role="dialog" aria-modal="true" aria-labelledby="launchDialogTitle">
+    <form class="ask-card" id="launchForm" role="dialog" aria-modal="true" aria-labelledby="launchDialogTitle" data-dialog-size="medium">
       <div class="dialog-heading launch-dialog-heading"><h2 class="ask-title" id="launchDialogTitle" data-i18n="编辑启动项">编辑启动项</h2><button class="ghost icon-btn dialog-close" id="launchDialogClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
       <div class="launch-modal-fields">
         <div class="home-field launch-identity-field" id="launchIdentityField">
@@ -595,7 +601,7 @@
     </form>
   </div>
   <div class="ask" id="versionManageDialog" hidden>
-    <div class="ask-card version-manage-card" role="dialog" aria-modal="true" aria-labelledby="versionManageTitle">
+    <div class="ask-card version-manage-card" role="dialog" aria-modal="true" aria-labelledby="versionManageTitle" data-dialog-size="medium">
       <div class="dialog-heading"><h2 class="ask-title" id="versionManageTitle" data-i18n="版本管理">版本管理</h2><button class="ghost icon-btn dialog-close" id="versionManageClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
       <form class="version-manage-install" id="versionInstallForm">
         <label class="sr-only" for="versionInstallSelect" data-i18n="安装版本">安装版本</label>
@@ -608,17 +614,19 @@
     </div>
   </div>
   <div class="ask" id="profileDialog" hidden>
-    <form class="ask-card profile-dialog-card" id="profileForm" role="dialog" aria-modal="true" aria-labelledby="profileDialogTitle">
+    <form class="ask-card profile-dialog-card" id="profileForm" role="dialog" aria-modal="true" aria-labelledby="profileDialogTitle" data-dialog-size="small">
       <div class="dialog-heading"><h2 class="ask-title" id="profileDialogTitle" data-i18n="新建 Profile">新建 Profile</h2><button class="ghost icon-btn dialog-close" id="profileDialogClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
+      <div class="dialog-body">
       <label for="profileName" data-i18n="Profile 名称">Profile 名称</label>
       <input id="profileName" type="text" required maxlength="32" pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,31}" autocomplete="off" placeholder="my-work" />
       <p class="dialog-subtitle" id="profileDialogNote"></p>
       <p class="hint profile-error" id="profileDialogError" role="alert" hidden></p>
+      </div>
       <div class="profile-dialog-actions"><button class="ghost" id="profileCancel" type="button" data-i18n="取消">取消</button><button class="primary" id="profileSave" type="submit"><span class="spin" aria-hidden="true"></span><span id="profileSaveText" data-i18n="创建">创建</span></button></div>
     </form>
   </div>
   <div class="ask" id="launchPluginsDialog" hidden>
-    <div class="ask-card" id="launchPluginsCard" role="dialog" aria-modal="true" aria-labelledby="launchPluginsTitle">
+    <div class="ask-card" id="launchPluginsCard" role="dialog" aria-modal="true" aria-labelledby="launchPluginsTitle" data-dialog-size="large">
       <div class="launch-plugins-head">
         <div>
           <h2 class="sr-only" id="launchPluginsTitle" data-i18n="管理插件">管理插件</h2>
@@ -629,7 +637,7 @@
     </div>
   </div>
   <div class="ask" id="skillDetailDialog" hidden>
-    <div class="ask-card skill-detail-card" role="dialog" aria-modal="true" aria-labelledby="skillDetailTitle">
+    <div class="ask-card skill-detail-card" role="dialog" aria-modal="true" aria-labelledby="skillDetailTitle" data-dialog-size="large">
       <div class="dialog-heading"><h2 class="ask-title" id="skillDetailTitle" data-i18n="技能详情">技能详情</h2><button class="ghost icon-btn dialog-close" id="skillDetailClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
       <p class="skill-detail-path" id="skillDetailPath"></p>
       <p class="skill-detail-description" id="skillDetailDescription"></p>
@@ -637,31 +645,35 @@
     </div>
   </div>
   <div class="ask" id="skillInstallDialog" hidden>
-    <form class="ask-card skill-editor-card skill-install-card" id="skillInstallForm" role="dialog" aria-modal="true" aria-labelledby="skillInstallTitle">
+    <form class="ask-card skill-editor-card skill-install-card" id="skillInstallForm" role="dialog" aria-modal="true" aria-labelledby="skillInstallTitle" data-dialog-size="medium">
       <div class="dialog-heading"><h2 class="ask-title" id="skillInstallTitle" data-i18n="安装技能">安装技能</h2><div class="skill-install-heading-actions"><a class="skill-catalog-link" href="https://github.com/openai/skills/tree/main/skills/.curated" target="_blank" rel="noopener noreferrer" title="浏览 Codex 技能库" aria-label="浏览 Codex 技能库" data-i18n-title="浏览 Codex 技能库" data-i18n-aria-label="浏览 Codex 技能库"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6c-3-2-6-2-9-1v14c3-1 6-1 9 1 3-2 6-2 9-1V5c-3-1-6-1-9 1Zm0 0v14"/></svg></a><button class="ghost icon-btn dialog-close" id="skillInstallClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div></div>
+      <div class="dialog-body">
       <div class="skill-source-tabs" role="group" aria-label="安装来源"><button class="ghost" type="button" data-skill-source="github" aria-pressed="true">GitHub</button><button class="ghost" type="button" data-skill-source="local" aria-pressed="false" data-i18n="本地导入">本地导入</button></div>
       <div id="skillGithubFields"><label class="sr-only" for="skillSource" data-i18n="仓库或技能目录链接">仓库或技能目录链接</label><input id="skillSource" type="text" placeholder="owner/repo 或 GitHub 技能链接" data-placeholder-i18n="owner/repo 或 GitHub 技能链接" autocomplete="off" /><details class="skill-install-advanced"><summary data-i18n="指定分支">指定分支</summary><input id="skillRef" type="text" data-placeholder-i18n="留空使用链接中的分支或仓库默认分支" /></details></div>
       <div id="skillLocalFields" hidden><div class="skill-file-actions"><button class="ghost" id="skillChooseFolder" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5h6l2 3h10v12H3V7Z"/></svg><span data-i18n="选择文件夹">选择文件夹</span></button><button class="ghost" id="skillChooseZip" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h10l4 4v14H5V3Z"/><path d="M11 3v10m-1 0h3v4h-3v-4"/></svg><span data-i18n="选择 ZIP">选择 ZIP</span></button></div><input id="skillFolderFiles" type="file" webkitdirectory multiple hidden /><input id="skillZipFile" type="file" accept=".zip" hidden /><p class="hint" id="skillLocalName" data-i18n="导入包含 SKILL.md 的文件夹或 ZIP">导入包含 SKILL.md 的文件夹或 ZIP</p></div>
       <div class="skill-install-check"><button class="ghost icon-btn" id="skillInspect" type="button" title="检查来源" aria-label="检查来源" data-i18n-title="检查来源" data-i18n-aria-label="检查来源"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-6-6 6 6-6 6"/></svg><span class="spin" aria-hidden="true"></span></button><span class="hint" id="skillInspectHint" role="status"></span></div>
       <div class="skill-import-list" id="skillImportList" hidden></div>
       <p class="skill-form-error" id="skillInstallError" role="alert"></p>
+      </div>
       <div class="ask-actions skill-install-footer"><label class="skill-install-destination"><span class="sr-only" data-i18n="安装到">安装到</span><select id="skillInstallRoot" title="安装到" aria-label="安装到"><option value="dsh">.dsh / skills</option><option value="agents">.agents / skills</option></select></label><button class="ghost" id="skillInstallCancel" type="button" data-i18n="取消">取消</button><button class="primary" id="skillInstallGo" type="submit" disabled><span data-i18n="安装">安装</span><span class="spin" aria-hidden="true"></span></button></div>
     </form>
   </div>
   <div class="ask" id="skillEditorDialog" hidden>
-    <form class="ask-card skill-editor-card" id="skillForm" role="dialog" aria-modal="true" aria-labelledby="skillEditorTitle">
+    <form class="ask-card skill-editor-card" id="skillForm" role="dialog" aria-modal="true" aria-labelledby="skillEditorTitle" data-dialog-size="medium">
       <h2 class="ask-title" id="skillEditorTitle" data-i18n="创建技能">创建技能</h2>
+      <div class="dialog-body">
       <label><span data-i18n="技能名称">技能名称</span><input id="skillName" required type="text" maxlength="64" pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="my-skill" autocomplete="off" /></label>
       <label><span data-i18n="保存目录">保存目录</span><select id="skillRoot"><option value="dsh">.dsh / skills</option><option value="agents">.agents / skills</option></select></label>
       <label><span data-i18n="技能说明">技能说明</span><input id="skillDescription" required type="text" maxlength="4096" /></label>
       <label><span data-i18n="技能正文（Markdown）">技能正文（Markdown）</span><textarea id="skillContent" required rows="7" maxlength="262144" spellcheck="false"></textarea></label>
       <p class="hint" data-i18n="名称使用小写字母、数字和连字符。保存后会自动生成 SKILL.md。">名称使用小写字母、数字和连字符。保存后会自动生成 SKILL.md。</p>
       <p class="skill-form-error" id="skillFormError" role="alert"></p>
+      </div>
       <div class="ask-actions"><button class="ghost" id="skillCancel" type="button" data-i18n="取消">取消</button><button class="primary" id="skillSave" type="submit" data-i18n="创建">创建</button></div>
     </form>
   </div>
   <div class="ask" id="notice" hidden>
-    <div class="ask-card" role="alertdialog" aria-modal="true" aria-labelledby="noticeTitle">
+    <div class="ask-card" role="alertdialog" aria-modal="true" aria-labelledby="noticeTitle" data-dialog-size="small">
       <h2 class="ask-title" id="noticeTitle" data-i18n="操作失败">操作失败</h2>
       <p class="notice-text" id="noticeText"></p>
       <div class="ask-actions">
@@ -670,7 +682,7 @@
     </div>
   </div>
   <div class="ask" id="confirmDialog" hidden>
-    <div class="ask-card" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle">
+    <div class="ask-card" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" data-dialog-size="small">
       <h2 class="ask-title" id="confirmTitle" data-i18n="确认操作">确认操作</h2>
       <p class="notice-text" id="confirmText"></p>
       <div class="ask-actions">
@@ -832,7 +844,6 @@
   "检查完了：{name} {version}。确认没问题就点安装。": "Checked: {name} {version}. Read it over, then hit Install.",
   "这个包有问题，先看上面的原因。": "This pack has problems — see the reasons above.",
   "整合包检查失败": "Modpack check failed",
-  "正在安装…（下面有进度）": "Installing… (progress below)",
   "现在切过去并重启": "Switch and restart now",
   "整合包安装失败": "Modpack install failed",
   "卸载 {name}（profile「{profile}」）？安装时覆盖的文件会还原。": "Remove {name} from profile \"{profile}\"? Files it overwrote are restored.",
@@ -1680,7 +1691,7 @@
       })
       syncUiSelect(select)
     }
-    for (const select of document.querySelectorAll('#launchProfile, #launchDshHome, #uiLang, #webBind, #downloadSource, #proxyMode, #versionInstallSelect, #openMode, #mcpTransport, #marketSort, #marketPageSize, #skillRoot, #skillInstallRoot')) createUiSelect(select)
+    for (const select of document.querySelectorAll('#launchProfile, #launchDshHome, #uiLang, #webBind, #downloadSource, #proxyMode, #versionInstallSelect, #openMode, #mcpTransport, #marketSort, #skillRoot, #skillInstallRoot')) createUiSelect(select)
     document.addEventListener('pointerdown', (event) => {
       if (openUiSelect && !openUiSelect.root.contains(event.target) && !openUiSelect.panel.contains(event.target)) closeUiSelect()
       // 环境详情的「更多操作」下拉同理：点外面就合上
@@ -1929,8 +1940,9 @@
       const motion = !matchMedia('(prefers-reduced-motion: reduce)').matches && !document.documentElement.classList.contains('reduce-motion') && typeof pane.animate === 'function'
       if (motion) {
         const outgoing = document.querySelector('.pane.active')
-        if (outgoing) {
-          const exitAnimation = outgoing.animate([
+        const exitTarget = outgoing?.id === 'pane-control' ? outgoing.querySelector('.launch-presets') : outgoing
+        if (exitTarget) {
+          const exitAnimation = exitTarget.animate([
             { opacity: 1, transform: 'translateX(0)' },
             { opacity: 0, transform: `translateX(${-direction * 48}px)` },
           ], { duration: 90, easing: 'cubic-bezier(.4, 0, 1, 1)', fill: 'both' })
@@ -1972,8 +1984,11 @@
         pane.classList.add('active')
         paneLoaders[name]?.()
       }
-      if (motion) {
-        const enterAnimation = pane.animate([
+      // 主页的毛玻璃需要直接采样整页背景；给祖先做透明度动画会隔断采样，直到动画取消才恢复。
+      // 来回切换都只动画启动项内容，卡片与父面板保持原位，设置页仍沿用原来的滑动。
+      const enterTarget = name === 'control' ? pane.querySelector('.launch-presets') : pane
+      if (motion && enterTarget) {
+        const enterAnimation = enterTarget.animate([
           { opacity: 0, transform: `translateX(${direction * 48}px)` },
           { opacity: 1, transform: 'translateX(0)' },
         ], { duration: 260, easing: 'cubic-bezier(.2, 1.3, .32, 1)', fill: 'both' })
@@ -4272,11 +4287,6 @@
     const packMarketHintEl = document.getElementById('packMarketHint')
     const marketSearchEl = document.getElementById('marketSearch')
     const marketSortEl = document.getElementById('marketSort')
-    const marketPageSizeEl = document.getElementById('marketPageSize')
-    let marketPage = 1
-    let marketPageSize = 4
-    try { const saved = Number(localStorage.getItem('dsh-market-page-size')); if ([4, 8, 12, 24].includes(saved)) marketPageSize = saved } catch {}
-    marketPageSizeEl.value = String(marketPageSize)
     let packInstalling = false
     let marketStatsRevision = 0
     const packImportCloseEl = document.getElementById('packImportClose')
@@ -4291,6 +4301,7 @@
     const packInspectEl = document.getElementById('packInspect')
     const packMarketEl = document.getElementById('packMarket')
     const packMarketDetailEl = document.getElementById('packMarketDetail')
+    const packMarketActionsEl = document.getElementById('packMarketActions')
     let marketDetailIndex = null
     const packSourceEl = document.getElementById('packSource')
     const packCheckEl = document.getElementById('packCheck')
@@ -4745,7 +4756,8 @@
         if (event.key !== 'Tab' || openUiSelect) return
         const controls = [...dialog.querySelectorAll('button, input, textarea, select:not(.ui-select-native), summary, a[href], [tabindex="0"]')].filter((el) => !el.disabled && el.getClientRects().length)
         const first = controls[0], last = controls.at(-1)
-        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
+        if (document.activeElement === dialog.querySelector('.ask-card') || !dialog.contains(document.activeElement)) { event.preventDefault(); (event.shiftKey ? last : first)?.focus() }
+        else if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
       })
       dialog.addEventListener('click', (event) => { if (event.target === dialog) close() })
@@ -4773,28 +4785,15 @@
     trapPackDialog(packInstallDialog, closeInstallDialog)
     trapPackDialog(packExportDialog, closeExportDialog)
     trapPackDialog(profileDialogEl, closeProfileDialog)
-    marketSearchEl.oninput = marketSortEl.onchange = () => { marketPage = 1; renderPackMarket() }
-    marketPageSizeEl.onchange = () => {
-      marketPageSize = Number(marketPageSizeEl.value)
-      marketPage = 1
-      try { localStorage.setItem('dsh-market-page-size', String(marketPageSize)) } catch {}
-      renderPackMarket()
-    }
-    function turnMarketPage(direction) {
-      marketPage += direction
+    marketSearchEl.oninput = marketSortEl.onchange = () => {
       renderPackMarket()
       packMarketEl.scrollTop = 0
-      if (document.documentElement.classList.contains('reduce-motion') || matchMedia('(prefers-reduced-motion: reduce)').matches) return
-      packMarketEl.animate([{ opacity: .3, transform: `translateX(${direction * 10}px)` }, { opacity: 1, transform: 'translateX(0)' }], {
-        duration: 180, easing: 'ease-out',
-      })
     }
-    document.getElementById('marketPrev').onclick = () => turnMarketPage(-1)
-    document.getElementById('marketNext').onclick = () => turnMarketPage(1)
 
 
     function openImportDialog() {
-      showPackDialog(packImportDialog, marketSearchEl)
+      showPackDialog(packImportDialog, document.getElementById('packMarketCard'))
+      window.launcherMarketLayout?.refresh(packMarketEl)
       if (!packMarketLoaded) {
         packMarketLoaded = true
         renderPackMarket()
@@ -4848,9 +4847,10 @@
           <div><strong>${Number.isInteger(entry.forks) ? entry.forks : '—'}</strong><span>Fork</span></div>
         </div>
         <p class="market-description">${escapeHtml(entry.description || t('暂无说明'))}</p>
-        ${entry.dshVersion ? `<p class="hint">${escapeHtml(t('需要 dsh {version}', { version: entry.dshVersion }))}</p>` : ''}
-        <div class="market-detail-actions">${entry.repoUrl ? `<a class="ghost" href="${escapeHtml(entry.repoUrl)}" target="_blank" rel="noreferrer">GitHub</a>` : '<span></span>'}<button class="primary market-install" type="button" ${installed || packBusy || launcherRunning() ? 'disabled' : ''}>${escapeHtml(t(installed ? '已安装' : '安装'))}</button></div>`
-      packMarketDetailEl.querySelector('.market-install').onclick = () => inspectPack({ market: entry })
+        ${entry.dshVersion ? `<p class="hint">${escapeHtml(t('需要 dsh {version}', { version: entry.dshVersion }))}</p>` : ''}`
+      // 详情可滚动，来源链接和安装入口始终留在卡片底部。
+      packMarketActionsEl.innerHTML = `${entry.repoUrl ? `<a class="ghost" href="${escapeHtml(entry.repoUrl)}" target="_blank" rel="noreferrer">GitHub</a>` : '<span></span>'}<button class="primary market-install" type="button" ${installed || packBusy || launcherRunning() ? 'disabled' : ''}>${escapeHtml(t(installed ? '已安装' : '安装'))}</button>`
+      packMarketActionsEl.querySelector('.market-install').onclick = () => inspectPack({ market: entry })
     }
     function openMarketDetail(index) {
       marketDetailIndex = index
@@ -4866,23 +4866,21 @@
         if (marketSortEl.value === 'name') return (a.entry.displayName || a.entry.name).localeCompare(b.entry.displayName || b.entry.name)
         return (marketDate(b.entry.updatedAt)).localeCompare(marketDate(a.entry.updatedAt)) || a.index - b.index
       })
-      const pages = Math.max(1, Math.ceil(list.length / marketPageSize))
-      marketPage = Math.max(1, Math.min(marketPage, pages))
       document.getElementById('marketCount').textContent = t('{n} 个整合包', { n: list.length })
-      document.getElementById('marketPage').textContent = `${marketPage} / ${pages}`
-      document.getElementById('marketPrev').disabled = marketPage <= 1
-      document.getElementById('marketNext').disabled = marketPage >= pages
       if (!packMarket || packMarket.error || !list.length) {
         if (!packMarket) {
           // 首次读取市场：骨架卡占位，扫光见 launcher.css 的 skel-sweep
           const skeletonCard = '<div class="market-card is-skeleton" aria-hidden="true"><div class="market-card-info"><div class="market-card-heading"><span class="market-card-icon"></span><span class="skel-line skel-name"></span></div><span class="skel-line"></span><span class="skel-line skel-short"></span></div><div class="market-card-footer"><span class="skel-line skel-author"></span><span class="skel-line skel-pill"></span></div></div>'
           packMarketEl.innerHTML = `${skeletonCard.repeat(4)}<span class="sr-only" role="status">${escapeHtml(t('正在读市场…'))}</span>`
+          window.launcherMarketLayout?.refresh(packMarketEl)
           return
         }
         packMarketEl.innerHTML = `<div class="market-empty">${escapeHtml(packMarket.error ? t('市场没读到：{error}', { error: packMarket.error }) : t('没有匹配的整合包'))}</div>`
+        window.launcherMarketLayout?.refresh(packMarketEl)
         return
       }
-      packMarketEl.innerHTML = list.slice((marketPage - 1) * marketPageSize, marketPage * marketPageSize).map(({entry, index}) => {
+      // 瀑布流一次展示全部筛选结果，浏览范围不再受旧分页偏好限制。
+      packMarketEl.innerHTML = list.map(({entry, index}) => {
         const installed = marketPackInstalled(entry)
         return `<article class="market-card">
         <button class="market-card-info" type="button" data-market-detail="${index}">
@@ -4892,6 +4890,7 @@
         <div class="market-card-footer"><span class="market-card-author">${escapeHtml(entry.author || entry.name)}<small>${escapeHtml(entry.version ? `v${entry.version}` : '')}</small></span><span class="market-stars" title="GitHub Star">${marketStar} ${marketStars(entry)}</span><button class="ghost market-install" type="button" data-market="${index}" ${installed || packBusy || launcherRunning() ? 'disabled' : ''}>${escapeHtml(t(installed ? '已安装' : '安装'))}</button></div>
       </article>`
       }).join('')
+      window.launcherMarketLayout?.refresh(packMarketEl)
       packMarketEl.querySelectorAll('[data-market-detail]').forEach((el) => { el.onclick = () => openMarketDetail(Number(el.dataset.marketDetail)) })
       packMarketEl.querySelectorAll('button[data-market]').forEach((el) => { el.onclick = () => { const entry = all[Number(el.dataset.market)]; if (entry) void inspectPack({ market: entry }) } })
     }
@@ -4953,7 +4952,11 @@
       }
       document.getElementById('packInstallClose').disabled = packInstalling
       document.getElementById('packPreparing').hidden = Boolean(packInspection) || !packBusy
+      // 安装操作和进度留在固定页脚，技术清单再长也不会把按钮卷进滚动区。
+      const actionsEl = document.getElementById('packInstallActions')
+      actionsEl.hidden = !packInspection
       if (!packInspection) {
+        actionsEl.innerHTML = ''
         packInspectEl.hidden = true
         packInspectEl.innerHTML = ''
         return
@@ -5003,11 +5006,10 @@
             ${packRows(t('用户级文件'), home)}
             ${packNotes(t('包里没装的内容'), [...(pack.skipped || []).map((item) => `${item.path}：${item.reason}`), ...(pack.warnings || [])])}
           </div>
-        </details>
-        <div class="pack-actions">
+        </details>`
+      actionsEl.innerHTML = `
           <button class="primary${packInstalling ? ' loading' : ''}" type="button" id="packInstall" aria-busy="${packInstalling}" ${(data.ok && !packBusy && !launcherRunning()) ? '' : 'disabled'}>${packInstalling ? '<span class="spin" aria-hidden="true"></span>' : ''}<span class="pack-install-label">${escapeHtml(t('安装'))}</span></button>
-          <button class="ghost" type="button" id="packCancel" ${packInstalling ? 'disabled' : ''}>${escapeHtml(t('取消'))}</button>
-        </div>`
+          <button class="ghost" type="button" id="packCancel" ${packInstalling ? 'disabled' : ''}>${escapeHtml(t('取消'))}</button>`
       const profileSelect = document.getElementById('packProfile')
       createUiSelect(profileSelect)
       profileSelect.addEventListener('change', () => { void inspectPack({ token: data.token, profile: profileSelect.value }) })
@@ -5027,7 +5029,6 @@
       } catch (error) {
         packMarket = { ok: false, entries: [], error: error.message }
       }
-      marketPage = 1
       renderPackMarket()
       if (packMarket.ok) void loadMarketStats()
       if (!quiet) {
@@ -5088,7 +5089,7 @@
       packBusy = true
       renderPackMarket()
       renderPackInspect()
-      packHintEl.textContent = t('正在安装…（下面有进度）')
+      packHintEl.textContent = t('正在安装…')
       try {
         const data = await post('/api/packs/install', {
           token: packInspection.token,

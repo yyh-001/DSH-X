@@ -441,7 +441,6 @@ main.home .settings-body { padding-top: 34px; }
 .plugin-packs { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--line); }
 .plugin-packs > summary { color: var(--muted); font-size: 12px; cursor: pointer; }
 .plugin-packs .set-caption { margin-top: 14px; }
-#launchPluginsCard { width: min(720px, 100%); overflow-y: auto; }
 .launch-plugins-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .launch-plugins-head .ask-title { margin: 0; }
 .launch-plugins-head .icon-btn { width: 32px; height: 32px; padding: 0; border-radius: 8px; }
@@ -524,8 +523,7 @@ html.reduce-motion .launch-status.is-working::before { animation: none; }
 .launch-add:disabled { --launch-add-visible-opacity: .4; cursor: default; }
 .launch-add[hidden] { display: none; }
 #pane-control #hint:empty { display: none; }
-#launchDialog .ask-card { width: min(520px, 100%); overflow-y: auto; padding: 24px; border-radius: 18px; }
-.launch-modal-fields { display: grid; gap: 18px; margin-top: 0; }
+.launch-modal-fields { display: grid; align-content: start; gap: 18px; margin-top: 0; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .launch-home-row { display: flex; gap: 8px; }
 .launch-home-row input { min-width: 0; flex: 1; }
 .launch-home-row button { white-space: nowrap; }
@@ -1184,8 +1182,6 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
   .plugin-version { display: none; }
 }
 /* ---- 整合包：卡片区 + 点入详情 + 装包/导出弹窗 ---- */
-.ask-card.wide { width: min(760px, 100%); }
-.ask-card.wide .plugin-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .pack-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
 .profile-card { position: relative; min-width: 0; }
 .profile-card .pack-card { height: 100%; padding-right: 58px; }
@@ -1412,6 +1408,7 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 }
 /* 开机自启时若检测到新版本：先问用户，答案出来之前不启动 dsh */
 .ask {
+  --dialog-safe-area: 48px;
   position: fixed;
   inset: 0;
   z-index: 30;
@@ -1423,16 +1420,30 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 }
 .ask[hidden] { display: none; }
 .ask-card {
-  width: min(520px, 100%);
-  max-height: 88vh;
+  /* 宽度统一分档，高度随内容收拢；长列表只占可用视口，正文仍独立滚动。 */
+  --dialog-width: 560px;
+  width: min(var(--dialog-width), 100%);
+  height: auto;
+  max-height: calc(100dvh - var(--dialog-safe-area));
+  min-height: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 16px;
+  border-radius: 18px;
   box-shadow: 0 18px 48px rgba(22, 35, 61, 0.24);
-  padding: 24px 26px 20px;
+  padding: 24px;
 }
+.ask-card[data-dialog-size=small] { --dialog-width: 440px; }
+.ask-card[data-dialog-size=medium] { --dialog-width: 560px; }
+.ask-card[data-dialog-size=large] { --dialog-width: 840px; }
+/* 标题和操作区保持可见，只有正文滚动；正文子项不能被 flex 压扁。 */
+.ask-card > * { flex-shrink: 0; }
+.ask-card > .launch-modal-fields { flex: 1 1 auto; }
+.dialog-body { display: flex; flex-direction: column; gap: 14px; flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px; margin: -4px; scrollbar-width: thin; }
+.dialog-body > * { flex-shrink: 0; }
+.profile-dialog-card .dialog-body, #packExportDialog .dialog-body { gap: 0; }
 .ask-title { margin: 0 0 10px; font-size: 17px; font-weight: 650; }
 .ask-items { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #c3d3ee transparent; }
 .ask-item { padding: 13px 0; border-top: 1px solid var(--line); }
@@ -1494,9 +1505,10 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 /* 页面内提示：原生 alert 在 app 窗口里是系统弹窗，风格割裂 */
 #notice { z-index: 40; }
 .notice-text {
+  flex: 1 1 auto;
+  min-height: 0;
   margin: 0;
   white-space: pre-line;
-  max-height: 40vh;
   overflow-y: auto;
   color: var(--text);
   font-size: 13px;
@@ -1527,7 +1539,6 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 .mcp-field input, .mcp-field select { width: 62%; }
 .mcp-field .ui-select { width: 62%; }
 .mcp-field[hidden] { display: none; }
-#mcpDialog .ask-card { width: min(540px, 100%); overflow-y: auto; }
 #mcpDialog .mcp-form { gap: 16px; }
 #mcpDialog .mcp-field { align-items: stretch; flex-direction: column; gap: 7px; font-size: 12px; }
 #mcpDialog .mcp-field input, #mcpDialog .mcp-field .ui-select { width: 100%; }
@@ -1545,14 +1556,13 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 .skill-open { display: flex; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .skill-open:hover .plugin-name { color: var(--accent); }
 .skill-open:focus-visible { outline: 2px solid var(--accent); outline-offset: 5px; border-radius: 4px; }
-.skill-detail-card { width: min(720px, 100%); max-height: calc(100dvh - 48px); }
 .skill-detail-path { margin: 0; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
 .skill-detail-description { margin: 14px 0; font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
 .skill-detail-content { flex: 1 1 auto; min-height: 0; overflow: auto; margin: 0; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--accent-soft); color: var(--text); font: 12px/1.8 ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere; scrollbar-width: thin; }
 .skill-delete { flex: 0 0 auto; width: 30px; height: 30px; padding: 6px; border: 0; color: var(--muted); background: transparent; border-radius: 8px; cursor: pointer; }
 .skill-delete:hover:not(:disabled) { background: #e5484d15; color: #e5484d; }
 .skill-delete svg { width: 18px; height: 18px; }
-.skill-editor-card { width: min(580px, 100%); overflow-y: auto; gap: 14px; }
+.skill-editor-card { gap: 14px; }
 .skill-editor-card label { display: flex; flex-direction: column; gap: 7px; color: var(--muted); font-size: 12px; }
 .skill-editor-card input, .skill-editor-card textarea, .skill-editor-card .ui-select { width: 100%; }
 .skill-editor-card textarea { resize: vertical; min-height: 150px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--text); font: 12px/1.7 ui-monospace, monospace; }
@@ -1571,7 +1581,8 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 #launchDialog .launch-manage-version svg { width: 18px; height: 18px; }
 #launchDialog .select-trigger { min-height: 42px; height: 42px; border-radius: 10px; font-size: 13px; }
 #launchDialog input[type=text], #launchDialog input[type=number], #launchDialog select { height: 42px; border-radius: 10px; font-size: 13px; }
-#launchDialog .select-panel { position: absolute; z-index: 30; inset: calc(100% + 6px) 0 auto; margin: 0; max-height: min(250px, 32vh); box-shadow: 0 12px 32px #0003; }
+/* 版本候选在内容区内展开，避免固定弹窗的滚动边界裁掉菜单。 */
+#launchDialog .select-panel { position: static; margin: 6px 0 0; max-height: min(250px, 32vh); box-shadow: 0 12px 32px #0003; }
 /* 启动项弹窗的版本下拉保留宽松行高与徽章；紧凑控件只压设置行和筛选框。 */
 #versionPanel .select-option { padding: 9px 11px; font-size: 14px; }
 #versionPanel .select-option.more { font-size: 13px; }
@@ -1598,43 +1609,39 @@ html.reduce-motion .ask > .ask-card { transition: none; }
 .dialog-subtitle { margin: 5px 0 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
 .dialog-heading .icon-btn { width: 30px; height: 30px; padding: 6px; border-radius: 8px; }
 .dialog-heading .icon-btn svg { width: 17px; height: 17px; }
-#packImportDialog .market-browser { width: min(800px, 100%); max-height: calc(100dvh - 48px); overflow: hidden; padding: 24px; }
-.market-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
-.market-toolbar input { flex: 1; min-width: 0; }
+.market-browser:focus { outline: none; }
+.market-browser .dialog-close { border-color: transparent; background: transparent; color: var(--muted); }
+.market-browser .dialog-close:hover { background: var(--accent-soft); color: var(--accent); }
+.market-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+.market-search { position: relative; flex: 1; min-width: 0; }
+.market-search > svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--muted); pointer-events: none; }
+.market-search input[type=search] { width: 100%; padding-left: 36px; }
 input[type=search] { background: var(--card); border: 1px solid var(--line); color: var(--text); font: inherit; font-size: var(--control-font-size); border-radius: var(--control-radius); height: var(--control-height); padding: 0 var(--control-padding); outline-offset: 2px; }
 .market-toolbar .ui-select { width: 130px; flex: 0 0 auto; }
 #packMarketTitle { margin: 0 0 10px; font-size: 12px; color: var(--muted); }
-.market-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; overflow-y: auto; min-height: 0; padding: 1px; scrollbar-width: thin; }
+.market-grid { --market-gap: 14px; display: grid; flex: 1 1 auto; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 4px; align-items: start; align-content: start; column-gap: var(--market-gap); overflow-y: auto; overflow-x: hidden; min-height: 0; padding: 2px; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
 .market-grid[hidden], .market-detail[hidden] { display: none; }
-.market-card { display: flex; flex-direction: column; gap: 12px; padding: 14px; border: 1px solid transparent; border-radius: 12px; background: color-mix(in srgb, var(--accent-soft) 48%, var(--card)); min-width: 0; transition: border-color 140ms ease, background-color 140ms ease; }
-.market-card:hover { border-color: var(--line); background: var(--accent-soft); }
-.market-card-info { display: flex; flex-direction: column; gap: 12px; width: 100%; padding: 0; border: 0; text-align: left; color: var(--text); background: transparent; font: inherit; cursor: pointer; flex: 1; min-width: 0; }
+.market-card { display: flex; flex-direction: column; gap: 16px; padding: 18px; border: 1px solid color-mix(in srgb, var(--line) 65%, transparent); border-radius: 16px; background: color-mix(in srgb, var(--accent-soft) 24%, var(--card)); min-width: 0; box-shadow: 0 2px 8px rgba(34, 67, 128, .025); transition: border-color 160ms ease, background-color 160ms ease; }
+.market-card:hover { border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); background: color-mix(in srgb, var(--accent-soft) 48%, var(--card)); }
+.market-card-info { display: flex; flex-direction: column; gap: 14px; width: 100%; padding: 0; border: 0; text-align: left; color: var(--text); background: transparent; font: inherit; cursor: pointer; min-width: 0; }
+.market-card-info:focus-visible { outline: 2px solid var(--accent); outline-offset: 6px; border-radius: 5px; }
 .market-card-heading { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.market-card-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: var(--accent-soft); color: var(--muted); flex: 0 0 auto; }
+.market-card-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); flex: 0 0 auto; }
 .market-card-icon svg { width: 19px; height: 19px; }
-.market-card-name { font-size: 14px; line-height: 1.4; font-weight: 600; }
-.market-card-desc { font-size: 12px; line-height: 1.65; height: 40px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.market-card-name { font-size: 14px; line-height: 1.5; font-weight: 600; overflow-wrap: anywhere; }
+.market-card-desc { font-size: 12px; line-height: 1.75; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; white-space: pre-line; }
 .market-card-footer { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .market-card-author { flex: 1; min-width: 0; font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.market-card-author small { display: inline; font-size: 10.5px; margin-left: 7px; }
+.market-card-author small { display: block; font-size: 10.5px; margin-top: 3px; opacity: .8; }
 .market-stars { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 11.5px; white-space: nowrap; }
 .market-stars svg { width: 13px; height: 13px; }
 .market-install { flex: 0 0 auto; width: auto; min-width: 62px; height: 30px; padding: 0 12px; border-radius: 8px; font-size: 12px; }
+.market-card .market-install { color: var(--accent); border-color: transparent; background: var(--accent-soft); }
+.market-card .market-install:hover:not(:disabled) { border-color: var(--accent); }
 .market-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid var(--line); padding: 12px 0 0; margin-top: 0; flex: 0 0 auto; color: var(--muted); font-size: 12px; }
 input[type=search]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 #marketCount { font-variant-numeric: tabular-nums; white-space: nowrap; }
-.market-pagination { display: flex; align-items: center; gap: 14px; }
-.market-page-size { display: flex; align-items: center; gap: 8px; }
-.market-page-nav { display: flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
-.market-pagination label { display: inline-flex; align-items: center; gap: 7px; margin: 0; letter-spacing: 0; }
-.market-pagination .ui-select { width: 58px; }
-.market-pagination .ui-select .select-trigger { padding: 0 10px; gap: 10px; font-variant-numeric: tabular-nums; }
-.market-pagination .icon-btn { width: 28px; height: 28px; padding: 5px; border: 0; border-radius: 7px; background: transparent; }
-.market-pagination .icon-btn:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent); }
-.market-pagination .icon-btn:disabled { opacity: .3; }
-.market-pagination svg { width: 16px; height: 16px; }
-#marketPage { font-variant-numeric: tabular-nums; min-width: 42px; text-align: center; color: var(--text); }
-.market-browser .pack-import-source { margin: 16px 0; flex: 0 0 auto; }
+.market-browser .pack-import-source { margin: 8px 0 14px; flex: 0 0 auto; font-size: 12px; }
 .market-browser .pack-source { flex-wrap: wrap; }
 .market-browser .pack-source input { height: var(--control-height); font-size: var(--control-font-size); }
 #packMarketHint { margin: 9px 0 0; font-size: 11px; }
@@ -1661,8 +1668,7 @@ html[data-color-scheme="dark"] .skel-line::after { background: linear-gradient(9
 .pack-preparing { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
 .pack-preparing[hidden] { display: none; }
 .pack-preparing .spin { display: inline-block; flex: 0 0 auto; width: 14px; height: 14px; border-width: 2px; }
-.market-detail-card, .pack-confirm-card { width: min(620px, 100%); max-height: calc(100dvh - 48px); overflow: hidden; }
-.market-detail { overflow-y: auto; min-height: 0; }
+.market-detail { flex: 1 1 auto; overflow-y: auto; min-height: 0; }
 .market-detail-meta { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--muted); }
 .market-detail-meta .market-stars { margin-left: auto; }
 .market-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 10px; margin: 20px 0; padding: 14px 0; }
@@ -1671,10 +1677,11 @@ html[data-color-scheme="dark"] .skel-line::after { background: linear-gradient(9
 .market-facts strong { font-size: 13px; font-weight: 600; }
 .market-facts span { font-size: 11px; color: var(--muted); }
 .market-description { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.85; margin: 0 0 22px; }
-.market-detail-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-top: 1px solid var(--line); padding-top: 16px; }
+.market-detail-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex: 0 0 auto; margin-top: 16px; border-top: 1px solid var(--line); padding-top: 16px; }
 .market-detail-actions a { text-decoration: none; padding: 8px 12px; border-radius: 8px; font-size: 12px; }
 .market-detail-actions .market-install { height: 36px; min-width: 88px; }
-#packInstallDialog .pack-detail { overflow-y: auto; min-height: 0; margin: 0; border: 0; padding: 0; background: transparent; gap: 18px; }
+#packInstallDialog .pack-detail { flex: 1 1 auto; overflow-y: auto; min-height: 0; margin: 0; border: 0; padding: 0; background: transparent; gap: 18px; }
+#packInstallDialog .pack-detail > * { flex-shrink: 0; }
 #packInstallDialog .pack-title { flex-direction: column; align-items: flex-start; gap: 5px; }
 #packInstallDialog .pack-name { font-size: 16px; }
 .pack-install-summary { padding: 14px; border-radius: 9px; background: var(--accent-soft); font-size: 13px; }
@@ -1685,15 +1692,20 @@ html[data-color-scheme="dark"] .skel-line::after { background: linear-gradient(9
 /* 安装环境的候选面板在流内展开：弹窗本身可滚，绝对定位会被裁掉 */
 #packInstallDialog .select-panel { position: static; max-height: min(240px, 36vh); }
 #packInstallDialog .select-option { padding: 8px 11px; font-size: var(--control-font-size); border-radius: var(--control-radius); }
-#packInstallDialog .pack-actions { border-top: 1px solid var(--line); padding-top: 16px; justify-content: flex-start; flex-direction: row-reverse; }
+.pack-install-footer { display: flex; flex-direction: column; gap: 12px; flex: 0 0 auto; margin-top: auto; padding-top: 16px; border-top: 1px solid var(--line); }
+.pack-install-footer .progress, .pack-install-footer .hint { margin: 0; }
+.pack-install-footer .hint { max-height: 72px; overflow-y: auto; overflow-wrap: anywhere; }
+.pack-install-footer .hint:empty { display: none; }
+#packInstallDialog .pack-actions { display: flex; align-items: center; gap: 8px; justify-content: flex-start; flex-direction: row-reverse; }
+#packInstallDialog .pack-actions[hidden] { display: none; }
 /* 固定高度按钮不能沿用主按钮的大内边距，否则文字与加载圈会挤出内容区。 */
 #packInstallDialog .pack-actions button { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 88px; flex: 0 0 88px; height: 36px; min-width: 88px; padding: 0 14px; border: 1px solid var(--line); border-radius: 9px; font-family: inherit; font-size: 12px; font-weight: 600; line-height: 1; }
 #packInstallDialog .pack-actions .primary { border-color: transparent; }
 #packInstallDialog .pack-actions .primary.loading .pack-install-label { visibility: hidden; }
 #packInstallDialog .pack-actions .primary .spin { position: absolute; left: calc(50% - 7px); top: calc(50% - 7px); width: 14px; height: 14px; border-width: 2px; }
-#packPreparing { color: var(--muted); font-size: 13px; margin: 16px 0 24px; }
+#packPreparing { flex: 1 1 auto; min-height: 0; color: var(--muted); font-size: 13px; margin: 16px 0 24px; }
 /* 插件筛选保留在标题右侧，列表独立滚动，统计仅作次要说明。 */
-#launchPluginsCard { position: relative; width: min(760px, 100%); max-height: calc(100dvh - 48px); overflow: hidden; padding: 24px; }
+#launchPluginsCard { position: relative; }
 .launch-plugins-head { position: absolute; top: 24px; right: 24px; align-items: center; margin: 0; }
 #launchPluginsDialog .pack-detail-top { padding-right: 0; gap: 8px; }
 #launchPluginsClose { display: none; }
@@ -1701,7 +1713,7 @@ html[data-color-scheme="dark"] .skel-line::after { background: linear-gradient(9
 #launchPluginsClose svg { width: 18px; height: 18px; }
 .launch-plugins-head > div { min-width: 0; max-width: calc(100% - 240px); }
 .launch-plugins-head .ask-title { font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.8; }
-#launchPluginsHost, #launchPluginsHost #pluginPanel { display: flex; flex-direction: column; min-height: 0; }
+#launchPluginsHost, #launchPluginsHost #pluginPanel { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
 /* 弹窗的卡片是 overflow: hidden，滚动原来由平面列表承担；列表并进环境详情后，
    这里接班：详情占满剩余高度，插件列表内部滚，顶部那行操作保持固定 */
 #launchPluginsDialog #packView { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
@@ -1744,7 +1756,7 @@ html .set-row:focus-within { background: transparent; box-shadow: none; }
 .launch-tool-actions #launchRecover { height: 36px; border-radius: 9px; font-size: 12px; }
 .launch-tool-actions .icon-btn, .plugin-actions .action-icon { width: 32px; height: 32px; padding: 6px; border-radius: 8px; }
 .launch-tool-actions svg, .plugin-actions .action-icon svg { width: 18px; height: 18px; }
-.version-manage-card { width: min(420px, 100%); min-height: 0; padding: 22px; gap: 12px; border-radius: 18px; }
+.version-manage-card { gap: 12px; }
 .version-manage-card .dialog-heading { margin: 0 0 4px; }
 .version-manage-card .dialog-close { border-color: transparent; background: transparent; color: var(--muted); }
 #versionManageDialog { z-index: 34; }
@@ -1760,7 +1772,7 @@ html .set-row:focus-within { background: transparent; box-shadow: none; }
 .version-manage-heading { margin: 2px 0 0; padding-top: 14px; border-top: 1px solid var(--line); font-size: 12px; font-weight: 500; color: var(--muted); }
 .version-manage-row .version-remove svg { width: 18px; height: 18px; }
 .version-manage-row .version-manage-info span { max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.version-manage-list { flex: 0 1 auto; min-height: 0; max-height: min(48vh, 300px); overflow: auto; scrollbar-width: thin; }
+.version-manage-list { flex: 1 1 auto; min-height: 0; overflow: auto; scrollbar-width: thin; }
 .version-manage-row { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 0; border-bottom: 1px solid var(--line); }
 .version-manage-row:last-child { border-bottom: 0; }
 .version-manage-info { display: flex; flex: 1 1 auto; align-items: baseline; justify-content: space-between; gap: 12px; min-width: 0; }
@@ -1769,9 +1781,8 @@ html .set-row:focus-within { background: transparent; box-shadow: none; }
 .version-manage-row .version-remove { flex: 0 0 auto; width: 30px; min-width: 30px; height: 30px; min-height: 30px; padding: 6px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); white-space: nowrap; }
 .version-manage-row .version-remove:hover:not(:disabled) { color: var(--danger); background: var(--accent-soft); }
 .version-manage-empty { margin: 0; padding: 8px 0; font-size: 12px; }
-.profile-dialog-card { width: min(420px, 100%); padding: 24px; border-radius: 18px; }
-.profile-dialog-card > label { margin-bottom: 8px; color: var(--muted); font-size: 12px; }
-.profile-dialog-card > input { height: 42px; border-radius: 10px; }
+.profile-dialog-card .dialog-body > label { margin-bottom: 8px; color: var(--muted); font-size: 12px; }
+.profile-dialog-card .dialog-body > input { height: 42px; border-radius: 10px; }
 .profile-dialog-card .dialog-subtitle { margin-top: 10px; line-height: 1.7; }
 .profile-error { color: var(--danger); }
 .profile-error[hidden] { display: none; }
@@ -1779,8 +1790,9 @@ html .set-row:focus-within { background: transparent; box-shadow: none; }
 .profile-dialog-actions button { width: auto; min-width: 80px; height: 36px; padding: 0 14px; border-radius: 9px; font-size: 12px; }
 .profile-dialog-actions .spin { width: 14px; height: 14px; border-width: 2px; }
 @media (max-width: 560px) {
-  .ask { padding: 14px; }
-  #launchDialog .ask-card, #launchPluginsCard, .profile-dialog-card, #packImportDialog .market-browser, .market-detail-card, .pack-confirm-card { padding: 18px; max-height: calc(100dvh - 28px); }
+  .ask { padding: 14px; --dialog-safe-area: 28px; }
+  .ask-card { padding: 18px; }
+  .launch-plugins-head { top: 18px; right: 18px; }
   .launch-save-actions { flex-wrap: wrap; }
   .launch-save-actions .launch-repair { font-size: 11px; }
   .market-grid { grid-template-columns: 1fr; }
@@ -1788,7 +1800,6 @@ html .set-row:focus-within { background: transparent; box-shadow: none; }
   .market-toolbar { gap: 8px; }
   .market-toolbar .ui-select { width: 108px; }
   .market-footer { flex-wrap: wrap; gap: 10px; }
-  .market-pagination { margin-left: auto; gap: 6px; }
   .market-facts { grid-template-columns: repeat(2, 1fr); gap: 14px 0; }
   .market-facts > div:nth-child(2) { border-right: 0; }
   .launch-plugins-head > div { max-width: calc(100% - 194px); }
@@ -1836,7 +1847,7 @@ html .set-row:focus-within { background: transparent; box-shadow: none; }
 .skill-install-card [hidden] { display: none !important; }
 
 /* 安装表单压成来源、检测结果、目标三段；空状态不留无意义的占位间距。 */
-#skillInstallDialog .skill-install-card { width: min(460px, 100%); padding: 22px; gap: 14px; }
+#skillInstallDialog .skill-install-card { gap: 14px; }
 .skill-install-card .dialog-heading { margin: 0 0 2px; }
 .skill-install-heading-actions { display: flex; align-items: center; gap: 8px; }
 .skill-install-heading-actions .skill-catalog-link { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; margin: 0; border-radius: 8px; color: var(--muted); }
@@ -1890,4 +1901,4 @@ html.reduce-motion #launchIconTrigger, html.reduce-motion #launchPickHome, html.
 #skillInstallDialog .skill-source-tabs button:hover:not(:disabled) { color: var(--accent); background: transparent; border-bottom-color: var(--muted); }
 #skillInstallDialog .skill-source-tabs button[aria-pressed=true] { border-bottom-color: var(--accent); }
 
-@media (max-width: 560px) { .version-manage-card { padding: 18px; max-height: calc(100dvh - 28px); } .version-manage-info { align-items: flex-start; flex-direction: column; gap: 2px; } .version-manage-row .version-manage-info span { max-width: 100%; } }
+@media (max-width: 560px) { .version-manage-info { align-items: flex-start; flex-direction: column; gap: 2px; } .version-manage-row .version-manage-info span { max-width: 100%; } }

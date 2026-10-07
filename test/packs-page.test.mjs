@@ -126,6 +126,39 @@ test('安装前必须有对应目标的有效检查结果；安装中取消不�
   assert.equal(context.packInspection.ok, true, '安装期间的关闭操作不清空检查状态')
 })
 
+test('安装计划和忙碌重画只更新固定页脚按钮，正文滚动不带走操作区', () => {
+  const nodes = new Map()
+  const node = (id) => {
+    if (!nodes.has(id)) nodes.set(id, { innerHTML: '', hidden: true, addEventListener() {} })
+    return nodes.get(id)
+  }
+  const context = vm.createContext({
+    document: { getElementById: node, documentElement: { classList: { contains: () => true } } },
+    uiSelects: new Map(), openUiSelect: null, createUiSelect() {},
+    packInspectEl: node('packInspect'), packTargetProfile: 'web', packState: { profiles: ['web'] },
+    packInspection: { ok: true, token: 'checked', pack: { name: 'test-pack', version: '1.0.0', dependencies: [] }, target: { profile: 'web' }, plan: { warnings: ['一段较长的安装提示'] } },
+    packBusy: false, packInstalling: false, launcherRunning: () => false,
+    t: (text) => text, escapeHtml: (text) => String(text ?? ''),
+    installPack() {}, closeInstallDialog() {},
+  })
+  new vm.Script(slice('function packRows(title, rows)', 'async function loadMarket(')).runInContext(context)
+  context.renderPackInspect()
+  assert.match(node('packInspect').innerHTML, /一段较长的安装提示/)
+  assert.doesNotMatch(node('packInspect').innerHTML, /id="packInstall"|id="packCancel"/)
+  assert.equal(node('packInstallActions').hidden, false)
+  assert.match(node('packInstallActions').innerHTML, /aria-busy="false"/)
+  assert.doesNotMatch(node('packInstallActions').innerHTML, /disabled/)
+  context.packInstalling = context.packBusy = true
+  context.renderPackInspect()
+  assert.match(node('packInstallActions').innerHTML, /aria-busy="true" disabled/)
+  assert.match(node('packInstallActions').innerHTML, /id="packCancel" disabled/)
+  assert.equal(node('packInstallClose').disabled, true)
+  context.packInspection = null
+  context.renderPackInspect()
+  assert.equal(node('packInstallActions').hidden, true)
+  assert.equal(node('packInstallActions').innerHTML, '')
+})
+
 test('整合包安装成功只显示已安装，真实失败才弹出安装失败', async () => {
   const notices = [], closed = []
   let fail = false
@@ -172,20 +205,22 @@ test('市场卡片与详情从安装记录显示已安装，其他环境和新�
     openedPack: { profile: 'desktop' }, pluginProfile: 'desktop', state: {},
     packState: { packs: [{ profile: 'desktop', records: [{ name: 'smooth', source: entry.id, version: '1.0.0' }] }] },
     packMarket: { entries: [entry] }, packBusy: false, launcherRunning: () => false,
-    marketDetailIndex: 0, marketSearchEl: { value: '' }, marketSortEl: { value: 'name' }, marketPage: 1, marketPageSize: 4,
-    packMarketEl: panel(), packMarketDetailEl: panel(), document: { getElementById: node },
+    marketDetailIndex: 0, marketSearchEl: { value: '' }, marketSortEl: { value: 'name' },
+    packMarketEl: panel(), packMarketDetailEl: panel(), packMarketActionsEl: panel(), document: { getElementById: node },
+    window: { launcherMarketLayout: { refresh() {} } },
     t: (text) => text, escapeHtml: (text) => String(text ?? ''), marketStar: '', marketCube: '',
   })
   new vm.Script(slice('function marketDate(value)', 'async function loadMarketStats()')).runInContext(context)
   const render = () => { context.renderPackMarket(); context.renderMarketDetail() }
   const installed = () => {
-    for (const el of [context.packMarketEl, context.packMarketDetailEl]) assert.match(el.innerHTML, /class="[^"]*market-install"[^>]*disabled[^>]*>已安装<\/button>/)
+    for (const el of [context.packMarketEl, context.packMarketActionsEl]) assert.match(el.innerHTML, /class="[^"]*market-install"[^>]*disabled[^>]*>已安装<\/button>/)
   }
   const available = () => {
-    for (const el of [context.packMarketEl, context.packMarketDetailEl]) assert.match(el.innerHTML, /class="[^"]*market-install"[^>]*>安装<\/button>/)
+    for (const el of [context.packMarketEl, context.packMarketActionsEl]) assert.match(el.innerHTML, /class="[^"]*market-install"[^>]*>安装<\/button>/)
   }
   render()
   installed()
+  assert.doesNotMatch(context.packMarketDetailEl.innerHTML, /market-install/, '详情正文不包含安装按钮')
   context.openedPack = { profile: 'web' }
   render()
   available()

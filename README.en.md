@@ -23,7 +23,7 @@ A lightweight desktop launcher for DeepSeek Harness: launch entries, multiple in
 - **Launch entries and multiple instances**: choose a dsh home directory, profile, version and port for each entry; different profiles of the same version can run together.
 - **Plugins and packs**: install, toggle and update plugins by environment; import packs from the community market or a file, and export your own environment.
 - **MCP and skills**: configure MCP servers and import, manage and toggle skills.
-- **Opening modes**: a system browser tab, standalone browser window or desktop window.
+- **Opening modes**: tabs inside DSH-X, a system browser tab, standalone browser window or desktop window.
 - **Appearance**: light / dark themes, transparency, and separate background and Big Fish switches.
 - **Updates and recovery**: self-update, profile recovery and configurable old-version retention; each launch entry's current and previous versions are kept additionally.
 - **Windows / macOS**: a Windows installer and Apple Silicon / Intel dmgs, tray / menu bar operation and launch at login, with Node / npm / pnpm included.
@@ -80,7 +80,7 @@ The release-manifest signature verifies file integrity and is separate from Wind
 
 Windows: install [DSH-Setup.exe](https://github.com/yyh-001/DSH-X/releases/latest), then open **DSH-X** from the desktop.
 
-macOS: open `DSH-X-mac-arm64.dmg` (Apple Silicon) or `DSH-X-mac-x64.dmg` (Intel) and drag **DSH-X** into Applications. v0.1.15 uses ad-hoc signing and is not notarized; the first launch may require manual approval through macOS security prompts.
+macOS: open `DSH-X-mac-arm64.dmg` (Apple Silicon) or `DSH-X-mac-x64.dmg` (Intel) and drag **DSH-X** into Applications. v0.1.16 uses ad-hoc signing and is not notarized; the first launch may require manual approval through macOS security prompts.
 
 Add or edit a launch entry on the home page, select its environment and version, then start it. Choose a browser, a separate window or **tabs inside DSH-X** in Settings. The manager defaults to port `3780` and tries the next port if occupied. To reach dsh from another device: Settings → Advanced → **Web binding** → LAN, applied on the next start.
 
@@ -101,7 +101,7 @@ On Windows (Rust and Inno Setup 6) this produces `release/DSH/` and `release/DSH
 Windows builds also write an SBOM and release manifest for local checking (not uploaded to the release). Check the version and artifacts before publishing:
 
 ```sh
-node scripts/release-manifest.mjs check-tag v0.1.15
+node scripts/release-manifest.mjs check-tag v0.1.16
 node scripts/release-manifest.mjs verify
 ```
 

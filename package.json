@@ -1,10 +1,10 @@
 {
   "name": "dsh-versions",
   "productName": "DSH",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "private": true,
   "type": "module",
-  "description": "DeepSeek Harness 轻量启动器。选一个版本，启动 DSH web。",
+  "description": "DeepSeek Harness 轻量桌面启动器：启动项与多实例，版本、插件、整合包、MCP 和技能管理。",
   "main": "start.js",
   "engines": {
     "node": ">=22.18.0"
