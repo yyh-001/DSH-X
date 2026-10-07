@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-import { appWindowArgs, chromiumCandidates, findChromiumBrowser, openRoute } from '../server.js'
+import { appWindowArgs, chromiumCandidates, findChromiumBrowser, internalTabTarget, openRoute } from '../server.js'
 import { DEFAULTS, OPEN_MODES, safeOpenMode } from '../settings.js'
 
 // 打开方式（issue #26 的诉求）：默认还是系统浏览器的标签页，想要「更像 App」的用户可以切成
@@ -13,10 +13,11 @@ import { DEFAULTS, OPEN_MODES, safeOpenMode } from '../settings.js'
 // 启动器内嵌的桌面窗口（原生外壳自己开一个 WebView2 窗口承载 dsh 界面）。
 
 test('打开方式只认内置几项，脏值回标签页，默认是标签页', () => {
-  assert.deepEqual(OPEN_MODES, ['tab', 'app', 'window'])
+  assert.deepEqual(OPEN_MODES, ['tab', 'app', 'window', 'internal'])
   assert.equal(DEFAULTS.openMode, 'tab')
   assert.equal(safeOpenMode('app'), 'app')
   assert.equal(safeOpenMode('window'), 'window')
+  assert.equal(safeOpenMode('internal'), 'internal')
   assert.equal(safeOpenMode('tab'), 'tab')
   assert.equal(safeOpenMode('webview'), 'tab', '没实现的形态不能被放行')
   assert.equal(safeOpenMode(''), 'tab')
@@ -67,4 +68,23 @@ test('设置页在「选了桌面窗口但没有原生外壳」时如实说明�
   assert.match(html, /openModeEl\.value === 'window' && data\.openModeWindow === false/, '按服务端给的可用性判断')
   assert.match(html, /当前预览使用浏览器标签页/, '说明会退回浏览器标签页')
   assert.match(html, /打开 dsh 的方式[\s\S]{0,400}?<select id="openMode"><\/select>/, '还是同一个下拉')
+})
+
+test('内部标签页需要新版外壳能力；旧外壳和源码运行仍能打开浏览器', () => {
+  assert.equal(openRoute('internal', true, true), 'internal')
+  assert.equal(openRoute('internal', true, false), 'browser')
+  assert.equal(openRoute('internal', false, true), 'browser')
+  assert.equal(openRoute('internal', false, false), 'browser')
+})
+
+test('内部标签按环境和版本识别，重启更换端口与认证 token 不会增加标签', () => {
+  const instance = { home: 'C:\\dsh-home', version: '1.0.0', profile: 'web', status: 'running', url: 'http://127.0.0.1:1234/?token=first' }
+  const first = internalTabTarget(instance)
+  const restarted = internalTabTarget({ ...instance, url: 'http://127.0.0.1:2345/?token=second' })
+  assert.equal(first.id, restarted.id)
+  assert.equal(restarted.url, 'http://127.0.0.1:2345/?token=second')
+  assert.notEqual(first.id, internalTabTarget({ ...instance, profile: 'other' }).id)
+  assert.notEqual(first.id, internalTabTarget({ ...instance, home: 'D:\\other-home' }).id)
+  assert.notEqual(first.id, internalTabTarget({ ...instance, version: '2.0.0' }).id)
+  assert.ok(!first.id.includes('token=') && !first.title.includes('token='))
 })

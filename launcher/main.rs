@@ -13,6 +13,7 @@
 //! 设置里选了「桌面窗口」时，dsh 自己的界面也开在这里（第二个窗口，同样由本进程创建）：
 //! node 在 stdout 上打一行 OPEN_SIGNAL 说明地址，这边收到就把窗口叫出来；换句话说
 //! dsh 的界面完全不经过浏览器进程。
+//! 「DSH-X 内部标签页」复用主窗口，用多个子 WebView 保留各个实例的页面和输入状态。
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{SocketAddr, TcpStream};
@@ -23,6 +24,7 @@ use std::process::{Command, Stdio};
 use std::sync::{mpsc, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
+use serde_json::Value;
 
 #[cfg(target_os = "macos")]
 use tao::dpi::LogicalPosition;
@@ -33,6 +35,9 @@ use tao::window::{Window, WindowBuilder};
 use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tray_icon::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use wry::{WebContext, WebView, WebViewBuilder};
+
+mod tabs;
+use tabs::{BrowserTabs, TabAction, TabTarget};
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -117,6 +122,12 @@ enum UserEvent {
     LaunchDsh,
     /// 内嵌窗口里网页的标题变了：同步到窗口标题（任务栏里才认得出是哪个窗口）
     DshTitle(String),
+    OpenTab(TabTarget),
+    TabsReady,
+    TabsAction(TabAction),
+    TabTitle(String, String),
+    TabPageLoaded(String, String),
+    TabLink(String, String),
 }
 
 /// 从 /api/tray 读回来的状态（纯文本 key=value，见 server.js）
@@ -127,10 +138,12 @@ struct TrayState {
     installed: bool,
     /// 界面语言（zh / en），由管理页的 /api/tray 带过来
     lang: String,
-    /// 打开方式（tab / window），由管理页的 /api/tray 带过来
+    /// 打开方式（tab / app / window / internal），由管理页的 /api/tray 带过来
     openmode: String,
     /// 本进程是不是由原生外壳托管（＝这个进程自己，永远为真；源码运行那一侧才是 0）
     shell: bool,
+    theme: String,
+    instances: Vec<TabTarget>,
 }
 
 impl TrayState {
@@ -142,6 +155,10 @@ impl TrayState {
     /// 两个条件缺一不可——源码运行时选了窗口模式，也要照旧退回系统浏览器。
     fn window_mode(&self) -> bool {
         self.openmode == "window" && self.shell
+    }
+
+    fn internal_mode(&self) -> bool {
+        self.openmode == "internal" && self.shell
     }
 }
 
@@ -158,6 +175,12 @@ fn parse_tray_state(text: &str) -> TrayState {
             "lang" => state.lang = value.trim().to_string(),
             "openmode" => state.openmode = value.trim().to_string(),
             "shell" => state.shell = value.trim() == "1",
+            "theme" => state.theme = value.trim().to_string(),
+            "instances" => {
+                if let Ok(Value::Array(items)) = serde_json::from_str::<Value>(value) {
+                    state.instances = items.iter().filter_map(TabTarget::parse).collect();
+                }
+            }
             _ => {}
         }
     }
@@ -547,6 +570,25 @@ fn open_dsh_window(
             }
         }
     }
+}
+
+/// 内部打开复用主窗口；旧的独立桌面窗口入口保留，两种设置互不改变含义。
+fn open_internal_tab(
+    tabs: &mut Option<BrowserTabs>,
+    window: Option<&Window>,
+    manager: Option<&WebView>,
+    context: &mut WebContext,
+    proxy: &EventLoopProxy<UserEvent>,
+    target: TabTarget,
+) {
+    if let (Some(window), Some(manager)) = (window, manager) {
+        if tabs.is_none() { *tabs = Some(BrowserTabs::new()); }
+        if let Some(tabs) = tabs {
+            if tabs.open(target.clone(), window, manager, context, proxy).is_ok() { return; }
+        }
+    }
+    // 页面承载失败时至少还能访问已经启动的实例；不把 WebView 错误当成 DSH 启动失败。
+    open_in_browser(&target.url);
 }
 
 /// 启动失败就把这句话显示在我们自己的窗口里，然后守着它，直到用户点关闭。
@@ -961,6 +1003,7 @@ fn main() {
         if app_window {
             // 告诉 start.js：管理页由本进程的窗口承载，别再自己开浏览器
             command.env("DSH_APP_WINDOW", "1");
+            command.env("DSH_INTERNAL_TABS", "1");
         }
         command.spawn()
     };
@@ -1015,6 +1058,9 @@ fn main() {
                 }
                 if let Some(url) = parse_open_signal(&line) {
                     let _ = proxy.send_event(UserEvent::OpenDsh(url));
+                }
+                if let Some(target) = tabs::parse_open(&line) {
+                    let _ = proxy.send_event(UserEvent::OpenTab(target));
                 }
             }
         });
@@ -1093,13 +1139,19 @@ fn main() {
     let webview = match &window {
         Some(window) => match WebViewBuilder::new_with_web_context(&mut context)
             .with_url("about:blank")
+            .with_bounds(tabs::bounds(window, 0.0, None))
+            .with_initialization_script("document.addEventListener('keydown',e=>{if(!document.documentElement.classList.contains('internal-tabs')||!(e.ctrlKey||e.metaKey))return;const a=e.key==='Tab'?'next':e.key.toLowerCase()==='w'?'close-active':null;if(a){e.preventDefault();window.ipc.postMessage(JSON.stringify({action:a}))}})")
             .with_ipc_handler(move |request| {
                 let event = match request.body().as_str() {
                     "minimize" => UserEvent::Minimize,
                     "maximize" => UserEvent::ToggleMaximize,
                     "close" => UserEvent::Hide,
                     "drag" => UserEvent::Drag,
-                    _ => return,
+                    "internal-tabs-ready" => UserEvent::TabsReady,
+                    _ => match tabs::parse_action(request.body()) {
+                        Some(action) => UserEvent::TabsAction(action),
+                        None => return,
+                    },
                 };
                 let _ = ipc_proxy.send_event(event);
             })
@@ -1124,7 +1176,7 @@ fn main() {
                 }
                 false
             })
-            .build(window)
+            .build_as_child(window)
         {
             Ok(webview) => Some(webview),
             Err(error) => {
@@ -1162,6 +1214,9 @@ fn main() {
     // 内嵌 DSH 窗口按需创建（第一次要打开时才建，省掉不用窗口模式的机器的启动开销）。
     // 和主窗口一样是 run 里的局部变量：它的生命周期覆盖整个进程。
     let mut dsh: Option<DshWindow> = None;
+    let mut browser_tabs: Option<BrowserTabs> = None;
+    let mut manager_memory_active = true;
+    let mut dsh_memory_active = true;
 
     // webview 与 context 都是本帧的局部变量，run 不返回，所以它们的生命周期覆盖整个窗口期
     event_loop.run(move |event, event_loop, control_flow| {
@@ -1179,7 +1234,12 @@ fn main() {
             } = tray_event
             {
                 match &window {
-                    Some(window) => show_window(window),
+                    Some(window) => {
+                        if let (Some(tabs), Some(manager)) = (&mut browser_tabs, &webview) {
+                            tabs.action(TabAction::Select(String::new()), window, manager);
+                        }
+                        show_window(window);
+                    }
                     None => open_in_browser(&manager_url()),
                 }
             }
@@ -1188,7 +1248,11 @@ fn main() {
         while let Ok(menu_event) = MenuEvent::receiver().try_recv() {
             match menu_event.id().as_ref() {
                 ITEM_OPEN_DSH => {
-                    if state.window_mode() {
+                    if state.internal_mode() {
+                        if let Some(target) = state.instances.iter().find(|target| target.url == state.url && !target.url.is_empty()) {
+                            open_internal_tab(&mut browser_tabs, window.as_ref(), webview.as_ref(), &mut context, &proxy, target.clone());
+                        } else if let Some(window) = &window { show_window(window); }
+                    } else if state.window_mode() {
                         // 桌面窗口模式：叫出内嵌窗口（dsh 没在跑就显示那张本地页，
                         // 上面有「启动 dsh」）；地址为空也要开——那是唯一能启动它的入口
                         let url = state.url.clone();
@@ -1205,10 +1269,12 @@ fn main() {
                 ITEM_RESTART => {
                     let _ = http_post(&manager_addr(), "/api/restart");
                 }
-                ITEM_MANAGER => match &window {
-                    Some(window) => show_window(window),
-                    None => open_in_browser(&manager_url()),
-                },
+                ITEM_MANAGER => {
+                    if let (Some(tabs), Some(window), Some(manager)) = (&mut browser_tabs, &window, &webview) {
+                        tabs.action(TabAction::Select(String::new()), window, manager);
+                    }
+                    match &window { Some(window) => show_window(window), None => open_in_browser(&manager_url()) }
+                }
                 ITEM_QUIT => {
                     // 让 node 自己收尾（停掉 dsh、通知开着的页面），它一退我们跟着收摊
                     let _ = http_post(&manager_addr(), "/api/quit");
@@ -1226,8 +1292,33 @@ fn main() {
         *control_flow = ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(80));
         match event {
             Event::UserEvent(UserEvent::Show) => {
+                if let (Some(tabs), Some(window), Some(manager)) = (&mut browser_tabs, &window, &webview) {
+                    tabs.action(TabAction::Select(String::new()), window, manager);
+                }
                 if let Some(window) = &window {
                     show_window(window);
+                }
+            }
+            Event::UserEvent(UserEvent::OpenTab(target)) => {
+                open_internal_tab(&mut browser_tabs, window.as_ref(), webview.as_ref(), &mut context, &proxy, target);
+            }
+            Event::UserEvent(UserEvent::TabsReady) => {
+                if let (Some(tabs), Some(manager)) = (&mut browser_tabs, &webview) { tabs.render(manager, true); }
+            }
+            Event::UserEvent(UserEvent::TabsAction(action)) => {
+                if let (Some(tabs), Some(window), Some(manager)) = (&mut browser_tabs, &window, &webview) {
+                    tabs.action(action, window, manager);
+                }
+            }
+            Event::UserEvent(UserEvent::TabTitle(id, title)) => {
+                if let (Some(tabs), Some(manager)) = (&mut browser_tabs, &webview) { tabs.title(&id, title, manager); }
+            }
+            Event::UserEvent(UserEvent::TabPageLoaded(id, url)) => {
+                if let (Some(tabs), Some(window)) = (&mut browser_tabs, &window) { tabs.page_loaded(&id, &url, window); }
+            }
+            Event::UserEvent(UserEvent::TabLink(id, url)) => {
+                if !browser_tabs.as_ref().is_some_and(|tabs| tabs.link(&id, &url)) {
+                    let _ = proxy.send_event(UserEvent::OpenExternal(url));
                 }
             }
             // node 的标记行 / 托盘的「打开 DSH」：把地址装进内嵌窗口
@@ -1238,17 +1329,25 @@ fn main() {
             // 页面里点出来的链接：只有「就是 dsh 自己」才进内嵌窗口，其余交给系统浏览器。
             // window.open / target="_blank" 走的也是这条路（见外壳里两个链接处理器）。
             Event::UserEvent(UserEvent::OpenExternal(url)) => {
-                let own = state.window_mode()
-                    && !state.url.is_empty()
-                    && (url == state.url || same_origin(&url, &state.url));
-                if own {
-                    // 用带 token 的那个地址：页面上的链接可能是没有 token 的简写，
-                    // 照原样加载只会得到一张 dsh 的拒绝页
-                    let target = state.url.clone();
-                    let lang = state.lang.clone();
-                    open_dsh_window(&mut dsh, event_loop, &mut context, &root, &proxy, &target, &lang);
-                } else if is_web_url(&url) {
-                    open_in_browser(&url);
+                if same_origin(&url, &manager_url()) {
+                    let _ = proxy.send_event(UserEvent::Show);
+                } else if state.internal_mode() {
+                    if let Some(target) = state.instances.iter().find(|target| !target.url.is_empty() && same_origin(&url, &target.url)) {
+                        open_internal_tab(&mut browser_tabs, window.as_ref(), webview.as_ref(), &mut context, &proxy, target.clone());
+                    } else if is_web_url(&url) { open_in_browser(&url); }
+                } else {
+                    let own = state.window_mode()
+                        && !state.url.is_empty()
+                        && (url == state.url || same_origin(&url, &state.url));
+                    if own {
+                        // 用带 token 的那个地址：页面上的链接可能是没有 token 的简写，
+                        // 照原样加载只会得到一张 dsh 的拒绝页
+                        let target = state.url.clone();
+                        let lang = state.lang.clone();
+                        open_dsh_window(&mut dsh, event_loop, &mut context, &root, &proxy, &target, &lang);
+                    } else if is_web_url(&url) {
+                        open_in_browser(&url);
+                    }
                 }
                 // data:/blob: 这些不是能给系统打开的地址：丢过去只会弹一个
                 // 「获取打开此 data 链接的应用」的系统对话框，宁可不理它
@@ -1292,6 +1391,15 @@ fn main() {
                     let lang = state.lang.clone();
                     window.follow(&url, &lang);
                 }
+                if let (Some(window), Some(manager)) = (&window, &webview) {
+                    if state.internal_mode() && browser_tabs.is_none() {
+                        browser_tabs = Some(BrowserTabs::new());
+                    }
+                    if let Some(tabs) = &mut browser_tabs {
+                        tabs.preferences(state.internal_mode(), &state.lang, &state.theme, window, manager);
+                        tabs.follow(&state.instances, manager);
+                    }
+                }
             }
             Event::UserEvent(UserEvent::Minimize) => {
                 if let Some(window) = &window {
@@ -1314,6 +1422,20 @@ fn main() {
                 }
             }
             Event::WindowEvent {
+                event: WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. },
+                window_id,
+                ..
+            } => {
+                if let (Some(window), Some(manager)) = (&window, &webview) {
+                    if window.id() == window_id {
+                        if let Some(tabs) = &mut browser_tabs { tabs.layout(window, manager); }
+                        else {
+                            let _ = manager.set_bounds(tabs::bounds(window, 0.0, None));
+                        }
+                    }
+                }
+            }
+            Event::WindowEvent {
                 event: WindowEvent::CloseRequested { .. },
                 window_id,
                 ..
@@ -1332,6 +1454,24 @@ fn main() {
                 }
             }
             _ => {}
+        }
+        if let (Some(tabs), Some(window)) = (&mut browser_tabs, &window) {
+            tabs.update_memory(window);
+        }
+        // 最小化或留在托盘时让浏览器主动收缩内存；状态只在变化时应用，不跟轮询反复调用。
+        if let (Some(window), Some(view)) = (&window, &webview) {
+            let active = window.is_visible() && !window.is_minimized();
+            if active != manager_memory_active {
+                tabs::set_memory_active(view, active);
+                manager_memory_active = active;
+            }
+        }
+        if let Some(dsh) = &dsh {
+            let active = dsh.window.is_visible() && !dsh.window.is_minimized();
+            if active != dsh_memory_active {
+                tabs::set_memory_active(&dsh.webview, active);
+                dsh_memory_active = active;
+            }
         }
         let _ = &webview;
     });
@@ -1414,6 +1554,10 @@ mod tests {
         assert!(!parse_tray_state("openmode=tab\nshell=1").window_mode());
         // 老版本 node 不给这两行：默认走浏览器，行为不变
         assert!(!parse_tray_state("status=running\nurl=http://127.0.0.1:9716/").window_mode());
+        let internal = parse_tray_state("openmode=internal\nshell=1\ntheme=dark\ninstances=[{\"id\":\"web@1\",\"title\":\"web · 1\",\"url\":\"http://127.0.0.1:1234/?token=x\"},{\"id\":\"other@1\",\"url\":\"http://127.0.0.1:2345/?token=y\"}]");
+        assert!(internal.internal_mode());
+        assert_eq!(internal.theme, "dark");
+        assert_eq!(internal.instances.len(), 2, "不能只跟随最近启动的实例");
     }
 
     #[test]

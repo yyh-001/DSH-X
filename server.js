@@ -185,7 +185,7 @@ const profileKey = (profile) => `${homeDir()}\0${profile}`
 // 启动器更新的下载源：direct（默认直连 GitHub）/ mirror（国内加速，直连失败时走前缀镜像）
 let UPDATE_SOURCE = updateSourceForDownload(loadSettingsSync().downloadSource)
 // 打开 dsh 页面的方式：tab（默认，系统浏览器标签页）/ app（Chromium 应用窗口）/
-// window（启动器内嵌窗口；只在被原生外壳拉起时成立，判断见 openRoute）
+// window（独立桌面窗口）/ internal（主窗口标签页；需要外壳报告能力，判断见 openRoute）
 let OPEN_MODE = safeOpenMode(loadSettingsSync().openMode)
 // 是否把 dsh 的 shim 目录写进用户 PATH（默认关，改了要新开终端才生效）
 let SYSTEM_PATH = loadSettingsSync().systemPath === true
@@ -962,12 +962,14 @@ async function publicSettings() {
       { id: 'official', label: '官方源' },
     ],
     openMode: safeOpenMode(stored.openMode),
-    // 选了内嵌窗口但当前没有原生外壳（源码运行）时，页面要如实说明会落到标签页
+    // 选了独立桌面窗口但当前没有原生外壳（源码运行）时，页面要如实说明会落到标签页
     openModeWindow: openRoute(OPEN_MODE, shellWindowHost()) === 'window',
+    openModeInternal: internalTabsHost(),
     openModes: [
       { id: 'tab', label: '浏览器标签页' },
-      { id: 'app', label: '应用窗口' },
-      { id: 'window', label: '桌面窗口（内嵌）' },
+      { id: 'app', label: '浏览器独立窗口' },
+      { id: 'window', label: '独立桌面窗口' },
+      { id: 'internal', label: 'DSH-X 内部标签页' },
     ],
     systemPath: SYSTEM_PATH,
     systemBinDir: systemBinDir(),
@@ -1014,6 +1016,10 @@ async function publicSettings() {
  * 用户马上要关掉的东西，只是把结论以 busy 回给页面（页面上只说问题）。
  */
 async function setInstancePort(version, profile, port) {
+  return withLaunchPresetWrite(() => setInstancePortNow(version, profile, port))
+}
+
+async function setInstancePortNow(version, profile, port) {
   const ver = safeVersion(version)
   const prof = safeProfile(profile)
   const key = `${ver}@${prof}`
@@ -1071,8 +1077,18 @@ function resolvePresetVersion(entry, home, config) {
   return installed[0] || ''
 }
 
-async function saveLaunchPreset(body) {
-  assertLauncherIdle()
+// 运行时也能编辑快捷入口；保存与启动历史共用一条写队列，防止并发读改写覆盖彼此。
+let launchPresetWrites = Promise.resolve()
+function withLaunchPresetWrite(run) {
+  const result = launchPresetWrites.then(run)
+  launchPresetWrites = result.catch(() => {})
+  return result
+}
+function saveLaunchPreset(body) { return withLaunchPresetWrite(() => saveLaunchPresetNow(body)) }
+function removeLaunchPreset(id) { return withLaunchPresetWrite(() => removeLaunchPresetNow(id)) }
+function recordLaunchUse(id, version) { return withLaunchPresetWrite(() => recordLaunchUseNow(id, version)) }
+
+async function saveLaunchPresetNow(body) {
   if (installing || packInstalling) throw new Error('正在安装，稍后再编辑启动项')
   const name = String(body.name ?? '').trim()
   if (!name || name.length > 32) throw new Error('启动项名称请填 1-32 个字符')
@@ -1085,7 +1101,6 @@ async function saveLaunchPreset(body) {
   const portText = String(body.port ?? '').trim()
   const port = portText && portText !== '0' ? safePort(portText) : 0
   const stored = await loadSettings()
-  assertLauncherIdle()
   if (installing || packInstalling) throw new Error('正在安装，稍后再编辑启动项')
   const presets = safeLaunchPresets(stored.launchPresets)
   const id = body.id ? String(body.id) : randomBytes(8).toString('hex')
@@ -1126,12 +1141,10 @@ async function saveLaunchPreset(body) {
   return { ok: true, entry }
 }
 
-async function removeLaunchPreset(id) {
-  assertLauncherIdle()
+async function removeLaunchPresetNow(id) {
   if (installing || packInstalling) throw new Error('正在安装，稍后再编辑启动项')
   if (id === DEFAULT_LAUNCH_ID) throw new Error('默认启动项不能删除，可以编辑它')
   const stored = await loadSettings()
-  assertLauncherIdle()
   if (installing || packInstalling) throw new Error('正在安装，稍后再编辑启动项')
   const presets = safeLaunchPresets(stored.launchPresets)
   const next = presets.filter((item) => item.id !== id)
@@ -1146,7 +1159,7 @@ async function removeLaunchPreset(id) {
  * 记下启动项这次实际启动的版本：当前用让位成上一次用，两个版本清理时都按启动项保留。
  * 记不上不拦启动——这只是回退用的历史，不是启动的依赖。
  */
-async function recordLaunchUse(launchId, version) {
+async function recordLaunchUseNow(launchId, version) {
   if (!launchId) return
   try {
     const ver = safeVersion(version)
@@ -1189,7 +1202,7 @@ async function saveManagerSettings(body) {
   let systemPathResult
   if (body.dataDir) {
     const dir = safeDataDir(body.dataDir)
-    if (dir !== DATA && instances.size) throw new Error('请先停止再改版本目录')
+    if (dir !== DATA && (instances.size || startingProfiles.size)) throw new Error('请先停止再改版本目录')
     if (installing) throw new Error('正在安装，稍后再改版本目录')
     await applyDataDir(dir)
   }
@@ -1247,9 +1260,11 @@ async function saveManagerSettings(body) {
   if ('openMode' in body) {
     OPEN_MODE = safeOpenMode(stored.openMode)
     pushLog(OPEN_MODE === 'app'
-      ? '打开方式：应用窗口（找不到 Chrome/Edge 会退回标签页）'
+      ? '打开方式：浏览器独立窗口（找不到 Chrome/Edge 会退回标签页）'
       : OPEN_MODE === 'window'
-        ? `打开方式：桌面窗口（${shellWindowHost() ? '启动器内嵌，不经过浏览器' : '当前没有原生外壳，会退回浏览器标签页'}）`
+        ? `打开方式：独立桌面窗口（${shellWindowHost() ? '由启动器打开，不经过浏览器' : '当前没有原生外壳，会退回浏览器标签页'}）`
+        : OPEN_MODE === 'internal'
+          ? `打开方式：DSH-X 内部标签页（${internalTabsHost() ? '在启动器内切换' : '当前外壳不支持，会退回浏览器标签页'}）`
         : '打开方式：系统浏览器标签页')
   }
   if ('systemPath' in body) {
@@ -1597,7 +1612,7 @@ export function withBundledRuntime(pathValue, preferredPnpm = '') {
 }
 
 function assertLauncherIdle() {
-  if (instances.size || startingProfiles.size) throw new Error('请先停止正在运行的 DSH，再编辑启动项或安装整合包')
+  if (instances.size || startingProfiles.size) throw new Error('请先停止正在运行的 DSH，再安装整合包')
 }
 
 /** 当前 profile 目录。 */
@@ -3345,7 +3360,8 @@ export async function checkWebPage(origin, token) {
   for (const url of urls) {
     try {
       const res = await fetch(`${base}${url}`, { headers, signal: AbortSignal.timeout(30000) })
-      await res.arrayBuffer()
+      // 自检只需要确认完整下载成功，不解析脚本；大 bundle 逐块丢弃，避免每个实例都再攒一份。
+      if (res.body) for await (const _chunk of res.body) { /* 读完仍能发现中途断开的响应 */ }
       if (res.status === 200) ok += 1
       else failed.push({ url, status: res.status })
     } catch (error) {
@@ -3598,12 +3614,14 @@ async function startWithRepair(version, profile = PROFILE_NAME) {
   throw lastError
 }
 
-let startChain = Promise.resolve()
+// 不同环境可以同时加载；同一环境仍串行，避免两个版本同时初始化或修复同一份配置。
+const startChains = new Map()
 
 async function start(version, profile) {
-  const run = startChain.then(async () => {
-    const name = safeProfile(profile || PROFILE_NAME)
-    const key = profileKey(name)
+  const name = safeProfile(profile || PROFILE_NAME)
+  const key = profileKey(name)
+  const previous = startChains.get(key) || Promise.resolve()
+  const run = previous.then(async () => {
     if (packInstalling) throw new Error('正在安装整合包，结束后再启动 DSH')
     if (maintainingProfiles.has(key)) throw new Error(`profile「${name}」正在修改，稍后再启动`)
     startingProfiles.add(key)
@@ -3613,7 +3631,10 @@ async function start(version, profile) {
       startingProfiles.delete(key)
     }
   })
-  startChain = run.then(() => {}, () => {})
+  const settled = run.then(() => {}, () => {}).finally(() => {
+    if (startChains.get(key) === settled) startChains.delete(key)
+  })
+  startChains.set(key, settled)
   return run
 }
 
@@ -3643,13 +3664,11 @@ export async function restartInstalled() {
   await stop()
   let last = null
   let failure = null
-  for (const { version, profile, home } of targets) {
-    try {
-      const result = await launchScope.run({ home }, () => start(version, profile))
-      last = { version, profile, url: result.url }
-    } catch (error) {
-      failure = failure || error
-    }
+  const results = await Promise.allSettled(targets.map(({ version, profile, home }) =>
+    launchScope.run({ home }, () => start(version, profile))))
+  for (const [index, result] of results.entries()) {
+    if (result.status === 'fulfilled') last = { version: targets[index].version, profile: targets[index].profile, url: result.value.url }
+    else failure = failure || result.reason
   }
   if (failure) throw failure
   return last
@@ -3989,10 +4008,10 @@ function openInAppWindow(url) {
   if (!browser) return false
   try {
     execFile(browser, appWindowArgs(url), { windowsHide: true })
-    pushLog(`用应用窗口打开：${basename(browser)}`)
+    pushLog(`用浏览器独立窗口打开：${basename(browser)}`)
     return true
   } catch (error) {
-    pushLog(`应用窗口没打开（${error instanceof Error ? error.message : error}），改用默认浏览器`)
+    pushLog(`浏览器独立窗口没打开（${error instanceof Error ? error.message : error}），改用默认浏览器`)
     return false
   }
 }
@@ -4011,12 +4030,27 @@ function shellWindowHost() {
   return process.env.DSH_APP_WINDOW === '1'
 }
 
+// 旧版外壳只认识独立窗口标记；单独报告标签页能力，避免新版页面选了内部打开却没有反应。
+function internalTabsHost() {
+  return shellWindowHost() && process.env.DSH_INTERNAL_TABS === '1'
+}
+
+/** 用实例身份而不是端口标识标签：重启换端口或 token 时仍能找到原来的页面。 */
+export function internalTabTarget(instance) {
+  return {
+    id: JSON.stringify([instance.home || '', instance.version || '', instance.profile || '']),
+    title: [instance.profile, instance.version].filter(Boolean).join(' · ') || 'DSH',
+    url: instance.url || '',
+    status: instance.status || 'stopped',
+    managed: true,
+  }
+}
+
 /**
- * 这个地址该由谁打开：'window'（启动器内嵌窗口）还是 'browser'（系统浏览器）。
- * 纯函数，便于测试；两个条件缺一不可——设置里选了 window，且真的有个外壳在收标记
- * （源码运行 npm start 时没有外壳，选 window 也只会安静地退回浏览器）。
+ * 按外壳能力选择独立窗口、主窗口标签或系统浏览器；源码运行与旧外壳要能正常降级。
  */
-export function openRoute(mode, shellWindow) {
+export function openRoute(mode, shellWindow, internalTabs = false) {
+  if (mode === 'internal' && shellWindow && internalTabs) return 'internal'
   return mode === 'window' && shellWindow ? 'window' : 'browser'
 }
 
@@ -4033,6 +4067,13 @@ export function openRoute(mode, shellWindow) {
  */
 function openExternal(target, mode = OPEN_MODE) {
   const url = String(target)
+  if (openRoute(mode, shellWindowHost(), internalTabsHost()) === 'internal') {
+    const instance = instanceList().find((proc) => proc.url && new URL(proc.url).origin === new URL(url).origin)
+    const tab = instance ? internalTabTarget(instance) : { id: new URL(url).origin, title: 'DSH', url, status: 'running', managed: false }
+    // 认证地址只在本机管道中传递；标题和实例身份都不包含 token，也不写入日志或设置。
+    process.stdout.write(`__DSH_TAB__ ${JSON.stringify(tab)}\n`)
+    return
+  }
   // 内嵌窗口：地址交给原生外壳自己的窗口，连浏览器进程都不起（见 OPEN_SIGNAL）
   if (openRoute(mode, shellWindowHost()) === 'window') {
     process.stdout.write(`${OPEN_SIGNAL} ${url}\n`)
@@ -4271,6 +4312,9 @@ async function handleApi(req, res, url) {
       `openmode=${OPEN_MODE}`,
       // 本次是不是由原生外壳托管：外壳缺失时窗口模式不成立，托盘据此退回浏览器
       `shell=${shellWindowHost() ? 1 : 0}`,
+      `theme=${THEME}`,
+      // 原生标签页要跟随所有实例，不能用「最近启动的实例」去覆盖用户正在看的其他页面。
+      `instances=${JSON.stringify(instanceList().map(internalTabTarget))}`,
     ].join('\n'), 'text/plain; charset=utf-8')
     return
   }

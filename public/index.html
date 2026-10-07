@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-theme="__APP_THEME__" data-panel-transparency="__APP_PANEL_TRANSPARENCY__" data-reduce-motion="__APP_REDUCE_MOTION__" data-hide-background="__APP_HIDE_BACKGROUND__" data-hide-big-fish="__APP_HIDE_BIG_FISH__">
+<html lang="zh-CN" data-lang="__APP_LANG__" data-theme="__APP_THEME__" data-panel-transparency="__APP_PANEL_TRANSPARENCY__" data-reduce-motion="__APP_REDUCE_MOTION__" data-hide-background="__APP_HIDE_BACKGROUND__" data-hide-big-fish="__APP_HIDE_BIG_FISH__">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -40,20 +40,39 @@
       })
     })()
   </script>
-  <link rel="stylesheet" href="/launcher.css?v=profile-ui-20261002g" />
+  <link rel="stylesheet" href="/launcher.css?v=profile-ui-20261007b" />
   <link rel="stylesheet" href="/mascot.css" />
   <link rel="stylesheet" href="/theme.css?v=profile-ui-20261002" />
+  <link rel="stylesheet" href="/launcher-boot.css?v=20261007e" />
 </head>
 <body>
+  <div class="launcher-boot" id="launcherBoot" hidden>
+    <div class="launcher-boot-copy">
+      <span class="launcher-boot-label">DEEPSEEK HARNESS</span>
+      <strong class="launcher-boot-wordmark">DSH-X</strong>
+      <div class="launcher-boot-line" aria-hidden="true"></div>
+      <p class="launcher-boot-status" id="launcherBootStatus" role="status">正在加载控制台…</p>
+    </div>
+  </div>
+  <script src="/launcher-boot.js?v=20261007e"></script>
+  <script src="/launch-list.js?v=20261007"></script>
   <div class="backdrop" aria-hidden="true">
     <canvas class="water-surface" aria-hidden="true"></canvas>
     <div class="backdrop-character"></div>
   </div>
   <header>
     <div class="brand-block">
-      <div class="brand">DSH-X</div>
-      <span class="app-ver" id="appVer">__APP_VERSION__</span>
+      <button type="button" class="brand-home" id="brandHome" title="返回启动器主页" aria-label="返回启动器主页" data-i18n-title="返回启动器主页" data-i18n-aria-label="返回启动器主页">
+        <span class="brand">DSH-X</span>
+        <span class="app-ver" id="appVer">__APP_VERSION__</span>
+      </button>
       <button type="button" class="self-update" id="selfUpdate" hidden data-i18n="更新">更新</button>
+    </div>
+    <div class="internal-tabs-area" id="internalTabsArea" hidden>
+      <div class="internal-tab-list" id="internalTabList" role="tablist" aria-label="DSH-X"></div>
+      <button type="button" class="gear-btn internal-tab-reload" id="internalTabReload" title="刷新页面" aria-label="刷新页面">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.5 14.7a8 8 0 1 1-1.9-8.3L21 10"/><path d="M21 4v6h-6"/></svg>
+      </button>
     </div>
     <div class="header-right">
       <a class="star-link" href="https://github.com/yyh-001/DSH-X" target="_blank" rel="noreferrer"
@@ -539,6 +558,7 @@
               </button>
               <div class="select-panel" id="versionPanel" role="listbox" hidden></div>
             </div>
+            <button class="ghost icon-btn launch-manage-version" id="launchManageVersions" type="button" title="管理版本" aria-label="管理版本" data-i18n-title="管理版本" data-i18n-aria-label="管理版本"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></button>
           </div>
         </div>
         <!-- DSH_HOME 暂时收起：多数用户只有一套数据；元素留着，已有自定义目录的启动项编辑时照常回填保存，要恢复去掉 hidden 即可 -->
@@ -570,10 +590,22 @@
         <button class="ghost launch-repair" id="launchRecover" type="button" title="修复环境" aria-label="修复环境"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg></button>
         <button class="ghost launch-delete" id="launchDelete" type="button" hidden title="删除启动项" aria-label="删除启动项" data-i18n-title="删除启动项" data-i18n-aria-label="删除启动项"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg></button>
         <span class="launch-save-spacer"></span>
-        <button class="ghost" id="launchCancel" type="button" data-i18n="取消">取消</button>
-        <button class="primary" id="launchSave" type="submit" data-i18n="保存">保存</button>
+        <button class="primary" id="launchSave" type="submit" title="保存" aria-label="保存" data-i18n-title="保存" data-i18n-aria-label="保存"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12l4 4v12a2 2 0 0 1-2 2Z"/><path d="M7 3v6h10V3M7 21v-8h10v8M14 5v2"/></svg></button>
       </div>
     </form>
+  </div>
+  <div class="ask" id="versionManageDialog" hidden>
+    <div class="ask-card version-manage-card" role="dialog" aria-modal="true" aria-labelledby="versionManageTitle">
+      <div class="dialog-heading"><h2 class="ask-title" id="versionManageTitle" data-i18n="版本管理">版本管理</h2><button class="ghost icon-btn dialog-close" id="versionManageClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
+      <form class="version-manage-install" id="versionInstallForm">
+        <label class="sr-only" for="versionInstallSelect" data-i18n="安装版本">安装版本</label>
+        <div class="version-manage-install-row"><select id="versionInstallSelect"></select><button class="primary" id="versionManageInstall" type="submit" title="安装" aria-label="安装" data-i18n-title="安装" data-i18n-aria-label="安装"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v4h16v-4"/></svg></button></div>
+      </form>
+      <p class="hint" id="versionManageHint" role="status" aria-live="polite"></p>
+      <div class="progress" id="versionManageProgress" hidden><div class="progress-bar" id="versionManageProgressBar"></div></div>
+      <h3 class="version-manage-heading" data-i18n="已安装">已安装</h3>
+      <div class="version-manage-list" id="versionManageList" role="list"></div>
+    </div>
   </div>
   <div class="ask" id="profileDialog" hidden>
     <form class="ask-card profile-dialog-card" id="profileForm" role="dialog" aria-modal="true" aria-labelledby="profileDialogTitle">
@@ -864,9 +896,12 @@
   "打开 dsh 的方式": "How dsh opens",
   "dsh 页面用哪种窗口打开。": "Which window the dsh page opens in.",
   "浏览器标签页": "Browser tab",
-  "应用窗口": "App window",
-  "桌面窗口（内嵌）": "Desktop window (embedded)",
-  "用 Chrome/Edge 的应用窗口打开：没有地址栏和标签栏。": "Opens in a Chrome/Edge app window: no address bar, no tab strip.",
+  "浏览器独立窗口": "Standalone browser window",
+  "独立桌面窗口": "Separate desktop window",
+  "DSH-X 内部标签页": "Tabs inside DSH-X",
+  "返回启动器主页": "Back to launcher home",
+  "内部标签页需使用新版 DSH-X 桌面端；当前使用浏览器标签页。": "Internal tabs require the updated DSH-X desktop app; this session uses browser tabs.",
+  "用 Chrome/Edge 的独立窗口打开：没有地址栏和标签栏。": "Opens in a standalone Chrome/Edge window: no address bar or tab strip.",
   "启动器自己开一个窗口承载 dsh 界面，关窗口只是藏起来；没有原生外壳（源码运行）时退回标签页。": "The launcher hosts the dsh UI in its own window; closing it only hides the window. Falls back to a tab when there is no native shell (running from source).",
   "用系统默认浏览器的标签页打开。": "Opens in a tab of your default browser.",
   "当前预览使用浏览器标签页。": "This preview opens in a browser tab.",
@@ -901,7 +936,7 @@
   "检测会真的起进程或连端点，可能需要几秒。": "Probing really starts the process or calls the endpoint; it can take a few seconds.",
   "技能": "Skills",
   "技能详情": "Skill details",
-  "请先停止正在运行的 DSH，再编辑启动项或安装整合包": "Stop the running DSH before editing launch entries or installing modpacks.",
+  "请先停止正在运行的 DSH，再安装整合包": "Stop the running DSH before installing modpacks.",
   "下次安装后清理，运行中的版本额外保留。": "Clean up after the next install; running versions are also kept.",
   "owner/repo 或 GitHub 技能链接": "owner/repo or GitHub skill URL",
   "导入包含 SKILL.md 的文件夹或 ZIP": "Import a folder or ZIP containing SKILL.md",
@@ -1163,6 +1198,14 @@
   "内置": "Built in",
   "＋ 添加启动项": "+ Add launch",
   "添加启动项": "Add launch",
+  "版本管理": "Version management",
+  "管理版本": "Manage versions",
+  "安装版本": "Install a version",
+  "已安装版本": "Installed versions",
+  "未运行": "Not running",
+  "尚未安装任何版本": "No versions installed",
+  "没有可安装的版本": "No versions available to install",
+  "正在运行 · {profile}": "Running · {profile}",
   "编辑启动项": "Edit launch",
   "编辑 {name}": "Edit {name}",
   "推荐版本（自动）": "Recommended version (automatic)",
@@ -1295,7 +1338,7 @@
         el.textContent = t(el.dataset.i18n) || el.dataset.i18n
       }
       for (const el of document.querySelectorAll('[data-placeholder-i18n]')) el.placeholder = t(el.dataset.placeholderI18n)
-      for (const id of ['update', 'remove', 'launchRecover', 'mcpAdd', 'mcpProbe', 'mcpRefresh']) {
+      for (const id of ['launchManageVersions', 'update', 'remove', 'launchRecover', 'mcpAdd', 'mcpProbe', 'mcpRefresh']) {
         const el = document.getElementById(id)
         if (!el.dataset.titleI18n) el.dataset.titleI18n = el.title
         el.title = el.ariaLabel = t(el.dataset.titleI18n)
@@ -1334,6 +1377,9 @@
     const launchNameEl = document.getElementById('launchName')
     const launchSaveEl = document.getElementById('launchSave')
     const launchDialogEl = document.getElementById('launchDialog')
+    const versionManageDialogEl = document.getElementById('versionManageDialog')
+    const manageVersionsEl = document.getElementById('launchManageVersions')
+    const versionInstallSelectEl = document.getElementById('versionInstallSelect')
     const launchFormEl = document.getElementById('launchForm')
     const launchAddEl = document.getElementById('launchAdd')
     const launchDeleteEl = document.getElementById('launchDelete')
@@ -1634,7 +1680,7 @@
       })
       syncUiSelect(select)
     }
-    for (const select of document.querySelectorAll('#launchProfile, #launchDshHome, #uiLang, #webBind, #downloadSource, #proxyMode, #openMode, #mcpTransport, #marketSort, #marketPageSize, #skillRoot, #skillInstallRoot')) createUiSelect(select)
+    for (const select of document.querySelectorAll('#launchProfile, #launchDshHome, #uiLang, #webBind, #downloadSource, #proxyMode, #versionInstallSelect, #openMode, #mcpTransport, #marketSort, #marketPageSize, #skillRoot, #skillInstallRoot')) createUiSelect(select)
     document.addEventListener('pointerdown', (event) => {
       if (openUiSelect && !openUiSelect.root.contains(event.target) && !openUiSelect.panel.contains(event.target)) closeUiSelect()
       // 环境详情的「更多操作」下拉同理：点外面就合上
@@ -1786,6 +1832,7 @@
       if (event.key !== 'Escape') return
       if (!noticeEl.hidden) void hideDialog(noticeEl)
       else if (!confirmDialogEl.hidden) settleConfirm(false)
+      else if (!versionManageDialogEl.hidden) void closeVersionManager()
       else if (!launchDialogEl.hidden) closeLaunchEditor()
     })
 
@@ -1801,7 +1848,7 @@
       // 按下已经进了系统的拖动循环，第二次的 dblclick 未必还能送达页面。
       document.querySelector('header').addEventListener('mousedown', (event) => {
         if (event.button !== 0) return
-        if (event.target.closest('button, a, input, select, .select')) return
+        if (event.target.closest('button, a, input, select, .select, .internal-tab')) return
         ipc.postMessage(event.detail >= 2 ? 'maximize' : 'drag')
       })
     }
@@ -1941,6 +1988,7 @@
     }
     navItems.forEach((item) => { item.onclick = () => showPane(item.dataset.pane, item.dataset.category) })
     gearEl.onclick = () => showPane(currentPane !== 'control' ? 'control' : 'settings', currentSettingsCategory)
+    document.getElementById('brandHome').onclick = () => showPane('control')
     placeNavPill({ instant: true })
     window.addEventListener('resize', () => placeNavPill({ instant: true }))
 
@@ -2043,7 +2091,7 @@
      * （最近起来的那个）。
      */
     function runningInfo(version = '', profile = '', home = '') {
-      const isLive = (item) => item && (item.status === 'running' || item.status === 'starting')
+      const isLive = (item) => item && ['running', 'starting', 'stopping'].includes(item.status)
       if (version) {
         const mine = (state.instances || []).find((item) => item && item.version === version
           && (!profile || item.profile === profile) && (!home || (item.home || state.dshHome) === home) && isLive(item))
@@ -2442,16 +2490,30 @@
       } catch (error) { hint.textContent = error.message }
       event.target.value = ''
     }
-    let activeLaunchId = ''
+    // 每个实例独立显示进度；一个启动请求结束不能清掉另一个请求的状态。
+    const launchActions = new Map()
+    const versionInstalls = new Map()
+    function launchActionKey(version, profile, launchId = '') {
+      const entry = launchId ? launchEntries().find((item) => item.id === launchId) : null
+      return JSON.stringify([entry?.dshHome || state.dshHome || '', version, profile])
+    }
+    function launchEntryTask(entry, version) {
+      // auto 的解析结果可能随安装/运行状态改变，操作期间仍锁住原来的那张启动项。
+      return [...launchActions.values()].find((task) => task.launchId === entry.id)
+        || launchActions.get(launchActionKey(version, entry.profile, entry.id))
+    }
     let launchHomeMarkup = ''
     function paintLaunchHome() {
+      // 保存/删除会先收到状态推送；等编辑弹窗退场再更新列表，避免动效被弹窗挡住。
+      if (!launchDialogEl.hidden && (launchSaveEl.disabled || launchDeleteEl.disabled || launchDialogClosing)) return
       const markup = launchEntries().map((entry) => {
         const version = resolveLaunchVersion(entry)
         const live = version ? runningInfo(version, entry.profile, entry.dshHome || state.dshHome) : null
         const builtin = entry.id === DEFAULT_LAUNCH_ID
         const name = builtin && entry.name === '默认启动' ? 'DSH' : entry.name
         const busy = live?.status === 'starting' || live?.status === 'stopping'
-        const ownAction = activeLaunchId === entry.id ? action : ''
+        const ownAction = launchEntryTask(entry, version)?.phase || ''
+        const installBlocked = Boolean(state.installing) && !installedList().includes(version) && !versionInstalls.has(version) && live?.status !== 'running'
         const label = ownAction === 'install' ? t('安装中') : busy || ownAction
           ? t(live?.status === 'stopping' || ownAction === 'stop' ? '停止中' : '启动中')
           : live?.status === 'running' ? t(live.url ? '打开' : '运行中') : t('启动')
@@ -2465,20 +2527,20 @@
         // 想动钉子走「编辑启动项」的版本下拉。
         const hasNewVersion = entry.version === 'auto' && version && latest && compareVersion(latest, version) > 0
         const installNote = !installedList().includes(version) && !live ? t('首次启动会自动安装') : ''
-        return `<div class="launch-preset">
+        return `<div class="launch-preset" data-launch-key="${escapeHtml(entry.id)}">
           <span class="launch-app-icon" aria-hidden="true">${launchIconMarkup(entry.icon)}</span>
           <span class="launch-preset-copy"><span class="launch-preset-heading">
             <span class="launch-preset-name">${escapeHtml(name)}</span>${builtin ? `<span class="launch-builtin">${escapeHtml(t('内置'))}</span>` : ''}</span>
             <span class="launch-preset-meta" title="${escapeHtml(automaticHint)}"><span>${escapeHtml([note, installNote].filter(Boolean).join(' · '))}</span></span>
             ${hasNewVersion ? `<button class="launch-new-version" type="button" data-version-id="${entry.id}" ${action || state.installing ? 'disabled' : ''}>${escapeHtml(t('新版本 {version}', { version: latest }))}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button>` : ''}</span>
           <span class="launch-actions"><button class="launch-edit launch-plugins" type="button" data-plugins-id="${entry.id}" title="${escapeHtml(t('管理插件'))}" aria-label="${escapeHtml(t('管理 {name} 的插件', { name }))}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9M8 5.25l8 4.5"/></svg></button><button class="launch-edit" type="button" data-edit-id="${entry.id}" title="${escapeHtml(t(launcherRunning() ? '请先停止正在运行的 DSH，再编辑启动项或安装整合包' : '编辑 {name}', { name }))}" aria-label="${escapeHtml(t('编辑 {name}', { name }))}" ${action || state.installing || launcherRunning() ? 'disabled' : ''}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9M8 5.25l8 4.5"/></svg></button><button class="launch-edit" type="button" data-edit-id="${entry.id}" title="${escapeHtml(t('编辑 {name}', { name }))}" aria-label="${escapeHtml(t('编辑 {name}', { name }))}" ${action || state.installing || ownAction || busy ? 'disabled' : ''}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 4 4 4M4 20l4-1 12-12a2.8 2.8 0 0 0-4-4L4 15l-1 6Z"/></svg></button>
-          ${live ? `<button class="icon-btn launch-action" type="button" data-restart-id="${entry.id}" title="${escapeHtml(t('重启'))}" aria-label="${escapeHtml(t('重启'))}" ${action || state.installing || busy ? 'disabled' : ''}>
+          ${live ? `<button class="icon-btn launch-action" type="button" data-restart-id="${entry.id}" title="${escapeHtml(t('重启'))}" aria-label="${escapeHtml(t('重启'))}" ${action || ownAction || busy ? 'disabled' : ''}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/></svg></button>
-          <button class="icon-btn launch-action" type="button" data-stop-id="${entry.id}" title="${escapeHtml(t('停止'))}" aria-label="${escapeHtml(t('停止'))}" ${action || state.installing || busy ? 'disabled' : ''}>
+          <button class="icon-btn launch-action" type="button" data-stop-id="${entry.id}" title="${escapeHtml(t('停止'))}" aria-label="${escapeHtml(t('停止'))}" ${action || ownAction || busy ? 'disabled' : ''}>
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg></button>` : ''}
-          <span class="launch-open"><button class="primary icon-btn launch-primary${busy || ownAction ? ' loading' : ''}" type="button" data-launch-id="${entry.id}" title="${escapeHtml(live?.status === 'running' && live.url ? '' : label)}" aria-label="${escapeHtml(label)}" ${!version || action || state.installing || busy || (live?.status === 'running' && !live.url) ? 'disabled' : ''}>
+          <span class="launch-open"><button class="primary icon-btn launch-primary${busy || ownAction ? ' loading' : ''}" type="button" data-launch-id="${entry.id}" title="${escapeHtml(live?.status === 'running' && live.url ? '' : label)}" aria-label="${escapeHtml(label)}" ${!version || action || ownAction || installBlocked || busy || (live?.status === 'running' && !live.url) ? 'disabled' : ''}>
             <span class="spin" aria-hidden="true"></span>${live?.status === 'running'
               ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-10 10M10 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"/></svg>'
               : '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5a1 1 0 0 1 1.5-.86l10 6.5a1 1 0 0 1 0 1.72l-10 6.5A1 1 0 0 1 8 18.5Z"/></svg>'}</button>
@@ -2489,21 +2551,23 @@
       if (markup !== launchHomeMarkup) {
         const addFocused = document.activeElement === launchAddEl
         launchHomeMarkup = markup
-        launchPresetsEl.innerHTML = markup
+        if (globalThis.launcherLaunchList) globalThis.launcherLaunchList.update(launchPresetsEl, markup)
+        else launchPresetsEl.innerHTML = markup
         launchPresetsEl.insertAdjacentElement('afterend', launchAddEl)
         launchAddEl.hidden = false
         if (addFocused) launchAddEl.focus({ preventScroll: true })
       }
       launchPresetsEl.querySelectorAll('[data-launch-id]').forEach((button) => {
         button.onclick = async () => {
-          if (action || state.installing) return
+          if (action) return
           const entry = launchEntries().find((item) => item.id === button.dataset.launchId)
           if (!entry) return
           const version = resolveLaunchVersion(entry)
           if (!version) return
           const live = runningInfo(version, entry.profile, entry.dshHome || state.dshHome)
+          if (launchEntryTask(entry, version) || live?.status === 'starting' || live?.status === 'stopping') return
           if (live?.status === 'running') { if (live.url) await openInstance(live.url); return }
-          activeLaunchId = entry.id
+          if (state.installing && !installedList().includes(version) && !versionInstalls.has(version)) return
           try { await startVersion(version, entry.profile, entry.port, entry.id) }
           catch (error) { notify(error.message) }
         }
@@ -2549,29 +2613,133 @@
       launchPresetsEl.querySelectorAll('[data-restart-id]').forEach((button) => {
         button.onclick = () => manageLaunchEntry(button.dataset.restartId, true)
       })
-      launchAddEl.disabled = Boolean(action) || Boolean(state.installing) || launcherRunning()
+      launchAddEl.disabled = Boolean(action) || Boolean(state.installing)
       launchAddEl.title = launchAddEl.ariaLabel = t('添加启动项')
     }
 
     async function manageLaunchEntry(id, restart) {
-      if (action || state.installing) return
+      if (action) return
       const entry = launchEntries().find((item) => item.id === id)
       if (!entry) return
       // 停止后自动推荐可能切到其他版本，重启必须沿用点击时的版本和 profile。
       const version = resolveLaunchVersion(entry), profile = entry.profile
       if (runningInfo(version, profile, entry.dshHome || state.dshHome)?.status !== 'running') return
-      activeLaunchId = id
-      action = 'stop'
-      render()
       try {
-        await post('/api/stop', { version, profile }, { launchId: entry.id })
-        if (restart) await startVersion(version, profile, entry.port, entry.id)
+        await runLaunchAction(version, profile, id, 'stop', async (task) => {
+          await post('/api/stop', { version, profile }, { launchId: entry.id })
+          if (restart) await startLaunchInstance(version, profile, entry.port, entry.id, task)
+        })
       } catch (error) { notify(error.message) }
-      finally { action = ''; activeLaunchId = ''; render() }
     }
 
     let launchDialogRevision = 0
     let launchDialogClosing = false
+
+    let versionManageReturnToEditor = false
+    let versionManageOrigin = null
+    let versionManageRevision = 0
+    let versionManageMarkup = ''
+    let versionInstallOptions = ''
+
+    function openVersionManager() {
+      if (!versionManageDialogEl.hidden && !versionManageDialogEl.dataset.dialogClosing) return
+      ++versionManageRevision
+      versionManageOrigin = document.activeElement
+      versionManageReturnToEditor = !launchDialogEl.hidden
+      closeVersionPanel()
+      closeUiSelect()
+      if (versionManageReturnToEditor) {
+        launchFormEl.inert = true
+        launchDialogEl.classList.add('is-underlay')
+      }
+      versionManageDialogEl.classList.toggle('is-child-dialog', versionManageReturnToEditor)
+      paintVersionManager()
+      showDialog(versionManageDialogEl)
+      document.getElementById('versionManageClose').focus()
+    }
+
+    async function closeVersionManager() {
+      if (versionManageDialogEl.hidden || versionManageDialogEl.dataset.dialogClosing) return
+      const revision = ++versionManageRevision
+      closeUiSelect()
+      if (versionManageReturnToEditor) launchDialogEl.classList.remove('is-underlay')
+      if (!(await hideDialog(versionManageDialogEl)) || revision !== versionManageRevision) return
+      versionManageDialogEl.classList.remove('is-child-dialog')
+      if (versionManageReturnToEditor) launchFormEl.inert = false
+      versionManageReturnToEditor = false
+      const origin = versionManageOrigin
+      versionManageOrigin = null
+      if (origin?.isConnected) origin.focus({ preventScroll: true })
+      else launchAddEl.focus()
+    }
+
+    async function manualInstallVersion(version) {
+      if (!version || action || state.installing || installedList().includes(version)) return
+      // 手动安装只增添运行时，不停实例、不启动页面，也不改启动项版本或编辑器草稿。
+      action = 'install'
+      render()
+      try {
+        await post('/api/install', { version })
+        applyState(await getJson('/api/state'))
+      } catch (error) { notify(error.message) }
+      finally { action = ''; render() }
+    }
+
+    function paintVersionManager() {
+      const installed = [...installedList()].sort((a, b) => compareVersion(b, a))
+      const latest = latestRemoteVersion()
+      const available = [...new Set([latest, ...allVersionList()])].filter((version) => version && !installed.includes(version))
+        .sort((a, b) => compareVersion(b, a))
+      const previous = versionInstallSelectEl.value
+      const options = available.map((version) => `<option value="${escapeHtml(version)}">${escapeHtml(version)}${version === latest ? ` · ${escapeHtml(t('最新'))}` : ''}</option>`).join('')
+        || `<option value="">${escapeHtml(t('没有可安装的版本'))}</option>`
+      if (versionInstallOptions !== options) {
+        versionInstallOptions = options
+        versionInstallSelectEl.innerHTML = options
+        versionInstallSelectEl.value = available.includes(previous) ? previous : (available.includes(latest) ? latest : available[0] || '')
+      }
+      const busy = Boolean(action) || Boolean(state.installing)
+      versionInstallSelectEl.disabled = busy || !available.length
+      document.getElementById('versionManageInstall').disabled = busy || !versionInstallSelectEl.value
+      syncUiSelect(versionInstallSelectEl)
+      const installing = Boolean(state.installing) || action === 'install' || action === 'update'
+      document.getElementById('versionManageHint').textContent = installing ? progressHint(t('正在安装'))
+        : action === 'uninstall' ? t('正在卸载…') : !available.length && !versionNames(remote.versions).length ? t('读不到远程版本。') : ''
+      paintProgress(document.getElementById('versionManageProgress'), document.getElementById('versionManageProgressBar'), installProgress, installing)
+      const list = document.getElementById('versionManageList')
+      const markup = installed.map((version) => {
+        const live = (state.instances || []).find((item) => item.version === version && ['running', 'starting', 'stopping'].includes(item.status)) || runningInfo(version)
+        const status = live ? live.status === 'starting' ? t('启动中') : live.status === 'stopping' ? t('停止中')
+          : t('正在运行 · {profile}', { profile: live.profile || t('运行中') }) : t('未运行')
+        const label = t('卸载版本')
+        return `<div class="version-manage-row" role="listitem"><div class="version-manage-info"><strong>${escapeHtml(version)}</strong>${live ? `<span title="${escapeHtml(status)}">${escapeHtml(status)}</span>` : ''}</div><button class="ghost icon-btn version-remove" type="button" data-remove-version="${escapeHtml(version)}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" ${busy || live ? 'disabled' : ''}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg></button></div>`
+      }).join('') || `<p class="hint version-manage-empty">${escapeHtml(t('尚未安装任何版本'))}</p>`
+      // 状态推送和安装进度频繁变化，保留相同的行以免键盘焦点被重建打断。
+      if (versionManageMarkup !== markup) {
+        versionManageMarkup = markup
+        list.innerHTML = markup
+        list.querySelectorAll('[data-remove-version]').forEach((button) => {
+          button.onclick = () => { void uninstallVersion(button.dataset.removeVersion) }
+        })
+      }
+    }
+
+    manageVersionsEl.onclick = openVersionManager
+    document.getElementById('versionManageClose').onclick = closeVersionManager
+    document.getElementById('versionInstallForm').onsubmit = (event) => {
+      event.preventDefault()
+      void manualInstallVersion(versionInstallSelectEl.value)
+    }
+    versionInstallSelectEl.onchange = paintVersionManager
+    versionManageDialogEl.onclick = (event) => { if (event.target === versionManageDialogEl) void closeVersionManager() }
+    versionManageDialogEl.onkeydown = (event) => {
+      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); void closeVersionManager(); return }
+      if (event.key !== 'Tab') return
+      const controls = [...versionManageDialogEl.querySelectorAll('button')].filter((el) => !el.disabled && el.getClientRects().length)
+      const first = controls[0], last = controls.at(-1)
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
+    }
 
     async function uninstallVersion(version) {
       if (!version || action || state.installing || runningInfo(version)) return
@@ -2582,13 +2750,16 @@
       if (!ok) return
       action = 'uninstall'
       render()
-      try { await post('/api/uninstall', { version }) }
+      try {
+        await post('/api/uninstall', { version })
+        applyState(await getJson('/api/state'))
+      }
       catch (error) { notify(error.message) }
       finally { action = ''; render() }
     }
 
     function openLaunchEditor(entry) {
-      if (launcherRunning()) { notify(t('请先停止正在运行的 DSH，再编辑启动项或安装整合包')); return }
+      if (action || state.installing) return
       ++launchDialogRevision
       ++launchHomeRevision
       launchDialogClosing = false
@@ -2629,9 +2800,9 @@
       launchFormEl.inert = false
       editingLaunchId = ''
       launchAddEl.focus()
+      render()
     }
     launchAddEl.onclick = () => openLaunchEditor()
-    document.getElementById('launchCancel').onclick = closeLaunchEditor
     document.getElementById('launchDialogClose').onclick = closeLaunchEditor
     launchDialogEl.onclick = (event) => { if (event.target === launchDialogEl) closeLaunchEditor() }
     launchDialogEl.onkeydown = (event) => {
@@ -2653,10 +2824,10 @@
         })
         state.launchPresets = [...launchEntries().filter((item) => item.id !== data.entry.id), data.entry]
         launchSaveEl.disabled = false
-        closeLaunchEditor()
+        await closeLaunchEditor()
         render()
       } catch (error) { notify(error.message) }
-      finally { launchSaveEl.disabled = false }
+      finally { launchSaveEl.disabled = false; render() }
     }
     launchDeleteEl.onclick = async () => {
       if (!editingLaunchId || editingLaunchId === DEFAULT_LAUNCH_ID) return
@@ -2669,10 +2840,10 @@
         const id = editingLaunchId
         await post('/api/launch-presets/remove', { id })
         state.launchPresets = launchEntries().filter((entry) => entry.id !== id)
-        closeLaunchEditor()
+        await closeLaunchEditor()
         render()
       } catch (error) { notify(error.message) }
-      finally { launchDeleteEl.disabled = false }
+      finally { launchDeleteEl.disabled = false; render() }
     }
 
     function render() {
@@ -2711,6 +2882,7 @@
       const fixed = stateAutoFix()
       if (!hintEl.textContent && fixed) hintEl.textContent = t('启动时自动禁用了：{names}（插件页可恢复）', { names: fixed })
       if (!hintEl.textContent && state.health?.failed?.length) hintEl.textContent = t('⚠ 页面自检：{failed}/{total} 个插件包加载失败', { failed: state.health.failed.length, total: state.health.total })
+      if (!versionManageDialogEl.hidden) paintVersionManager()
     }
 
     versionOnChange = (value, keepOpen) => {
@@ -2733,25 +2905,41 @@
       render()
     }
 
-    async function startVersion(version, profile = launchProfile, presetPort = null, launchId = '') {
+    async function runLaunchAction(version, profile, launchId, phase, run) {
+      const key = launchActionKey(version, profile, launchId)
+      if (launchActions.has(key) || (launchId && [...launchActions.values()].some((task) => task.launchId === launchId))) return
+      const task = { phase, launchId }
+      launchActions.set(key, task)
+      render()
       try {
-        action = 'start'
-        render()
-        if (presetPort !== null) await post('/api/instance-port', { version, profile, port: presetPort }, { launchId })
-        if (!installedList().includes(version)) {
-          action = 'install'
-          render()
-          await post('/api/install', { version })
-        }
-        action = 'start'
-        render()
-        const data = await post('/api/start', { version, profile }, { launchId })
-        if (data.url) await openInstance(data.url)
+        return await run(task)
       } finally {
-        action = ''
-        activeLaunchId = ''
+        if (launchActions.get(key) === task) launchActions.delete(key)
         render()
       }
+    }
+
+    async function startLaunchInstance(version, profile, presetPort, launchId, task) {
+      task.phase = 'start'
+      if (presetPort !== null) await post('/api/instance-port', { version, profile, port: presetPort }, { launchId })
+      if (!installedList().includes(version)) {
+        task.phase = 'install'
+        render()
+        // 两个环境首次用同一版本时共用一次下载，安装完成后各自启动。
+        if (!versionInstalls.has(version)) {
+          const installing = post('/api/install', { version }).finally(() => versionInstalls.delete(version))
+          versionInstalls.set(version, installing)
+        }
+        await versionInstalls.get(version)
+      }
+      task.phase = 'start'
+      render()
+      const data = await post('/api/start', { version, profile }, { launchId })
+      if (data.url) await openInstance(data.url)
+    }
+
+    async function startVersion(version, profile = launchProfile, presetPort = null, launchId = '') {
+      return runLaunchAction(version, profile, launchId, 'start', (task) => startLaunchInstance(version, profile, presetPort, launchId, task))
     }
 
     /** 升级到最新版：正在跑就先停掉，装完再按原样拉起来。 */
@@ -3053,7 +3241,10 @@
       state.loaded = true
       render()
       maybeLaunch()
-    }).finally(listenEvents)
+    }).finally(() => {
+      globalThis.launcherBoot?.markReady('state')
+      listenEvents()
+    })
 
     getJson('/api/remote').then((data) => {
       remote = data
@@ -3320,7 +3511,10 @@
     }
     const openModeEl = document.getElementById('openMode')
     const openModeHint = document.getElementById('openModeHint')
-    const describeOpenMode = () => ''
+    let internalTabsAvailable = false
+    const describeOpenMode = (mode) => mode === 'internal' && !internalTabsAvailable
+      ? t('内部标签页需使用新版 DSH-X 桌面端；当前使用浏览器标签页。')
+      : ''
     const proxyModeEl = document.getElementById('proxyMode')
     const proxyUrlEl = document.getElementById('proxyUrl')
     const proxyHintEl = document.getElementById('proxyHint')
@@ -3424,13 +3618,16 @@
         showSystemPathSettings(data)
       }
       if ('openMode' in data) {
+        internalTabsAvailable = data.openModeInternal === true
         const modes = Array.isArray(data.openModes) && data.openModes.length
           ? data.openModes
-          : [{ id: 'tab', label: '浏览器标签页' }, { id: 'app', label: '应用窗口' }]
+          : [{ id: 'tab', label: '浏览器标签页' }, { id: 'app', label: '浏览器独立窗口' }]
         openModeEl.innerHTML = modes.map((item) => `<option value="${escapeHtml(item.id)}" data-i18n="${escapeHtml(item.label)}">${escapeHtml(t(item.label))}</option>`).join('')
         openModeEl.value = String(data.openMode || 'tab')
         // 选了桌面窗口但当前没有原生外壳（源码运行 / npm start）：如实说明会落到哪里
-        openModeHint.textContent = openModeEl.value === 'window' && data.openModeWindow === false
+        openModeHint.textContent = openModeEl.value === 'internal' && data.openModeInternal === false
+          ? t('内部标签页需使用新版 DSH-X 桌面端；当前使用浏览器标签页。')
+          : openModeEl.value === 'window' && data.openModeWindow === false
           ? t('当前预览使用浏览器标签页。')
           : describeOpenMode(openModeEl.value)
       }
@@ -3474,6 +3671,7 @@
         settingsHint.textContent = error.message
       }).finally(() => {
         settingsLoadPromise = null
+        globalThis.launcherBoot?.markReady('settings')
       })
       return settingsLoadPromise
     }
@@ -4882,7 +5080,7 @@
     }
 
     async function installPack() {
-      if (launcherRunning()) { notify(t('请先停止正在运行的 DSH，再编辑启动项或安装整合包')); return }
+      if (launcherRunning()) { notify(t('请先停止正在运行的 DSH，再安装整合包')); return }
       if (!packInspection?.ok || packBusy || packInspection.target?.profile !== packTargetProfile) return
       // 必须先取安装环境再重画：renderPackInspect 会按检查结果重置输入框，晚一步就丢用户指定的 profile
       const profile = String(document.getElementById('packProfile')?.value || '').trim()
@@ -5535,5 +5733,6 @@
   </script>
   <script src="/mascot.js" defer></script>
   <script src="/water.js" defer></script>
+  <script src="/internal-tabs.js" defer></script>
 </body>
 </html>

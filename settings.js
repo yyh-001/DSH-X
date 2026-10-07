@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -163,8 +163,11 @@ export function safeProxyUrl(value) {
  *   经过浏览器进程——关窗口、托盘、退出都由启动器自己说了算。它只在原生外壳托管下成立
  *   （外壳设了 DSH_APP_WINDOW=1，并在 stdout 上收约定标记），源码运行（npm start）时选它
  *   会安静地退回标签页，不会开出一个没人管的窗口。
+ * - internal：在启动器主窗口的原生标签页里打开，每个实例保留自己的页面；需要新版外壳
+ *   报告 DSH_INTERNAL_TABS=1，旧外壳与源码运行时退回系统浏览器。
  */
-export const OPEN_MODES = ['tab', 'app', 'window']
+// internal 保留在主窗口的标签页中；与另开一个桌面窗口的 window 分开，旧设置仍按原义打开。
+export const OPEN_MODES = ['tab', 'app', 'window', 'internal']
 export const DEFAULT_OPEN_MODE = 'tab'
 
 export function safeOpenMode(value) {
@@ -218,7 +221,7 @@ export const DEFAULTS = {
   // 网络代理：off / system（默认，跟随系统）/ manual；手动模式看下面的 proxyUrl
   proxyMode: DEFAULT_PROXY_MODE,
   proxyUrl: '',
-  // 打开 dsh 页面的方式：tab（默认，系统浏览器标签页）/ app（Chromium 应用窗口）/ window（启动器内嵌窗口）
+  // tab（默认浏览器）/ app（浏览器应用窗口）/ window（独立桌面窗口）/ internal（主窗口标签页）。
   openMode: DEFAULT_OPEN_MODE,
   // dsh 的用户目录（DSH_HOME）。留空 = 默认 ~/.dsh；用户把 .dsh 挪到别的盘时在这里指回去
   dshHome: '',
@@ -620,7 +623,15 @@ export function safeSyncSettings(value) {
   }
 }
 
-export async function saveSettings(patch) {
+// 并行启动会同时保存端口、历史和界面设置，读改写必须串行，避免不同字段相互覆盖。
+let settingsWrites = Promise.resolve()
+export function saveSettings(patch) {
+  const result = settingsWrites.then(() => saveSettingsNow(patch))
+  settingsWrites = result.catch(() => {})
+  return result
+}
+
+async function saveSettingsNow(patch) {
   const current = await loadSettings()
   const merged = { ...current, ...patch }
   if (merged.dataDir) merged.dataDir = safeDataDir(merged.dataDir)
@@ -687,7 +698,21 @@ export async function saveSettings(patch) {
     delete merged[key]
   }
   await mkdir(SETTINGS_DIR, { recursive: true })
-  await writeFile(SETTINGS_FILE, JSON.stringify(merged, null, 2))
+  // 读者包括同步的启动配置查询；用替换文件避免它读到写入一半的 JSON 后退回默认值。
+  const temporary = `${SETTINGS_FILE}.${process.pid}.tmp`
+  try {
+    await writeFile(temporary, JSON.stringify(merged, null, 2))
+    // Windows 的短暂读句柄可能拒绝替换，等读者放手再试；始终保留原文件供读取。
+    for (let attempt = 0; ; attempt++) {
+      try { await rename(temporary, SETTINGS_FILE); break }
+      catch (error) {
+        if (!['EPERM', 'EACCES', 'EBUSY'].includes(error.code) || attempt >= 5) throw error
+        await new Promise((resolve) => setTimeout(resolve, 15 * (attempt + 1)))
+      }
+    }
+  } finally {
+    await rm(temporary, { force: true }).catch(() => {})
+  }
   return merged
 }
 

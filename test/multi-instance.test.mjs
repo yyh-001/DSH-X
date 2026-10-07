@@ -14,7 +14,7 @@
  */
 import assert from 'node:assert/strict'
 import { isolateUserHome } from './isolated-home.mjs'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -25,6 +25,14 @@ import { fileURLToPath } from 'node:url'
 const page = readFileSync(fileURLToPath(new URL('../public/index.html', import.meta.url)), 'utf8')
 
 const FAKE_DSH = `import { createServer } from 'node:http'
+import { existsSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+if (process.env.DSH_TEST_START_GATE) {
+  const profile = process.argv.includes('--profile') ? process.argv[process.argv.indexOf('--profile') + 1] : process.argv[2]
+  const marker = join(process.env.DSH_TEST_START_GATE, process.env.DSH_VERSION + '-' + profile)
+  writeFileSync(marker + '.started', '')
+  while (!existsSync(marker + '.release')) await new Promise(resolve => setTimeout(resolve, 20))
+}
 const srv = createServer((req, res) => {
   res.setHeader('content-type', 'text/html; charset=utf-8')
   res.end(req.url === '/home' ? process.env.DSH_HOME : '<!doctype html><html><body>fake dsh</body></html>')
@@ -138,6 +146,63 @@ test('不给版本号就是全停（托盘的「停止」走这条）', async ()
   assert.equal(snap.running, null)
 })
 
+async function waitForMarker(file) {
+  const deadline = Date.now() + 15000
+  while (!existsSync(file)) {
+    assert.ok(Date.now() < deadline, `等待启动标记超时：${file}`)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+}
+
+test('不同 Profile 同时启动，不必等前一个就绪；同一组合并发点击仍只有一个进程', async () => {
+  const gate = join(appDir, 'parallel-gate')
+  mkdirSync(gate)
+  for (const profile of ['parallel-a', 'parallel-b']) {
+    const dir = join(HOME, 'profiles', profile)
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ dsh: { profile: { bundles: ['@deepseek-ai/dsh-web-app'] } } }))
+  }
+  process.env.DSH_TEST_START_GATE = gate
+  const pending = [api('/api/start', { version: A, profile: 'parallel-a' }), api('/api/start', { version: A, profile: 'parallel-b' }), api('/api/start', { version: A, profile: 'parallel-a' })]
+  for (const promise of pending) promise.catch(() => {})
+  try {
+    await Promise.all(['parallel-a', 'parallel-b'].map((profile) => waitForMarker(join(gate, `${A}-${profile}.started`))))
+    const snap = await state()
+    assert.equal(snap.instances.filter((item) => item.profile.startsWith('parallel-')).length, 2)
+    assert.ok(snap.instances.every((item) => item.status === 'starting'), '两个都能进入加载阶段，不等第一个就绪')
+  } finally {
+    delete process.env.DSH_TEST_START_GATE
+    for (const profile of ['parallel-a', 'parallel-b']) writeFileSync(join(gate, `${A}-${profile}.release`), '')
+    const result = await Promise.allSettled(pending)
+    await api('/api/stop', {})
+    assert.ok(result.every((item) => item.status === 'fulfilled'))
+    assert.equal(result[0].value.url, result[2].value.url, '重复点击复用原实例')
+  }
+})
+
+test('同一 Profile 的两个版本仍串行准备，避免同时初始化或修复配置', async () => {
+  const gate = join(appDir, 'serial-gate')
+  mkdirSync(gate)
+  process.env.DSH_TEST_START_GATE = gate
+  const first = api('/api/start', { version: A, profile: 'web' })
+  first.catch(() => {})
+  await waitForMarker(join(gate, `${A}-web.started`))
+  const second = api('/api/start', { version: B, profile: 'web' })
+  second.catch(() => {})
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    assert.equal(existsSync(join(gate, `${B}-web.started`)), false)
+    writeFileSync(join(gate, `${A}-web.release`), '')
+    await first
+    await waitForMarker(join(gate, `${B}-web.started`))
+  } finally {
+    delete process.env.DSH_TEST_START_GATE
+    for (const version of [A, B]) writeFileSync(join(gate, `${version}-web.release`), '')
+    await Promise.allSettled([first, second])
+    await api('/api/stop', {})
+  }
+})
+
 test('重启会把在跑的实例都拉回来', async () => {
   const before = [(await api('/api/start', { version: A })).url, (await api('/api/start', { version: B })).url]
   const back = await api('/api/restart', {})
@@ -214,6 +279,27 @@ test('重启把每个实例按原来的 profile 拉回来', async () => {
 test('不存在的 profile 与保留名都会被拒', async () => {
   await assert.rejects(api('/api/start', { version: A, profile: 'ghost' }), /不存在/, '盘上没有的自定义名直接拒')
   await assert.rejects(api('/api/start', { version: A, profile: 'desktop' }), /desktop/, 'desktop 是官方 Electron 端的保留名')
+})
+
+test('并发启动、添加和编辑入口保留各自的配置与启动历史，删除入口不停止实例', async () => {
+  const first = await api('/api/launch-presets', { name: '并发一', version: A, profile: 'work', port: 0 })
+  const second = await api('/api/launch-presets', { name: '并发二', version: B, profile: 'work', port: 0 })
+  const [, , added] = await Promise.all([
+    api('/api/start', { version: A, profile: 'work' }, first.entry.id),
+    api('/api/start', { version: B, profile: 'work' }, second.entry.id),
+    api('/api/launch-presets', { name: '并发新增', version: A, profile: 'web', port: 0 }),
+  ])
+  const snap = await state()
+  assert.equal(snap.launchPresets.find((item) => item.id === first.entry.id).usedVersion, A)
+  assert.equal(snap.launchPresets.find((item) => item.id === second.entry.id).usedVersion, B)
+  assert.ok(snap.launchPresets.some((item) => item.id === added.entry.id))
+  assert.equal(snap.instances.length, 2)
+  await api('/api/launch-presets', { ...first.entry, name: '运行中改名' })
+  await api('/api/launch-presets/remove', { id: first.entry.id })
+  assert.equal((await state()).instances.length, 2, '改名和删除快捷入口不影响运行实例')
+  await api('/api/launch-presets/remove', { id: second.entry.id })
+  await api('/api/launch-presets/remove', { id: added.entry.id })
+  await api('/api/stop', {})
 })
 
 test('同版本同 Profile 可在不同 DSH_HOME 并存，管理和停止按启动项隔离', async () => {

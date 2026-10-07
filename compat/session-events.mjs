@@ -22,6 +22,7 @@
  * 安全：只在源码结构匹配时替换，dsh 升级导致代码变化即自动跳过（不改坏任何东西）。
  */
 const SESSION_TYPES = ['filesnap/point', 'filesnap/rewound', 'filesnap/redone']
+const TARGETS = ['dsh-session/lib/index.js', 'dsh-app-boot/lib/index.js', 'dsh-session-format-v0-to-v1/lib/index.js']
 
 /** 带载荷字段的类型 —— 字段声明为可选，避免键校验把它们当多余字段拒绝。 */
 const PAYLOAD_KEYS = {
@@ -88,8 +89,10 @@ export function appBootStackPatch(source) {
   return patched ? out : null
 }
 
-export async function load(url, context, nextLoad) {
-  const result = await nextLoad(url, context)
+export function load(url, context, nextLoad) {
+  const result = nextLoad(url, context)
+  // 绝大多数模块不需要补丁，先筛路径，避免把每份源码额外解码成字符串。
+  if (!TARGETS.some((target) => url.includes(target))) return result
   if (result.format !== 'module' || result.source === undefined) return result
 
   let source = Buffer.isBuffer(result.source) ? result.source.toString('utf8') : String(result.source)

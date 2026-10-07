@@ -23,7 +23,7 @@ A lightweight desktop launcher for DeepSeek Harness: launch entries, multiple in
 - **Launch entries and multiple instances**: choose a dsh home directory, profile, version and port for each entry; different profiles of the same version can run together.
 - **Plugins and packs**: install, toggle and update plugins by environment; import packs from the community market or a file, and export your own environment.
 - **MCP and skills**: configure MCP servers and import, manage and toggle skills.
-- **Opening modes**: a system browser tab, browser app window or desktop window.
+- **Opening modes**: a system browser tab, standalone browser window or desktop window.
 - **Appearance**: light / dark themes, transparency, and separate background and Big Fish switches.
 - **Updates and recovery**: self-update, profile recovery and configurable old-version retention; each launch entry's current and previous versions are kept additionally.
 - **Windows / macOS**: a Windows installer and Apple Silicon / Intel dmgs, tray / menu bar operation and launch at login, with Node / npm / pnpm included.
@@ -72,9 +72,9 @@ A companion Wallpaper Engine wallpaper — [DSH-X · 大肥鱼桌面终端](http
   <img src="wallpaper/preview.jpg" alt="DSH-X wallpaper" width="820" />
 </p>
 
-## Antivirus false positives
+## Signing and antivirus false positives
 
-The Windows installer is not code-signed, so SmartScreen may show an "unknown publisher" prompt or antivirus software may report a false positive. Submit `DSH-Setup.exe` to [Microsoft](https://www.microsoft.com/en-us/wdsi/filesubmission) or the relevant antivirus vendor to report a false positive.
+The release-manifest signature verifies file integrity and is separate from Windows publisher signing. `DSH-Setup.exe` currently has no Authenticode signature, so SmartScreen may show an "unknown publisher" prompt. Report antivirus false positives by submitting the installer to [Microsoft](https://www.microsoft.com/en-us/wdsi/filesubmission) or the relevant antivirus vendor.
 
 ## Usage
 
@@ -82,7 +82,7 @@ Windows: install [DSH-Setup.exe](https://github.com/yyh-001/DSH-X/releases/lates
 
 macOS: open `DSH-X-mac-arm64.dmg` (Apple Silicon) or `DSH-X-mac-x64.dmg` (Intel) and drag **DSH-X** into Applications. v0.1.15 uses ad-hoc signing and is not notarized; the first launch may require manual approval through macOS security prompts.
 
-Add or edit a launch entry on the home page, select its environment and version, then start it. Choose how dsh opens in Settings. The manager defaults to port `3780` and tries the next port if occupied. To reach dsh from another device: Settings → Advanced → **Web binding** → LAN, applied on the next start.
+Add or edit a launch entry on the home page, select its environment and version, then start it. Choose a browser, a separate window or **tabs inside DSH-X** in Settings. The manager defaults to port `3780` and tries the next port if occupied. To reach dsh from another device: Settings → Advanced → **Web binding** → LAN, applied on the next start.
 
 Verifying a download (optional): the releases page lists a sha256 next to every file — compare it locally with `certutil -hashfile DSH-Setup.exe SHA256` (Windows) or `shasum -a 256 DSH-X-mac-arm64.dmg` (macOS).
 

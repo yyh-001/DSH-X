@@ -18,8 +18,8 @@ const FAST_NEWLINE = 'function newlineCount(value) { let count = 0, i = -1; whil
 const SLOW_MAPPINGS = 'const mappings = Array.from({ length: newlineCount(source) }, (_, index) => index === 0 ? "AAAA" : "AACA").join(";");'
 const FAST_MAPPINGS = 'const _lines = newlineCount(source); const mappings = _lines <= 0 ? "" : "AAAA" + ";AACA".repeat(_lines - 1);'
 
-export async function load(url, context, nextLoad) {
-  const result = await nextLoad(url, context)
+export function load(url, context, nextLoad) {
+  const result = nextLoad(url, context)
   if (!url.includes(TARGET)) return result
   if (result.format !== 'module' || result.source === undefined) return result
 

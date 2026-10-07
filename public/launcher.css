@@ -102,6 +102,8 @@ header {
   transition: background-color 260ms ease;
 }
 .brand { font-weight: 700; letter-spacing: 0.04em; font-size: 20px; line-height: 1; color: var(--accent); }
+.brand-home { display: inline-flex; align-items: baseline; gap: 10px; border: 0; padding: 6px 8px; margin: -6px -8px; background: transparent; font: inherit; cursor: pointer; }
+.brand-home:focus-visible { outline: 2px solid var(--accent); outline-offset: 5px; border-radius: 3px; }
 .brand-block { display: flex; align-items: baseline; gap: 10px; }
 .app-ver { color: var(--muted); font-size: 12px; }
 .app-ver:empty { display: none; }
@@ -190,6 +192,52 @@ header {
 .win-btn.close:hover { background: var(--danger); color: #fff; }
 /* 顶栏要用来拖窗口，文字别被拖选 */
 .app-window header { user-select: none; }
+/* 原生标签复用已有菜单栏：不再另加标题栏，配色与 Star、设置和窗口按钮保持同源。 */
+.internal-tabs header { gap: 20px; }
+.internal-tabs .brand-block, .internal-tabs .header-right { flex-shrink: 0; }
+.internal-tabs-area { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; }
+.internal-tabs-area[hidden] { display: none; }
+.internal-tab-list { position: relative; isolation: isolate; display: flex; flex: 1; gap: 5px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.internal-tab-list::-webkit-scrollbar { display: none; }
+.internal-tab-indicator {
+  position: absolute; top: 0; left: 0; height: 36px; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--card); box-shadow: 0 3px 10px rgba(59, 111, 224, .09); opacity: 0; pointer-events: none;
+  will-change: transform;
+  transition: transform 260ms cubic-bezier(.2, 1.3, .32, 1), width 260ms cubic-bezier(.2, 1.3, .32, 1), opacity 160ms ease;
+}
+.internal-tab-indicator.visible { opacity: 1; }
+.internal-tab-indicator.instant { transition: none; }
+.internal-tab {
+  position: relative;
+  display: flex; align-items: center; gap: 5px; flex: 0 1 172px; min-width: 104px; height: 36px;
+  padding: 0 7px 0 11px; border: 1px solid transparent; border-radius: 12px; color: var(--muted);
+  transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, color 180ms ease;
+}
+.internal-tab:hover { background: var(--accent-soft); color: var(--accent); }
+.internal-tab.active { background: transparent; color: var(--accent); }
+.internal-tab button { border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.internal-tab-label { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; padding: 0; height: 100%; font-size: 13px !important; font-weight: 600 !important; }
+.internal-tab-label span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.internal-tab-label svg { flex-shrink: 0; width: 15px; height: 15px; }
+.internal-tab-close { display: grid; place-items: center; flex-shrink: 0; width: 22px; height: 22px; padding: 4px; border-radius: 7px; opacity: .5; transition: opacity 140ms ease, background 140ms ease; }
+.internal-tab:hover .internal-tab-close, .internal-tab.active .internal-tab-close { opacity: .8; }
+.internal-tab-close:hover { opacity: 1 !important; background: var(--accent-dim); }
+.internal-tab-close svg { width: 13px; height: 13px; }
+.internal-tab-reload { flex-shrink: 0; width: 32px; height: 32px; }
+.internal-tab.stopped .internal-tab-label { opacity: .6; }
+.internal-tab button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 5px; }
+.internal-tab { touch-action: none; user-select: none; }
+.internal-tab-label { cursor: grab !important; }
+.internal-tab-list.dragging, .internal-tab-list.dragging * { cursor: grabbing !important; }
+.internal-tab.dragging { z-index: 2; background: var(--card); border-color: var(--line); box-shadow: 0 3px 10px rgba(59, 111, 224, .14); }
+/* 内容层接管前仍保留主页画面；交互和辅助阅读由 inert / aria-hidden 禁用，避免切换中露出空白。 */
+.internal-dsh-active main { pointer-events: none; }
+@media (prefers-reduced-motion: reduce) {
+  .internal-tab-indicator, .internal-tab, .internal-tab-close { transition: none; }
+}
+@media (max-width: 900px) {
+  .internal-tabs header { gap: 14px; }
+}
 main { min-height: 0; overflow: hidden; }
 /* 设置页外壳：左侧分组导航 + 右侧面板，四个面板都在这里切（顶栏那排 tab 已取消） */
 .shell { display: flex; height: 100%; min-height: 0; }
@@ -376,9 +424,10 @@ main.home .settings-body { padding-top: 34px; }
 .home-field.port { flex: 0 1 108px; }
 .home-field .ui-select { width: 100%; flex: 1 1 auto; }
 /* 首页统一为启动项列表；参数在编辑窗口里一次保存。 */
-.launch-presets { display: grid; }
+.launch-presets { display: grid; position: relative; align-content: start; }
 .launch-preset { display: flex; align-items: center; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--line); }
 .launch-preset:last-child { border-bottom: 0; }
+.launch-preset[data-launch-last] { border-bottom: 0; }
 .launch-preset-copy { flex: 1; min-width: 0; }
 .launch-app-icon { display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; border-radius: 13px; background: var(--accent-soft); color: var(--text); }
 .launch-app-icon svg { width: 25px; height: 25px; }
@@ -438,6 +487,8 @@ html.reduce-motion .launch-status.is-working::before { animation: none; }
 /* 主卡片不跟内容列通栏：就一列启动项，按卡片默认宽度居中就够了 */
 #pane-control .card.home { position: relative; width: min(540px, 100%); margin-inline: auto; padding: 32px; border-radius: 22px; background: rgba(255, 255, 255, var(--panel-opacity)); backdrop-filter: blur(12px); }
 .launch-presets .launch-preset:only-child { padding: 0; }
+/* 删除动画暂留的项不计入布局，按实际项数保留单项卡片的紧凑边距。 */
+.launch-presets[data-launch-count="1"] > .launch-preset:not([data-launch-removing]) { padding: 0; }
 .launch-add {
   position: absolute;
   left: calc(100% + 10px);
@@ -486,6 +537,8 @@ html.reduce-motion .launch-status.is-working::before { animation: none; }
 .launch-save-actions button { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; width: 80px; min-width: 80px; height: 36px; padding: 0 14px; border: 1px solid var(--line); border-radius: 9px; font-size: 12px; font-weight: 600; line-height: 1; }
 .launch-save-actions button[hidden] { display: none; }
 .launch-save-actions .primary { border-color: transparent; }
+#launchDialog #launchSave { width: 36px; min-width: 36px; height: 36px; padding: 8px; }
+#launchSave svg { width: 18px; height: 18px; }
 /* 删除与旁边的修复扳手同规格：36px 图标方框，但用危险色、悬停铺红底 */
 .launch-save-actions .launch-delete { flex: 0 0 auto; width: 36px; min-width: 36px; height: 36px; padding: 8px; color: var(--danger); }
 .launch-save-actions .launch-delete svg { flex: 0 0 18px; width: 18px; height: 18px; }
@@ -1514,6 +1567,8 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 #launchDialog .home-field:has(#versionPicker) { position: relative; }
 #launchDialog .launch-version-select-row { display: flex; align-items: center; gap: 8px; }
 #launchDialog .launch-version-select-row .select { flex: 1 1 auto; min-width: 0; }
+#launchDialog .launch-manage-version { flex: 0 0 42px; width: 42px; height: 42px; padding: 11px; border-radius: 10px; }
+#launchDialog .launch-manage-version svg { width: 18px; height: 18px; }
 #launchDialog .select-trigger { min-height: 42px; height: 42px; border-radius: 10px; font-size: 13px; }
 #launchDialog input[type=text], #launchDialog input[type=number], #launchDialog select { height: 42px; border-radius: 10px; font-size: 13px; }
 #launchDialog .select-panel { position: absolute; z-index: 30; inset: calc(100% + 6px) 0 auto; margin: 0; max-height: min(250px, 32vh); box-shadow: 0 12px 32px #0003; }
@@ -1689,6 +1744,31 @@ html .set-row:focus-within { background: transparent; box-shadow: none; }
 .launch-tool-actions #launchRecover { height: 36px; border-radius: 9px; font-size: 12px; }
 .launch-tool-actions .icon-btn, .plugin-actions .action-icon { width: 32px; height: 32px; padding: 6px; border-radius: 8px; }
 .launch-tool-actions svg, .plugin-actions .action-icon svg { width: 18px; height: 18px; }
+.version-manage-card { width: min(420px, 100%); min-height: 0; padding: 22px; gap: 12px; border-radius: 18px; }
+.version-manage-card .dialog-heading { margin: 0 0 4px; }
+.version-manage-card .dialog-close { border-color: transparent; background: transparent; color: var(--muted); }
+#versionManageDialog { z-index: 34; }
+#confirmDialog { z-index: 48; }
+.version-manage-install { flex: 0 0 auto; margin: 0; padding: 0; }
+.version-manage-install-row { display: flex; align-items: center; gap: 8px; }
+.version-manage-install-row .ui-select { flex: 1; min-width: 0; }
+.version-manage-install-row .primary { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 36px; min-width: 36px; height: 36px; margin: 0; padding: 8px; border-radius: 9px; }
+.version-manage-install-row .primary svg { width: 18px; height: 18px; }
+/* 空提示行不占高度，只有安装进度或错误需要额外空间。 */
+#versionManageHint { margin: 0; min-height: 0; font-size: 12px; }
+#versionManageHint:empty { display: none; }
+.version-manage-heading { margin: 2px 0 0; padding-top: 14px; border-top: 1px solid var(--line); font-size: 12px; font-weight: 500; color: var(--muted); }
+.version-manage-row .version-remove svg { width: 18px; height: 18px; }
+.version-manage-row .version-manage-info span { max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.version-manage-list { flex: 0 1 auto; min-height: 0; max-height: min(48vh, 300px); overflow: auto; scrollbar-width: thin; }
+.version-manage-row { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.version-manage-row:last-child { border-bottom: 0; }
+.version-manage-info { display: flex; flex: 1 1 auto; align-items: baseline; justify-content: space-between; gap: 12px; min-width: 0; }
+.version-manage-info strong { overflow: hidden; color: var(--text); font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.version-manage-info span { flex: 0 0 auto; color: var(--muted); font-size: 11px; }
+.version-manage-row .version-remove { flex: 0 0 auto; width: 30px; min-width: 30px; height: 30px; min-height: 30px; padding: 6px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); white-space: nowrap; }
+.version-manage-row .version-remove:hover:not(:disabled) { color: var(--danger); background: var(--accent-soft); }
+.version-manage-empty { margin: 0; padding: 8px 0; font-size: 12px; }
 .profile-dialog-card { width: min(420px, 100%); padding: 24px; border-radius: 18px; }
 .profile-dialog-card > label { margin-bottom: 8px; color: var(--muted); font-size: 12px; }
 .profile-dialog-card > input { height: 42px; border-radius: 10px; }
@@ -1809,3 +1889,5 @@ html.reduce-motion #launchIconTrigger, html.reduce-motion #launchPickHome, html.
 #skillInstallDialog .skill-source-tabs button { background: transparent; box-shadow: none; }
 #skillInstallDialog .skill-source-tabs button:hover:not(:disabled) { color: var(--accent); background: transparent; border-bottom-color: var(--muted); }
 #skillInstallDialog .skill-source-tabs button[aria-pressed=true] { border-bottom-color: var(--accent); }
+
+@media (max-width: 560px) { .version-manage-card { padding: 18px; max-height: calc(100dvh - 28px); } .version-manage-info { align-items: flex-start; flex-direction: column; gap: 2px; } .version-manage-row .version-manage-info span { max-width: 100%; } }

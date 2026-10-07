@@ -98,8 +98,10 @@ setTimeout(() => server.listen(0, '127.0.0.1', () => console.log('dsh web: http:
       await new Promise((resolve) => setTimeout(resolve, 20))
     }
     await assert.rejects(api('/api/packs/remove-profile', { profile: 'guarded' }), /请先停止/)
-    await assert.rejects(api('/api/launch-presets', { name: 'blocked', version: 'auto', profile: 'web' }), /请先停止/)
-    await assert.rejects(api('/api/launch-presets/remove', { id: 'blocked' }), /请先停止/)
+    const added = await api('/api/launch-presets', { name: '启动中也可添加', version: versions[0], profile: 'guarded' })
+    await api('/api/launch-presets', { ...added.entry, name: '可编辑入口' })
+    await api('/api/launch-presets/remove', { id: added.entry.id })
+    assert.ok((await api('/api/state')).instances.some((item) => item.profile === 'guarded'), '增删入口不停止正在启动的实例')
     await assert.rejects(api('/api/packs/install', {}), /请先停止/)
     await launching
     await api('/api/start', { version: versions[1], profile: 'guarded' })

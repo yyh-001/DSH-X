@@ -1,0 +1,62 @@
+/* 开场沿用壁纸的字标展开与细线，颜色跟随控制台，避免另起一套主题。 */
+.launcher-boot {
+  position: fixed; inset: 0; z-index: 60; display: grid; place-items: center;
+  background: var(--bg); color: var(--text); pointer-events: auto;
+}
+.launcher-boot[hidden] { display: none; }
+.launcher-boot-copy { width: min(360px, 72vw); transform: translateY(-12px); }
+.launcher-boot-label { color: var(--muted); font-size: 11px; letter-spacing: .12em; }
+.launcher-boot-wordmark {
+  display: block; margin: 14px 0 24px; color: var(--accent);
+  font-size: clamp(64px, 10vw, 100px); font-weight: 750; line-height: 1; letter-spacing: -.05em;
+  animation: launcher-wordmark-in 700ms cubic-bezier(.16, 1, .3, 1) both;
+}
+.launcher-boot-line { height: 2px; overflow: hidden; background: var(--line); }
+.launcher-boot-line::after {
+  content: ''; display: block; width: 100%; height: 100%; background: var(--accent);
+  transform: translateX(-100%); animation: launcher-loading-line 1300ms cubic-bezier(.45, 0, .25, 1) infinite;
+}
+.launcher-boot-status { margin: 14px 0 0; color: var(--muted); font-size: 12px; }
+.launcher-boot.is-leaving { pointer-events: none; animation: launcher-boot-out 300ms ease both; }
+.launcher-boot.is-leaving .launcher-boot-line::after { animation: none; transform: none; }
+
+/* 加载时仍可拖动、最小化和关闭原生窗口，其余入口等本地数据就绪后再开放。 */
+html.launcher-loading header { z-index: 61; }
+html.launcher-loading header .brand-block,
+html.launcher-loading header .internal-tabs-area,
+html.launcher-loading header .star-link,
+html.launcher-loading header #settingsEntry { visibility: hidden; }
+html.launcher-loading main,
+html.launcher-loading .backdrop,
+html.launcher-loading .mascot { visibility: hidden; opacity: 0; pointer-events: none; }
+
+/* 开场只执行一次；状态推送和返回主页不再重新播放大肥鱼的入场。 */
+html.launcher-ready .mascot { animation: none; }
+html.launcher-entering .backdrop { animation: launcher-scene-in 600ms ease both; }
+/* 只展开字标，保留整块返回主页的点击范围；版本号稍后跟进。 */
+.brand-home .brand { display: inline-block; }
+html.launcher-entering .brand-home .brand { animation: launcher-wordmark-in 700ms 30ms cubic-bezier(.16, 1, .3, 1) both; }
+html.launcher-entering .brand-home .app-ver,
+html.launcher-entering .brand-block .self-update { animation: launcher-module-in 450ms 220ms cubic-bezier(.16, 1, .3, 1) both; }
+/* 毛玻璃及其父层保持原位，避免透明度动画隔断背景采样。
+   整条启动项一起向上入场；只标记开场已有的行，状态更新不会重播。 */
+.launcher-preset-enter {
+  animation: launcher-preset-in 480ms calc(100ms + var(--launcher-entry-delay)) cubic-bezier(.22, 1, .36, 1) both;
+}
+html.launcher-entering .mascot { animation: launcher-fish-in 1000ms 60ms cubic-bezier(.2, .75, .2, 1) both; }
+
+@keyframes launcher-wordmark-in { from { clip-path: inset(0 100% 0 0); transform: translateX(12px); } to { clip-path: inset(0); transform: none; } }
+@keyframes launcher-loading-line { 0% { transform: translateX(-100%); } 70%, 100% { transform: translateX(100%); } }
+@keyframes launcher-boot-out { to { opacity: 0; transform: translateY(-8px); } }
+@keyframes launcher-scene-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes launcher-module-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes launcher-fish-in { from { opacity: 0; transform: translateY(65%) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes launcher-preset-in { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .launcher-boot, .launcher-boot * { animation: none !important; }
+  html.launcher-entering .brand-home .brand,
+  html.launcher-entering .brand-home .app-ver, html.launcher-entering .brand-block .self-update,
+  html.launcher-entering .backdrop, html.launcher-entering .mascot,
+  .launcher-preset-enter { animation: none !important; }
+}
