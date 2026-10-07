@@ -84,7 +84,9 @@ test('还原：现役补丁先挪到新备份，不覆盖用户后来改的东�
   const { backup } = await sanitizeProfile(dir)
   writeFileSync(patchOf(dir), '[] # 安全启动之后用户又改过\n')
   const result = await restoreProfileBackup(dir, backup)
-  assert.match(result.movedAside, /\.bak-\d+$/)
+  // 快机器可能在同一毫秒完成恢复；撞名加序号仍是合法的新备份。
+  assert.match(result.movedAside, /\.bak-\d+(?:-\d+)?$/)
+  assert.notEqual(result.movedAside, backup, '不能覆盖原备份')
   assert.equal(readFileSync(result.movedAside, 'utf8'), '[] # 安全启动之后用户又改过\n')
   assert.equal(readFileSync(patchOf(dir), 'utf8'), '[]\n')
 })

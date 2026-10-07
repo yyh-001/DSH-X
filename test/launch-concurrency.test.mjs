@@ -3,7 +3,8 @@ import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import vm from 'node:vm'
 
-const page = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8')
+// Windows checkout 会转成 CRLF；按换行定位脚本片段时统一格式，避免截取越界。
+const page = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
 const keys = page.slice(page.indexOf('    const launchActions ='), page.indexOf('    let launchHomeMarkup ='))
 const actions = page.slice(page.indexOf('    async function runLaunchAction('), page.indexOf('    /** 升级到最新版'))
 const manage = page.slice(page.indexOf('    async function manageLaunchEntry('), page.indexOf('    let launchDialogRevision'))
