@@ -4807,7 +4807,7 @@
           </div>
         </details>
         <div class="pack-actions">
-          <button class="primary${packInstalling ? ' loading' : ''}" type="button" id="packInstall" ${(data.ok && !packBusy && !launcherRunning()) ? '' : 'disabled'}>${packInstalling ? '<span class="spin" aria-hidden="true"></span>' : ''}${escapeHtml(t('安装'))}</button>
+          <button class="primary${packInstalling ? ' loading' : ''}" type="button" id="packInstall" aria-busy="${packInstalling}" ${(data.ok && !packBusy && !launcherRunning()) ? '' : 'disabled'}>${packInstalling ? '<span class="spin" aria-hidden="true"></span>' : ''}<span class="pack-install-label">${escapeHtml(t('安装'))}</span></button>
           <button class="ghost" type="button" id="packCancel" ${packInstalling ? 'disabled' : ''}>${escapeHtml(t('取消'))}</button>
         </div>`
       const profileSelect = document.getElementById('packProfile')

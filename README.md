@@ -40,6 +40,38 @@ DeepSeek Harness 轻量启动器。选一个版本，启动 DSH web。
 
 仓库中的 [推荐整合包配方](packs/dsh-x-recommended/manifest.json) 包含配置管理、记忆、同步和大肥鱼装饰插件，均从 npm 安装。同步由可选插件 `dsh-x-sync` 提供。运行 `node scripts/make-pack.mjs` 可生成 `.dspack`，再作为本地文件导入。
 
+## 界面预览
+
+当前界面，统一以 1440 × 960 截取。
+
+<p align="center">
+  <img src="docs/screenshot-home.jpg" alt="DSH-X 启动项主页" width="820" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshot-profiles.jpg" alt="DSH-X 环境列表" width="820" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshot-plugins.jpg" alt="DSH-X 按环境管理插件" width="820" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshot-market.jpg" alt="DSH-X 整合包市场" width="820" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshot-settings.jpg" alt="DSH-X 设置页" width="820" />
+</p>
+
+## 动态壁纸
+
+配套的 Wallpaper Engine 壁纸[《DSH-X · 大肥鱼桌面终端》](https://steamcommunity.com/sharedfiles/filedetails/?id=3814706575)：DSH-X 品牌开场、看板娘、本机时间与音乐频谱，按时间自动切换深浅配色。源码在 [`wallpaper/`](wallpaper/)，`node scripts/export-wallpaper.mjs` 导出 Wallpaper Engine 工程。
+
+<p align="center">
+  <img src="wallpaper/preview.jpg" alt="DSH-X 动态壁纸" width="820" />
+</p>
+
 ## 杀软误报
 
 Windows 安装包尚无代码签名，可能出现 SmartScreen「未知发布者」提示或杀软误报。误报可向[微软](https://www.microsoft.com/en-us/wdsi/filesubmission)提交 `DSH-Setup.exe`，其他杀软也有相应申诉入口。

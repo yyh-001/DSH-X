@@ -40,6 +40,38 @@ Packs install a group of plugins and configuration into a selected environment (
 
 The [recommended pack recipe](packs/dsh-x-recommended/manifest.json) includes configuration, memory, sync and Big Fish decoration plugins, all installed from npm. Sync is provided by the optional `dsh-x-sync` plugin. Run `node scripts/make-pack.mjs` to build a `.dspack`, then import it as a local file.
 
+## Screenshots
+
+The current interface, captured at a fixed 1440 × 960 resolution.
+
+<p align="center">
+  <img src="docs/screenshot-home-en.jpg" alt="DSH-X launch entries" width="820" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshot-profiles-en.jpg" alt="DSH-X environments" width="820" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshot-plugins-en.jpg" alt="DSH-X plugins by environment" width="820" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshot-market-en.jpg" alt="DSH-X modpack market" width="820" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshot-settings-en.jpg" alt="DSH-X settings page" width="820" />
+</p>
+
+## Wallpaper
+
+A companion Wallpaper Engine wallpaper — [DSH-X · 大肥鱼桌面终端](https://steamcommunity.com/sharedfiles/filedetails/?id=3814706575): a DSH-X brand intro, the mascot, local time and an audio spectrum, switching between light and dark palettes by time of day. Sources live in [`wallpaper/`](wallpaper/); run `node scripts/export-wallpaper.mjs` to export the Wallpaper Engine project.
+
+<p align="center">
+  <img src="wallpaper/preview.jpg" alt="DSH-X wallpaper" width="820" />
+</p>
+
 ## Antivirus false positives
 
 The Windows installer is not code-signed, so SmartScreen may show an "unknown publisher" prompt or antivirus software may report a false positive. Submit `DSH-Setup.exe` to [Microsoft](https://www.microsoft.com/en-us/wdsi/filesubmission) or the relevant antivirus vendor to report a false positive.

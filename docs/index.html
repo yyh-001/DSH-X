@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>DSH-X</title>
-  <meta name="description" content="DeepSeek Harness 轻量启动器。选一个版本，启动 DSH web。" />
+  <meta name="description" content="DeepSeek Harness 轻量桌面启动器。管理启动项、多实例、插件、整合包、MCP 与技能。" />
   <link rel="icon" href="./favicon.ico" sizes="any" />
   <link rel="icon" type="image/png" href="./favicon.png" />
   <script>document.documentElement.dataset.colorScheme = localStorage.getItem('dsh-x-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')</script>
@@ -39,7 +39,7 @@
     <div class="copy">
       <p class="eyebrow" data-zh="开源 · 轻量 · 即刻启动" data-en="Open source · Lightweight · Ready to launch">开源 · 轻量 · 即刻启动</p>
       <h1><span class="title-name">DSH-X</span><span class="title-rest" data-zh="让启动更简单。" data-en="Start with ease.">让启动更简单。</span></h1>
-      <p class="lead" data-zh="选择版本，启动官方原版 DSH Web。安装、更新与插件管理，都在一个地方完成。" data-en="Pick a version and launch the original DSH Web. Manage installs, updates, and plugins in one place.">选择版本，启动官方原版 DSH Web。安装、更新与插件管理，都在一个地方完成。</p>
+      <p class="lead" data-zh="保存常用启动项，同时运行多个环境。版本、插件与整合包，一处管理；打开就是官方原版 DSH Web。" data-en="Save your launch entries and run multiple environments together. Manage versions, plugins and modpacks in one place, then open the original DSH Web UI.">保存常用启动项，同时运行多个环境。版本、插件与整合包，一处管理；打开就是官方原版 DSH Web。</p>
       <div class="cta">
         <a class="btn btn-go" id="download" href="https://github.com/yyh-001/DSH-X/releases/latest/download/DSH-Setup.exe">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 4.2 10.5 3v8.15H2V4.2Zm9.5-1.34L22 1.35v9.8H11.5V2.86ZM2 12.15h8.5V20.3L2 19.1v-6.95Zm9.5 0H22v9.8l-10.5-1.51v-8.29Z"/></svg>
@@ -77,16 +77,20 @@
     </div>
     <div class="visual">
       <figure class="shot">
-        <div class="shot-bar" aria-hidden="true"><i></i><i></i><i></i><span>DSH-X / PREVIEW</span></div>
-        <img id="productShot" src="./screenshot-home.png" alt="DSH-X 界面" />
+        <img id="productShot" src="./screenshot-home.jpg" alt="DSH-X 启动项主页" width="1440" height="960" />
       </figure>
-      <p class="preview-caption" data-zh="真实桌面端界面预览" data-en="Preview of the desktop launcher">真实桌面端界面预览</p>
+      <p class="preview-caption" data-zh="当前启动器界面 · 1440 × 960 实拍" data-en="Current launcher interface · Captured at 1440 × 960">当前启动器界面 · 1440 × 960 实拍</p>
     </div>
   </main>
   <section class="wrap features" aria-label="DSH-X 功能">
-    <article class="feature"><span class="feature-number">01 / VERSIONS</span><h2 data-zh="版本，一处管理" data-en="Versions in one place">版本，一处管理</h2><p data-zh="安装、启动、更新与切换版本，操作集中在一个界面。" data-en="Install, launch, update, and switch versions from one interface.">安装、启动、更新与切换版本，操作集中在一个界面。</p></article>
-    <article class="feature"><span class="feature-number">02 / PLUGINS · MODPACKS</span><h2 data-zh="插件与整合包" data-en="Plugins & modpacks">插件与整合包</h2><p data-zh="查看已装插件、一键开关与更新；整合包把一批插件和配置一次装进独立 profile。" data-en="See installed plugins, toggle and update them; a modpack installs a whole batch of plugins and config into its own profile.">查看已装插件、一键开关与更新；整合包把一批插件和配置一次装进独立 profile。</p></article>
-    <article class="feature"><span class="feature-number">03 / ORIGINAL WEB</span><h2 data-zh="原版 Web 体验" data-en="The original Web UI">原版 Web 体验</h2><p data-zh="在系统浏览器里使用官方原版 DSH Web 页面。" data-en="Use the original DSH Web UI in your system browser.">在系统浏览器里使用官方原版 DSH Web 页面。</p></article>
+    <article class="feature"><span class="feature-number">01 / LAUNCH ENTRIES</span><h2 data-zh="启动项与多实例" data-en="Launch entries & instances">启动项与多实例</h2><p data-zh="为启动项选择目录、环境、版本与端口。同一版本的不同环境也能同时运行。" data-en="Choose a home directory, profile, version and port per entry. Run different profiles of the same version together.">为启动项选择目录、环境、版本与端口。同一版本的不同环境也能同时运行。</p></article>
+    <article class="feature"><span class="feature-number">02 / PLUGINS · MODPACKS</span><h2 data-zh="插件按环境管理" data-en="Plugins by environment">插件按环境管理</h2><p data-zh="单独开关与更新插件，从市场导入整合包。默认装进当前环境，确认前可查看变更、切换目标。" data-en="Toggle and update plugins, or import a modpack from the market. Review changes and choose the target profile before installing.">单独开关与更新插件，从市场导入整合包。默认装进当前环境，确认前可查看变更、切换目标。</p></article>
+    <article class="feature"><span class="feature-number">03 / MCP · SKILLS</span><h2 data-zh="MCP 与技能" data-en="MCP & skills">MCP 与技能</h2><p data-zh="配置 MCP 服务器，导入、管理与开关技能，让常用能力随时可用。" data-en="Configure MCP servers and import, manage and toggle skills to keep your tools close at hand.">配置 MCP 服务器，导入、管理与开关技能，让常用能力随时可用。</p></article>
+    <article class="feature"><span class="feature-number">04 / ORIGINAL WEB</span><h2 data-zh="熟悉的 DSH，随你打开" data-en="DSH, opened your way">熟悉的 DSH，随你打开</h2><p data-zh="选择浏览器标签页、应用窗口或桌面窗口。原版 DSH Web 不变，启动器提供深浅主题与大肥鱼。" data-en="Choose a browser tab, app window or desktop window. Enjoy the original DSH Web UI, with light and dark launcher themes and the Big Fish.">选择浏览器标签页、应用窗口或桌面窗口。原版 DSH Web 不变，启动器提供深浅主题与大肥鱼。</p></article>
+  </section>
+  <section class="wrap previews" aria-label="界面预览">
+    <figure><img data-shot="profiles" src="./screenshot-profiles.jpg" alt="DSH-X 环境列表" width="1440" height="960" loading="lazy" /><figcaption data-zh="环境列表 · 插件各自管理" data-en="Environments · Manage plugins separately">环境列表 · 插件各自管理</figcaption></figure>
+    <figure><img data-shot="market" src="./screenshot-market.jpg" alt="DSH-X 整合包市场" width="1440" height="960" loading="lazy" /><figcaption data-zh="整合包市场 · 浏览与导入" data-en="Modpack market · Browse and import">整合包市场 · 浏览与导入</figcaption></figure>
   </section>
   <footer class="wrap site-footer"><span>© DSH-X · Community open source project</span><a href="https://github.com/yyh-001/DSH-X/releases/latest" data-zh="查看全部版本与下载" data-en="All releases and downloads">查看全部版本与下载</a></footer>
   <script defer src="./water.js"></script>
@@ -151,7 +155,16 @@
       const button = document.getElementById('theme')
       button.setAttribute('aria-label', label)
       button.title = label
-      document.getElementById('productShot').src = dark ? './screenshot-dark-mode.png' : './screenshot-home.png'
+      const suffix = lang === 'en' ? '-en' : ''
+      const shot = document.getElementById('productShot')
+      shot.src = `./screenshot-${dark ? 'dark-mode' : 'home'}${suffix}.jpg`
+      shot.alt = lang === 'en' ? 'DSH-X launch entries' : 'DSH-X 启动项主页'
+      for (const image of document.querySelectorAll('[data-shot]')) {
+        image.src = `./screenshot-${image.dataset.shot}${suffix}.jpg`
+        image.alt = image.dataset.shot === 'profiles'
+          ? (lang === 'en' ? 'DSH-X environments' : 'DSH-X 环境列表')
+          : (lang === 'en' ? 'DSH-X modpack market' : 'DSH-X 整合包市场')
+      }
     }
 
     document.getElementById('theme').onclick = () => {

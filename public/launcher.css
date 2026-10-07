@@ -1631,8 +1631,11 @@ html[data-color-scheme="dark"] .skel-line::after { background: linear-gradient(9
 #packInstallDialog .select-panel { position: static; max-height: min(240px, 36vh); }
 #packInstallDialog .select-option { padding: 8px 11px; font-size: var(--control-font-size); border-radius: var(--control-radius); }
 #packInstallDialog .pack-actions { border-top: 1px solid var(--line); padding-top: 16px; justify-content: flex-start; flex-direction: row-reverse; }
-#packInstallDialog .pack-actions button { width: 88px; flex: 0 0 88px; height: 36px; min-width: 88px; border-radius: 9px; font-size: 12px; }
-#packInstallDialog .pack-actions .primary .spin { width: 14px; height: 14px; border-width: 2px; }
+/* 固定高度按钮不能沿用主按钮的大内边距，否则文字与加载圈会挤出内容区。 */
+#packInstallDialog .pack-actions button { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 88px; flex: 0 0 88px; height: 36px; min-width: 88px; padding: 0 14px; border: 1px solid var(--line); border-radius: 9px; font-family: inherit; font-size: 12px; font-weight: 600; line-height: 1; }
+#packInstallDialog .pack-actions .primary { border-color: transparent; }
+#packInstallDialog .pack-actions .primary.loading .pack-install-label { visibility: hidden; }
+#packInstallDialog .pack-actions .primary .spin { position: absolute; left: calc(50% - 7px); top: calc(50% - 7px); width: 14px; height: 14px; border-width: 2px; }
 #packPreparing { color: var(--muted); font-size: 13px; margin: 16px 0 24px; }
 /* 插件筛选保留在标题右侧，列表独立滚动，统计仅作次要说明。 */
 #launchPluginsCard { position: relative; width: min(760px, 100%); max-height: calc(100dvh - 48px); overflow: hidden; padding: 24px; }
