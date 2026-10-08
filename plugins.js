@@ -356,12 +356,13 @@ export function setPluginEnabled(profileDir, packageName, enabled) {
 
 /** 从安装 spec（`pkg@1.2`、`@scope/pkg@1.2`、file:/git: 源）里取出纯包名；本地/远端源取不出，返回空串。 */
 function bundleNameOf(spec) {
-  if (/^(?:file:|git\+|github:|https?:)/.test(spec)) return ''
-  if (spec.startsWith('@')) {
-    const [scope, name] = spec.slice(1).split('@')
-    return scope && name ? `@${scope}/${name}` : ''
-  }
-  return spec.split('@')[0] || ''
+  const value = String(spec ?? '')
+  if (/^(?:file:|git\+|github:|https?:)/.test(value)) return ''
+  // 带 scope 的包名里那个 `@` 是名字的一部分（`@scope/pkg`），版本号才是名字之后那个 `@`。
+  // 按 `@` 直接 split 会把 `@scope/pkg@1.2` 切成 `scope/pkg` + `1.2`，拼回来的
+  // `@scope/pkg/1.2` 是个不存在的包名：dsh 解析不到 bundle，插件会一直起不来。
+  const match = /^(@[^/@]+\/[^@/]+|[^@/]+)(?:@[^@]*)?$/.exec(value)
+  return match ? match[1] : ''
 }
 
 /**
