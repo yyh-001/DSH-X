@@ -49,6 +49,12 @@ The v0.1.16 desktop app, with multiple instances open in tabs.
   <img src="docs/screenshot-tabs.png" alt="DSH-X v0.1.16 with multiple tabs" width="820" />
 </p>
 
+Multiple launch entries, each with its own version and profile.
+
+<p align="center">
+  <img src="docs/screenshot-launches.png" alt="DSH-X v0.1.16 with multiple launch entries" width="820" />
+</p>
+
 The launcher home and management pages, captured at a fixed 1440 × 960 resolution.
 
 <p align="center">

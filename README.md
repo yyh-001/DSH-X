@@ -49,6 +49,12 @@ v0.1.16 桌面端，多实例以标签页打开。
   <img src="docs/screenshot-tabs.png" alt="DSH-X v0.1.16 多标签页界面" width="820" />
 </p>
 
+多个启动项，分别选择版本与环境。
+
+<p align="center">
+  <img src="docs/screenshot-launches.png" alt="DSH-X v0.1.16 多启动项主页" width="820" />
+</p>
+
 启动器主页与管理界面，统一以 1440 × 960 截取。
 
 <p align="center">
