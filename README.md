@@ -49,14 +49,37 @@ DeepSeek Harness 轻量桌面启动器：启动项与多实例，版本、插件
   <img src="docs/screenshot-launches.png" alt="DSH-X v0.1.16 多启动项主页" width="820" />
 </p>
 
-**多标签页 · 深色主题**
+<details>
+<summary>深色主题：管理界面（展开查看）</summary>
+
+**环境列表**
 
 <p align="center">
-  <img src="docs/screenshot-tabs.png" alt="DSH-X v0.1.16 多标签页界面" width="820" />
+  <img src="docs/screenshot-profiles-dark.jpg" alt="DSH-X v0.1.16 深色环境列表" width="820" />
 </p>
 
+**插件管理**
+
+<p align="center">
+  <img src="docs/screenshot-plugins-dark.jpg" alt="DSH-X v0.1.16 深色插件管理" width="820" />
+</p>
+
+**整合包市场**
+
+<p align="center">
+  <img src="docs/screenshot-market-dark.jpg" alt="DSH-X v0.1.16 深色整合包市场" width="820" />
+</p>
+
+**常规设置**
+
+<p align="center">
+  <img src="docs/screenshot-settings-dark.jpg" alt="DSH-X v0.1.16 深色常规设置" width="820" />
+</p>
+
+</details>
+
 <details>
-<summary>浅色主题与管理界面（展开查看）</summary>
+<summary>浅色主题：主页与管理界面（展开查看）</summary>
 
 **启动器主页**
 
@@ -89,6 +112,12 @@ DeepSeek Harness 轻量桌面启动器：启动项与多实例，版本、插件
 </p>
 
 </details>
+
+**多标签页 · 深色主题**
+
+<p align="center">
+  <img src="docs/screenshot-tabs.png" alt="DSH-X v0.1.16 多标签页界面" width="820" />
+</p>
 
 ## 动态壁纸
 

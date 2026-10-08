@@ -49,14 +49,37 @@ The [recommended pack recipe](packs/dsh-x-recommended/manifest.json) includes co
   <img src="docs/screenshot-launches.png" alt="DSH-X v0.1.16 with multiple launch entries" width="820" />
 </p>
 
-**Multiple tabs · Dark theme**
+<details>
+<summary>Dark theme: management pages (expand to view)</summary>
+
+**Environments**
 
 <p align="center">
-  <img src="docs/screenshot-tabs.png" alt="DSH-X v0.1.16 with multiple tabs" width="820" />
+  <img src="docs/screenshot-profiles-dark-en.jpg" alt="DSH-X v0.1.16 dark environments" width="820" />
 </p>
 
+**Plugin management**
+
+<p align="center">
+  <img src="docs/screenshot-plugins-dark-en.jpg" alt="DSH-X v0.1.16 dark plugin management" width="820" />
+</p>
+
+**Modpack market**
+
+<p align="center">
+  <img src="docs/screenshot-market-dark-en.jpg" alt="DSH-X v0.1.16 dark modpack market" width="820" />
+</p>
+
+**General settings**
+
+<p align="center">
+  <img src="docs/screenshot-settings-dark-en.jpg" alt="DSH-X v0.1.16 dark general settings" width="820" />
+</p>
+
+</details>
+
 <details>
-<summary>Light theme and management pages (expand to view)</summary>
+<summary>Light theme: home and management pages (expand to view)</summary>
 
 **Launcher home**
 
@@ -89,6 +112,12 @@ The [recommended pack recipe](packs/dsh-x-recommended/manifest.json) includes co
 </p>
 
 </details>
+
+**Multiple tabs · Dark theme**
+
+<p align="center">
+  <img src="docs/screenshot-tabs.png" alt="DSH-X v0.1.16 with multiple tabs" width="820" />
+</p>
 
 ## Wallpaper
 
