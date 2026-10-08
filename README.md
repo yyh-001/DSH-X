@@ -43,39 +43,52 @@ DeepSeek Harness 轻量桌面启动器：启动项与多实例，版本、插件
 
 ## 界面预览
 
-v0.1.16 桌面端，多实例以标签页打开。
-
-<p align="center">
-  <img src="docs/screenshot-tabs.png" alt="DSH-X v0.1.16 多标签页界面" width="820" />
-</p>
-
-多个启动项，分别选择版本与环境。
+**多启动项 · 深色主题**
 
 <p align="center">
   <img src="docs/screenshot-launches.png" alt="DSH-X v0.1.16 多启动项主页" width="820" />
 </p>
 
-启动器主页与管理界面，统一以 1440 × 960 截取。
+**多标签页 · 深色主题**
+
+<p align="center">
+  <img src="docs/screenshot-tabs.png" alt="DSH-X v0.1.16 多标签页界面" width="820" />
+</p>
+
+<details>
+<summary>浅色主题与管理界面（展开查看）</summary>
+
+**启动器主页**
 
 <p align="center">
   <img src="docs/screenshot-home.jpg" alt="DSH-X 启动项主页" width="820" />
 </p>
 
+**环境列表**
+
 <p align="center">
   <img src="docs/screenshot-profiles.jpg" alt="DSH-X 环境列表" width="820" />
 </p>
+
+**插件管理**
 
 <p align="center">
   <img src="docs/screenshot-plugins.jpg" alt="DSH-X 按环境管理插件" width="820" />
 </p>
 
+**整合包市场**
+
 <p align="center">
   <img src="docs/screenshot-market.jpg" alt="DSH-X 整合包市场" width="820" />
 </p>
 
+**常规设置**
+
 <p align="center">
   <img src="docs/screenshot-settings.jpg" alt="DSH-X 设置页" width="820" />
 </p>
+
+</details>
 
 ## 动态壁纸
 

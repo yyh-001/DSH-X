@@ -43,39 +43,52 @@ The [recommended pack recipe](packs/dsh-x-recommended/manifest.json) includes co
 
 ## Screenshots
 
-The v0.1.16 desktop app, with multiple instances open in tabs.
-
-<p align="center">
-  <img src="docs/screenshot-tabs.png" alt="DSH-X v0.1.16 with multiple tabs" width="820" />
-</p>
-
-Multiple launch entries, each with its own version and profile.
+**Multiple launch entries · Dark theme**
 
 <p align="center">
   <img src="docs/screenshot-launches.png" alt="DSH-X v0.1.16 with multiple launch entries" width="820" />
 </p>
 
-The launcher home and management pages, captured at a fixed 1440 × 960 resolution.
+**Multiple tabs · Dark theme**
+
+<p align="center">
+  <img src="docs/screenshot-tabs.png" alt="DSH-X v0.1.16 with multiple tabs" width="820" />
+</p>
+
+<details>
+<summary>Light theme and management pages (expand to view)</summary>
+
+**Launcher home**
 
 <p align="center">
   <img src="docs/screenshot-home-en.jpg" alt="DSH-X launch entries" width="820" />
 </p>
 
+**Environments**
+
 <p align="center">
   <img src="docs/screenshot-profiles-en.jpg" alt="DSH-X environments" width="820" />
 </p>
+
+**Plugin management**
 
 <p align="center">
   <img src="docs/screenshot-plugins-en.jpg" alt="DSH-X plugins by environment" width="820" />
 </p>
 
+**Modpack market**
+
 <p align="center">
   <img src="docs/screenshot-market-en.jpg" alt="DSH-X modpack market" width="820" />
 </p>
 
+**General settings**
+
 <p align="center">
   <img src="docs/screenshot-settings-en.jpg" alt="DSH-X settings page" width="820" />
 </p>
+
+</details>
 
 ## Wallpaper
 
