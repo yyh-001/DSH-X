@@ -36,6 +36,8 @@ use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tray_icon::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use wry::{WebContext, WebView, WebViewBuilder};
 
+mod tray;
+use tray::{LaunchEntry, LaunchMenus};
 mod tabs;
 use tabs::{BrowserTabs, TabAction, TabTarget};
 
@@ -91,9 +93,6 @@ const SHOW_SIGNAL: &str = "__DSH_SHOW__";
 /// （见 server.js 的 OPEN_SIGNAL）。设置里选了桌面窗口时，页面上的「打开 DSH」走的就是它。
 const OPEN_SIGNAL: &str = "__DSH_OPEN__";
 /// 菜单项 id
-const ITEM_OPEN_DSH: &str = "open-dsh";
-const ITEM_TOGGLE: &str = "toggle";
-const ITEM_RESTART: &str = "restart";
 const ITEM_MANAGER: &str = "manager";
 const ITEM_QUIT: &str = "quit";
 /// macOS 应用菜单里的 ⌘W：和关窗口一样只是藏起来
@@ -113,6 +112,7 @@ enum UserEvent {
     Quit,
     /// 轮询到的最新托盘状态
     Tray(TrayState),
+    TrayError(String),
     /// 把地址装进内嵌的 DSH 窗口（空地址＝dsh 没在跑，显示那张本地页）。
     /// 来源有两个：node 的 OPEN_SIGNAL 标记行，和托盘的「打开 DSH」。
     OpenDsh(String),
@@ -144,13 +144,10 @@ struct TrayState {
     shell: bool,
     theme: String,
     instances: Vec<TabTarget>,
+    launches: Vec<LaunchEntry>,
 }
 
 impl TrayState {
-    fn live(&self) -> bool {
-        self.status == "running" || self.status == "starting"
-    }
-
     /// 该不该把 dsh 的界面开进内嵌窗口：设置里选了 window，且确实有个外壳在（本进程就是），
     /// 两个条件缺一不可——源码运行时选了窗口模式，也要照旧退回系统浏览器。
     fn window_mode(&self) -> bool {
@@ -179,6 +176,11 @@ fn parse_tray_state(text: &str) -> TrayState {
             "instances" => {
                 if let Ok(Value::Array(items)) = serde_json::from_str::<Value>(value) {
                     state.instances = items.iter().filter_map(TabTarget::parse).collect();
+                }
+            }
+            "launches" => {
+                if let Ok(Value::Array(items)) = serde_json::from_str::<Value>(value) {
+                    state.launches = items.iter().filter_map(LaunchEntry::parse).collect();
                 }
             }
             _ => {}
@@ -249,32 +251,17 @@ fn origin_of(url: &str) -> Option<String> {
 /// 原生托盘。菜单项句柄要留着——状态一变就得改文案和可用性。
 struct Tray {
     _icon: TrayIcon,
-    open_dsh: MenuItem,
-    toggle: MenuItem,
-    restart: MenuItem,
+    launches: LaunchMenus,
     manager: MenuItem,
     quit: MenuItem,
 }
 
 impl Tray {
-    fn sync(&self, state: &TrayState) {
-        let live = state.live();
+    fn sync(&mut self, state: &TrayState) {
         let en = state.lang == "en";
-        // 文案跟着界面语言走（安装时选的语言，设置页也能改）
-        self.open_dsh.set_text(if en { "Open dsh" } else { "打开 DSH" });
-        self.restart.set_text(if en { "Restart dsh" } else { "重启 DSH" });
-        self.manager.set_text(if en { "Open manager" } else { "打开管理页" });
+        self.manager.set_text(if en { "Open DSH-X" } else { "打开启动器" });
         self.quit.set_text(if en { "Quit" } else { "退出" });
-        self.open_dsh.set_enabled(!state.url.is_empty());
-        self.toggle.set_text(if live {
-            if en { "Stop" } else { "停止" }
-        } else if en {
-            "Start"
-        } else {
-            "启动"
-        });
-        self.toggle.set_enabled(state.installed && state.status != "stopping");
-        self.restart.set_enabled(state.status == "running");
+        self.launches.sync(&state.launches, en);
     }
 }
 
@@ -290,22 +277,13 @@ fn load_tray_icon(root: &Path) -> Option<tray_icon::Icon> {
 
 fn build_tray(root: &Path) -> Option<Tray> {
     let menu = Menu::new();
-    let open_dsh = MenuItem::with_id(ITEM_OPEN_DSH, "打开 DSH", false, None);
-    let toggle = MenuItem::with_id(ITEM_TOGGLE, "启动", false, None);
-    let restart = MenuItem::with_id(ITEM_RESTART, "重启 DSH", false, None);
-    let separator = PredefinedMenuItem::separator();
-    let manager = MenuItem::with_id(ITEM_MANAGER, "打开管理页", true, None);
+    let manager = MenuItem::with_id(ITEM_MANAGER, "打开启动器", true, None);
     let quit = MenuItem::with_id(ITEM_QUIT, "退出", true, None);
-    for item in [
-        &open_dsh as &dyn tray_icon::menu::IsMenuItem,
-        &toggle,
-        &restart,
-        &separator,
-        &manager,
-        &quit,
-    ] {
-        let _ = menu.append(item);
-    }
+    let _ = menu.append(&manager);
+    let _ = menu.append(&PredefinedMenuItem::separator());
+    let _ = menu.append(&PredefinedMenuItem::separator());
+    let _ = menu.append(&quit);
+    let launches = LaunchMenus::new(menu.clone());
     let icon = TrayIconBuilder::new()
         .with_menu(Box::new(menu))
         // Windows：左键留给「打开启动器界面」，菜单走右键。macOS 菜单栏的惯例是单击就出菜单，
@@ -317,11 +295,9 @@ fn build_tray(root: &Path) -> Option<Tray> {
         .ok()?;
     Some(Tray {
         _icon: icon,
-        open_dsh,
-        toggle,
+        launches,
         manager,
         quit,
-        restart,
     })
 }
 
@@ -442,6 +418,7 @@ struct DshWindow {
     window: Window,
     webview: WebView,
     page: DshPage,
+    instance_id: Option<String>,
 }
 
 impl DshWindow {
@@ -542,6 +519,7 @@ fn create_dsh_window(
         window,
         webview,
         page: DshPage::Idle,
+        instance_id: None,
     })
 }
 
@@ -561,6 +539,7 @@ fn open_dsh_window(
     }
     match slot {
         Some(window) => {
+            window.instance_id = None;
             window.follow(url, lang);
             window.show();
         }
@@ -905,18 +884,42 @@ fn http_get(addr: &str, path: &str) -> Option<String> {
 
 /// 同样极简的 POST，用来让本机管理服务执行托盘菜单的动作；正文固定给个空 JSON。
 fn http_post(addr: &str, path: &str) -> Option<String> {
+    http_post_json(addr, path, "{}", Duration::from_secs(2))
+}
+
+fn http_post_json(addr: &str, path: &str, body: &str, timeout: Duration) -> Option<String> {
     let socket: SocketAddr = addr.parse().ok()?;
     let mut stream = TcpStream::connect_timeout(&socket, Duration::from_secs(2)).ok()?;
-    stream.set_read_timeout(Some(Duration::from_secs(2))).ok()?;
+    stream.set_read_timeout(Some(timeout)).ok()?;
     stream.set_write_timeout(Some(Duration::from_secs(2))).ok()?;
+    let length = body.len();
     let head = format!(
-        "POST {path} HTTP/1.1\r\nHost: {addr}\r\nContent-Type: application/json\r\nContent-Length: 2\r\nConnection: close\r\n\r\n"
+        "POST {path} HTTP/1.1\r\nHost: {addr}\r\nContent-Type: application/json\r\nContent-Length: {length}\r\nConnection: close\r\n\r\n"
     );
     stream.write_all(head.as_bytes()).ok()?;
-    stream.write_all(b"{}").ok()?;
+    stream.write_all(body.as_bytes()).ok()?;
     let mut raw = String::new();
     stream.read_to_string(&mut raw).ok()?;
     Some(raw)
+}
+
+fn tray_response_error(raw: &str) -> Option<String> {
+    let Some((head, body)) = raw.split_once("\r\n\r\n") else { return Some("Invalid DSH-X response / 启动器响应无效".into()); };
+    if head.lines().next().and_then(|line| line.split_whitespace().nth(1)) == Some("200") { return None; }
+    Some(serde_json::from_str::<Value>(body).ok().and_then(|value| value.get("error")?.as_str().map(str::to_string))
+        .unwrap_or_else(|| "Tray action failed / 托盘操作失败，请查看日志".into()))
+}
+
+fn request_tray_action(body: Value, proxy: EventLoopProxy<UserEvent>, en: bool) {
+    // 启动与修复可能较慢，后台请求不能卡住窗口和其他启动项的菜单。
+    thread::spawn(move || {
+        let result = http_post_json(&manager_addr(), "/api/tray/action", &body.to_string(), Duration::from_secs(120));
+        let error = match result {
+            Some(raw) => tray_response_error(&raw),
+            None => Some(if en { "Unable to reach DSH-X. Check the logs." } else { "无法连接启动器，请查看日志" }.into()),
+        };
+        if let Some(error) = error { let _ = proxy.send_event(UserEvent::TrayError(error)); }
+    });
 }
 
 /// 把 dsh.ico 解成 RGBA。ico 里 256 那帧是 PNG、小帧是 BMP，交给 image 统一处理。
@@ -1200,7 +1203,7 @@ fn main() {
     }
 
     // 托盘建在主线程：它的消息要靠下面这个事件循环的消息泵派发
-    let tray = build_tray(&root);
+    let mut tray = build_tray(&root);
     let mut state = TrayState::default();
 
     // macOS 的菜单栏菜单也得在事件循环跑起来之前挂上；句柄要一直留着，否则菜单项跟着失效
@@ -1247,28 +1250,6 @@ fn main() {
         // 菜单事件走 muda 的全局 channel；托盘和窗口同在这条线程上，直接收
         while let Ok(menu_event) = MenuEvent::receiver().try_recv() {
             match menu_event.id().as_ref() {
-                ITEM_OPEN_DSH => {
-                    if state.internal_mode() {
-                        if let Some(target) = state.instances.iter().find(|target| target.url == state.url && !target.url.is_empty()) {
-                            open_internal_tab(&mut browser_tabs, window.as_ref(), webview.as_ref(), &mut context, &proxy, target.clone());
-                        } else if let Some(window) = &window { show_window(window); }
-                    } else if state.window_mode() {
-                        // 桌面窗口模式：叫出内嵌窗口（dsh 没在跑就显示那张本地页，
-                        // 上面有「启动 dsh」）；地址为空也要开——那是唯一能启动它的入口
-                        let url = state.url.clone();
-                        let lang = state.lang.clone();
-                        open_dsh_window(&mut dsh, event_loop, &mut context, &root, &proxy, &url, &lang);
-                    } else if !state.url.is_empty() {
-                        open_in_browser(&state.url);
-                    }
-                }
-                ITEM_TOGGLE => {
-                    let path = if state.live() { "/api/stop" } else { "/api/launch" };
-                    let _ = http_post(&manager_addr(), path);
-                }
-                ITEM_RESTART => {
-                    let _ = http_post(&manager_addr(), "/api/restart");
-                }
                 ITEM_MANAGER => {
                     if let (Some(tabs), Some(window), Some(manager)) = (&mut browser_tabs, &window, &webview) {
                         tabs.action(TabAction::Select(String::new()), window, manager);
@@ -1285,7 +1266,11 @@ fn main() {
                         window.set_visible(false);
                     }
                 }
-                _ => {}
+                id => {
+                    if let Some(body) = tray.as_ref().and_then(|tray| tray.launches.request(id)) {
+                        request_tray_action(body, proxy.clone(), state.lang == "en");
+                    }
+                }
             }
         }
         // 菜单事件不会唤醒事件循环，所以按小步长醒着轮询
@@ -1297,6 +1282,16 @@ fn main() {
                 }
                 if let Some(window) = &window {
                     show_window(window);
+                }
+            }
+            Event::UserEvent(UserEvent::TrayError(error)) => {
+                if let (Some(tabs), Some(window), Some(manager)) = (&mut browser_tabs, &window, &webview) {
+                    tabs.action(TabAction::Select(String::new()), window, manager);
+                }
+                if let Some(window) = &window { show_window(window); }
+                if let Some(manager) = &webview {
+                    let message = serde_json::to_string(&error).unwrap_or_default();
+                    let _ = manager.evaluate_script(&format!("notify({message})"));
                 }
             }
             Event::UserEvent(UserEvent::OpenTab(target)) => {
@@ -1336,15 +1331,11 @@ fn main() {
                         open_internal_tab(&mut browser_tabs, window.as_ref(), webview.as_ref(), &mut context, &proxy, target.clone());
                     } else if is_web_url(&url) { open_in_browser(&url); }
                 } else {
-                    let own = state.window_mode()
-                        && !state.url.is_empty()
-                        && (url == state.url || same_origin(&url, &state.url));
-                    if own {
-                        // 用带 token 的那个地址：页面上的链接可能是没有 token 的简写，
-                        // 照原样加载只会得到一张 dsh 的拒绝页
-                        let target = state.url.clone();
-                        let lang = state.lang.clone();
-                        open_dsh_window(&mut dsh, event_loop, &mut context, &root, &proxy, &target, &lang);
+                    let own = state.instances.iter().find(|target| !target.url.is_empty() && same_origin(&url, &target.url));
+                    if state.window_mode() && own.is_some() {
+                        // 本机链接可能没有 token，使用这个实例自己的完整认证地址。
+                        let target = own.unwrap().url.clone();
+                        open_dsh_window(&mut dsh, event_loop, &mut context, &root, &proxy, &target, &state.lang);
                     } else if is_web_url(&url) {
                         open_in_browser(&url);
                     }
@@ -1355,9 +1346,13 @@ fn main() {
             // 内嵌窗口那张本地页上的「启动」：让 node 去拉 dsh（版本选择、兼容自愈都在
             // 它那边），起来之后 /api/tray 会把地址带回来，窗口自己跟上
             Event::UserEvent(UserEvent::LaunchDsh) => {
-                thread::spawn(|| {
-                    let _ = http_post(&manager_addr(), "/api/launch");
-                });
+                let selected = dsh.as_ref().and_then(|window| window.instance_id.as_ref());
+                if let Some(row) = state.launches.iter().find(|row| Some(&row.instance_id) == selected) {
+                    request_tray_action(serde_json::json!({ "id": row.id, "instanceId": row.instance_id, "action": "start", "targetId": "" }), proxy.clone(), state.lang == "en");
+                } else {
+                    // 原来的入口已被删除时，返回启动器选择，不能误启动另一项。
+                    let _ = proxy.send_event(UserEvent::Show);
+                }
             }
             // 网页标题 → 窗口标题（空标题回落到 DSH，别留一个没名字的窗口）
             Event::UserEvent(UserEvent::DshTitle(title)) => {
@@ -1381,15 +1376,22 @@ fn main() {
             Event::UserEvent(UserEvent::Exited) => *control_flow = ControlFlow::ExitWithCode(0),
             Event::UserEvent(UserEvent::Tray(next)) => {
                 state = next;
-                if let Some(tray) = &tray {
+                if let Some(tray) = &mut tray {
                     tray.sync(&state);
                 }
                 // dsh 重启后地址（端口、token）会变，内嵌窗口跟着换页（页面没变就不动它，
                 // 别把用户正在看的界面刷掉）；dsh 停了就换成本地那张页
                 if let Some(window) = &mut dsh {
-                    let url = state.url.clone();
-                    let lang = state.lang.clone();
-                    window.follow(&url, &lang);
+                    if window.instance_id.is_none() {
+                        if let DshPage::Remote(url) = &window.page {
+                            window.instance_id = state.instances.iter().find(|target| same_origin(&target.url, url)).map(|target| target.id.clone());
+                        }
+                    }
+                    // 独立窗口跟随选中的实例，不能被后来启动的另一项抢走。
+                    if let Some(id) = &window.instance_id {
+                        let url = state.instances.iter().find(|target| &target.id == id).map(|target| target.url.as_str()).unwrap_or("");
+                        window.follow(url, &state.lang);
+                    }
                 }
                 if let (Some(window), Some(manager)) = (&window, &webview) {
                     if state.internal_mode() && browser_tabs.is_none() {
@@ -1558,6 +1560,18 @@ mod tests {
         assert!(internal.internal_mode());
         assert_eq!(internal.theme, "dark");
         assert_eq!(internal.instances.len(), 2, "不能只跟随最近启动的实例");
+        let named = parse_tray_state("launches=[{\"id\":\"abc\",\"instanceId\":\"home/version/profile\",\"name\":\"工作入口\",\"status\":\"starting\",\"installed\":true,\"busy\":true}]");
+        assert_eq!(named.launches.len(), 1);
+        assert_eq!(named.launches[0].name, "工作入口");
+        assert_eq!(named.launches[0].instance_id, "home/version/profile");
+        assert!(named.launches[0].busy);
+    }
+
+    #[test]
+    fn tray_errors_preserve_the_specific_failure() {
+        assert_eq!(tray_response_error("HTTP/1.1 200 OK\r\n\r\n{\"ok\":true}"), None);
+        assert_eq!(tray_response_error("HTTP/1.1 500 Internal Server Error\r\n\r\n{\"error\":\"端口被占用\"}"), Some("端口被占用".into()));
+        assert!(tray_response_error("invalid response").is_some());
     }
 
     #[test]

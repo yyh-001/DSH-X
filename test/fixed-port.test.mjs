@@ -126,6 +126,26 @@ const state = () => api('/api/state')
 const pin = (version, port, profile = 'web') => api('/api/instance-port', { version, profile, port })
 const portOf = (url) => Number(new URL(url).port)
 
+test('托盘启动和重启沿用启动项固定端口', async () => {
+  const port = await freePort()
+  const saved = await api('/api/launch-presets', { name: '托盘固定端口', version: A, profile: 'work', port })
+  try {
+    const first = await api('/api/tray/action', { id: saved.entry.id, action: 'start', targetId: '' })
+    assert.equal(portOf(first.url), port)
+    const text = await (await fetch(`${base}/api/tray`)).text()
+    const rows = JSON.parse(text.split('\n').find((line) => line.startsWith('launches=')).slice(9))
+    const row = rows.find((item) => item.id === saved.entry.id)
+    const restarted = await api('/api/tray/action', { id: row.id, action: 'restart', targetId: row.target.id })
+    assert.equal(portOf(restarted.url), port)
+    assert.ok(launchedWithPort(port))
+    await api('/api/tray/action', { id: row.id, action: 'stop', targetId: row.target.id })
+  } finally {
+    await api('/api/stop', {})
+    await api('/api/launch-presets/remove', { id: saved.entry.id })
+    await pin(A, 0, 'work')
+  }
+})
+
 /** 假 dsh 收到的 argv（每次启动一行）。 */
 function launches() {
   try {

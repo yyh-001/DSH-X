@@ -220,6 +220,7 @@ const instances = new Map()
 const startingProfiles = new Set()
 const maintainingProfiles = new Set()
 let trayInstalledCache = null
+const trayActions = new Map()
 
 /**
  * 一个实例一个键：`版本@profile`。两边的字符集（VERSION_RE / safeProfile）都不含 @，
@@ -846,10 +847,10 @@ async function editProfile(profile, operation) {
   return withProfileLock(profileDirOf(name), operation)
 }
 
-/** 托盘只需要知道有没有版本；外部安装变化最多等 15 秒，页面刷新会立即更新。 */
-function trayHasInstalled() {
+/** 原生外壳每 1.5 秒轮询一次，版本目录缓存避免为每个启动项重复扫盘。 */
+function trayInstalledVersions() {
   if (!trayInstalledCache || Date.now() - trayInstalledCache.at >= 15_000) {
-    trayInstalledCache = { at: Date.now(), value: scanInstalled().length > 0 }
+    trayInstalledCache = { at: Date.now(), value: scanInstalled() }
   }
   return trayInstalledCache.value
 }
@@ -867,7 +868,7 @@ function instanceInfo(proc) {
 }
 
 /**
- * 只认一个地址的地方（托盘、原生外壳窗口、/api/tray）读这个：最近起来的那个在跑的实例；
+ * 兼容旧接口只认一个地址的地方：最近起来的那个在跑的实例；
  * 一个都没在跑就退回最近的那个。
  */
 function primaryInstance() {
@@ -882,7 +883,7 @@ async function snapshot() {
 async function snapshotDefault() {
   const config = await loadConfig()
   const installed = listedVersions(config)
-  trayInstalledCache = { at: Date.now(), value: installed.length > 0 }
+  trayInstalledCache = { at: Date.now(), value: installed }
   const all = instanceList()
   const presets = safeLaunchPresets((await loadSettings()).launchPresets)
   const profiles = listProfiles()
@@ -1067,14 +1068,75 @@ async function setInstancePortNow(version, profile, port) {
  * 否则已装的最高版本；两者都没有就返回空串（首次启动才下载，跟明写版本比不出重复）。
  * 客户端 recommendedVersion 的服务端镜像——查重必须用解析后的版本。
  */
-function resolvePresetVersion(entry, home, config) {
+function resolvePresetVersion(entry, home, config, versions = null) {
   if (entry.version !== 'auto') return entry.version
   const live = liveInstanceList().filter((item) => item.profile === entry.profile && (item.home || defaultHome()) === home)
     .sort((a, b) => cmpVer(parseVer(b.version), parseVer(a.version)))[0]
   if (live?.version) return live.version
-  const installed = listedVersions(config).filter((ver) => existsSync(binPath(ver)))
+  const installed = [...(versions || listedVersions(config).filter((ver) => existsSync(binPath(ver))))]
     .sort((a, b) => cmpVer(parseVer(b), parseVer(a)))
   return installed[0] || ''
+}
+
+/** 删除入口不会停止实例；这类运行项仍要能从托盘找回和单独停止。 */
+function trayLaunches() {
+  const versions = trayInstalledVersions()
+  const all = instanceList()
+  const matched = new Set()
+  const rows = safeLaunchPresets(loadSettingsSync().launchPresets).map((preset) => {
+    const home = preset.dshHome || defaultHome()
+    const pending = [...trayActions.values()].find((item) => item.id === preset.id && item.home === home && item.profile === preset.profile)
+    // 自动版本重启途中暂时没有实例，继续显示原版本，避免跳到最高已装版本。
+    const version = pending?.version || resolvePresetVersion(preset, home, null, versions)
+    const proc = all.find((item) => item.home === home && item.version === version && item.profile === preset.profile)
+    if (proc) matched.add(proc)
+    return { id: preset.id, name: preset.name, version, profile: preset.profile, home, preset, proc }
+  })
+  for (const proc of all) {
+    if (!matched.has(proc)) rows.push({ id: `instance:${internalTabTarget(proc).id}`, name: `${proc.profile} · ${proc.version}`, version: proc.version, profile: proc.profile, home: proc.home, proc })
+  }
+  for (const pending of trayActions.values()) {
+    if (!rows.some((row) => row.id === pending.id)) rows.push({ ...pending, proc: null })
+  }
+  return rows.map((row) => {
+    const key = JSON.stringify([row.home, row.version, row.profile])
+    const pending = trayActions.get(key)
+    return { ...row, key, instanceId: key, status: pending?.status || row.proc?.status || 'stopped', busy: Boolean(pending), installed: versions.includes(row.version), target: row.proc ? internalTabTarget(row.proc) : null }
+  })
+}
+
+async function trayAction(body) {
+  const row = trayLaunches().find((item) => item.id === body.id)
+  if (!row) throw new Error('启动项已不存在，请重新打开托盘菜单')
+  const action = body.action
+  if (!['start', 'open', 'stop', 'restart'].includes(action)) throw new Error('未知托盘操作')
+  // 菜单打开后入口可能被编辑，旧菜单不能悄悄操作另一个版本或数据目录。
+  if ((body.targetId || '') !== (row.target?.id || '') || (body.instanceId && body.instanceId !== row.key)) throw new Error('启动项状态已变化，请重新打开托盘菜单')
+  if (row.busy || row.status === 'stopping') throw new Error('该启动项正在操作，请稍后再试')
+  if (action === 'open') {
+    if (row.proc?.status !== 'running' || !row.proc.url) throw new Error('该启动项尚未启动完成')
+    openLocalUrl(row.proc.url)
+    return { ok: true }
+  }
+  if (action === 'start' && row.proc) throw new Error('该启动项已经在运行或启动中')
+  if (['stop', 'restart'].includes(action) && !row.proc) throw new Error('该启动项没有运行实例')
+  if (action !== 'stop' && !row.installed) throw new Error('请先在启动器中安装此版本')
+  trayActions.set(row.key, { id: row.id, name: row.name, home: row.home, version: row.version, profile: row.profile, status: action === 'stop' ? 'stopping' : 'starting' })
+  try {
+    return await launchScope.run({ home: row.home, launchId: row.preset?.id }, async () => {
+      if (action === 'stop' || action === 'restart') await stop(row.version, row.profile, row.home)
+      if (action !== 'stop') {
+        if (row.preset) {
+          await setInstancePort(row.version, row.profile, row.preset.port)
+          await recordLaunchUse(row.preset.id, row.version)
+        }
+        return start(row.version, row.profile)
+      }
+      return { ok: true }
+    })
+  } finally {
+    trayActions.delete(row.key)
+  }
 }
 
 // 运行时也能编辑快捷入口；保存与启动历史共用一条写队列，防止并发读改写覆盖彼此。
@@ -4124,7 +4186,7 @@ export { pruneDanglingLinks, pruneVersions, recordLaunchUse, snapshot, stop }
 
 /**
  * 停止实例：版本 + profile + 目录都给就停那一个组合；只给版本就停那个版本的全部
- * （同版本可能用不同 profile 或 DSH_HOME 各跑着一份）；都没给就全停（托盘的「停止」是这条）。
+ * （同版本可能用不同 profile 或 DSH_HOME 各跑着一份）；都没给就全停（旧外壳兼容接口）。
  * 指名了一个没在跑的组合不算错，什么都不做——多开下页面和状态本来就可能差一拍。
  */
 async function stop(version, profile = '', targetHome = '') {
@@ -4301,12 +4363,12 @@ async function handleApi(req, res, url) {
     return
   }
   if (req.method === 'GET' && url.pathname === '/api/tray') {
-    // 给 DSH.exe 的原生托盘读状态。纯文本 key=value，省得那边为了三行状态写 JSON 解析。
+    // 保留旧外壳的标量字段；新外壳按命名启动项操作，不再把单项停止变成停止全部。
     const running = primaryInstance()
     send(res, 200, [
       `status=${running?.status || 'stopped'}`,
       `url=${running?.url || ''}`,
-      `installed=${trayHasInstalled() ? 1 : 0}`,
+      `installed=${trayInstalledVersions().length ? 1 : 0}`,
       `lang=${LANG}`,
       // 托盘照着它决定「打开 DSH」是叫内嵌窗口还是丢给系统浏览器
       `openmode=${OPEN_MODE}`,
@@ -4315,6 +4377,7 @@ async function handleApi(req, res, url) {
       `theme=${THEME}`,
       // 原生标签页要跟随所有实例，不能用「最近启动的实例」去覆盖用户正在看的其他页面。
       `instances=${JSON.stringify(instanceList().map(internalTabTarget))}`,
+      `launches=${JSON.stringify(trayLaunches().map(({ id, instanceId, name, version, profile, status, busy, installed, target }) => ({ id, instanceId, name, version, profile, status, busy, installed, target })))}`,
     ].join('\n'), 'text/plain; charset=utf-8')
     return
   }
@@ -4466,6 +4529,10 @@ async function handleApi(req, res, url) {
     // 先记后启：启动项这次实际用的版本要留给清理规则当「当前用」。
     await recordLaunchUse(launchScope.getStore()?.launchId, body.version)
     send(res, 200, await start(body.version, body.profile))
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/tray/action') {
+    send(res, 200, await trayAction(body))
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/instance-port') {

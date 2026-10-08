@@ -139,7 +139,7 @@ test('停是按版本停的：另一个照跑', async () => {
   assert.equal(snap.running.version, B)
 })
 
-test('不给版本号就是全停（托盘的「停止」走这条）', async () => {
+test('不给版本号就是全停（旧外壳兼容接口）', async () => {
   await api('/api/stop', {})
   const snap = await state()
   assert.deepEqual(snap.instances, [], '一个都不剩')
@@ -348,6 +348,127 @@ test('同版本同 Profile 可在不同 DSH_HOME 并存，管理和停止按启�
   assert.equal((await state()).instances.filter((item) => item.version === A && item.profile === 'web').length, 1)
   await api('/api/stop', { version: A, profile: 'web' })
   await assert.rejects(api('/api/start', { version: A, profile: 'web' }, 'missing'), /启动项已不存在/)
+})
+
+async function trayRows() {
+  const response = await fetch(`${base}/api/tray`)
+  const line = (await response.text()).split('\n').find((line) => line.startsWith('launches='))
+  return JSON.parse(line.slice('launches='.length))
+}
+
+test('托盘使用命名启动项，单项重启和停止不碰其他目录或 Profile', async () => {
+  const otherHome = join(appDir, 'tray-home')
+  const saved = await api('/api/launch-presets', { name: '托盘测试 & 工作', version: A, profile: 'web', port: 0, dshHome: otherHome })
+  const first = await api('/api/start', { version: A, profile: 'web' })
+  const work = await api('/api/start', { version: A, profile: 'work' })
+  try {
+    let row = (await trayRows()).find((item) => item.id === saved.entry.id)
+    assert.equal(row.name, saved.entry.name)
+    assert.equal(row.status, 'stopped')
+    const launched = await api('/api/tray/action', { id: row.id, action: 'start', targetId: '' })
+    assert.equal(await (await fetch(new URL('/home', launched.url))).text(), otherHome)
+    row = (await trayRows()).find((item) => item.id === saved.entry.id)
+    assert.equal(row.target.url, launched.url)
+    assert.equal((await state()).launchPresets.find((item) => item.id === row.id).usedVersion, A)
+    const restarted = await api('/api/tray/action', { id: row.id, action: 'restart', targetId: row.target.id })
+    assert.notEqual(restarted.url, launched.url)
+    let snap = await state()
+    assert.equal(snap.instances.find((item) => item.home === HOME && item.profile === 'web').url, first.url)
+    assert.equal(snap.instances.find((item) => item.profile === 'work').url, work.url)
+    await api('/api/tray/action', { id: row.id, action: 'stop', targetId: row.target.id })
+    snap = await state()
+    assert.equal(snap.instances.length, 2)
+    assert.equal((await trayRows()).find((item) => item.id === row.id).status, 'stopped')
+    await assert.rejects(api('/api/tray/action', { id: row.id, action: 'stop', targetId: row.target.id }), /状态已变化/)
+  } finally {
+    await api('/api/stop', {})
+    await api('/api/launch-presets/remove', { id: saved.entry.id })
+  }
+})
+
+test('托盘自动版本跟随在跑版本，删除入口后仍可管理遗留实例，打开使用当前地址', async () => {
+  const first = await api('/api/start', { version: A, profile: 'web' })
+  let row = (await trayRows()).find((item) => item.id === '0000000000000000')
+  assert.equal(row.version, A, '已有旧版本在跑时不能另起最高版本')
+  const beforeShell = process.env.DSH_APP_WINDOW
+  const write = process.stdout.write
+  const signals = []
+  try {
+    process.env.DSH_APP_WINDOW = '1'
+    await api('/api/settings', { openMode: 'window' })
+    process.stdout.write = function (chunk, ...args) {
+      if (String(chunk).startsWith('__DSH_OPEN__')) { signals.push(String(chunk)); return true }
+      return write.call(this, chunk, ...args)
+    }
+    await api('/api/tray/action', { id: row.id, action: 'open', targetId: row.target.id })
+    assert.equal(signals.at(-1), `__DSH_OPEN__ ${first.url}\n`)
+    const gate = join(appDir, 'tray-restart-gate')
+    mkdirSync(gate, { recursive: true })
+    process.env.DSH_TEST_START_GATE = gate
+    const restarting = api('/api/tray/action', { id: row.id, action: 'restart', targetId: row.target.id })
+    let restarted
+    try {
+      await waitForMarker(join(gate, `${A}-web.started`))
+      const pending = (await trayRows()).find((item) => item.id === row.id)
+      assert.equal(pending.version, A, '重启途中不能因为暂无实例跳到新版本')
+      assert.equal(pending.busy, true)
+      assert.equal(pending.status, 'starting')
+    } finally {
+      writeFileSync(join(gate, `${A}-web.release`), '')
+      delete process.env.DSH_TEST_START_GATE
+      restarted = await restarting
+    }
+    assert.equal((await state()).instances.find((item) => item.url === restarted.url).version, A)
+    await api('/api/tray/action', { id: row.id, action: 'open', targetId: row.target.id })
+    assert.equal(signals.at(-1), `__DSH_OPEN__ ${restarted.url}\n`, '重新打开不能使用重启前的端口与 token')
+    const saved = await api('/api/launch-presets', { name: '可删除入口', version: A, profile: 'work', port: 0 })
+    await api('/api/start', { version: A, profile: 'work' }, saved.entry.id)
+    await api('/api/launch-presets/remove', { id: saved.entry.id })
+    await assert.rejects(api('/api/tray/action', { id: saved.entry.id, action: 'stop' }), /已不存在/)
+    row = (await trayRows()).find((item) => item.id.startsWith('instance:') && item.profile === 'work')
+    assert.ok(row, '删除入口不应让运行实例从托盘消失')
+    await api('/api/tray/action', { id: row.id, action: 'stop', targetId: row.target.id })
+    assert.equal((await state()).instances.length, 1)
+  } finally {
+    process.stdout.write = write
+    if (beforeShell === undefined) delete process.env.DSH_APP_WINDOW
+    else process.env.DSH_APP_WINDOW = beforeShell
+    await api('/api/settings', { openMode: 'tab' })
+    await api('/api/stop', {})
+  }
+})
+
+test('托盘只禁用正在操作的启动项，其他 Profile 仍可并发启动，旧菜单不能启动改后的配置', async () => {
+  const first = await api('/api/launch-presets', { name: '托盘并发一', version: A, profile: 'web', port: 0 })
+  const second = await api('/api/launch-presets', { name: '托盘并发二', version: A, profile: 'work', port: 0 })
+  const old = (await trayRows()).find((item) => item.id === first.entry.id)
+  await api('/api/launch-presets', { ...first.entry, version: '0.1.8' })
+  await assert.rejects(api('/api/tray/action', { id: old.id, instanceId: old.instanceId, action: 'start', targetId: '' }), /状态已变化/)
+  assert.equal((await trayRows()).find((item) => item.id === old.id).installed, false)
+  await assert.rejects(api('/api/tray/action', { id: old.id, action: 'start', targetId: '' }), /先在启动器中安装/)
+  await api('/api/launch-presets', first.entry)
+  const gate = join(appDir, 'tray-concurrent-gate')
+  mkdirSync(gate, { recursive: true })
+  process.env.DSH_TEST_START_GATE = gate
+  const starting = api('/api/tray/action', { id: first.entry.id, action: 'start', targetId: '' })
+  let other
+  try {
+    await waitForMarker(join(gate, `${A}-web.started`))
+    const rows = await trayRows()
+    assert.equal(rows.find((item) => item.id === first.entry.id).busy, true)
+    assert.equal(rows.find((item) => item.id === second.entry.id).busy, false)
+    await assert.rejects(api('/api/tray/action', { id: first.entry.id, action: 'start', targetId: '' }), /状态已变化|正在操作/)
+    other = api('/api/tray/action', { id: second.entry.id, action: 'start', targetId: '' })
+    await waitForMarker(join(gate, `${A}-work.started`))
+  } finally {
+    writeFileSync(join(gate, `${A}-web.release`), '')
+    writeFileSync(join(gate, `${A}-work.release`), '')
+    delete process.env.DSH_TEST_START_GATE
+    await Promise.all([starting, other])
+    await api('/api/stop', {})
+    await api('/api/launch-presets/remove', { id: first.entry.id })
+    await api('/api/launch-presets/remove', { id: second.entry.id })
+  }
 })
 
 test('控制页有「在跑的实例」一栏，每行单独打开/停止', () => {
