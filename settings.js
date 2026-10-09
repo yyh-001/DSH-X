@@ -156,19 +156,19 @@ export function safeProxyUrl(value) {
 /**
  * 打开 dsh 页面的方式：
  *
- * - tab：系统默认浏览器的标签页（默认）；
+ * - tab：系统默认浏览器的标签页；
  * - app：用 Chromium 系浏览器的应用窗口打开（Chrome/Edge 的 --app=…，没有地址栏，更像
  *   一个 App）。找不到 Chrome/Edge 就退回标签页，所以这个选项是「尽量」而不是「必须」；
  * - window：装进启动器自己的窗口（原生外壳再开一个 WebView2 窗口承载 dsh 界面），完全不
  *   经过浏览器进程——关窗口、托盘、退出都由启动器自己说了算。它只在原生外壳托管下成立
  *   （外壳设了 DSH_APP_WINDOW=1，并在 stdout 上收约定标记），源码运行（npm start）时选它
  *   会安静地退回标签页，不会开出一个没人管的窗口。
- * - internal：在启动器主窗口的原生标签页里打开，每个实例保留自己的页面；需要新版外壳
+ * - internal（默认）：在启动器主窗口的原生标签页里打开，每个实例保留自己的页面；需要新版外壳
  *   报告 DSH_INTERNAL_TABS=1，旧外壳与源码运行时退回系统浏览器。
  */
 // internal 保留在主窗口的标签页中；与另开一个桌面窗口的 window 分开，旧设置仍按原义打开。
 export const OPEN_MODES = ['tab', 'app', 'window', 'internal']
-export const DEFAULT_OPEN_MODE = 'tab'
+export const DEFAULT_OPEN_MODE = 'internal'
 
 export function safeOpenMode(value) {
   const name = String(value ?? '').trim()
@@ -191,6 +191,30 @@ export function safeDshHome(dir) {
   if (!trimmed) return ''
   if (!isAbsolute(trimmed)) throw new Error('请使用绝对路径（例如 D:\\dsh-home）')
   return resolve(trimmed)
+}
+
+export function safeDshHomes(value) {
+  const homes = new Map()
+  for (const item of Array.isArray(value) ? value : []) {
+    try {
+      const home = safeDshHome(item)
+      if (home) homes.set(IS_WINDOWS ? home.toLowerCase() : home, home)
+    } catch {}
+  }
+  return [...homes.values()]
+}
+
+/** 目录标题只用于管理界面，实际路径仍作为环境的稳定标识。 */
+export function safeDshHomeNames(value) {
+  const names = {}
+  for (const [path, label] of Object.entries(value && typeof value === 'object' && !Array.isArray(value) ? value : {})) {
+    try {
+      const home = safeDshHome(path)
+      const name = typeof label === 'string' ? label.trim() : ''
+      if (home && name && name.length <= 64 && !/[\x00-\x1f\x7f]/.test(name)) names[home] = name
+    } catch {}
+  }
+  return names
 }
 
 /** dsh 用户目录没配置时的默认位置。 */
@@ -225,6 +249,9 @@ export const DEFAULTS = {
   openMode: DEFAULT_OPEN_MODE,
   // dsh 的用户目录（DSH_HOME）。留空 = 默认 ~/.dsh；用户把 .dsh 挪到别的盘时在这里指回去
   dshHome: '',
+  // 单独登记的目录不依赖启动项，删掉最后一个 Profile 后仍能回到这里新建。
+  dshHomes: [],
+  dshHomeNames: {},
   // 额外启动参数（一行文本，空格分词，含空格的值用引号包起来）
   args: '',
   // dsh web 的绑定方式：loopback 注入 --host 127.0.0.1（默认）；lan 不注入，
@@ -380,7 +407,8 @@ export function safeLaunchPresets(value) {
   })
   const builtin = presets.find((item) => item.id === DEFAULT_LAUNCH_ID) || { ...DEFAULT_LAUNCH }
   if (builtin.name === '默认启动') builtin.name = 'DSH'
-  return [builtin, ...presets.filter((item) => item.id !== DEFAULT_LAUNCH_ID)].slice(0, 20)
+  // 内置项只保证存在，不强制置顶；用户拖动后的顺序也要穿过保存和重启。
+  return (presets.some((item) => item.id === DEFAULT_LAUNCH_ID) ? presets : [builtin, ...presets]).slice(0, 20)
 }
 
 /**
@@ -633,6 +661,8 @@ export function saveSettings(patch) {
 
 async function saveSettingsNow(patch) {
   const current = await loadSettings()
+  // 目录列表的增删也在同一读改写队列里，连续操作不会覆盖彼此。
+  if (typeof patch === 'function') patch = patch(current)
   const merged = { ...current, ...patch }
   if (merged.dataDir) merged.dataDir = safeDataDir(merged.dataDir)
   // 历史文件里的脏端口值顺手修回默认；显式改端口时才把错误抛给调用方
@@ -653,6 +683,8 @@ async function saveSettingsNow(patch) {
   merged.instancePorts = safeInstancePorts('instancePorts' in patch ? patch.instancePorts : merged.instancePorts)
   merged.environmentPorts = safeEnvironmentPorts(merged.environmentPorts)
   merged.launchPresets = safeLaunchPresets(merged.launchPresets)
+  merged.dshHomes = safeDshHomes(merged.dshHomes)
+  merged.dshHomeNames = safeDshHomeNames(merged.dshHomeNames)
   merged.lang = 'lang' in patch ? safeLang(patch.lang) : safeLang(merged.lang)
   merged.theme = safeTheme(merged.theme)
   merged.panelTransparency = safePanelTransparency(merged.panelTransparency)

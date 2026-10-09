@@ -44,6 +44,9 @@ export async function withProfileLock(profileDir, operation, probe) {
   }
   try {
     writeFileSync(descriptor, String(process.pid))
+    // 独占由 lock 文件的存在维持；Windows 下保持句柄打开会阻止整个 Profile 目录改名。
+    closeSync(descriptor)
+    descriptor = undefined
     return await operation()
   } finally {
     try { closeSync(descriptor) } catch { /* 已经关了 */ }

@@ -429,7 +429,16 @@ main.home .settings-body { padding-top: 34px; }
 .launch-preset:last-child { border-bottom: 0; }
 .launch-preset[data-launch-last] { border-bottom: 0; }
 .launch-preset-copy { flex: 1; min-width: 0; }
-.launch-app-icon { display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; border-radius: 13px; background: var(--accent-soft); color: var(--text); }
+.launch-app-icon { display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 0; border: 0; outline: none; border-radius: 13px; background: var(--accent-soft); color: var(--text); cursor: grab; touch-action: none; user-select: none; transition: background 160ms ease, transform 160ms ease; }
+.launch-app-icon:hover { background: var(--accent-dim); transform: translateY(-1px); }
+.launch-app-icon:focus-visible:not([data-pointer-focus]) { background: var(--accent-dim); box-shadow: inset 0 0 0 2px var(--muted); }
+.launch-app-icon[data-pointer-focus] { outline: none; box-shadow: none; }
+.launch-app-icon img { pointer-events: none; }
+.launch-sorting-row { opacity: .25; }
+.launch-sort-ghost { position: fixed; z-index: 100; box-sizing: border-box; margin: 0; padding-inline: 14px; border: 0; border-radius: 12px; background: var(--card); box-shadow: 0 12px 30px #00000030; pointer-events: none; }
+.launch-presets[data-sorting] .launch-app-icon { cursor: grabbing; transform: none; }
+.launch-sort-ghost .launch-app-icon { transform: none; box-shadow: none; }
+.launch-presets[data-launch-count="1"] .launch-app-icon { cursor: default; }
 .launch-app-icon svg { width: 25px; height: 25px; }
 .launch-new-version { display: inline-flex; align-items: center; gap: 4px; border: 0; padding: 3px 0; margin-top: 4px; background: transparent; color: var(--accent); font: inherit; font-size: 11.5px; cursor: pointer; }
 .launch-new-version svg { width: 12px; height: 12px; transition: transform 140ms ease; }
@@ -523,10 +532,8 @@ html.reduce-motion .launch-status.is-working::before { animation: none; }
 .launch-add:disabled { --launch-add-visible-opacity: .4; cursor: default; }
 .launch-add[hidden] { display: none; }
 #pane-control #hint:empty { display: none; }
-.launch-modal-fields { display: grid; align-content: start; gap: 18px; margin-top: 0; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
-.launch-home-row { display: flex; gap: 8px; }
-.launch-home-row input { min-width: 0; flex: 1; }
-.launch-home-row button { white-space: nowrap; }
+/* 正文只纵向滚动；给焦点描边留出空间，避免边缘控件触发横向滚动或被裁掉。 */
+.launch-modal-fields { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 18px; margin: -2px; padding: 2px; flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; }
 #launchDialog .home-field > label { font-size: 12px; letter-spacing: 0; }
 .launch-version-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
 .launch-version-tools[hidden] { display: none; }
@@ -1277,6 +1284,42 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 #pane-plugins #packView { animation: pack-view-in 0.28s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
 /* 进环境详情后页顶标题整条让位（pane-top 是 flex，hidden 属性会被盖掉） */
 #pluginPanel .pane-top[hidden] { display: none; }
+#pluginPanel .plugin-overview-top { align-items: center; flex-wrap: wrap; }
+#pluginPanel .plugin-overview-top > div:first-child { width: auto; flex-shrink: 0; }
+#pluginPanel .plugin-overview-top .ghost { margin-top: 0; }
+.plugin-home-bar { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.plugin-home-bar .ui-select { flex: 0 1 280px; width: min(100%, 280px); min-width: 0; margin-left: auto; }
+.plugin-home-hint { margin: -8px 0 24px; overflow-wrap: anywhere; }
+#pluginHomesDialog .ask-card { --dialog-width: 520px; }
+#pluginHomesDialog .dialog-heading { margin-bottom: 12px; }
+.plugin-homes-list { min-width: 0; }
+.plugin-home-row { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--line); min-width: 0; }
+.plugin-home-row:last-child { border-bottom: 0; }
+.plugin-home-actions { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+.plugin-home-folder { display: grid; place-items: center; width: 36px; height: 36px; flex: 0 0 36px; border-radius: 10px; color: var(--muted); background: var(--accent-soft); }
+.plugin-home-folder svg { width: 19px; height: 19px; }
+.plugin-home-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; overflow-wrap: anywhere; font-size: 13px; line-height: 1.5; }
+.plugin-home-info strong { font-weight: 600; }
+.plugin-home-info span { color: var(--muted); font-size: 12px; }
+#pluginHomesDialog .plugin-home-action { display: grid; place-items: center; flex: 0 0 36px; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 9px; color: var(--muted); background: transparent; transition: background 150ms ease, color 150ms ease, transform 150ms ease; }
+#pluginHomesDialog .plugin-home-action svg { width: 18px; height: 18px; }
+#pluginHomesDialog .plugin-home-action:hover:not(:disabled) { background: var(--accent-soft); color: var(--text); }
+#pluginHomesDialog .plugin-home-action:active:not(:disabled) { transform: scale(.94); }
+#pluginHomesDialog .plugin-home-action:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#pluginHomesDialog .plugin-home-action:disabled { opacity: .4; cursor: default; }
+#pluginHomesDialog .plugin-home-action.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); }
+#pluginHomesDialog .dialog-close { flex-basis: 32px; width: 32px; height: 32px; }
+.plugin-homes-actions { display: flex; align-items: center; gap: 16px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+.plugin-homes-actions .hint { flex: 1; margin: 0; font-size: 12px; line-height: 1.6; }
+#pluginHomesAdd.plugin-home-action { color: var(--text); background: var(--accent-soft); }
+#pluginHomesAdd.plugin-home-action:hover:not(:disabled) { background: var(--accent-dim); }
+#launchPluginsDialog .plugin-home-bar { display: none; }
+#launchPluginsDialog .plugin-home-hint { display: none; }
+@media (max-width: 480px) {
+  #pluginPanel .plugin-overview-top .profile-add { margin-left: auto; }
+  .plugin-overview-top .plugin-home-bar { order: 1; flex-basis: 100%; }
+  .plugin-overview-top .plugin-home-bar .ui-select { width: auto; flex: 1; margin-left: 0; }
+}
 .pack-detail-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .pack-more { position: relative; }
 .pack-more summary {
@@ -1882,20 +1925,14 @@ html .set-row:focus-within { background: transparent; box-shadow: none; }
 html.reduce-motion #launchIconPopover { animation: none; }
 @media (prefers-reduced-motion: reduce) { #launchIconPopover { animation: none; } }
 
-/* 目录入口与名称图标共用轻量反馈，选择目录时禁止重复拉起系统对话框。 */
-#launchDialog .launch-home-row { position: relative; display: block; }
-#launchDialog .launch-home-row .select-trigger { padding-right: 48px; }
-#launchDialog .launch-home-row .select-caret { display: none; }
-#launchDialog .launch-home-row + .hint { margin: 6px 0 0; }
-#launchDialog #launchPickHome { position: absolute; top: 4px; right: 4px; width: 34px; height: 34px; padding: 8px; border: 0; border-radius: 8px; color: var(--muted); background: transparent; }
-#launchPickHome svg { display: block; width: 18px; height: 18px; }
-#launchIconTrigger, #launchPickHome, #launchDialog .launch-icon-choice { transition: transform 160ms ease, color 160ms ease, background 160ms ease, border-color 160ms ease; }
-#launchIconTrigger:hover:not(:disabled), #launchPickHome:hover:not(:disabled) { transform: translateY(-1px) scale(1.04); color: var(--accent); background: var(--accent-soft); }
+/* 名称图标与图标选择共用轻量反馈。 */
+#launchIconTrigger, #launchDialog .launch-icon-choice { transition: transform 160ms ease, color 160ms ease, background 160ms ease, border-color 160ms ease; }
+#launchIconTrigger:hover:not(:disabled) { transform: translateY(-1px) scale(1.04); color: var(--accent); background: var(--accent-soft); }
 #launchDialog .launch-icon-choice:hover { transform: translateY(-2px); background: var(--accent-soft); }
-#launchIconTrigger:active:not(:disabled), #launchPickHome:active:not(:disabled), #launchDialog .launch-icon-choice:active { transform: scale(.92); }
+#launchIconTrigger:active:not(:disabled), #launchDialog .launch-icon-choice:active { transform: scale(.92); }
 .launch-icon-popover { transform-origin: top left; }
-html.reduce-motion #launchIconTrigger, html.reduce-motion #launchPickHome, html.reduce-motion #launchDialog .launch-icon-choice { transition: none; transform: none; }
-@media (prefers-reduced-motion: reduce) { #launchIconTrigger, #launchPickHome, #launchDialog .launch-icon-choice { transition: none; transform: none !important; } }
+html.reduce-motion #launchIconTrigger, html.reduce-motion #launchDialog .launch-icon-choice { transition: none; transform: none; }
+@media (prefers-reduced-motion: reduce) { #launchIconTrigger, #launchDialog .launch-icon-choice { transition: none; transform: none !important; } }
 
 #skillInstallDialog .skill-source-tabs button { background: transparent; box-shadow: none; }
 #skillInstallDialog .skill-source-tabs button:hover:not(:disabled) { color: var(--accent); background: transparent; border-bottom-color: var(--muted); }

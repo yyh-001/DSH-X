@@ -7,6 +7,7 @@ const source = readFileSync(new URL('../public/launch-list.js', import.meta.url)
 const html = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8')
 const saveCode = html.slice(html.indexOf('    launchFormEl.onsubmit = async'), html.indexOf('    launchDeleteEl.onclick = async'))
 const deleteCode = html.slice(html.indexOf('    launchDeleteEl.onclick = async'), html.indexOf('    function render()'))
+const updateCode = html.slice(html.indexOf('    function updateLaunchEntry('), html.indexOf('    /** 自动项'))
 
 function harness({ ready = true, reduced = false } = {}) {
   const calls = [], listeners = new Set()
@@ -91,6 +92,17 @@ test('新增只播放新项入场，旧项保持节点，卡片高度同步展�
   assert.ok(h.calls.every((call) => call.canceled), '结束后恢复自然布局，不保留固定高度')
 })
 
+test('排序复用原节点并平滑移动，不播放新增或删除动画', async () => {
+  const h = harness()
+  h.update(['a', 'b', 'c'])
+  const original = [...h.container.children]
+  h.update(['b', 'c', 'a'])
+  assert.deepEqual(h.container.children, [original[1], original[2], original[0]])
+  assert.equal(h.calls.length, 3)
+  assert.ok(h.calls.every((call) => call.frames.every((frame) => frame.opacity === undefined)))
+  await h.finish()
+})
+
 test('删除项淡出并禁止点击，其余项目平滑补位，完成后清除删除节点', async () => {
   const h = harness()
   h.update(['a', 'b', 'c'])
@@ -150,26 +162,27 @@ test('减少动画和控制台尚未就绪时直接更新列表', () => {
   }
 })
 
-function editor({ fail = false, confirm = true } = {}) {
+function editor({ fail = false, confirm = true, entries = [{ id: 'a' }, { id: 'b' }], savedEntry = { id: 'c' } } = {}) {
   let release
   const closing = new Promise((resolve) => { release = resolve })
   const calls = []
   const context = vm.createContext({
     launchFormEl: {}, launchSaveEl: { disabled: false }, launchDeleteEl: { disabled: false },
-    editingLaunchId: 'b', DEFAULT_LAUNCH_ID: 'a', state: { launchPresets: [{ id: 'a' }, { id: 'b' }] },
+    editingLaunchId: savedEntry.id === 'c' ? 'b' : savedEntry.id, DEFAULT_LAUNCH_ID: 'a', state: { launchPresets: entries },
     launchNameEl: { value: '新增项' }, launchIcon: 'terminal', versionValue: 'auto', launchProfile: 'web',
     launchPortEl: { value: '' }, launchDshHomeEl: { value: '' },
+    refreshLaunchHomeProfiles: async () => true,
     t: (text) => text, appConfirm: async () => confirm,
     post: async (path) => {
       calls.push(path)
       if (fail) throw new Error('保存失败')
-      return { entry: { id: 'c' } }
+      return { entry: savedEntry }
     },
     launchEntries: () => context.state.launchPresets,
     closeLaunchEditor: async () => { calls.push('close'); await closing; calls.push('closed') },
     render: () => calls.push('render'), notify: (message) => calls.push(message),
   })
-  vm.runInContext(saveCode + deleteCode, context)
+  vm.runInContext(updateCode + saveCode + deleteCode, context)
   return { context, calls, release }
 }
 
@@ -200,4 +213,19 @@ test('请求失败或取消删除保留启动项，不关闭编辑弹窗', async
   const canceled = editor({ confirm: false })
   await canceled.context.launchDeleteEl.onclick()
   assert.deepEqual(canceled.calls, [])
+})
+
+test('编辑首项、中间项和末项后顺序保持不变；升级替换原项，新建才追加', async () => {
+  for (const id of ['a', 'b', 'd']) {
+    const entry = { id, name: '改名', version: '0.2.0' }
+    const h = editor({ entries: [{ id: 'a' }, { id: 'b' }, { id: 'd' }], savedEntry: entry })
+    h.release()
+    await h.context.launchFormEl.onsubmit({ preventDefault() {} })
+    assert.deepEqual(Array.from(h.context.state.launchPresets, (item) => item.id), ['a', 'b', 'd'])
+    assert.equal(h.context.state.launchPresets.find((item) => item.id === id).version, '0.2.0')
+    h.context.updateLaunchEntry({ ...entry, version: '0.3.0' })
+    assert.deepEqual(Array.from(h.context.state.launchPresets, (item) => item.id), ['a', 'b', 'd'])
+    h.context.updateLaunchEntry({ id: 'new' })
+    assert.deepEqual(Array.from(h.context.state.launchPresets, (item) => item.id), ['a', 'b', 'd', 'new'])
+  }
 })

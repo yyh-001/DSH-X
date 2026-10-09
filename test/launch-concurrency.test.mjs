@@ -9,7 +9,7 @@ const keys = page.slice(page.indexOf('    const launchActions ='), page.indexOf(
 const actions = page.slice(page.indexOf('    async function runLaunchAction('), page.indexOf('    /** 升级到最新版'))
 const manage = page.slice(page.indexOf('    async function manageLaunchEntry('), page.indexOf('    let launchDialogRevision'))
 const paint = page.slice(page.indexOf('    function paintLaunchHome('), page.indexOf('    async function manageLaunchEntry('))
-const lookup = page.slice(page.indexOf('    function runningInfo('), page.indexOf('    /**\n     * DSH_HOME'))
+const lookup = page.slice(page.indexOf('    function runningInfo('), page.indexOf('    function paintLaunchHomePath()'))
 
 function ui({ installed = ['0.1.0'], instances = [], homes = false } = {}) {
   const entries = [

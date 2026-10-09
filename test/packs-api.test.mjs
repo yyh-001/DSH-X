@@ -300,13 +300,10 @@ test('整合包接口', async (t) => {
     const noProfile = await manager.call('/api/packs/toggle', { enabled: false })
     assert.equal(noProfile.status, 400)
 
-    // 删除整个 profile：当前 profile 与 dsh 自带模板都不许删
-    const current = await manager.call('/api/packs/remove-profile', { profile: 'web' })
-    assert.equal(current.status, 400)
-    assert.match(current.data.error, /启动器的默认环境，不能删除/)
-    const template = await manager.call('/api/packs/remove-profile', { profile: 'sdk' })
-    assert.equal(template.status, 400)
-    assert.match(template.data.error, /自带的 profile 模板/)
+    // 官方桌面端专用目录仍受保护；普通模板和默认选择的删除在 profile-delete 用例覆盖。
+    const desktop = await manager.call('/api/packs/remove-profile', { profile: 'desktop' })
+    assert.equal(desktop.status, 400)
+    assert.match(desktop.data.error, /官方桌面端专用/)
 
     const removed = await manager.call('/api/packs/remove-profile', { profile: 'hand-made' })
     assert.equal(removed.status, 200, removed.data.error)

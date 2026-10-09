@@ -4,9 +4,9 @@ import { createHash, randomBytes } from 'node:crypto'
 import { createServer } from 'node:http'
 import { createServer as createNetServer } from 'node:net'
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
-import { accessSync, appendFileSync, chmodSync, closeSync, constants as fsConstants, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, statSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
+import { accessSync, appendFileSync, chmodSync, closeSync, constants as fsConstants, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, readlinkSync, realpathSync, renameSync, statSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
-import { basename, delimiter, dirname, join, relative, resolve, sep } from 'node:path'
+import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import { cmpVer, currentRegistry, describeNpmFailure, installSpec, listPackage, parsePnpmProgress, parseVer } from './registry.js'
@@ -65,6 +65,7 @@ import {
   planInstall,
   profileSkeleton,
   readPackState,
+  writePackState,
   rememberPack,
   uninstallPack,
 } from './packs.js'
@@ -85,6 +86,8 @@ import {
   resolveWebBind,
   safeDataDir,
   safeDshHome,
+  safeDshHomes,
+  safeDshHomeNames,
   safeEnvironmentPorts,
   safeInstancePorts,
   safeLaunchPresets,
@@ -168,7 +171,7 @@ let LAN_TOGGLE = false
 // 和 WEB_BIND 一样是「改完立刻生效」的内存副本，启动时与保存设置时各刷新一次。
 let INSTANCE_PORTS = safeInstancePorts(loadSettingsSync().instancePorts)
 let ENVIRONMENT_PORTS = safeEnvironmentPorts(loadSettingsSync().environmentPorts)
-// 界面语言（zh / en）：settings.json 为准；安装时选的语言写在安装目录 lang.txt，启动时对齐一次
+// 界面语言（zh / en）：settings.json 为准；lang.txt 只为尚未选择语言的用户提供首次默认值。
 const INSTALL_LANG = join(ROOT, 'lang.txt')
 let LANG = safeLang(loadSettingsSync().lang) || installLang() || 'zh'
 let THEME = safeTheme(loadSettingsSync().theme)
@@ -184,8 +187,8 @@ const defaultHome = () => DSH_HOME_DIR || defaultDshHome()
 const profileKey = (profile) => `${homeDir()}\0${profile}`
 // 启动器更新的下载源：direct（默认直连 GitHub）/ mirror（国内加速，直连失败时走前缀镜像）
 let UPDATE_SOURCE = updateSourceForDownload(loadSettingsSync().downloadSource)
-// 打开 dsh 页面的方式：tab（默认，系统浏览器标签页）/ app（Chromium 应用窗口）/
-// window（独立桌面窗口）/ internal（主窗口标签页；需要外壳报告能力，判断见 openRoute）
+// 打开 dsh 页面的方式：tab（系统浏览器标签页）/ app（Chromium 应用窗口）/
+// window（独立桌面窗口）/ internal（默认，主窗口标签页；需要外壳报告能力，判断见 openRoute）
 let OPEN_MODE = safeOpenMode(loadSettingsSync().openMode)
 // 是否把 dsh 的 shim 目录写进用户 PATH（默认关，改了要新开终端才生效）
 let SYSTEM_PATH = loadSettingsSync().systemPath === true
@@ -885,7 +888,8 @@ async function snapshotDefault() {
   const installed = listedVersions(config)
   trayInstalledCache = { at: Date.now(), value: installed }
   const all = instanceList()
-  const presets = safeLaunchPresets((await loadSettings()).launchPresets)
+  const stored = await loadSettings()
+  const presets = safeLaunchPresets(stored.launchPresets)
   const profiles = listProfiles()
   // 启动项编辑器只提供「起网页」的 profile；sdk/headless/acp 这类 stdio 应用拉不起来
   const webProfiles = profiles.filter((name) => profileBootsWebIn(defaultHome(), name))
@@ -895,6 +899,8 @@ async function snapshotDefault() {
     // 当前 profile（启动下拉的默认值）+ 可选的 profile 列表（模板名 + 磁盘上已有的）
     profile: PROFILE_NAME,
     dshHome: defaultHome(),
+    dshHomes: safeDshHomes(stored.dshHomes),
+    dshHomeNames: safeDshHomeNames(stored.dshHomeNames),
     profiles,
     webProfiles,
     profilesByHome: { [defaultHome()]: profiles },
@@ -945,6 +951,8 @@ async function publicSettings() {
   return {
     dataDir: DATA,
     dshHome: homeDir(),
+    dshHomes: safeDshHomes(stored.dshHomes),
+    dshHomeNames: safeDshHomeNames(stored.dshHomeNames),
     // 设置里填的原文（空 = 用默认位置）+ 默认位置，页面据此回显与提示
     dshHomeValue: safeDshHome(stored.dshHome),
     dshHomeDefault: defaultDshHome(),
@@ -1148,6 +1156,19 @@ function withLaunchPresetWrite(run) {
 }
 function saveLaunchPreset(body) { return withLaunchPresetWrite(() => saveLaunchPresetNow(body)) }
 function removeLaunchPreset(id) { return withLaunchPresetWrite(() => removeLaunchPresetNow(id)) }
+function reorderLaunchPresets(ids) {
+  return withLaunchPresetWrite(async () => {
+    const stored = await saveSettings((current) => {
+      const entries = safeLaunchPresets(current.launchPresets)
+      const byId = new Map(entries.map((entry) => [entry.id, entry]))
+      // 只接受当前列表的排列，过期页面不能把另一窗口刚添加的启动项覆盖掉。
+      if (!Array.isArray(ids) || ids.length !== entries.length || new Set(ids).size !== ids.length || ids.some((id) => !byId.has(id))) throw new Error('启动项列表已变化，请刷新后重新排序')
+      return { launchPresets: ids.map((id) => byId.get(id)) }
+    })
+    await emitState()
+    return { launchPresets: safeLaunchPresets(stored.launchPresets) }
+  })
+}
 function recordLaunchUse(id, version) { return withLaunchPresetWrite(() => recordLaunchUseNow(id, version)) }
 
 async function saveLaunchPresetNow(body) {
@@ -2897,7 +2918,8 @@ function packsPayload() {
       packVersion: latest?.version || '',
       createdProfile: records.some((record) => record.createdProfile === true),
       template: TEMPLATE_PROFILES.includes(profile),
-      removable: profile.toLowerCase() !== PROFILE_NAME.toLowerCase() && !TEMPLATE_PROFILES.includes(profile.toLowerCase()) && !CLI_BLOCKED_PROFILES.has(profile.toLowerCase()),
+      // 模板只是可重新初始化的用户环境；只有官方桌面端专用目录需要保留保护。
+      removable: !CLI_BLOCKED_PROFILES.has(profile.toLowerCase()),
     })
   }
   // 当前 profile 排最前，其余按插件数量从多到少
@@ -2910,7 +2932,8 @@ function packsPayload() {
     packs: cards,
     profile: PROFILE_NAME,
     home: homeDir(),
-    profiles: listProfiles(),
+    // 启动选择器保留可初始化的默认模板，插件管理只列当前目录里实际存在的 Profile。
+    profiles: cards.map((item) => item.profile).sort(),
     marketUrl: process.env.DSH_PACK_MARKET || MARKET_INDEX_URL,
     busy: pluginBusy,
     progress: packProgress,
@@ -3767,6 +3790,145 @@ export function listProfiles(root = join(homeDir(), 'profiles')) {
 }
 
 /** 复制清单与配置后重装依赖，不能直接复制 pnpm 链接，否则副本仍指向原环境的 store。 */
+/** 改名要搬同一份依赖；Windows junction 常用绝对目标，直接 rename 会把插件链接留在旧目录。 */
+async function renameProfile(profile, nextName) {
+  const from = safeProfile(profile)
+  const name = safeProfile(nextName)
+  if (from.startsWith('.') || from.toLowerCase() === 'node_modules' || CLI_BLOCKED_PROFILES.has(from.toLowerCase())) throw new Error('系统环境不能重命名')
+  if (name.startsWith('.') || name.toLowerCase() === 'node_modules' || TEMPLATE_PROFILES.includes(name.toLowerCase()) || CLI_BLOCKED_PROFILES.has(name.toLowerCase())) throw new Error('这个名称是系统保留名称，请换一个 Profile 名称')
+  const original = profileDirOf(from)
+  const target = profileDirOf(name)
+  if (!existsSync(join(original, 'package.json')) || lstatSync(original).isSymbolicLink()) throw new Error('只能重命名已初始化的 Profile 目录')
+  if (from === name) return { ok: true, renamedProfile: name, ...packsPayload() }
+  const root = dirname(original)
+  const home = homeDir()
+  const sameHome = (left) => IS_WINDOWS ? left.toLowerCase() === home.toLowerCase() : left === home
+  const targetKey = profileKey(name)
+  let moved = false
+  let targetHeld = false
+  try {
+    await withIdleProfile(from, async () => {
+      if (readdirSync(root).some((entry) => entry.toLowerCase() === name.toLowerCase())) throw new Error(`Profile「${name}」已存在`)
+      if (startingProfiles.has(targetKey) || maintainingProfiles.has(targetKey) || instanceList().some((proc) => proc.profile === name && sameHome(proc.home))) throw new Error('正在修改环境，等操作结束再试')
+      maintainingProfiles.add(targetKey)
+      targetHeld = true
+      const links = []
+      const writes = []
+      const rebase = (path) => {
+        if (!isAbsolute(path)) return path
+        const rel = relative(original, path)
+        return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel)) ? join(target, rel) : path
+      }
+      const scan = (dir) => {
+        for (const entry of readdirSync(dir, { withFileTypes: true })) {
+          const path = join(dir, entry.name)
+          if (entry.isSymbolicLink()) {
+            const before = readlinkSync(path)
+            const after = rebase(before)
+            if (after !== before) {
+              let directory = true
+              try { directory = statSync(path).isDirectory() } catch {}
+              links.push({ path: join(target, relative(original, path)), before, after, type: directory ? (IS_WINDOWS ? 'junction' : 'dir') : 'file' })
+            }
+          } else if (entry.isDirectory()) scan(path)
+        }
+      }
+      scan(original)
+      const rewrite = (path, content) => {
+        const before = existsSync(path) ? readFileSync(path) : null
+        writes.push({ path, before })
+        mkdirSync(dirname(path), { recursive: true })
+        writeFileSync(path, content)
+      }
+      const changedLinks = []
+      const packFile = join(packDataDir(), 'packs', 'installed.json')
+      try {
+        renameSync(original, target)
+        moved = true
+        for (const link of links) {
+          changedLinks.push(link)
+          unlinkSync(link.path)
+          symlinkSync(link.after, link.path, link.type)
+        }
+        const manifestFile = join(target, 'package.json')
+        const manifest = JSON.parse(readFileSync(manifestFile, 'utf8'))
+        if (manifest.name === `dsh-profile-${from}`) manifest.name = `dsh-profile-${name}`
+        for (const key of ['dependencies', 'devDependencies', 'optionalDependencies']) {
+          for (const [pkg, spec] of Object.entries(manifest[key] || {})) {
+            if (typeof spec === 'string' && spec.startsWith('file:')) manifest[key][pkg] = `file:${rebase(spec.slice(5))}`
+          }
+        }
+        rewrite(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`)
+        // pnpm 的元数据和命令 shim 也可能记着绝对目录；只替换本 Profile 的路径前缀。
+        const pathText = (text) => {
+          for (const [before, after] of [[original, target], [original.replaceAll('\\', '/'), target.replaceAll('\\', '/')], [original.replaceAll('\\', '\\\\'), target.replaceAll('\\', '\\\\')]]) {
+            text = text.split(`${before}/`).join(`${after}/`).split(`${before}\\`).join(`${after}\\`).split(`${before}"`).join(`${after}"`).split(`${before}'`).join(`${after}'`)
+          }
+          return text
+        }
+        const bin = join(target, 'node_modules', '.bin')
+        const metadata = [join(target, 'pnpm-lock.yaml'), join(target, 'node_modules', '.modules.yaml'), ...(existsSync(bin) ? readdirSync(bin).map((entry) => join(bin, entry)) : [])]
+        for (const file of metadata) {
+          if (!existsSync(file) || !lstatSync(file).isFile()) continue
+          const before = readFileSync(file, 'utf8')
+          const after = pathText(before)
+          if (after !== before) rewrite(file, after)
+        }
+        const installed = readPackState(packDataDir())
+        const prefix = `profiles/${from}/`
+        const renamedPacks = installed.packs.map((record) => {
+          if (record.profile !== from) return record
+          const files = (record.files || []).map((item) => {
+            if (!item.rel.startsWith(prefix)) return item
+            const rel = `profiles/${name}/${item.rel.slice(prefix.length)}`
+            // 撤销记录与备份路径一起迁移，卸载仍能还原改名前的配置。
+            if (item.existed) rewrite(join(record.backupDir, 'files', rel), readFileSync(join(record.backupDir, 'files', item.rel)))
+            return { ...item, rel }
+          })
+          return { ...record, profile: name, files }
+        })
+        if (installed.packs.some((record) => record.profile === from)) {
+          writes.push({ path: packFile, before: existsSync(packFile) ? readFileSync(packFile) : null })
+          writePackState(packDataDir(), { packs: renamedPacks })
+        }
+        const ports = (value) => Object.fromEntries(Object.entries(safeInstancePorts(value)).map(([key, port]) => [key.endsWith(`@${from}`) ? `${key.slice(0, key.indexOf('@'))}@${name}` : key, port]))
+        const saved = await saveSettings((current) => ({
+          launchPresets: safeLaunchPresets(current.launchPresets).map((entry) => entry.profile === from && sameHome(entry.dshHome || defaultHome()) ? { ...entry, profile: name } : entry),
+          ...(sameHome(defaultHome()) ? { profile: current.profile === from ? name : current.profile, instancePorts: ports(current.instancePorts) } : {}),
+          environmentPorts: Object.fromEntries(Object.entries(safeEnvironmentPorts(current.environmentPorts)).map(([dir, value]) => [dir, sameHome(dir) ? ports(value) : value])),
+        }))
+        INSTANCE_PORTS = safeInstancePorts(saved.instancePorts)
+        ENVIRONMENT_PORTS = safeEnvironmentPorts(saved.environmentPorts)
+        if (sameHome(defaultHome())) {
+          PROFILE_NAME = saved.profile
+          LAN_TOGGLE = lanBindToggleOn(home, PROFILE_NAME)
+        }
+      } catch (error) {
+        // 配置落盘失败也要回到旧名称，不能留下半改名的环境。
+        for (const { path, before } of writes.reverse()) {
+          if (before) writeFileSync(path, before)
+          else if (existsSync(path)) unlinkSync(path)
+        }
+        for (const link of changedLinks.reverse()) {
+          try { unlinkSync(link.path) } catch (error) { if (error.code !== 'ENOENT') throw error }
+          symlinkSync(link.before, link.path, link.type)
+        }
+        if (moved) { renameSync(target, original); moved = false }
+        throw error
+      }
+    })
+  } finally {
+    // 原锁文件跟着目录搬走，等 withIdleProfile 关闭句柄后在新位置清理。
+    if (moved) { try { unlinkSync(join(target, 'lock')) } catch {} }
+    if (targetHeld) maintainingProfiles.delete(targetKey)
+  }
+  pluginUpdateCache.at = 0
+  if (lastAutoFix?.home === home && lastAutoFix.profile === from) lastAutoFix.profile = name
+  pushLog(`已重命名 Profile「${from}」为「${name}」`)
+  await emitState()
+  return { ok: true, ...packsPayload(), renamedProfile: name, profile: name, state: await snapshot(), webProfiles: listProfiles().filter((profile) => profileBootsWebIn(home, profile)) }
+}
+
 async function createProfile(profile, source = '') {
   const name = safeProfile(profile)
   const from = source ? safeProfile(source) : ''
@@ -3832,20 +3994,37 @@ async function createProfile(profile, source = '') {
  * 页面里的 `<input type="file" webkitdirectory>` 只能拿到相对路径，浏览器也不给绝对路径，
  * 所以目录选择必须由管理页所在的本机进程来做。
  */
-function pickDirectory() {
-  if (IS_MAC) return pickDirectoryMac()
-  if (!IS_WINDOWS) throw new Error('只有 Windows 和 macOS 支持目录选择')
-  const script = [
+export function directoryPickerWinScript(initialPath = '') {
+  const encodedPath = Buffer.from(initialPath, 'utf8').toString('base64')
+  return [
+    "$ErrorActionPreference = 'Stop'",
+    "$ProgressPreference = 'SilentlyContinue'",
+    '[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)',
     'Add-Type -AssemblyName System.Windows.Forms | Out-Null',
+    '[System.Windows.Forms.Application]::EnableVisualStyles()',
     '$d = New-Object System.Windows.Forms.FolderBrowserDialog',
-    "$d.Description = '选择 dsh 版本目录'",
+    "$d.Description = '选择目录'",
     '$d.ShowNewFolderButton = $true',
-    "if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($d.SelectedPath) }",
+    `$initialPath = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${encodedPath}'))`,
+    'if ($initialPath -and (Test-Path -LiteralPath $initialPath -PathType Container)) { $d.SelectedPath = $initialPath }',
+    // 无主窗口的隐藏 PowerShell 可能把对话框留在浏览器后方，用透明置顶窗口承载系统选择器。
+    '$owner = New-Object System.Windows.Forms.Form',
+    "$owner.Text = 'DSH 目录选择'",
+    '$owner.ShowInTaskbar = $false; $owner.TopMost = $true; $owner.Opacity = 0',
+    "$owner.StartPosition = 'CenterScreen'; $owner.Width = 1; $owner.Height = 1",
+    '$owner.Show(); $owner.Activate()',
+    'try { if ($d.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($d.SelectedPath) } } finally { $d.Dispose(); $owner.Dispose() }',
   ].join('; ')
+}
+
+function pickDirectory(initialPath = '') {
+  if (IS_MAC) return pickDirectoryMac(initialPath)
+  if (!IS_WINDOWS) throw new Error('只有 Windows 和 macOS 支持目录选择')
+  const script = directoryPickerWinScript(initialPath)
   return new Promise((resolve, reject) => {
     execFile(
       'powershell',
-      ['-STA', '-NoProfile', '-Command', script],
+      ['-STA', '-NoProfile', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')],
       { windowsHide: true, timeout: 5 * 60 * 1000, encoding: 'utf8' },
       (error, stdout) => {
         if (error) {
@@ -3932,13 +4111,28 @@ function revealPath(target) {
   else execFile('xdg-open', [dirname(value)], { windowsHide: true })
 }
 
+async function openDirectory(dir) {
+  let info
+  try { info = statSync(dir) } catch { throw new Error('目录不存在或已被移动') }
+  if (!info.isDirectory()) throw new Error('请选择文件夹')
+  const opener = IS_WINDOWS ? 'explorer.exe' : IS_MAC ? 'open' : 'xdg-open'
+  await new Promise((resolve, reject) => {
+    // Explorer 接管已有窗口时可能返回 1；不隐藏进程，否则文件夹窗口也可能被隐藏。
+    execFile(opener, [dir], (error) => {
+      if (error && !(IS_WINDOWS && error.code === 1)) reject(error)
+      else resolve()
+    })
+  })
+}
+
 /** macOS 的目录选择走 AppleScript 的 choose folder（系统自带，不需要额外权限）。 */
-function pickDirectoryMac() {
+function pickDirectoryMac(initialPath = '') {
+  const location = initialPath && existsSync(initialPath) ? ` default location (POSIX file "${initialPath.replace(/["\\]/g, '\\$&')}")` : ''
   return new Promise((resolve, reject) => {
     execFile(
       'osascript',
       // activate 把对话框带到最前，否则它可能躲在管理页窗口后面
-      ['-e', 'activate', '-e', 'POSIX path of (choose folder with prompt "选择 dsh 版本目录")'],
+      ['-e', 'activate', '-e', `POSIX path of (choose folder with prompt "选择目录"${location})`],
       { timeout: 5 * 60 * 1000, encoding: 'utf8' },
       (error, stdout, stderr) => {
         if (error) {
@@ -4531,6 +4725,55 @@ async function handleApi(req, res, url) {
     send(res, 200, await start(body.version, body.profile))
     return
   }
+  if (req.method === 'POST' && url.pathname === '/api/profiles/rename') {
+    try { send(res, 200, await renameProfile(body.profile, body.name)) }
+    catch (error) { send(res, 400, { error: error instanceof Error ? error.message : String(error) }) }
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/dsh-homes/open') {
+    const dir = safeDshHome(body.home) || defaultHome()
+    const stored = await loadSettings()
+    const known = [defaultHome(), ...safeDshHomes(stored.dshHomes), ...safeLaunchPresets(stored.launchPresets).map((entry) => entry.dshHome), ...instanceList().map((item) => item.home)]
+    const same = (home) => home && (IS_WINDOWS ? home.toLowerCase() === dir.toLowerCase() : home === dir)
+    if (!known.some(same)) throw new Error('只支持打开已登记的用户目录')
+    await openDirectory(dir)
+    pushLog(`已打开用户目录 ${dir}`)
+    send(res, 200, { ok: true, dir })
+    return
+  }
+  if (req.method === 'POST' && ['/api/dsh-homes/add', '/api/dsh-homes/remove'].includes(url.pathname)) {
+    const home = safeDshHome(body.home)
+    if (!home) throw new Error('请选择用户目录')
+    const same = (left, right) => IS_WINDOWS ? left.toLowerCase() === right.toLowerCase() : left === right
+    const removing = url.pathname.endsWith('/remove')
+    if (removing && same(home, defaultHome())) throw new Error('全局目录不能移除')
+    if (removing && instanceList().some((proc) => same(proc.home, home) && ['starting', 'running', 'stopping'].includes(proc.status))) throw new Error('请先停止使用此目录的实例')
+    const stored = await saveSettings((current) => {
+      // 启动项仍在用的目录不能悄悄消失，也不能为了移除列表而删掉启动项。
+      if (removing && safeLaunchPresets(current.launchPresets).some((entry) => entry.dshHome && same(entry.dshHome, home))) throw new Error('启动项正在使用此目录，请先修改或删除对应启动项')
+      const homes = safeDshHomes(current.dshHomes).filter((item) => !same(item, home))
+      return { dshHomes: removing ? homes : [...homes, home] }
+    })
+    send(res, 200, { dshHomes: safeDshHomes(stored.dshHomes) })
+    await emitState()
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/dsh-homes/rename') {
+    const home = safeDshHome(body.home)
+    const name = typeof body.name === 'string' ? body.name.trim() : ''
+    if (!home || !name || name.length > 64 || /[\x00-\x1f\x7f]/.test(name)) throw new Error('目录名称应为 1 到 64 个字符')
+    const same = (dir) => dir && (IS_WINDOWS ? dir.toLowerCase() === home.toLowerCase() : dir === home)
+    const saved = await saveSettings((current) => {
+      const known = [defaultHome(), ...safeDshHomes(current.dshHomes), ...safeLaunchPresets(current.launchPresets).map((entry) => entry.dshHome), ...instanceList().map((item) => item.home)]
+      const canonical = known.find(same)
+      if (!canonical) throw new Error('只支持重命名已登记的用户目录')
+      const names = Object.fromEntries(Object.entries(safeDshHomeNames(current.dshHomeNames)).filter(([dir]) => !same(dir)))
+      return { dshHomeNames: { ...names, [canonical]: name } }
+    })
+    send(res, 200, { dshHomeNames: safeDshHomeNames(saved.dshHomeNames) })
+    await emitState()
+    return
+  }
   if (req.method === 'POST' && url.pathname === '/api/tray/action') {
     send(res, 200, await trayAction(body))
     return
@@ -4545,6 +4788,10 @@ async function handleApi(req, res, url) {
   }
   if (req.method === 'POST' && url.pathname === '/api/launch-presets/remove') {
     send(res, 200, await removeLaunchPreset(String(body.id ?? '')))
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/launch-presets/reorder') {
+    send(res, 200, await reorderLaunchPresets(body.ids))
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/launch') {
@@ -4848,12 +5095,8 @@ async function handleApi(req, res, url) {
       send(res, 400, { error: '启动器内部目录不能作为 Profile 删除' })
       return
     }
-    if (profile.toLowerCase() === PROFILE_NAME.toLowerCase()) {
-      send(res, 400, { error: `profile「${profile}」是启动器的默认环境，不能删除` })
-      return
-    }
-    if (TEMPLATE_PROFILES.includes(profile.toLowerCase()) || CLI_BLOCKED_PROFILES.has(profile.toLowerCase())) {
-      send(res, 400, { error: `「${profile}」是 dsh 自带的 profile 模板，不能删` })
+    if (CLI_BLOCKED_PROFILES.has(profile.toLowerCase())) {
+      send(res, 400, { error: `「${profile}」是官方桌面端专用的 Profile，不能删除` })
       return
     }
     const target = join(homeDir(), 'profiles', safeProfile(profile))
@@ -4868,7 +5111,17 @@ async function handleApi(req, res, url) {
         for (const record of readPackState(packDataDir()).packs.filter((item) => item.profile === profile)) forgetPack(packDataDir(), record.name, profile)
         const stored = await loadSettings()
         const presets = safeLaunchPresets(stored.launchPresets).filter((entry) => !(entry.profile === profile && (entry.dshHome || defaultHome()) === homeDir()))
-        await saveSettings({ launchPresets: presets })
+        // 当前选择不代表目录正在使用。删掉后选剩余环境；全空时退回可首次启动初始化的 web。
+        const resetProfile = homeDir() === defaultHome() && profile === PROFILE_NAME
+        const remaining = listProfiles().filter((name) => existsSync(join(homeDir(), 'profiles', name, 'package.json')))
+        const nextProfile = resetProfile
+          ? (remaining.includes('web') ? 'web' : remaining[0]) || 'web'
+          : PROFILE_NAME
+        await saveSettings({ launchPresets: presets, ...(resetProfile ? { profile: nextProfile } : {}) })
+        if (resetProfile) {
+          PROFILE_NAME = nextProfile
+          LAN_TOGGLE = lanBindToggleOn(homeDir(), PROFILE_NAME)
+        }
       })
       pushLog(`已删掉整个 profile「${profile}」`)
       await emitState()
@@ -5111,13 +5364,7 @@ async function handleApi(req, res, url) {
     // 在资源管理器里打开技能根目录（默认 ~/.dsh/skills）；目录不存在就顺手建好
     const dir = rootDirOf(skillRoots(homeDir()), body.root || 'dsh')
     await mkdir(dir, { recursive: true })
-    const opener = process.platform === 'win32' ? 'explorer.exe'
-      : process.platform === 'darwin' ? 'open' : 'xdg-open'
-    // 不能加 windowsHide：它会把「隐藏启动」的状态传给 explorer，文件夹窗口就弹不出来了
-    execFile(opener, [dir], (error) => {
-      // explorer.exe 成功时也会返回退出码 1，只把真正的启动失败（ENOENT 之类）写进日志
-      if (error && typeof error.code === 'string') pushLog(`打开技能目录失败：${error.message}`)
-    })
+    await openDirectory(dir)
     pushLog(`已打开技能目录 ${dir}`)
     send(res, 200, { ok: true, dir })
     return
@@ -5196,7 +5443,7 @@ async function handleApi(req, res, url) {
   }
   if (req.method === 'POST' && url.pathname === '/api/pick-dir') {
     try {
-      send(res, 200, { path: await pickDirectory() })
+      send(res, 200, { path: await pickDirectory(safeDshHome(body.initialPath)) })
     } catch (error) {
       pushLog(`目录选择失败: ${error?.message || error}`)
       send(res, 200, { path: '', error: error?.message || String(error) })
@@ -5248,12 +5495,11 @@ export async function startServer() {
   // 钉死端口的实例表：启动、重启都读它（页面改这张表走 /api/instance-port）
   INSTANCE_PORTS = safeInstancePorts(stored.instancePorts)
   ENVIRONMENT_PORTS = safeEnvironmentPorts(stored.environmentPorts)
-  // 安装/升级时选过语言就以它为准，否则用设置里存的
-  const fromInstall = installLang()
+  // 用户在设置页的选择要跨重启与升级保留，安装语言只初始化缺失的设置。
   const storedLang = safeLang(stored.lang)
-  if (fromInstall && fromInstall !== storedLang) await saveSettings({ lang: fromInstall })
-  LANG = fromInstall || storedLang || 'zh'
-  LANG = LANG === 'en' ? 'en' : 'zh'
+  const fromInstall = storedLang ? '' : installLang()
+  if (fromInstall) await saveSettings({ lang: fromInstall })
+  LANG = storedLang || fromInstall || 'zh'
   THEME = safeTheme(stored.theme)
   PANEL_TRANSPARENCY = safePanelTransparency(stored.panelTransparency)
   REDUCE_MOTION = stored.reduceMotion === true
@@ -5288,6 +5534,14 @@ export async function startServer() {
           const entry = safeLaunchPresets(loadSettingsSync().launchPresets).find((item) => item.id === launchId)
           if (!entry) { send(res, 400, { error: '启动项已不存在，请刷新后重试' }); return }
           await launchScope.run({ home: entry.dshHome || defaultHome(), launchId }, () => handleApi(req, res, url))
+        } else if (req.headers['x-dsh-home']) {
+          // 设置页按目录管理 Profile，不依赖可能被删除的启动项；中文路径用 URI 编码传输。
+          let home
+          try { home = safeDshHome(decodeURIComponent(req.headers['x-dsh-home'])) } catch (error) {
+            send(res, 400, { error: error.message }); return
+          }
+          if (!home) { send(res, 400, { error: '请选择 dsh 用户目录' }); return }
+          await launchScope.run({ home }, () => handleApi(req, res, url))
         } else {
           await handleApi(req, res, url)
         }

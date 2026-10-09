@@ -280,7 +280,7 @@ test('按整合包清单分组：共同插件只出现一次，别名可归类�
 test('删除 Profile 先确认，取消不发请求，确认后定向删除', async () => {
   const calls = []
   let approved = false
-  const context = { packBusy: false, pluginUpdating: '', openedPack: null, pluginProfile: 'web', state: { profile: 'web' }, t: (s) => s,
+  const context = { packBusy: false, pluginUpdating: '', launchPluginScope: '', openedPack: null, pluginProfile: 'web', state: { profile: 'web' }, t: (s) => s,
     appConfirm: async () => approved, renderPackGrid() {}, renderPackView() {}, applyPluginPayload() {}, notify() {},
     post: async (...args) => { calls.push(args); return {} } }
   const source = html.match(/    async function removeProfileDir\(item\) \{[\s\S]*?\n    \}/)[0]
@@ -293,5 +293,21 @@ test('删除 Profile 先确认，取消不发请求，确认后定向删除', as
   assert.equal(calls.length, 1)
   assert.equal(calls[0][0], '/api/profiles/delete')
   assert.equal(calls[0][1].profile, 'work')
+  assert.equal(context.packBusy, false)
+})
+
+test('从启动项弹窗删除最后一个 Profile 后关闭失效作用域', async () => {
+  const calls = []
+  const context = { packBusy: false, pluginUpdating: '', launchPluginScope: 'isolated-entry',
+    openedPack: { profile: 'web' }, pluginProfile: 'web', state: { profile: 'web' }, t: (s) => s,
+    appConfirm: async () => true, renderPackGrid() {}, renderPackView() {}, notify() {},
+    applyPluginPayload: (data) => { calls.push(['payload', data.packs.length]) },
+    post: async () => ({ packs: [], profile: 'web' }),
+    closeLaunchPlugins: async (options) => { calls.push(['close', options.afterDelete]); context.launchPluginScope = '' },
+  }
+  vm.runInNewContext(html.match(/    async function removeProfileDir\(item\) \{[\s\S]*?\n    \}/)[0], context)
+  await context.removeProfileDir({ profile: 'web', pluginCount: 0 })
+  assert.deepEqual(calls, [['payload', 0], ['close', true]])
+  assert.equal(context.openedPack, null)
   assert.equal(context.packBusy, false)
 })

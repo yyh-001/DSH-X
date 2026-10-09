@@ -8,20 +8,18 @@ import { fileURLToPath } from 'node:url'
 import { appWindowArgs, chromiumCandidates, findChromiumBrowser, internalTabTarget, openRoute } from '../server.js'
 import { DEFAULTS, OPEN_MODES, safeOpenMode } from '../settings.js'
 
-// 打开方式（issue #26 的诉求）：默认还是系统浏览器的标签页，想要「更像 App」的用户可以切成
-// Chromium 的应用窗口（--app=…，找不到就退回标签页）；想要完全不经过浏览器的用户可以切成
-// 启动器内嵌的桌面窗口（原生外壳自己开一个 WebView2 窗口承载 dsh 界面）。
+// 内部标签页默认承载 dsh；没有新版外壳时仍能退回浏览器，已有明确选择不被覆盖。
 
-test('打开方式只认内置几项，脏值回标签页，默认是标签页', () => {
+test('打开方式默认内部标签页，缺失或脏值回默认，已有选择保持不变', () => {
   assert.deepEqual(OPEN_MODES, ['tab', 'app', 'window', 'internal'])
-  assert.equal(DEFAULTS.openMode, 'tab')
+  assert.equal(DEFAULTS.openMode, 'internal')
   assert.equal(safeOpenMode('app'), 'app')
   assert.equal(safeOpenMode('window'), 'window')
   assert.equal(safeOpenMode('internal'), 'internal')
   assert.equal(safeOpenMode('tab'), 'tab')
-  assert.equal(safeOpenMode('webview'), 'tab', '没实现的形态不能被放行')
-  assert.equal(safeOpenMode(''), 'tab')
-  assert.equal(safeOpenMode(undefined), 'tab')
+  assert.equal(safeOpenMode('webview'), 'internal', '没实现的形态不能被放行')
+  assert.equal(safeOpenMode(''), 'internal')
+  assert.equal(safeOpenMode(undefined), 'internal')
 })
 
 test('应用窗口的参数就是 --app=<url>', () => {
