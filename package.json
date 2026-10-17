@@ -1,7 +1,7 @@
 {
   "name": "dsh-versions",
   "productName": "DSH",
-  "version": "0.1.17",
+  "version": "0.1.18",
   "private": true,
   "type": "module",
   "description": "DeepSeek Harness 轻量桌面启动器：启动项与多实例，版本、插件、整合包、MCP 和技能管理。",

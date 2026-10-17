@@ -135,7 +135,7 @@ The release-manifest signature verifies file integrity and is separate from Wind
 
 Windows: install [DSH-Setup.exe](https://github.com/yyh-001/DSH-X/releases/latest), then open **DSH-X** from the desktop.
 
-macOS: open `DSH-X-mac-arm64.dmg` (Apple Silicon) or `DSH-X-mac-x64.dmg` (Intel) and drag **DSH-X** into Applications. v0.1.17 uses ad-hoc signing and is not notarized; the first launch may require manual approval through macOS security prompts.
+macOS: open `DSH-X-mac-arm64.dmg` (Apple Silicon) or `DSH-X-mac-x64.dmg` (Intel) and drag **DSH-X** into Applications. v0.1.18 uses ad-hoc signing and is not notarized; the first launch may require manual approval through macOS security prompts.
 
 Add or edit a launch entry on the home page, select its environment and version, then start it. Open **Version management** from the launch-entry editor to manually install or remove versions. Settings → General → **How dsh opens** offers internal tabs, a browser or a separate window. Internal tabs require the installed desktop app.
 
@@ -158,7 +158,7 @@ On Windows (Rust and Inno Setup 6) this produces `release/DSH/` and `release/DSH
 Windows builds also write an SBOM and release manifest for local checking (not uploaded to the release). Check the version and artifacts before publishing:
 
 ```sh
-node scripts/release-manifest.mjs check-tag v0.1.17
+node scripts/release-manifest.mjs check-tag v0.1.18
 node scripts/release-manifest.mjs verify
 ```
 

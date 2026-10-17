@@ -135,7 +135,7 @@ DSH-X 是 DeepSeek Harness 的第三方轻量桌面启动器：启动项与多�
 
 Windows：[下载 DSH-Setup.exe](https://github.com/yyh-001/DSH-X/releases/latest) 安装，从桌面打开 **DSH-X**。
 
-macOS：打开 `DSH-X-mac-arm64.dmg`（Apple Silicon）或 `DSH-X-mac-x64.dmg`（Intel），把 **DSH-X** 拖进「应用程序」。v0.1.17 使用临时签名，未做公证，首次打开可能需要在系统安全提示中手动允许。
+macOS：打开 `DSH-X-mac-arm64.dmg`（Apple Silicon）或 `DSH-X-mac-x64.dmg`（Intel），把 **DSH-X** 拖进「应用程序」。v0.1.18 使用临时签名，未做公证，首次打开可能需要在系统安全提示中手动允许。
 
 在主页添加或编辑启动项，选择环境与版本后启动；编辑启动项时可打开 **版本管理**，手动安装或卸载版本。设置 → 常规 → **打开 dsh 的方式** 可选择 DSH-X 内部标签页、浏览器或独立窗口。内部标签页需要使用安装后的桌面端。
 
@@ -158,7 +158,7 @@ Windows（需要 Rust 与 Inno Setup 6）产出 `release/DSH/` 便携目录和 `
 Windows 打包同时生成 SBOM 与发布清单（本地自查，不上传 Release）。发版前检查版本与产物：
 
 ```sh
-node scripts/release-manifest.mjs check-tag v0.1.17
+node scripts/release-manifest.mjs check-tag v0.1.18
 node scripts/release-manifest.mjs verify
 ```
 
