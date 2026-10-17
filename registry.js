@@ -79,15 +79,18 @@ export function createPackumentReader({ get = registryGet, registry = currentReg
     cache.delete(key)
     clearTimeout(entry.timer)
   }
-  return async (name) => {
+  return async (name, { force = false } = {}) => {
     const base = registry()
     const key = `${base}/${name}`
     const cached = cache.get(key)
-    if (cached) {
+    if (cached && !force) {
       cache.delete(key)
       cache.set(key, cached)
       return cached.pending
     }
+    // 版本管理里的「检测版本」要立刻看到刚发布的版本：force 时丢掉这条缓存现拉一次，
+    // 不然短时缓存里的旧列表会让用户以为没更新。
+    if (cached) remove(key, cached)
     const entry = {}
     entry.pending = Promise.resolve().then(() => get(`${base}/${name.replace('/', '%2f')}`)).catch((error) => {
       remove(key, entry)
@@ -106,8 +109,8 @@ export function createPackumentReader({ get = registryGet, registry = currentReg
 
 export const packument = createPackumentReader()
 
-export async function listPackage(name) {
-  const meta = await packument(name)
+export async function listPackage(name, options = {}) {
+  const meta = await packument(name, options)
   const versions = Object.keys(meta.versions || {}).sort((a, b) => {
     const left = parseVer(a)
     const right = parseVer(b)

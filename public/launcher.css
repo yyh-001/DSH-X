@@ -1827,6 +1827,15 @@ html .set-row:focus-within { background: transparent; box-shadow: none; }
 .launch-tool-actions svg, .plugin-actions .action-icon svg { width: 18px; height: 18px; }
 .version-manage-card { gap: 12px; }
 .version-manage-card .dialog-heading { margin: 0 0 4px; }
+.version-manage-heading-actions { display: flex; align-items: center; gap: 6px; }
+/* 「检测版本」是主动操作，用文字按钮比纯图标好找：不点它列表就停在打开页面时那一眼 */
+#versionManageDialog .version-manage-check { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: 12px; white-space: nowrap; transition: background 150ms ease, color 150ms ease; }
+#versionManageDialog .version-manage-check:hover:not(:disabled) { background: var(--accent-soft); color: var(--text); }
+#versionManageDialog .version-manage-check:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#versionManageDialog .version-manage-check svg { width: 15px; height: 15px; flex: 0 0 auto; }
+#versionManageDialog .version-manage-check .spin { width: 13px; height: 13px; border-width: 2px; }
+#versionManageDialog .version-manage-check.loading .version-manage-check-icon { display: none; }
+#versionManageDialog .version-manage-check.loading .spin { display: block; }
 #versionManageDialog .dialog-close { border: 0; background: transparent; color: var(--muted); }
 #versionManageDialog .dialog-close:hover { background: var(--accent-soft); color: var(--text); }
 #versionManageDialog { z-index: 34; }
