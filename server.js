@@ -2257,9 +2257,9 @@ async function ensureProfileNpmrc(profile = PROFILE_NAME) {
   await writeFile(file, `${head}${missing.join('\n')}\n`)
 }
 
-async function fetchRemote() {
-  if (remoteCache.data && Date.now() - remoteCache.at < 60_000) return remoteCache.data
-  const info = await listPackage(PKG)
+async function fetchRemote({ force = false } = {}) {
+  if (!force && remoteCache.data && Date.now() - remoteCache.at < 60_000) return remoteCache.data
+  const info = await listPackage(PKG, { force })
   const data = {
     package: PKG,
     source: 'https://github.com/deepseek-ai/deepseek-harness',
@@ -2276,11 +2276,11 @@ function stripTag(tag) {
   return String(tag || '').trim().replace(/^v/i, '')
 }
 
-async function checkSelfUpdate() {
+async function checkSelfUpdate({ force = false } = {}) {
   const current = APP_VERSION
   const url = `https://github.com/${APP_REPO}/releases/latest/download/${APP_SETUP}`
   const fallback = { current, latest: null, update: false, url }
-  if (selfCache.data && Date.now() - selfCache.at < 30 * 60 * 1000) return selfCache.data
+  if (!force && selfCache.data && Date.now() - selfCache.at < 30 * 60 * 1000) return selfCache.data
   try {
     const latest = await fetchLatestTag()
     if (!latest) {
@@ -2367,6 +2367,37 @@ function isNewer(latest, current) {
   const next = parseVer(latest)
   const cur = parseVer(current)
   return Boolean(next && cur && cmpVer(next, cur) > 0)
+}
+
+/**
+ * 版本管理里的「检测版本」：把远程最新版和本机已装版本一次算出来。
+ * force=true 时绕过 registry 元数据、远程版本列表、启动器自更新三处短期缓存——
+ * 不绕的话，刚发布的版本在缓存过期前点了检测也看不到。页面只在打开时读一次
+ * /api/remote，长开着的标签页不点这个就永远停在旧列表（「每次重启之后才会出现
+ * 新版本」就是这么来的）。启动器自己的版本也一并报回去，检测一次两件事都清楚。
+ */
+async function checkVersionUpdates({ force = false } = {}) {
+  const installed = listedVersions(await loadConfig())
+  // 已装版本列表是配置顺序，不是版本顺序；「本机最新」要按版本号比出来
+  const current = [...installed].sort((a, b) => {
+    const left = parseVer(a)
+    const right = parseVer(b)
+    if (!left || !right) return 0
+    return cmpVer(right, left)
+  })[0] || ''
+  const remote = await fetchRemote({ force })
+  const latest = remote.latest || ''
+  const self = await checkSelfUpdate({ force })
+  return {
+    checkedAt: new Date().toISOString(),
+    installed,
+    current,
+    latest,
+    update: isNewer(latest, current),
+    tags: remote.tags,
+    versions: remote.versions,
+    self: { current: self.current || APP_VERSION, latest: self.latest || '', update: Boolean(self.update), url: self.url || '' },
+  }
 }
 
 /**
@@ -4775,6 +4806,26 @@ async function handleApi(req, res, url) {
   }
   if (req.method === 'GET' && url.pathname === '/api/pending') {
     send(res, 200, { update: await pendingUpdate() })
+    return
+  }
+  if (req.method === 'GET' && url.pathname === '/api/versions/check') {
+    // refresh=1 是用户主动点「检测版本」：绕缓存；打开版本管理的静默刷新走缓存
+    const force = url.searchParams.get('refresh') === '1'
+    try {
+      const result = await checkVersionUpdates({ force })
+      // 只为主动检测记日志；静默刷新每次都记会把日志刷满
+      if (force) {
+        pushLog(result.update
+          ? `检测到新版本 ${result.latest}（本机最新已装 ${result.current || '无'}）`
+          : `版本检测：远程最新 ${result.latest || '未知'}，本机已装 ${result.current || '无'}`)
+      }
+      send(res, 200, result)
+    } catch (error) {
+      // 与启动时的静默容忍不同：用户点了检测，连不上就要说出来，不能装作「没有更新」
+      const message = error instanceof Error ? error.message : String(error)
+      pushLog(`检测版本失败：${message}`)
+      send(res, 500, { error: message })
+    }
     return
   }
   if (req.method === 'GET' && url.pathname === '/api/tray') {

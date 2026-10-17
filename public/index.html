@@ -597,7 +597,7 @@
   </div>
   <div class="ask" id="versionManageDialog" hidden>
     <div class="ask-card version-manage-card" role="dialog" aria-modal="true" aria-labelledby="versionManageTitle" data-dialog-size="medium">
-      <div class="dialog-heading"><h2 class="ask-title" id="versionManageTitle" data-i18n="版本管理">版本管理</h2><button class="ghost icon-btn dialog-close" id="versionManageClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
+      <div class="dialog-heading"><h2 class="ask-title" id="versionManageTitle" data-i18n="版本管理">版本管理</h2><div class="version-manage-heading-actions"><button class="ghost version-manage-check" id="versionManageCheck" type="button" title="检测版本" aria-label="检测版本" data-i18n-title="检测版本" data-i18n-aria-label="检测版本"><span class="spin" aria-hidden="true"></span><svg class="version-manage-check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/></svg><span data-i18n="检测版本">检测版本</span></button><button class="ghost icon-btn dialog-close" id="versionManageClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div></div>
       <form class="version-manage-install" id="versionInstallForm">
         <label class="sr-only" for="versionInstallSelect" data-i18n="安装版本">安装版本</label>
         <div class="version-manage-install-row"><select id="versionInstallSelect"></select><button class="primary" id="versionManageInstall" type="submit" title="安装" aria-label="安装" data-i18n-title="安装" data-i18n-aria-label="安装"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v4h16v-4"/></svg></button></div>
@@ -1256,6 +1256,14 @@
   "添加启动项": "Add launch",
   "版本管理": "Version management",
   "管理版本": "Manage versions",
+  "检测版本": "Check for versions",
+  "正在检测版本…": "Checking for versions…",
+  "检测版本失败：{message}": "Version check failed: {message}",
+  "没读到远程版本，检查网络或下载源后重试。": "Could not read the remote version list. Check your network or download source and try again.",
+  "本机还没装过任何版本，最新版本是 {version}。": "No version is installed yet. The latest version is {version}.",
+  "发现新版本 {version}（本机最新已装 {current}），可在上方选择安装。": "New version {version} is available (newest installed: {current}). Install it from the list above.",
+  "已是最新版本（{version}）。": "Already up to date ({version}).",
+  "启动器也有新版本 {version}，可在首页更新。": "The launcher also has a new version {version}, updatable from the home page.",
   "安装版本": "Install a version",
   "已安装版本": "Installed versions",
   "未运行": "Not running",
@@ -1395,7 +1403,7 @@
         el.textContent = t(el.dataset.i18n) || el.dataset.i18n
       }
       for (const el of document.querySelectorAll('[data-placeholder-i18n]')) el.placeholder = t(el.dataset.placeholderI18n)
-      for (const id of ['launchManageVersions', 'update', 'remove', 'launchRecover', 'mcpAdd', 'mcpProbe', 'mcpRefresh']) {
+      for (const id of ['launchManageVersions', 'update', 'remove', 'launchRecover', 'mcpAdd', 'mcpProbe', 'mcpRefresh', 'versionManageCheck']) {
         const el = document.getElementById(id)
         if (!el.dataset.titleI18n) el.dataset.titleI18n = el.title
         el.title = el.ariaLabel = t(el.dataset.titleI18n)
@@ -2820,6 +2828,9 @@
       paintVersionManager()
       showDialog(versionManageDialogEl)
       document.getElementById('versionManageClose').focus()
+      // 打开就顺手静默刷新一次远程列表（服务端 60 秒内走缓存，不会每次都打网络）：
+      // 新版本在版本管理里就能看到，不用等到下次重启。
+      void checkVersions({ force: false, quiet: true })
     }
 
     async function closeVersionManager() {
@@ -2837,10 +2848,66 @@
       else launchAddEl.focus()
     }
 
+    /**
+     * 「检测版本」的状态：busy 时按钮转圈；message/error 画在提示行里。
+     * 页面只在打开时读一次 /api/remote，不点这个长开着的标签页永远看不到新版本。
+     */
+    let versionCheck = { busy: false, message: '', error: '' }
+    // 打开弹窗的静默刷新和按钮的强制检测可能先后脚发出：只认最后发起那一次的结果，
+    // 避免先发的旧结果把强制刷新拉回来的新版本又盖回去。
+    let versionCheckSeq = 0
+
+    /** 检测结果说人话：新版本 / 已是最新 / 还没装过，外加启动器自己有没有新版。 */
+    function describeVersionCheck(data) {
+      const latest = String(data?.latest || '')
+      const current = String(data?.current || '')
+      const parts = []
+      if (!latest) parts.push(t('没读到远程版本，检查网络或下载源后重试。'))
+      else if (!current) parts.push(t('本机还没装过任何版本，最新版本是 {version}。', { version: latest }))
+      else if (data.update) parts.push(t('发现新版本 {version}（本机最新已装 {current}），可在上方选择安装。', { version: latest, current }))
+      // 拿本机版本说「已是最新」：镜像源可能比官方慢一拍，远程列表里的 latest 反而更旧
+      else parts.push(t('已是最新版本（{version}）。', { version: current }))
+      if (data?.self?.update && data.self.latest) {
+        parts.push(t('启动器也有新版本 {version}，可在首页更新。', { version: data.self.latest }))
+      }
+      return parts.join(' ')
+    }
+
+    /**
+     * 问服务端要一次最新版本列表（force 时绕过服务端缓存），并同步本地的 remote 与首页
+     * 的启动器更新按钮。quiet=true 是打开版本管理时的静默刷新：不装作在检测，也不写
+     * 「已是最新」这种每次都出现的废话，只有真发现新版本才留一句话。
+     */
+    async function checkVersions({ force = true, quiet = false } = {}) {
+      // 强制检测正在跑时让静默刷新让路：按钮那次的反馈和结果更完整
+      if (quiet && versionCheck.busy) return
+      const seq = ++versionCheckSeq
+      if (!quiet) {
+        versionCheck = { busy: true, message: '', error: '' }
+        paintVersionManager()
+      }
+      try {
+        const data = await getJson(`/api/versions/check${force ? '?refresh=1' : ''}`)
+        if (seq !== versionCheckSeq) return
+        // 新列表直接换给 remote：安装下拉、「最新」标记和首页启动项的「新版本」提示一起跟上
+        remote = { ...remote, tags: data.tags || {}, versions: data.versions || [], latest: data.latest || '' }
+        const quietMessage = quiet && !data.update && !data.self?.update ? '' : describeVersionCheck(data)
+        versionCheck = { busy: false, message: quietMessage, error: '' }
+        // 启动器那侧查不到时不要抹掉首页已有的更新按钮，只在拿到版本号时同步
+        if (data.self && data.self.latest) applySelfUpdate(data.self)
+      } catch (error) {
+        if (seq !== versionCheckSeq) return
+        versionCheck = { busy: false, message: '', error: quiet ? '' : t('检测版本失败：{message}', { message: error.message }) }
+      }
+      render()
+    }
+
     async function manualInstallVersion(version) {
       if (!version || action || state.installing || installedList().includes(version)) return
       // 手动安装只增添运行时，不停实例、不启动页面，也不改启动项版本或编辑器草稿。
       action = 'install'
+      // 安装开始后「发现新版本」那行就过期了：进度优先，别两者叠着显示
+      versionCheck = { busy: false, message: '', error: '' }
       render()
       try {
         await post('/api/install', { version })
@@ -2852,6 +2919,7 @@
     async function optimizeVersion(version) {
       if (!version || action || state.installing || runningInfo(version)) return
       action = 'optimize'
+      versionCheck = { busy: false, message: '', error: '' }
       render()
       try {
         await post('/api/versions/optimize', { version })
@@ -2874,13 +2942,22 @@
         versionInstallSelectEl.innerHTML = options
         versionInstallSelectEl.value = available.includes(previous) ? previous : (available.includes(latest) ? latest : available[0] || '')
       }
-      const busy = Boolean(action) || Boolean(state.installing)
+      const checkButton = document.getElementById('versionManageCheck')
+      // 检测期间也锁住安装：列表可能正在换，同时点会装到旧列表里的版本
+      const busy = Boolean(action) || Boolean(state.installing) || versionCheck.busy
       versionInstallSelectEl.disabled = busy || !available.length
       document.getElementById('versionManageInstall').disabled = busy || !versionInstallSelectEl.value
+      checkButton.disabled = busy
+      checkButton.classList.toggle('loading', versionCheck.busy)
+      checkButton.setAttribute('aria-busy', versionCheck.busy ? 'true' : 'false')
       syncUiSelect(versionInstallSelectEl)
       const installing = Boolean(state.installing) || action === 'install' || action === 'update' || action === 'optimize'
-      document.getElementById('versionManageHint').textContent = action === 'optimize' || installProgress?.phase === 'optimize' ? t('正在优化依赖…') : installing ? progressHint(t('正在安装'))
-        : action === 'uninstall' ? t('正在卸载…') : !available.length && !versionNames(remote.versions).length ? t('读不到远程版本。') : ''
+      // 检测结果排在最后：安装 / 卸载 / 优化进行中时，进度比「刚检测到什么」更重要
+      const checkNote = versionCheck.error || versionCheck.message
+      document.getElementById('versionManageHint').textContent = versionCheck.busy ? t('正在检测版本…')
+        : action === 'optimize' || installProgress?.phase === 'optimize' ? t('正在优化依赖…') : installing ? progressHint(t('正在安装'))
+        : action === 'uninstall' ? t('正在卸载…')
+        : checkNote || (!available.length && !versionNames(remote.versions).length ? t('读不到远程版本。') : '')
       paintProgress(document.getElementById('versionManageProgress'), document.getElementById('versionManageProgressBar'), installProgress, installing)
       const list = document.getElementById('versionManageList')
       const markup = installed.map((version) => {
@@ -2906,6 +2983,7 @@
 
     manageVersionsEl.onclick = openVersionManager
     document.getElementById('versionManageClose').onclick = closeVersionManager
+    document.getElementById('versionManageCheck').onclick = () => { void checkVersions({ force: true }) }
     document.getElementById('versionInstallForm').onsubmit = (event) => {
       event.preventDefault()
       void manualInstallVersion(versionInstallSelectEl.value)
@@ -2929,6 +3007,7 @@
         : t('卸载 {version}？插件和数据会保留。', { version }))
       if (!ok) return
       action = 'uninstall'
+      versionCheck = { busy: false, message: '', error: '' }
       render()
       try {
         await post('/api/uninstall', { version })
@@ -3458,9 +3537,14 @@
 
     const selfUpdateEl = document.getElementById('selfUpdate')
     const appVerEl = document.getElementById('appVer')
-    getJson('/api/self').then((data) => {
+    /**
+     * 首页那个「更新 X」按钮：初始加载与版本管理的检测共用这条路。
+     * 检测到启动器有新版本时按钮当场冒出来，不用刷新页面才能看到。
+     */
+    function applySelfUpdate(data) {
+      if (!data || !selfUpdateEl) return
       if (appVerEl) appVerEl.textContent = data.current || ''
-      if (!data.update || !selfUpdateEl) return
+      if (!data.update) { selfUpdateEl.hidden = true; return }
       const url = data.url || `https://github.com/yyh-001/DSH-X/releases/latest/download/DSH-Setup.exe`
       selfUpdateEl.hidden = false
       selfUpdateEl.textContent = data.latest ? `更新 ${data.latest}` : t('更新')
@@ -3470,7 +3554,8 @@
         // 而不是直接下载安装包——那会立刻弹出安装程序，用户连看都没看清
         showAsk({ dsh: null, self: { current: data.current, latest: data.latest, url } })
       }
-    }).catch(() => {})
+    }
+    getJson('/api/self').then(applySelfUpdate).catch(() => {})
 
     // ---- 启动时检测到新版本：先问用户，定下来之前不自动启动 dsh ----
     const askEl = document.getElementById('ask')

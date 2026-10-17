@@ -43,3 +43,12 @@ test('请求失败允许立即重试', async () => {
   await assert.rejects(read('a'), /offline/)
   assert.equal(await read('a'), 'ok')
 })
+
+test('force 绕过短期缓存，立刻拿到刚发布的版本', async () => {
+  let calls = 0
+  const read = createPackumentReader({ registry: () => 'http://registry', get: async () => ({ calls: ++calls }) })
+  assert.equal((await read('a')).calls, 1)
+  assert.equal((await read('a')).calls, 1, '默认走缓存')
+  assert.equal((await read('a', { force: true })).calls, 2, 'force 要现拉一次')
+  assert.equal((await read('a')).calls, 2, 'force 的结果要存回缓存')
+})
