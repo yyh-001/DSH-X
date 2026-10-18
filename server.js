@@ -12,6 +12,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import { cmpVer, currentRegistry, describeNpmFailure, installSpec, listPackage, optimizeDependencies, parsePnpmProgress, parseVer } from './registry.js'
 import pkg from './package.json' with { type: 'json' }
+import { VERSION_CHANNEL, VERSION_CHANNELS, effectiveChannel, versionInChannel } from './version.js'
 import { createLogWriter } from './log-writer.js'
 import {
   disableRowId,
@@ -75,6 +76,7 @@ import {
   autoStartEnabled,
   DEFAULT_PORT,
   DEFAULT_LAUNCH_ID,
+  DEFAULT_UPDATE_CHANNEL,
   defaultDshHome,
   ensureSettings,
   ensureWritableDir,
@@ -109,6 +111,7 @@ import {
   safeProxyMode,
   safeProxyUrl,
   safeArgs,
+  safeUpdateChannel,
   safeWebBind,
   saveSettings,
   setAutoStart,
@@ -948,6 +951,8 @@ async function snapshotDefault() {
     // 手工钉死端口的实例（键 `版本@profile` → 端口）：控制页那个端口输入框回显它
     instancePorts: INSTANCE_PORTS,
     launchPresets: presets,
+    // 每种版本类型的实际类型、已装版本、最新版：页面的自动选版本和提醒都读它，不在页面上重新分类
+    channelPlans: channelPlans(installed),
     instances: all.map(instanceInfo),
     versions: installed.map((version) => {
       // 同一个版本的实例可能不止一个（多开下只会有一个，聚合起来更稳）：跑着的优先，
@@ -1119,20 +1124,40 @@ async function setInstancePortNow(version, profile, port) {
   return { key, port: value, busy: !ours && !(await portAvailable(value)) }
 }
 
+/**
+ * 每种版本类型（键是启动项选的类型）的「计划」：实际生效的类型（选的类型一个已知版本都没有时
+ * 退到更不稳定的一档，见 version.js 的 effectiveChannel）、它收的已装版本（从高到低）、
+ * 它收的最新已发布版本。自动选版本、卡片的「新版本」、启动时的更新提示都只读这一份，
+ * 三处口径不会各算各的。远端只读缓存、不联网：还没拉过就只按已装版本算，latest 为空。
+ */
+function channelPlans(installed) {
+  const published = remoteCache.data?.versions || []
+  const known = [...installed, ...published]
+  return Object.fromEntries(VERSION_CHANNELS.map((selected) => {
+    const channel = effectiveChannel(selected, known)
+    return [selected, {
+      channel,
+      installed: installed.filter((version) => versionInChannel(channel, version))
+        .sort((a, b) => cmpVer(parseVer(b), parseVer(a))),
+      latest: remoteCache.data ? latestRemoteFor(remoteCache.data, (version) => versionInChannel(channel, version)) : '',
+    }]
+  }))
+}
+
 /** 启动项只是已有实例参数的命名入口；固定端口继续走同一套校验和设置。 */
 /**
- * 启动项「auto」实际会解析到的版本：同 profile/目录下在跑的优先（多个取最高），
- * 否则已装的最高版本；两者都没有就返回空串（首次启动才下载，跟明写版本比不出重复）。
+ * 启动项「auto」实际会解析到的版本：只在启动项的版本类型（按 channelPlans 退档后的）里挑——
+ * 同 profile/目录下在跑的优先（多个取最高），否则已装的最高版本；两者都没有就返回空串
+ * （首次启动才下载，跟明写版本比不出重复）。类型以外的版本哪怕更高、正在跑也不用。
  * 客户端 recommendedVersion 的服务端镜像——查重必须用解析后的版本。
  */
 function resolvePresetVersion(entry, home, config, versions = null) {
   if (entry.version !== 'auto') return entry.version
-  const live = liveInstanceList().filter((item) => item.profile === entry.profile && (item.home || defaultHome()) === home)
+  const plan = channelPlans(versions || listedVersions(config).filter((ver) => existsSync(binPath(ver))))[safeUpdateChannel(entry.updateChannel)]
+  const live = liveInstanceList().filter((item) => item.profile === entry.profile && (item.home || defaultHome()) === home
+    && versionInChannel(plan.channel, item.version))
     .sort((a, b) => cmpVer(parseVer(b.version), parseVer(a.version)))[0]
-  if (live?.version) return live.version
-  const installed = [...(versions || listedVersions(config).filter((ver) => existsSync(binPath(ver))))]
-    .sort((a, b) => cmpVer(parseVer(b), parseVer(a)))
-  return installed[0] || ''
+  return live?.version || plan.installed[0] || ''
 }
 
 /** 删除入口不会停止实例；这类运行项仍要能从托盘找回和单独停止。 */
@@ -1267,6 +1292,9 @@ async function saveLaunchPresetNow(body) {
   if (dshHome && dshHome !== defaultHome()) await ensureWritableDir(dshHome)
   const portText = String(body.port ?? '').trim()
   const port = portText && portText !== '0' ? safePort(portText) : 0
+  // 没带这个字段就沿用原来的通道（同 autoLaunch）：只改别的字段的调用方，比如「更新到新版」时
+  // 把版本钉子挪过去，不该顺手把通道重置成正式版。坏值在动设置之前就报错。
+  const requestedChannel = body.updateChannel === undefined ? undefined : safeUpdateChannel(body.updateChannel)
   const stored = await loadSettings()
   if (installing || packInstalling) throw new Error('正在安装，稍后再编辑启动项')
   const presets = safeLaunchPresets(stored.launchPresets)
@@ -1276,11 +1304,14 @@ async function saveLaunchPresetNow(body) {
   if (index < 0 && presets.length >= 20) throw new Error('最多保存 20 个启动项')
   // 查重要比「解析后」的版本：auto 要落到它实际会用的版本再比，不然 auto 项和明写
   // 同一个版本的项能摆出两张一模一样的卡（两张还同时显示运行中——其实是同一个实例）。
-  const config = await loadConfig()
-  const effectiveVersion = resolvePresetVersion({ version, profile }, home, config)
+  // auto 落到哪个版本取决于版本类型，所以类型也要按这次保存后的值算，改类型也算改了解析结果。
   const existingEntry = index >= 0 ? presets[index] : null
+  const updateChannel = requestedChannel ?? safeUpdateChannel(existingEntry?.updateChannel)
+  const config = await loadConfig()
+  const effectiveVersion = resolvePresetVersion({ version, profile, updateChannel }, home, config)
   const tripleChanged = !existingEntry || existingEntry.version !== version || existingEntry.profile !== profile
     || (existingEntry.dshHome || defaultHome()) !== home
+    || (version === 'auto' && safeUpdateChannel(existingEntry.updateChannel) !== updateChannel)
   if (tripleChanged && effectiveVersion && presets.some((item) => {
     if (item.id === id) return false
     if (item.profile !== profile || (item.dshHome || defaultHome()) !== home) return false
@@ -1295,12 +1326,12 @@ async function saveLaunchPresetNow(body) {
   }
   // 编辑只保存启动项，不提前改正在使用的实例参数；端口在点击启动时再应用。
   const icon = safeLaunchIcon(body.icon)
-  const previous = index >= 0 ? presets[index] : null
   const entry = { id, name, version, profile, port,
-    ...((body.autoLaunch === undefined ? previous?.autoLaunch : body.autoLaunch === true) ? { autoLaunch: true } : {}),
+    ...((body.autoLaunch === undefined ? existingEntry?.autoLaunch : body.autoLaunch === true) ? { autoLaunch: true } : {}),
+    ...(updateChannel !== DEFAULT_UPDATE_CHANNEL ? { updateChannel } : {}),
     // 用过的版本记录跟着启动项走，编辑参数不该抹掉回退历史。
-    ...(previous?.usedVersion ? { usedVersion: previous.usedVersion } : {}),
-    ...(previous?.prevVersion ? { prevVersion: previous.prevVersion } : {}),
+    ...(existingEntry?.usedVersion ? { usedVersion: existingEntry.usedVersion } : {}),
+    ...(existingEntry?.prevVersion ? { prevVersion: existingEntry.prevVersion } : {}),
     ...(dshHome ? { dshHome } : {}), ...(icon !== 'terminal' ? { icon } : {}) }
   if (index >= 0) presets[index] = entry
   else presets.push(entry)
@@ -2265,10 +2296,13 @@ async function fetchRemote() {
     source: 'https://github.com/deepseek-ai/deepseek-harness',
     tags: info.tags,
     versions: info.versions,
-    // 「最新版」只在这里算一次，管理页和更新提示都读它，免得两处口径各算各的
+    // 远端最高的版本，只给版本列表打「最新」角标；按版本类型的选择和提醒走 channelPlans
     latest: latestRemoteFor({ tags: info.tags, versions: info.versions }),
   }
+  const fresh = remoteCache.data?.versions?.join() !== data.versions.join()
   remoteCache = { at: Date.now(), data }
+  // 已发布的版本变了，各类型的退档和「新版本」可能跟着变：推一次状态，开着的页面不用等下一次推送
+  if (fresh) void emitState().catch(() => {})
   return data
 }
 
@@ -2338,9 +2372,9 @@ async function fetchLatestTag() {
 /**
  * 远端能给到的最新版。这里按用户的取舍把预发布也算数：装了 rc 的人应该被告知
  * 更新的 alpha，而不是被“稳定版”的字面口径挡住。只看 latest 标签不够——dsh
- * 常把新版本挂在 next / alpha 上。
+ * 常把新版本挂在 next / alpha 上。`accept` 按版本类型收窄候选（见 channelPlans）。
  */
-function latestRemoteFor(remote) {
+function latestRemoteFor(remote, accept = () => true) {
   const candidates = []
   for (const name of ['latest', 'next', 'alpha']) {
     const tag = typeof remote.tags?.[name] === 'string' ? remote.tags[name].trim() : ''
@@ -2353,7 +2387,7 @@ function latestRemoteFor(remote) {
   let bestParsed = null
   for (const item of candidates) {
     const parsed = parseVer(item)
-    if (!parsed) continue
+    if (!parsed || !accept(item)) continue
     if (!bestParsed || cmpVer(parsed, bestParsed) > 0) {
       best = item
       bestParsed = parsed
@@ -2370,6 +2404,17 @@ function isNewer(latest, current) {
 }
 
 /**
+ * 所有启动项里最不稳定的那个通道。它收的版本恰好是每个启动项所收版本的并集，
+ * 所以不分启动项的「本机有没有新版 dsh」按它问，才不会漏掉任何一个启动项该看到的版本。
+ * 退档后的类型 =「选的类型」和「已知版本里最稳定那一类」中更不稳定的那个，随选择单调，
+ * 选得最不稳定的那个退档后仍是最不稳定的，所以按选的类型取最宽、再查它的计划就够了。
+ */
+function widestUpdateChannel(presets) {
+  const followed = new Set(presets.map((entry) => safeUpdateChannel(entry.updateChannel)))
+  return VERSION_CHANNELS.findLast((channel) => followed.has(channel)) || DEFAULT_UPDATE_CHANNEL
+}
+
+/**
  * 启动时要先问用户的那件事：dsh 本体或启动器自身有新版本。
  * 有就返回详情（调用方据此跳过自动启动），都最新返回 null。
  * 用户点过「不更新」的版本记在 settings 里，同一个版本不再问第二次。
@@ -2377,15 +2422,18 @@ function isNewer(latest, current) {
  */
 export async function pendingUpdate() {
   const found = { dsh: null, self: null }
-  let skipped = {}
+  let stored = {}
   try {
-    skipped = (await loadSettings()).skippedUpdate || {}
-  } catch { /* 读不到设置就当没跳过 */ }
+    stored = await loadSettings()
+  } catch { /* 读不到设置就当没跳过、只跟正式版 */ }
+  const skipped = stored.skippedUpdate || {}
   try {
-    const remote = await fetchRemote()
-    const installed = listedVersions(await loadConfig())
-    const current = installed[0] || ''
-    const latest = remote.latest || ''
+    await fetchRemote()
+    // 跟「自动最新版本」比：同一类型里已装的最高版本才是自动项在用的，类型以外的版本（比如装着的
+    // 更高的 Alpha）不能拿来比，否则只选正式版的人会因为它被挡掉正式版的更新提示
+    const plan = channelPlans(listedVersions(await loadConfig()))[widestUpdateChannel(safeLaunchPresets(stored.launchPresets))]
+    const current = plan.installed[0] || ''
+    const latest = plan.latest
     if (isNewer(latest, current) && skipped.dsh !== latest) found.dsh = { current, latest }
   } catch { /* 拉不到远端就当没更新 */ }
   try {
@@ -2776,7 +2824,10 @@ async function pluginCommandVersion(profile = PROFILE_NAME) {
   const versions = [...new Set(presets.map((entry) => resolvePresetVersion(entry, homeDir(), config)))]
   // 同一个目录/Profile 可以绑定多个内核，不能靠启动项排列顺序猜用户要更新哪一套。
   if (versions.length > 1) throw new Error(`profile「${profile}」对应多个内核版本，请从要使用的启动项进入插件管理后再更新`)
-  return available(versions[0] || resolvePresetVersion({ version: 'auto', profile }, homeDir(), config))
+  // 绑定的通道没有可用内核时照样报错；空串不能掉进未绑定 Profile 的兜底，绕到其他通道执行。
+  if (presets.length) return available(versions[0])
+  // 这个 Profile 没有启动项，也就没人选过版本类型：所有类别都算（Alpha 全收），跟以前一样取最高已装。
+  return available(resolvePresetVersion({ version: 'auto', profile, updateChannel: VERSION_CHANNEL.ALPHA }, homeDir(), config))
 }
 
 /**

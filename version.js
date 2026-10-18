@@ -53,3 +53,54 @@ export function cmpVer(a, b) {
   if (b.pre) return 1
   return 0
 }
+
+/**
+ * 版本类别（启动项的版本类型），按稳定程度从高到低排：下标越大越不稳定，编辑启动项里三档开关的值就是这个下标。
+ * 正式版 = 没有预发布段；RC = 预发布段第一节是 `rc`（`-rc`、`-rc.2`）；其余预发布
+ * （`-alpha.5`，以及 `-beta`、`-next` 这类没约定过的）一律算 Alpha——认不出的预发布
+ * 当成最不稳定的，只选正式版的人才不会被它选中或打扰。
+ */
+export const VERSION_CHANNEL = Object.freeze({ OFFICIAL: 'official', RC: 'rc', ALPHA: 'alpha' })
+export const VERSION_CHANNELS = Object.freeze([VERSION_CHANNEL.OFFICIAL, VERSION_CHANNEL.RC, VERSION_CHANNEL.ALPHA])
+const RC_IDENTIFIER = 'rc'
+
+/** 版本号属于哪个类别；解析不了的版本号返回空串（不属于任何通道，也就不会被提醒）。 */
+export function versionChannel(version) {
+  const parsed = parseVer(version)
+  if (!parsed) return ''
+  if (!parsed.pre) return VERSION_CHANNEL.OFFICIAL
+  return parsed.pre.split('.')[0] === RC_IDENTIFIER ? VERSION_CHANNEL.RC : VERSION_CHANNEL.ALPHA
+}
+
+/**
+ * 选了 `selected` 类型的启动项收不收 `channel` 类别的版本（自动选版本和更新提醒同一口径）：
+ * 越不稳定的选择，越稳定的版本也照收（Alpha 全收、RC 不收 Alpha、正式版只收正式版）。
+ * 认不出的通道一律不收，脏设置不会变成「什么都收」。
+ */
+export function channelIncludes(selected, channel) {
+  const reach = VERSION_CHANNELS.indexOf(selected)
+  const rank = VERSION_CHANNELS.indexOf(channel)
+  return reach >= 0 && rank >= 0 && rank <= reach
+}
+
+/** `version` 是否在 `selected` 类型能收的范围内。 */
+export function versionInChannel(selected, version) {
+  return channelIncludes(selected, versionChannel(version))
+}
+
+/**
+ * 实际生效的类型：选的类型在 `known`（已发布 ∪ 已安装）里一个版本都没有时，退到下一个更不稳定的。
+ * 用户要的取舍：dsh 至今没发过正式版，默认的「正式版」严格执行的话，所有自动项都无版本可用；
+ * 退一档还能用，等正式版一出现自然收回到只用正式版。一个已知版本都没有（还没联网、也没装）
+ * 时没什么可比，原样返回，别凭空退到 Alpha。认不出的选择原样返回，由调用方当作什么都不收。
+ */
+export function effectiveChannel(selected, known) {
+  const start = VERSION_CHANNELS.indexOf(selected)
+  if (start < 0) return selected
+  const classes = new Set([...known].map(versionChannel).filter(Boolean))
+  if (!classes.size) return selected
+  for (const channel of VERSION_CHANNELS.slice(start)) {
+    if ([...classes].some((found) => channelIncludes(channel, found))) return channel
+  }
+  return selected
+}

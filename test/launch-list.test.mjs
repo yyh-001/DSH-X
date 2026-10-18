@@ -170,7 +170,7 @@ function editor({ fail = false, confirm = true, entries = [{ id: 'a' }, { id: 'b
     launchFormEl: {}, launchSaveEl: { disabled: false }, launchDeleteEl: { disabled: false },
     editingLaunchId: savedEntry.id === 'c' ? 'b' : savedEntry.id, DEFAULT_LAUNCH_ID: 'a', state: { launchPresets: entries },
     launchNameEl: { value: '新增项' }, launchIcon: 'terminal', versionValue: 'auto', launchProfile: 'web',
-    launchPortEl: { value: '' }, launchDshHomeEl: { value: '' }, launchAutoLaunchEl: { checked: false },
+    launchPortEl: { value: '' }, launchDshHomeEl: { value: '' }, launchAutoLaunchEl: { checked: false }, draftLaunchChannel: () => 'official',
     refreshLaunchHomeProfiles: async () => true,
     t: (text) => text, appConfirm: async () => confirm,
     post: async (path) => {

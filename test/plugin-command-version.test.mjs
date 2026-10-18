@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -134,7 +134,9 @@ if (args[0] === 'plugin') {
     await update(NEW, { launchId: ID, profile: 'unbound' })
   })
   await t.test('auto 与未绑定 Profile 保留运行版本优先、否则最高已装版本的选择', async () => {
-    await saveSettings({ launchPresets: [preset(ID, 'auto')] })
+    // 自动项只在自己的版本类型里挑；这里测的是「运行优先、否则最高已装」，用收全部类别的 Alpha，
+    // 免得默认的正式版类型把已装的 alpha 内核筛掉（按类型筛选另有 update-channel 的用例）。
+    await saveSettings({ launchPresets: [{ ...preset(ID, 'auto'), updateChannel: 'alpha' }] })
     await update(NEW, { launchId: ID })
     await update(NEW, { profile: 'unbound' })
     resetPlugin()
@@ -147,6 +149,25 @@ if (args[0] === 'plugin') {
       await update(NEW, { launchId: ID })
     } finally {
       await api('/api/stop', { version: OLD, profile: 'myweb1' })
+    }
+  })
+  await t.test('绑定通道没有已装版本时，按目录更新插件不能回退到 Alpha；未绑定 Profile 仍可使用 Alpha', async () => {
+    const oldDir = join(data, 'versions', OLD)
+    const parked = join(root, 'parked-official')
+    renameSync(oldDir, parked)
+    try {
+      // 远端有正式版，但本机只装了 Alpha：正式版通道不能退档，也不能借未绑定 Profile 的兜底绕过去。
+      await fetch(origin + '/api/remote')
+      await saveSettings({ launchPresets: [preset(ID, 'auto')] })
+      resetPlugin()
+      const before = commands().length
+      const result = await api('/api/plugins/update', { name: PLUGIN, profile: 'myweb1' })
+      assert.equal(result.status, 400, JSON.stringify(result))
+      assert.match(result.error, /没有可用的 dsh 版本/)
+      assert.equal(commands().length, before, '通道没有可用版本时不执行其他通道的插件命令')
+      await update(NEW, { profile: 'unbound' })
+    } finally {
+      renameSync(parked, oldDir)
     }
   })
 })

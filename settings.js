@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { APP_DIR, IS_MAC, IS_WINDOWS, MAC_BUNDLE_ID, appBundle, launcherExecutable, userAppDir } from './platform.js'
 import { safeFolderConfig, safePolicy, safeS3Config, safeScopeIds, safeStoreType, safeWebdavConfig, safeZipConfig } from './sync.js'
+import { VERSION_CHANNEL, VERSION_CHANNELS } from './version.js'
 
 const execFileAsync = promisify(execFile)
 const ROOT = dirname(fileURLToPath(import.meta.url))
@@ -357,6 +358,16 @@ export function safeEnvironmentPorts(value) {
 export const DEFAULT_LAUNCH_ID = '0000000000000000'
 export const DEFAULT_LAUNCH = { id: DEFAULT_LAUNCH_ID, name: 'DSH', version: 'auto', profile: 'web', port: 0 }
 
+/** 没选过版本类型的启动项（含所有老设置）按正式版（还没有正式版时由 effectiveChannel 退档）。 */
+export const DEFAULT_UPDATE_CHANNEL = VERSION_CHANNEL.OFFICIAL
+
+/** 启动项的版本类型（自动选版本和更新提醒都按它）；没填回默认，填了认不出的值要报错，别悄悄改成别的类型。 */
+export function safeUpdateChannel(value) {
+  if (value === undefined || value === null || value === '') return DEFAULT_UPDATE_CHANNEL
+  if (!VERSION_CHANNELS.includes(value)) throw new Error('版本类型只能是正式版、RC 或 Alpha')
+  return value
+}
+
 /** 保留数量有下限，填错不能被当成 0 导致历史版本全部被清走。 */
 export function safeKeepVersions(value) {
   if (value === undefined || value === null) return 2
@@ -402,8 +413,12 @@ export function safeLaunchPresets(value) {
     // 启动项最近用过的两个版本（当前用/上一次用）：清理旧版本时按启动项保留，给回退用。
     const usedVersion = String(item.usedVersion ?? '')
     const prevVersion = String(item.prevVersion ?? '')
+    // 坏的通道值退回默认而不是丢掉启动项：通道只管提醒，不值得为它让用户的入口消失。
+    let updateChannel = DEFAULT_UPDATE_CHANNEL
+    try { updateChannel = safeUpdateChannel(item.updateChannel) } catch { /* 保留默认 */ }
     return [{ id, name, version, profile, port,
       ...(item.autoLaunch === true ? { autoLaunch: true } : {}),
+      ...(updateChannel !== DEFAULT_UPDATE_CHANNEL ? { updateChannel } : {}),
       ...(VERSION_RE.test(usedVersion) ? { usedVersion } : {}),
       ...(VERSION_RE.test(prevVersion) ? { prevVersion } : {}),
       ...(dshHome ? { dshHome } : {}), ...(icon !== 'terminal' ? { icon } : {}) }]
