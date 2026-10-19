@@ -547,18 +547,30 @@
           <div class="launch-icon-popover" id="launchIconPopover" hidden><div class="launch-icon-picker" id="launchIconPicker" role="group" aria-label="启动项图标"></div><div class="launch-icon-upload"><button class="ghost icon-btn" id="launchIconUpload" type="button" title="选择图片" aria-label="选择图片" data-i18n-title="选择图片" data-i18n-aria-label="选择图片"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 4-7 5 8"/></svg></button><button class="ghost icon-btn" id="launchIconReset" type="button" title="恢复默认" aria-label="恢复默认" data-i18n-title="恢复默认" data-i18n-aria-label="恢复默认"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v5h5M4 9a8 8 0 1 1-1 6"/></svg></button></div></div>
           <input id="launchIconFile" type="file" accept="image/png,image/jpeg,image/webp" hidden /><span class="hint launch-icon-error" id="launchIconHint"></span>
         </div>
-        <div class="home-field">
-          <label for="versionTrigger" data-i18n="版本">版本</label>
-          <div class="launch-version-select-row">
-            <div class="select" id="versionPicker">
-              <button type="button" class="select-trigger" id="versionTrigger" aria-haspopup="listbox" aria-expanded="false">
-                <span class="select-value" id="versionValue" data-i18n="自动最新版本">自动最新版本</span>
-                <svg class="select-caret" viewBox="0 0 12 8" aria-hidden="true"><path fill="currentColor" d="M0 0h12L6 8z"/></svg>
-              </button>
-              <div class="select-panel" id="versionPanel" role="listbox" hidden></div>
+        <div class="home-pickers">
+          <div class="home-field">
+            <label for="versionTrigger" data-i18n="版本">版本</label>
+            <div class="launch-version-select-row">
+              <div class="select" id="versionPicker">
+                <button type="button" class="select-trigger" id="versionTrigger" aria-haspopup="listbox" aria-expanded="false">
+                  <span class="select-value" id="versionValue" data-i18n="自动最新版本">自动最新版本</span>
+                  <svg class="select-caret" viewBox="0 0 12 8" aria-hidden="true"><path fill="currentColor" d="M0 0h12L6 8z"/></svg>
+                </button>
+                <div class="select-panel" id="versionPanel" role="listbox" hidden></div>
+              </div>
+              <button class="ghost icon-btn launch-manage-version" id="launchManageVersions" type="button" title="管理版本" aria-label="管理版本" data-i18n-title="管理版本" data-i18n-aria-label="管理版本"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></button>
             </div>
-            <button class="ghost icon-btn launch-manage-version" id="launchManageVersions" type="button" title="管理版本" aria-label="管理版本" data-i18n-title="管理版本" data-i18n-aria-label="管理版本"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></button>
           </div>
+          <!-- 版本类型决定「自动最新版本」挑哪些版本、提醒哪些新版本。三档开关的值是 version.js 里
+               VERSION_CHANNELS 的下标：越往右越不稳定。档名读屏走 aria-valuetext，旁边那份只给眼睛看 -->
+          <div class="home-field launch-channel-field">
+            <label for="launchUpdateChannel" data-i18n="版本类型">版本类型</label>
+            <div class="launch-channel-control">
+              <input id="launchUpdateChannel" type="range" min="0" max="2" step="1" value="0" />
+              <span id="launchUpdateChannelName" aria-hidden="true"></span>
+            </div>
+          </div>
+          <p class="hint" id="launchUpdateChannelHint"></p>
         </div>
         <div class="home-field">
           <label for="launchDshHome" data-i18n="dsh 用户目录（会话、记忆和插件隔离）">dsh 用户目录（会话、记忆和插件隔离）</label>
@@ -1256,11 +1268,11 @@
   "添加启动项": "Add launch",
   "版本管理": "Version management",
   "管理版本": "Manage versions",
-  "检测版本": "Check for versions",
-  "正在检测版本…": "Checking for versions…",
-  "检测版本失败：{message}": "Version check failed: {message}",
+  "检测版本": "Check for updates",
+  "正在检测版本…": "Checking for updates…",
+  "检测版本失败：{message}": "Update check failed: {message}",
   "没读到远程版本，检查网络或下载源后重试。": "Could not read the remote version list. Check your network or download source and try again.",
-  "本机还没装过任何版本，最新版本是 {version}。": "No version is installed yet. The latest version is {version}.",
+  "当前版本类型尚未安装，最新版本是 {version}。": "No version in the selected channel is installed yet. The latest version is {version}.",
   "发现新版本 {version}（本机最新已装 {current}），可在上方选择安装。": "New version {version} is available (newest installed: {current}). Install it from the list above.",
   "已是最新版本（{version}）。": "Already up to date ({version}).",
   "启动器也有新版本 {version}，可在首页更新。": "The launcher also has a new version {version}, updatable from the home page.",
@@ -1275,7 +1287,6 @@
   "编辑 {name}": "Edit {name}",
   "推荐版本（自动）": "Recommended version (automatic)",
   "自动最新版本": "Latest version (auto)",
-  "优先使用正在运行的版本，否则选择本机最新已安装版本；未安装时会在首次启动下载最新版。新版本需要手动更新。": "Keep the running version, otherwise use the latest installed version. If none is installed, download the latest on first launch. New releases require a manual update.",
   "新版本 {version}": "New version {version}",
   "新建 Profile": "New profile",
   "复制 Profile": "Duplicate profile",
@@ -1386,7 +1397,14 @@
   "将添加 {n} 个插件": "Add {n} plugins",
   "安装环境": "Install into",
   "新建独立环境，现有启动项不变。": "Create a separate environment. Existing launch entries stay unchanged.",
-  "合并到已有环境，同名文件会先备份。": "Merge into the existing environment. Replaced files are backed up first."
+  "合并到已有环境，同名文件会先备份。": "Merge into the existing environment. Replaced files are backed up first.",
+  "版本类型": "Version type",
+  "正式版": "Official",
+  "自动最新版本和更新提醒只用正式版。": "Latest version (auto) and update notifications use Official releases only.",
+  "自动最新版本和更新提醒只用 RC 和正式版。": "Latest version (auto) and update notifications use RC and Official releases only.",
+  "自动最新版本和更新提醒使用 Alpha、RC 和正式版。": "Latest version (auto) and update notifications use Alpha, RC and Official releases.",
+  "还没有{chosen}，暂按 {effective} 选择和提醒。{rule}": "There is no {chosen} release yet, so {effective} is used for now. {rule}",
+  "优先使用正在运行的版本，否则选择本机最新已安装版本；只用所选版本类型的版本，未安装时会在首次启动下载该类型的最新版。新版本需要手动更新。": "Keep the running version, otherwise use the latest installed version, using only the selected version type. If none is installed, download the latest of that type on first launch. New releases require a manual update."
 }
 
     function t(zh, vars) {
@@ -1440,6 +1458,7 @@
     const launchDshHomeEl = document.getElementById('launchDshHome')
     const launchPortEl = document.getElementById('launchPort')
     const launchAutoLaunchEl = document.getElementById('launchAutoLaunch')
+    const launchUpdateChannelEl = document.getElementById('launchUpdateChannel')
     const launchNameEl = document.getElementById('launchName')
     const launchSaveEl = document.getElementById('launchSave')
     const launchDialogEl = document.getElementById('launchDialog')
@@ -1452,6 +1471,16 @@
     const launchPresetsEl = document.getElementById('launchPresets')
     const DEFAULT_LAUNCH_ID = '0000000000000000'
     const DEFAULT_LAUNCH = { id: DEFAULT_LAUNCH_ID, name: 'DSH', version: 'auto', profile: 'web', port: 0 }
+    // 与 version.js 的 VERSION_CHANNELS 同序（稳定 → 不稳定），三档开关的值就是下标。页面没有构建步骤、
+    // 引不到 Node 模块，只能抄一份名字；分类和「哪个通道收哪些版本」都在服务端，这里不重算。
+    const UPDATE_CHANNELS = ['official', 'rc', 'alpha']
+    const DEFAULT_UPDATE_CHANNEL = 'official'
+    const UPDATE_CHANNEL_NAMES = { official: '正式版', rc: 'RC', alpha: 'Alpha' }
+    const UPDATE_CHANNEL_HINTS = {
+      official: '自动最新版本和更新提醒只用正式版。',
+      rc: '自动最新版本和更新提醒只用 RC 和正式版。',
+      alpha: '自动最新版本和更新提醒使用 Alpha、RC 和正式版。',
+    }
     let versionOptions = []      // [{ value, text, badge?, more? }]
     let versionValue = ''
     let versionDisabled = false
@@ -2411,6 +2440,53 @@
       return String(remote.latest || '')
     }
 
+    /** 启动项选的版本类型；老设置没有这个字段、或是认不出的值，都按正式版。 */
+    function launchChannel(entry) {
+      return UPDATE_CHANNELS.includes(entry?.updateChannel) ? entry.updateChannel : DEFAULT_UPDATE_CHANNEL
+    }
+
+    /**
+     * 选了这个类型实际按什么来（server.js 的 channelPlans）：channel 是退档后的类型，
+     * installed 是它收的已装版本（从高到低），latest 是它收的最新已发布版本。分类和退档都在
+     * 服务端算，页面只读；老服务进程的状态里没有它，返回 null，调用方按以前不分类型的口径走。
+     */
+    function channelPlan(channel) {
+      return state.channelPlans?.[channel] || null
+    }
+
+    /**
+     * 选了这个类型的启动项能被提醒到的最新版。和 latestRemoteVersion 分开：那个是
+     * 「远端最高的版本」，给版本列表打「最新」标；提醒用户更新只看这个。
+     */
+    function channelLatestVersion(channel) {
+      return String(channelPlan(channel)?.latest || '')
+    }
+
+    /** 这个启动项该被提醒到的最新版：卡片上的「新版本」和点它之后的升级目标共用，两处不能各算各的。 */
+    function launchLatestVersion(entry) {
+      return channelLatestVersion(launchChannel(entry))
+    }
+
+    /** 编辑弹窗里三档开关指着的通道：保存前只是草稿，状态推送不会把它改回去。 */
+    function draftLaunchChannel() {
+      return UPDATE_CHANNELS[Number(launchUpdateChannelEl.value)] || DEFAULT_UPDATE_CHANNEL
+    }
+
+    function paintLaunchChannel() {
+      const channel = draftLaunchChannel()
+      // 开关太短放不下三档刻度，只在旁边写当前档名；读屏读到的也是档名而不是 0/1/2
+      const name = t(UPDATE_CHANNEL_NAMES[channel])
+      launchUpdateChannelEl.setAttribute('aria-valuetext', name)
+      // 轨道色按档分（launcher.css）：range 没有 :checked 这类状态可选，只能把档写成属性
+      launchUpdateChannelEl.dataset.channel = channel
+      document.getElementById('launchUpdateChannelName').textContent = name
+      // 选的类型一个已知版本都没有、退到了更不稳定的一档：说明换成实际在用的那档，并讲清为什么，
+      // 不然自动选出个 RC 像是出了错；只写选的那档会跟实际行为对不上
+      const effective = channelPlan(channel)?.channel || channel
+      document.getElementById('launchUpdateChannelHint').textContent = effective === channel ? t(UPDATE_CHANNEL_HINTS[channel])
+        : t('还没有{chosen}，暂按 {effective} 选择和提醒。{rule}', { chosen: name, effective: t(UPDATE_CHANNEL_NAMES[effective]), rule: t(UPDATE_CHANNEL_HINTS[effective]) })
+    }
+
     function preferredPick() {
       const versions = versionList()
       const installed = [...installedList()].sort((a, b) => compareVersion(b, a))
@@ -2424,7 +2500,8 @@
     }
 
     function selected() {
-      return versionValue === 'auto' ? recommendedVersion(launchProfile) : (versionValue || preferredPick())
+      // 草稿里的「自动最新版本」跟着草稿的版本类型走，拨开关时弹窗里显示的版本立刻跟着变
+      return versionValue === 'auto' ? recommendedVersion(launchProfile, state.dshHome, draftLaunchChannel()) : (versionValue || preferredPick())
     }
 
     const launchCopyFeedback = new WeakMap()
@@ -2557,18 +2634,26 @@
       state.launchPresets = entries
     }
 
-    /** 自动项优先沿用这个 profile 的运行版本，其次用已装版本；首次安装使用官方 latest 标签。 */
-    function recommendedVersion(profile = 'web', home = state.dshHome) {
+    /** 自动项只在版本类型（退档后的）收的版本里挑：优先沿用这个 profile 在跑的版本，其次已装的最高版本，
+     * 都没有就是首次启动要下载的那个类型最新版。类型以外的版本哪怕更高、正在跑也不用。
+     * 服务端 resolvePresetVersion 是它的镜像（托盘、开机自启、查重用）。
+     * 老服务进程没有 channelPlans：按以前不分类型的口径（最高已装，否则官方 latest 标签）。
+     */
+    function recommendedVersion(profile = 'web', home = state.dshHome, channel = DEFAULT_UPDATE_CHANNEL) {
+      const plan = channelPlan(channel)
+      const accepted = plan ? new Set(plan.installed) : null
       const live = (state.instances || []).filter((item) => item.profile === profile
         && (item.home || state.dshHome) === home
-        && (item.status === 'running' || item.status === 'starting'))
+        && (item.status === 'running' || item.status === 'starting')
+        && (!accepted || accepted.has(item.version)))
         .sort((a, b) => compareVersion(b.version, a.version))[0]
+      if (plan) return live?.version || plan.installed[0] || String(plan.latest || '')
       const installed = [...installedList()].sort((a, b) => compareVersion(b, a))
       return live?.version || installed[0] || String(remote.tags?.latest || latestRemoteVersion() || '')
     }
 
     function resolveLaunchVersion(entry) {
-      return entry.version === 'auto' ? recommendedVersion(entry.profile, entry.dshHome || state.dshHome) : entry.version
+      return entry.version === 'auto' ? recommendedVersion(entry.profile, entry.dshHome || state.dshHome, launchChannel(entry)) : entry.version
     }
 
     const LAUNCH_ICON_PATHS = {
@@ -2671,11 +2756,11 @@
         // 默认目录省略，独立数据目录显示在卡片上，方便辨认隔离的环境。
         const note = [version || t('自动选择版本'), entry.profile, entry.dshHome].filter(Boolean).join(' · ')
         // 状态不占文字：启动/停止/安装中的反馈由按钮上的转圈表示，运行中由停止按钮表示
-        const automaticHint = entry.version === 'auto' ? t('优先使用正在运行的版本，否则选择本机最新已安装版本；未安装时会在首次启动下载最新版。新版本需要手动更新。') : ''
-        const latest = latestRemoteVersion()
+        const automaticHint = entry.version === 'auto' ? t('优先使用正在运行的版本，否则选择本机最新已安装版本；只用所选版本类型的版本，未安装时会在首次启动下载该类型的最新版。新版本需要手动更新。') : ''
+        const latest = launchLatestVersion(entry)
         // 「新版本」只给 auto 条目看：钉死版本的启动项是故意留的，冒一个更新按钮出来
         // 会把钉子拔掉、跟别的条目撞成同一个实例（两张一样的卡就是这么来的）；
-        // 想动钉子走「编辑启动项」的版本下拉。
+        // 想动钉子走「编辑启动项」的版本下拉。提醒的是这个启动项所跟通道里的最新版。
         const hasNewVersion = entry.version === 'auto' && version && latest && compareVersion(latest, version) > 0
         const installNote = !installedList().includes(version) && !live ? t('首次启动会自动安装') : ''
         return `<div class="launch-preset" data-launch-key="${escapeHtml(entry.id)}">
@@ -2743,8 +2828,8 @@
         button.onclick = () => {
           const entry = launchEntries().find((item) => item.id === button.dataset.versionId)
           if (!entry) return
-          // 直达带风险提示的更新确认框；拿不到远端版本号就只提示。
-          const latest = latestRemoteVersion()
+          // 直达带风险提示的更新确认框；拿不到远端版本号就只提示。升级目标跟卡片上写的同一个通道版本。
+          const latest = launchLatestVersion(entry)
           if (!latest) { notify(t('暂时无法获取最新版本')); return }
           showAsk({
             dsh: {
@@ -2857,13 +2942,19 @@
     // 避免先发的旧结果把强制刷新拉回来的新版本又盖回去。
     let versionCheckSeq = 0
 
+    /** 安装状态改变后，旧请求的版本结论已经过期，连同启动器检查一起作废。 */
+    function resetVersionCheck() {
+      ++versionCheckSeq
+      versionCheck = { busy: false, message: '', error: '' }
+    }
+
     /** 检测结果说人话：新版本 / 已是最新 / 还没装过，外加启动器自己有没有新版。 */
     function describeVersionCheck(data) {
-      const latest = String(data?.latest || '')
+      const latest = String(data?.updateLatest ?? data?.latest ?? '')
       const current = String(data?.current || '')
       const parts = []
       if (!latest) parts.push(t('没读到远程版本，检查网络或下载源后重试。'))
-      else if (!current) parts.push(t('本机还没装过任何版本，最新版本是 {version}。', { version: latest }))
+      else if (!current) parts.push(t('当前版本类型尚未安装，最新版本是 {version}。', { version: latest }))
       else if (data.update) parts.push(t('发现新版本 {version}（本机最新已装 {current}），可在上方选择安装。', { version: latest, current }))
       // 拿本机版本说「已是最新」：镜像源可能比官方慢一拍，远程列表里的 latest 反而更旧
       else parts.push(t('已是最新版本（{version}）。', { version: current }))
@@ -2895,6 +2986,13 @@
         versionCheck = { busy: false, message: quietMessage, error: '' }
         // 启动器那侧查不到时不要抹掉首页已有的更新按钮，只在拿到版本号时同步
         if (data.self && data.self.latest) applySelfUpdate(data.self)
+        // 启动器检查单独返回：GitHub 的超时不能锁住 dsh 安装；静默打开只用服务端已有缓存。
+        if (!quiet) void getJson('/api/self?refresh=1').then((self) => {
+          if (seq !== versionCheckSeq || !self?.latest) return
+          applySelfUpdate(self)
+          versionCheck.message = describeVersionCheck({ ...data, self })
+          render()
+        }).catch(() => {})
       } catch (error) {
         if (seq !== versionCheckSeq) return
         versionCheck = { busy: false, message: '', error: quiet ? '' : t('检测版本失败：{message}', { message: error.message }) }
@@ -2907,7 +3005,7 @@
       // 手动安装只增添运行时，不停实例、不启动页面，也不改启动项版本或编辑器草稿。
       action = 'install'
       // 安装开始后「发现新版本」那行就过期了：进度优先，别两者叠着显示
-      versionCheck = { busy: false, message: '', error: '' }
+      resetVersionCheck()
       render()
       try {
         await post('/api/install', { version })
@@ -2919,7 +3017,7 @@
     async function optimizeVersion(version) {
       if (!version || action || state.installing || runningInfo(version)) return
       action = 'optimize'
-      versionCheck = { busy: false, message: '', error: '' }
+      resetVersionCheck()
       render()
       try {
         await post('/api/versions/optimize', { version })
@@ -3007,7 +3105,7 @@
         : t('卸载 {version}？插件和数据会保留。', { version }))
       if (!ok) return
       action = 'uninstall'
-      versionCheck = { busy: false, message: '', error: '' }
+      resetVersionCheck()
       render()
       try {
         await post('/api/uninstall', { version })
@@ -3036,6 +3134,8 @@
       paintLaunchHomes(entry?.dshHome || '')
       launchPortEl.value = entry?.port ? String(entry.port) : ''
       launchAutoLaunchEl.checked = entry?.autoLaunch === true
+      launchUpdateChannelEl.value = String(UPDATE_CHANNELS.indexOf(launchChannel(entry)))
+      paintLaunchChannel()
       launchDeleteEl.hidden = !entry || entry.id === DEFAULT_LAUNCH_ID
       document.getElementById('launchDialogTitle').textContent = t(entry ? '编辑启动项' : '添加启动项')
       showDialog(launchDialogEl)
@@ -3063,6 +3163,8 @@
       render()
     }
     launchAddEl.onclick = () => openLaunchEditor()
+    // render 在弹窗开着时会重画开关的档名与说明，也会按新类型重算「自动最新版本」落到的版本
+    launchUpdateChannelEl.oninput = render
     document.getElementById('launchDialogClose').onclick = closeLaunchEditor
     launchDialogEl.onclick = (event) => { if (event.target === launchDialogEl) closeLaunchEditor() }
     launchDialogEl.onkeydown = (event) => {
@@ -3084,6 +3186,7 @@
           version: versionValue || 'auto', profile: launchProfile, port: launchPortEl.value.trim(),
           dshHome: launchDshHomeEl.value.trim(),
           autoLaunch: launchAutoLaunchEl.checked,
+          updateChannel: draftLaunchChannel(),
         })
         updateLaunchEntry(data.entry)
         launchSaveEl.disabled = false
@@ -3126,7 +3229,13 @@
       const version = selected()
       const anyLive = version ? runningInfo(version) : null
       const loading = Boolean(action) || Boolean(state.installing)
-      updateEl.hidden = !version || !have.has(version) || !latest || compareVersion(latest, version) <= 0
+      // 弹窗里的「更新版本」也是一种提醒，跟三档开关当前指的通道走（这排按钮眼下被 launcher.css
+      // 整排藏起来了，但它露出来时口径要和卡片上的「新版本」一致）。
+      // 上面「最新」角标只是标出远端最高的版本，不算提醒，不跟通道。
+      const channelLatest = channelLatestVersion(draftLaunchChannel())
+      // 退档取决于远端和已装版本，状态推送可能在弹窗开着时改了它；说明跟着刷新（开关的值是草稿，不动）
+      if (!launchDialogEl.hidden) paintLaunchChannel()
+      updateEl.hidden = !version || !have.has(version) || !channelLatest || compareVersion(channelLatest, version) <= 0
       removeEl.hidden = !have.has(version) || Boolean(anyLive)
       for (const button of [updateEl, removeEl]) button.disabled = loading
       document.getElementById('launchVersionTools').hidden = [updateEl, removeEl].every((button) => button.hidden)
@@ -3272,7 +3381,8 @@
       }
     }
     updateEl.onclick = () => {
-      const latest = latestRemoteVersion()
+      // 按钮只在弹窗里，升级目标就是按钮露出来时依据的那个通道最新版（见 render）
+      const latest = channelLatestVersion(draftLaunchChannel())
       if (!latest) return
       // 升级会停掉运行中的实例，还可能让第三方插件失效：先弹确认，风险写在弹窗里
        showAsk({ dsh: { current: selected() || latest, latest } })
@@ -3374,6 +3484,8 @@
           ? data.instancePorts
           : (state.instancePorts || {}),
         launchPresets: Array.isArray(data.launchPresets) ? data.launchPresets : (state.launchPresets || []),
+        // 老服务进程没有这个字段：留空，自动选版本按以前不分类型的口径走（见 recommendedVersion）
+        channelPlans: data.channelPlans && typeof data.channelPlans === 'object' ? data.channelPlans : null,
         autoFix: data.autoFix ?? null,
         recovery: state.recovery,
         health: data.health ?? null,

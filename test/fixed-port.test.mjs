@@ -19,7 +19,6 @@ import { join } from 'node:path'
 import test from 'node:test'
 import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
-import { cmpVer, parseVer } from '../version.js'
 
 const page = readFileSync(fileURLToPath(new URL('../public/index.html', import.meta.url)), 'utf8')
 
@@ -391,9 +390,8 @@ test('内置项始终存在，编辑启动项不提前改变实例端口', async
   const stored = JSON.parse(readFileSync(join(APP, 'settings.json'), 'utf8'))
   assert.equal(find(stored).port, port)
   await assert.rejects(api('/api/launch-presets', { name: '重复', version: B, profile: 'work' }), /已有启动项/)
-  // 测试机器可能另有全局安装，auto 应按真实已装最高版本查重，不能假定总是 fixture 的 B。
-  const automaticVersion = (await state()).versions.map((item) => item.version)
-    .sort((a, b) => cmpVer(parseVer(b), parseVer(a)))[0]
+  // auto 跟随内置项的版本类型，不能拿本机更高的其他通道版本来断言它重复。
+  const automaticVersion = (await state()).channelPlans.official.installed[0]
   await assert.rejects(api('/api/launch-presets', { name: '自动重复', version: automaticVersion, profile: 'web' }), /已有启动项/)
   await assert.rejects(api('/api/launch-presets', { name: '无效端口', version: B, profile: 'web', port: 70000 }), /端口要填/)
   await pin(B, created.entry.port, created.entry.profile)

@@ -30,7 +30,7 @@ function ui({ installed = ['0.1.0'], instances = [], homes = false } = {}) {
     },
     launchDialogEl: { hidden: true }, launchSaveEl: { disabled: false }, launchDeleteEl: { disabled: false }, launchDialogClosing: false,
     launchPresetsEl: list, launchHomeMarkup: '', launchAddEl: { hidden: true, disabled: false, focus() {} },
-    DEFAULT_LAUNCH_ID: 'a', latestRemoteVersion: () => '0.1.0', compareVersion: () => 0,
+    DEFAULT_LAUNCH_ID: 'a', latestRemoteVersion: () => '0.1.0', launchLatestVersion: () => '0.1.0', compareVersion: () => 0,
     launchIconMarkup: () => '<svg></svg>', escapeHtml: (value) => String(value || ''), t: (value) => value,
     document: { activeElement: null },
   })

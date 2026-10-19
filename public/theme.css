@@ -10,6 +10,8 @@ html[data-color-scheme="dark"] {
   --accent-soft: #34353a;
   --accent-dim: #44454b;
   --danger: #f0f0f2;
+  --switch-off: #66656d;
+  --switch-on: #a6a7ad;
 }
 
 html[data-color-scheme="dark"] .backdrop {
@@ -84,8 +86,6 @@ html[data-color-scheme="dark"] select {
 }
 html[data-color-scheme="dark"] .select.open .select-trigger { background: #3b3c41; }
 html[data-color-scheme="dark"] .select-option.selected .opt-badge { border-color: #898a91; }
-html[data-color-scheme="dark"] .toggle input { background: #66656d; }
-html[data-color-scheme="dark"] .toggle input:checked { background: #a6a7ad; }
 html[data-color-scheme="dark"] .ghost { color: var(--accent); }
 /* 环境详情的返回键是导航不是操作：保持无边框透明，悬停只铺软底 */
 html[data-color-scheme="dark"] .pack-detail-top .pack-back { background: transparent; border-color: transparent; color: var(--muted); }

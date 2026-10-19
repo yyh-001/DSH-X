@@ -13,6 +13,10 @@
   --control-font-size: 13px;
   --control-radius: 9px;
   --control-padding: 12px;
+  /* 开关的轨道与圆钮：两档的 .toggle 和更新提醒的三档开关共用，暗色主题只改这里 */
+  --switch-off: #cfdcf3;
+  --switch-on: var(--accent);
+  --switch-knob-shadow: 0 1px 3px rgba(22, 35, 61, 0.25);
 }
 .environment-entry { min-height: 32px; padding: 5px 13px; font-size: 13px; }
 .environment-entry[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
@@ -536,6 +540,52 @@ html.reduce-motion .launch-status.is-working::before { animation: none; }
 .launch-modal-fields { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 18px; margin: -2px; padding: 2px; flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; }
 #launchDialog .home-field > label { font-size: 12px; letter-spacing: 0; }
 .toggle.launch-auto-launch { margin: 0; font-size: 12px; }
+/* 更新提醒跟版本下拉同一行：开关只占自身宽度，剩下的都给版本；窄到放不下时整块换到下一行。
+   开关高 26px、下拉高 42px，靠控件盒子撑到同高再居中，两边的控件才对得齐。 */
+.launch-channel-field { flex: 0 0 auto; }
+.launch-channel-control { display: flex; align-items: center; gap: 8px; height: 42px; }
+/* 档名会在「正式版 / Official / RC / Alpha」间切换，留够最长那个的宽度，切档时整行不跟着晃 */
+#launchUpdateChannelName { min-width: 4em; color: var(--text); font-size: 13px; }
+/* 说明要讲清三档各收哪些版本，开关旁边放不下，单独占满下一行；负边距抵掉一部分行间距，贴着上面的控件 */
+#launchUpdateChannelHint { flex-basis: 100%; margin: -4px 0 0; font-size: 12px; }
+/* 三档开关：照 .toggle 的两档开关画（同一套轨道色、20px 圆钮、3px 内边、每档行程 18px），只是多一档；
+   用 range 而不是三个单选，拖动、点轨道跳档、方向键都是原生的。
+   控件盒子只有圆钮的行程那么大，外圈 3px 内边用同色阴影补出来：range 的内边距 Chromium 和 WebKit
+   处理不一样，靠它缩行程会让圆钮停不准；margin 给阴影留位，换行贴到弹窗左边时不被裁掉。
+   三个小点标出能停的位置，圆钮压住的就是当前档。正式版算「关」（不收预发布），RC / Alpha 算「开」，轨道色按这个分。 */
+#launchUpdateChannel {
+  --knob: 20px;
+  --inset: 3px;
+  --travel: 18px;
+  --dot: radial-gradient(circle 2px, rgb(255 255 255 / 70%) 95%, transparent) no-repeat;
+  --track: var(--switch-off);
+  appearance: none;
+  -webkit-appearance: none;
+  display: block;
+  width: calc(var(--knob) + var(--travel) * 2);
+  height: var(--knob);
+  margin: var(--inset);
+  padding: 0;
+  border-radius: 999px;
+  background: var(--dot), var(--dot), var(--dot), var(--track);
+  background-size: var(--knob) var(--knob);
+  background-position: left center, center, right center;
+  box-shadow: 0 0 0 var(--inset) var(--track);
+  cursor: pointer;
+  transition: background-color 220ms ease, box-shadow 220ms ease;
+}
+#launchUpdateChannel:not([data-channel="official"]) { --track: var(--switch-on); }
+#launchUpdateChannel::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: var(--knob);
+  height: var(--knob);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: var(--switch-knob-shadow);
+}
+#launchUpdateChannel:focus-visible { outline: 1px solid var(--accent); outline-offset: calc(var(--inset) + 2px); }
+html.reduce-motion #launchUpdateChannel { transition: none; }
+@media (prefers-reduced-motion: reduce) { #launchUpdateChannel { transition: none; } }
 .launch-version-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
 .launch-version-tools[hidden] { display: none; }
 .launch-version-tools .hint { flex-basis: 100%; margin: 0; }
@@ -726,7 +776,7 @@ select {
   height: 26px;
   margin: 0;
   flex: 0 0 auto;
-  background: #cfdcf3;
+  background: var(--switch-off);
   border: 0;
   border-radius: 999px;
   position: relative;
@@ -741,11 +791,11 @@ select {
   width: 20px;
   height: 20px;
   background: #fff;
-  box-shadow: 0 1px 3px rgba(22, 35, 61, 0.25);
+  box-shadow: var(--switch-knob-shadow);
   border-radius: 50%;
   transition: transform 220ms cubic-bezier(.2,.8,.2,1);
 }
-.toggle input:checked { background: var(--accent); }
+.toggle input:checked { background: var(--switch-on); }
 .toggle input:checked::after { transform: translateX(18px); }
 .toggle input:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
 .toggle input.is-switching { opacity: 1; cursor: default; }

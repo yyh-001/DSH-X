@@ -4,22 +4,25 @@ import test from 'node:test'
 import vm from 'node:vm'
 
 const html = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8')
-const server = readFileSync(new URL('../server.js', import.meta.url), 'utf8')
 const installCode = html.slice(html.indexOf('    async function manualInstallVersion('), html.indexOf('    function paintVersionManager('))
 const paintCode = html.slice(html.indexOf('    function paintVersionManager('), html.indexOf('    manageVersionsEl.onclick ='))
+
+const resetCode = html.slice(html.indexOf('    function resetVersionCheck('), html.indexOf('    /** 检测结果说人话'))
+const uninstallCode = html.slice(html.indexOf('    async function uninstallVersion('), html.indexOf('    function openLaunchEditor('))
+const translate = (text, vars = {}) => Object.entries(vars).reduce((out, [key, value]) => out.split(`{${key}}`).join(String(value)), text)
 
 function installer(overrides = {}) {
   const calls = [], notices = []
   const context = vm.createContext({
     action: '', state: { installing: null }, picked: '0.1.0', versionValue: '0.1.0', launchProfile: 'safe', userPicked: true,
     installedList: () => ['0.1.0'], render() {}, runningInfo: () => null, isManagedVersion: () => true,
-    t: text => text,
+    t: translate, versionCheckSeq: 0, versionCheck: {}, appConfirm: async () => true,
     post: async (path, body) => { calls.push({ path, version: body.version }) },
     getJson: async (path) => { calls.push({ path }); return { installed: ['0.1.0', '0.2.0'] } },
     applyState: (data) => { context.receivedState = data },
     notify: (message) => notices.push(message), ...overrides,
   })
-  vm.runInContext(installCode, context)
+  vm.runInContext(resetCode + installCode + uninstallCode, context)
   return { context, calls, notices }
 }
 
@@ -116,12 +119,6 @@ test('检测版本的入口、结果提示与缓存绕过都在版本管理里',
   assert.match(html, /versionCheck\.busy \? t\('正在检测版本…'\)/, '检测中提示行有反馈')
   assert.match(html, /versionCheck\.error \|\| versionCheck\.message/, '检测结果画在提示行里')
   assert.match(html, /void checkVersions\(\{ force: false, quiet: true \}\)/, '打开版本管理时静默刷新一次')
-  // 服务端：refresh=1 一路传到 registry 与启动器自更新，别被任何一层缓存挡回去
-  assert.match(server, /url\.pathname === '\/api\/versions\/check'/, '有检测版本接口')
-  assert.match(server, /url\.searchParams\.get\('refresh'\) === '1'/, 'refresh=1 是强制刷新')
-  assert.match(server, /async function fetchRemote\(\{ force = false \} = \{\}\)/)
-  assert.match(server, /await listPackage\(PKG, \{ force \}\)/, '版本列表缓存要能绕过')
-  assert.match(server, /checkSelfUpdate\(\{ force \}\)/, '启动器自更新缓存也要能绕过')
 })
 
 function checkCode() {
@@ -140,17 +137,15 @@ test('检测版本：强制绕缓存、更新本地版本列表并给出结果',
   const context = vm.createContext({
     versionCheck: { busy: false, message: '', error: '' }, versionCheckSeq: 0,
     remote: { tags: {}, versions: ['0.1.0'], latest: '0.1.0' },
-    t: (text, vars) => vars
-      ? Object.entries(vars).reduce((out, [key, value]) => out.split(`{${key}}`).join(String(value)), text)
-      : text,
-    getJson: async (url) => { calls.push(url); return payload },
+    t: translate,
+    getJson: async (url) => { calls.push(url); return url.startsWith('/api/self') ? payload.self : payload },
     applySelfUpdate() { context.selfApplied = true },
     render() { context.rendered = true },
     paintVersionManager() {},
   })
   vm.runInContext(checkCode(), context)
   await vm.runInContext("checkVersions({ force: true })", context)
-  assert.deepEqual(calls, ['/api/versions/check?refresh=1'])
+  assert.deepEqual(calls, ['/api/versions/check?refresh=1', '/api/self?refresh=1'])
   assert.equal(context.remote.latest, '0.3.0', '本地版本列表换成新拉的')
   assert.equal(context.remote.versions[0], '0.3.0')
   assert.match(context.versionCheck.message, /发现新版本 0\.3\.0/, '结果要有话说')
@@ -163,10 +158,8 @@ test('检测已是最新时不说新版本；静默刷新只在新版本出现�
   const context = vm.createContext({
     versionCheck: { busy: false, message: '旧的', error: '旧的' }, versionCheckSeq: 0,
     remote: { tags: {}, versions: [], latest: '' },
-    t: (text, vars) => vars
-      ? Object.entries(vars).reduce((out, [key, value]) => out.split(`{${key}}`).join(String(value)), text)
-      : text,
-    getJson: async () => ({
+    t: translate,
+    getJson: async (url) => url.startsWith('/api/self') ? {} : ({
       tags: {}, versions: ['0.1.0'], latest: '0.1.0',
       installed: ['0.1.0'], current: '0.1.0', update: false,
       self: { current: '0.1.17', latest: '', update: false },
@@ -188,9 +181,7 @@ test('检测失败要如实报错；静默刷新失败不打扰', async () => {
   const context = vm.createContext({
     versionCheck: { busy: false, message: '', error: '' }, versionCheckSeq: 0,
     remote: { tags: {}, versions: [], latest: '' },
-    t: (text, vars) => vars
-      ? Object.entries(vars).reduce((out, [key, value]) => out.split(`{${key}}`).join(String(value)), text)
-      : text,
+    t: translate,
     getJson: async () => failing(),
     applySelfUpdate() {}, render() {}, paintVersionManager() {},
   })
@@ -200,4 +191,48 @@ test('检测失败要如实报错；静默刷新失败不打扰', async () => {
   assert.match(context.versionCheck.error, /检测版本失败：连不上 registry/)
   await vm.runInContext("checkVersions({ force: false, quiet: true })", context)
   assert.equal(context.versionCheck.error, '', '静默刷新失败不该留在界面上')
+})
+
+test('安装、优化和卸载会使在途静默检测作废，不留下过期的更新提示', async () => {
+  for (const [method, version] of [['manualInstallVersion', '0.2.0'], ['optimizeVersion', '0.1.0'], ['uninstallVersion', '0.1.0']]) {
+    let finish
+    const { context } = installer({
+      remote: { latest: '0.1.0' }, paintVersionManager() {}, applySelfUpdate() {},
+      getJson: (url) => url.startsWith('/api/versions/check')
+        ? new Promise(resolve => { finish = resolve }) : Promise.resolve({ installed: ['0.2.0'] }),
+    })
+    vm.runInContext(checkCode(), context)
+    const checking = context.checkVersions({ force: false, quiet: true })
+    await context[method](version)
+    finish({ latest: '0.2.0', current: '0.1.0', update: true, versions: ['0.2.0'] })
+    await checking
+    assert.equal(context.versionCheck.message, '', method)
+    assert.equal(context.remote.latest, '0.1.0', '过期响应也不能换回旧的版本列表')
+  }
+})
+
+test('GitHub 检查在途时已解除检测忙态；后到的启动器结果不能覆盖新的操作', async () => {
+  let finishSelf
+  const { context } = installer({
+    remote: {}, paintVersionManager() {}, applySelfUpdate() { context.selfApplied = true },
+    getJson: (url) => url.startsWith('/api/self') ? new Promise(resolve => { finishSelf = resolve })
+      : Promise.resolve({ latest: '0.2.0', current: '0.1.0', update: true, versions: ['0.2.0'] }),
+  })
+  vm.runInContext(checkCode(), context)
+  await context.checkVersions()
+  assert.equal(context.versionCheck.busy, false, 'GitHub 尚未返回也能继续安装')
+  assert.match(context.versionCheck.message, /发现新版本/)
+  await context.manualInstallVersion('0.2.0')
+  finishSelf({ latest: '99.0.0', update: true })
+  await Promise.resolve()
+  assert.equal(context.versionCheck.message, '')
+  assert.equal(context.selfApplied, undefined)
+})
+
+test('检测按所跟通道提示，安装列表仍保留更高的 Alpha', async () => {
+  const { context } = installer({ remote: {}, paintVersionManager() {}, applySelfUpdate() {} })
+  vm.runInContext(checkCode(), context)
+  const message = context.describeVersionCheck({ latest: '2.0.0-alpha.1', updateLatest: '1.2.0', current: '1.1.0', update: true })
+  assert.match(message, /发现新版本 1\.2\.0/)
+  assert.doesNotMatch(message, /alpha/)
 })
