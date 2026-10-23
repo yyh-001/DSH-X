@@ -1705,13 +1705,15 @@ export function dshEnv(version, options = {}) {
     // 只给官方市场 schema 提供缺省值；用户保存过的 indexes（包括空数组）始终优先。
     DSH_X_PLUGIN_MARKET_SOURCES: JSON.stringify(safePluginMarketSources(loadSettingsSync().pluginMarketSources)),
     // 只有「必须被 dsh 起的 worker 线程继承」的东西留在这里：worker 的 execArgv 是空的，
-    // 命令行参数传不进去，只能靠 NODE_OPTIONS（这里只放文件名，目录靠下面的 NODE_PATH 传）。
+    // 命令行参数传不进去，只能靠 NODE_OPTIONS（路径写法见 nodeOptionsPath）。
     // dsh 自己要的那几个开关（--use-system-ca、--max-http-header-size、--import 钩子）走命令行，
     // 见 spawnDsh：NODE_OPTIONS 会被**所有**子进程继承，agent 在 shell 里跑的 node 万一是老版本，
     // 撞上 --use-system-ca 这种新开关会直接 bad option 退出。
+    // 同理**不能靠 NODE_PATH 传目录**：非纯 Node 宿主（Electron 主进程）不消费 NODE_PATH，
+    // NODE_OPTIONS 里的裸文件名会直接 Cannot find module，把人家整个进程顶掉。
     NODE_OPTIONS: [
       process.env.NODE_OPTIONS,
-      workerCompat ? `--require ${basename(WORKER_COMPAT)}` : '',
+      workerCompat ? `--require ${nodeOptionsPath(WORKER_COMPAT)}` : '',
     ].filter(Boolean).join(' '),
     npm_config_ignore_workspace_root_check: 'true',
     // 下载源也传给 dsh 子进程：插件安装/升级是 dsh 自己跑 pnpm，不传的话它会按 pnpm 自己的
@@ -1724,10 +1726,6 @@ export function dshEnv(version, options = {}) {
     // 末尾追加两个目录：先是启动器写的 dsh shim（node 写死成启动器自己的），再是版本自己的
     // .bin（里面有 cordis 之类的入口）。追加不插队 —— 用户自己的 dsh 仍然优先。
     PATH: withVersionBin(withBundledRuntime(process.env.PATH || '', options.pnpmDir), join(DATA, '.bin'), versionBinDir(version)),
-  }
-  if (workerCompat) {
-    // NODE_PATH 是分号分隔的，条目本身带空格没关系，正好兜住带空格的安装路径
-    env.NODE_PATH = [WORKER_COMPAT_DIR, process.env.NODE_PATH].filter(Boolean).join(delimiter)
   }
   return env
 }
@@ -2393,14 +2391,26 @@ const HOOKS = [
 /**
  * worker 线程用 --require 注入（execArgv 被清空，只有 NODE_OPTIONS 能传进去）。
  *
- * 注意 NODE_OPTIONS 是按空格分词的，写绝对路径时只要安装目录带空格（装到
- * `D:\Program Files\DSH` 这种），就会被切成半截路径，node 拿它去 require 直接
- * 起不来——报 `Cannot find module 'D:/Program'`。引号、反斜杠转义都救不了，所以
- * 这里改成把目录放进 NODE_PATH、NODE_OPTIONS 里只写不带空格的裸文件名；
- * NODE_PATH 是分号分隔的，条目带空格没问题。
+ * NODE_OPTIONS 是按空格分词的，安装目录带空格（装到 `D:\Program Files\DSH` 这种）会被
+ * 切成半截路径，node 拿它去 require 直接起不来——报 `Cannot find module 'D:/Program'`。
+ * 所以这里写绝对路径，但写法有讲究：
+ *
+ * - 加引号能挡住空格，但**引号会把反斜杠吃掉**：`--require "C:\a b\x.cjs"` 会变成
+ *   `C:abx.cjs`（引号、反斜杠转义都救不了，正是这里踩过的坑）；
+ * - 把反斜杠换成正斜杠就没事：node 与 Electron 都认 `C:/a b/x.cjs`，空格也不再是问题。
+ *
+ * 以前是靠「NODE_PATH 传目录 + NODE_OPTIONS 里只写裸文件名」绕开空格的，但 **NODE_PATH 只在
+ * 纯 Node 里生效**：Electron 主进程的模块加载器初始化不消费它，裸文件名直接 Cannot find
+ * module，把 Electron 应用整个顶死（它在任何 JS 起来之前就退了）。而这份 NODE_OPTIONS 会被
+ * dsh 的**所有**子进程继承，agent 在 shell 里跑 Electron 是常规操作，不能留这个坑。
  */
 const WORKER_COMPAT = join(ROOT, 'compat', 'worker-events.cjs')
-const WORKER_COMPAT_DIR = dirname(WORKER_COMPAT)
+
+/** 绝对路径进 NODE_OPTIONS 的写法：反斜杠换正斜杠，只有含空白时才包引号。 */
+export function nodeOptionsPath(target) {
+  const slashed = target.replace(/\\/g, '/')
+  return /\s/.test(slashed) ? `"${slashed}"` : slashed
+}
 
 /**
  * dsh 的 CLI 会在参数解析阶段就拒掉的 profile 名（现在只有 `desktop` —— 官方把它留给自家

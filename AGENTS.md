@@ -99,7 +99,7 @@ dsh 的环境隔离单位。模板名（web / headless / acp / sdk / …）会�
 ### 注入进 dsh 的钩子（compat / perf）
 
 - `compat/register.mjs`、`perf/register.mjs` 由启动器注入；worker 线程注入的是 `compat/worker-events.cjs`（worker 的 execArgv 是空的，只能靠 NODE_OPTIONS）。
-- NODE_OPTIONS 里**只写裸文件名**，目录靠 NODE_PATH 传——NODE_OPTIONS 按空格分词，安装目录带空格会被拆坏。
+- NODE_OPTIONS 里的路径走 `nodeOptionsPath()`（`server.js`）：反斜杠换正斜杠、含空白才包引号——**引号会吃反斜杠**，所以不能只加引号。**别退回「NODE_PATH 传目录 + 裸文件名」**：Electron 主进程不消费 NODE_PATH，会把应用顶死。
 - dsh 自己的 Node 开关（系统证书库、请求头上限、两个 ESM 补丁钩子）走**命令行参数**，不塞 NODE_OPTIONS：后者会被 dsh 的所有子进程继承，agent 在 shell 里跑的 node 可能是老版本。
 - 改会话事件词汇表（`SESSION_TYPES`）要**两处同步**：主线程的 `compat/session-events.mjs` 与 worker 的 `compat/worker-events.cjs` 各有一份副本。
 

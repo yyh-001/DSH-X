@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { delimiter, dirname, join } from 'node:path'
+import { delimiter, dirname, isAbsolute, join } from 'node:path'
 import test from 'node:test'
 
-import { decodeProcessOutput, describePluginFailure, dshArgs, dshEnv, orderRuntimePaths, pathWithEntry, pickPnpmDir, pnpmCandidates, profileStoreVersion, withBundledRuntime, withVersionBin, writeDshShims } from '../server.js'
+import { decodeProcessOutput, describePluginFailure, dshArgs, dshEnv, nodeOptionsPath, orderRuntimePaths, pathWithEntry, pickPnpmDir, pnpmCandidates, profileStoreVersion, withBundledRuntime, withVersionBin, writeDshShims } from '../server.js'
 
 const BUNDLED = 'E:\\DSH\\node'
 
@@ -134,6 +134,29 @@ test('dsh 的开关在命令行上，不进 NODE_OPTIONS；worker 需要的 --re
   assert.ok(!env.NODE_OPTIONS.includes('--use-system-ca'), '不能漏给子进程')
   assert.ok(!env.NODE_OPTIONS.includes('--max-http-header-size'), '不能漏给子进程')
   assert.match(env.NODE_OPTIONS, /--require /, 'worker 线程那份 CJS 补丁必须留着')
+})
+
+// worker 那份补丁要进 NODE_OPTIONS，而 NODE_OPTIONS 会被所有子进程继承。以前是「NODE_PATH 传
+// 目录 + NODE_OPTIONS 里只写裸文件名」——但 NODE_PATH 只有纯 Node 认，Electron 主进程的模块
+// 加载器初始化不消费它，裸文件名直接 Cannot find module，把应用在起来之前就顶死。
+test('worker 补丁进 NODE_OPTIONS 用的是绝对路径，不再靠 NODE_PATH', () => {
+  const env = dshEnv('0.1.7-rc.1')
+  // 别假设 process.env.NODE_OPTIONS 是空的：开发机/CI 上可能本来就有值（本仓库自己就会设），
+  // 这里只挑 dsh 加进去的那一条（指向 worker-events.cjs 的绝对路径）。
+  const targets = [...env.NODE_OPTIONS.matchAll(/--require\s+(\S+)/g)]
+    .map((match) => match[1].replace(/^"|"$/g, ''))
+  const ours = targets.filter((target) => isAbsolute(target) && target.endsWith('worker-events.cjs'))
+
+  assert.equal(ours.length, 1, `dsh 的 worker 补丁必须以绝对路径注入：${env.NODE_OPTIONS}`)
+  assert.ok(!ours[0].includes('\\'), '正斜杠才安全：NODE_OPTIONS 里加引号会把反斜杠吃掉')
+  assert.ok(!String(env.NODE_PATH || '').split(delimiter).includes(dirname(ours[0])),
+    '补丁目录不能再往 NODE_PATH 里塞——非纯 Node 宿主不认它')
+})
+
+test('NODE_OPTIONS 里的路径：反斜杠换正斜杠，含空白才包引号', () => {
+  assert.equal(nodeOptionsPath(BUNDLED), 'E:/DSH/node', '没有空白就不包引号')
+  assert.equal(nodeOptionsPath('E:\\Program Files\\DSH\\compat\\worker-events.cjs'),
+    '"E:/Program Files/DSH/compat/worker-events.cjs"', '带空白才包引号，且必须是正斜杠')
 })
 
 test('dsh shim 用的是启动器自己的 node：用户那套 node 再老也带得动', () => {
