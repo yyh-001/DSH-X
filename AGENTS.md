@@ -56,7 +56,10 @@ Node 服务  start.js → server.js        管理页后端 + 版本 / 插件 / �
 | `zip.js` / `zipfile.js` | zip 的写与读（手写，无依赖） |
 | `sync.js` | 同步引擎：S3 / WebDAV / 本地目录 / ZIP 四种后端共用一个"远端"抽象 |
 | `proxy.js` | `netFetch`：Node 全局 fetch 不看系统代理，所有外网请求走它 |
-| `platform.js` | 平台差异集中地（每用户目录、运行时布局、外壳文件名）；**打包脚本必须跟它保持一致** |
+| `platform.js` | 平台常量与「Electron 本体当 node 用」的推导（`RUNTIME_NODE` / `RUNTIME_NODE_ENV`）；只有常量，没有行为 |
+| `filemanager.js` | 按平台挑一套文件管理实现，导出 `fileManager` 与 `APP_DIR`；业务代码只认它 |
+| `filemanager-base.js` | 那个接口本身：契约、默认实现、Linux 的 xdg-open 兜底（`PosixFileManager`） |
+| `filemanager-windows.js` / `filemanager-mac.js` | 两套实现类，**各自只进对应平台的安装包** |
 | `plugin-tool.js` | 命令行开关插件（dsh 起不来时的救命工具），有可执行位 |
 | `stdio-unblock.cjs` | stdout/stderr 阻塞模式修补（`--require` 注入用） |
 | `public/` | 管理界面与看板娘素材（`index.html` 是主体） |
@@ -96,6 +99,17 @@ dsh 的环境隔离单位。模板名（web / headless / acp / sdk / …）会�
 - 没有「内置插件」这条路：预置到当前 profile 的开关、随包发插件的复制逻辑、整合包里的 `"…": "bundled"` 依赖解析都已撤（`planInstall` 见到 `bundled` 会直接报错）。
 - 为什么不能合并：`.dspack` 只认 `overrides/`、`home/`、`profiles/` 与几个根文件，插件源码放进去会被当"不属于整合包"跳过（`packs.js` 的解析）；反过来 `plugins/` 下每个子目录都被当成一个 npm 包。
 
+### 文件管理：一个接口，两套实现
+
+每用户目录与安装布局、路径大小写、目录链接类型、系统文件对话框、在资源管理器 / 访达里打开或定位、交给系统默认程序打开地址、登录自启——这些**全部**走 `filemanager.js` 导出的 `fileManager`，业务代码里不再写 `process.platform === 'win32' ? … : …`。
+
+- 契约在 `filemanager-base.js` 的 `FileManager` 上，每个方法的注释就是规范（失败怎么抛、取消返回什么、哪些错误可以当成成功）。
+- `filemanager.js` 用**动态 import** 挑实现：另一套实现根本不在安装目录里，静态 import 会直接报模块找不到。它有顶层 await，所以实现类静态 import 的是 `filemanager-base.js` 而不是它——反过来 import 会死锁（Node 报 unsettled top-level await），这也是基类单独一个文件的唯一理由。
+- 实现类的外部依赖（`execFile`、`statSync`、`existsSync`、`env`、`home`、`root`）都从构造函数注进去，所以 `test/filemanager.test.mjs` 能在一台机器上把两套实现跑在同一组断言上，不按平台 skip。
+- `platform.js` 只剩常量与 `RUNTIME_NODE` 那套推导：打包脚本要在任何一台机器上 import 它，不能被平台判断牵连；`launchArgs()` 也用 `RUNTIME_NODE`，Electron 里它就是 Electron 本体。
+- **加 Linux**：照着两个实现类写一个 `filemanager-linux.js`，在 `filemanager.js` 的 `pickFileManager()` 里挂上，加进 `pack-common.mjs` 的 `FILE_MANAGERS`，再把它加进 `test/filemanager.test.mjs` 的 `IMPLEMENTATIONS`（那条「必须自己实现」的用例会替你盯着哪些方法不能漏）。在那之前 Linux 落到 `PosixFileManager`：xdg-open 能用，对话框和自启如实报不支持。
+- 还留在 `server.js` 里的平台判断是**另一摊事**，故意没收进来：pnpm 子进程怎么起、`killTree`、GB18030 解码、Chromium 的安装位置、自更新包的名字。它们不是文件管理，而且本来就按参数传平台、能直接测。
+
 ### 注入进 dsh 的钩子（compat / perf）
 
 - `compat/register.mjs`、`perf/register.mjs` 由启动器注入；worker 线程注入的是 `compat/worker-events.cjs`（worker 的 execArgv 是空的，只能靠 NODE_OPTIONS）。
@@ -105,6 +119,7 @@ dsh 的环境隔离单位。模板名（web / headless / acp / sdk / …）会�
 
 ### 打包与安装布局
 
+- 文件管理的实现类不在 `APP_FILES` 里，由 `copyAppFiles(out, platform)` 按平台挑一个（`FILE_MANAGERS`）：Windows 的包里没有 `filemanager-mac.js`，反之亦然。平台没有对应实现时打包直接报错，不会装出一个起不来的包。
 - `APP_FILES`（`scripts/pack-common.mjs`）= 启动器源码清单；`copyAppFiles` 把它们平铺拷进 app 目录（macOS: `DSH-X.app/Contents/Resources/app/`；Windows: `<安装目录>/resources/app/`），**不打 asar**：dsh 子进程要按真实路径读 `compat/`、`perf/`，包里的 `package.json` 的 `main` 改指 `shell/main.mjs`。
 - app 目录里还有 `node/`（运行时目录：只有 npm / pnpm 的 JS 包和 `node` / `node.cmd` 包装，**没有 node.exe**——dsh 子进程用 Electron 自带的 Node）、`public/`、`assets/`、`compat/`、`perf/`、`packs/`。
 - **Windows / macOS 外壳都是 Electron**：`pack.mjs`（Windows）/ `pack-mac.mjs`（macOS）用 `@electron/packager` 出空壳（可执行文件改名 `DSH` / `DSH.exe`，图标与版本信息走 packager），再把 `APP_FILES` + `shell/` + npm/pnpm 运行时拷进去，最后用 `electron-prune.mjs` 裁掉 Electron 自带的多语言、swiftshader；Windows 还裁 DXC（WebGPU 着色器编译器，`DSH_WIN_KEEP_DXCOMPILER=1` 可保留）。macOS 还多两步图标生成与签名（`mac-signing.mjs`；Electron 44 起最低 **macOS 13**）。

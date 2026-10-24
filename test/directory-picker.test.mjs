@@ -1,13 +1,9 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import test from 'node:test'
-import { isolateUserHome } from './isolated-home.mjs'
+import { WindowsFileManager } from '../filemanager-windows.js'
 
-isolateUserHome(mkdtempSync(join(tmpdir(), 'dsh-picker-script-')))
-const { directoryPickerWinScript } = await import('../server.js')
+const directoryPickerWinScript = (path) => new WindowsFileManager().directoryScript(path)
 
 test('Windows 目录选择脚本可解析，中文、空格和特殊字符路径按数据传递', { skip: process.platform !== 'win32' }, () => {
   for (const path of ['', "C:\\中文目录\\space and 'quote' $name (folder)"]) {

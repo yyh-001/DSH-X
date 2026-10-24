@@ -1,4 +1,3 @@
-import { execFile } from 'node:child_process'
 import { appendFileSync, mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -8,7 +7,7 @@ import {
   startServer,
 } from './server.js'
 import { resolvePort } from './settings.js'
-import { APP_DIR } from './platform.js'
+import { APP_DIR, fileManager } from './filemanager.js'
 
 const ROOT = dirname(fileURLToPath(import.meta.url))
 const PORT = resolvePort()
@@ -28,19 +27,12 @@ function log(...args) {
   console.error(...args)
 }
 
-/** cmd 会二次解析命令行，URL 里出现它的元字符就不安全（原因见 server.js 的 openExternal）。 */
-const CMD_SAFE_URL = /^[A-Za-z0-9\-._~:/?#\[\]@$'*,;=+]+$/
-
+/**
+ * 交给系统默认程序打开。平台差异（Windows 的 cmd 元字符过滤等）都在 fileManager 里；
+ * 这里只负责把失败写进日志——启动流程不该因为"浏览器没打开"而中断。
+ */
 function openPage(target = MANAGER_URL) {
-  if (process.platform === 'win32') {
-    if (!CMD_SAFE_URL.test(target)) {
-      log(`地址含不能安全打开的字符，已跳过：${target}`)
-      return
-    }
-    execFile('cmd', ['/c', 'start', '', target], { windowsHide: true })
-    return
-  }
-  execFile(process.platform === 'darwin' ? 'open' : 'xdg-open', [target])
+  void fileManager.openUrl(target).catch((error) => log(`打开地址失败，已跳过：${target}（${error?.message || error}）`))
 }
 
 /**

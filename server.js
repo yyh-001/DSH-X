@@ -79,7 +79,6 @@ import {
   uninstallPack,
 } from './packs.js'
 import {
-  autoStartEnabled,
   DEFAULT_PORT,
   DEFAULT_LAUNCH_ID,
   DEFAULT_UPDATE_CHANNEL,
@@ -122,12 +121,12 @@ import {
   safeUpdateChannel,
   safeWebBind,
   saveSettings,
-  setAutoStart,
   VERSION_RE,
 } from './settings.js'
 // 带代理的 fetch：Node 的全局 fetch 既不看系统代理也不看 HTTP_PROXY，外网请求都走 netFetch
 import { netFetch, proxyEnv, resetProxyCache, resolveProxy } from './proxy.js'
-import { APP_DIR, IN_ELECTRON, IS_MAC, IS_WINDOWS, LAUNCHER_NAME, MAC_APP_NAME, RUNTIME_NODE, RUNTIME_NODE_ENV, appBundle } from './platform.js'
+import { APP_DIR, fileManager } from './filemanager.js'
+import { IN_ELECTRON, IS_MAC, IS_WINDOWS, LAUNCHER_NAME, MAC_APP_NAME, RUNTIME_NODE, RUNTIME_NODE_ENV } from './platform.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -636,7 +635,7 @@ const SELF_UPDATE_PACKAGE = IS_MAC
  * 放在下载之前检查：别让用户等完上百 MB 才知道装不了。
  */
 function assertMacUpdatable() {
-  const bundle = appBundle()
+  const bundle = fileManager.appBundle()
   if (!bundle) throw new Error('从源码运行时不能自更新：请用 git pull 更新，或到发布页下载 dmg')
   // 没挪进「应用程序」就直接打开的未签名应用会被 Gatekeeper 放到只读的随机路径里（App Translocation）
   let writable = !bundle.includes('/AppTranslocation/')
@@ -1165,7 +1164,7 @@ async function publicSettings() {
     port: stored.port ?? DEFAULT_PORT,
     listenPort: PORT,
     portDefault: DEFAULT_PORT,
-    autoStart: await autoStartEnabled(),
+    autoStart: await fileManager.autoStartEnabled(),
     pluginMarketSources: safePluginMarketSources(stored.pluginMarketSources),
     autoDisablePlugins: stored.autoDisablePlugins !== false,
     autoCleanVersions: autoCleanEnabled(stored),
@@ -1603,7 +1602,7 @@ async function saveManagerSettings(body) {
   })
   if ('autoStart' in body) {
     try {
-      await setAutoStart(stored.autoStart)
+      await fileManager.setAutoStart(stored.autoStart)
     } catch (error) {
       pushLog(`开机自启未写入: ${error instanceof Error ? error.message : error}`)
     }
@@ -1736,10 +1735,7 @@ export function dshEnv(version, options = {}) {
 
 /** 某个 PATH 条目里是否已经能直接调到这个命令（Windows 上按 PATHEXT 补后缀猜）。 */
 function hasCommand(dir, name) {
-  const exts = process.platform === 'win32'
-    ? ['', ...String(process.env.PATHEXT || '.EXE;.CMD;.BAT;.COM').split(';').filter(Boolean)]
-    : ['']
-  return exts.some((ext) => existsSync(join(dir, name + ext)))
+  return fileManager.hasCommand(dir, name)
 }
 
 /**
@@ -2447,7 +2443,7 @@ export function ensureProfileAlias(profile, root = join(homeDir(), 'profiles')) 
     return ''
   } catch { /* 还没有：建一个 */ }
   try {
-    symlinkSync(target, path, process.platform === 'win32' ? 'junction' : 'dir')
+    symlinkSync(target, path, fileManager.directoryLinkType)
     return name
   } catch (error) {
     pushLog(`[插件] 建 ${name} 别名失败（${error instanceof Error ? error.message : error}）：这个保留名 profile 的插件操作仍会被 dsh 拒掉`)
@@ -4423,7 +4419,7 @@ async function renameProfile(profile, nextName) {
   if (from === name) return { ok: true, renamedProfile: name, ...packsPayload() }
   const root = dirname(original)
   const home = homeDir()
-  const sameHome = (left) => IS_WINDOWS ? left.toLowerCase() === home.toLowerCase() : left === home
+  const sameHome = (left) => fileManager.samePath(left, home)
   const targetKey = profileKey(name)
   let moved = false
   let targetHeld = false
@@ -4449,7 +4445,7 @@ async function renameProfile(profile, nextName) {
             if (after !== before) {
               let directory = true
               try { directory = statSync(path).isDirectory() } catch {}
-              links.push({ path: join(target, relative(original, path)), before, after, type: directory ? (IS_WINDOWS ? 'junction' : 'dir') : 'file' })
+              links.push({ path: join(target, relative(original, path)), before, after, type: directory ? fileManager.directoryLinkType : 'file' })
             }
           } else if (entry.isDirectory()) scan(path)
         }
@@ -4610,110 +4606,40 @@ async function createProfile(profile, source = '') {
   return { ok: true, createdProfile: name, ...packsPayload() }
 }
 
-/**
- * 弹系统「选择文件夹」对话框，返回选中的绝对路径（取消/失败就返回空串）。
- *
- * 页面里的 `<input type="file" webkitdirectory>` 只能拿到相对路径，浏览器也不给绝对路径，
- * 所以目录选择必须由管理页所在的本机进程来做。
- */
-export function directoryPickerWinScript(initialPath = '') {
-  const encodedPath = Buffer.from(initialPath, 'utf8').toString('base64')
-  return [
-    "$ErrorActionPreference = 'Stop'",
-    "$ProgressPreference = 'SilentlyContinue'",
-    '[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)',
-    'Add-Type -AssemblyName System.Windows.Forms | Out-Null',
-    '[System.Windows.Forms.Application]::EnableVisualStyles()',
-    '$d = New-Object System.Windows.Forms.FolderBrowserDialog',
-    "$d.Description = '选择目录'",
-    '$d.ShowNewFolderButton = $true',
-    `$initialPath = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${encodedPath}'))`,
-    'if ($initialPath -and (Test-Path -LiteralPath $initialPath -PathType Container)) { $d.SelectedPath = $initialPath }',
-    // 无主窗口的隐藏 PowerShell 可能把对话框留在浏览器后方，用透明置顶窗口承载系统选择器。
-    '$owner = New-Object System.Windows.Forms.Form',
-    "$owner.Text = 'DSH 目录选择'",
-    '$owner.ShowInTaskbar = $false; $owner.TopMost = $true; $owner.Opacity = 0',
-    "$owner.StartPosition = 'CenterScreen'; $owner.Width = 1; $owner.Height = 1",
-    '$owner.Show(); $owner.Activate()',
-    'try { if ($d.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($d.SelectedPath) } } finally { $d.Dispose(); $owner.Dispose() }',
-  ].join('; ')
-}
-
-function pickDirectory(initialPath = '') {
-  if (IS_MAC) return pickDirectoryMac(initialPath)
-  if (!IS_WINDOWS) throw new Error('只有 Windows 和 macOS 支持目录选择')
-  const script = directoryPickerWinScript(initialPath)
-  return new Promise((resolve, reject) => {
-    execFile(
-      'powershell',
-      ['-STA', '-NoProfile', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')],
-      { windowsHide: true, timeout: 5 * 60 * 1000, encoding: 'utf8' },
-      (error, stdout) => {
-        if (error) {
-          reject(error)
-          return
-        }
-        resolve(String(stdout || '').trim())
-      },
-    )
-  })
-}
-
-/** AppleScript 里用户点「取消」的错误号：不算失败，当作没选。 */
-const APPLESCRIPT_USER_CANCELED = '-128'
-
-/**
- * 弹系统的文件对话框（选一个整合包 / 选导出到哪），返回绝对路径，取消返回空串。
- *
- * 和目录选择同一套做法：页面拿不到本机绝对路径，只能由管理页所在进程来弹。
- * 注入到 PowerShell / AppleScript 里的字符串先把单引号去掉——它们都是单引号包裹的。
- */
-function pickFileWin({ save, defaultName, filter }) {
-  const cleanName = String(defaultName || '').replace(/'/g, '')
-  const cleanFilter = String(filter || '').replace(/'/g, '')
-  const script = [
-    'Add-Type -AssemblyName System.Windows.Forms | Out-Null',
-    save
-      ? `$d = New-Object System.Windows.Forms.SaveFileDialog; $d.FileName = '${cleanName}'; $d.OverwritePrompt = $true`
-      : '$d = New-Object System.Windows.Forms.OpenFileDialog',
-    `$d.Filter = '${cleanFilter}'`,
-    save ? "$d.Title = '导出整合包'" : "$d.Title = '选择整合包'",
-    'if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($d.FileName) }',
-  ].join('; ')
-  return new Promise((resolve, reject) => {
-    execFile('powershell', ['-STA', '-NoProfile', '-Command', script], { windowsHide: true, timeout: 10 * 60 * 1000, encoding: 'utf8' }, (error, stdout) => {
-      if (error) {
-        reject(error)
-        return
-      }
-      resolve(String(stdout || '').trim())
-    })
-  })
-}
-
-function pickFileMac({ save, defaultName }) {
-  const cleanName = String(defaultName || '').replace(/["\\]/g, '')
-  const script = save
-    ? `activate\nPOSIX path of (choose file name with prompt "导出整合包" default name "${cleanName}")`
-    : 'activate\nPOSIX path of (choose file with prompt "选择整合包")'
-  return new Promise((resolve, reject) => {
-    execFile('osascript', ['-e', script], { timeout: 10 * 60 * 1000, encoding: 'utf8' }, (error, stdout, stderr) => {
-      if (error) {
-        if (String(stderr || '').includes(`(${APPLESCRIPT_USER_CANCELED})`)) resolve('')
-        else reject(error)
-        return
-      }
-      resolve(String(stdout || '').trim().replace(/(.)\/+$/, '$1'))
-    })
-  })
-}
-
+/** 整合包对话框的筛选器（只有 Windows 的对话框用得上）。 */
 const PACK_FILE_FILTER_DSPACK = '整合包 (*.dspack)|*.dspack|ZIP 压缩包 (*.zip)|*.zip|所有文件 (*.*)|*.*'
+const ZIP_FILE_FILTER = 'ZIP 文件 (*.zip)|*.zip|所有文件 (*.*)|*.*'
+
+/**
+ * 下面这几个都只是在拼「要弹什么对话框」，真正怎么弹、怎么打开由 fileManager 决定
+ * （契约见 filemanager-base.js）：页面里的 `<input type="file">` 拿不到本机绝对路径，
+ * 浏览器也不给，所以这些事只能由管理页所在的本机进程来做。
+ */
+function pickDirectory(initialPath = '') {
+  return fileManager.pickDirectory(initialPath)
+}
 
 function pickPackFile({ save = false, defaultName = '' } = {}) {
-  if (IS_MAC) return pickFileMac({ save, defaultName })
-  if (!IS_WINDOWS) throw new Error('只有 Windows 和 macOS 支持文件选择')
-  return pickFileWin({ save, defaultName, filter: PACK_FILE_FILTER_DSPACK })
+  return fileManager.pickFile({
+    save,
+    defaultName,
+    filter: PACK_FILE_FILTER_DSPACK,
+    title: save ? '导出整合包' : '选择整合包',
+  })
+}
+
+/**
+ * 选一个 ZIP（同步的导入 / 导出用）。
+ * save = true 走「保存」对话框（可以是个还不存在的文件名），否则走「打开」对话框。
+ */
+function pickFile({ save = false, name = '' } = {}) {
+  return fileManager.pickFile({
+    save,
+    defaultName: save ? (name || 'dsh-backup.zip') : '',
+    filter: ZIP_FILE_FILTER,
+    title: save ? '导出到哪个 ZIP 文件' : '选择要导入的 ZIP 文件',
+    prompt: save ? '选择保存位置' : '选择 ZIP 文件',
+  })
 }
 
 /**
@@ -4728,95 +4654,11 @@ function revealPath(target) {
   if (!existsSync(value)) throw new Error('这个路径不存在')
   const allowed = value === lastExportPath || value === packsDir() || value.startsWith(`${packsDir()}${sep}`)
   if (!allowed) throw new Error('只支持显示整合包自己的文件')
-  if (IS_MAC) execFile('open', ['-R', value], { windowsHide: true })
-  else if (IS_WINDOWS) execFile('explorer', [`/select,${value}`], { windowsHide: true })
-  else execFile('xdg-open', [dirname(value)], { windowsHide: true })
+  return fileManager.revealPath(value)
 }
 
-async function openDirectory(dir) {
-  let info
-  try { info = statSync(dir) } catch { throw new Error('目录不存在或已被移动') }
-  if (!info.isDirectory()) throw new Error('请选择文件夹')
-  const opener = IS_WINDOWS ? 'explorer.exe' : IS_MAC ? 'open' : 'xdg-open'
-  await new Promise((resolve, reject) => {
-    // Explorer 接管已有窗口时可能返回 1；不隐藏进程，否则文件夹窗口也可能被隐藏。
-    execFile(opener, [dir], (error) => {
-      if (error && !(IS_WINDOWS && error.code === 1)) reject(error)
-      else resolve()
-    })
-  })
-}
-
-/** macOS 的目录选择走 AppleScript 的 choose folder（系统自带，不需要额外权限）。 */
-function pickDirectoryMac(initialPath = '') {
-  const location = initialPath && existsSync(initialPath) ? ` default location (POSIX file "${initialPath.replace(/["\\]/g, '\\$&')}")` : ''
-  return new Promise((resolve, reject) => {
-    execFile(
-      'osascript',
-      // activate 把对话框带到最前，否则它可能躲在管理页窗口后面
-      ['-e', 'activate', '-e', `POSIX path of (choose folder with prompt "选择目录"${location})`],
-      { timeout: 5 * 60 * 1000, encoding: 'utf8' },
-      (error, stdout, stderr) => {
-        if (error) {
-          if (String(stderr || '').includes(`(${APPLESCRIPT_USER_CANCELED})`)) resolve('')
-          else reject(error)
-          return
-        }
-        // POSIX path 带尾斜杠，去掉和其它地方的目录写法保持一致
-        resolve(String(stdout || '').trim().replace(/(.)\/+$/, '$1'))
-      },
-    )
-  })
-}
-
-/**
- * 选一个文件（导出 zip 时用来定路径，导入时用来挑包）。
- * save = true 走「保存」对话框（可以是个还不存在的文件名），否则走「打开」对话框。
- */
-function pickFile({ save = false, name = '' } = {}) {
-  if (IS_MAC) {
-    const what = save ? 'choose file name with prompt "选择保存位置"' : 'choose file with prompt "选择 ZIP 文件"'
-    return new Promise((resolve, reject) => {
-      execFile(
-        'osascript',
-        ['-e', 'activate', '-e', 'POSIX path of (' + what + (save && name ? ` default name "${name}"` : '') + ')'],
-        { timeout: 5 * 60 * 1000, encoding: 'utf8' },
-        (error, stdout, stderr) => {
-          if (error) {
-            if (String(stderr || '').includes(`(${APPLESCRIPT_USER_CANCELED})`)) resolve('')
-            else reject(error)
-            return
-          }
-          resolve(String(stdout || '').trim().replace(/(.)\/+$/, '$1'))
-        },
-      )
-    })
-  }
-  if (!IS_WINDOWS) throw new Error('只有 Windows 和 macOS 支持文件选择，这里请手填路径')
-  const dialog = save ? 'SaveFileDialog' : 'OpenFileDialog'
-  const script = [
-    'Add-Type -AssemblyName System.Windows.Forms | Out-Null',
-    `$f = New-Object System.Windows.Forms.${dialog}`,
-    "$f.Filter = 'ZIP 文件 (*.zip)|*.zip|所有文件 (*.*)|*.*'",
-    save ? "$f.FileName = '" + String(name || 'dsh-backup.zip').replace(/'/g, "''") + "'" : '',
-    "$f.Title = '" + (save ? '导出到哪个 ZIP 文件' : '选择要导入的 ZIP 文件') + "'",
-    "$f.OverwritePrompt = $true",
-    "if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($f.FileName) }",
-  ].filter(Boolean).join('; ')
-  return new Promise((resolve, reject) => {
-    execFile(
-      'powershell',
-      ['-STA', '-NoProfile', '-Command', script],
-      { windowsHide: true, timeout: 5 * 60 * 1000, encoding: 'utf8' },
-      (error, stdout) => {
-        if (error) {
-          reject(error)
-          return
-        }
-        resolve(String(stdout || '').trim())
-      },
-    )
-  })
+function openDirectory(dir) {
+  return fileManager.openDirectory(dir)
 }
 
 /** 允许当作"本机"的主机名——打开本机页面、判断请求来源都用它。 */const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]'])
@@ -4834,17 +4676,6 @@ function assertLocalUrl(target) {
   }
   return parsed.href
 }
-
-/**
- * 交给系统默认程序打开。
- *
- * Windows 走 `cmd /c start`，而 cmd 会把这行**再解析一遍**：URL 里的 `&` 是语句
- * 分隔符、`|<>^()%"` 各有含义，于是 `http://127.0.0.1:1/?&calc` 能直接跑起任意命令
- * （Node 只给含空格的参数加引号，而 URL 里通常没有空格）。所以这里只放行 cmd 会
- * 原样看待的字符——够用（本机地址就是 `http://127.0.0.1:端口/路径?k=v`），
- * 其余一律拒绝，比在字符串上做转义可靠。
- */
-const CMD_SAFE_URL = /^[A-Za-z0-9\-._~:/?#\[\]@$'*,;=+]+$/
 
 /**
  * Chromium 系浏览器（支持 --app= 应用窗口）的常见安装位置。
@@ -4964,12 +4795,8 @@ function openExternal(target, mode = OPEN_MODE) {
     if (openInAppWindow(url)) return
     pushLog('没找到 Chrome/Edge，改用系统默认浏览器打开')
   }
-  if (process.platform === 'win32') {
-    if (!CMD_SAFE_URL.test(url)) throw new Error('地址里含不能安全打开的字符')
-    execFile('cmd', ['/c', 'start', '', url], { windowsHide: true })
-    return
-  }
-  execFile(process.platform === 'darwin' ? 'open' : 'xdg-open', [url])
+  // 剩下的交给系统默认程序：cmd 的元字符过滤之类的平台事项都在实现类里
+  void fileManager.openUrl(url).catch((error) => pushLog(`打开地址失败：${error?.message || error}`))
 }
 
 function openLocalUrl(target) {
@@ -5437,7 +5264,7 @@ async function handleApi(req, res, url) {
     const dir = safeDshHome(body.home) || defaultHome()
     const stored = await loadSettings()
     const known = [defaultHome(), ...safeDshHomes(stored.dshHomes), ...safeLaunchPresets(stored.launchPresets).map((entry) => entry.dshHome), ...instanceList().map((item) => item.home)]
-    const same = (home) => home && (IS_WINDOWS ? home.toLowerCase() === dir.toLowerCase() : home === dir)
+    const same = (home) => fileManager.samePath(home, dir)
     if (!known.some(same)) throw new Error('只支持打开已登记的用户目录')
     await openDirectory(dir)
     pushLog(`已打开用户目录 ${dir}`)
@@ -5447,7 +5274,7 @@ async function handleApi(req, res, url) {
   if (req.method === 'POST' && ['/api/dsh-homes/add', '/api/dsh-homes/remove'].includes(url.pathname)) {
     const home = safeDshHome(body.home)
     if (!home) throw new Error('请选择用户目录')
-    const same = (left, right) => IS_WINDOWS ? left.toLowerCase() === right.toLowerCase() : left === right
+    const same = (left, right) => fileManager.samePath(left, right)
     const removing = url.pathname.endsWith('/remove')
     if (removing && same(home, defaultHome())) throw new Error('全局目录不能移除')
     if (removing && instanceList().some((proc) => same(proc.home, home) && ['starting', 'running', 'stopping'].includes(proc.status))) throw new Error('请先停止使用此目录的实例')
@@ -5465,7 +5292,7 @@ async function handleApi(req, res, url) {
     const home = safeDshHome(body.home)
     const name = typeof body.name === 'string' ? body.name.trim() : ''
     if (!home || !name || name.length > 64 || /[\x00-\x1f\x7f]/.test(name)) throw new Error('目录名称应为 1 到 64 个字符')
-    const same = (dir) => dir && (IS_WINDOWS ? dir.toLowerCase() === home.toLowerCase() : dir === home)
+    const same = (dir) => fileManager.samePath(dir, home)
     const saved = await saveSettings((current) => {
       const known = [defaultHome(), ...safeDshHomes(current.dshHomes), ...safeLaunchPresets(current.launchPresets).map((entry) => entry.dshHome), ...instanceList().map((item) => item.home)]
       const canonical = known.find(same)
@@ -5948,7 +5775,8 @@ async function handleApi(req, res, url) {
   }
   if (req.method === 'POST' && url.pathname === '/api/packs/reveal') {
     try {
-      revealPath(String(body.path || ''))
+      // 要 await：定位交给实现类之后是异步的，不等它的话失败会变成未处理的 Promise 拒绝
+      await revealPath(String(body.path || ''))
       send(res, 200, { ok: true })
     } catch (error) {
       send(res, 400, { error: error?.message || String(error) })
