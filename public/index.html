@@ -137,6 +137,10 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="2" fill="#fff" stroke="currentColor" stroke-width="1.8"/><circle cx="15" cy="17" r="2" fill="#fff" stroke="currentColor" stroke-width="1.8"/></svg>
             <span data-i18n="高级设置">高级设置</span>
           </button>
+          <button type="button" class="nav-item" data-pane="settings" data-category="about">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M12 11v5M12 7.8v.2"/></svg>
+            <span data-i18n="关于">关于</span>
+          </button>
         </div>
       </aside>
       <div class="settings-body">
@@ -450,6 +454,21 @@
                   </div>
                 </div>
               </div>
+            </section>
+            <section class="set-section" data-category="about" aria-labelledby="settingsAboutTitle" hidden>
+              <div class="set-label" id="settingsAboutTitle" data-i18n="关于 DSH-X">关于 DSH-X</div>
+              <div class="set-group">
+                <div class="set-row">
+                  <div class="set-text">
+                    <span class="set-name" data-i18n="当前版本">当前版本</span>
+                    <span class="set-desc" id="aboutVersion">__APP_VERSION__</span>
+                  </div>
+                  <div class="set-control">
+                    <button class="ghost" id="aboutCheckUpdate" type="button" data-i18n="检查更新">检查更新</button>
+                  </div>
+                </div>
+              </div>
+              <p class="hint" id="aboutUpdateHint" role="status" aria-live="polite"></p>
             </section>
           </div>
         </section>
@@ -1291,6 +1310,14 @@
   "到 GitHub 发布页自己挑安装包下载（自动更新不管用时用这个）": "Pick the installer yourself from the GitHub releases page (use this when the automatic update does not work)",
   "下载失败：{message}。可以点「手动下载」到发布页取安装包。": "Download failed: {message}. Use \"Download manually\" to get the installer from the release page.",
   "检查更新": "Check for updates",
+  "关于": "About",
+  "关于 DSH-X": "About DSH-X",
+  "当前版本": "Current version",
+  "查看当前版本并检查更新。": "See the current version and check for updates.",
+  "正在检查…": "Checking…",
+  "发现新版本 {latest}，正在打开更新窗口…": "Version {latest} is available. Opening the update dialog…",
+  "检查更新失败：{message}": "Update check failed: {message}",
+  "连不上发布页，请检查网络或下载源后重试。": "Could not reach the release page. Check your network or download source and try again.",
   "已切到 profile {name}，dsh 下次启动用它。": "Switched to profile {name}; dsh will use it on the next start.",
   "全部更新": "Update all",
   "全部更新（{n}）": "Update all ({n})",
@@ -3116,6 +3143,7 @@
       general: ['常规', '设置启动器的启动方式、界面语言，以及 dsh 的插件与启动配置。'],
       appearance: ['外观', '选择启动器的外观；跟随系统会在系统主题变化时自动切换。'],
       advanced: ['高级设置', ''],
+      about: ['关于', '查看当前版本并检查更新。'],
     }
     const settingsSections = [...document.querySelectorAll('#pane-settings .set-section[data-category]')]
     const settingsTitleEl = document.getElementById('settingsTitle')
@@ -5091,6 +5119,8 @@
     function applySelfUpdate(data) {
       if (!data || !selfUpdateEl) return
       if (appVerEl) appVerEl.textContent = data.current || ''
+      const aboutVersion = document.getElementById('aboutVersion')
+      if (aboutVersion && data.current) aboutVersion.textContent = data.current
       selfState.current = data.current || selfState.current
       selfState.latest = data.latest || selfState.latest
       selfState.url = data.url || selfState.url
@@ -5261,6 +5291,35 @@
       }
     }
 
+    // ---- 设置 → 关于：显示当前版本，手动检查启动器更新 ----
+    const aboutCheckUpdateEl = document.getElementById('aboutCheckUpdate')
+    const aboutUpdateHintEl = document.getElementById('aboutUpdateHint')
+    if (aboutCheckUpdateEl && aboutUpdateHintEl) {
+      aboutCheckUpdateEl.onclick = async () => {
+        if (aboutCheckUpdateEl.disabled) return
+        const label = aboutCheckUpdateEl.textContent
+        aboutCheckUpdateEl.disabled = true
+        aboutCheckUpdateEl.textContent = t('正在检查…')
+        aboutUpdateHintEl.textContent = ''
+        try {
+          const data = await getJson('/api/self?refresh=1')
+          applySelfUpdate(data)
+          if (!data.latest) {
+            aboutUpdateHintEl.textContent = t('连不上发布页，请检查网络或下载源后重试。')
+          } else if (data.update) {
+            aboutUpdateHintEl.textContent = t('发现新版本 {latest}，正在打开更新窗口…', { latest: data.latest })
+            showAsk({ dsh: null, self: { current: data.current, latest: data.latest, url: data.url } })
+          } else {
+            aboutUpdateHintEl.textContent = t('已是最新版本（{version}）。', { version: data.current || '' })
+          }
+        } catch (error) {
+          aboutUpdateHintEl.textContent = t('检查更新失败：{message}', { message: error.message })
+        } finally {
+          aboutCheckUpdateEl.disabled = false
+          aboutCheckUpdateEl.textContent = label
+        }
+      }
+    }
     getJson('/api/self').then(applySelfUpdate).catch(() => {})
 
     // ---- 启动时检测到新版本：先问用户，定下来之前不自动启动 dsh ----

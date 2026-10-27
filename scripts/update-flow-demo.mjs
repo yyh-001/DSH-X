@@ -82,8 +82,9 @@ function serve() {
     try {
       const file = join(TEST_RELEASE, name)
       const stat = statSync(file)
+      if (!stat.isFile()) throw new Error('not a file')
       res.writeHead(200, { 'content-length': stat.size })
-      createReadStream(file).pipe(res)
+      createReadStream(file).on('error', () => res.destroy()).pipe(res)
     } catch {
       res.writeHead(404)
       res.end()

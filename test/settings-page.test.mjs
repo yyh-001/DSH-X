@@ -41,7 +41,7 @@ test('顶栏四个 tab 已取消，设置分类在左侧导航，主页右上角
     assert.match(html, new RegExp(`class="nav-item[^"]*" data-pane="${pane}"`), `${label} 要在左侧导航里`)
     assert.match(html, new RegExp(`<section class="pane[^"]*" id="pane-${pane}">`), `${label} 的面板要在设置页里`)
   }
-  for (const category of ['general', 'appearance', 'advanced']) {
+  for (const category of ['general', 'appearance', 'advanced', 'about']) {
     assert.match(html, new RegExp(`data-pane="settings" data-category="${category}"`), `${category} 有独立的导航入口`)
     assert.match(html, new RegExp(`class="set-section" data-category="${category}"`), `${category} 有独立的设置内容`)
   }
@@ -121,6 +121,22 @@ test('自动清理旧版本：开关在 dsh 那组里，改动即保存，读设
   // 英文也要有，否则界面切成英文这里还是中文
   const dict = new vm.Script(`(${html.match(/const EN = (\{[\s\S]*?\n\})/)[1]})`).runInNewContext()
   for (const key of ['自动清理旧版本', '保留最新版和最近安装的一版，运行中的版本不删除。']) {
+    assert.ok(dict[key], `「${key.slice(0, 12)}…」有英文`)
+  }
+})
+
+test('设置页有「关于」：显示当前版本，按钮主动检查更新', () => {
+  assert.match(html, /<section class="set-section" data-category="about"[\s\S]*?id="aboutVersion"[\s\S]*?id="aboutCheckUpdate"/, '关于里有当前版本和检查更新按钮')
+  assert.match(html, /<p class="hint" id="aboutUpdateHint" role="status" aria-live="polite"><\/p>/, '检查结果用 hint 行显示')
+  assert.match(html, /const aboutVersion = document\.getElementById\('aboutVersion'\)/, '加载 /api/self 时回填版本')
+  assert.match(html, /getJson\('\/api\/self\?refresh=1'\)/, '按钮绕开缓存重新检查')
+  assert.match(html, /showAsk\(\{ dsh: null, self: \{ current: data\.current, latest: data\.latest, url: data\.url \} \}\)/, '有更新时打开更新弹窗')
+  assert.match(html, /连不上发布页，请检查网络或下载源后重试。/, '连不上发布页时给出可操作的提示')
+  const server = readFileSync(fileURLToPath(new URL('../server.js', import.meta.url)), 'utf8')
+  assert.match(server, /const refresh = url\.searchParams\.get\('refresh'\) === '1'/, 'refresh=1 解析成布尔')
+  assert.match(server, /checkAppUpdate\(\{ force: refresh \}\)/, '应用层清单也绕缓存')
+  const dict = new vm.Script(`(${html.match(/const EN = (\{[\s\S]*?\n\})/)[1]})`).runInNewContext()
+  for (const key of ['关于', '关于 DSH-X', '当前版本', '检查更新', '正在检查…', '发现新版本 {latest}，正在打开更新窗口…', '检查更新失败：{message}', '连不上发布页，请检查网络或下载源后重试。', '查看当前版本并检查更新。']) {
     assert.ok(dict[key], `「${key.slice(0, 12)}…」有英文`)
   }
 })

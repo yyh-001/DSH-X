@@ -5395,9 +5395,11 @@ async function handleApi(req, res, url) {
     return
   }
   if (req.method === 'GET' && url.pathname === '/api/self') {
-    const info = await checkSelfUpdate({ force: url.searchParams.get('refresh') === '1' })
+    // refresh=1 是用户在「关于」里主动点检查更新：绕开两份缓存，重新问发布页
+    const refresh = url.searchParams.get('refresh') === '1'
+    const info = await checkSelfUpdate({ force: refresh })
     // staged / downloading 让页面重载后也能知道下载进度：下载在服务端跑，和弹窗开不开无关
-    const app = await checkAppUpdate().catch((error) => ({ available: false, reason: 'error', error: error?.message || String(error) }))
+    const app = await checkAppUpdate({ force: refresh }).catch((error) => ({ available: false, reason: 'error', error: error?.message || String(error) }))
     send(res, 200, { ...info, staged: stagedUpdate?.latest || '', downloading: selfDownloadInFlight, app, appStaged: stagedApp?.version || '', runtimeStaged: stagedRuntime?.version || '' })
     return
   }
