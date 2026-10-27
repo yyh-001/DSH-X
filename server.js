@@ -4213,8 +4213,20 @@ function attachProcess(version, profile, child, diagnosticContext) {
     }
   }
   // 管道的 chunk 没有行/UTF-8 边界；逐块 split 会截断中文、错误码，甚至整个就绪 URL。
-  for (const input of [child.stdout, child.stderr]) createInterface({ input, crlfDelay: Infinity }).on('line', onLine)
-  child.on('exit', (code, signal) => {
+  const readers = [child.stdout, child.stderr].map((input) => createInterface({ input, crlfDelay: Infinity }).on('line', onLine))
+  // 进程退出时管道里可能还有最后几行没读完（失败前的错误行往往就是最后一行）。
+  // 等两条输出流都 close 再收尾，最多等 200ms：既不让诊断尾部丢行，也不被孙进程拖住。
+  let readersClosed = 0
+  const streamsDone = new Promise((resolve) => {
+    for (const reader of readers) {
+      reader.on('close', () => {
+        readersClosed += 1
+        if (readersClosed === readers.length) resolve()
+      })
+    }
+  })
+  child.on('exit', async (code, signal) => {
+    await Promise.race([streamsDone, new Promise((resolve) => setTimeout(resolve, 200))])
     clearTimeout(proc.diagnosticTimer)
     proc.diagnosticTimer = null
     proc.exit = { code, signal }
