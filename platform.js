@@ -21,6 +21,9 @@ export const IN_ELECTRON = Boolean(process.versions.electron)
 /** 打包后的 Electron 外壳（`electron .` 源码运行时 process.defaultApp 为 true）。 */
 export const PACKAGED = IN_ELECTRON && !process.defaultApp
 
+/** npm 版（dsh-x 包拉起 Electron）：更新走 npm，不走安装包/核心自更新。 */
+export const NPM_MODE = process.env.DSH_NPM === '1'
+
 /**
  * 拉子进程（dsh、npm、pnpm）用的 node。
  *

@@ -127,7 +127,7 @@ import {
 import { netFetch, proxyEnv, resetProxyCache, resolveProxy } from './proxy.js'
 import { APP_DIR, fileManager } from './filemanager.js'
 import { checkCoreUpdate, downloadCoreTarball, extractCoreTarball, stagingExists, stagingStats } from './core-npm.js'
-import { IN_ELECTRON, IS_MAC, IS_WINDOWS, LAUNCHER_NAME, MAC_APP_NAME, PACKAGED, RUNTIME_NODE, RUNTIME_NODE_ENV } from './platform.js'
+import { IN_ELECTRON, IS_MAC, IS_WINDOWS, LAUNCHER_NAME, MAC_APP_NAME, NPM_MODE, PACKAGED, RUNTIME_NODE, RUNTIME_NODE_ENV } from './platform.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -2662,6 +2662,8 @@ async function checkSelfUpdate({ force = false } = {}) {
   const current = APP_VERSION
   const url = `https://github.com/${APP_REPO}/releases/latest/download/${APP_SETUP}`
   const fallback = { current, latest: null, update: false, url }
+  // npm 版：CLI 和核心都走 npm，不提示完整安装包
+  if (NPM_MODE) return { ...fallback, npm: true }
   if (!force && selfCache.data && Date.now() - selfCache.at < 30 * 60 * 1000) return selfCache.data
   try {
     const latest = await fetchLatestTag()
@@ -2759,6 +2761,7 @@ export async function refreshShortcuts({ installRoot, appDir = APP_DIR, version 
  * Resources/app 后重签。
  */
 async function checkAppUpdate({ force = false } = {}) {
+  if (NPM_MODE) return { available: false, reason: 'npm' }
   if (!PACKAGED || (!IS_WINDOWS && !IS_MAC)) return { available: false, reason: PACKAGED ? 'platform' : 'source' }
   if (!force && appUpdateCache.data && Date.now() - appUpdateCache.at < APP_UPDATE_CACHE_MS) return appUpdateCache.data
   const remember = (data) => { appUpdateCache = { at: Date.now(), data }; return data }
@@ -5264,7 +5267,7 @@ async function handleApi(req, res, url) {
     const info = await checkSelfUpdate({ force: refresh })
     // staged / downloading 让页面重载后也能知道下载进度：下载在服务端跑，和弹窗开不开无关
     const app = await checkAppUpdate({ force: refresh }).catch((error) => ({ available: false, reason: 'error', error: error?.message || String(error) }))
-    send(res, 200, { ...info, staged: stagedUpdate?.latest || '', downloading: selfDownloadInFlight, app, appStaged: stagedApp?.version || '' })
+    send(res, 200, { ...info, npm: NPM_MODE, staged: stagedUpdate?.latest || '', downloading: selfDownloadInFlight, app, appStaged: stagedApp?.version || '' })
     return
   }
   if (req.method === 'GET' && url.pathname === '/api/pending') {

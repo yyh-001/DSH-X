@@ -87,6 +87,7 @@ async function copyNodeRuntime() {
   const nodeShim = join(nodeDir, 'node')
   await writeFile(nodeShim, [
     '#!/bin/sh',
+    'if [ -n "$DSH_ELECTRON_BIN" ]; then ELECTRON_RUN_AS_NODE=1 exec "$DSH_ELECTRON_BIN" "$@"; fi',
     'ELECTRON_RUN_AS_NODE=1 exec "$(dirname "$0")/../../../MacOS/DSH" "$@"',
     '',
   ].join('\n'))

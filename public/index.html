@@ -1312,6 +1312,7 @@
   "发现新版本 {latest}，正在打开更新窗口…": "Version {latest} is available. Opening the update dialog…",
   "检查更新失败：{message}": "Update check failed: {message}",
   "连不上发布页，请检查网络或下载源后重试。": "Could not reach the release page. Check your network or download source and try again.",
+  "npm 安装的版本请用 npm update -g dsh-x 更新。": "This npm-installed copy updates with npm update -g dsh-x.",
   "已切到 profile {name}，dsh 下次启动用它。": "Switched to profile {name}; dsh will use it on the next start.",
   "全部更新": "Update all",
   "全部更新（{n}）": "Update all ({n})",
@@ -5232,7 +5233,9 @@
         try {
           const data = await getJson('/api/self?refresh=1')
           applySelfUpdate(data)
-          if (!data.latest) {
+          if (data.npm) {
+            aboutUpdateHintEl.textContent = t('npm 安装的版本请用 npm update -g dsh-x 更新。')
+          } else if (!data.latest) {
             aboutUpdateHintEl.textContent = t('连不上发布页，请检查网络或下载源后重试。')
           } else if (data.update) {
             aboutUpdateHintEl.textContent = t('发现新版本 {latest}，正在打开更新窗口…', { latest: data.latest })

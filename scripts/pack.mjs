@@ -66,12 +66,17 @@ const NODE_SHIM_CMD = [
   '@ECHO off',
   'SETLOCAL',
   'SET "ELECTRON_RUN_AS_NODE=1"',
-  '"%~dp0..\\..\\..\\DSH.exe" %*',
+  'IF DEFINED DSH_ELECTRON_BIN (',
+  '  "%DSH_ELECTRON_BIN%" %*',
+  ') ELSE (',
+  '  "%~dp0..\\..\\..\\DSH.exe" %*',
+  ')',
   '',
 ].join('\r\n')
 const NODE_SHIM_SH = [
   '#!/bin/sh',
-  'ELECTRON_RUN_AS_NODE=1 "$(dirname "$0")/../../../DSH.exe" "$@"',
+  'if [ -n "$DSH_ELECTRON_BIN" ]; then ELECTRON_RUN_AS_NODE=1 exec "$DSH_ELECTRON_BIN" "$@"; fi',
+  'ELECTRON_RUN_AS_NODE=1 exec "$(dirname "$0")/../../../DSH.exe" "$@"',
   '',
 ].join('\n')
 

@@ -1,0 +1,31 @@
+{
+  "name": "dsh-x",
+  "version": "0.1.20",
+  "description": "DSH-X 启动器的 npm 版：Electron 外壳 + 从 npm 拉取的平台核心。Desktop launcher for DeepSeek Harness via npm.",
+  "type": "module",
+  "bin": {
+    "dsh-x": "bin/dsh-x.mjs"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "os": [
+    "win32",
+    "darwin"
+  ],
+  "dependencies": {
+    "electron": "44.7.0"
+  },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "launcher",
+    "electron"
+  ],
+  "license": "MIT"
+}
