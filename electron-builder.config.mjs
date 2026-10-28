@@ -12,9 +12,10 @@ import { join } from 'node:path'
  * - 核心：npm（core-npm.js），换用户目录的 core/current（外壳启动时优先加载它）
  *
  * asar: false：dsh 子进程和 compat/perf 钩子要按真实路径读文件，asar 里读不到。
- * 签名：Windows 暂不签名（SmartScreen 会警告）；macOS 没有 Developer ID 时 identity 为 null，
- * electron-updater 的 mac 自更新装不上。所以 mac 只出 dmg，不打包 zip（也就没有 latest-mac.yml）；
- * 以后拿到 Developer ID，把 zip 目标加回来，并放开 shell/updater.mjs 里的 mac 限制。
+ * 签名：Windows 暂不签名（SmartScreen 会警告）；macOS 没有 Developer ID 时用 ad-hoc 签名
+ * （identity: '-'），否则未签名的 arm64 包会被 Gatekeeper 判成「已损坏」，连启动都不行。
+ * mac 只出 dmg，不打包 zip（也就没有 latest-mac.yml）；以后拿到 Developer ID，把 zip 目标
+ * 加回来，并放开 shell/updater.mjs 里的 mac 限制。
  */
 export default {
   appId: 'io.github.yyh-001.dsh-x',
@@ -66,7 +67,8 @@ export default {
     category: 'public.app-category.developer-tools',
     executableName: 'DSH',
     artifactName: 'DSH-X-${version}-${arch}.${ext}',
-    identity: null,
+    // 没有固定证书时用 ad-hoc 签名（'-'）；有证书的 tag 构建交给 electron-builder 自动发现
+    identity: process.env.DSH_MAC_IDENTITY || (process.env.DSH_MAC_REQUIRE_SIGNED === '1' ? undefined : '-'),
     hardenedRuntime: false,
     gatekeeperAssess: false,
   },
