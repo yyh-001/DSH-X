@@ -1,6 +1,6 @@
 // 必须是第一个 import：它在核心（server.js）求值之前补好 PATH 和外壳标记（见 env.mjs）
 import './env.mjs'
-import { BrowserWindow, Menu, Notification, Tray, WebContentsView, app, clipboard, dialog, ipcMain, nativeImage, nativeTheme, powerSaveBlocker, session, shell } from 'electron'
+import { BrowserWindow, Menu, Notification, Tray, WebContentsView, app, clipboard, dialog, ipcMain, nativeImage, nativeTheme, powerSaveBlocker, screen, session, shell } from 'electron'
 import { existsSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -23,6 +23,7 @@ import {
   liveInstances,
   parseTabAction,
   parseTrayState,
+  recenterBounds,
   sameOrigin,
   windowMode,
 } from './model.mjs'
@@ -720,12 +721,23 @@ function toggleMaximize(window) {
   else window.maximize()
 }
 
+/**
+ * 把窗口叫到前面。两步都不能省：最小化的窗口直接 show() 会停在最小化状态；摆位跑出屏幕时
+ * show() 只是把它显示在屏幕外，用户看到的就是"点了没反应"（判断见 model.mjs 的 recenterBounds）。
+ */
+function revealWindow(window, size) {
+  if (!window || window.isDestroyed()) return
+  if (window.isMinimized()) window.restore()
+  window.show()
+  const bounds = recenterBounds(window.getBounds(), screen.getAllDisplays(), screen.getPrimaryDisplay(), size)
+  if (bounds) window.setBounds(bounds)
+  window.focus()
+}
+
 function showManager() {
   if (!mainWindow) return
   tabs?.action({ action: 'select', id: '' })
-  if (mainWindow.isMinimized()) mainWindow.restore()
-  mainWindow.show()
-  mainWindow.focus()
+  revealWindow(mainWindow, MAIN_WINDOW)
 }
 
 /** 内部标签页：复用主窗口。主窗口不在（极少见）就退回系统浏览器，至少还能访问已经起来的实例。 */
@@ -735,8 +747,7 @@ function openInternalTab(target) {
     return
   }
   tabs.open(target)
-  if (mainWindow.isMinimized()) mainWindow.restore()
-  mainWindow.show()
+  revealWindow(mainWindow, MAIN_WINDOW)
 }
 
 /**
@@ -766,9 +777,7 @@ function openDshWindow(url) {
   if (!dshWindow) createDshWindow()
   dshWindow.instanceId = null
   followDshWindow(url)
-  if (dshWindow.isMinimized()) dshWindow.restore()
-  dshWindow.show()
-  dshWindow.focus()
+  revealWindow(dshWindow, DSH_WINDOW)
 }
 
 function createDshWindow() {

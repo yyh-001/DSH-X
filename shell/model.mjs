@@ -161,6 +161,39 @@ export function internalMode(state) {
   return state.openmode === 'internal' && state.shell
 }
 
+/** 至少要有这么大一块落在某块屏的工作区里，才算"用户看得见"——一条缝不算。 */
+const MIN_VISIBLE = { width: 160, height: 48 }
+
+/**
+ * 唤出窗口时该把窗口摆到哪：`null` 表示现在的摆位能看见，不用动。
+ *
+ * 两种摆位必须救：整个落在所有显示器工作区之外（换过显示器、改过分辨率，或者被写成
+ * Windows 给最小化窗口的 `(-32000,-32000)`），尺寸塌到正常窗口的一半以下（`160×28`
+ * 那种最小化矩形）。Electron 的 `show()` 只是按原摆位显示，摆位坏掉的话用户照样找不到窗口。
+ */
+export function recenterBounds(bounds, displays, primary, size) {
+  const workArea = primary?.workArea
+  if (!workArea) return null
+  const visible = displays.some((display) => {
+    const area = display.workArea
+    const width = Math.min(bounds.x + bounds.width, area.x + area.width) - Math.max(bounds.x, area.x)
+    const height = Math.min(bounds.y + bounds.height, area.y + area.height) - Math.max(bounds.y, area.y)
+    return width >= MIN_VISIBLE.width && height >= MIN_VISIBLE.height
+  })
+  // 正常窗口最小 720×520，缩不到设定尺寸的一半以下：到这一步就是脏数据
+  const tiny = bounds.width * 2 < size.width || bounds.height * 2 < size.height
+  if (visible && !tiny) return null
+  // 按主屏工作区夹一下：主屏比默认窗口还小的机器上，硬摆 1100×760 会压到任务栏
+  const width = Math.min(size.width, Math.max(workArea.width, MIN_VISIBLE.width))
+  const height = Math.min(size.height, Math.max(workArea.height, MIN_VISIBLE.height))
+  return {
+    x: workArea.x + Math.round((workArea.width - width) / 2),
+    y: workArea.y + Math.round((workArea.height - height) / 2),
+    width,
+    height,
+  }
+}
+
 const isRequestSerial = (value) => Number.isSafeInteger(value) && value >= 0
 
 /**
