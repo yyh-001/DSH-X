@@ -4740,7 +4740,12 @@ async function terminateProcess(proc) {
   if (!proc.child?.pid) return true
   // Windows 没有「温和终止」这条路：taskkill 不带 /F 只是发 WM_CLOSE，对控制台进程约等于
   // 不生效，所以一开始就 /F；POSIX 先 SIGTERM，给它体面退出的机会，再升级到 SIGKILL。
-  await killTree(proc.child.pid, proc.child, process.platform === 'win32')
+  try {
+    await killTree(proc.child.pid, proc.child, process.platform === 'win32')
+  } finally {
+    // 必须先让 Windows taskkill /T 找到活根及后代，再允许断管道触发 preload 的退出兜底。
+    proc.instanceLink?.disconnect(proc.child)
+  }
   if (await waitExit(proc.child, STOP_EXIT_TIMEOUT_MS)) return true
   pushLog(`${label}（PID ${proc.child.pid}）收到终止信号后 ${STOP_EXIT_TIMEOUT_MS / 1000} 秒仍未退出，强制终止`)
   await killTree(proc.child.pid, proc.child, true)
@@ -5881,8 +5886,8 @@ async function stop(version, profile = '', targetHome = '') {
     if ((!wantedVersion || link.version === wantedVersion) && (!wantedProfile || link.profile === wantedProfile)
       && ((!wantedVersion && !targetHome) || link.home === home || (!targetHome && !wantedProfile))) {
       // 已回连但还在等旧进程退出的继任者也要确认死亡，才能允许下一次启动占用 profile。
-      for (const child of link.pending()) targets.push({ version: link.version, profile: link.profile, home: link.home, child })
-      link.revoke()
+      for (const child of link.pending()) targets.push({ version: link.version, profile: link.profile, home: link.home, child, instanceLink: link })
+      link.revokeAdmission()
     }
   }
   if (!targets.length) return
@@ -7591,8 +7596,8 @@ export async function stopAll() {
   // 孤儿 node.exe——用户看到的就是「进程脱离了启动器」，再打开启动器时它还占着插件文件。
   const procs = instanceList()
   for (const link of instanceLinks.values()) {
-    for (const child of link.pending()) procs.push({ version: link.version, profile: link.profile, home: link.home, child })
-    link.revoke()
+    for (const child of link.pending()) procs.push({ version: link.version, profile: link.profile, home: link.home, child, instanceLink: link })
+    link.revokeAdmission()
   }
   instanceLinks.clear()
   for (const proc of procs) proc.status = 'stopping'

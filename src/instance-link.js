@@ -46,14 +46,15 @@ class LinkedProcess extends EventEmitter {
  */
 export async function createInstanceLink({ entry, profile, profileArgIndex = 0, timeoutMs, onSuccessor, onDispose }) {
   const secret = randomBytes(32).toString('hex')
-  const sockets = new Set()
+  const sockets = new Map()
+  const disconnectedPids = new Set()
   let current
   let nativePid
   let revoked = false
   let expiry
   let candidate
   const server = createServer(socket => {
-    sockets.add(socket)
+    sockets.set(socket, null)
     let pending = ''
     let child
     socket.setTimeout(LINK.connectTimeoutMs, () => socket.destroy())
@@ -70,11 +71,11 @@ export async function createInstanceLink({ entry, profile, profileArgIndex = 0, 
         try { frame = JSON.parse(line) } catch { socket.destroy(); return }
         if (!frame || typeof frame !== 'object' || Array.isArray(frame)) { socket.destroy(); return }
         if (!child) {
-          if (revoked || frame.secret !== secret || !Number.isSafeInteger(frame.pid) || frame.pid <= 0 || !alive(frame.pid)) {
+          if (disconnectedPids.has(frame.pid) || (revoked && frame.pid !== current?.pid) || frame.secret !== secret || !Number.isSafeInteger(frame.pid) || frame.pid <= 0 || !alive(frame.pid)) {
             socket.destroy(); return
           }
           socket.setTimeout(0)
-          if (frame.pid === nativePid) child = current
+          if (frame.pid === current?.pid) child = current
           else {
             if (candidate) { socket.destroy(); return }
             child = new LinkedProcess(frame.pid, socket)
@@ -104,6 +105,7 @@ export async function createInstanceLink({ entry, profile, profileArgIndex = 0, 
             })
             adopt()
           }
+          sockets.set(socket, child)
         } else if (typeof frame.url === 'string' && LINK.ready.test('dsh web: ' + frame.url)) {
           // token 只走这条私有内存通路，不写设置或额外日志。
           child.readyLine = 'dsh web: ' + frame.url
@@ -117,15 +119,27 @@ export async function createInstanceLink({ entry, profile, profileArgIndex = 0, 
     server.listen(0, LINK.host, resolve)
   })
   server.unref()
-  const revoke = () => {
+  // Windows 要靠仍存活的根进程发现整棵树；关闭管道会让 preload 自杀，不能用它抢先停根。
+  // 先撤销继任者入场，已接管进程的管道由 terminateProcess 在尝试树终止后逐个断开。
+  const revokeAdmission = () => {
     if (revoked) return
     revoked = true
     clearTimeout(expiry)
     clearInterval(candidate?.adoptionTimer)
     clearTimeout(candidate?.adoptionDeadline)
-    for (const socket of sockets) socket.destroy()
-    server.close()
+    // preload 可能尚未 connect：此时关闭监听也会让活根收到 ECONNREFUSED 并抢先自杀。
+    if (!current || !alive(current.pid)) server.close()
     if (!candidate) onDispose?.()
+  }
+  const disconnect = child => {
+    disconnectedPids.add(child.pid)
+    if (revoked && child.pid === current?.pid) server.close()
+    for (const [socket, owner] of sockets) if (owner?.pid === child.pid) socket.destroy()
+  }
+  const revoke = () => {
+    revokeAdmission()
+    server.close()
+    for (const socket of sockets.keys()) socket.destroy()
   }
   return {
     env: { [LINK.env]: JSON.stringify({ port: server.address().port, secret, entry, profile, profileArgIndex }) },
@@ -136,6 +150,8 @@ export async function createInstanceLink({ entry, profile, profileArgIndex = 0, 
       clearTimeout(expiry)
       expiry = setTimeout(revoke, timeoutMs).unref()
     },
+    revokeAdmission,
+    disconnect,
     revoke,
   }
 }
