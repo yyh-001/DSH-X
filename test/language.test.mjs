@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -16,6 +16,8 @@ mkdirSync(app, { recursive: true })
 for (const file of readdirSync(new URL('../src', import.meta.url))) {
   if (/\.(js|mjs|cjs)$/.test(file)) copyFileSync(new URL(`../src/${file}`, import.meta.url), join(install, file))
 }
+// compat 是真实安装布局的一部分，核心模块加载时也会引用其中的共享协议。
+cpSync(new URL('../src/compat', import.meta.url), join(install, 'compat'), { recursive: true })
 copyFileSync(new URL('../package.json', import.meta.url), join(install, 'package.json'))
 mkdirSync(join(install, 'public'))
 copyFileSync(new URL('../src/public/index.html', import.meta.url), join(install, 'public', 'index.html'))

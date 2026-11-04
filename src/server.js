@@ -16,6 +16,7 @@ import { VERSION_CHANNEL, VERSION_CHANNELS, effectiveChannel, versionChannel, ve
 import { CORE_VERSION } from './app-version.js'
 import { createLogWriter } from './log-writer.js'
 import { createStartupDiagnosis } from './startup-diagnosis.js'
+import { createInstanceLink } from './instance-link.js'
 import { DESKTOP_ENHANCE_ID, DESKTOP_ENHANCE_NAME, DESKTOP_PLUGINS, versionAtLeast } from './desktop-plugins.js'
 import { bindDiagnosis, checkedRepairPlan, profileFingerprint } from './repair-plan.js'
 import { DiagnosticRepairs, verificationSummary } from './repair-actions.js'
@@ -319,6 +320,7 @@ const logs = []
  * 插件树按 profile 各是各的。同一个组合再点一次启动只会拿回已经在跑的那个。
  */
 const instances = new Map()
+const instanceLinks = new Map()
 /** 退出 / 换核心时的收尾阶段：这期间实例退出是预期内的，不用发通知。 */
 let shuttingDown = false
 // 删除环境与启动不能穿插：启动准备期间还没 child，也要算作占用这份 profile。
@@ -1052,6 +1054,18 @@ export function notifyShutdown() {
   })
 }
 
+/**
+ * 没有活实例时，显式修改/移除环境意味着放弃尚未回连的重启；先撤销，防止 helper 写回已删目录。
+ * 已回连的继任者还持有进程，必须像正常实例一样先停止，不能把断线或等待收尾当作空闲。
+ */
+function revokeIdleInstanceLinks(matches = () => true) {
+  for (const [key, link] of instanceLinks) {
+    if (instances.has(key) || !matches(link)) continue
+    if (link.pending().length) throw new Error('仍有重启中的实例，请先停止这个环境')
+    link.revoke()
+  }
+}
+
 /** 所有实例（含正在起 / 正在停的），按启动先后。 */
 function instanceList() {
   return [...instances.values()]
@@ -1103,6 +1117,7 @@ async function withIdleProfileIn(home, profile, operation) {
   if (maintainingProfiles.has(key) || pluginBusy || syncRunning) {
     throw new Error('正在修改环境，等操作结束再试')
   }
+  revokeIdleInstanceLinks(link => link.profile === name && fileManager.samePath(link.home, home))
   maintainingProfiles.add(key)
   pluginBusy = true
   try {
@@ -1225,6 +1240,7 @@ const diagnosticRepairs = new DiagnosticRepairs({
     if (maintainingProfiles.has(key)) {
       throw new Error('目标已有修改操作。')
     }
+    revokeIdleInstanceLinks(link => link.home === target.home && link.profile === target.profile)
     maintainingProfiles.add(key)
     try {
       return await launchScope.run({ home: target.home, confirmedRepair: true }, operation)
@@ -1867,6 +1883,7 @@ async function saveManagerSettings(body) {
     const dir = safeDataDir(body.dataDir)
     if (dir !== DATA && (instances.size || startingProfiles.size)) throw new Error('请先停止再改版本目录')
     if (installing) throw new Error('正在安装，稍后再改版本目录')
+    if (dir !== DATA) revokeIdleInstanceLinks()
     await applyDataDir(dir)
   }
   const stored = await saveSettings({
@@ -3081,7 +3098,10 @@ function spawnDsh(version, extra, profile = '', options = {}) {
   if (SYSTEM_PATH) writeDshShims(version, { dir: systemBinDir() })
   // 统一用 RUNTIME_NODE 拉起 dsh（打包后就是 Electron 自带的 Node，见 platform.js）；#61 的诊断
   // 上下文仍要在这之前建好 env。
-  const env = dshEnv(version, options)
+  const env = { ...dshEnv(version, options), ...options.instanceLink?.env }
+  if (options.instanceLink) {
+    env.NODE_OPTIONS = [env.NODE_OPTIONS, `--require ${nodeOptionsPath(join(ROOT, 'compat', 'instance-link.cjs'))}`].join(' ')
+  }
   // 启动 CPU 账本：只有真正拉起实例（bootOnce）时才写报告，插件命令 / 修复命令不写，
   // 否则会用一次半截运行覆盖掉上一次正常启动的样本。报告按「版本@profile」落盘。
   if (options.pluginProfile) {
@@ -4601,6 +4621,7 @@ async function optimizeVersion(version) {
   const ver = safeVersion(version)
   if (installing || packInstalling || pluginBusy || startChains.size || startingProfiles.size) throw new Error('正在安装或启动，请稍后再优化依赖')
   if (instanceList().some(proc => proc.version === ver)) throw new Error('请先停止此版本的所有实例再优化依赖')
+  revokeIdleInstanceLinks(link => link.version === ver)
   if (!isManaged(ver) || !existsSync(binPath(ver))) throw new Error('只能优化启动器管理的已安装版本')
   // 在第一次 await 前占住操作，避免其他窗口同时启动、卸载或切换版本目录。
   installing = optimizingVersion = ver
@@ -4719,7 +4740,12 @@ async function terminateProcess(proc) {
   if (!proc.child?.pid) return true
   // Windows 没有「温和终止」这条路：taskkill 不带 /F 只是发 WM_CLOSE，对控制台进程约等于
   // 不生效，所以一开始就 /F；POSIX 先 SIGTERM，给它体面退出的机会，再升级到 SIGKILL。
-  await killTree(proc.child.pid, proc.child, process.platform === 'win32')
+  try {
+    await killTree(proc.child.pid, proc.child, process.platform === 'win32')
+  } finally {
+    // 必须先让 Windows taskkill /T 找到活根及后代，再允许断管道触发 preload 的退出兜底。
+    proc.instanceLink?.disconnect(proc.child)
+  }
   if (await waitExit(proc.child, STOP_EXIT_TIMEOUT_MS)) return true
   pushLog(`${label}（PID ${proc.child.pid}）收到终止信号后 ${STOP_EXIT_TIMEOUT_MS / 1000} 秒仍未退出，强制终止`)
   await killTree(proc.child.pid, proc.child, true)
@@ -4739,7 +4765,7 @@ function notifyInstance(kind, proc, extra = {}) {
   } catch { /* 通知失败不能影响实例本身 */ }
 }
 
-function attachProcess(version, profile, child, diagnosticContext) {
+function attachProcess(version, profile, child, diagnosticContext, instanceLink) {
   const key = instanceKey(version, profile)
   let ready
   const proc = {
@@ -4748,6 +4774,7 @@ function attachProcess(version, profile, child, diagnosticContext) {
     profile,
     home: homeDir(),
     child,
+    instanceLink,
     status: 'starting',
     startupPhase: 'launching',
     url: null,
@@ -4805,9 +4832,9 @@ function attachProcess(version, profile, child, diagnosticContext) {
       proc.tail.push(line)
       if (proc.tail.length > 200) proc.tail.shift()
     }
-    pushLog(`${tag}${line}`)
+    pushLog(`${tag}${line.replace(/([?&]token=)[^\s&]+/g, '$1***')}`)
     const match = line.match(READY_RE)
-    if (match && proc.status === 'starting') {
+    if (match && instances.get(key) === proc && proc.status !== 'stopping' && proc.url !== match[1]) {
       proc.url = match[1]
       proc.status = 'running'
       scheduleDiagnosis()
@@ -4836,6 +4863,7 @@ function attachProcess(version, profile, child, diagnosticContext) {
     clearTimeout(proc.diagnosticTimer)
     proc.diagnosticTimer = null
     proc.exit = { code, signal }
+    instanceLink?.exited(child)
     ready()
     pushLog(`${tag}已退出 code=${code ?? '-'} signal=${signal ?? '-'}`)
     // 没拿到就绪地址 = 启动失败；用户主动停止（stopping）不打扰
@@ -5018,9 +5046,34 @@ async function bootOnce(ver, prof, onStarted) {
     home: homeDir(),
     fingerprint: profileFingerprint(homeDir(), prof),
   }
-  const child = spawnDsh(ver, bootArgs(prof, alongside, pinned || reused), prof, { diagnosticContext, cwd: workdir, pluginProfile: true })
+  const key = instanceKey(ver, prof)
+  if (instanceLinks.get(key)?.pending().length) throw new Error('仍有重启中的实例，请先停止这个环境')
+  instanceLinks.get(key)?.revoke()
+  const home = homeDir()
+  const instanceLink = await createInstanceLink({
+    entry: bootEntry(ver, prof), profile: prof, profileArgIndex: bootEntry(ver, prof) === RESERVED_BOOT ? 1 : 0, timeoutMs: START_TIMEOUT_MS,
+    onDispose: () => { if (instanceLinks.get(key) === instanceLink) instanceLinks.delete(key) },
+    onSuccessor: child => launchScope.run({ home }, () => {
+      if (instanceLinks.get(key) !== instanceLink || shuttingDown) { child.kill('SIGKILL'); return }
+      const successor = attachProcess(ver, prof, child, diagnosticContext, instanceLink)
+      void emitState()
+      void waitUntilReady(successor, ver).then(async ({ url }) => {
+        if (automatic) await rememberAutoPort(ver, prof, url)
+        lastHealth = null
+        await emitState()
+      }).catch(error => pushLog(error.message))
+    }),
+  })
+  Object.assign(instanceLink, { home, version: ver, profile: prof })
+  instanceLinks.set(key, instanceLink)
+  let child
+  try {
+    assertStartupActive()
+    child = spawnDsh(ver, bootArgs(prof, alongside, pinned || reused), prof, { diagnosticContext, cwd: workdir, pluginProfile: true, instanceLink })
+  } catch (error) { instanceLink.revoke(); throw error }
+  instanceLink.bind(child)
   const spawnAt = performance.now()
-  const proc = attachProcess(ver, prof, child, diagnosticContext)
+  const proc = attachProcess(ver, prof, child, diagnosticContext, instanceLink)
   onStarted?.(proc)
   await emitState()
   try {
@@ -5828,6 +5881,15 @@ async function stop(version, profile = '', targetHome = '') {
     : wantedProfile
       ? instanceList().filter((proc) => proc.version === wantedVersion && proc.profile === wantedProfile && proc.home === home)
       : instanceList().filter((proc) => proc.version === wantedVersion && (!targetHome || proc.home === home))
+  // helper 等待旧端口释放的间隙也要撤销能力，不能让已停止的实例在后台复活。
+  for (const [key, link] of instanceLinks) {
+    if ((!wantedVersion || link.version === wantedVersion) && (!wantedProfile || link.profile === wantedProfile)
+      && ((!wantedVersion && !targetHome) || link.home === home || (!targetHome && !wantedProfile))) {
+      // 已回连但还在等旧进程退出的继任者也要确认死亡，才能允许下一次启动占用 profile。
+      for (const child of link.pending()) targets.push({ version: link.version, profile: link.profile, home: link.home, child, instanceLink: link })
+      link.revokeAdmission()
+    }
+  }
   if (!targets.length) return
   for (const proc of targets) proc.status = 'stopping'
   await emitState()
@@ -5880,6 +5942,7 @@ async function uninstall(version) {
   if (optimizingVersion === ver) throw new Error('正在优化此版本的依赖，请稍后再移除')
   // 这个版本可能有多个 profile 的实例在跑，任何一个在都不能卸
   if (instanceList().some((proc) => proc.version === ver)) throw new Error('请先停止再移除')
+  revokeIdleInstanceLinks(link => link.version === ver)
   const config = await loadConfig()
   const versions = listedVersions(config)
   if (!versions.includes(ver)) throw new Error(`${ver} 未安装`)
@@ -7532,6 +7595,12 @@ export async function stopAll() {
   // 退出前也要确认子进程真没了：原来杀完就 clear，taskkill 没生效时 dsh 就成了没有父进程的
   // 孤儿 node.exe——用户看到的就是「进程脱离了启动器」，再打开启动器时它还占着插件文件。
   const procs = instanceList()
+  for (const link of instanceLinks.values()) {
+    for (const child of link.pending()) procs.push({ version: link.version, profile: link.profile, home: link.home, child, instanceLink: link })
+    link.revokeAdmission()
+  }
+  instanceLinks.clear()
+  for (const proc of procs) proc.status = 'stopping'
   await Promise.allSettled(procs.map(async (proc) => {
     if (!(await terminateProcess(proc))) pushLog(`[退出] ${proc.version}/${proc.profile}（PID ${proc.child.pid}）没有退出`)
     if (instances.get(proc.key)?.child === proc.child) instances.delete(proc.key)

@@ -149,7 +149,7 @@ test('taskkill 挂起时按预算回退 Node kill，不能把命令等待当作�
 })
 
 test('整合保留诊断启动身份、停止二次确认及两个加载钩子', () => {
-  assert.match(source, /function attachProcess\(version, profile, child, diagnosticContext\)/)
+  assert.match(source, /function attachProcess\(version, profile, child, diagnosticContext, instanceLink\)/)
   assert.match(source, /function bootOnce\(ver, prof, onStarted\)/)
   assert.match(source, /function startNow\(version, profile = PROFILE_NAME, onStarted\)/)
   assert.match(source, /return bootOnce\(ver, prof, onStarted\)/)

@@ -19,6 +19,7 @@ function manager(overrides = {}) {
     installing: null, optimizingVersion: null, installProgress: null, packInstalling: false, pluginBusy: false,
     startChains: new Map(), startingProfiles: new Set(), safeVersion: value => value, safeProfile: value => value,
     profileKey: value => value, PROFILE_NAME: 'web', maintainingProfiles: new Set(),
+    revokeIdleInstanceLinks() {},
     instanceList: () => [], isManaged: () => true, existsSync: () => true, binPath: version => version,
     versionDir: version => '/versions/' + version, pushLog() {}, emit() {}, emitState: async () => {},
     optimizeDependencies: async () => {}, assertStartupActive() {}, startWithRepair: async () => { throw new Error('不应启动') },

@@ -19,6 +19,11 @@ function bootContext(home, profile, fail = false) {
     mkdir: async () => {},
     homeDir: () => home,
     instances: new Map(),
+    instanceLinks: new Map(),
+    instanceKey: (version, targetProfile) => `${home}:${version}:${targetProfile}`,
+    bootEntry: () => '/fake/bin.js', RESERVED_BOOT: '/fake/reserved-profile-boot.mjs', START_TIMEOUT_MS: 1000,
+    createInstanceLink: async () => ({ env: {}, bind() {}, revoke() {} }),
+    shuttingDown: false,
     pinnedPort: () => 0,
     remembersAutoPort: () => true,
     rememberedPort: async () => ({ port: TEST_PORT, key: `1.0.0@${profile}` }),
@@ -26,7 +31,7 @@ function bootContext(home, profile, fail = false) {
       observations.logs.push(message)
     },
     // 启动项日志的耗时记录是副作用，这里只关心诊断身份
-    launchScope: { getStore: () => undefined },
+    launchScope: { getStore: () => undefined, run: (_scope, action) => action() },
     recordLaunchRun() {},
     readProcessRssMB: () => 300,
     lanBindActive: () => false,

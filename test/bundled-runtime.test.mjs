@@ -140,7 +140,17 @@ test('dsh 的开关在命令行上，不进 NODE_OPTIONS；worker 需要的 --re
 // 目录 + NODE_OPTIONS 里只写裸文件名」——但 NODE_PATH 只有纯 Node 认，Electron 主进程的模块
 // 加载器初始化不消费它，裸文件名直接 Cannot find module，把应用在起来之前就顶死。
 test('worker 补丁进 NODE_OPTIONS 用的是绝对路径，不再靠 NODE_PATH', () => {
-  const env = dshEnv('0.1.7-rc.1')
+  // 隔离宿主注入的同名补丁，否则测试会把真实安装那份也误算成本次新增。
+  const inherited = process.env.NODE_OPTIONS
+  let env
+  try {
+    process.env.NODE_OPTIONS = '--trace-warnings'
+    env = dshEnv('0.1.7-rc.1')
+    assert.ok(env.NODE_OPTIONS.includes('--trace-warnings'), '已有 Node 选项仍须保留')
+  } finally {
+    if (inherited === undefined) delete process.env.NODE_OPTIONS
+    else process.env.NODE_OPTIONS = inherited
+  }
   // 别假设 process.env.NODE_OPTIONS 是空的：开发机/CI 上可能本来就有值（本仓库自己就会设），
   // 这里只挑 dsh 加进去的那一条（指向 worker-events.cjs 的绝对路径）。
   const targets = [...env.NODE_OPTIONS.matchAll(/--require\s+(\S+)/g)]

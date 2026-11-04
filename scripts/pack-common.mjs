@@ -26,6 +26,7 @@ export const NODE_MIRRORS = [
 const APP_FILES = [
   'start.js',
   'server.js',
+  'instance-link.js',
   'app-version.js',
   'startup-diagnosis.js',
   'runtime-diagnostics.mjs',
