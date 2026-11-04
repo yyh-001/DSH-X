@@ -8,7 +8,7 @@
  * 不给管理器发测试专用事件；认证必须真的通过 HTTP，不能只检查 URL 上有 token。
  */
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync, existsSync } from 'node:fs'
 import { createServer, createConnection } from 'node:net'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
@@ -30,7 +30,7 @@ const FAKE = String.raw`
 import { createServer } from 'node:http'
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, openSync, closeSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, openSync, closeSync, statSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 if (process.argv.includes('plugin')) process.exit(0)
@@ -42,12 +42,22 @@ const record = value => {
   writeFileSync(recordPath + '.next', JSON.stringify({ pid: process.pid, ...value }))
   renameSync(recordPath + '.next', recordPath)
 }
+// 心跳文件是「这个 PID 还是本测试的进程」的凭据：Windows 会很快复用刚退出的 PID，
+// 只靠 process.kill(pid, 0) 判活会把无关进程当成还活着的假服务器。
+const heartbeatPath = recordPath + '.beat'
+const beat = () => { try { writeFileSync(heartbeatPath, '') } catch {} }
+beat()
+setInterval(beat, 200).unref()
+process.on('exit', () => { try { unlinkSync(heartbeatPath) } catch {} })
 const alive = pid => { try { process.kill(pid, 0); return true } catch { return false } }
+const fresh = pid => { try { return Date.now() - statSync(join(root, 'processes', pid + '.json.beat')).mtimeMs <= 2500 } catch { return false } }
+// 两个条件缺一不可：PID 已消失说明进程没了；PID 还在但心跳过期，说明这个号被系统复用给了别的进程。
+const gone = pid => !alive(pid) || !fresh(pid)
 if (process.env.DSH_TEST_ROLE === 'helper') {
   const handoff = JSON.parse(process.env.DSH_TEST_HANDOFF)
   record({ role: 'helper', handoff })
   writeFileSync(join(root, handoff.id + '.armed'), '')
-  if (handoff.mode !== 'early') while (alive(handoff.oldPid)) await delay(10)
+  if (handoff.mode !== 'early') while (!gone(handoff.oldPid)) await delay(10)
   if (handoff.mode === 'held') while (!existsSync(join(root, handoff.id + '.release'))) await delay(10)
   const out = openSync(join(root, handoff.id + '.out.log'), 'a')
   const err = openSync(join(root, handoff.id + '.err.log'), 'a')
@@ -130,8 +140,14 @@ const { startServer, stopAll, shutdown } = await import('../src/server.js')
 const base = await startServer()
 let managerClosed = false
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms))
-const alive = pid => { try { process.kill(pid, 0); return true } catch { return false } }
 const records = () => readdirSync(ledger).filter(name => name.endsWith('.json')).map(name => JSON.parse(readFileSync(join(ledger, name), 'utf8')))
+// 假进程每 200ms 摸一次心跳文件；PID 已消失、或 PID 被系统复用给别的进程（心跳过期），都不算活着。
+const alive = pid => { try { process.kill(pid, 0); return true } catch { return false } }
+const aliveRecord = item => {
+  try { if (Date.now() - statSync(join(ledger, item.pid + '.json.beat')).mtimeMs > 2500) return false } catch { return false }
+  return alive(item.pid)
+}
+const alivePid = pid => { const item = records().find(entry => entry.pid === pid); return Boolean(item) && aliveRecord(item) }
 async function api(path, body, launchId = '') {
   const response = await fetch(base + path, {
     ...(body === undefined ? {} : { method: 'POST', body: JSON.stringify(body) }),
@@ -187,7 +203,7 @@ async function attached(previous) {
 }
 async function noOrphans() {
   const snap = await api('/api/state')
-  for (const process of records().filter(item => item.role === 'server' && alive(item.pid))) {
+  for (const process of records().filter(item => item.role === 'server' && aliveRecord(item))) {
     const managed = snap.instances.find(item => item.url === process.url && item.status === 'running')
     assert.ok(managed, 'every live fake server must remain accessible through a managed instance')
     assert.equal((await session(managed.url)).pid, process.pid)
@@ -200,16 +216,16 @@ function sameSession(before, after) {
 }
 async function stopped() {
   if (!managerClosed) await until(async () => (await api('/api/state')).instances.length === 0, 'explicit stop must remove managed instances')
-  await until(() => records().filter(item => item.role === 'server').every(item => !alive(item.pid)), 'no live inaccessible fake server may remain after stop/shutdown')
+  await until(() => records().filter(item => item.role === 'server').every(item => !aliveRecord(item)), 'no live inaccessible fake server may remain after stop/shutdown')
   await pause(C.quietMs)
   if (!managerClosed) assert.equal((await api('/api/state')).instances.length, 0, 'explicit stop must not resurrect instances')
-  assert.ok(records().filter(item => item.role === 'server').every(item => !alive(item.pid)), 'no successor may resurrect after explicit stop')
+  assert.ok(records().filter(item => item.role === 'server').every(item => !aliveRecord(item)), 'no successor may resurrect after explicit stop')
 }
 async function cleanup() {
   if (!managerClosed) await api('/api/stop', {})
   // 只杀本测试私有目录里由假进程登记的 PID，绝不扫描/重启真实用户实例。
-  for (const item of records()) if (alive(item.pid)) { try { process.kill(item.pid, 'SIGKILL') } catch {} }
-  await until(() => records().every(item => !alive(item.pid)), 'fixture processes must terminate')
+  for (const item of records()) if (aliveRecord(item)) { try { process.kill(item.pid, 'SIGKILL') } catch {} }
+  await until(() => records().every(item => !aliveRecord(item)), 'fixture processes must terminate')
 }
 test.beforeEach(async () => {
   if (managerClosed) { await startServer(); managerClosed = false }
@@ -270,7 +286,7 @@ test('BVA/state: expired successor lease disposes its listener and rejects a lat
   try {
     await until(() => fixture.disposals() === 1, 'expired lease must dispose its listener')
     const child = await linkedFake(fixture)
-    await until(() => !alive(child.pid), 'late successor must shut down after expired capability')
+    await until(() => child.exitCode !== null || child.signalCode !== null, 'late successor must shut down after expired capability')
     assert.equal(fixture.adoptions(), 0)
   } finally { fixture.link.revoke() }
 })
@@ -280,7 +296,7 @@ test('State/decision table: early ready successor times out without stealing a s
   fixture.link.bind({ pid: process.pid })
   try {
     const child = await linkedFake(fixture)
-    await until(() => !alive(child.pid), 'early candidate must terminate when original never exits')
+    await until(() => child.exitCode !== null || child.signalCode !== null, 'early candidate must terminate when original never exits')
     assert.equal(fixture.adoptions(), 0)
     assert.ok(alive(process.pid), 'original owner must remain alive')
   } finally { fixture.link.revoke() }
@@ -335,7 +351,7 @@ for (const mode of ['late', 'early']) {
     const next = await attached(first)
     sameSession(first, next)
     assert.notEqual(next.identity.pid, first.identity.pid)
-    await until(() => !alive(first.identity.pid), 'superseded process must exit')
+    await until(() => !alivePid(first.identity.pid), 'superseded process must exit')
     await noOrphans()
     assert.equal((await fake(next.url, '/test/session', { token: new URL(first.url).searchParams.get('token') })).status, 401)
     assert.equal((await api('/api/start', { version: first.identity.version, profile: first.identity.profile })).url, next.url, 'normal attach after automatic reattach must reuse the valid successor')
@@ -350,7 +366,7 @@ test('BVA/state: three consecutive detached self-restarts retain one session and
     current = await attached(previous)
     sameSession(previous, current)
     assert.equal(current.identity.generation, previous.identity.generation + 1)
-    await until(() => !alive(previous.identity.pid), 'each superseded generation must exit')
+    await until(() => !alivePid(previous.identity.pid), 'each superseded generation must exit')
     await noOrphans()
   }
   await api('/api/stop', { version: current.identity.version, profile: current.identity.profile, home: current.identity.home })
@@ -366,7 +382,7 @@ test('Decision table/state: explicit stop of an ordinary session must not trigge
 test('Decision table/state: explicit stop while detached replacement is pending forbids a live orphan', async () => {
   const first = await start()
   const handoff = await restart(first, 'held')
-  await until(() => !alive(first.identity.pid), 'old process exits before successor is released')
+  await until(() => !alivePid(first.identity.pid), 'old process exits before successor is released')
   await api('/api/stop', { version: first.identity.version, profile: first.identity.profile, home: first.identity.home })
   writeFileSync(join(root, handoff.id + '.release'), '')
   await pause(C.quietMs)
@@ -393,7 +409,7 @@ test('EP/isolation: restarting one instance does not rotate or stop other versio
     assert.equal((await fake(other.url, '/test/session', { token: new URL(next.url).searchParams.get('token') })).status, 401, 'tokens must not cross instance boundaries')
   }
   await api('/api/stop', { version: next.identity.version, profile: next.identity.profile, home: next.identity.home })
-  await until(() => !alive(next.identity.pid), 'adopted successor must be controllable by explicit stop')
+  await until(() => !alivePid(next.identity.pid), 'adopted successor must be controllable by explicit stop')
   for (const other of others) assert.deepEqual(await session(other.url), other.identity)
 })
 
@@ -410,7 +426,7 @@ test('Decision table/state: manager shutdown terminates an already adopted detac
 test('Decision table/state: manager shutdown while replacement is pending cannot leave a resurrected server', async () => {
   const first = await start()
   const handoff = await restart(first, 'held')
-  await until(() => !alive(first.identity.pid), 'old process exits before shutdown')
+  await until(() => !alivePid(first.identity.pid), 'old process exits before shutdown')
   await shutdown()
   managerClosed = true
   writeFileSync(join(root, handoff.id + '.release'), '')
