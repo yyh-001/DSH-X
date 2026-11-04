@@ -27,6 +27,7 @@ const APP_FILES = [
   'start.js',
   'server.js',
   'instance-link.js',
+  'lan-proxy.js',
   'app-version.js',
   'startup-diagnosis.js',
   'runtime-diagnostics.mjs',

@@ -615,6 +615,7 @@ html.reduce-motion .launch-status.is-working::before { animation: none; }
 .launch-link-copy svg { width: 16px; height: 16px; }
 .launch-link-value { display: block; margin-top: 8px; color: var(--muted); font: 12px/1.6 Consolas, ui-monospace, monospace; overflow-wrap: anywhere; user-select: text; text-decoration: none; }
 .launch-link-value:hover { color: var(--accent); text-decoration: underline; }
+.launch-link-note { display: block; margin-top: 6px; color: var(--danger); font-size: 12px; line-height: 1.5; }
 .launch-preset .launch-primary { width: 34px; height: 34px; min-width: 0; padding: 0; color: #fff; }
 .launch-actions .icon-btn { width: 34px; height: 34px; border-radius: 9px; }
 .launch-actions .icon-btn svg { width: 18px; height: 18px; }

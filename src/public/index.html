@@ -501,7 +501,7 @@
                   <div class="set-control">
                     <select id="webBind">
                       <option value="loopback" data-i18n="回环（127.0.0.1）">回环（127.0.0.1）</option>
-                      <option value="lan" data-i18n="局域网（0.0.0.0）">局域网（0.0.0.0）</option>
+                      <option value="lan" data-i18n="局域网（本机局域网 IP）">局域网（本机局域网 IP）</option>
                     </select>
                   </div>
                 </div>
@@ -1393,9 +1393,11 @@
   "镜像较快，新版本可能稍有延迟。": "Faster mirror; new releases may arrive later.",
   "官方源更新及时，国内直连可能较慢。": "The official source updates promptly, but may be slower in China.",
   "回环（127.0.0.1）": "Loopback (127.0.0.1)",
-  "局域网（0.0.0.0）": "LAN (0.0.0.0)",
-  "局域网访问还需在 dsh 中开启远程访问。": "LAN access also requires enabling remote access in dsh.",
-  "远程访问插件已开启局域网；仅限本机请先关闭该开关。": "The remote-access plugin has LAN access on. Turn it off to allow this machine only.",
+  "局域网（本机局域网 IP）": "LAN (this machine's LAN IP)",
+  "本机仍用 127.0.0.1 访问；其他设备用复制的局域网链接。换网络后需重启实例。": "This machine still uses 127.0.0.1; other devices use the copied LAN link. Restart the instance after changing networks.",
+  "没有找到可用的局域网地址，这次只能本机访问。": "No usable LAN address was found, so only this machine can connect this time.",
+  "局域网地址 {address} 已被占用，请关掉远程访问插件的「局域网访问」。": "The LAN address {address} is already in use. Turn off LAN access in the remote-access plugin.",
+  "局域网访问没能开启（{address}），详见日志。": "LAN access could not start ({address}). See the log for details.",
   "已保存。Web 绑定更改在下次启动 dsh 时生效。": "Saved. The Web binding change takes effect the next time dsh starts.",
   "重启": "Restart",
   "额外启动参数": "Extra startup arguments",
@@ -4411,7 +4413,8 @@
 
     const launchCopyFeedback = new WeakMap()
     async function copyLaunchLink(button) {
-      const url = button.closest('.launch-open').querySelector('.launch-link-value').getAttribute('href')
+      // 复制的是给别的设备用的地址（局域网模式下是局域网链接）；点链接本身仍按回环在本机打开
+      const url = button.closest('.launch-open').querySelector('.launch-link-value').dataset.copyUrl
       try {
         try {
           await navigator.clipboard.writeText(url)
@@ -4459,6 +4462,13 @@
     }
 
     /** 打开一个地址：交给服务端按「打开方式」办（内嵌窗口 / 应用窗口 / 标签页）。 */
+    /** 局域网代理没起来的原因（服务端只给 code + 地址，文案按当前语言拼）。 */
+    function lanErrorText(error) {
+      if (error.code === 'no-address') return t('没有找到可用的局域网地址，这次只能本机访问。')
+      if (error.code === 'in-use') return t('局域网地址 {address} 已被占用，请关掉远程访问插件的「局域网访问」。', { address: error.address })
+      return t('局域网访问没能开启（{address}），详见日志。', { address: error.address })
+    }
+
     async function openInstance(url) {
       if (!url) return
       try {
@@ -4881,7 +4891,7 @@
             <span class="spin" aria-hidden="true"></span>${live?.status === 'running'
               ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-10 10M10 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"/></svg>'
               : '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5a1 1 0 0 1 1.5-.86l10 6.5a1 1 0 0 1 0 1.72l-10 6.5A1 1 0 0 1 8 18.5Z"/></svg>'}</button>
-          ${live?.status === 'running' && live.url ? `<span class="launch-link-popover" role="group" aria-label="${escapeHtml(t('访问链接'))}"><span class="launch-link-head"><span>${escapeHtml(t('访问链接'))}</span><button class="launch-link-copy" type="button" data-copy-launch-link title="${escapeHtml(t('复制链接'))}" aria-label="${escapeHtml(t('复制链接'))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg></button></span><a class="launch-link-value" href="${escapeHtml(live.url)}" target="_blank" rel="noopener">${escapeHtml(live.url)}</a></span>` : ''}</span></span>
+          ${live?.status === 'running' && live.url ? `<span class="launch-link-popover" role="group" aria-label="${escapeHtml(t('访问链接'))}"><span class="launch-link-head"><span>${escapeHtml(t('访问链接'))}</span><button class="launch-link-copy" type="button" data-copy-launch-link title="${escapeHtml(t('复制链接'))}" aria-label="${escapeHtml(t('复制链接'))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg></button></span><a class="launch-link-value" href="${escapeHtml(live.url)}" data-copy-url="${escapeHtml(live.lanUrl || live.url)}" target="_blank" rel="noopener">${escapeHtml(live.lanUrl || live.url)}</a>${live.lanError ? `<span class="launch-link-note">${escapeHtml(lanErrorText(live.lanError))}</span>` : ''}</span>` : ''}</span></span>
         </div>`
       }).join('')
       // 状态推送很频繁；内容没变就保留节点，避免悬停动效和键盘焦点反复重置。
@@ -6898,12 +6908,7 @@
         if (!proxyTestEl.dataset.ran) proxyHintEl.textContent = describeProxy(data)
       }
       if ('webBind' in data) webBindEl.value = data.webBind === 'lan' ? 'lan' : 'loopback'
-      // 远程访问插件的「局域网访问」开关压着设置值时如实说明，别让用户以为选错了没生效
-      if (webBindHintEl) {
-        webBindHintEl.textContent = data.webBindLan
-          ? t('远程访问插件已开启局域网；仅限本机请先关闭该开关。')
-          : t('局域网访问还需在 dsh 中开启远程访问。')
-      }
+      if (webBindHintEl) webBindHintEl.textContent = t('本机仍用 127.0.0.1 访问；其他设备用复制的局域网链接。换网络后需重启实例。')
       if ('autoStart' in data) autoStartEl.checked = Boolean(data.autoStart)
       if ('pluginMarketSources' in data) pluginMarketSourcesEl.value = data.pluginMarketSources.join('\n')
       if ('autoDisablePlugins' in data) autoDisableEl.checked = data.autoDisablePlugins !== false
