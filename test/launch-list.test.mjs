@@ -162,19 +162,24 @@ test('减少动画和控制台尚未就绪时直接更新列表', () => {
   }
 })
 
-function editor({ fail = false, confirm = true, entries = [{ id: 'a' }, { id: 'b' }], savedEntry = { id: 'c' } } = {}) {
+function editor({ fail = false, confirm = true, wsl = false, entries = [{ id: 'a' }, { id: 'b' }], savedEntry = { id: 'c' } } = {}) {
   let release
   const closing = new Promise((resolve) => { release = resolve })
   const calls = []
+  const posts = []
   const context = vm.createContext({
+    launchBackendIsWsl: () => wsl,
+    launchWslDistroEl: { value: 'Fedora' }, launchWslHomeEl: { value: '~/dsh-ui-test' }, launchWslWorkdirEl: { value: '' },
+    refreshWslProfiles: async () => true,
     launchFormEl: {}, launchSaveEl: { disabled: false }, launchDeleteEl: { disabled: false },
     editingLaunchId: savedEntry.id === 'c' ? 'b' : savedEntry.id, DEFAULT_LAUNCH_ID: 'a', state: { launchPresets: entries },
     launchNameEl: { value: '新增项' }, launchIcon: 'terminal', versionValue: 'auto', launchProfile: 'web',
     launchPortEl: { value: '' }, launchDshHomeEl: { value: '' }, launchWorkdirEl: { value: '' }, launchAutoLaunchEl: { checked: false }, draftLaunchChannel: () => 'official',
     refreshLaunchHomeProfiles: async () => true,
     t: (text) => text, appConfirm: async () => confirm,
-    post: async (path) => {
+    post: async (path, body) => {
       calls.push(path)
+      posts.push({ path, body })
       if (fail) throw new Error('保存失败')
       return { entry: savedEntry }
     },
@@ -183,8 +188,24 @@ function editor({ fail = false, confirm = true, entries = [{ id: 'a' }, { id: 'b
     render: () => calls.push('render'), notify: (message) => calls.push(message),
   })
   vm.runInContext(updateCode + saveCode + deleteCode, context)
-  return { context, calls, release }
+  return { context, calls, posts, release }
 }
+
+test('WSL 启动项保存只带 WSL 字段，并在关窗前解除保存按钮禁用', async () => {
+  const h = editor({ wsl: true })
+  h.release()
+  await h.context.launchFormEl.onsubmit({ preventDefault() {} })
+  const body = h.posts.find((item) => item.path === '/api/launch-presets')?.body
+  assert.ok(body, '应当发保存请求')
+  assert.equal(body.backend, 'wsl')
+  assert.equal(body.version, 'auto')
+  assert.equal(body.wslDistro, 'Fedora')
+  assert.equal(body.wslHome, '~/dsh-ui-test')
+  assert.equal(body.dshHome, undefined, 'WSL 分支不写 Windows 侧目录')
+  assert.equal(body.ensureProfile, undefined, 'WSL 分支不走本机 Profile 引导')
+  assert.ok(h.calls.includes('close'))
+  assert.equal(h.context.launchSaveEl.disabled, false)
+})
 
 test('添加与删除成功后等待编辑弹窗退场，再渲染列表动效', async () => {
   for (const kind of ['save', 'delete']) {

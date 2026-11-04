@@ -219,6 +219,80 @@ export function safeWorkdir(dir) {
   return resolve(trimmed)
 }
 
+
+/** 启动项跑在哪里：Windows 本机，还是某个 WSL 发行版。 */
+export const WSL_BACKENDS = ['local', 'wsl']
+/** 首版只做 wrapper：wsl.exe 前台拉起，脚本 exec dsh；systemd 模式后续再加。 */
+export const DEFAULT_WSL_SERVICE_MODE = 'wrapper'
+export const DEFAULT_WSL = {
+  defaultDistro: '',
+  defaultServiceMode: DEFAULT_WSL_SERVICE_MODE,
+  defaultHome: '',
+  dshCommand: 'dsh',
+  stopAttached: false,
+}
+
+/**
+ * WSL 发行版名：docker-desktop 之类的辅助发行版在探测时会被过滤掉，这里只做通用形状校验。
+ * 名称允许空格和中文（wsl --list 里确实可能出现），但不允许控制字符和斜杠。
+ */
+export function safeWslDistro(value) {
+  if (value === undefined || value === null) return ''
+  if (typeof value !== 'string') throw new Error('WSL 发行版填一个名称，别填别的')
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  if (trimmed.length > 64 || /[\x00-\x1f\x7f/]/.test(trimmed)) throw new Error('WSL 发行版名称不合法')
+  return trimmed
+}
+
+/**
+ * WSL 里的路径：绝对路径或 ~/ 开头。不能用 node:path 的 isAbsolute——那是 Windows 的规则，
+ * 在 Windows 上 /root/.dsh 会被判成相对路径；这里按 Linux 语义单独校验。
+ */
+export function safeWslPath(value, label = 'WSL 路径') {
+  if (value === undefined || value === null) return ''
+  if (typeof value !== 'string') throw new Error(label + '填一个路径，别填别的')
+  let trimmed = value.trim()
+  if (!trimmed) return ''
+  if (trimmed === '~') return '~'
+  if (trimmed.indexOf('~/') === 0) {
+    const rest = trimmed.slice(2).split('/').filter(Boolean).join('/')
+    return rest ? '~/' + rest : '~'
+  }
+  if (trimmed.charAt(0) !== '/') throw new Error(label + '要填绝对路径（例如 /root/.dsh）')
+  return trimmed.replace(/\/+/g, '/').replace(/\/+$/, '') || '/'
+}
+
+/** 全局 WSL 设置：所有字段都做兜底，历史文件里的脏值不会让设置页打不开。 */
+export function safeWslSettings(value) {
+  const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+  let defaultDistro = ''
+  try { defaultDistro = safeWslDistro(source.defaultDistro) } catch { /* 退回空 */ }
+  let defaultHome = ''
+  try { defaultHome = safeWslPath(source.defaultHome, 'WSL 用户目录') } catch { /* 退回空 */ }
+  let dshCommand = String(source.dshCommand ?? '').trim() || 'dsh'
+  if (!/^[A-Za-z0-9._~/-]{1,128}$/.test(dshCommand)) dshCommand = 'dsh'
+  return {
+    defaultDistro,
+    defaultServiceMode: DEFAULT_WSL_SERVICE_MODE,
+    defaultHome,
+    dshCommand,
+    stopAttached: source.stopAttached === true,
+  }
+}
+
+/** WSL 固定端口按发行版分开存：同一个版本@profile 在 Fedora 和 Kali 里可以各占一个端口。 */
+export function safeWslPorts(value) {
+  const out = {}
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return out
+  for (const [rawDistro, ports] of Object.entries(value)) {
+    let distro = ''
+    try { distro = safeWslDistro(rawDistro) } catch { continue }
+    if (distro) out[distro] = safeInstancePorts(ports)
+  }
+  return out
+}
+
 export function safeDshHomes(value) {
   const homes = new Map()
   for (const item of Array.isArray(value) ? value : []) {
@@ -260,6 +334,10 @@ export const DEFAULTS = {
   autoPorts: {},
   // 旧设置没有启动项时，读取侧会补上内置默认项，首次使用无需先填参数。
   launchPresets: [],
+  // WSL 后端：全局默认发行版 / 默认用户目录 / dsh 命令；具体启动项可以各自覆盖。
+  wsl: { ...DEFAULT_WSL },
+  // WSL 固定端口：按发行版分开，键是发行版名，值是 版本@profile → 端口。
+  wslPorts: {},
   // 界面语言：zh / en（安装时选的语言写进安装目录的 lang.txt，启动器读一次落到这里）
   lang: '',
   theme: 'system',
@@ -410,6 +488,11 @@ export function safeEnvironmentPorts(value) {
   const out = {}
   if (!value || typeof value !== 'object' || Array.isArray(value)) return out
   for (const [rawHome, ports] of Object.entries(value)) {
+    // WSL 实例的 home 是 wsl://发行版/路径 的合成键，不是 Windows 路径；自动端口记忆也要能存。
+    if (String(rawHome).startsWith('wsl://') && rawHome.length <= 1024) {
+      out[rawHome] = safeInstancePorts(ports)
+      continue
+    }
     let home
     try { home = safeDshHome(rawHome) } catch { continue }
     if (home) out[home] = safeInstancePorts(ports)
@@ -470,12 +553,28 @@ export function safeLaunchPresets(value) {
     seen.add(id)
     let icon = 'terminal'
     try { icon = safeLaunchIcon(item.icon) } catch { /* 旧设置里的坏图片退回默认图标，保留启动项。 */ }
+    // backend 只有显式写 wsl 才算 WSL；老启动项没有这个字段，仍按本机处理，保持兼容。
+    const backend = item.backend === 'wsl' ? 'wsl' : 'local'
+    let wslDistro = ''
+    let wslHome = ''
+    let wslWorkdir = ''
+    if (backend === 'wsl') {
+      // WSL 项不碰 Windows 的 safeDshHome / safeWorkdir：那些函数要求盘符绝对路径，
+      // 会把 /root/.dsh 当相对路径拒掉。路径按 Linux 语义单独校验。
+      try {
+        wslDistro = safeWslDistro(item.wslDistro)
+        wslHome = safeWslPath(item.wslHome, 'WSL 用户目录')
+        wslWorkdir = safeWslPath(item.wslWorkdir, 'WSL 项目目录')
+      } catch { return [] }
+    }
     let dshHome = ''
-    try { dshHome = safeDshHome(item.dshHome) } catch { return [] }
-    // 项目目录跟着启动项走：丢了它就只剩一个平平无奇的独立目录，工作目录也回不到项目根，
-    // 所以和 dshHome 一样，坏值宁可整条丢掉，别留下半截环境。
     let workdir = ''
-    try { workdir = safeWorkdir(item.workdir) } catch { return [] }
+    if (backend === 'local') {
+      try { dshHome = safeDshHome(item.dshHome) } catch { return [] }
+      // 项目目录跟着启动项走：丢了它就只剩一个平平无奇的独立目录，工作目录也回不到项目根，
+      // 所以和 dshHome 一样，坏值宁可整条丢掉，别留下半截环境。
+      try { workdir = safeWorkdir(item.workdir) } catch { return [] }
+    }
     // 启动项最近用过的两个版本（当前用/上一次用）：清理旧版本时按启动项保留，给回退用。
     const usedVersion = String(item.usedVersion ?? '')
     const prevVersion = String(item.prevVersion ?? '')
@@ -485,9 +584,12 @@ export function safeLaunchPresets(value) {
     return [{ id, name, version, profile, port,
       ...(item.autoLaunch === true ? { autoLaunch: true } : {}),
       ...(updateChannel !== DEFAULT_UPDATE_CHANNEL ? { updateChannel } : {}),
-      ...(VERSION_RE.test(usedVersion) ? { usedVersion } : {}),
-      ...(VERSION_RE.test(prevVersion) ? { prevVersion } : {}),
-      ...(workdir ? { workdir } : {}), ...(dshHome ? { dshHome } : {}), ...(icon !== 'terminal' ? { icon } : {}) }]
+      // auto 只是启动项的取值方式，不是用过的版本；留在历史里会把清理规则带偏。
+      ...(VERSION_RE.test(usedVersion) && usedVersion !== 'auto' ? { usedVersion } : {}),
+      ...(VERSION_RE.test(prevVersion) && prevVersion !== 'auto' ? { prevVersion } : {}),
+      ...(workdir ? { workdir } : {}), ...(dshHome ? { dshHome } : {}),
+      ...(backend === 'wsl' ? { backend: 'wsl', ...(wslDistro ? { wslDistro } : {}), ...(wslHome ? { wslHome } : {}), ...(wslWorkdir ? { wslWorkdir } : {}), wslServiceMode: DEFAULT_WSL_SERVICE_MODE } : {}),
+      ...(icon !== 'terminal' ? { icon } : {}) }]
   })
   const builtin = presets.find((item) => item.id === DEFAULT_LAUNCH_ID) || { ...DEFAULT_LAUNCH }
   if (builtin.name === '默认启动') builtin.name = 'DSH'
@@ -706,6 +808,8 @@ function mergeStoredSettings(stored) {
   try { merged.keepVersions = safeKeepVersions(merged.keepVersions) } catch { merged.keepVersions = 2 }
   merged.nodeRuntime = safeNodeRuntime(merged.nodeRuntime)
   try { merged.systemNodePath = safeSystemNodePath(merged.systemNodePath) } catch { merged.systemNodePath = '' }
+  merged.wsl = safeWslSettings(merged.wsl)
+  merged.wslPorts = safeWslPorts(merged.wslPorts)
   return merged
 }
 
@@ -796,6 +900,8 @@ async function saveSettingsNow(patch) {
   merged.environmentPorts = safeEnvironmentPorts(merged.environmentPorts)
   merged.autoPorts = safeEnvironmentPorts(merged.autoPorts)
   merged.launchPresets = safeLaunchPresets(merged.launchPresets)
+  merged.wsl = safeWslSettings('wsl' in patch ? patch.wsl : merged.wsl)
+  merged.wslPorts = safeWslPorts('wslPorts' in patch ? patch.wslPorts : merged.wslPorts)
   merged.dshHomes = safeDshHomes(merged.dshHomes)
   merged.dshHomeNames = safeDshHomeNames(merged.dshHomeNames)
   merged.lang = 'lang' in patch ? safeLang(patch.lang) : safeLang(merged.lang)

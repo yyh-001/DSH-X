@@ -297,6 +297,37 @@
                 </label>
 
               </div>
+              <!-- WSL：探测和启动都走 wsl.exe。这里只存默认值，单个启动项可以覆盖发行版和目录。 -->
+              <div class="set-caption" data-i18n="WSL">WSL</div>
+              <div class="set-group">
+                <div class="set-row">
+                  <div class="set-text">
+                    <span class="set-name" data-i18n="默认发行版">默认发行版</span>
+                    <p class="hint" id="wslStatusHint"></p>
+                  </div>
+                  <div class="set-control">
+                    <select id="wslDefaultDistro"></select>
+                  </div>
+                </div>
+                <div class="set-row">
+                  <div class="set-text">
+                    <span class="set-name" data-i18n="默认用户目录">默认用户目录</span>
+                    <span class="set-desc" data-i18n="WSL 里 dsh 的用户目录，留空按 ~/.dsh。">WSL 里 dsh 的用户目录，留空按 ~/.dsh。</span>
+                  </div>
+                  <div class="set-control">
+                    <input id="wslDefaultHome" type="text" autocomplete="off" spellcheck="false" placeholder="~/.dsh" />
+                  </div>
+                </div>
+                <div class="set-row">
+                  <div class="set-text">
+                    <span class="set-name" data-i18n="dsh 命令">dsh 命令</span>
+                    <span class="set-desc" data-i18n="WSL 里启动 dsh 用的命令，PATH 里找不到时填绝对路径。">WSL 里启动 dsh 用的命令，PATH 里找不到时填绝对路径。</span>
+                  </div>
+                  <div class="set-control">
+                    <input id="wslDshCommand" type="text" autocomplete="off" spellcheck="false" placeholder="dsh" />
+                  </div>
+                </div>
+              </div>
               <!-- 桌面端系统开关：外壳直接读 settings.json（shell/prefs.mjs）。硬件加速要重启，
                    其余由外壳每 1.5 秒的轮询实时跟上；浏览器里打开管理页时整组不可用。 -->
               <div class="set-caption" data-i18n="系统">系统</div>
@@ -766,7 +797,34 @@
         </div>
         <!-- 自定义档就是原来那张完整表单：版本、端口、名称、目录、Profile 全手动挑。切到「自定义」tab
              才显示，前两档整块藏起来（见 setLaunchIsolation）；编辑老启动项时直接露出来。 -->
+        <!-- 运行位置：本机走原来的 Windows 侧 dsh；WSL 交给 wsl.exe 拉起 Linux 里的 dsh。
+             首版只支持已装好的 WSL dsh：版本、插件、修复都归 WSL 自己管，这里只负责启动/停止/打开。 -->
+        <div class="home-field" id="launchBackendField" hidden>
+          <label data-i18n="运行位置">运行位置</label>
+          <div class="launch-isolation-tabs" id="launchBackendTabs" role="radiogroup" aria-label="运行位置" data-i18n-aria-label="运行位置" data-active="local">
+            <button class="launch-isolation-tab" type="button" role="radio" data-backend="local" aria-checked="true" data-i18n="本机">本机</button>
+            <button class="launch-isolation-tab" type="button" role="radio" data-backend="wsl" aria-checked="false" data-i18n="WSL">WSL</button>
+          </div>
+          <div class="hint" id="launchBackendHint"></div>
+        </div>
         <div class="launch-custom-fields" id="launchCustomFields">
+          <div id="launchWslFields" hidden>
+            <div class="home-pickers">
+              <div class="home-field">
+                <label for="launchWslDistro" data-i18n="WSL 发行版">WSL 发行版</label>
+                <select id="launchWslDistro"></select>
+              </div>
+              <div class="home-field">
+                <label for="launchWslHome" data-i18n="WSL 用户目录">WSL 用户目录</label>
+                <input id="launchWslHome" type="text" autocomplete="off" spellcheck="false" placeholder="~/.dsh" />
+              </div>
+            </div>
+            <div class="home-field">
+              <label for="launchWslWorkdir" data-i18n="WSL 项目目录（选填）">WSL 项目目录（选填）</label>
+              <input id="launchWslWorkdir" type="text" autocomplete="off" spellcheck="false" data-placeholder-i18n="例如 /root/projects/demo；留空就在用户目录里跑" />
+            </div>
+            <p class="hint" id="launchWslHint" role="status" aria-live="polite"></p>
+          </div>
           <div class="home-field launch-identity-field" id="launchIdentityField">
             <label for="launchName" data-i18n="名称">名称</label>
             <div class="launch-name-row"><button class="launch-icon-trigger" id="launchIconTrigger" type="button" title="修改图标" aria-label="修改图标" data-i18n-title="修改图标" data-i18n-aria-label="修改图标" aria-expanded="false" aria-controls="launchIconPopover"></button><input id="launchName" type="text" required maxlength="32" autocomplete="off" data-placeholder-i18n="例如：我的工作环境" /></div>
@@ -774,7 +832,7 @@
             <input id="launchIconFile" type="file" accept="image/png,image/jpeg,image/webp" hidden /><span class="hint launch-icon-error" id="launchIconHint"></span>
           </div>
           <div class="home-pickers">
-            <div class="home-field">
+            <div class="home-field" id="launchVersionField">
               <label for="versionTrigger" data-i18n="版本">版本</label>
               <div class="launch-version-select-row">
                 <div class="select" id="versionPicker">
@@ -1009,6 +1067,30 @@
     // ---- 界面双语：字典按中文原文做 key，没翻到的原样显示中文（不会漏、不会崩） ----
     const LANG = '__APP_LANG__'
     const EN = {
+  "运行位置": "Run location",
+  "本机": "Local",
+  "WSL": "WSL",
+  "WSL 发行版": "WSL distro",
+  "WSL 用户目录": "WSL home",
+  "WSL 项目目录（选填）": "WSL project directory (optional)",
+  "例如 /root/projects/demo；留空就在用户目录里跑": "e.g. /root/projects/demo; leave blank to run in your home directory",
+  "默认发行版": "Default distro",
+  "默认用户目录": "Default home",
+  "WSL 里 dsh 的用户目录，留空按 ~/.dsh。": "dsh home inside WSL; leave blank for ~/.dsh.",
+  "dsh 命令": "dsh command",
+  "WSL 里启动 dsh 用的命令，PATH 里找不到时填绝对路径。": "Command used to start dsh inside WSL; use an absolute path if it is not on PATH.",
+  "没有检测到 WSL 发行版": "No WSL distros detected",
+  "默认": "Default",
+  "先选择一个 WSL 发行版。": "Choose a WSL distro first.",
+  "正在读取 WSL 里的 dsh…": "Reading dsh inside WSL…",
+  "WSL 里没有可用的 dsh。": "No usable dsh inside WSL.",
+  "{n} 个 Profile": "{n} profiles",
+  "WSL 里要已经装好 dsh；首版只管理启动、停止、日志和打开方式。": "dsh must already be installed inside WSL; the first version only manages start, stop, logs and how to open.",
+  "WSL 里的 dsh": "dsh in WSL",
+  "使用 WSL 里已经装好的 dsh；首版不在这里安装或更新版本。": "Use the dsh already installed in WSL; the first version does not install or update versions here.",
+  "自动选择": "Auto",
+  "检测到 {n} 个发行版；启动项里可以逐个选。": "{n} distros detected; pick one per launch entry.",
+  "没有检测到 WSL 发行版。": "No WSL distros detected.",
   "优化依赖": "Optimize dependencies",
   "正在优化依赖…": "Optimizing dependencies…",
   "依赖优化完成": "Dependencies optimized",
@@ -2022,6 +2104,15 @@
     const versionPanelEl = document.getElementById('versionPanel')
     const launchProfileEl = document.getElementById('launchProfile')
     const launchDshHomeEl = document.getElementById('launchDshHome')
+    // WSL 启动项：运行位置切换 + 发行版/目录字段
+    const launchBackendFieldEl = document.getElementById('launchBackendField')
+    const launchBackendTabsEl = document.getElementById('launchBackendTabs')
+    const launchBackendHintEl = document.getElementById('launchBackendHint')
+    const launchWslFieldsEl = document.getElementById('launchWslFields')
+    const launchWslDistroEl = document.getElementById('launchWslDistro')
+    const launchWslHomeEl = document.getElementById('launchWslHome')
+    const launchWslWorkdirEl = document.getElementById('launchWslWorkdir')
+    const launchWslHintEl = document.getElementById('launchWslHint')
     const launchPortEl = document.getElementById('launchPort')
     const launchAutoLaunchEl = document.getElementById('launchAutoLaunch')
     const launchAutoLaunchProfileEl = document.getElementById('launchAutoLaunchProfile')
@@ -2441,6 +2532,9 @@
     // 这次启动用哪个 profile（会话内记着，不落设置——插件页那个切换器管的是「当前 profile」，
     // 两回事）：同一个版本可以用不同 profile 各起一个
     let launchProfile = ''
+    let launchBackend = 'local'      // 'local' | 'wsl'：启动项跑在哪一侧
+    let launchWslProfiles = []       // 当前 WSL 发行版探测到的 profile（WSL 分支专用）
+    let launchWslInspectKey = ''     // distro\0home，避免旧探针结果盖住新选择
     let editingLaunchId = ''
     let action = ''
     let installProgress = null
@@ -3798,6 +3892,38 @@
       return row ? { version: row.version, status: row.status, url: row.url } : null
     }
 
+    /**
+     * WSL 实例的 home 是一个合成键（wsl://发行版/编码后的目录），和 Windows 的 DSH_HOME 分开排队；
+     * 格式必须和 server.js 的 wslHomeKey 一致——两边都靠它做实例身份、端口表和请求作用域。
+     */
+    function wslHomeKeyOf(distro, home) {
+      return `wsl://${encodeURIComponent(String(distro || ''))}/${encodeURIComponent(String(home || '').trim() || '~/.dsh')}`
+    }
+
+    /** 启动项的 home：WSL 用合成键，本机沿用 dshHome（空 = 全局目录）。 */
+    function launchHomeOf(entry) {
+      return entry?.backend === 'wsl' ? wslHomeKeyOf(launchWslDistroOf(entry), entry.wslHome) : (entry?.dshHome || state.dshHome || '')
+    }
+
+    function launchWslDistroOf(entry) {
+      if (entry?.wslDistro) return entry.wslDistro
+      const distros = state.wsl?.distros || []
+      return state.wsl?.defaultDistro || distros.find((item) => item.default)?.name || distros[0]?.name || ''
+    }
+
+    /** 按启动项找实例：WSL 的自动版本不能拿 Windows 的版本列表去猜，直接按合成 home + profile 找。 */
+    function runningInfoForEntry(entry) {
+      if (!entry) return null
+      if (entry.backend === 'wsl') {
+        const home = launchHomeOf(entry), profile = entry.profile
+        return (state.instances || []).find((item) => item && item.backend === 'wsl'
+          && (item.home || '') === home && (!profile || item.profile === profile)
+          && ['running', 'starting', 'stopping'].includes(item.status)) || null
+      }
+      const version = resolveLaunchVersion(entry)
+      return version ? runningInfo(version, entry.profile, launchHomeOf(entry)) : null
+    }
+
     /** 触发器上的路径提示：空值 = 继承全局目录，显示全局实际路径，不把默认路径写死进启动项。 */
     function paintLaunchHomePath() {
       const home = launchDshHomeEl.value.trim()
@@ -3827,11 +3953,32 @@
     // 值取一个 safeProfile 不会放行的名字，选中后先恢复原值再跳，免得它被当 profile 存下去。
     const LAUNCH_PROFILE_EDIT = '__edit_profile__'
 
+    /** 测试桩里可能没有 WSL 表单，launchBackend 也不在作用域里；读不到就按本机处理。 */
+    function launchBackendIsWsl() {
+      return typeof launchBackend !== 'undefined' && launchBackend === 'wsl'
+    }
+
     /**
      * 启动 profile 下拉的选项：全部列出来，保留名（desktop）也能选 —— 它只是 dsh CLI 不让用，
      * 启动器起它时换成了 reserved-profile-boot.mjs（见 server.js 的 CLI_BLOCKED_PROFILES）。
      */
     function paintLaunchProfiles() {
+      if (launchBackendIsWsl()) {
+        // WSL 的 profile 来自发行版里实际探测的列表；首版只让选已有的，不在这里建新 profile。
+        const options = [...launchWslProfiles]
+        if (launchProfile && !options.includes(launchProfile)) options.push(launchProfile)
+        if (!options.length) {
+          launchProfileEl.innerHTML = ''
+          launchProfileEl.disabled = true
+          return
+        }
+        launchProfileEl.disabled = false
+        if (!options.includes(launchProfile)) launchProfile = options.includes('web') ? 'web' : options[0]
+        launchProfileEl.innerHTML = options.map((name) =>
+          `<option value="${escapeHtml(name)}"${name === launchProfile ? ' selected' : ''}>${escapeHtml(name)}</option>`).join('')
+        syncUiSelect(launchProfileEl)
+        return
+      }
       const home = launchDshHomeEl.value.trim() || state.dshHome
       const all = (state.profilesByHome?.[home] || (home === state.dshHome ? state.profiles : ['web'] ) || []).filter((name) => name && name !== '')
       // 启动项只服务「起网页」的 profile：sdk/headless/acp 这类 stdio 应用拉不起来，不给人选；
@@ -3895,7 +4042,120 @@
       openPack(profile)
     }
     let launchHomeRevision = 0
+
+    /** WSL 发行版下拉：默认项排前面、标出默认与运行中；一个都没有就禁用并说清楚。 */
+    function paintLaunchWslDistros(selected) {
+      const distros = Array.isArray(state.wsl?.distros) ? state.wsl.distros : []
+      const current = String(selected ?? launchWslDistroEl.value ?? state.wsl?.defaultDistro ?? '')
+      if (!distros.length) {
+        launchWslDistroEl.innerHTML = `<option value="">${escapeHtml(t('没有检测到 WSL 发行版'))}</option>`
+        launchWslDistroEl.value = ''
+        launchWslDistroEl.disabled = true
+        return
+      }
+      launchWslDistroEl.disabled = false
+      launchWslDistroEl.innerHTML = distros.map((item) => `<option value="${escapeHtml(item.name)}">${escapeHtml(item.name)}${item.default ? ` · ${escapeHtml(t('默认'))}` : ''}${item.state === 'Running' ? ` · ${escapeHtml(t('运行中'))}` : ''}</option>`).join('')
+      const fallback = distros.find((item) => item.name === state.wsl?.defaultDistro)?.name || distros.find((item) => item.default)?.name || distros[0]?.name || ''
+      launchWslDistroEl.value = distros.some((item) => item.name === current) ? current : fallback
+    }
+
+    /**
+     * 探测 WSL 里的 dsh：版本、dsh 路径、profile 列表都从那边读，页面不猜。
+     * 探针带 key 防竞态：用户连续换发行版/目录时，旧请求的结果不能盖住新选择。
+     */
+    async function refreshWslProfiles(resetMissing = false) {
+      const distro = launchWslDistroEl.value
+      const home = launchWslHomeEl.value.trim()
+      const key = `${distro}\0${home}`
+      launchWslInspectKey = key
+      if (!distro) {
+        launchWslProfiles = []
+        paintLaunchProfiles()
+        launchWslHintEl.textContent = t('先选择一个 WSL 发行版。')
+        return false
+      }
+      launchWslHintEl.textContent = t('正在读取 WSL 里的 dsh…')
+      try {
+        const data = await getJson(`/api/wsl?distro=${encodeURIComponent(distro)}&home=${encodeURIComponent(home)}`)
+        if (launchWslInspectKey !== key) return false
+        state.wsl = {
+          ...(state.wsl || {}),
+          available: data.available === true,
+          distros: Array.isArray(data.distros) ? data.distros : (state.wsl?.distros || []),
+          error: data.error || '',
+          ...(data.defaults || {}),
+        }
+        const inspect = data.inspect || {}
+        if (!inspect.ok) {
+          launchWslProfiles = []
+          paintLaunchProfiles()
+          launchWslHintEl.textContent = inspect.error || t('WSL 里没有可用的 dsh。')
+          return false
+        }
+        launchWslProfiles = Array.isArray(inspect.profiles) ? inspect.profiles : []
+        if (resetMissing && !launchWslProfiles.includes(launchProfile)) {
+          launchProfile = launchWslProfiles.includes('web') ? 'web' : launchWslProfiles[0] || 'web'
+        }
+        paintLaunchProfiles()
+        launchWslHintEl.textContent = [inspect.version ? `dsh ${inspect.version}` : '', inspect.dshPath || '', t('{n} 个 Profile', { n: launchWslProfiles.length })].filter(Boolean).join(' · ')
+        return true
+      } catch (error) {
+        if (launchWslInspectKey === key) {
+          launchWslProfiles = []
+          paintLaunchProfiles()
+          launchWslHintEl.textContent = error.message
+        }
+        return false
+      }
+    }
+
+    /**
+     * 运行位置切换：WSL 项不需要版本/目录/隔离方式这些 Windows 侧概念，整组藏起来；
+     * 只留下名称、Profile、端口和自动启动。切回本机时按当前是否新建把隔离引导恢复出来。
+     */
+    function setLaunchBackend(backend, entry = null) {
+      // 老页面的测试桩只造了原表单的节点；WSL 这组不在时保持原样，不让整段脚本在求值阶段就挂掉。
+      if (typeof launchBackendTabsEl === 'undefined' || !launchBackendTabsEl) return
+      launchBackend = backend === 'wsl' ? 'wsl' : 'local'
+      const wsl = launchBackend === 'wsl'
+      launchBackendFieldEl.hidden = state.wsl?.available !== true
+      launchBackendTabsEl.dataset.active = launchBackend
+      launchBackendTabsEl.querySelectorAll('[data-backend]').forEach((el) => el.setAttribute('aria-checked', String(el.dataset.backend === launchBackend)))
+      launchWslFieldsEl.hidden = !wsl
+      document.getElementById('launchVersionField').hidden = wsl
+      launchChannelFieldEl.hidden = wsl
+      document.getElementById('launchManageVersions').hidden = wsl
+      launchDshHomeFieldEl.hidden = wsl
+      document.getElementById('launchWorkdirField').hidden = wsl
+      const creating = !editingLaunchId
+      const guided = creating && launchIsolation !== 'custom'
+      launchIsolationFieldEl.hidden = wsl || !creating
+      launchCustomFieldsEl.hidden = wsl ? false : guided
+      launchNameEl.required = wsl || !guided
+      if (wsl) {
+        paintLaunchWslDistros(entry?.wslDistro || '')
+        launchWslHomeEl.value = entry?.wslHome || ''
+        launchWslWorkdirEl.value = entry?.wslWorkdir || ''
+        launchBackendHintEl.textContent = t('WSL 里要已经装好 dsh；首版只管理启动、停止、日志和打开方式。')
+        void refreshWslProfiles(true)
+      } else {
+        launchBackendHintEl.textContent = ''
+        paintLaunchProfiles()
+      }
+    }
+
+    if (typeof launchBackendTabsEl !== 'undefined' && launchBackendTabsEl) {
+      launchBackendTabsEl.onclick = (event) => {
+        const button = event.target.closest?.('[data-backend]')
+        if (!button) return
+        if (button.dataset.backend === launchBackend) return
+        setLaunchBackend(button.dataset.backend)
+      }
+      launchWslDistroEl.onchange = () => { launchWslProfiles = []; void refreshWslProfiles(true) }
+      launchWslHomeEl.onchange = () => { launchWslProfiles = []; void refreshWslProfiles(true) }
+    }
     async function refreshLaunchHomeProfiles(resetMissing = false) {
+      if (launchBackendIsWsl()) return refreshWslProfiles(resetMissing)
       const home = launchDshHomeEl.value.trim()
       const revision = ++launchHomeRevision
       if (!home) {
@@ -4369,6 +4629,8 @@
 
     /** 这个启动项该被提醒到的最新版：卡片上的「新版本」和点它之后的升级目标共用，两处不能各算各的。 */
     function launchLatestVersion(entry) {
+      // WSL 首版不管理版本，别给 WSL 启动项挂「新版本」按钮
+      if (entry?.backend === 'wsl') return ''
       return channelLatestVersion(launchChannel(entry))
     }
 
@@ -4489,8 +4751,11 @@
      */
     function bootPageUrl(version, profile, launchId) {
       const entry = launchId ? launchEntries().find((item) => item.id === launchId) : null
-      const params = new URLSearchParams({ version: version || '', profile: profile || '' })
-      const home = entry?.dshHome || state.dshHome || ''
+      // WSL 的自动版本要在进度页保持 auto：调用方传进来的 version 可能是上次用过的旧版本，
+      // 按它去等实例会永远等不到（服务端启动时才探测 WSL 里真正装的版本）。
+      const bootVersion = entry?.backend === 'wsl' && entry.version === 'auto' ? 'auto' : version || ''
+      const params = new URLSearchParams({ version: bootVersion, profile: profile || '' })
+      const home = entry?.backend === 'wsl' ? launchHomeOf(entry) : entry?.dshHome || state.dshHome || ''
       if (home) params.set('home', home)
       if (launchId) params.set('launch', launchId)
       if (entry?.name) params.set('name', entry.name)
@@ -4640,7 +4905,9 @@
       if (!entry) return
       launchLogEntry = entry
       const version = resolveLaunchVersion(entry) || ''
-      launchLogSubtitleEl.textContent = [entry.name, version, entry.profile || 'web', entry.dshHome || state.dshHome].filter(Boolean).join(' · ')
+      // 'auto' 只是启动时的占位值，不是日志/耗时记录里能查的版本号。
+      const shownVersion = version === 'auto' ? '' : version
+      launchLogSubtitleEl.textContent = [entry.name, shownVersion, entry.profile || 'web', entry.backend === 'wsl' ? `WSL · ${entry.wslDistro || launchWslDistroOf(entry)}` : entry.dshHome || state.dshHome].filter(Boolean).join(' · ')
       launchLogTextEl.textContent = ''
       setLaunchLogHint('')
       launchLogLoadingEl.hidden = false
@@ -4656,7 +4923,7 @@
       await showDialog(launchLogDialogEl)
       launchLogTextEl.scrollTop = launchLogTextEl.scrollHeight
       await refreshLaunchLog()
-      if (version) await loadLaunchReport(version, entry.profile || 'web')
+      if (version && version !== 'auto') await loadLaunchReport(version, entry.profile || 'web')
       launchLogLoadingEl.hidden = true
       clearInterval(launchLogTimer)
       launchLogTimer = setInterval(() => {
@@ -4752,6 +5019,11 @@
     }
 
     function resolveLaunchVersion(entry) {
+      if (entry?.backend === 'wsl') {
+        // WSL 的版本由 WSL 里的 dsh 决定：运行中优先，其次上次记录的版本，最后交给服务端探测。
+        if (entry.version !== 'auto') return entry.version
+        return runningInfoForEntry(entry)?.version || entry.usedVersion || 'auto'
+      }
       return entry.version === 'auto' ? recommendedVersion(entry.profile, entry.dshHome || state.dshHome, launchChannel(entry)) : entry.version
     }
 
@@ -4828,7 +5100,7 @@
     const versionInstalls = new Map()
     function launchActionKey(version, profile, launchId = '') {
       const entry = launchId ? launchEntries().find((item) => item.id === launchId) : null
-      return JSON.stringify([entry?.dshHome || state.dshHome || '', version, profile])
+      return JSON.stringify([entry ? launchHomeOf(entry) : state.dshHome || '', version, profile])
     }
     function launchEntryTask(entry, version) {
       // auto 的解析结果可能随安装/运行状态改变，操作期间仍锁住原来的那张启动项。
@@ -4841,27 +5113,35 @@
       if (launchPresetsEl.dataset?.sorting) return
       // 保存/删除会先收到状态推送；等编辑弹窗退场再更新列表，避免动效被弹窗挡住。
       if (!launchDialogEl.hidden && (launchSaveEl.disabled || launchDeleteEl.disabled || launchDialogClosing)) return
-      const markup = launchEntries().map((entry) => {
+      const markup = launchEntries().map((rawEntry) => {
+        // WSL 启动项的 home 是合成键：复制一份带上，让下面这条 runningInfo 也能按它找到实例。
+        const entry = rawEntry.backend === 'wsl' ? { ...rawEntry, dshHome: launchHomeOf(rawEntry) } : rawEntry
         const version = resolveLaunchVersion(entry)
-        const live = version ? runningInfo(version, entry.profile, entry.dshHome || state.dshHome) : null
+        const wsl = entry.backend === 'wsl'
+        const live = runningInfo(version, entry.profile, entry.dshHome || state.dshHome)
         const builtin = entry.id === DEFAULT_LAUNCH_ID
         const name = builtin && entry.name === '默认启动' ? 'DSH' : entry.name
         const busy = live?.status === 'starting' || live?.status === 'stopping'
         const ownAction = launchEntryTask(entry, version)?.phase || ''
-        const installBlocked = Boolean(state.installing) && !installedList().includes(version) && !versionInstalls.has(version) && live?.status !== 'running'
+        const installBlocked = !wsl && Boolean(state.installing) && !installedList().includes(version) && !versionInstalls.has(version) && live?.status !== 'running'
         const label = ownAction === 'install' ? t('安装中') : busy || ownAction
           ? t(live?.status === 'stopping' || ownAction === 'stop' ? '停止中' : '启动中') + (live?.status === 'starting' ? ` · ${startupElapsed(live)}s` : '')
           : live?.status === 'running' ? t(live.url ? '打开' : '运行中') : t('启动')
         // 默认目录省略，独立数据目录显示在卡片上，方便辨认隔离的环境。
-        const note = [version || t('自动选择版本'), entry.profile, entry.dshHome].filter(Boolean).join(' · ')
+        // WSL 自动版本的 version 是 'auto'：卡片上别把它当版本号显示，只在拿到实际版本时写出来。
+        const shownVersion = version === 'auto' ? '' : version
+        const note = wsl
+          ? [shownVersion || t('WSL 里的 dsh'), entry.profile, `WSL · ${entry.wslDistro || launchWslDistroOf(entry)}`].filter(Boolean).join(' · ')
+          : [version || t('自动选择版本'), entry.profile, entry.dshHome].filter(Boolean).join(' · ')
         // 状态不占文字：启动/停止/安装中的反馈由按钮上的转圈表示，运行中由停止按钮表示
-        const automaticHint = entry.version === 'auto' ? t('优先使用正在运行的版本，否则选择本机最新已安装版本；只用所选版本类型的版本，未安装时会在首次启动下载该类型的最新版。新版本需要手动更新。') : ''
+        const automaticHint = wsl ? t('使用 WSL 里已经装好的 dsh；首版不在这里安装或更新版本。')
+          : entry.version === 'auto' ? t('优先使用正在运行的版本，否则选择本机最新已安装版本；只用所选版本类型的版本，未安装时会在首次启动下载该类型的最新版。新版本需要手动更新。') : ''
         const latest = launchLatestVersion(entry)
         // 「新版本」只给 auto 条目看：钉死版本的启动项是故意留的，冒一个更新按钮出来
         // 会把钉子拔掉、跟别的条目撞成同一个实例（两张一样的卡就是这么来的）；
         // 想动钉子走「编辑启动项」的版本下拉。提醒的是这个启动项所跟通道里的最新版。
-        const hasNewVersion = entry.version === 'auto' && version && latest && compareVersion(latest, version) > 0
-        const installNote = !installedList().includes(version) && !live ? t('首次启动会自动安装') : ''
+        const hasNewVersion = !wsl && entry.version === 'auto' && version && latest && compareVersion(latest, version) > 0
+        const installNote = !wsl && !installedList().includes(version) && !live ? t('首次启动会自动安装') : ''
         // 启动中的阶段（启动进程 → 加载插件 → 校验依赖）显示在说明行，按钮上的秒表每秒走一格
         const startupNote = live?.status === 'starting' ? startupPhaseText(live.startupPhase) : ''
         return `<div class="launch-preset" data-launch-key="${escapeHtml(entry.id)}">
@@ -4870,7 +5150,7 @@
             <span class="launch-preset-name">${escapeHtml(name)}</span>${builtin ? `<span class="launch-builtin">${escapeHtml(t('内置'))}</span>` : ''}</span>
             <span class="launch-preset-meta" title="${escapeHtml(automaticHint)}"><span>${escapeHtml([note, installNote, startupNote].filter(Boolean).join(' · '))}</span></span>
             ${hasNewVersion ? `<button class="launch-new-version" type="button" data-version-id="${entry.id}" ${action || state.installing ? 'disabled' : ''}>${escapeHtml(t('新版本 {version}', { version: latest }))}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button>` : ''}</span>
-          <span class="launch-actions"><button class="launch-edit launch-plugins" type="button" data-plugins-id="${entry.id}" title="${escapeHtml(t('管理插件'))}" aria-label="${escapeHtml(t('管理 {name} 的插件', { name }))}">
+          <span class="launch-actions"><button class="launch-edit launch-plugins"${wsl ? ' hidden' : ''} type="button" data-plugins-id="${entry.id}" title="${escapeHtml(t('管理插件'))}" aria-label="${escapeHtml(t('管理 {name} 的插件', { name }))}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9M8 5.25l8 4.5"/></svg></button><button class="launch-edit launch-log" type="button" data-log-id="${entry.id}" title="${escapeHtml(t('查看 {name} 的日志', { name }))}" aria-label="${escapeHtml(t('查看 {name} 的日志', { name }))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5h9l3 3v14H6zM15 3.5v3h3M9 11h6M9 14.5h6M9 18h4"/></svg></button><button class="launch-edit" type="button" data-edit-id="${entry.id}" title="${escapeHtml(t('编辑 {name}', { name }))}" aria-label="${escapeHtml(t('编辑 {name}', { name }))}" ${action || state.installing || ownAction || busy ? 'disabled' : ''}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 4 4 4M4 20l4-1 12-12a2.8 2.8 0 0 0-4-4L4 15l-1 6Z"/></svg></button>
           ${live ? `<button class="icon-btn launch-action" type="button" data-restart-id="${entry.id}" title="${escapeHtml(t('重启'))}" aria-label="${escapeHtml(t('重启'))}" ${action || ownAction || busy ? 'disabled' : ''}>
@@ -4900,12 +5180,13 @@
           const entry = launchEntries().find((item) => item.id === button.dataset.launchId)
           if (!entry) return
           const version = resolveLaunchVersion(entry)
-          if (!version) return
-          const live = runningInfo(version, entry.profile, entry.dshHome || state.dshHome)
+          const wsl = entry.backend === 'wsl'
+          if (!version && !wsl) return
+          const live = runningInfoForEntry(entry)
           if (launchEntryTask(entry, version) || live?.status === 'starting' || live?.status === 'stopping') return
           if (live?.status === 'running') { if (live.url) await openInstance(live.url); return }
-          if (state.installing && !installedList().includes(version) && !versionInstalls.has(version)) return
-          try { await startVersion(version, entry.profile, entry.port, entry.id) }
+          if (!wsl && state.installing && !installedList().includes(version) && !versionInstalls.has(version)) return
+          try { await startVersion(wsl ? (version || 'auto') : version, entry.profile, entry.port, entry.id) }
           catch (error) { notifyError(error) }
         }
       })
@@ -4984,7 +5265,7 @@
       if (!entry) return
       // 停止后自动推荐可能切到其他版本，重启必须沿用点击时的版本和 profile。
       const version = resolveLaunchVersion(entry), profile = entry.profile
-      if (runningInfo(version, profile, entry.dshHome || state.dshHome)?.status !== 'running') return
+      if (runningInfoForEntry(entry)?.status !== 'running') return
       try {
         await runLaunchAction(version, profile, id, 'stop', async (task) => {
           await post('/api/stop', { version, profile }, { launchId: entry.id })
@@ -5235,6 +5516,9 @@
       versionValue = picked
       userPicked = true
       launchProfile = entry?.profile || 'web'
+      launchBackend = entry?.backend === 'wsl' ? 'wsl' : 'local'
+      launchWslHomeEl.value = entry?.wslHome || ''
+      launchWslWorkdirEl.value = entry?.wslWorkdir || ''
       paintLaunchHomes(entry?.dshHome || '')
       // 折叠里上次填的内容不能带进下一次新建（编辑时也藏起来了，清掉免得不小心读旧值）
       launchProfileCustomEl.value = ''
@@ -5254,6 +5538,7 @@
       setLaunchAdvanced(launchCopyAdvancedEl, false, false)
       // 编辑老启动项只走自定义档（它的目录/Profile 组合可能本来就不在引导范围里），新建才从引导开始。
       setLaunchIsolation(entry ? 'custom' : launchIsolationSaved, !entry)
+      setLaunchBackend(launchBackend, entry)
       launchPortEl.value = entry?.port ? String(entry.port) : ''
       syncLaunchAutoLaunch(entry?.autoLaunch === true)
       launchUpdateChannelEl.value = String(UPDATE_CHANNELS.indexOf(launchChannel(entry)))
@@ -5262,9 +5547,9 @@
       document.getElementById('launchDialogTitle').textContent = t(entry ? '编辑启动项' : '添加启动项')
       showDialog(launchDialogEl)
       paintLaunchProfiles()
-      if (entry?.dshHome) void refreshLaunchHomeProfiles()
+      if (!launchBackendIsWsl() && entry?.dshHome) void refreshLaunchHomeProfiles()
       render()
-      void loadRecovery(launchProfile)
+      if (!launchBackendIsWsl()) void loadRecovery(launchProfile)
       launchNameEl.focus()
     }
 
@@ -5301,6 +5586,27 @@
       if (launchSaveEl.disabled) return
       launchSaveEl.disabled = true
       try {
+        // WSL 启动项是另一条保存路径：版本、Windows 侧目录和隔离方式都不参与，只存发行版、
+        // WSL 用户目录和项目目录。测试桩里可能没有 WSL 表单，launchBackendIsWsl 也不在作用域里，
+        // 所以先做安全探测；false 时完整走下面原来的本机逻辑。
+        const wsl = typeof launchBackendIsWsl === 'function' && launchBackendIsWsl()
+        if (wsl) {
+          if (!await refreshWslProfiles(true)) return
+          const data = await post('/api/launch-presets', {
+            id: editingLaunchId || undefined, name: launchNameEl.value, icon: launchIcon,
+            version: 'auto', profile: launchProfile, port: launchPortEl.value.trim(),
+            backend: 'wsl', wslDistro: launchWslDistroEl.value,
+            wslHome: launchWslHomeEl.value.trim(), wslWorkdir: launchWslWorkdirEl.value.trim(),
+            autoLaunch: launchAutoLaunchEl.checked,
+          })
+          updateLaunchEntry(data.entry)
+          // closeLaunchEditor 会拒绝在保存按钮仍禁用时关窗；WSL 分支没有下面本机分支的
+          // launchSaveEl.disabled = false，忘了这一步弹窗就会保存成功却一直停在原地。
+          launchSaveEl.disabled = false
+          await closeLaunchEditor()
+          render()
+          return
+        }
         // 新建按隔离引导走时，目录和 Profile 由 prepareGuidedLaunch 算；编辑和「自定义」档还是
         // 原来的下拉值。引导模式不再刷新下拉——它已经把新目录/新 Profile 交给服务端处理了。
         const guided = !editingLaunchId && launchIsolation !== 'custom'
@@ -5504,12 +5810,18 @@
     }
 
     async function startLaunchInstance(version, profile, presetPort, launchId, task) {
+      const entry = launchId ? launchEntries().find((item) => item.id === launchId) : null
+      const wsl = entry?.backend === 'wsl'
+      // WSL 的 dsh 是发行版自己那份，版本只能由 WSL 探测；auto 时别带上次用过的旧版本，
+      // 否则 WSL 升级后服务端会把它当成钉死的版本，启动记录和实际进程对不上。
+      if (wsl && entry?.version === 'auto') version = 'auto'
       task.phase = 'start'
       // 进度页和启动请求并行发：那张页只是展示，不能把真正的启动往后拖一个 await。
       // 它自己轮询实例状态，dsh 就绪后跳进去；首次启动的安装进度也在那张页上看。
       const bootPage = openBootPage(version, profile, launchId)
-      if (presetPort !== null) await post('/api/instance-port', { version, profile, port: presetPort }, { launchId })
-      if (!installedList().includes(version)) {
+      // WSL 的 version 可能是 auto：服务端按启动项里的 port 兜底，这里别用 auto 去写端口表。
+      if (presetPort !== null && !(wsl && version === 'auto')) await post('/api/instance-port', { version, profile, port: presetPort }, { launchId })
+      if (!wsl && !installedList().includes(version)) {
         task.phase = 'install'
         render()
         // 两个环境首次用同一版本时共用一次下载，安装完成后各自启动。
@@ -5706,6 +6018,8 @@
         // 老服务进程没有这个字段：留空，自动选版本按以前不分类型的口径走（见 recommendedVersion）
         channelPlans: data.channelPlans && typeof data.channelPlans === 'object' ? data.channelPlans : null,
         autoFix: data.autoFix ?? null,
+        // 老服务没有 wsl 字段：保留旧值，别把已经探测到的发行版丢掉
+        wsl: data.wsl && typeof data.wsl === 'object' ? { ...(state.wsl || {}), ...data.wsl } : (state.wsl || null),
         recovery: state.recovery,
         health: data.health ?? null,
         failure: data.failure ?? null,
@@ -6406,6 +6720,10 @@
     document.getElementById('askClose').onclick = () => dismissAsk(false)
 
     const autoStartEl = document.getElementById('autoStart')
+    const wslDefaultDistroEl = document.getElementById('wslDefaultDistro')
+    const wslDefaultHomeEl = document.getElementById('wslDefaultHome')
+    const wslDshCommandEl = document.getElementById('wslDshCommand')
+    const wslStatusHintEl = document.getElementById('wslStatusHint')
     const pluginMarketSourcesEl = document.getElementById('pluginMarketSources')
     const pluginMarketSourcesEditEl = document.getElementById('pluginMarketSourcesEdit')
     const pluginMarketSourcesDialogEl = document.getElementById('pluginSourcesDialog')
@@ -6808,6 +7126,41 @@
       }
     }
 
+    /**
+     * WSL 全局设置：默认发行版 / 默认用户目录 / dsh 命令。
+     * 发行版列表来自服务端探测（/api/state 与 /api/settings 都带），这里只负责回显；
+     * 没装 WSL 或不是 Windows 时整组禁用并在 hint 里说原因。
+     */
+    function showWslSettings(data) {
+      if (data?.wsl && typeof data.wsl === 'object') state.wsl = { ...(state.wsl || {}), ...data.wsl }
+      const wsl = state.wsl || {}
+      const distros = Array.isArray(wsl.distros) ? wsl.distros : []
+      const available = wsl.available === true
+      const current = String(wsl.defaultDistro || '')
+      wslDefaultDistroEl.innerHTML = `<option value="">${escapeHtml(t('自动选择'))}</option>` + distros.map((item) =>
+        `<option value="${escapeHtml(item.name)}">${escapeHtml(item.name)}${item.default ? ` · ${escapeHtml(t('默认'))}` : ''}</option>`).join('')
+      wslDefaultDistroEl.value = distros.some((item) => item.name === current) ? current : ''
+      if (document.activeElement !== wslDefaultHomeEl) wslDefaultHomeEl.value = String(wsl.defaultHome || '')
+      if (document.activeElement !== wslDshCommandEl) wslDshCommandEl.value = String(wsl.dshCommand || 'dsh')
+      wslDefaultDistroEl.disabled = !available
+      wslDefaultHomeEl.disabled = !available
+      wslDshCommandEl.disabled = !available
+      wslStatusHintEl.textContent = available
+        ? distros.length ? t('检测到 {n} 个发行版；启动项里可以逐个选。', { n: distros.length }) : t('没有检测到 WSL 发行版。')
+        : t(wsl.error || '当前不是 Windows，或找不到 wsl.exe。')
+    }
+
+    /** 三个输入共用一次保存：整组 wsl 交给服务端校验，避免半套默认值落盘。 */
+    function saveWslSettings() {
+      queueSetting('wsl', {
+        defaultDistro: wslDefaultDistroEl.value.trim(),
+        defaultHome: wslDefaultHomeEl.value.trim(),
+        dshCommand: wslDshCommandEl.value.trim() || 'dsh',
+        defaultServiceMode: state.wsl?.defaultServiceMode || 'wrapper',
+        stopAttached: state.wsl?.stopAttached === true,
+      })
+    }
+
     function fillSettings(data) {
       if ('args' in data) argsEl.value = String(data.args ?? '')
       if ('lang' in data) uiLangEl.value = data.lang === 'en' ? 'en' : 'zh'
@@ -6863,6 +7216,7 @@
       if ('systemPath' in data) {
         showSystemPathSettings(data)
       }
+      if ('wsl' in data) showWslSettings(data)
       // 正在编辑这个输入框时别被轮询回写打断；有未保存改动时也先不覆盖
       if ('nodeRuntime' in data && !pendingSettings.has('nodeRuntime') && !pendingSettings.has('systemNodePath')
         && document.activeElement !== systemNodePathEl) {
@@ -7108,6 +7462,9 @@
     }
 
     autoStartEl.onchange = () => queueSetting('autoStart', autoStartEl.checked)
+    wslDefaultDistroEl.onchange = saveWslSettings
+    wslDefaultHomeEl.onchange = saveWslSettings
+    wslDshCommandEl.onchange = saveWslSettings
     autoDisableEl.onchange = () => queueSetting('autoDisablePlugins', autoDisableEl.checked)
     autoCleanEl.onchange = () => queueSetting('autoCleanVersions', autoCleanEl.checked)
     for (const [key, input] of systemPrefRows) {

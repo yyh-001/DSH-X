@@ -32,6 +32,13 @@ function editor(getJson = async () => ({ home: 'D:/isolated', profiles: ['web'],
   return { context, elements, calls }
 }
 
+test('WSL 自动版本的启动请求始终带 auto，不带上一次用过的旧版本', () => {
+  const start = section('    async function startLaunchInstance(', '    async function startVersion(')
+  assert.match(start, /if \(wsl && entry\?\.version === 'auto'\) version = 'auto'/, '在打开进度页前把版本改回 auto')
+  assert.match(start, /const bootPage = openBootPage\(version, profile, launchId\)/, '进度页用纠正后的版本')
+  assert.match(start, /post\('\/api\/start', \{ version, profile \}, \{ launchId \}\)/, '启动请求用纠正后的版本')
+})
+
 test('目录下拉：第一项是沿用全局目录，已保存的独立目录仍留在选项里', () => {
   const { context: c, elements } = editor()
   c.paintLaunchHomes('D:/isolated')

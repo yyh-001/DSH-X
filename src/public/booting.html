@@ -301,7 +301,8 @@
   /** 按版本 + profile（+ 目录）找本次要等的那个实例；同一个版本可能还跑着别的 profile。 */
   function findInstance() {
     const rows = Array.isArray(snapshot?.instances) ? snapshot.instances : []
-    return rows.find((row) => row.version === version
+    // WSL 启动项可能传 version=auto：实际版本由服务端解析，等它的实例出现即可
+    return rows.find((row) => (!version || version === 'auto' || row.version === version)
       && (!profile || row.profile === profile)
       && (!home || samePath(row.home, home))) || null
   }
@@ -310,7 +311,7 @@
   function findFailure() {
     const failure = snapshot?.failure
     if (!failure) return null
-    if (failure.version !== version) return null
+    if (version && version !== 'auto' && failure.version !== version) return null
     if (profile && failure.profile !== profile) return null
     if (home && !samePath(failure.home, home)) return null
     return Number(failure.at) >= waitStartedAt - 2000 ? failure : null

@@ -709,6 +709,10 @@ html.reduce-motion .launch-status.is-working::before { animation: none; }
 .launch-isolation-tab { flex: 1 1 0; position: relative; z-index: 1; padding: 8px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font-family: inherit; font-size: 13px; font-weight: 500; cursor: pointer; transition: color 160ms ease; }
 .launch-isolation-tab:hover { color: var(--text); }
 .launch-isolation-tab[aria-selected="true"] { color: var(--accent); font-weight: 600; }
+/* 运行位置只有本机 / WSL 两档，沿用同一套胶囊动效：浮块按两等分，当前项读 aria-checked。 */
+#launchBackendTabs::after { width: calc((100% - 10px) / 2); }
+#launchBackendTabs[data-active="wsl"]::after { transform: translateX(calc(100% + 2px)); }
+#launchBackendTabs .launch-isolation-tab[aria-checked="true"] { color: var(--accent); font-weight: 600; }
 .launch-isolation-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .launch-custom-fields { display: grid; gap: 14px; }
 .launch-custom-fields[hidden] { display: none; }
