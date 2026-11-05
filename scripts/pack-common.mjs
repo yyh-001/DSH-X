@@ -45,6 +45,7 @@ const APP_FILES = [
   'filemanager.js',
   'filemanager-base.js',
   'plugins.js',
+  'pre-update.js',
   'desktop.js',
   'desktop-plugins.js',
   'recovery.js',

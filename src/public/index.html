@@ -784,6 +784,7 @@
                   </button>
                   <div class="select-panel" id="versionPanel" role="listbox" hidden></div>
                 </div>
+                <button class="ghost icon-btn launch-compatibility-check" id="launchCheckCompatibility" type="button" title="检查兼容性" aria-label="检查兼容性" data-i18n-title="检查兼容性" data-i18n-aria-label="检查兼容性"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6z"/><path d="m8 12 3 3 5-6"/></svg></button>
               </div>
             </div>
             <!-- 版本类型决定「自动最新版本」挑哪些版本、提醒哪些新版本。三档开关的值是 version.js 里
@@ -803,6 +804,16 @@
             <!-- 管理版本是这一行的辅助动作，放到行尾单独站着；贴着版本下拉会把两个字段挤成三截 -->
             <button class="ghost icon-btn launch-manage-version" id="launchManageVersions" type="button" title="管理版本" aria-label="管理版本" data-i18n-title="管理版本" data-i18n-aria-label="管理版本"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></button>
             <p class="hint" id="launchUpdateChannelHint"></p>
+            <div class="launch-compatibility" id="launchCompatibility" aria-live="polite" hidden>
+              <p class="hint" id="launchCompatibilityStatus"></p>
+              <ul id="launchCompatibilityIssues" hidden></ul>
+              <div id="launchCompatibilityAgent" hidden>
+                <label for="launchCompatibilityPrompt" data-i18n="交给 agent 修复">交给 agent 修复</label>
+                <textarea id="launchCompatibilityPrompt" rows="6" readonly></textarea>
+                <button class="ghost" id="launchCopyCompatibilityPrompt" type="button" data-i18n="复制提示词">复制提示词</button>
+              </div>
+              <p class="hint" data-i18n="仅检查插件声明的版本要求，不保证运行时行为。">仅检查插件声明的版本要求，不保证运行时行为。</p>
+            </div>
           </div>
           <div class="home-field" id="launchHomeSelectField">
             <label for="launchDshHome" data-i18n="dsh 用户目录（会话、记忆和插件隔离）">dsh 用户目录（会话、记忆和插件隔离）</label>
@@ -1790,6 +1801,19 @@
   "没有可安装的版本": "No versions available to install",
   "正在运行 · {profile}": "Running · {profile}",
   "编辑启动项": "Edit launch",
+  "检查兼容性": "Check compatibility",
+  "正在检查兼容性…": "Checking compatibility…",
+  "所有插件均兼容": "All plugins compatible",
+  "以下插件与 dsh {version} 不兼容：": "These plugins are incompatible with dsh {version}:",
+  "兼容性检查未完成": "Compatibility check incomplete",
+  "交给 agent 修复": "Hand this to your agent",
+  "复制提示词": "Copy prompt",
+  "复制失败，请手动复制提示词。": "Copy failed. Please copy the prompt manually.",
+  "已安装 {version}；要求 {requirements}": "Installed {version}; requires {requirements}",
+  "请让以下插件兼容 dsh {version}。检查源码和 API，修复兼容性并运行测试；不要只放宽版本要求或绕过检查。": "Make the following plugins compatible with dsh {version}. Inspect their source and APIs, fix compatibility, and run tests; do not merely loosen version requirements or bypass checks.",
+  "目标环境：{home}；Profile：{profile}": "Target home: {home}; Profile: {profile}",
+  "仅检查插件声明的版本要求，不保证运行时行为。": "Checks declared plugin version requirements only; runtime behavior is not guaranteed.",
+  "请先安装一个 DSH 版本以提供兼容性检查。": "Install a DSH version first to provide compatibility checking.",
   "打开启动器时启动": "Start when the launcher opens",
   "编辑 {name}": "Edit {name}",
   "推荐版本（自动）": "Recommended version (automatic)",
@@ -5211,6 +5235,124 @@
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
     }
 
+    const compatibilityCheckEl = document.getElementById('launchCheckCompatibility')
+    const compatibilityEl = document.getElementById('launchCompatibility')
+    const compatibilityStatusEl = document.getElementById('launchCompatibilityStatus')
+    const compatibilityIssuesEl = document.getElementById('launchCompatibilityIssues')
+    const compatibilityAgentEl = document.getElementById('launchCompatibilityAgent')
+    const compatibilityPromptEl = document.getElementById('launchCompatibilityPrompt')
+    const compatibilityCopyEl = document.getElementById('launchCopyCompatibilityPrompt')
+    const launchCompatibility = { request: 0, key: '', busy: false }
+
+    function compatibilityTarget() {
+      const home = projectHomeOf(launchWorkdirEl.value) || launchDshHomeEl.value.trim() || state.dshHome
+      // 自动版本也必须按草稿目录解析；全局目录正在运行的旧版不代表此环境会启动的版本。
+      const version = versionValue === 'auto' ? recommendedVersion(launchProfile, home, draftLaunchChannel()) : selected()
+      return { version, profile: launchProfile, home }
+    }
+
+    function compatibilityKey(target) {
+      return JSON.stringify([launchDialogRevision, versionValue, draftLaunchChannel(), target])
+    }
+
+    function resetLaunchCompatibility() {
+      ++launchCompatibility.request
+      launchCompatibility.key = ''
+      launchCompatibility.busy = false
+      compatibilityEl.hidden = true
+      compatibilityIssuesEl.replaceChildren()
+      compatibilityIssuesEl.hidden = true
+      compatibilityAgentEl.hidden = true
+      compatibilityPromptEl.value = ''
+      compatibilityCheckEl.disabled = false
+      compatibilityCheckEl.setAttribute('aria-busy', 'false')
+      compatibilityCopyEl.textContent = t('复制提示词')
+    }
+
+    function syncLaunchCompatibility() {
+      if (launchCompatibility.key && launchCompatibility.key !== compatibilityKey(compatibilityTarget())) resetLaunchCompatibility()
+      compatibilityCheckEl.disabled = launchCompatibility.busy || !selected() || !launchProfile
+    }
+
+    function formatCompatibilityPlugin(plugin) {
+      const requirements = Object.entries(plugin.requirements).map(([field, range]) => field + ': ' + JSON.stringify(range)).join('; ')
+      return plugin.name + ' — ' + t('已安装 {version}；要求 {requirements}', { version: plugin.version, requirements })
+    }
+
+    function buildCompatibilityPrompt(result, target) {
+      return [t('请让以下插件兼容 dsh {version}。检查源码和 API，修复兼容性并运行测试；不要只放宽版本要求或绕过检查。', { version: target.version }),
+        t('目标环境：{home}；Profile：{profile}', target),
+        ...result.incompatible.map(plugin => '- ' + formatCompatibilityPlugin(plugin))].join('\n')
+    }
+
+    async function checkLaunchCompatibility() {
+      if (launchCompatibility.busy) return
+      resetLaunchCompatibility()
+      const target = compatibilityTarget()
+      if (!target.version || !target.profile) return
+      const key = compatibilityKey(target)
+      const request = ++launchCompatibility.request
+      launchCompatibility.key = key
+      launchCompatibility.busy = true
+      compatibilityCheckEl.disabled = true
+      compatibilityCheckEl.setAttribute('aria-busy', 'true')
+      compatibilityEl.hidden = false
+      compatibilityEl.classList.remove('is-compatible', 'is-incompatible')
+      compatibilityStatusEl.textContent = t('正在检查兼容性…')
+      const current = () => request === launchCompatibility.request && key === compatibilityKey(compatibilityTarget()) && !launchDialogEl.hidden && !launchDialogClosing
+      try {
+        // 草稿可能已改目录，不能沿用已保存的启动项或插件设置页的作用域。
+        const result = await post('/api/plugins/check-compatibility', { version: target.version, profile: target.profile }, { launchId: '', home: target.home })
+        if (!current()) return
+        const incompatible = result.incompatible
+        const errors = result.errors
+        const complete = !errors.length && !incompatible.length
+        compatibilityEl.classList.toggle('is-compatible', complete)
+        compatibilityEl.classList.toggle('is-incompatible', !complete)
+        compatibilityStatusEl.textContent = t(incompatible.length ? '以下插件与 dsh {version} 不兼容：' : errors.length ? '兼容性检查未完成' : '所有插件均兼容', { version: target.version })
+        for (const text of [...incompatible.map(formatCompatibilityPlugin), ...errors.map(item => item.name + ': ' + t(item.error))]) {
+          const row = document.createElement('li')
+          row.textContent = text
+          compatibilityIssuesEl.append(row)
+        }
+        compatibilityIssuesEl.hidden = complete
+        compatibilityAgentEl.hidden = !incompatible.length
+        if (incompatible.length) compatibilityPromptEl.value = buildCompatibilityPrompt(result, target)
+      } catch (error) {
+        if (!current()) return
+        compatibilityEl.classList.add('is-incompatible')
+        compatibilityStatusEl.textContent = t('兼容性检查未完成') + ': ' + t(error.message)
+      } finally {
+        if (request === launchCompatibility.request) {
+          launchCompatibility.busy = false
+          compatibilityCheckEl.setAttribute('aria-busy', 'false')
+          syncLaunchCompatibility()
+        }
+      }
+    }
+
+    async function copyCompatibilityPrompt() {
+      const payload = compatibilityPromptEl.value
+      if (!payload) return
+      try {
+        try { await navigator.clipboard.writeText(payload) }
+        catch {
+          compatibilityPromptEl.focus()
+          compatibilityPromptEl.select()
+          if (!document.execCommand('copy')) throw new Error(t('复制失败，请手动复制提示词。'))
+        }
+        compatibilityCopyEl.textContent = t('已复制')
+      } catch { compatibilityCopyEl.textContent = t('复制失败，请手动复制提示词。') }
+    }
+
+    compatibilityCheckEl.onclick = checkLaunchCompatibility
+    compatibilityCopyEl.onclick = copyCompatibilityPrompt
+    // 同值来回切换也废弃旧响应，避免检查 A 时改到 B 再改回 A 而误用旧扫描。
+    for (const control of [launchDshHomeEl, launchProfileEl, launchWorkdirEl, launchUpdateChannelEl]) {
+      control.addEventListener('input', resetLaunchCompatibility)
+      control.addEventListener('change', resetLaunchCompatibility)
+    }
+
     async function uninstallVersion(version) {
       if (!version || action || state.installing || runningInfo(version)) return
       const system = !isManagedVersion(version)
@@ -5232,6 +5374,7 @@
     function openLaunchEditor(entry) {
       if (action || state.installing) return
       ++launchDialogRevision
+      resetLaunchCompatibility()
       ++launchHomeRevision
       launchDialogClosing = false
       launchFormEl.inert = false
@@ -5281,6 +5424,7 @@
     async function closeLaunchEditor() {
       if (launchSaveEl.disabled || launchDialogEl.hidden || launchDialogClosing) return
       const revision = ++launchDialogRevision
+      resetLaunchCompatibility()
       ++launchHomeRevision
       launchDialogClosing = true
       closeVersionPanel()
@@ -5301,7 +5445,7 @@
     launchDialogEl.onclick = (event) => { if (event.target === launchDialogEl) closeLaunchEditor() }
     launchDialogEl.onkeydown = (event) => {
       if (event.key !== 'Tab') return
-      const controls = [...launchFormEl.querySelectorAll('button, input, summary')].filter((el) => !el.disabled && el.getClientRects().length)
+      const controls = [...launchFormEl.querySelectorAll('button, input, select, textarea, summary')].filter((el) => !el.disabled && el.getClientRects().length)
       const first = controls[0], last = controls.at(-1)
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
@@ -5427,6 +5571,7 @@
       launchChannelFieldEl.hidden = !autoVersion
       launchUpdateChannelHintEl.hidden = !autoVersion
       const version = selected()
+      syncLaunchCompatibility()
       const anyLive = version ? runningInfo(version) : null
       const loading = Boolean(action) || Boolean(state.installing)
       // 弹窗里的「更新版本」也是一种提醒，跟三档开关当前指的通道走（这排按钮眼下被 launcher.css
@@ -5494,6 +5639,7 @@
         }
         return
       }
+      resetLaunchCompatibility()
       picked = value
       userPicked = true
       render()
