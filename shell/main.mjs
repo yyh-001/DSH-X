@@ -1178,8 +1178,9 @@ function exitApp(code = 0) {
   app.exit(code)
 }
 
-// 程序坞图标：窗口藏起来之后点它，叫回管理页
-app.on('activate', () => showManager())
+// 程序坞图标：只把窗口叫回来、不切标签。用户停在内部标签页上时点它是想回到刚才那一页，
+// 走 showManager 会先切回管理页（托盘「打开启动器」、通知这类入口要的才是那个）。
+app.on('activate', () => revealWindow(mainWindow, MAIN_WINDOW))
 // 系统也能直接结束我们（程序坞右键「退出」、注销关机）：先让服务停掉 dsh，否则 dsh 子进程会留下来
 app.on('before-quit', (event) => {
   if (quitting || !server) return
