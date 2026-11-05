@@ -225,6 +225,9 @@ const LOG_DIR = APP_DIR
 const LOG_FILE = join(LOG_DIR, 'manager.log')
 const LOG_MAX_BYTES = 5 * 1024 * 1024
 const NOISY_LOG_RE = /^(?:已安装 \d+\/\d+|已解析 \d+)/
+// 内置 DeepSeek provider 每 10 分钟各刷一次模型目录，成功时打一条 info；只写内存日志，不落盘刷屏。
+// 失败（failed）不在过滤范围内，仍然保留。
+const NOISY_LISTING_RE = /model listing from \S+ loaded \d+ model\(s\), skipped \d+ row\(s\)/
 const logWriter = createLogWriter(LOG_FILE, { maxBytes: LOG_MAX_BYTES })
 /** 每个启动项一份日志：启动时行里的上下文带上 launchId，`pushLog` 顺手 tee 过来。 */
 const LAUNCH_LOG_DIR = join(APP_DIR, 'launch-logs')
@@ -621,7 +624,7 @@ async function saveConfig(config) {
 
 /** 把重要日志追加到 manager.log（进度类噪音行丢弃，超过 5MB 轮转一次）。 */
 function persistLog(text) {
-  if (NOISY_LOG_RE.test(text)) return
+  if (NOISY_LOG_RE.test(text) || NOISY_LISTING_RE.test(text)) return
   const line = `[${new Date().toISOString()}] ${text}\n`
   logWriter.append(line)
   // 启动项启动/停止期间的行同时落到它自己的日志里；手动启动（没有启动项）只有全局那份。
@@ -4848,7 +4851,8 @@ function attachProcess(version, profile, child, diagnosticContext, instanceLink)
       proc.startupPhase = 'loading'
     }
     if (line.trim()) {
-      proc.tail.push(line)
+      // tail 会进失败报告；和落盘日志一样，不能把 dsh web 的真 token 带出去。
+      proc.tail.push(line.replace(/([?&]token=)[^\s&]+/g, '$1***'))
       if (proc.tail.length > 200) proc.tail.shift()
     }
     pushLog(`${tag}${line.replace(/([?&]token=)[^\s&]+/g, '$1***')}`)
@@ -5156,7 +5160,7 @@ async function bootOnce(ver, prof, onStarted) {
     // 钉了端口却没落到上面（额外参数里另有 --port，或 dsh 自己顺延了）：如实说一句，
     // 否则用户以为存下来的地址还有效
     if (pinned && urlPortOf(result.url) !== pinned) {
-      pushLog(`固定端口 ${pinned} 没拿到，这次落在 ${result.url}`)
+      pushLog(`固定端口 ${pinned} 没拿到，这次落在 ${String(result.url).replace(/([?&]token=)[^\s&]+/g, '$1***')}`)
     }
     lastHealth = null
     if (failureIsFor(ver, prof)) lastFailure = null

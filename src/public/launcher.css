@@ -628,6 +628,10 @@ html.reduce-motion .launch-status.is-working::before { animation: none; }
 .launch-edit:hover { background: var(--accent-soft); color: var(--text); }
 .launch-edit svg { width: 18px; height: 18px; }
 .launch-edit:disabled { opacity: .4; cursor: default; }
+/* 日志图标右上角的小红点：这个启动项的实例有插件报错，详情在日志弹窗顶部。
+   暗色主题的 --danger 是灰白单色，这里固定用红色，才叫“红点”。 */
+.launch-log { position: relative; }
+.launch-log.has-issue::after { content: ''; position: absolute; top: 3px; right: 3px; width: 6px; height: 6px; border-radius: 50%; background: #e11d48; box-shadow: 0 0 0 2px var(--card); pointer-events: none; }
 /* 加号从卡片右侧滑出，不参与卡片高度；留一段命中桥，移向按钮时不会丢掉悬停。 */
 /* 主卡片不跟内容列通栏：就一列启动项，按卡片默认宽度居中就够了 */
 #pane-control .card.home { position: relative; width: min(540px, 100%); margin-inline: auto; padding: 32px; border-radius: 22px; background: rgba(255, 255, 255, var(--panel-opacity)); backdrop-filter: blur(12px); }
@@ -1434,6 +1438,10 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 .launch-log-card-head > span { color: var(--muted); font-size: 11.5px; }
 .launch-log-head-meta { display: inline-flex; align-items: baseline; gap: 4px; }
 .launch-log-head-meta #launchLogRss::before { content: '· '; opacity: .6; }
+.launch-log-diag-row { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 8px 0; border-top: 1px solid var(--line); }
+.launch-log-diag-row:first-child { border-top: 0; padding-top: 0; }
+.launch-log-diag-row:last-child { padding-bottom: 0; }
+.launch-log-diag-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font: 12.5px/1.5 ui-monospace, Consolas, monospace; }
 .launch-log-actions { display: flex; gap: 6px; }
 .launch-log-card-head .ghost { padding: 3px 10px; font-size: 11.5px; }
 .launch-log-subhead { margin: 14px 0 6px; color: var(--muted); font-size: 11.5px; }

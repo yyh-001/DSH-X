@@ -880,6 +880,10 @@
       <div class="dialog-body">
         <div class="launch-log-tools" id="launchLogTools" hidden><span class="hint" id="launchLogHint"></span></div>
         <div class="launch-log-loading" id="launchLogLoading" hidden><span class="spin"></span><span data-i18n="正在读取日志…">正在读取日志…</span></div>
+        <section class="launch-log-card" id="launchLogDiagnosis" hidden>
+          <div class="launch-log-card-head"><h3 data-i18n="插件诊断">插件诊断</h3><span class="launch-log-head-meta"><span id="launchLogDiagnosisMeta"></span></span></div>
+          <div class="launch-log-block" id="launchLogDiagnosisRows"></div>
+        </section>
         <section class="launch-log-card" id="launchLogVisual" hidden>
           <div class="launch-log-card-head"><h3 data-i18n="耗时构成">耗时构成</h3><span class="launch-log-head-meta"><span id="launchLogWindow"></span><span id="launchLogRss" hidden></span></span></div>
           <div class="launch-log-block" id="launchLogPlugins"></div>
@@ -1725,12 +1729,9 @@
   "修复建议（不会自动执行）": "Suggested repairs (not executed automatically)",
   "方案详情": "Plan details",
   "插件版本不兼容": "Incompatible plugin versions",
-  "这些插件与 dsh {version} 不兼容，已被自动禁用：": "These plugins are incompatible with dsh {version} and have been disabled:",
-  "升级到兼容版本？升级后会自动重启这个实例。": "Upgrade to compatible versions? The instance will restart automatically afterwards.",
-  "已升级 {n} 个插件并重启实例：{list}": "Upgraded {n} plugin(s) and restarted the instance: {list}",
-  "其余插件请在插件市场里升级：{list}": "Upgrade the remaining plugins in the plugin market: {list}",
-  "插件已升级": "Plugins upgraded",
-  "升级失败": "Upgrade failed",
+  "插件诊断": "Plugin diagnostics",
+  "插件激活异常": "Plugin activation error",
+  "配置问题": "Configuration issue",
   "正在启动 dsh": "Starting dsh",
   "正在加载插件": "Loading plugins",
   "实际加载来源尚未确认；先核对来源和兼容版本，不要豁免版本检查或批量禁用插件。": "The actual loaded source is unconfirmed. Check its origin and compatible versions; do not bypass version checks or disable plugins in bulk.",
@@ -1744,6 +1745,8 @@
   "原始输出": "Original output",
   "复制错误信息": "Copy",
   "已复制": "Copied",
+  "复制日志": "Copy log",
+  "整合包卸载": "Modpack uninstall",
   "{name} 已{state}{changed}。": "{name} {state}.{changed}",
   "正在{act} {name}…": "{act} {name}…",
   "安装没能开始：{message}": "The install did not start: {message}",
@@ -2106,6 +2109,9 @@
     const launchLogCardEl = document.getElementById('launchLogCard')
     const launchLogVisualEl = document.getElementById('launchLogVisual')
     const launchLogPluginsEl = document.getElementById('launchLogPlugins')
+    const launchLogDiagnosisEl = document.getElementById('launchLogDiagnosis')
+    const launchLogDiagnosisMetaEl = document.getElementById('launchLogDiagnosisMeta')
+    const launchLogDiagnosisRowsEl = document.getElementById('launchLogDiagnosisRows')
     const manageVersionsEl = document.getElementById('launchManageVersions')
     const versionInstallSelectEl = document.getElementById('versionInstallSelect')
     const launchFormEl = document.getElementById('launchForm')
@@ -4955,6 +4961,15 @@
     let launchLogTimer = null
     let launchLogQuery = 0
     let launchLogReportKey = ''
+    // 耗时账本按「这一次运行」缓存：同一次运行反复打开直接复用，重启后 runAt 变了才重取。
+    const launchReportCache = new Map()
+    // 日志正文按启动项缓存：再次打开先显示上次看到的全文，后台刷新再替换，不用空白等一次请求。
+    const launchLogTextCache = new Map()
+    // 已经打开日志看过的诊断：同一轮运行、同一组问题不再点红点；问题变了或重启后会重新提示。
+    const viewedDiagnosis = new Set()
+    function diagnosisSeenKey(entry, warning, rows) {
+      return `${entry.id}\0${warning.binding?.attemptId || ''}\0${rows.map(row => `${row.name}@${row.version}:${row.tag}`).join('|')}`
+    }
 
     function formatProfileMs(ms) {
       const value = Number(ms) || 0
@@ -4963,6 +4978,66 @@
 
     function syncLaunchLogVisual() {
       launchLogVisualEl.hidden = launchLogPluginsEl.hidden
+    }
+
+    /** 诊断里的问题行：同一个包只列一次，标签沿用诊断面板的叫法。 */
+    function diagnosisIssueRows(report) {
+      const rows = []
+      const seen = new Set()
+      const split = (value) => {
+        const text = String(value || '')
+        const index = text.lastIndexOf('@')
+        return index > 0 ? [text.slice(0, index), text.slice(index + 1)] : [text, '']
+      }
+      const add = (name, version, tag, detail) => {
+        if (!name) return
+        const key = `${name}@${version}`
+        if (seen.has(key)) return
+        seen.add(key)
+        rows.push({ name, version, tag, detail: detail || '' })
+      }
+      for (const item of report?.rejected || []) {
+        const [name, version] = split(item.package)
+        add(name, version, t('插件版本不兼容'), item.requirements)
+      }
+      for (const item of report?.failed || []) {
+        const [name] = split(item.package || item.id)
+        add(name, '', t(/ValidationError|missing required value/.test(item.reason || '') ? '配置问题' : '插件激活异常'), item.reason)
+      }
+      for (const item of report?.skipped?.entries || []) {
+        const reason = item.reason || ''
+        const match = /Plugin (\S+) is incompatible with dsh/.exec(reason)
+        const [name, version] = split(match?.[1] || item.package)
+        add(name, version, t(match ? '插件版本不兼容' : '插件激活异常'), reason)
+      }
+      return rows
+    }
+
+    /** 启动项当前实例的插件诊断；没有问题就不返回。 */
+    function launchDiagnosis(entry) {
+      const version = resolveLaunchVersion(entry)
+      const live = version ? runningInfo(version, entry.profile, entry.dshHome || state.dshHome) : null
+      const warning = live?.diagnosticWarning
+      return warning && diagnosisIssueRows(warning.diagnosis).length ? warning : null
+    }
+
+    function renderLaunchLogDiagnosis(warning) {
+      const rows = warning ? diagnosisIssueRows(warning.diagnosis) : []
+      launchLogDiagnosisEl.hidden = !rows.length
+      launchLogDiagnosisMetaEl.textContent = rows.length ? [warning.profile, warning.version].filter(Boolean).join(' · ') : ''
+      launchLogDiagnosisRowsEl.replaceChildren(...rows.map((row) => {
+        const line = document.createElement('div')
+        line.className = 'launch-log-diag-row'
+        const name = document.createElement('span')
+        name.className = 'launch-log-diag-name'
+        name.textContent = row.version ? `${row.name}@${row.version}` : row.name
+        name.title = row.detail
+        const tag = document.createElement('span')
+        tag.className = 'rc-chip'
+        tag.textContent = row.tag
+        line.append(name, tag)
+        return line
+      }))
     }
 
     /** 启动 CPU 账本：插件 / Node 内部 / 其它包 / 原生与 GC 四桶相加，别再让时间“不知去向”。 */
@@ -5013,10 +5088,15 @@
       syncLaunchLogVisual()
     }
 
-    async function loadLaunchReport(version, profile) {
-      const key = `${version}\0${profile}`
+    async function loadLaunchReport(version, profile, runAt = '') {
+      const key = `${version}\0${profile}\0${runAt}`
       if (launchLogReportKey === key) return
       launchLogReportKey = key
+      const cached = launchReportCache.get(key)
+      if (cached) {
+        renderLaunchReport(cached)
+        return
+      }
       try {
         const report = await getJson(`/api/plugin-profile?version=${encodeURIComponent(version)}&profile=${encodeURIComponent(profile)}`)
         if (launchLogReportKey !== key) return
@@ -5026,6 +5106,8 @@
           syncLaunchLogVisual()
           return
         }
+        launchReportCache.set(key, report)
+        if (launchReportCache.size > 8) launchReportCache.delete(launchReportCache.keys().next().value)
         renderLaunchReport(report)
       } catch {
         // 没有账本就只显示日志
@@ -5038,23 +5120,43 @@
       launchLogToolsEl.hidden = !text
     }
 
-    /** 显示用：把 `[ISO] [版本/profile] 正文` 压成 `HH:MM:SS  正文`；导出仍是原文。 */
+    /** 显示用：把 `[ISO] [版本/profile] 正文` 压成 `HH:MM:SS  正文`；导出仍是原文（UTC）。 */
     function simplifyLogText(text) {
       return String(text || '').split(/\r?\n/).map((line) => {
         const match = /^\[(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})(?:\.\d+)?Z\] (?:\[[^\]]+\] )?(.*)$/.exec(line)
-        return match ? `${match[2]}  ${match[3]}` : line
+        if (!match) return line
+        // 日志戳是 UTC，界面要显示本机时间；直接截 "Z" 前面的数字会差 8 小时。
+        const date = new Date(`${match[1]}T${match[2]}Z`)
+        const clock = Number.isNaN(date.getTime())
+          ? match[2]
+          : [date.getHours(), date.getMinutes(), date.getSeconds()].map(value => String(value).padStart(2, '0')).join(':')
+        return `${clock}  ${match[3]}`
       }).join('\n')
     }
 
     async function refreshLaunchLog() {
       const entry = launchLogEntry
-      if (!entry) return
+      if (!entry) return null
+      // 诊断跟着状态推送走，日志本身还是每次现读；两件事互不阻塞。
+      const warning = launchDiagnosis(entry)
+      renderLaunchLogDiagnosis(warning)
+      if (warning) {
+        // 日志已经打开、诊断也显示出来了，红点就不用再提醒；问题变了会重新出现。
+        const rows = diagnosisIssueRows(warning.diagnosis)
+        const key = diagnosisSeenKey(entry, warning, rows)
+        if (!viewedDiagnosis.has(key)) {
+          viewedDiagnosis.add(key)
+          paintLaunchHome()
+        }
+      }
       const query = ++launchLogQuery
       try {
         const data = await getJson(`/api/launch-log?id=${encodeURIComponent(entry.id)}`)
-        if (query !== launchLogQuery || launchLogEntry !== entry || launchLogDialogEl.hidden) return
+        if (query !== launchLogQuery || launchLogEntry !== entry || launchLogDialogEl.hidden) return null
         const nearBottom = launchLogTextEl.scrollHeight - launchLogTextEl.scrollTop - launchLogTextEl.clientHeight < 24
         launchLogTextEl.textContent = simplifyLogText(data.text)
+        launchLogTextCache.set(entry.id, launchLogTextEl.textContent)
+        if (launchLogTextCache.size > 8) launchLogTextCache.delete(launchLogTextCache.keys().next().value)
         launchLogCardEl.hidden = !data.text
         setLaunchLogHint(data.text
           ? (data.clipped ? t('只显示最后 120 KB。') : '')
@@ -5071,9 +5173,11 @@
           launchLogRssEl.title = ''
         }
         if (nearBottom) launchLogTextEl.scrollTop = launchLogTextEl.scrollHeight
+        return data
       } catch (error) {
-        if (query !== launchLogQuery || launchLogEntry !== entry) return
+        if (query !== launchLogQuery || launchLogEntry !== entry) return null
         setLaunchLogHint(error?.message || String(error))
+        return null
       }
     }
 
@@ -5081,23 +5185,25 @@
       if (!entry) return
       launchLogEntry = entry
       const version = resolveLaunchVersion(entry) || ''
+      const cachedText = launchLogTextCache.get(entry.id) || ''
       launchLogSubtitleEl.textContent = [entry.name, version, entry.profile || 'web', entry.dshHome || state.dshHome].filter(Boolean).join(' · ')
-      launchLogTextEl.textContent = ''
+      launchLogTextEl.textContent = cachedText
       setLaunchLogHint('')
-      launchLogLoadingEl.hidden = false
+      launchLogLoadingEl.hidden = Boolean(cachedText)
       launchLogRssEl.hidden = true
       launchLogRssEl.textContent = ''
       launchLogRssEl.title = ''
       launchLogWindowEl.textContent = ''
-      launchLogCardEl.hidden = true
+      launchLogCardEl.hidden = !cachedText
       launchLogReportKey = ''
       launchLogPluginsEl.hidden = true
       launchLogPluginsEl.innerHTML = ''
+      renderLaunchLogDiagnosis(null)
       syncLaunchLogVisual()
       await showDialog(launchLogDialogEl)
       launchLogTextEl.scrollTop = launchLogTextEl.scrollHeight
-      await refreshLaunchLog()
-      if (version) await loadLaunchReport(version, entry.profile || 'web')
+      const data = await refreshLaunchLog()
+      if (version) await loadLaunchReport(version, entry.profile || 'web', data?.runs?.[0]?.at || '')
       launchLogLoadingEl.hidden = true
       clearInterval(launchLogTimer)
       launchLogTimer = setInterval(() => {
@@ -5119,7 +5225,7 @@
       if (!text) return
       try {
         await navigator.clipboard.writeText(text)
-        notify(t('已复制'))
+        notify(t('已复制'), t('复制日志'))
       } catch (error) {
         notify(error?.message || String(error))
       }
@@ -5151,6 +5257,7 @@
       try {
         await post('/api/launch-log/clear', { id: entry.id })
         launchLogTextEl.textContent = ''
+        launchLogTextCache.delete(entry.id)
         launchLogCardEl.hidden = true
         setLaunchLogHint(t('日志已清空。'))
       } catch (error) {
@@ -5285,6 +5392,10 @@
       const markup = launchEntries().map((entry) => {
         const version = resolveLaunchVersion(entry)
         const live = version ? runningInfo(version, entry.profile, entry.dshHome || state.dshHome) : null
+        // 这个启动项自己的实例有插件报错时点红点；日志里看过同一组问题就不再点。
+        const issueWarning = live?.diagnosticWarning
+        const issueRows = issueWarning ? diagnosisIssueRows(issueWarning.diagnosis) : []
+        const issue = issueRows.length > 0 && !viewedDiagnosis.has(diagnosisSeenKey(entry, issueWarning, issueRows))
         const builtin = entry.id === DEFAULT_LAUNCH_ID
         const name = builtin && entry.name === '默认启动' ? 'DSH' : entry.name
         const busy = live?.status === 'starting' || live?.status === 'stopping'
@@ -5312,7 +5423,7 @@
             <span class="launch-preset-meta" title="${escapeHtml(automaticHint)}"><span>${escapeHtml([note, installNote, startupNote].filter(Boolean).join(' · '))}</span></span>
             ${hasNewVersion ? `<button class="launch-new-version" type="button" data-version-id="${entry.id}" ${action || state.installing ? 'disabled' : ''}>${escapeHtml(t('新版本 {version}', { version: latest }))}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button>` : ''}</span>
           <span class="launch-actions"><button class="launch-edit launch-plugins" type="button" data-plugins-id="${entry.id}" title="${escapeHtml(t('管理插件'))}" aria-label="${escapeHtml(t('管理 {name} 的插件', { name }))}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9M8 5.25l8 4.5"/></svg></button><button class="launch-edit launch-log" type="button" data-log-id="${entry.id}" title="${escapeHtml(t('查看 {name} 的日志', { name }))}" aria-label="${escapeHtml(t('查看 {name} 的日志', { name }))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5h9l3 3v14H6zM15 3.5v3h3M9 11h6M9 14.5h6M9 18h4"/></svg></button><button class="launch-edit" type="button" data-edit-id="${entry.id}" title="${escapeHtml(t('编辑 {name}', { name }))}" aria-label="${escapeHtml(t('编辑 {name}', { name }))}" ${action || state.installing || ownAction || busy ? 'disabled' : ''}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9M8 5.25l8 4.5"/></svg></button><button class="launch-edit launch-log${issue ? ' has-issue' : ''}" type="button" data-log-id="${entry.id}" title="${escapeHtml(t('查看 {name} 的日志', { name }))}" aria-label="${escapeHtml(t('查看 {name} 的日志', { name }))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5h9l3 3v14H6zM15 3.5v3h3M9 11h6M9 14.5h6M9 18h4"/></svg></button><button class="launch-edit" type="button" data-edit-id="${entry.id}" title="${escapeHtml(t('编辑 {name}', { name }))}" aria-label="${escapeHtml(t('编辑 {name}', { name }))}" ${action || state.installing || ownAction || busy ? 'disabled' : ''}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 4 4 4M4 20l4-1 12-12a2.8 2.8 0 0 0-4-4L4 15l-1 6Z"/></svg></button>
           ${live ? `<button class="icon-btn launch-action" type="button" data-restart-id="${entry.id}" title="${escapeHtml(t('重启'))}" aria-label="${escapeHtml(t('重启'))}" ${action || ownAction || busy ? 'disabled' : ''}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/></svg></button>
@@ -5794,57 +5905,6 @@
       finally { launchDeleteEl.disabled = false; render() }
     }
 
-    const promptedIncompatible = new Set()
-    let incompatiblePromptBusy = false
-    /**
-     * 实例启动后日志报告插件版本不兼容：自动弹一次窗，引导升级到与 dsh 对齐的版本。
-     * 每次警告只提示一次；有别的弹窗开着就先不打扰，等下一轮状态推送再试。
-     */
-    async function maybePromptIncompatible(warnings) {
-      if (incompatiblePromptBusy) {
-        return
-      }
-      for (const item of warnings) {
-        const warning = item.diagnosticWarning
-        const rejected = warning?.diagnosis?.rejected || []
-        if (!rejected.length) {
-          continue
-        }
-        const key = `${item.version}/${item.profile}/${warning.at}`
-        if (promptedIncompatible.has(key)) {
-          continue
-        }
-        if (document.querySelector('.ask:not([hidden])')) {
-          return
-        }
-        const specs = [...new Set(rejected.map((entry) => String(entry.package || '').replace(/@[^@/]+$/, '')).filter(Boolean))]
-        if (!specs.length) {
-          continue
-        }
-        promptedIncompatible.add(key)
-        incompatiblePromptBusy = true
-        try {
-          const ok = await appConfirm(
-            `${t('这些插件与 dsh {version} 不兼容，已被自动禁用：', { version: item.version })}\n${specs.join('\n')}\n\n${t('升级到兼容版本？升级后会自动重启这个实例。')}`,
-            { title: t('插件版本不兼容') },
-          )
-          if (!ok) {
-            continue
-          }
-          const result = await post('/api/plugins/upgrade-incompatible', { version: item.version, profile: item.profile })
-          await post('/api/stop', { version: item.version, profile: item.profile }).catch(() => {})
-          await post('/api/start', { version: item.version, profile: item.profile })
-          const rest = result.skipped?.length ? `\n${t('其余插件请在插件市场里升级：{list}', { list: result.skipped.join('、') })}` : ''
-          notify(`${t('已升级 {n} 个插件并重启实例：{list}', { n: result.upgraded.length, list: result.upgraded.join('、') })}${rest}`, t('插件已升级'))
-        } catch (error) {
-          notify(error.message, t('升级失败'))
-        } finally {
-          incompatiblePromptBusy = false
-        }
-        return
-      }
-    }
-
     function render() {
       const have = new Set(installedList())
       const allVersions = allVersionList()
@@ -5897,13 +5957,6 @@
       if (!hintEl.textContent && failure && !failureLive) {
         hintEl.innerHTML = `<span class="hint-fail">${escapeHtml(failureText(failure))}</span> · <button type="button" data-failure>${escapeHtml(t('查看错误信息'))}</button>`
       }
-      const warnings = state.instances.filter(item => item.diagnosticWarning)
-      if (warnings.length) {
-        const links = warnings.map((item, index) => `<button type="button" data-diagnostic-warning="${index}">${escapeHtml(item.version + '/' + item.profile)} · ${escapeHtml(t('查看错误信息'))}</button>`)
-        hintEl.insertAdjacentHTML('beforeend', `${hintEl.textContent ? ' · ' : ''}${[...new Set(warnings.map(item => t(item.diagnosticWarning.message || '运行中插件诊断')))].map(escapeHtml).join(' · ')} · ${links.join(' · ')}`)
-      }
-      // 不兼容插件在实例启动后自动提示一次升级（用户正在别的弹窗里时推迟到下一轮）
-      void maybePromptIncompatible(warnings)
       if (state.diagnosticRepairs?.length) {
         const historyButton = document.createElement('button')
         historyButton.type = 'button'
@@ -6048,13 +6101,6 @@
     removeEl.onclick = () => { void uninstallVersion(selected()) }
     hintEl.addEventListener('click', (event) => {
       if (event.target.closest('[data-failure]') && state.failure) showFailure(state.failure)
-      const warningButton = event.target.closest('[data-diagnostic-warning]')
-      if (warningButton) {
-        const warning = state.instances.filter(item => item.diagnosticWarning)[Number(warningButton.dataset.diagnosticWarning)]
-        if (warning) {
-          showFailure(warning.diagnosticWarning, true)
-        }
-      }
     })
     document.getElementById('clear').onclick = () => logView.clear()
     document.getElementById('exportLogs').onclick = async () => {
@@ -9173,7 +9219,7 @@
       try {
         const data = await post('/api/packs/uninstall', { name, profile, removeProfile: false })
         applyPluginPayload(data)
-        notify(t('已撤销 {name} 的安装，重启环境后生效。', { name: label }))
+        notify(t('已撤销 {name} 的安装，重启环境后生效。', { name: label }), t('整合包卸载'))
       } catch (error) {
         notify(error.message, t('整合包卸载失败'))
       } finally {
