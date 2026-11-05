@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
 import { WSL_AGENT_SCRIPT } from '../src/wsl-scripts.js'
@@ -11,6 +13,7 @@ import {
   resolveWslHome,
   wslAvailable,
   wslHomeKey,
+  buildAgentInstallScript,
 } from '../src/wsl.js'
 
 // WSL 相关纯函数测试：不启动真实 wsl.exe，保证 macOS / Linux 开发机和 CI 也能跑。
@@ -88,4 +91,26 @@ test('wrapper 脚本：pidfile 按实例区分，前台 exec dsh，停止先 TER
 
 test('wslAvailable 只返回布尔值，不抛异常', () => {
   assert.equal(typeof wslAvailable(), 'boolean')
+})
+
+test('WSL 启动脚本安装：按发行版加锁、临时文件原子替换、内容没变不动目标', () => {
+  const script = buildAgentInstallScript('#!/bin/bash\necho hello\n')
+  assert.match(script, /mkdir "\$lock"/)
+  assert.match(script, /trap 'cleanup' EXIT/)
+  assert.match(script, /sha256sum "\$target"/)
+  assert.match(script, /mv -f "\$tmp" "\$target"/)
+  assert.match(script, /tmp="\$target\.tmp\.\$\$"/)
+  const digest = createHash('sha256').update('#!/bin/bash\necho hello\n').digest('hex')
+  assert.match(script, new RegExp(digest))
+  assert.equal(buildAgentInstallScript('x', '../evil').includes('../evil'), false)
+})
+
+test('bootWslOnce 在 finally 释放 rememberedWslPort 认领的自动端口', () => {
+  // WSL 实例没法在 CI 里真起；用源码结构锁住「认领 → 必须释放」这条回归点。
+  const source = readFileSync(new URL('../src/server.js', import.meta.url), 'utf8')
+  const start = source.indexOf('async function bootWslOnce')
+  const end = source.indexOf('/** 从 WSL 里已安装的 dsh 起一个实例', start)
+  const body = source.slice(start, end)
+  assert.match(body, /const reused = remembered\.port/)
+  assert.match(body, /finally \{\s*claimedAutoPorts\.delete\(reused\)\s*\}/)
 })

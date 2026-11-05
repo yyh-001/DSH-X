@@ -456,6 +456,33 @@ function homeDir() {
 function launchIsWsl() {
   return launchScope.getStore()?.backend === 'wsl'
 }
+
+// 这些接口都直接读写 Windows 侧 DSH_HOME；WSL 启动项的目录是 wsl:// 键，
+// 混进来会被 path.win32.join 拼成相对路径，甚至落到进程工作目录。
+// 集中在这里拦，新增本机文件路由时只要补一个前缀，别再让每条路由各自记得判断。
+const WSL_LOCAL_API_PREFIXES = [
+  '/api/plugins',
+  '/api/profiles',
+  '/api/recover',
+  '/api/profile-backups',
+  '/api/packs',
+  '/api/desktop-enhance',
+  '/api/mcp',
+  '/api/skills',
+  '/api/sync',
+]
+const WSL_LOCAL_API_EXACT = new Set([
+  '/api/plugin-profile',
+  '/api/launch-home/profiles',
+  '/api/pick-dir',
+  '/api/pick-file',
+  '/api/dsh-homes/open',
+  '/api/dsh-homes/rename',
+])
+function isWslLocalApiRoute(pathname) {
+  return WSL_LOCAL_API_EXACT.has(pathname)
+    || WSL_LOCAL_API_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(prefix + '/'))
+}
 function launchDistro() {
   const store = launchScope.getStore()
   return (store?.wslDistro || WSL_SETTINGS.defaultDistro || '').trim()
@@ -5301,101 +5328,106 @@ async function bootWslOnce(ver, prof, context, onStarted) {
   const preset = launchId ? safeLaunchPresets(loadSettingsSync().launchPresets).find((item) => item.id === launchId) : null
   const pinned = pinnedPort(ver, prof) || (preset?.port > 0 ? preset.port : 0)
   const remembered = pinned ? { port: 0, key: '' } : await rememberedWslPort(distro, ver, prof)
-  const preferred = pinned || remembered.port
-  if (remembered.port) pushLog(`复用 WSL 自动端口：${remembered.key} → ${remembered.port}`)
-  const port = await allocateWslPort(distro, preferred, (candidate) => portAvailable(candidate))
-  if (pinned && port !== pinned) pushLog(`固定端口 ${pinned} 在 WSL 或 Windows 侧被占用，这次改用 ${port}`)
-  else if (remembered.port && port !== remembered.port) pushLog(`WSL 自动端口 ${remembered.port} 已不可用，这次改用 ${port}`)
-  pushLog(`启动 ${ver} · profile ${prof} · WSL ${distro}${workdir ? ` · 项目目录 ${workdir}` : ''}${pinned ? ` · 固定端口 ${pinned}` : ''}`)
-  assertStartupActive()
-  const diagnosticContext = {
-    attemptId: randomBytes(16).toString('hex'),
-    version: ver,
-    profile: prof,
-    home: homeDir(),
-    fingerprint: '',
-  }
-  let started
+  const reused = remembered.port
   try {
-    started = await startWslInstance({
+    const preferred = pinned || remembered.port
+    if (remembered.port) pushLog(`复用 WSL 自动端口：${remembered.key} → ${remembered.port}`)
+    const port = await allocateWslPort(distro, preferred, (candidate) => portAvailable(candidate))
+    if (pinned && port !== pinned) pushLog(`固定端口 ${pinned} 在 WSL 或 Windows 侧被占用，这次改用 ${port}`)
+    else if (remembered.port && port !== remembered.port) pushLog(`WSL 自动端口 ${remembered.port} 已不可用，这次改用 ${port}`)
+    pushLog(`启动 ${ver} · profile ${prof} · WSL ${distro}${workdir ? ` · 项目目录 ${workdir}` : ''}${pinned ? ` · 固定端口 ${pinned}` : ''}`)
+    assertStartupActive()
+    const diagnosticContext = {
+      attemptId: randomBytes(16).toString('hex'),
+      version: ver,
+      profile: prof,
+      home: homeDir(),
+      fingerprint: '',
+    }
+    let started
+    try {
+      started = await startWslInstance({
+        distro,
+        profile: prof,
+        home: wslHome,
+        workdir,
+        port,
+        dshCommand: WSL_SETTINGS.dshCommand || 'dsh',
+        serviceMode: DEFAULT_WSL_SERVICE_MODE,
+      })
+    } catch (error) {
+      lastFailure = {
+        at: Date.now(),
+        version: ver,
+        profile: prof,
+        home: homeDir(),
+        message: error instanceof Error ? error.message : String(error),
+        exit: null,
+        tail: [],
+      }
+      await emitState().catch(() => {})
+      throw error
+    }
+    const spawnAt = performance.now()
+    const proc = attachProcess(ver, prof, started.child, diagnosticContext, null)
+    Object.assign(proc, {
+      backend: 'wsl',
       distro,
-      profile: prof,
-      home: wslHome,
-      workdir,
-      port,
-      dshCommand: WSL_SETTINGS.dshCommand || 'dsh',
-      serviceMode: DEFAULT_WSL_SERVICE_MODE,
+      wslHome,
+      wslWorkdir: workdir,
+      serviceMode: started.serviceMode,
+      instanceId: started.instanceId,
+      wslPort: port,
     })
-  } catch (error) {
-    lastFailure = {
-      at: Date.now(),
-      version: ver,
-      profile: prof,
-      home: homeDir(),
-      message: error instanceof Error ? error.message : String(error),
-      exit: null,
-      tail: [],
-    }
-    await emitState().catch(() => {})
-    throw error
-  }
-  const spawnAt = performance.now()
-  const proc = attachProcess(ver, prof, started.child, diagnosticContext, null)
-  Object.assign(proc, {
-    backend: 'wsl',
-    distro,
-    wslHome,
-    wslWorkdir: workdir,
-    serviceMode: started.serviceMode,
-    instanceId: started.instanceId,
-    wslPort: port,
-  })
-  onStarted?.(proc)
-  await emitState()
-  try {
-    const result = await waitUntilReady(proc, ver)
-    const readyAt = proc.readyAt || performance.now()
-    proc.startupMs = Math.round(readyAt - spawnAt)
-    const confirmedAt = performance.now()
-    const prepareMs = Math.round(spawnAt - startedAt)
-    const readyMs = Math.round(readyAt - spawnAt)
-    recordLaunchRun(launchScope.getStore()?.launchId, {
-      at: Date.now(),
-      version: ver,
-      profile: prof,
-      totalMs: Math.round(confirmedAt - startedAt),
-      prepareMs,
-      readyMs,
-      confirmMs: Math.round(confirmedAt - readyAt),
-      firstOutputMs: proc.firstOutputAt ? Math.round(proc.firstOutputAt - spawnAt) : null,
-      startupRssMB: null,
-    })
-    // 启动项填 auto：/api/start 拿到的是 auto，真正版本只有这里探测得到；
-    // 补记后停止状态也能显示版本，下一次启动还能直接按这个版本找实例。
-    await recordLaunchUse(launchScope.getStore()?.launchId, ver)
-    pushLog(`启动耗时 ${ver}/${prof}（WSL ${distro}）：准备 ${prepareMs}ms，子进程就绪地址 ${readyMs}ms，确认 ${Math.round(confirmedAt - readyAt)}ms`)
-    if (pinned && urlPortOf(result.url) !== pinned) pushLog(`固定端口 ${pinned} 没拿到，这次落在 ${result.url}`)
-    if (!pinned) await rememberAutoPort(ver, prof, result.url)
-    lastHealth = null
-    if (failureIsFor(ver, prof)) lastFailure = null
+    onStarted?.(proc)
     await emitState()
-    void selfCheckPage(result.url, ver)
-    return result
-  } catch (error) {
-    const failure = {
-      at: Date.now(),
-      version: ver,
-      profile: prof,
-      home: homeDir(),
-      message: error instanceof Error ? error.message : String(error),
-      exit: proc.exit,
-      tail: (proc.tail || []).slice(-120),
-      diagnosis: proc.diagnosis.report(),
+    try {
+      const result = await waitUntilReady(proc, ver)
+      const readyAt = proc.readyAt || performance.now()
+      proc.startupMs = Math.round(readyAt - spawnAt)
+      const confirmedAt = performance.now()
+      const prepareMs = Math.round(spawnAt - startedAt)
+      const readyMs = Math.round(readyAt - spawnAt)
+      recordLaunchRun(launchScope.getStore()?.launchId, {
+        at: Date.now(),
+        version: ver,
+        profile: prof,
+        totalMs: Math.round(confirmedAt - startedAt),
+        prepareMs,
+        readyMs,
+        confirmMs: Math.round(confirmedAt - readyAt),
+        firstOutputMs: proc.firstOutputAt ? Math.round(proc.firstOutputAt - spawnAt) : null,
+        startupRssMB: null,
+      })
+      // 启动项填 auto：/api/start 拿到的是 auto，真正版本只有这里探测得到；
+      // 补记后停止状态也能显示版本，下一次启动还能直接按这个版本找实例。
+      await recordLaunchUse(launchScope.getStore()?.launchId, ver)
+      pushLog(`启动耗时 ${ver}/${prof}（WSL ${distro}）：准备 ${prepareMs}ms，子进程就绪地址 ${readyMs}ms，确认 ${Math.round(confirmedAt - readyAt)}ms`)
+      if (pinned && urlPortOf(result.url) !== pinned) pushLog(`固定端口 ${pinned} 没拿到，这次落在 ${result.url}`)
+      if (!pinned) await rememberAutoPort(ver, prof, result.url)
+      lastHealth = null
+      if (failureIsFor(ver, prof)) lastFailure = null
+      await emitState()
+      void selfCheckPage(result.url, ver)
+      return result
+    } catch (error) {
+      const failure = {
+        at: Date.now(),
+        version: ver,
+        profile: prof,
+        home: homeDir(),
+        message: error instanceof Error ? error.message : String(error),
+        exit: proc.exit,
+        tail: (proc.tail || []).slice(-120),
+        diagnosis: proc.diagnosis.report(),
+      }
+      failure.binding = bindDiagnosis(diagnosticContext, failure.diagnosis)
+      lastFailure = failure
+      try { error.failure = failure } catch { /* 非 Error 对象仍保留状态里的记录 */ }
+      throw error
     }
-    failure.binding = bindDiagnosis(diagnosticContext, failure.diagnosis)
-    lastFailure = failure
-    try { error.failure = failure } catch { /* 非 Error 对象仍保留状态里的记录 */ }
-    throw error
+  } finally {
+    claimedAutoPorts.delete(reused)
   }
 }
 
@@ -6389,6 +6421,12 @@ async function handleApi(req, res, url) {
   // 改状态的请求只认本机来源（浏览器会带 Origin，本机程序不会）
   if (req.method !== 'GET' && !sameSiteRequest(req)) {
     send(res, 403, { error: '跨站请求被拒绝' })
+    return
+  }
+  // WSL 启动项的文件都在发行版里，Windows 侧只负责拉起进程；
+  // 统一在这里挡住本地文件路由，避免把 wsl:// 键当成 Windows 路径。
+  if (launchIsWsl() && isWslLocalApiRoute(url.pathname)) {
+    send(res, 400, { error: 'WSL 启动项的 Profile、插件和整合包文件都在 WSL 内，当前版本不支持在 Windows 侧直接管理；请进入该发行版操作。' })
     return
   }
   if (req.method === 'GET' && url.pathname === '/api/remote') {

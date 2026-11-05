@@ -24,7 +24,7 @@ SOFTWARE.
 
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { randomBytes } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { join } from 'node:path'
 import { WSL_AGENT_SCRIPT } from './wsl-scripts.js'
 
@@ -239,17 +239,52 @@ export async function inspectWslDistro(distro, home, options = {}) {
   return info
 }
 
-async function installAgentScript(distro) {
-  const base64 = Buffer.from(WSL_AGENT_SCRIPT, 'utf8').toString('base64')
-  const script = [
+/**
+ * 生成安装脚本。文件先写同目录临时文件再 mv 原子替换：bash 可能正在读旧脚本，
+ * 直接覆盖会读到半截内容；内容 hash 没变就完全不动目标文件。
+ * 锁按发行版/用户目录共享，多个启动同时来也只能有一个在写。
+ */
+export function buildAgentInstallScript(text = WSL_AGENT_SCRIPT, name = 'dsh-x-wsl.sh') {
+  const base64 = Buffer.from(String(text), 'utf8').toString('base64')
+  const digest = createHash('sha256').update(String(text), 'utf8').digest('hex')
+  const fileName = String(name).replace(/[^A-Za-z0-9._-]/g, '') || 'dsh-x-wsl.sh'
+  return [
     'set -eu',
     'd="$HOME/.dsh-x/bin"',
     'mkdir -p "$d"',
-    "printf '%s' '" + base64 + "' | base64 -d > \"$d/dsh-x-wsl.sh\"",
-    'chmod 755 "$d/dsh-x-wsl.sh"',
-    'printf "%s\\n" "$d/dsh-x-wsl.sh"',
+    'target="$d/' + fileName + '"',
+    'lock="$d/.' + fileName + '.lock"',
+    'tmp="$target.tmp.$$"',
+    'cleanup() { rm -rf "$lock" "$tmp"; }',
+    "trap 'cleanup' EXIT HUP INT TERM",
+    'while :; do',
+    '  if mkdir "$lock" 2>/dev/null; then',
+    '    printf \'%s\\n\' "$$" > "$lock/pid"',
+    '    break',
+    '  fi',
+    '  if [ -f "$lock/pid" ] && ! kill -0 "$(cat "$lock/pid" 2>/dev/null)" 2>/dev/null; then',
+    '    rm -rf "$lock"',
+    '    continue',
+    '  fi',
+    '  if [ -n "$(find "$lock" -maxdepth 0 -mmin +5 2>/dev/null)" ]; then',
+    '    rm -rf "$lock"',
+    '    continue',
+    '  fi',
+    '  sleep 0.1',
+    'done',
+    'if [ -f "$target" ] && command -v sha256sum >/dev/null 2>&1 && [ "$(sha256sum "$target" | awk \'{print $1}\')" = "' + digest + '" ]; then',
+    '  printf "%s\\n" "$target"',
+    '  exit 0',
+    'fi',
+    "printf '%s' '" + base64 + "' | base64 -d > \"$tmp\"",
+    'chmod 755 "$tmp"',
+    'mv -f "$tmp" "$target"',
+    'printf "%s\\n" "$target"',
   ].join('\n')
-  const result = await wslBash(distro, script, { timeoutMs: 20000 })
+}
+
+async function installAgentScript(distro) {
+  const result = await wslBash(distro, buildAgentInstallScript(), { timeoutMs: 20000 })
   if (!result.ok) throw new Error('写入 WSL 启动脚本失败：' + (result.stderr.trim() || result.stdout.trim() || '未知错误'))
 }
 
