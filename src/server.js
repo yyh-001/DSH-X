@@ -3620,7 +3620,9 @@ async function releaseNotes(kind, version) {
   const entry = entries.find((item) => item.version === wanted)
   if (!entry) return { found: false, url: fallbackUrl }
   const raw = decodeEntities(entry.content)
-  const englishAt = raw.search(/id="[^"]*en-v[^"]*"/i)
+  // 英文段的锚点写法变过：老正文是 `id="en-v0.1.18"`，现在是 `<a id="en">`，
+  // 经 GitHub 渲染后都带 `user-content-` 前缀。只认 `en-v` 会把整段英文留在弹窗里。
+  const englishAt = raw.search(/id="(?:[^"]*-)?en(?:-[^"]*)?"/i)
   // 正文开头那行「中文 | English」是语言导航，不是变更内容
   const blocks = parseNotes(englishAt > 0 ? raw.slice(0, englishAt) : raw)
     .filter((block) => !/^(?:中文|English)(?:\s*\|\s*(?:中文|English))+$/i.test(block.text))
