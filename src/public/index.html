@@ -5787,7 +5787,8 @@
     const launchCompatibility = { request: 0, key: '', busy: false }
 
     function compatibilityTarget() {
-      const home = projectHomeOf(launchWorkdirEl.value) || launchDshHomeEl.value.trim() || state.dshHome
+      // Staging 的启动项已经没有 workdir 字段，目录只来自「dsh 用户目录」这一栏。
+      const home = launchDshHomeEl.value.trim() || state.dshHome
       // 自动版本也必须按草稿目录解析；全局目录正在运行的旧版不代表此环境会启动的版本。
       const version = versionValue === 'auto' ? recommendedVersion(launchProfile, home, draftLaunchChannel()) : selected()
       return { version, profile: launchProfile, home }
@@ -5890,7 +5891,7 @@
     compatibilityCheckEl.onclick = checkLaunchCompatibility
     compatibilityCopyEl.onclick = copyCompatibilityPrompt
     // 同值来回切换也废弃旧响应，避免检查 A 时改到 B 再改回 A 而误用旧扫描。
-    for (const control of [launchDshHomeEl, launchProfileEl, launchWorkdirEl, launchUpdateChannelEl]) {
+    for (const control of [launchDshHomeEl, launchProfileEl, launchUpdateChannelEl]) {
       control.addEventListener('input', resetLaunchCompatibility)
       control.addEventListener('change', resetLaunchCompatibility)
     }

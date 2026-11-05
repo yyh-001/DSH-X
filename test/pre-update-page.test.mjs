@@ -43,9 +43,8 @@ function editor(post = async () => ({ version: TARGET, plugins: [], incompatible
     launchCompatibility: { request: 0, key: '', busy: false }, launchDialogRevision: 1,
     launchDialogEl: { hidden: false }, launchDialogClosing: false, versionValue: TARGET, draftLaunchChannel: () => 'rc', selected: () => c.launchVersionEl.value, editingLaunchId: 'saved-id', launchPluginScope: 'saved-id',
     launchVersionEl: element(TARGET), launchVersion: TARGET, launchProfileEl: element('draft-profile'), launchProfile: 'draft-profile',
-    launchDshHomeEl: element(DRAFT), launchWorkdirEl: element(''),
+    launchDshHomeEl: element(DRAFT),
     state: { dshHome: '/global', profile: 'web', local: ['0.2.0'], versions: ['0.2.0'], launchPresets: [{ id: 'saved-id', version: '0.2.0', profile: 'web', dshHome: '/saved' }] },
-    projectHomeOf: (path) => path ? '/project-home' : '',
     t: (text, values = {}) => text.replace(/\{(\w+)\}/g, (_, key) => values[key] ?? ''),
     escapeHtml: (text) => String(text ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;'),
     post: async (...args) => { calls.push(plain(args)); return post(...args) }, notify: (text) => calls.push(['notify', text]),
@@ -205,7 +204,7 @@ test('UI State: clearing required target or profile prevents checks without affe
   assert.equal(c.editingLaunchId, 'saved-id')
 })
 
-test('UI EP: automatic target follows draft/project home recommendation rather than the saved/global runtime', async () => {
+test('UI EP: automatic target follows the draft home recommendation rather than the saved/global runtime', async () => {
   const { c, calls } = editor()
   const recommendations = []
   c.versionValue = 'auto'
@@ -213,20 +212,15 @@ test('UI EP: automatic target follows draft/project home recommendation rather t
   c.recommendedVersion = (...args) => { recommendations.push(plain(args)); return TARGET }
   assert.deepEqual(plain(c.compatibilityTarget()), { version: TARGET, profile: 'draft-profile', home: DRAFT })
   assert.deepEqual(recommendations.at(-1), ['draft-profile', DRAFT, 'rc'])
-  c.launchWorkdirEl.value = '/project'
-  assert.deepEqual(plain(c.compatibilityTarget()), { version: TARGET, profile: 'draft-profile', home: '/project-home' })
-  assert.deepEqual(recommendations.at(-1), ['draft-profile', '/project-home', 'rc'])
   await c.checkLaunchCompatibility()
   assert.deepEqual(calls.find((call) => call[0] === '/api/plugins/check-compatibility'), [
-    '/api/plugins/check-compatibility', { version: TARGET, profile: 'draft-profile' }, { launchId: '', home: '/project-home' },
+    '/api/plugins/check-compatibility', { version: TARGET, profile: 'draft-profile' }, { launchId: '', home: DRAFT },
   ])
 })
 
-test('UI EP: project home overrides selected home; empty home inherits global rather than saved launch', () => {
+test('UI EP: draft home overrides the saved launch; empty home inherits global', () => {
   const { c } = editor()
-  c.launchWorkdirEl.value = '/project'
-  assert.equal(c.compatibilityTarget().home, '/project-home')
-  c.launchWorkdirEl.value = ''
+  assert.equal(c.compatibilityTarget().home, DRAFT)
   c.launchDshHomeEl.value = ''
   assert.equal(c.compatibilityTarget().home, '/global')
 })
