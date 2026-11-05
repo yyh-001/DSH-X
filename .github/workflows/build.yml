@@ -44,7 +44,8 @@ jobs:
       - name: 构建旧版兼容安装包（DSH-Setup.exe）
         shell: pwsh
         run: |
-          $version = (Get-Content package.json | ConvertFrom-Json).version
+          # 安装包名跟外壳版本（shell/package.json）；根 package.json 是核心版本，两者可能不同。
+          $version = (Get-Content shell/package.json | ConvertFrom-Json).version
           $csc = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
           $source = Join-Path $PWD "scripts\legacy-updater-bridge.cs"
           $installer = Join-Path $PWD "release\eb\DSH-Setup-$version.exe"
@@ -116,8 +117,8 @@ jobs:
 
       - name: 跑测试
         if: steps.probe.outputs.ready == 'yes'
-        # arm64 runner 只有 3 核：默认按核数并发会同时拉一堆假 dsh，启动等在 120s 边缘抖动
-        run: npm test -- --test-concurrency=2
+        # arm64 runner 只有 3 核：并发 2 时假 dsh 的启动仍在 120s 边缘抖动（mac 两个 runner 都出现过超时）
+        run: npm test -- --test-concurrency=1
 
       - name: 导入固定 macOS 签名证书
         if: steps.probe.outputs.ready == 'yes'
