@@ -118,7 +118,7 @@ test('skill instructions do not override evidence limitations or recommend chang
   assert.match(skill, /语法.*未验证|未验证.*语法/)
 })
 
-test('running waiting-only report stays neutral in producer, dialog and aggregate banner', () => {
+test('running waiting-only report stays neutral in producer, dialog and launch log', () => {
   const start = server.indexOf('  const scheduleDiagnosis = () => {')
   const schedule = server.slice(start, server.indexOf('  const onLine =', start))
   for (const failed of [[], [{ id: 'fault' }]]) {
@@ -135,6 +135,11 @@ test('running waiting-only report stays neutral in producer, dialog and aggregat
   }
   const dialog = html.slice(html.indexOf('    function showFailure('), html.indexOf('    function cardLine('))
   assert.doesNotMatch(dialog, /running \? t\('实例仍在运行，但日志报告插件异常'\)/)
-  const banner = html.slice(html.indexOf('      const warnings ='), html.indexOf('      if (state.diagnosticRepairs'))
-  assert.match(banner, /diagnosticWarning.message/)
+  // 顶部聚合横幅已随「诊断进启动项日志」删掉，等待类问题不应在日志诊断里冒出问题行。
+  const rowsStart = html.indexOf('    function diagnosisIssueRows')
+  const rowsFn = html.slice(rowsStart, html.indexOf('    /** 启动项当前实例的插件诊断', rowsStart))
+  const context = vm.createContext({ t: value => value })
+  vm.runInContext(rowsFn, context)
+  const report = { failed: [], rejected: [], waiting: [{ id: 'connection' }], skipped: { entries: [] }, advice: [] }
+  assert.deepEqual(JSON.parse(JSON.stringify(context.diagnosisIssueRows(report))), [])
 })
