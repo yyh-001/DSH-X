@@ -146,7 +146,8 @@ jobs:
         run: |
           if [ -z "$NODE_AUTH_TOKEN" ]; then echo "没有 NPM_TOKEN，跳过 npm 发布"; exit 0; fi
           VERSION="$(node -p "require('./package.json').version")"
-          TAG="$(node --input-type=module -e "import { versionChannel } from './version.js'; import { readFileSync } from 'node:fs'; const v=JSON.parse(readFileSync('package.json','utf8')).version; console.log({official:'latest',rc:'rc',alpha:'alpha'}[versionChannel(v)] || 'latest')")"
+          # version.js 已随运行时源码收进 src/，别再 import 根目录。
+          TAG="$(node --input-type=module -e "import { versionChannel } from './src/version.js'; import { readFileSync } from 'node:fs'; const v=JSON.parse(readFileSync('package.json','utf8')).version; console.log({official:'latest',rc:'rc',alpha:'alpha'}[versionChannel(v)] || 'latest')")"
           if npm view "dsh-x-core@$VERSION" version >/dev/null 2>&1; then echo "dsh-x-core@$VERSION 已发布，跳过"; exit 0; fi
           npm publish "release/dsh-x-core-$VERSION.tgz" --tag "$TAG" --access public
 
