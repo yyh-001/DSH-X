@@ -18,7 +18,54 @@ permissions:
   contents: write # 往 Release 上传资产要这个
 
 jobs:
+  # 发版前先把 Release 建好：后面三个构建 job 的「挂到同 tag 的 Release」才有地方上传。
+  # 正文取 docs/releases/<tag>.md——发版说明是手写审过的，不用 gh 的 --generate-notes。
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 要和上一个 tag 比对，浅克隆拿不到
+
+      # 两个坑都会让用户收不到外壳更新：① 外壳改了却没升版本；② 正式版 tag 里塞了个预发布外壳版本。
+      - name: 外壳版本检查
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          version="$(node -p "require('./shell/package.json').version")"
+          case "$tag" in *-*) tag_pre=1;; *) tag_pre=0;; esac
+          case "$version" in *-*) shell_pre=1;; *) shell_pre=0;; esac
+          if [ "$tag_pre" = 0 ] && [ "$shell_pre" = 1 ]; then
+            echo "::error::$tag 是正式版，但外壳版本还是预发布（$version）。electron-updater 不会把预发布推给正式版用户，这个包等于发不出去。"
+            exit 1
+          fi
+          prev="$(git describe --tags --abbrev=0 "$tag^" 2>/dev/null || true)"
+          if [ -z "$prev" ]; then echo "没有上一个 tag，跳过改动检查"; exit 0; fi
+          if git diff --quiet "$prev" "$tag" -- shell/; then echo "shell/ 没改，不用升外壳版本（$version）"; exit 0; fi
+          if git diff --quiet "$prev" "$tag" -- shell/package.json; then
+            echo "::error::shell/ 有改动，但 shell/package.json 的版本没变（还是 $version）。请 bump 后重打 tag。"
+            exit 1
+          fi
+          echo "shell/ 有改动，版本已升到 $version"
+
+      - name: 建 Release（正文取 docs/releases/<tag>.md）
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if gh release view "$tag" >/dev/null 2>&1; then echo "$tag 的 Release 已存在，跳过"; exit 0; fi
+          notes="docs/releases/$tag.md"
+          if [ ! -f "$notes" ]; then echo "::error::缺少 $notes，先把发版说明写进仓库再打 tag"; exit 1; fi
+          args=(--title "DSH-X $tag" --notes-file "$notes" --verify-tag)
+          case "$tag" in *-*) args+=(--prerelease);; esac
+          gh release create "$tag" "${args[@]}"
+
   windows:
+    needs: prepare
     runs-on: windows-latest
     timeout-minutes: 40
     steps:
@@ -92,6 +139,7 @@ jobs:
   # mac 的打包能力在 PR #25（scripts/pack-mac.mjs）里，合并之后这里才真的会出包；
   # 没合并时这一步只打个招呼就过，不至于把整个 workflow 挂红。
   macos:
+    needs: prepare
     strategy:
       fail-fast: false
       matrix:
@@ -203,6 +251,7 @@ jobs:
   # Linux：AppImage（外壳自更新走 electron-updater 的 AppImage 通道）+ deb（装进系统菜单、
   # 能被 apt 卸干净，但没有外壳自更新——updater.mjs 拿不到 APPIMAGE 变量时会当不支持）
   linux:
+    needs: prepare
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
