@@ -1,0 +1,42 @@
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import test from 'node:test'
+
+const page = readFileSync(new URL('../src/public/index.html', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+const css = readFileSync(new URL('../src/public/launcher.css', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+
+const at = (needle) => {
+  const index = page.indexOf(needle)
+  assert.ok(index >= 0, `页面里找不到 ${needle}`)
+  return index
+}
+
+test('编辑启动项按运行位置 → 名称 → 版本 → 用户目录 → 项目目录 → Profile 排列', () => {
+  const order = [
+    'id="launchBackendField"',
+    'id="launchIdentityField"',
+    'id="launchLocalVersionGroup"',
+    'id="launchWslHomeField"',
+    'id="launchHomeSelectField"',
+    'id="launchWslWorkdirField"',
+    'id="launchWorkdirField"',
+    'id="launchProfileSelectField"',
+  ]
+  const indexes = order.map(at)
+  assert.deepEqual(indexes, [...indexes].sort((a, b) => a - b), '字段顺序不能乱；WSL 和本机字段按同一位置成对出现')
+})
+
+test('WSL 发行版归在运行位置，切到 WSL 时藏掉本机版本整组', () => {
+  const start = at('id="launchWslLocationFields"')
+  const end = at('id="launchCustomFields"')
+  const location = page.slice(start, end)
+  assert.match(location, /id="launchWslDistro"/)
+  assert.match(location, /id="launchWslHint"/)
+  assert.doesNotMatch(location, /launchWslServiceMode/)
+  assert.doesNotMatch(page, /id="launchWslVersionField"/, '核心版不包含 WSL 版本管理，版本字段留到版本管理 PR')
+  assert.doesNotMatch(css, /launchWslVersionHint/, '核心版不留下 WSL 版本说明的样式')
+  assert.match(page, /launchLocalVersionGroupEl\.hidden = wsl/, '本机版本下拉、版本类型、管理按钮与渠道说明要整组隐藏')
+  assert.match(css, /\.home-pickers\[hidden\] \{ display: none; \}/, 'home-pickers 的 display:flex 不能盖掉 hidden')
+  assert.match(css, /\.launch-modal-fields \{[^}]*gap: 14px;/)
+  assert.match(css, /\.launch-wsl-location \{ margin-top: 14px; \}/)
+})

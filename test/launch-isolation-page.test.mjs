@@ -98,7 +98,8 @@ test('前两档下面各挂一块折叠：默认收起，展开可指定 Profile
   assert.match(isolation, /id="launchHomeProfile"[^>]*aria-label="Profile 名称"/)
   // 折叠里不再堆 label / 说明文字：标题 + 控件 + 开关就够，说明只在顶上那一行
   const profilePanel = section('id="launchProfileAdvancedPanel"', 'id="launchHomeAdvanced"')
-  const homePanel = section('id="launchHomeAdvancedPanel"', '<div class="launch-custom-fields"')
+  // 折叠面板到「运行位置」为止：运行位置在完整表单外面，里面的 WSL 发行版有可见 label，不能算进折叠
+  const homePanel = section('id="launchHomeAdvancedPanel"', 'id="launchBackendField"')
   for (const panel of [profilePanel, homePanel]) {
     assert.ok(!panel.includes('<p class="hint"'), '折叠里不再放说明段')
     assert.ok(!panel.includes('<label for='), '折叠里不再放可见 label')

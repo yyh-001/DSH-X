@@ -806,32 +806,24 @@
             <button class="launch-isolation-tab" type="button" role="radio" data-backend="wsl" aria-checked="false" data-i18n="WSL">WSL</button>
           </div>
           <div class="hint" id="launchBackendHint"></div>
-        </div>
-        <div class="launch-custom-fields" id="launchCustomFields">
-          <div id="launchWslFields" hidden>
-            <div class="home-pickers">
-              <div class="home-field">
-                <label for="launchWslDistro" data-i18n="WSL 发行版">WSL 发行版</label>
-                <select id="launchWslDistro"></select>
-              </div>
-              <div class="home-field">
-                <label for="launchWslHome" data-i18n="WSL 用户目录">WSL 用户目录</label>
-                <input id="launchWslHome" type="text" autocomplete="off" spellcheck="false" placeholder="~/.dsh" />
-              </div>
-            </div>
+          <!-- 发行版属于「运行位置」：先定在哪套 WSL 里跑，再填名称、版本和目录。 -->
+          <div class="launch-wsl-location" id="launchWslLocationFields" hidden>
             <div class="home-field">
-              <label for="launchWslWorkdir" data-i18n="WSL 项目目录（选填）">WSL 项目目录（选填）</label>
-              <input id="launchWslWorkdir" type="text" autocomplete="off" spellcheck="false" data-placeholder-i18n="例如 /root/projects/demo；留空就在用户目录里跑" />
+              <label for="launchWslDistro" data-i18n="WSL 发行版">WSL 发行版</label>
+              <select id="launchWslDistro"></select>
             </div>
             <p class="hint" id="launchWslHint" role="status" aria-live="polite"></p>
           </div>
+        </div>
+        <div class="launch-custom-fields" id="launchCustomFields">
           <div class="home-field launch-identity-field" id="launchIdentityField">
             <label for="launchName" data-i18n="名称">名称</label>
             <div class="launch-name-row"><button class="launch-icon-trigger" id="launchIconTrigger" type="button" title="修改图标" aria-label="修改图标" data-i18n-title="修改图标" data-i18n-aria-label="修改图标" aria-expanded="false" aria-controls="launchIconPopover"></button><input id="launchName" type="text" required maxlength="32" autocomplete="off" data-placeholder-i18n="例如：我的工作环境" /></div>
             <div class="launch-icon-popover" id="launchIconPopover" hidden><div class="launch-icon-picker" id="launchIconPicker" role="group" aria-label="启动项图标"></div><div class="launch-icon-upload"><button class="ghost icon-btn" id="launchIconUpload" type="button" title="选择图片" aria-label="选择图片" data-i18n-title="选择图片" data-i18n-aria-label="选择图片"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 4-7 5 8"/></svg></button><button class="ghost icon-btn" id="launchIconReset" type="button" title="恢复默认" aria-label="恢复默认" data-i18n-title="恢复默认" data-i18n-aria-label="恢复默认"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v5h5M4 9a8 8 0 1 1-1 6"/></svg></button></div></div>
             <input id="launchIconFile" type="file" accept="image/png,image/jpeg,image/webp" hidden /><span class="hint launch-icon-error" id="launchIconHint"></span>
           </div>
-          <div class="home-pickers">
+          <!-- 本机版本整组（下拉、版本类型、管理按钮、渠道提示）在 WSL 下一起藏掉，避免残留的版本类型说明串到 WSL 版本下面。 -->
+          <div class="home-pickers" id="launchLocalVersionGroup">
             <div class="home-field" id="launchVersionField">
               <label for="versionTrigger" data-i18n="版本">版本</label>
               <div class="launch-version-select-row">
@@ -862,12 +854,22 @@
             <button class="ghost icon-btn launch-manage-version" id="launchManageVersions" type="button" title="管理版本" aria-label="管理版本" data-i18n-title="管理版本" data-i18n-aria-label="管理版本"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></button>
             <p class="hint" id="launchUpdateChannelHint"></p>
           </div>
+          <!-- WSL 用户目录和本机 dsh 用户目录同位置：都是会话、记忆和插件的数据根。 -->
+          <div class="home-field" id="launchWslHomeField" hidden>
+            <label for="launchWslHome" data-i18n="dsh 用户目录（会话、记忆和插件隔离）">dsh 用户目录（会话、记忆和插件隔离）</label>
+            <input id="launchWslHome" type="text" autocomplete="off" spellcheck="false" placeholder="~/.dsh" />
+          </div>
           <div class="home-field" id="launchHomeSelectField">
             <label for="launchDshHome" data-i18n="dsh 用户目录（会话、记忆和插件隔离）">dsh 用户目录（会话、记忆和插件隔离）</label>
             <select id="launchDshHome" aria-label="dsh 用户目录" data-i18n-aria-label="dsh 用户目录"></select>
           </div>
           <!-- 项目目录：填了就是项目环境，数据目录固定为 <项目>/.dsh（上面那个下拉就不作数），
                启动后 dsh 子进程在项目根里跑，新会话因此落在项目根。 -->
+          <!-- WSL 项目目录也与本机项目目录同位置，路径按发行版内的 Linux 路径填。 -->
+          <div class="home-field" id="launchWslWorkdirField" hidden>
+            <label for="launchWslWorkdir" data-i18n="项目目录（选填）">项目目录（选填）</label>
+            <input id="launchWslWorkdir" type="text" autocomplete="off" spellcheck="false" data-placeholder-i18n="例如 /root/projects/demo；留空就在用户目录里跑" />
+          </div>
           <div class="home-field" id="launchWorkdirField">
             <label for="launchWorkdir" data-i18n="项目目录（选填）">项目目录（选填）</label>
             <div class="launch-path-row">
@@ -2108,7 +2110,10 @@
     const launchBackendFieldEl = document.getElementById('launchBackendField')
     const launchBackendTabsEl = document.getElementById('launchBackendTabs')
     const launchBackendHintEl = document.getElementById('launchBackendHint')
-    const launchWslFieldsEl = document.getElementById('launchWslFields')
+    const launchWslLocationFieldsEl = document.getElementById('launchWslLocationFields')
+    const launchWslHomeFieldEl = document.getElementById('launchWslHomeField')
+    const launchWslWorkdirFieldEl = document.getElementById('launchWslWorkdirField')
+    const launchLocalVersionGroupEl = document.getElementById('launchLocalVersionGroup')
     const launchWslDistroEl = document.getElementById('launchWslDistro')
     const launchWslHomeEl = document.getElementById('launchWslHome')
     const launchWslWorkdirEl = document.getElementById('launchWslWorkdir')
@@ -4110,8 +4115,9 @@
     }
 
     /**
-     * 运行位置切换：WSL 项不需要版本/目录/隔离方式这些 Windows 侧概念，整组藏起来；
-     * 只留下名称、Profile、端口和自动启动。切回本机时按当前是否新建把隔离引导恢复出来。
+     * 运行位置切换：WSL 关掉本机版本、用户目录、项目目录和隔离引导，换成同一位置上的
+     * WSL 版本、用户目录与项目目录；名称、Profile、端口、自动启动两边共用。切回本机时
+     * 按当前是否新建把隔离引导恢复出来。
      */
     function setLaunchBackend(backend, entry = null) {
       // 老页面的测试桩只造了原表单的节点；WSL 这组不在时保持原样，不让整段脚本在求值阶段就挂掉。
@@ -4121,7 +4127,10 @@
       launchBackendFieldEl.hidden = state.wsl?.available !== true
       launchBackendTabsEl.dataset.active = launchBackend
       launchBackendTabsEl.querySelectorAll('[data-backend]').forEach((el) => el.setAttribute('aria-checked', String(el.dataset.backend === launchBackend)))
-      launchWslFieldsEl.hidden = !wsl
+      launchWslLocationFieldsEl.hidden = !wsl
+      launchWslHomeFieldEl.hidden = !wsl
+      launchWslWorkdirFieldEl.hidden = !wsl
+      if (typeof launchLocalVersionGroupEl !== 'undefined' && launchLocalVersionGroupEl) launchLocalVersionGroupEl.hidden = wsl
       document.getElementById('launchVersionField').hidden = wsl
       launchChannelFieldEl.hidden = wsl
       document.getElementById('launchManageVersions').hidden = wsl
