@@ -3734,6 +3734,8 @@
       const paneChanged = name !== currentPane
       const nextCategory = settingsCategories[category] ? category : 'general'
       if (!paneChanged && (name !== 'settings' || nextCategory === currentSettingsCategory)) return
+      // 测试桩只截取 showPane 这一段；完整页面里 ensureWslDistros 才存在。
+      if (name === 'settings' && typeof ensureWslDistros === 'function') void ensureWslDistros()
       const token = ++paneMotionToken
       activePaneAnimation?.cancel()
       activePaneAnimation = null
@@ -4104,12 +4106,6 @@
       const home = launchWslHomeEl.value.trim()
       const key = `${distro}\0${home}`
       launchWslInspectKey = key
-      if (!distro) {
-        launchWslProfiles = []
-        paintLaunchProfiles()
-        launchWslHintEl.textContent = t('先选择一个 WSL 发行版。')
-        return false
-      }
       launchWslHintEl.textContent = t('正在读取 WSL 里的 dsh…')
       try {
         const data = await getJson(`/api/wsl?distro=${encodeURIComponent(distro)}&home=${encodeURIComponent(home)}`)
@@ -4121,11 +4117,23 @@
           error: data.error || '',
           ...(data.defaults || {}),
         }
+        // 首次进入 WSL 启动项时 /api/state 可能还没探测过发行版（没配 WSL 启动项就不轮询），
+        // 这里拿到列表后重新画下拉；选中的发行版变了（空或已不存在）就按回退值再探一次。
+        paintLaunchWslDistros(distro)
+        if (launchWslDistroEl.value !== distro) {
+          if (!launchWslDistroEl.value) {
+            launchWslProfiles = []
+            paintLaunchProfiles()
+            launchWslHintEl.textContent = data.error || t('没有检测到 WSL 发行版。')
+            return false
+          }
+          return refreshWslProfiles(resetMissing)
+        }
         const inspect = data.inspect || {}
         if (!inspect.ok) {
           launchWslProfiles = []
           paintLaunchProfiles()
-          launchWslHintEl.textContent = inspect.error || t('WSL 里没有可用的 dsh。')
+          launchWslHintEl.textContent = inspect.error || data.error || t('WSL 里没有可用的 dsh。')
           return false
         }
         launchWslProfiles = Array.isArray(inspect.profiles) ? inspect.profiles : []
@@ -7170,9 +7178,28 @@
     }
 
     /**
+     * 打开设置页时补一次发行版列表：/api/state 与 /api/settings 只在用到 WSL 时探测，
+     * 没配过 WSL 启动项的用户第一次进设置页可能还是空的。
+     */
+    async function ensureWslDistros() {
+      if (state.wsl?.available === false || (state.wsl?.distros || []).length) return
+      try {
+        const data = await getJson('/api/wsl')
+        state.wsl = {
+          ...(state.wsl || {}),
+          available: data.available === true,
+          distros: Array.isArray(data.distros) ? data.distros : [],
+          error: data.error || '',
+          ...(data.defaults || {}),
+        }
+        showWslSettings(state.wsl)
+      } catch { /* WSL 探测失败不影响设置页其它项 */ }
+    }
+
+    /**
      * WSL 全局设置：默认发行版 / 默认用户目录 / dsh 命令。
-     * 发行版列表来自服务端探测（/api/state 与 /api/settings 都带），这里只负责回显；
-     * 没装 WSL 或不是 Windows 时整组禁用并在 hint 里说原因。
+     * 发行版列表来自服务端探测（用到 WSL 时 /api/state 与 /api/settings 会带，
+     * 首次进设置页时由 ensureWslDistros 补）；没装 WSL 或不是 Windows 时整组禁用。
      */
     function showWslSettings(data) {
       if (data?.wsl && typeof data.wsl === 'object') state.wsl = { ...(state.wsl || {}), ...data.wsl }
@@ -7193,7 +7220,7 @@
       wslStopAttachedEl.disabled = !available
       wslDshCommandEl.disabled = !available
       wslStatusHintEl.textContent = available
-        ? distros.length ? t('检测到 {n} 个发行版；启动项里可以逐个选。', { n: distros.length }) : t('没有检测到 WSL 发行版。')
+        ? distros.length ? t('检测到 {n} 个发行版；启动项里可以逐个选。', { n: distros.length }) : t(wsl.error || '没有检测到 WSL 发行版。')
         : t(wsl.error || '当前不是 Windows，或找不到 wsl.exe。')
     }
 

@@ -56,6 +56,15 @@ export function wslAvailable() {
   return WSL_EXE === 'wsl.exe' || existsSync(WSL_EXE)
 }
 
+/**
+ * 要不要轮询 WSL 发行版：只有配了 WSL 启动项、或设了默认发行版才需要。
+ * `/api/state` 每隔一两秒拉一次，没用到 WSL 的机器不该因此常驻跑 wsl.exe。
+ */
+export function wslProbeNeeded(presets, settings) {
+  if (settings && settings.defaultDistro) return true
+  return (Array.isArray(presets) ? presets : []).some((entry) => entry && entry.backend === 'wsl')
+}
+
 function runProcess(command, args, options = {}) {
   const timeoutMs = options.timeoutMs || 20000
   const raw = Boolean(options.raw)
@@ -105,6 +114,19 @@ export function decodeWslOutput(buffer) {
 }
 
 /**
+ * wsl.exe 失败时能看的原因在哪一侧不固定：没装发行版时退出码是 -1，
+ * 提示只在 UTF-16 的 stdout 里，stderr 是空的；只看 stderr 会退化成「wsl --list 失败」。
+ */
+export function wslListErrorText(result) {
+  const firstLine = (text) => String(text || '').split(/\r?\n/).map((line) => line.trim()).find(Boolean) || ''
+  const stderr = firstLine(result?.stderr)
+  if (stderr) return stderr
+  const stdout = firstLine(decodeWslOutput(result?.stdout))
+  if (stdout) return stdout
+  return result?.timedOut ? 'wsl --list 超时' : 'wsl --list 失败'
+}
+
+/**
  * 解析 wsl --list --verbose。名字里可能有空格，所以按两个以上空格切列。
  * 表头和状态会跟着 Windows 显示语言变（中文系统是「名称 状态 版本」），不能按
  * 英文单词判断；只认行尾的版本号，前面的部分再按列宽/最后一个空格拆。
@@ -150,7 +172,7 @@ export async function listWslDistros(options = {}) {
   if (!options.force && distroCache.value && Date.now() - distroCache.at < 10000) return distroCache.value
   const result = await runProcess(WSL_EXE, ['--list', '--verbose'], { timeoutMs: 15000, raw: true })
   if (!result.ok) {
-    const value = { available: true, distros: [], error: result.stderr.trim() || (result.timedOut ? 'wsl --list 超时' : 'wsl --list 失败') }
+    const value = { available: true, distros: [], error: wslListErrorText(result) }
     distroCache = { at: Date.now(), value: value }
     return value
   }

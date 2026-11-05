@@ -14,6 +14,8 @@ import {
   resolveWslHome,
   wslAvailable,
   wslHomeKey,
+  wslListErrorText,
+  wslProbeNeeded,
 } from '../src/wsl.js'
 
 // WSL 相关纯函数测试：不启动真实 wsl.exe，保证 macOS / Linux 开发机和 CI 也能跑。
@@ -91,6 +93,21 @@ test('wrapper 脚本：pidfile 按实例区分，前台 exec dsh，停止先 TER
 
 test('wslAvailable 只返回布尔值，不抛异常', () => {
   assert.equal(typeof wslAvailable(), 'boolean')
+})
+
+test('没有 WSL 启动项和默认发行版时不轮询 wsl.exe', () => {
+  assert.equal(wslProbeNeeded([], { defaultDistro: '' }), false)
+  assert.equal(wslProbeNeeded([{ backend: 'local' }], null), false)
+  assert.equal(wslProbeNeeded([{ backend: 'wsl' }], { defaultDistro: '' }), true)
+  assert.equal(wslProbeNeeded([], { defaultDistro: 'Fedora' }), true)
+})
+
+test('wsl --list 失败时原因从 stderr 退回 UTF-16 stdout', () => {
+  const utf16 = (text) => Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(text, 'utf16le')])
+  assert.equal(wslListErrorText({ stdout: utf16('没有已安装的分发。\r\n第二行'), stderr: '' }), '没有已安装的分发。')
+  assert.equal(wslListErrorText({ stdout: Buffer.alloc(0), stderr: 'boom\nignored' }), 'boom')
+  assert.equal(wslListErrorText({ stdout: Buffer.alloc(0), stderr: '', timedOut: true }), 'wsl --list 超时')
+  assert.equal(wslListErrorText({ stdout: Buffer.alloc(0), stderr: '' }), 'wsl --list 失败')
 })
 
 test('服务模式只认 wrapper / systemd，未知值回 wrapper', () => {

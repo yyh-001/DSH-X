@@ -136,7 +136,7 @@ import {
   saveSettings,
   VERSION_RE,
 } from './settings.js'
-import { allocateWslPort, inspectWslDistro, invalidateWslCache, listWslDistros, parseWslHomeKey, probeWslDshPort, queryWslBridge, resolveWslHome, shutdownWslBridge, startWslInstance, stopWslExternal, stopWslInstance, systemdAvailable, wslAvailable, wslDistroSnapshot, wslHomeKey, wslPluginList, wslPluginToggle, wslPortAvailable } from './wsl.js'
+import { allocateWslPort, inspectWslDistro, invalidateWslCache, listWslDistros, parseWslHomeKey, probeWslDshPort, queryWslBridge, resolveWslHome, shutdownWslBridge, startWslInstance, stopWslExternal, stopWslInstance, systemdAvailable, wslAvailable, wslDistroSnapshot, wslHomeKey, wslPluginList, wslPluginToggle, wslPortAvailable, wslProbeNeeded } from './wsl.js'
 // 带代理的 fetch：Node 的全局 fetch 既不看系统代理也不看 HTTP_PROXY，外网请求都走 netFetch
 import { netFetch, proxyEnv, resetProxyCache, resolveProxy } from './proxy.js'
 import { APP_DIR, fileManager } from './filemanager.js'
@@ -1365,6 +1365,19 @@ async function snapshot() {
   return launchScope.run(null, snapshotDefault)
 }
 
+/**
+ * WSL 发行版探测：只有配了 WSL 启动项、或设了默认发行版才轮询。
+ * `/api/state` 每隔一两秒拉一次，没用到 WSL 的机器不该因此常驻跑 wsl.exe；
+ * 启动项编辑器和设置页需要时走 `/api/wsl` 按需探测。
+ */
+function wslProbeFor(stored) {
+  if (!wslAvailable()) return { available: false, distros: [], error: '当前不是 Windows，或找不到 wsl.exe' }
+  if (!wslProbeNeeded(safeLaunchPresets(stored.launchPresets), WSL_SETTINGS)) {
+    return { available: true, distros: [], error: '' }
+  }
+  return wslDistroSnapshot()
+}
+
 async function snapshotDefault() {
   const config = await loadConfig()
   const installed = listedVersions(config)
@@ -1373,7 +1386,7 @@ async function snapshotDefault() {
   const stored = await loadSettings()
   const presets = safeLaunchPresets(stored.launchPresets)
   const profiles = listProfiles()
-  const wslProbe = wslAvailable() ? wslDistroSnapshot() : { available: false, distros: [], error: '当前不是 Windows，或找不到 wsl.exe' }
+  const wslProbe = wslProbeFor(stored)
   // 启动项编辑器只提供「起网页」的 profile；sdk/headless/acp 这类 stdio 应用拉不起来
   const webProfiles = profiles.filter((name) => profileBootsWebIn(defaultHome(), name))
   return {
@@ -1447,7 +1460,7 @@ async function applyDataDir(dir) {
 
 async function publicSettings() {
   const stored = await loadSettings()
-  const wslProbe = wslAvailable() ? wslDistroSnapshot() : { available: false, distros: [], error: '当前不是 Windows，或找不到 wsl.exe' }
+  const wslProbe = wslProbeFor(stored)
   return {
     dataDir: DATA,
     dshHome: homeDir(),
