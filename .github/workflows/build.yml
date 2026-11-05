@@ -178,8 +178,10 @@ jobs:
           path: release/eb/DSH-X-*.dmg
           if-no-files-found: error
 
+      # electron-builder 的 mac target 会同时打 arm64/x64 两份 dmg，两个 job 的 release/eb 里都有；
+      # 只让 arm64 job 上传，避免两个 job 并发 clobber 同一个 asset（x64 曾因此 404）。
       - name: 挂到同 tag 的 Release 上
-        if: steps.probe.outputs.ready == 'yes' && startsWith(github.ref, 'refs/tags/v')
+        if: steps.probe.outputs.ready == 'yes' && matrix.arch == 'arm64' && startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
