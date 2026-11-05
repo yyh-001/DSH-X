@@ -2151,6 +2151,19 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 #launchDialog .home-field:has(#versionPicker) { position: relative; }
 #launchDialog .launch-version-select-row { display: flex; align-items: center; gap: 8px; }
 #launchDialog .launch-version-select-row .select { flex: 1 1 auto; min-width: 0; }
+/* 深色主题把通用 danger 改成灰白；预更新结果仍需明确的红/绿语义。 */
+.launch-compatibility { --compatibility-success: #16803c; --compatibility-warning: #d12838; flex: 1 0 100%; min-width: 0; font-size: 13px; overflow-wrap: anywhere; }
+html[data-color-scheme="dark"] .launch-compatibility { --compatibility-success: #75d89a; --compatibility-warning: #ff858c; }
+.launch-compatibility.is-compatible #launchCompatibilityStatus { color: var(--compatibility-success); }
+.launch-compatibility.is-incompatible #launchCompatibilityStatus, #launchCompatibilityIssues { color: var(--compatibility-warning); }
+.launch-compatibility p { margin: 6px 0; }
+.launch-compatibility ul { margin: 6px 0 12px; padding-left: 20px; }
+#launchCompatibilityAgent { display: grid; gap: 8px; }
+#launchCompatibilityAgent[hidden] { display: none; }
+#launchCompatibilityPrompt { width: 100%; box-sizing: border-box; resize: vertical; min-height: 130px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--text); font: 12px/1.6 ui-monospace, monospace; }
+#launchCopyCompatibilityPrompt { justify-self: start; }
+#launchDialog .launch-compatibility-check { flex: 0 0 42px; width: 42px; height: 42px; padding: 10px; border-radius: 10px; align-self: flex-start; }
+#launchDialog .launch-compatibility-check svg { width: 20px; height: 20px; }
 #launchDialog .launch-manage-version { flex: 0 0 42px; width: 42px; height: 42px; padding: 11px; border-radius: 10px; align-self: flex-end; }
 #launchDialog .launch-manage-version svg { width: 18px; height: 18px; }
 #launchDialog .select-trigger { min-height: 42px; height: 42px; border-radius: 10px; font-size: 13px; }
