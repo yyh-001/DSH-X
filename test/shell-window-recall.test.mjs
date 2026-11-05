@@ -58,3 +58,9 @@ test('唤出窗口先退出最小化，显示之后再兜摆位', () => {
   assert.match(main, /tabs\.open\(target\)[\s\S]{0,120}?revealWindow\(mainWindow, MAIN_WINDOW\)/, '内部标签页也叫同一个函数')
   assert.match(main, /revealWindow\(dshWindow, DSH_WINDOW\)/, '独立 DSH 窗口同样兜底')
 })
+
+test('点程序坞图标只叫回窗口，停在原来的内部标签上', () => {
+  const main = read('shell/main.mjs')
+  // 现场：开着内部标签页，点程序坞图标后被拽回了管理页（showManager 会先 select 管理页）
+  assert.match(main, /app\.on\('activate', \(\) => revealWindow\(mainWindow, MAIN_WINDOW\)\)/, '程序坞不切标签')
+})
