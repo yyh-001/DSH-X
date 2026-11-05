@@ -311,6 +311,25 @@
                 </div>
                 <div class="set-row">
                   <div class="set-text">
+                    <span class="set-name" data-i18n="默认启动方式">默认启动方式</span>
+                    <span class="set-desc" data-i18n="systemd 由 WSL 的 user 会话托管，不可用时自动回退 wrapper。">systemd 由 WSL 的 user 会话托管，不可用时自动回退 wrapper。</span>
+                  </div>
+                  <div class="set-control">
+                    <select id="wslDefaultServiceMode">
+                      <option value="wrapper" data-i18n="wrapper（wsl.exe 托管）">wrapper（wsl.exe 托管）</option>
+                      <option value="systemd" data-i18n="systemd（user 服务）">systemd（user 服务）</option>
+                    </select>
+                  </div>
+                </div>
+                <label class="toggle set-row">
+                  <span class="set-text">
+                    <span class="set-name" data-i18n="停止时也停掉外部实例">停止时也停掉外部实例</span>
+                    <span class="set-desc" data-i18n="默认只解除附着，不动别人启动的 dsh；打开后点停止会真正结束它。">默认只解除附着，不动别人启动的 dsh；打开后点停止会真正结束它。</span>
+                  </span>
+                  <input id="wslStopAttached" type="checkbox" />
+                </label>
+                <div class="set-row">
+                  <div class="set-text">
                     <span class="set-name" data-i18n="默认用户目录">默认用户目录</span>
                     <span class="set-desc" data-i18n="WSL 里 dsh 的用户目录，留空按 ~/.dsh。">WSL 里 dsh 的用户目录，留空按 ~/.dsh。</span>
                   </div>
@@ -823,6 +842,14 @@
               <label for="launchWslWorkdir" data-i18n="WSL 项目目录（选填）">WSL 项目目录（选填）</label>
               <input id="launchWslWorkdir" type="text" autocomplete="off" spellcheck="false" data-placeholder-i18n="例如 /root/projects/demo；留空就在用户目录里跑" />
             </div>
+            <div class="home-field">
+              <label for="launchWslServiceMode" data-i18n="启动方式">启动方式</label>
+              <select id="launchWslServiceMode">
+                <option value="" data-i18n="跟随全局设置">跟随全局设置</option>
+                <option value="wrapper" data-i18n="wrapper（wsl.exe 托管）">wrapper（wsl.exe 托管）</option>
+                <option value="systemd" data-i18n="systemd（user 服务）">systemd（user 服务）</option>
+              </select>
+            </div>
             <p class="hint" id="launchWslHint" role="status" aria-live="polite"></p>
           </div>
           <div class="home-field launch-identity-field" id="launchIdentityField">
@@ -1068,6 +1095,14 @@
     const LANG = '__APP_LANG__'
     const EN = {
   "运行位置": "Run location",
+  "默认启动方式": "Default launch method",
+  "停止时也停掉外部实例": "Also stop external instances",
+  "启动方式": "Launch method",
+  "跟随全局设置": "Follow global setting",
+  "wrapper（wsl.exe 托管）": "wrapper (managed by wsl.exe)",
+  "systemd（user 服务）": "systemd (user service)",
+  "systemd 由 WSL 的 user 会话托管，不可用时自动回退 wrapper。": "systemd runs the service in the WSL user session; falls back to wrapper when unavailable.",
+  "默认只解除附着，不动别人启动的 dsh；打开后点停止会真正结束它。": "By default stopping only detaches and leaves an externally started dsh alone; enable this to really end it.",
   "本机": "Local",
   "WSL": "WSL",
   "WSL 发行版": "WSL distro",
@@ -2112,6 +2147,7 @@
     const launchWslDistroEl = document.getElementById('launchWslDistro')
     const launchWslHomeEl = document.getElementById('launchWslHome')
     const launchWslWorkdirEl = document.getElementById('launchWslWorkdir')
+    const launchWslServiceModeEl = document.getElementById('launchWslServiceMode')
     const launchWslHintEl = document.getElementById('launchWslHint')
     const launchPortEl = document.getElementById('launchPort')
     const launchAutoLaunchEl = document.getElementById('launchAutoLaunch')
@@ -4136,6 +4172,7 @@
         paintLaunchWslDistros(entry?.wslDistro || '')
         launchWslHomeEl.value = entry?.wslHome || ''
         launchWslWorkdirEl.value = entry?.wslWorkdir || ''
+        launchWslServiceModeEl.value = entry?.wslServiceMode === 'systemd' ? 'systemd' : entry?.wslServiceMode === 'wrapper' ? 'wrapper' : ''
         launchBackendHintEl.textContent = t('WSL 里要已经装好 dsh；首版只管理启动、停止、日志和打开方式。')
         void refreshWslProfiles(true)
       } else {
@@ -5150,7 +5187,7 @@
             <span class="launch-preset-name">${escapeHtml(name)}</span>${builtin ? `<span class="launch-builtin">${escapeHtml(t('内置'))}</span>` : ''}</span>
             <span class="launch-preset-meta" title="${escapeHtml(automaticHint)}"><span>${escapeHtml([note, installNote, startupNote].filter(Boolean).join(' · '))}</span></span>
             ${hasNewVersion ? `<button class="launch-new-version" type="button" data-version-id="${entry.id}" ${action || state.installing ? 'disabled' : ''}>${escapeHtml(t('新版本 {version}', { version: latest }))}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button>` : ''}</span>
-          <span class="launch-actions"><button class="launch-edit launch-plugins"${wsl ? ' hidden' : ''} type="button" data-plugins-id="${entry.id}" title="${escapeHtml(t('管理插件'))}" aria-label="${escapeHtml(t('管理 {name} 的插件', { name }))}">
+          <span class="launch-actions"><button class="launch-edit launch-plugins" type="button" data-plugins-id="${entry.id}" title="${escapeHtml(t('管理插件'))}" aria-label="${escapeHtml(t('管理 {name} 的插件', { name }))}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9M8 5.25l8 4.5"/></svg></button><button class="launch-edit launch-log" type="button" data-log-id="${entry.id}" title="${escapeHtml(t('查看 {name} 的日志', { name }))}" aria-label="${escapeHtml(t('查看 {name} 的日志', { name }))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5h9l3 3v14H6zM15 3.5v3h3M9 11h6M9 14.5h6M9 18h4"/></svg></button><button class="launch-edit" type="button" data-edit-id="${entry.id}" title="${escapeHtml(t('编辑 {name}', { name }))}" aria-label="${escapeHtml(t('编辑 {name}', { name }))}" ${action || state.installing || ownAction || busy ? 'disabled' : ''}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 4 4 4M4 20l4-1 12-12a2.8 2.8 0 0 0-4-4L4 15l-1 6Z"/></svg></button>
           ${live ? `<button class="icon-btn launch-action" type="button" data-restart-id="${entry.id}" title="${escapeHtml(t('重启'))}" aria-label="${escapeHtml(t('重启'))}" ${action || ownAction || busy ? 'disabled' : ''}>
@@ -5597,6 +5634,7 @@
             version: 'auto', profile: launchProfile, port: launchPortEl.value.trim(),
             backend: 'wsl', wslDistro: launchWslDistroEl.value,
             wslHome: launchWslHomeEl.value.trim(), wslWorkdir: launchWslWorkdirEl.value.trim(),
+            wslServiceMode: (typeof launchWslServiceModeEl !== 'undefined' && launchWslServiceModeEl ? launchWslServiceModeEl.value : '') || '',
             autoLaunch: launchAutoLaunchEl.checked,
           })
           updateLaunchEntry(data.entry)
@@ -6722,6 +6760,8 @@
     const autoStartEl = document.getElementById('autoStart')
     const wslDefaultDistroEl = document.getElementById('wslDefaultDistro')
     const wslDefaultHomeEl = document.getElementById('wslDefaultHome')
+    const wslDefaultServiceModeEl = document.getElementById('wslDefaultServiceMode')
+    const wslStopAttachedEl = document.getElementById('wslStopAttached')
     const wslDshCommandEl = document.getElementById('wslDshCommand')
     const wslStatusHintEl = document.getElementById('wslStatusHint')
     const pluginMarketSourcesEl = document.getElementById('pluginMarketSources')
@@ -6793,6 +6833,9 @@
     const pluginHomesErrorEl = document.getElementById('pluginHomesError')
     let pluginHomesBusy = false
     function pluginTargetHome() {
+      // WSL 启动项的 dshHome 在 Linux 里，页面上的身份用合成键（wsl://发行版/目录），
+      // 这样 applyPluginPayload 的 home 校验才对得上服务端返回的值。
+      if (launchPluginScope && pluginLaunchEntry?.backend === 'wsl') return launchHomeOf(pluginLaunchEntry)
       return (launchPluginScope ? pluginLaunchEntry?.dshHome : pluginHome) || state.dshHome || ''
     }
     function pluginContextKey() {
@@ -7142,8 +7185,12 @@
       wslDefaultDistroEl.value = distros.some((item) => item.name === current) ? current : ''
       if (document.activeElement !== wslDefaultHomeEl) wslDefaultHomeEl.value = String(wsl.defaultHome || '')
       if (document.activeElement !== wslDshCommandEl) wslDshCommandEl.value = String(wsl.dshCommand || 'dsh')
+      wslDefaultServiceModeEl.value = wsl.defaultServiceMode === 'systemd' ? 'systemd' : 'wrapper'
+      wslStopAttachedEl.checked = wsl.stopAttached === true
       wslDefaultDistroEl.disabled = !available
       wslDefaultHomeEl.disabled = !available
+      wslDefaultServiceModeEl.disabled = !available
+      wslStopAttachedEl.disabled = !available
       wslDshCommandEl.disabled = !available
       wslStatusHintEl.textContent = available
         ? distros.length ? t('检测到 {n} 个发行版；启动项里可以逐个选。', { n: distros.length }) : t('没有检测到 WSL 发行版。')
@@ -7156,8 +7203,8 @@
         defaultDistro: wslDefaultDistroEl.value.trim(),
         defaultHome: wslDefaultHomeEl.value.trim(),
         dshCommand: wslDshCommandEl.value.trim() || 'dsh',
-        defaultServiceMode: state.wsl?.defaultServiceMode || 'wrapper',
-        stopAttached: state.wsl?.stopAttached === true,
+        defaultServiceMode: wslDefaultServiceModeEl.value === 'systemd' ? 'systemd' : 'wrapper',
+        stopAttached: wslStopAttachedEl.checked === true,
       })
     }
 
@@ -7463,6 +7510,8 @@
 
     autoStartEl.onchange = () => queueSetting('autoStart', autoStartEl.checked)
     wslDefaultDistroEl.onchange = saveWslSettings
+    wslDefaultServiceModeEl.onchange = saveWslSettings
+    wslStopAttachedEl.onchange = saveWslSettings
     wslDefaultHomeEl.onchange = saveWslSettings
     wslDshCommandEl.onchange = saveWslSettings
     autoDisableEl.onchange = () => queueSetting('autoDisablePlugins', autoDisableEl.checked)

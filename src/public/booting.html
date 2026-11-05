@@ -214,6 +214,10 @@
       'hintSlow': '首次启动要下载依赖，通常会久一点；也可以回管理页看实时日志',
       'hintOffline': '与管理页的连接断了一下，正在重试…',
       'opening': '启动完成，正在打开…',
+      'attachedTitle': 'dsh 已在运行',
+      'attachedHint': '这是外部启动的实例，没有带 token 的启动链接，无法直接跳转；可以回管理页查看状态。',
+      'attachedUnreachableTitle': 'WSL 端口连不上',
+      'attachedUnreachableHint': 'WSL 里的 dsh 在跑，但 Windows 连不到这个端口；检查 WSL 的 localhostForwarding（.wslconfig）后重启 WSL。',
       'failedTitle': '启动失败',
       'failedFallback': '实例没能起来，回到管理页可以看到完整诊断。',
       'toManager': '回到管理页',
@@ -243,6 +247,10 @@
       'hintSlow': 'The first start downloads dependencies and takes longer; the launcher page shows the live log',
       'hintOffline': 'Lost the launcher for a moment, retrying…',
       'opening': 'Ready — opening…',
+      'attachedTitle': 'dsh is already running',
+      'attachedHint': 'This instance was started outside DSH-X and has no tokenized launch URL, so this page cannot open it. Check its status from the launcher.',
+      'attachedUnreachableTitle': 'Cannot reach the WSL port',
+      'attachedUnreachableHint': 'dsh is running inside WSL, but Windows cannot connect to its port. Check localhostForwarding in .wslconfig and restart WSL.',
       'failedTitle': 'Start failed',
       'failedFallback': 'The instance did not come up. The launcher page has the full diagnosis.',
       'toManager': 'Back to launcher',
@@ -386,6 +394,21 @@
     const live = findInstance()
     if (live?.status === 'running' && live.url) {
       openDsh(live.url)
+      return
+    }
+    // attached：外部启动的 dsh 已经在跑，但没有带 token 的链接。不要卡在「准备启动」，
+    // 也不要伪造一个打不开的 URL；把情况说清楚，让用户回管理页。
+    if (live?.status === 'running' && live.attached) {
+      els.spinner.hidden = true
+      els.bar.hidden = true
+      els.steps.hidden = true
+      const unreachable = live.reachable === false
+      els.title.textContent = t(unreachable ? 'attachedUnreachableTitle' : 'attachedTitle')
+      els.phase.textContent = ''
+      els.hint.hidden = false
+      els.hint.textContent = t(unreachable ? 'attachedUnreachableHint' : 'attachedHint')
+      els.actions.hidden = false
+      els.manager.classList.add('primary')
       return
     }
     if (live?.status === 'starting') {

@@ -222,8 +222,12 @@ export function safeWorkdir(dir) {
 
 /** 启动项跑在哪里：Windows 本机，还是某个 WSL 发行版。 */
 export const WSL_BACKENDS = ['local', 'wsl']
-/** 首版只做 wrapper：wsl.exe 前台拉起，脚本 exec dsh；systemd 模式后续再加。 */
+/** 启动方式：wrapper 由 wsl.exe 前台托管，systemd 交给发行版里的 systemd user unit。 */
+export const WSL_SERVICE_MODES = ['wrapper', 'systemd']
 export const DEFAULT_WSL_SERVICE_MODE = 'wrapper'
+export function safeWslServiceMode(value) {
+  return value === 'systemd' ? 'systemd' : 'wrapper'
+}
 export const DEFAULT_WSL = {
   defaultDistro: '',
   defaultServiceMode: DEFAULT_WSL_SERVICE_MODE,
@@ -274,7 +278,7 @@ export function safeWslSettings(value) {
   if (!/^[A-Za-z0-9._~/-]{1,128}$/.test(dshCommand)) dshCommand = 'dsh'
   return {
     defaultDistro,
-    defaultServiceMode: DEFAULT_WSL_SERVICE_MODE,
+    defaultServiceMode: safeWslServiceMode(source.defaultServiceMode),
     defaultHome,
     dshCommand,
     stopAttached: source.stopAttached === true,
@@ -558,7 +562,9 @@ export function safeLaunchPresets(value) {
     let wslDistro = ''
     let wslHome = ''
     let wslWorkdir = ''
+    let wslServiceMode = DEFAULT_WSL_SERVICE_MODE
     if (backend === 'wsl') {
+      wslServiceMode = safeWslServiceMode(item.wslServiceMode)
       // WSL 项不碰 Windows 的 safeDshHome / safeWorkdir：那些函数要求盘符绝对路径，
       // 会把 /root/.dsh 当相对路径拒掉。路径按 Linux 语义单独校验。
       try {
@@ -588,7 +594,7 @@ export function safeLaunchPresets(value) {
       ...(VERSION_RE.test(usedVersion) && usedVersion !== 'auto' ? { usedVersion } : {}),
       ...(VERSION_RE.test(prevVersion) && prevVersion !== 'auto' ? { prevVersion } : {}),
       ...(workdir ? { workdir } : {}), ...(dshHome ? { dshHome } : {}),
-      ...(backend === 'wsl' ? { backend: 'wsl', ...(wslDistro ? { wslDistro } : {}), ...(wslHome ? { wslHome } : {}), ...(wslWorkdir ? { wslWorkdir } : {}), wslServiceMode: DEFAULT_WSL_SERVICE_MODE } : {}),
+      ...(backend === 'wsl' ? { backend: 'wsl', ...(wslDistro ? { wslDistro } : {}), ...(wslHome ? { wslHome } : {}), ...(wslWorkdir ? { wslWorkdir } : {}), wslServiceMode } : {}),
       ...(icon !== 'terminal' ? { icon } : {}) }]
   })
   const builtin = presets.find((item) => item.id === DEFAULT_LAUNCH_ID) || { ...DEFAULT_LAUNCH }

@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { WSL_AGENT_SCRIPT } from '../src/wsl-scripts.js'
+import { WSL_AGENT_SCRIPT, WSL_BRIDGE_SCRIPT, WSL_HELPER_SCRIPT, WSL_SYSTEMD_SCRIPT } from '../src/wsl-scripts.js'
+import { safeWslServiceMode } from '../src/settings.js'
 import {
   DEFAULT_HOME,
   WSL_SERVICE_MODE,
+  WSL_SERVICE_MODES,
   decodeWslOutput,
+  normalizeWslServiceMode,
   parseWslDistroList,
   parseWslHomeKey,
   resolveWslHome,
@@ -73,4 +76,35 @@ test('wrapper 脚本：pidfile 按实例区分，前台 exec dsh，停止先 TER
 
 test('wslAvailable 只返回布尔值，不抛异常', () => {
   assert.equal(typeof wslAvailable(), 'boolean')
+})
+
+test('服务模式只认 wrapper / systemd，未知值回 wrapper', () => {
+  assert.deepEqual(WSL_SERVICE_MODES, ['wrapper', 'systemd'])
+  assert.equal(normalizeWslServiceMode('wrapper'), 'wrapper')
+  assert.equal(normalizeWslServiceMode('systemd'), 'systemd')
+  assert.equal(normalizeWslServiceMode('systemd '), 'wrapper')
+  assert.equal(normalizeWslServiceMode(''), 'wrapper')
+  assert.equal(safeWslServiceMode('systemd'), 'systemd')
+  assert.equal(safeWslServiceMode('bad'), 'wrapper')
+})
+
+test('systemd 脚本：user unit 用专用 unit 名，前台 exec dsh，停止会停 unit 和桥', () => {
+  assert.match(WSL_SYSTEMD_SCRIPT, /unit_dir="\$HOME\/\.config\/systemd\/user"/)
+  assert.match(WSL_SYSTEMD_SCRIPT, /dsh-x-\$id\.service/)
+  assert.match(WSL_SYSTEMD_SCRIPT, /Restart=on-failure/)
+  assert.match(WSL_SYSTEMD_SCRIPT, /KillMode=control-group/)
+  assert.match(WSL_SYSTEMD_SCRIPT, /systemctl --user start/)
+  assert.match(WSL_SYSTEMD_SCRIPT, /systemctl --user stop/)
+  assert.match(WSL_SYSTEMD_SCRIPT, /exec \$\(printf '%q' "\$dsh_cmd"\)/)
+})
+
+test('Runtime Bridge 和插件代理脚本带完整协议与开关入口', () => {
+  assert.match(WSL_BRIDGE_SCRIPT, /method === 'ping'/)
+  assert.match(WSL_BRIDGE_SCRIPT, /method === 'getStatus'/)
+  assert.match(WSL_BRIDGE_SCRIPT, /method === 'getRuntimeInfo'/)
+  assert.match(WSL_BRIDGE_SCRIPT, /method === 'shutdown'/)
+  assert.match(WSL_BRIDGE_SCRIPT, /request\.token !== token/)
+  assert.match(WSL_HELPER_SCRIPT, /from '\.\/plugins\.mjs'/)
+  assert.match(WSL_HELPER_SCRIPT, /setPluginEnabled/)
+  assert.match(WSL_HELPER_SCRIPT, /__DSHX_JSON__/)
 })
