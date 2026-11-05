@@ -28,9 +28,14 @@ import { randomBytes } from 'node:crypto'
 import { join } from 'node:path'
 import { WSL_AGENT_SCRIPT } from './wsl-scripts.js'
 
-const WSL_EXE = process.env.SystemRoot
-  ? join(process.env.SystemRoot, 'System32', 'wsl.exe')
-  : 'C:\\Windows\\System32\\wsl.exe'
+// 允许用 DSH_WSL_EXE 指向自定义 wsl.exe；默认先找 System32，找不到再交给 PATH。
+// 不把 wsl.exe 的存在当成 DSH-X 的运行前提：只有探测/启动 WSL 时才 spawn 它。
+const WSL_EXE = (() => {
+  if (process.env.DSH_WSL_EXE) return process.env.DSH_WSL_EXE
+  const system = process.env.SystemRoot ? join(process.env.SystemRoot, 'System32', 'wsl.exe') : ''
+  if (system && existsSync(system)) return system
+  return 'wsl.exe'
+})()
 const HELPER_DISTRO_RE = /^(?:docker-desktop(?:-data)?|rancher-desktop(?:-data)?|podman-machine-.*|wslenv)$/i
 const DEFAULT_HOME = '~/.dsh'
 const SCRIPT_PATH = '$HOME/.dsh-x/bin/dsh-x-wsl.sh'
@@ -39,7 +44,10 @@ const SCRIPT_PATH = '$HOME/.dsh-x/bin/dsh-x-wsl.sh'
 export const WSL_SERVICE_MODE = 'wrapper'
 
 export function wslAvailable() {
-  return process.platform === 'win32' && existsSync(WSL_EXE)
+  if (process.platform !== 'win32') return false
+  // 回退到 PATH 上的 wsl.exe 时无法用 existsSync 判断（它不是绝对路径）；
+  // 真找不到时交给 listWslDistros 的 spawn 错误处理，页面会显示 WSL 的提示。
+  return WSL_EXE === 'wsl.exe' || existsSync(WSL_EXE)
 }
 
 function runProcess(command, args, options = {}) {
@@ -90,23 +98,38 @@ export function decodeWslOutput(buffer) {
   return buf.toString('utf8')
 }
 
-/** 解析 wsl --list --verbose。名字里可能有空格，所以按两个以上空格切列。 */
+/**
+ * 解析 wsl --list --verbose。名字里可能有空格，所以按两个以上空格切列。
+ * 表头和状态会跟着 Windows 显示语言变（中文系统是「名称 状态 版本」），不能按
+ * 英文单词判断；只认行尾的版本号，前面的部分再按列宽/最后一个空格拆。
+ */
 export function parseWslDistroList(text) {
   const distros = []
   for (const rawLine of String(text || '').split(/\r?\n/)) {
     const line = rawLine.replace(/\u0000/g, '').trimEnd()
-    if (!line.trim() || /^\s*NAME\s+STATE\s+VERSION\s*$/i.test(line)) continue
+    if (!line.trim()) continue
     const isDefault = /^\s*\*/.test(line)
     const body = line.replace(/^\s*\*\s*/, '').trim()
-    let parts = body.split(/\s{2,}/).filter(Boolean)
-    if (parts.length < 3) {
-      const match = /^(.*?)\s+(Running|Stopped|Installing|Uninstalling|Converting)\s+(\d+)\s*$/i.exec(body)
-      if (!match) continue
-      parts = [match[1], match[2], match[3]]
+    // 版本号是每行唯一的稳定锚点；没有数字的表头/提示行直接跳过。
+    const versionMatch = /(\d+)\s*$/.exec(body)
+    if (!versionMatch) continue
+    const version = Number(versionMatch[1]) || 2
+    const rest = body.slice(0, versionMatch.index).trim()
+    let name = ''
+    let state = ''
+    const columns = rest.split(/\s{2,}/).filter(Boolean)
+    if (columns.length >= 2) {
+      name = columns[0].trim()
+      state = columns[columns.length - 1].trim()
+    } else {
+      // 没有对齐空格的输出：状态通常是最后一个词（Running / 运行中 / 已停止）。
+      const split = rest.lastIndexOf(' ')
+      if (split <= 0) continue
+      name = rest.slice(0, split).trim()
+      state = rest.slice(split + 1).trim()
     }
-    const name = parts[0].trim()
     if (!name || HELPER_DISTRO_RE.test(name)) continue
-    distros.push({ name: name, state: parts[1] || '', version: Number(parts[2]) || 2, default: isDefault })
+    distros.push({ name: name, state: state, version: version, default: isDefault })
   }
   return distros
 }

@@ -4054,7 +4054,7 @@
         return
       }
       launchWslDistroEl.disabled = false
-      launchWslDistroEl.innerHTML = distros.map((item) => `<option value="${escapeHtml(item.name)}">${escapeHtml(item.name)}${item.default ? ` · ${escapeHtml(t('默认'))}` : ''}${item.state === 'Running' ? ` · ${escapeHtml(t('运行中'))}` : ''}</option>`).join('')
+      launchWslDistroEl.innerHTML = distros.map((item) => `<option value="${escapeHtml(item.name)}">${escapeHtml(item.name)}${item.version ? ` · WSL ${escapeHtml(String(item.version))}` : ''}${item.default ? ` · ${escapeHtml(t('默认'))}` : ''}${item.state === 'Running' ? ` · ${escapeHtml(t('运行中'))}` : ''}</option>`).join('')
       const fallback = distros.find((item) => item.name === state.wsl?.defaultDistro)?.name || distros.find((item) => item.default)?.name || distros[0]?.name || ''
       launchWslDistroEl.value = distros.some((item) => item.name === current) ? current : fallback
     }
@@ -7138,7 +7138,7 @@
       const available = wsl.available === true
       const current = String(wsl.defaultDistro || '')
       wslDefaultDistroEl.innerHTML = `<option value="">${escapeHtml(t('自动选择'))}</option>` + distros.map((item) =>
-        `<option value="${escapeHtml(item.name)}">${escapeHtml(item.name)}${item.default ? ` · ${escapeHtml(t('默认'))}` : ''}</option>`).join('')
+        `<option value="${escapeHtml(item.name)}">${escapeHtml(item.name)}${item.version ? ` · WSL ${escapeHtml(String(item.version))}` : ''}${item.default ? ` · ${escapeHtml(t('默认'))}` : ''}</option>`).join('')
       wslDefaultDistroEl.value = distros.some((item) => item.name === current) ? current : ''
       if (document.activeElement !== wslDefaultHomeEl) wslDefaultHomeEl.value = String(wsl.defaultHome || '')
       if (document.activeElement !== wslDshCommandEl) wslDshCommandEl.value = String(wsl.dshCommand || 'dsh')
