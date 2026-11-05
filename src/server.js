@@ -15,6 +15,7 @@ import { cmpVer, currentRegistry, describeNpmFailure, installSpec, listPackage, 
 import { VERSION_CHANNEL, VERSION_CHANNELS, effectiveChannel, versionChannel, versionInChannel } from './version.js'
 import { CORE_VERSION } from './app-version.js'
 import { createLogWriter } from './log-writer.js'
+import { checkPluginCompatibility } from './pre-update.js'
 import { createStartupDiagnosis } from './startup-diagnosis.js'
 import { createInstanceLink } from './instance-link.js'
 import { DESKTOP_ENHANCE_ID, DESKTOP_ENHANCE_NAME, DESKTOP_PLUGINS, versionAtLeast } from './desktop-plugins.js'
@@ -6277,6 +6278,32 @@ async function handleApi(req, res, url) {
     const home = safeDshHome(url.searchParams.get('home')) || defaultHome()
     const profiles = listProfiles(join(home, 'profiles'))
     send(res, 200, { home, profiles, webProfiles: profiles.filter((name) => profileBootsWebIn(home, name)) })
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/plugins/check-compatibility') {
+    try {
+      const body = await readJson(req)
+      const version = safeVersion(body.version)
+      const profile = safeProfile(body.profile || PROFILE_NAME)
+      // 目标可以尚未安装；只借用本地 Harness 的 semver，不导入其启动代码或插件实现。
+      let semver
+      for (const installed of [version, ...scanInstalled()]) {
+        try {
+          const require = createRequire(binPath(installed))
+          // pnpm 的严格依赖布局不会把 app-boot 的 semver 提升到 CLI 旁边。
+          try { semver = createRequire(require.resolve('@deepseek-ai/dsh-app-boot'))('semver') }
+          catch { semver = require('semver') }
+          break
+        } catch { /* 尝试下一份本地运行时 */ }
+      }
+      if (!semver) throw new Error('请先安装一个 DSH 版本以提供兼容性检查。')
+      if (!semver.valid(version)) throw new Error('Invalid dsh target version')
+      const result = checkPluginCompatibility(profileDirOf(profile), version,
+        (target, range) => semver.satisfies(target, range, { includePrerelease: true }))
+      send(res, 200, { ...result, profile })
+    } catch (error) {
+      send(res, 400, { error: error instanceof Error ? error.message : String(error) })
+    }
     return
   }
   if (req.method === 'GET' && url.pathname === '/api/plugins') {
