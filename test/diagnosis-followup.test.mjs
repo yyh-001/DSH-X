@@ -36,6 +36,8 @@ test('ready后跨块警告按实例发布，普通日志不广播，退出和重
     emitState: () => { broadcasts += 1 }, lastHealth: null,
     // 实例启动 / 退出的桌面通知（host.notify）另测；这里只跑诊断，不关心通知
     notifyInstance() {},
+    // 局域网代理的起停另测（test/lan-proxy.test.mjs）；这里只跑诊断
+    openLanProxy: async () => {}, closeLanProxy: async () => {},
   }
   const begin = server.indexOf('function attachProcess(')
   const end = server.indexOf('\n/**', begin)

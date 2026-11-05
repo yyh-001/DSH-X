@@ -88,7 +88,6 @@ import {
   defaultDshHome,
   ensureSettings,
   ensureWritableDir,
-  lanBindToggleOn,
   loadSettings,
   loadSettingsSync,
   parseArgs,
@@ -132,6 +131,7 @@ import {
 // 带代理的 fetch：Node 的全局 fetch 既不看系统代理也不看 HTTP_PROXY，外网请求都走 netFetch
 import { netFetch, proxyEnv, resetProxyCache, resolveProxy } from './proxy.js'
 import { APP_DIR, fileManager } from './filemanager.js'
+import { lanUrlOf, pickLanAddress, startLanProxy } from './lan-proxy.js'
 import { DESKTOP_API_VERSION, DESKTOP_CAPABILITIES, parseDesktopRequest } from './desktop.js'
 import { checkCoreUpdate, downloadCoreTarball, extractCoreTarball, stagingExists, stagingStats } from './core-npm.js'
 import { IN_ELECTRON, IS_LINUX, IS_MAC, IS_WINDOWS, LAUNCHER_NAME, MAC_APP_NAME, NPM_MODE, PACKAGED, RUNTIME_NODE, RUNTIME_NODE_ENV } from './platform.js'
@@ -183,12 +183,9 @@ let PROFILE_NAME = resolveProfile()
 const CLI_ARGS = /start\.js$/i.test(process.argv[1] || '') ? process.argv.slice(2) : []
 // 额外启动参数：用户自己加的 argv，拼在命令行末尾（设置页可改）
 let EXTRA_ARGS = composeExtraArgs(loadSettingsSync().args)
-// Web 绑定方式：loopback（默认）/ lan。lan 时启动 web 不注入 --host/--port，
-// 绑定交给配置层（远程访问插件的「局域网访问」开关写的 profile 补丁块）决定
+// Web 绑定方式：loopback（默认）/ lan。两种模式 dsh 都只绑 127.0.0.1；lan 时启动器另在
+// 「局域网 IP + 同一端口」上起反向代理（lan-proxy.js），本机回环和所有探活都不受影响
 let WEB_BIND = resolveWebBind()
-// 远程访问插件的「局域网访问」开关（读 dsh 的 settings.yaml）：开着时同样不注入
-// --host，否则命令行显式 --host 永远压着插件的开关和补丁块（详见 lanBindToggleOn）
-let LAN_TOGGLE = false
 // 手工钉死端口的实例（键 `版本@profile` → 端口）：没钉的组合每次启动由系统挑一个。
 // 和 WEB_BIND 一样是「改完立刻生效」的内存副本，启动时与保存设置时各刷新一次。
 let INSTANCE_PORTS = safeInstancePorts(loadSettingsSync().instancePorts)
@@ -1158,6 +1155,9 @@ function instanceInfo(proc) {
     home: proc.home,
     status: proc.status,
     url: proc.url,
+    // 局域网模式：复制给别的设备用的地址（只换主机，token 不变）；代理没起来时给原因
+    lanUrl: proc.lanProxy ? lanUrlOf(proc.url, proc.lanProxy.lanHost) : '',
+    lanError: proc.lanError || null,
     startedAt: proc.startedAt,
     startupMs: proc.startupMs ?? null,
     startupPhase: proc.status === 'starting' ? (proc.startupPhase || 'launching') : '',
@@ -1477,9 +1477,7 @@ async function publicSettings() {
     browserHost: Boolean(host.browser),
     shellPrefs: process.env.DSH_SHELL_PREFS === '1',
     desktopShell: shellWindowHost(),
-    // Web 绑定：设置值 + 插件开关是否压着它（页面要如实说明当前生效的是哪一个）
     webBind: WEB_BIND,
-    webBindLan: LAN_TOGGLE,
   }
 }
 
@@ -2010,7 +2008,6 @@ async function saveManagerSettings(body) {
   // profile 立即生效：插件页、启动参数、npmrc 都读这个变量（已经在跑的 dsh 不受影响）
   EXTRA_ARGS = composeExtraArgs(stored.args)
   WEB_BIND = safeWebBind(stored.webBind)
-  LAN_TOGGLE = lanBindToggleOn(homeDir(), PROFILE_NAME)
   INSTANCE_PORTS = safeInstancePorts(stored.instancePorts)
   ENVIRONMENT_PORTS = safeEnvironmentPorts(stored.environmentPorts)
   if (safeLang(stored.lang)) LANG = safeLang(stored.lang)
@@ -2583,12 +2580,13 @@ async function restoreProfileConfig(profile, id) {
 }
 
 /**
- * 当前是否按局域网绑定：设置里选了局域网，或远程访问插件的「局域网访问」开关
- * 开着。两者都是用户明确的局域网意图，任一条成立启动器就不再注入 --host。
+ * 这次启动要不要开局域网代理：只看设置里的 Web 绑定。
+ * 远程访问插件的「局域网访问」开关不再参与：新版插件自己起转发，旧版写的 0.0.0.0
+ * 补丁块在 dsh 0.2.1-rc.2 起本来就会被拒（通配地址不再支持）。
  * 纯函数（参数缺省取模块状态），方便单测。
  */
-export function lanBindActive(webBind = WEB_BIND, toggle = LAN_TOGGLE) {
-  return webBind === 'lan' || toggle === true
+export function lanBindActive(webBind = WEB_BIND) {
+  return webBind === 'lan'
 }
 
 /** 设置页的额外启动参数 + DSH.exe 命令行传来的参数，后者拼在后面（更具体，覆盖前者）。 */
@@ -2813,12 +2811,12 @@ function sidebarBrowserPatchArgs(profile) {
 }
 
 /**
- * dsh 启动参数。`alongside` = 已经有一个实例在跑（多开），局域网下要另给端口。
+ * dsh 启动参数。Web 绑定选哪种都一样：dsh 只绑回环，局域网由启动器的代理负责
+ * （dsh 不接受 0.0.0.0，绑具体局域网 IP 又会让本机回环和启动器的探活全部失效）。
  * @param {string} profile 这次启动用的 profile（多开下同一版本可以各用各的）
- * @param {boolean} alongside
  * @param {number} pinned 手工固定或自动记忆的端口（0 = 首次，由系统挑）
  */
-function bootArgs(profile = PROFILE_NAME, alongside = false, pinned = 0) {
+function bootArgs(profile = PROFILE_NAME, pinned = 0) {
   // 不起 web 的 profile（headless / acp / sdk…）不提供 HTTP 服务，也不认这几个 flag：
   // 参数是透传给 profile 对应 app 的，会被它自己的 commander 打回 `unknown option`
   // 并 exit 1（`dsh headless --no-open` 就是这条），所以只对会起 web 的注入
@@ -2827,15 +2825,6 @@ function bootArgs(profile = PROFILE_NAME, alongside = false, pinned = 0) {
   // app 参数之前（见 dsh 的 `dsh tui --patch ./extra.yml` 示例）。
   const overlay = sidebarBrowserPatchArgs(profile)
   const port = pinned > 0 ? String(pinned) : '0'
-  if (lanBindActive(WEB_BIND, lanBindToggleOn(homeDir(), profile))) {
-    // 局域网：--host 不传。CLI 硬禁 --host 0.0.0.0，绑定只能走配置层（远程插件的
-    // lan-bind 开关写进 profile 补丁的 webserver 块）；--port 0 也一样会压过配置层，
-    // 把插件钉好的端口抹成随机值，所以端口也交给配置层决定。
-    // 两个例外，都是「不显式给端口就出事」：多开时配置层里只有一个端口，第二个实例
-    // 撞上去就是 EADDRINUSE；用户自己钉了端口，就是要它——这两种情况显式传 --port。
-    if (!pinned && !alongside) return [profile, ...overlay, '--no-open', ...EXTRA_ARGS]
-    return [profile, ...overlay, '--port', port, '--no-open', ...EXTRA_ARGS]
-  }
   // 默认姿势：钉死回环 + 端口（首次 --port 0，让 OS 现挑一个；dsh 会把真实地址
   // 打出来，启动器读它，所以顺延也不影响页面拿到链接）。
   // 额外参数放最后：用户可以用它覆盖 --port 之类（启动器是从 dsh 的输出里读真实地址的，
@@ -2849,10 +2838,9 @@ function pinnedPort(version, profile) {
   return ports?.[`${version}@${profile}`] || 0
 }
 
-/** 自动端口只接管默认回环模式；局域网配置和用户额外参数仍由用户决定。 */
+/** 自动端口：局域网模式也一样记（dsh 照样绑回环，端口不变局域网链接也不变）；用户额外参数仍由用户决定。 */
 function remembersAutoPort(profile, pinned) {
   return !pinned && bootsWebApp(profile)
-    && !lanBindActive(WEB_BIND, lanBindToggleOn(homeDir(), profile))
     && !EXTRA_ARGS.some((arg) => /^--(?:port|host)(?:=|$)/.test(arg))
 }
 
@@ -4843,6 +4831,7 @@ function attachProcess(version, profile, child, diagnosticContext, instanceLink)
       // 正常启动不发通知：用户点了启动就有进度页和窗口，再响一声只是噪音。
       // 只有失败 / 意外退出（下面那条）才值得打断。
       emitState()
+      void openLanProxy(proc, tag)
     }
   }
   // 管道的 chunk 没有行/UTF-8 边界；逐块 split 会截断中文、错误码，甚至整个就绪 URL。
@@ -4863,6 +4852,7 @@ function attachProcess(version, profile, child, diagnosticContext, instanceLink)
     clearTimeout(proc.diagnosticTimer)
     proc.diagnosticTimer = null
     proc.exit = { code, signal }
+    void closeLanProxy(proc)
     instanceLink?.exited(child)
     ready()
     pushLog(`${tag}已退出 code=${code ?? '-'} signal=${signal ?? '-'}`)
@@ -4877,6 +4867,61 @@ function attachProcess(version, profile, child, diagnosticContext, instanceLink)
     emitState()
   })
   return proc
+}
+
+/** 局域网端口 → 当前持有代理的实例（同一端口同时只能有一份代理）。 */
+const lanProxyOwners = new Map()
+
+/**
+ * 局域网模式下给一个已就绪的实例起代理（lan-proxy.js）：局域网 IP + dsh 的同一端口 → 127.0.0.1。
+ * 局域网 IP 在这一刻取（换网络后重启实例才跟上）。起不来只丢局域网这一路：dsh 本身照常可用，
+ * 原因写进日志并挂在实例上给页面显示。自重启的继任进程会再走一次这里，所以按地址幂等。
+ */
+async function openLanProxy(proc, tag) {
+  if (!lanBindActive()) return
+  const port = urlPortOf(proc.url)
+  const lanHost = pickLanAddress()
+  if (proc.lanProxy?.port === port && proc.lanProxy.lanHost === lanHost) return
+  await closeLanProxy(proc)
+  // 自重启：继任进程可能先打出就绪行，前任的退出回调还在等输出流（最多 200ms），
+  // 它的代理仍占着同一个局域网端口——由继任者接手，否则这里会撞 EADDRINUSE
+  const previous = lanProxyOwners.get(port)
+  if (previous && previous !== proc) await closeLanProxy(previous)
+  if (!lanHost) {
+    // 页面按 code 拼当前语言的文案，这里只给事实；日志照旧写中文
+    proc.lanError = { code: 'no-address' }
+    pushLog(`${tag}没有找到可用的局域网 IPv4 地址，这次只能本机访问`)
+    void emitState()
+    return
+  }
+  try {
+    const proxy = await startLanProxy({ lanHost, port, onError: message => pushLog(`${tag}局域网代理：${message}`) })
+    // 等监听的这段时间里实例可能已经退出或换了地址：迟到的代理直接关掉
+    if (proc.exit || instances.get(proc.key) !== proc || urlPortOf(proc.url) !== port) {
+      await proxy.close()
+      return
+    }
+    proc.lanProxy = proxy
+    proc.lanError = null
+    lanProxyOwners.set(port, proc)
+    pushLog(`${tag}局域网访问 http://${lanHost}:${port}/ → 127.0.0.1:${port}`)
+  } catch (error) {
+    const address = `${lanHost}:${port}`
+    proc.lanError = { code: error?.code === 'EADDRINUSE' ? 'in-use' : 'listen', address }
+    pushLog(error?.code === 'EADDRINUSE'
+      ? `${tag}局域网地址 ${address} 已被占用（远程访问插件的「局域网访问」开着时会占这个地址，请关掉它）`
+      : `${tag}局域网代理没能监听 ${address}：${error?.message || error}`)
+  }
+  void emitState()
+}
+
+/** 实例退出（停止 / 重启 / 崩溃）时把它的局域网代理一起关掉。 */
+async function closeLanProxy(proc) {
+  const proxy = proc.lanProxy
+  proc.lanProxy = null
+  if (!proxy) return
+  if (lanProxyOwners.get(proxy.port) === proc) lanProxyOwners.delete(proxy.port)
+  await proxy.close().catch(() => {})
 }
 
 async function waitUntilReady(proc, version) {
@@ -5032,7 +5077,7 @@ async function bootOnce(ver, prof, onStarted) {
     pushLog(`固定端口 ${pinned} 现在被占用，这次启动多半会失败`)
   }
   const workdir = launchWorkdir()
-  pushLog(`启动 ${ver} · profile ${prof}${workdir ? ` · 项目目录 ${workdir}` : ''}${lanBindActive(WEB_BIND, lanBindToggleOn(homeDir(), prof)) ? ' · Web 绑定 局域网(0.0.0.0，由配置层决定)' : ''}${pinned ? ` · 固定端口 ${pinned}` : ''}${alongside ? '（与已在跑的实例并存）' : ''}`)
+  pushLog(`启动 ${ver} · profile ${prof}${workdir ? ` · 项目目录 ${workdir}` : ''}${lanBindActive() ? ' · Web 绑定 局域网（dsh 仍绑 127.0.0.1，局域网经启动器代理）' : ''}${pinned ? ` · 固定端口 ${pinned}` : ''}${alongside ? '（与已在跑的实例并存）' : ''}`)
   if (reused) {
     pushLog(remembered.key === `${ver}@${prof}`
       ? `复用自动端口：${ver}@${prof} → ${reused}`
@@ -5069,7 +5114,7 @@ async function bootOnce(ver, prof, onStarted) {
   let child
   try {
     assertStartupActive()
-    child = spawnDsh(ver, bootArgs(prof, alongside, pinned || reused), prof, { diagnosticContext, cwd: workdir, pluginProfile: true, instanceLink })
+    child = spawnDsh(ver, bootArgs(prof, pinned || reused), prof, { diagnosticContext, cwd: workdir, pluginProfile: true, instanceLink })
   } catch (error) { instanceLink.revoke(); throw error }
   instanceLink.bind(child)
   const spawnAt = performance.now()
@@ -5527,7 +5572,6 @@ async function renameProfile(profile, nextName) {
         ENVIRONMENT_PORTS = safeEnvironmentPorts(saved.environmentPorts)
         if (sameHome(defaultHome())) {
           PROFILE_NAME = saved.profile
-          LAN_TOGGLE = lanBindToggleOn(home, PROFILE_NAME)
         }
       } catch (error) {
         // 配置落盘失败也要回到旧名称，不能留下半改名的环境。
@@ -7058,7 +7102,6 @@ async function handleApi(req, res, url) {
         await saveSettings({ launchPresets: presets, ...(resetProfile ? { profile: nextProfile } : {}) })
         if (resetProfile) {
           PROFILE_NAME = nextProfile
-          LAN_TOGGLE = lanBindToggleOn(homeDir(), PROFILE_NAME)
         }
       })
       pushLog(`已删掉整个 profile「${profile}」`)
@@ -7427,8 +7470,6 @@ export async function startServer() {
   PROFILE_NAME = resolveProfile()
   EXTRA_ARGS = composeExtraArgs((await loadSettings()).args)
   WEB_BIND = resolveWebBind()
-  // 远程插件的「局域网访问」开关：开着时启动 web 不注入 --host（每次起管理器读一次）
-  LAN_TOGGLE = lanBindToggleOn(homeDir(), PROFILE_NAME)
   if (CLI_ARGS.length) pushLog(`DSH.exe 传入启动参数：${CLI_ARGS.join(' ')}`)
   const stored = await loadSettings()
   // 跑 dsh 的 node 不是自带的 Electron 时记一笔：出问题时日志里能看出用的是哪个

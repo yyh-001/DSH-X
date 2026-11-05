@@ -53,7 +53,7 @@ export async function ensureWritableDir(dir) {
 /** dsh 的启动 profile（一个 profile 一套插件和数据），默认 web。 */
 export const DEFAULT_PROFILE = 'web'
 
-/** Web 绑定方式：loopback（回环，默认）/ lan（局域网，不注入 --host，交给配置层决定）。 */
+/** Web 绑定方式：loopback（回环，默认）/ lan（dsh 仍绑回环，启动器另在局域网 IP 上起代理）。 */
 export const DEFAULT_WEB_BIND = 'loopback'
 /**
  * 下载源选项：镜像源同步官方有延迟，刚发布的版本会「检查到更新却装不上」，
@@ -302,8 +302,8 @@ export const DEFAULTS = {
   dshHomeNames: {},
   // 额外启动参数（一行文本，空格分词，含空格的值用引号包起来）
   args: '',
-  // dsh web 的绑定方式：loopback 注入 --host 127.0.0.1（默认）；lan 不注入，
-  // 由配置层（远程访问插件的「局域网访问」开关写的 profile 补丁块）决定 0.0.0.0
+  // dsh web 的绑定方式：两种都注入 --host 127.0.0.1；lan 时启动器再在局域网 IP 的同一端口上
+  // 起反向代理（lan-proxy.js），旧设置里的 0.0.0.0 写法照旧当 lan
   webBind: DEFAULT_WEB_BIND,
   autoStart: false,
   // 官方自定义插件市场的默认索引；已有 Profile 配置优先，不再预装第三方市场。
@@ -580,68 +580,6 @@ export function safeWebBind(value) {
   if (mode === 'loopback' || mode === '127.0.0.1') return 'loopback'
   if (mode === 'lan' || mode === '0.0.0.0') return 'lan'
   throw new Error('Web 绑定只能选 回环(loopback) 或 局域网(lan)')
-}
-
-/**
- * 远程访问插件（@linxin666/dsh-remote-web-ui）的「局域网访问」开关有没有开。
- *
- * 插件把开关存在 dsh 的设置文件里（`<dsh home>/settings.yaml` 的
- * `remote-web-ui.lanBind`）。启动器读它只为了一件事：开关开着时启动 web 不再
- * 注入 `--host 127.0.0.1`——命令行显式 --host 在 dsh 里优先于配置层，注入了
- * 回环地址，插件的开关和补丁块就永远赢不了，手机/其他电脑也就连不上。
- *
- * 没有 YAML 依赖，只在这一个文件里找这一个键：定位顶层 `remote-web-ui:` 段，
- * 在它的子行里找 `lanBind:`。读不到、格式不认识、插件没装，都当没开——
- * 启动器不依赖任何第三方插件存在。
- */
-export function lanBindToggleOn(home, profile = '') {
-  // 0.1.7-rc.1 起 dsh 把设置搬到「当前 profile 的 Cordis 配置」里（旧 settings.yaml 只导入一次），
-  // 所以要两处都看：新位置有明确取值就以它为准，没有（还没迁移、或旧版本）再回落到旧文件。
-  if (profile) {
-    for (const name of ['cordis.yml', 'cordis.yaml']) {
-      const value = lanBindFromYaml(readTextIfExists(join(home, 'profiles', profile, name)))
-      if (value !== undefined) return value
-    }
-  }
-  return lanBindFromYaml(readTextIfExists(join(home, 'settings.yaml'))) === true
-}
-
-/** 读文件，读不到给空串（配置缺失是常态，不该抛）。 */
-function readTextIfExists(file) {
-  try {
-    return readFileSync(file, 'utf8')
-  } catch {
-    return ''
-  }
-}
-
-/**
- * 在 YAML 文本里找「提到 remote-web-ui 的那一段」里的 lanBind。
- * 段可以在顶层（旧 settings.yaml 的形状），也可以是嵌套的插件条目（新 profile 配置的形状）；
- * 段内允许隔着别的键。找不到返回 undefined（＝这份文件没说），false 才是明确说「关」。
- */
-export function lanBindFromYaml(text) {
-  const lines = String(text ?? '').split(/\r?\n/)
-  for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i]
-    if (!line.trim() || /^\s*#/.test(line)) continue
-    if (!/remote-web-ui/i.test(line)) continue
-    if (!/:\s*(?:\{.*)?$/.test(line)) continue
-    // 同一行写成流式映射的情况：{ lanBind: true }
-    const inline = /lanBind\s*:\s*([^,}\s]+)/.exec(line)
-    if (inline) return /^(?:true|yes|on|1)$/i.test(inline[1].replace(/^['"]|['"]$/g, ''))
-    const indent = line.length - line.trimStart().length
-    for (let j = i + 1; j < lines.length; j += 1) {
-      const next = lines[j]
-      if (!next.trim() || /^\s*#/.test(next)) continue
-      const nextIndent = next.length - next.trimStart().length
-      // 缩进回落到这一段之外（或更浅）说明段结束了；数组项不算出段
-      if (nextIndent <= indent && !/^\s*-\s/.test(next)) break
-      const match = /^\s*lanBind\s*:\s*(.+?)\s*$/.exec(next)
-      if (match) return /^(?:true|yes|on|1)$/i.test(match[1].replace(/^['"]|['"]$/g, ''))
-    }
-  }
-  return undefined
 }
 
 /** 管理页端口：环境变量 PORT（开发和测试用）优先，其次 settings.json。 */

@@ -16,6 +16,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { isolateUserHome } from './isolated-home.mjs'
+import { pickLanAddress } from '../src/lan-proxy.js'
 
 const C = Object.freeze({ versions: ['0.1.6', '0.1.7'], pollMs: 25, deadlineMs: 10000, quietMs: 700, leaseMs: 120, cycles: 3 })
 const root = mkdtempSync(join(tmpdir(), 'dsh-self-restart-'))
@@ -371,6 +372,39 @@ test('BVA/state: three consecutive detached self-restarts retain one session and
   }
   await api('/api/stop', { version: current.identity.version, profile: current.identity.profile, home: current.identity.home })
   await stopped()
+})
+
+// 局域网模式：继任进程沿用同一端口，局域网代理必须跟着交接（前任的退出回调可能比继任者的就绪行晚到）。
+const LAN = pickLanAddress()
+test('State/LAN: detached self-restart hands the LAN proxy to the successor on the same port', { skip: !LAN && 'no LAN IPv4 on this machine' }, async () => {
+  await api('/api/settings', { webBind: 'lan' })
+  try {
+    let current = await start()
+    const port = Number(new URL(current.url).port)
+    const lanFor = async (url) => until(async () => {
+      const item = (await api('/api/state')).instances.find(entry => entry.url === url)
+      return item?.lanUrl || item?.lanError ? item : false
+    }, 'LAN proxy state must settle after ready')
+    assert.equal((await lanFor(current.url)).lanError, null)
+    for (let cycle = 0; cycle < C.cycles; cycle += 1) {
+      const previous = current
+      await restart(previous)
+      current = await attached(previous)
+      assert.equal(Number(new URL(current.url).port), port, 'late handoff keeps the port')
+      const item = await lanFor(current.url)
+      assert.equal(item.lanError, null, 'successor must not collide with the superseded proxy')
+      const viaLan = await fetch(item.lanUrl.replace('/?', '/test/session?'), { signal: AbortSignal.timeout(C.deadlineMs) })
+      assert.equal(viaLan.status, 200, 'LAN link authenticates against the current successor')
+      assert.equal((await viaLan.json()).pid, current.identity.pid)
+    }
+    await api('/api/stop', { version: current.identity.version, profile: current.identity.profile, home: current.identity.home })
+    await stopped()
+    const probe = createServer()
+    await new Promise((resolve, reject) => { probe.once('error', reject); probe.listen({ port, host: LAN, exclusive: true }, resolve) })
+    await new Promise(resolve => probe.close(resolve))
+  } finally {
+    await api('/api/settings', { webBind: 'loopback' })
+  }
 })
 
 test('Decision table/state: explicit stop of an ordinary session must not trigger resurrection', async () => {
