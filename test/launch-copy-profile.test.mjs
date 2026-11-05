@@ -140,10 +140,12 @@ test('旧设置里的 workdir 迁移成 <项目>/.dsh，坏值回默认而不丢
   assert.equal(migrated?.dshHome, join(project, '.dsh'), '只写了 workdir 的旧启动项，数据目录按 <项目>/.dsh 保留')
   assert.equal(migrated?.workdir, undefined, 'workdir 不再出现在新设置里')
 
+  // 用当前平台的绝对路径：'D:/other' 在 POSIX 上不是绝对路径，会被 safeDshHome 拒掉。
+  const otherHome = join(env.root, 'other-home')
   const both = settings.safeLaunchPresets([{
-    id: 'bbbbbbbbbbbbbbbb', name: 'y', version: '1.0.0', profile: 'web', workdir: project, dshHome: 'D:/other',
+    id: 'bbbbbbbbbbbbbbbb', name: 'y', version: '1.0.0', profile: 'web', workdir: project, dshHome: otherHome,
   }])
-  assert.equal(both.find((item) => item.id === 'bbbbbbbbbbbbbbbb')?.dshHome, resolve('D:/other'), '已有 dshHome 时以它为准')
+  assert.equal(both.find((item) => item.id === 'bbbbbbbbbbbbbbbb')?.dshHome, resolve(otherHome), '已有 dshHome 时以它为准')
 
   const bad = settings.safeLaunchPresets([{
     id: 'cccccccccccccccc', name: 'z', version: '1.0.0', profile: 'web', workdir: 'proj',
