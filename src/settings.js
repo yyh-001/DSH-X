@@ -285,7 +285,7 @@ export function safeWslSettings(value) {
   }
 }
 
-/** WSL 固定端口按发行版分开存：同一个版本@profile 在 Fedora 和 Kali 里可以各占一个端口。 */
+/** WSL 固定端口按发行版分开存：同一个版本@profile 在不同的发行版里可以各占一个端口。 */
 export function safeWslPorts(value) {
   const out = {}
   if (!value || typeof value !== 'object' || Array.isArray(value)) return out

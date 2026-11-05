@@ -55,6 +55,21 @@ test('wsl --list --verbose 解析：默认发行版、Running/Stopped、名字�
   ])
 })
 
+test('中文 Windows 的 wsl --list 表头与状态不影响解析，发行版名可以是任意语言', () => {
+  const text = [
+    '  名称        状态       版本',
+    '* 我的发行版  运行中     2',
+    '  Ubuntu-24.04 已停止     1',
+    '  Debian       Stopped    2',
+    '',
+  ].join('\r\n')
+  assert.deepEqual(parseWslDistroList(text), [
+    { name: '我的发行版', state: '运行中', version: 2, default: true },
+    { name: 'Ubuntu-24.04', state: '已停止', version: 1, default: false },
+    { name: 'Debian', state: 'Stopped', version: 2, default: false },
+  ])
+})
+
 test('wsl.exe 的 UTF-16LE 输出能解码，普通 UTF-8 不被误判', () => {
   const text = '  NAME  STATE  VERSION\r\n* Fedora  Running  2\r\n'
   const utf16 = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(text, 'utf16le')])
