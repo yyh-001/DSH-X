@@ -24,7 +24,7 @@ test('核心更新换的是用户目录 core/current，不再碰 resources/app',
   assert.doesNotMatch(server, /chmodSync\(script, 0o755\)[\s\S]{0,200}MAC_APP_SWAP_SCRIPT/, '核心更新不再重签 mac 包')
 })
 
-test('构建把外壳和核心分成两个 stage，安装包用 extraResources 带基线核心', () => {
+test('构建把外壳和核心分成两个 stage，安装包只带外壳', () => {
   const pack = read('scripts/pack.mjs')
   assert.match(pack, /shell-stage/)
   assert.match(pack, /core-stage/)
@@ -33,7 +33,7 @@ test('构建把外壳和核心分成两个 stage，安装包用 extraResources �
   assert.match(pack, /main: 'shell\/main\.mjs'/, '外壳 package.json 指向 shell/main.mjs')
   const builder = read('electron-builder.config.mjs')
   assert.match(builder, /app: 'release\/shell-stage'/)
-  assert.match(builder, /from: 'release\/core-stage', to: 'core'/)
+  assert.doesNotMatch(builder, /extraResources/, '安装包不再带 resources/core')
   assert.match(builder, /target: 'AppImage'/, 'Linux 出 AppImage')
   assert.match(builder, /minimumSystemVersion: '13\.0'/, 'macOS 最低版本跟 Electron 44（Chromium 152）对齐')
   const core = read('scripts/pack-core.mjs')
@@ -44,6 +44,19 @@ test('构建把外壳和核心分成两个 stage，安装包用 extraResources �
   assert.match(common, /filemanager-windows\.js/)
   assert.match(common, /filemanager-mac\.js/)
   assert.match(common, /filemanager-linux\.js/)
+})
+
+test('外壳第一次启动从 npm 取核心，挑和当前 Electron 兼容的版本', () => {
+  const main = read('shell/main.mjs')
+  assert.match(main, /from '\.\/core-fetch\.mjs'/)
+  assert.match(main, /await setupCore\(\)/, 'current 缺失时先下载核心再启动')
+  assert.match(main, /pickCoreRelease\(metadata, \{[\s\S]*?electron: process\.versions\.electron/, '挑兼容版本，不盲拿 dist-tag 头部')
+  assert.match(main, /previous: PREVIOUS_CORE/, '换核心前把旧的留一份，起不来能回滚')
+  assert.doesNotMatch(main, /resources\/core/, '安装包里不再有基线核心')
+  const fetchCore = read('shell/core-fetch.mjs')
+  assert.match(fetchCore, /registry\.npmmirror\.com[\s\S]*?registry\.npmjs\.org/, '镜像优先，失败退回官方')
+  assert.match(fetchCore, /sha512/, '下载后校验 integrity')
+  assert.match(fetchCore, /--strip-components=1/, '解压剥掉 npm tarball 的 package/ 层')
 })
 
 test('外壳版本和核心版本分开：shell/package.json + 关于页显示两行', () => {
@@ -65,5 +78,6 @@ test('npm CLI 带着外壳启动，核心目录通过 DSH_CORE_DIR 传入', () =
   assert.match(pack, /join\(ROOT, 'shell'\)/)
   assert.match(pack, /shell\/main\.mjs/)
   assert.match(pack, /shellPkg\.version/, 'CLI 版本跟外壳走')
-  assert.match(read('npm-package/lib/core.mjs'), /'dsh-x-core'/, 'npm 版下载跨平台核心包')
+  assert.match(read('npm-package/lib/core.mjs'), /shell\/core-fetch\.mjs/, 'CLI 复用外壳那套核心获取逻辑')
+  assert.match(read('shell/core-fetch.mjs'), /'dsh-x-core'/, '核心包名跨平台，只有一个')
 })

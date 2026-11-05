@@ -1,15 +1,16 @@
 // 必须是第一个 import：它在核心（server.js）求值之前补好 PATH 和外壳标记（见 env.mjs）
 import './env.mjs'
-import { BrowserWindow, Menu, Notification, Tray, WebContentsView, app, clipboard, dialog, ipcMain, nativeImage, nativeTheme, powerSaveBlocker, screen, session, shell } from 'electron'
-import { existsSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs'
+import { BrowserWindow, Menu, Notification, Tray, WebContentsView, app, clipboard, dialog, ipcMain, nativeImage, nativeTheme, net, powerSaveBlocker, screen, session, shell } from 'electron'
+import { existsSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { BrowserTabs } from './tabs.mjs'
 import { BROWSER_IPC, DesktopBrowserGuests } from './browser-guests.mjs'
+import { corePackageName, channelOf, fetchCoreMetadata, installCore, pickCoreRelease } from './core-fetch.mjs'
 import { createUpdater } from './updater.mjs'
 import { readPrefs } from './prefs.mjs'
-import { dataUrl, errorPage, idlePage, resolveDark } from './pages.mjs'
+import { coreSetupPage, dataUrl, errorPage, idlePage, resolveDark } from './pages.mjs'
 import { clickTarget, dialogOptions, notificationDecision, notifyThrottled } from './desktop.mjs'
 import {
   LAUNCH_ACTIONS,
@@ -39,8 +40,8 @@ import {
  * dsh 子进程用 RUNTIME_NODE 拉起（见下）：Electron 本体加 ELECTRON_RUN_AS_NODE=1——
  * 这样不用再随包塞一份 node.exe（省 80MB+）。
  *
- * 外壳和核心是两层：安装包的 resources/app 只有这个外壳，核心在 resources/core（基线）或
- * 用户目录的 core/current（npm 更新后的版本）。外壳启动时动态 import 核心的 server.js，
+ * 外壳和核心是两层：安装包的 resources/app 只有这个外壳，核心在用户目录的 core/current
+ * （第一次启动从 npm 取，见 core-fetch.mjs）。外壳启动时动态 import 核心的 server.js，
  * 核心更新不需要换整个安装包；外壳自己的更新才走 electron-updater（见 updater.mjs）。
  *
  * 关窗口 ≠ 退出：托盘还在、dsh 照常跑；⌘Q、托盘「退出」才真正退出。
@@ -67,8 +68,12 @@ const APP_DATA = IS_MAC
 const APP_DIR = join(APP_DATA, 'DSH')
 /** 用户目录里的活动核心（npm 核心更新换的就是这个目录）。 */
 const ACTIVE_CORE = join(APP_DIR, 'core', 'current')
-/** 安装包内置的基线核心（resources/core）；源码运行时就是仓库的 src/（server.js 所在处）。 */
-const BASELINE_CORE = existsSync(join(ROOT, 'src', 'server.js')) ? join(ROOT, 'src') : join(dirname(ROOT), 'core')
+/** 上一份核心：新核心起不来时 recoverCore 会把它换回来，成功启动后删掉。 */
+const PREVIOUS_CORE = join(APP_DIR, 'core', 'previous')
+/** 起不来的核心版本（recoverCore 写）；下次启动挑核心时跳过它，避免下载 → 回退的死循环。 */
+const FAILED_CORE_MARK = join(APP_DIR, 'core', 'bootstrap.json')
+/** 源码运行（npm run electron）用仓库自己的核心；安装版不带核心，靠 setupCore 从 npm 取。 */
+const SOURCE_CORE = existsSync(join(ROOT, 'src', 'server.js')) ? join(ROOT, 'src') : ''
 /** 和 preload.cjs 的 IPC_CHANNEL 一致。 */
 const IPC_CHANNEL = 'dsh-x:ipc'
 /** 外壳 → 管理页：退出前的询问（preload.cjs 的 onMessage 收这条）。 */
@@ -171,36 +176,45 @@ function corePackage(dir) {
 }
 
 /**
- * 启动哪个核心：CLI 明确指定（DSH_CORE_DIR）→ 用户目录里更新过的 current → 安装包基线。
- * current 声明的 Electron 和当前外壳不一致（外壳升级换了运行时）时，退回基线并删掉 current，
- * 避免每次启动都加载一个对不上的核心。
+ * 启动哪个核心：CLI 明确指定（DSH_CORE_DIR）→ 源码运行用仓库的 src/ → 用户目录里的 core/current。
+ * 安装版不再内置核心：current 不存在或声明的 Electron 和当前外壳对不上时返回空，
+ * 由 setupCore 去 npm 取一份（外壳可以很久不更新，核心照发）。
  */
 function resolveCoreDir() {
   if (process.env.DSH_CORE_DIR) return process.env.DSH_CORE_DIR
   // 源码运行（npm run electron）用仓库自己的核心，不去碰用户目录里安装版更新的 core/current
-  if (!app.isPackaged && process.env.DSH_NPM !== '1') return BASELINE_CORE
-  if (!existsSync(join(ACTIVE_CORE, 'server.js'))) return BASELINE_CORE
+  if (!app.isPackaged && process.env.DSH_NPM !== '1') return SOURCE_CORE
+  if (!existsSync(join(ACTIVE_CORE, 'server.js'))) return ''
   const pkg = corePackage(ACTIVE_CORE)
   const electron = pkg?.dshX?.electron
   if (electron && String(electron) !== String(process.versions.electron)) {
-    try { rmSync(ACTIVE_CORE, { recursive: true, force: true }) } catch { /* 删不掉下次再试 */ }
-    return BASELINE_CORE
+    console.log(`核心是为 Electron ${electron} 构建的，当前外壳是 ${process.versions.electron}，重新下载`)
+    return ''
   }
   return ACTIVE_CORE
 }
 
 /**
- * 用户目录里的核心起不来：删掉它，重启回安装包基线。
+ * 用户目录里的核心起不来：记下版本、删掉它，重启；有上一份就换回来，没有就下次启动重新下载。
  * pendingOnly 用于 startServer 失败：只有「刚换上、还没成功启动过」的核心才回退，
  * 已经正常用过的 current 因为别的原因起不来（比如端口/设置）不该被删。
  */
-function recoverBaseline(coreDir, { pendingOnly = false } = {}) {
+function recoverCore(coreDir, { pendingOnly = false } = {}) {
   if (coreDir !== ACTIVE_CORE) return false
   const pending = join(APP_DIR, 'core', 'pending')
   if (pendingOnly && !existsSync(pending)) return false
+  // 记下「这个版本起不来」：下次挑核心时跳过它，否则会下载 → 起不来 → 回退 → 再下载地循环
+  try { writeFileSync(FAILED_CORE_MARK, readFileSync(pending)) } catch { /* 没有 pending 就不记 */ }
   try { rmSync(ACTIVE_CORE, { recursive: true, force: true }) } catch { /* ignore */ }
   try { rmSync(pending, { force: true }) } catch { /* ignore */ }
-  console.log('核心启动失败，回退到安装包内置版本')
+  let restored = false
+  try {
+    if (existsSync(PREVIOUS_CORE)) {
+      renameSync(PREVIOUS_CORE, ACTIVE_CORE)
+      restored = true
+    }
+  } catch { /* 换不回来就下次启动重新下载 */ }
+  console.log(restored ? '核心启动失败，回退到上一份核心' : '核心启动失败，下次启动重新下载')
   relaunchApp()
   return true
 }
@@ -378,6 +392,85 @@ async function managerRequest(path, { method = 'GET', timeout = 30_000 } = {}) {
   return data
 }
 
+// ---- 首次启动取核心 ----
+// 安装包里不再带核心：第一次启动（或核心和当前 Electron 对不上）就从 npm 取一份，
+// 装进用户目录的 core/current。代价是装完第一次启动需要联网——和 npm 版一致；
+// 之后核心自己走 npm 更新，外壳可以很久不发版。
+
+/** 下载窗口：这时候还没有管理页，至少把等待和进度说清楚。 */
+function showCoreSetupWindow() {
+  const window = new BrowserWindow({
+    width: 460,
+    height: 196,
+    resizable: false,
+    title: 'DSH-X',
+    // 和错误窗口一样：macOS 用 hiddenInset，Windows 用无边框（页面里没有关闭按钮，下载完自己关）
+    ...(IS_MAC ? { titleBarStyle: 'hiddenInset' } : { frame: false }),
+    backgroundColor: '#15171c',
+    webPreferences: { sandbox: true, contextIsolation: true },
+  })
+  // 下载途中被用户关掉就没必要继续：没有窗口的外壳只会留在后台
+  const close = { byUser: false }
+  window.on('closed', () => { if (!close.byUser) app.exit(1) })
+  window.loadURL(dataUrl(coreSetupPage(state.lang)))
+  return {
+    window,
+    finish() {
+      close.byUser = true
+      if (!window.isDestroyed()) window.destroy()
+    },
+  }
+}
+
+function updateCoreSetupProgress(window, done, total) {
+  if (!window || window.isDestroyed()) return
+  const percent = total ? Math.max(0, Math.min(100, Math.round((done / total) * 100))) : 0
+  const hint = state.lang === 'en' ? `Downloading dsh-x-core… ${percent}%` : `正在下载运行核心… ${percent}%`
+  window.webContents.executeJavaScript(
+    `(() => { const bar = document.getElementById('bar'); if (bar) bar.style.width = ${percent}%; const hint = document.getElementById('hint'); if (hint) hint.textContent = ${JSON.stringify(hint)}; })()`,
+  ).catch(() => { /* 窗口已经关了 */ })
+}
+
+/** 起不来的核心版本（recoverCore 写）；挑版本时跳过它，免得下载 → 回退 → 再下载。 */
+function failedCoreVersion() {
+  try { return String(JSON.parse(readFileSync(FAILED_CORE_MARK, 'utf8')).version || '') } catch { return '' }
+}
+
+/**
+ * 从 npm 取一份和当前 Electron 兼容的核心装进 core/current；返回核心目录，失败返回空。
+ * 通道跟着外壳版本走：正式版外壳取正式版核心，rc 外壳取 rc（没有 rc 时退回正式版）。
+ */
+async function setupCore() {
+  const setup = showCoreSetupWindow()
+  // 首启时还没有核心，读不到设置里的下载源/代理；用 Electron 的 net.fetch，至少跟随系统代理
+  const fetchImpl = (url, init) => net.fetch(url, init)
+  try {
+    const metadata = await fetchCoreMetadata(corePackageName(), { fetchImpl })
+    const release = pickCoreRelease(metadata, {
+      electron: process.versions.electron,
+      channel: channelOf(VERSION),
+      skip: [failedCoreVersion()].filter(Boolean),
+    })
+    if (!release) throw new Error(`npm 上没有和当前外壳（Electron ${process.versions.electron}）兼容的核心版本`)
+    console.log(`下载核心 ${release.version}（${corePackageName()}）`)
+    await installCore({
+      release,
+      target: ACTIVE_CORE,
+      previous: PREVIOUS_CORE,
+      fetchImpl,
+      onProgress: ({ done, total }) => updateCoreSetupProgress(setup.window, done, total),
+    })
+    console.log(`核心已就绪：${ACTIVE_CORE}（${release.version}）`)
+    return ACTIVE_CORE
+  } catch (error) {
+    setup.finish()
+    showStartupError('核心下载失败', '第一次启动需要从 npm 下载运行核心。', `${error?.message || error}\n\n检查网络后重新打开 DSH-X。`)
+    return ''
+  } finally {
+    setup.finish()
+  }
+}
+
 /** 核心（npm）自动更新：有更新就下（下载不打扰用户）；安装交给用户，不自动替换核心。 */
 async function autoUpdateTick() {
   if (!prefs.autoUpdate || !server || quitting || coreAutoBusy) return
@@ -432,7 +525,12 @@ async function start() {
   // Windows 的任务栏分组 / 通知要用 AppUserModelID；macOS 没有这个概念（bundle id 在 Info.plist 里）
   if (IS_WINDOWS) app.setAppUserModelId('io.github.yyh-001.dsh-x')
   if (IS_MAC) app.setAboutPanelOptions({ applicationName: 'DSH-X', applicationVersion: VERSION })
-  const coreDir = resolveCoreDir()
+  // 安装包里没有核心：第一次启动（或核心和当前 Electron 对不上）先下载，再启动管理服务
+  let coreDir = resolveCoreDir()
+  if (!coreDir) {
+    coreDir = await setupCore()
+    if (!coreDir) return
+  }
   // 核心按「打包态」运行：它不在 resources/app 里，但仍要按安装包路径处理更新和快捷方式。
   // 源码 `npm run electron` 不算打包态（PACKAGED 为 false），否则开发时也会去查 npm 核心更新。
   if (app.isPackaged || process.env.DSH_NPM === '1') process.env.DSH_CORE = '1'
@@ -463,8 +561,8 @@ async function start() {
   try {
     core = await import(pathToFileURL(join(coreDir, 'server.js')).href)
   } catch (error) {
-    // 用户目录里的核心坏到加载不了：删掉，重启回安装包基线；内置核心坏了只能报错
-    if (recoverBaseline(coreDir)) return
+    // 用户目录里的核心坏到加载不了：删掉、重启（有上一份就换回来，没有就重新下载）
+    if (recoverCore(coreDir)) return
     showStartupError('启动器核心缺失', '找不到或加载不了核心文件。', `${coreDir}\n${error?.stack || String(error)}`)
     return
   }
@@ -478,12 +576,13 @@ async function start() {
       return
     }
     // 刚换上的核心起不来才回退（pending 标记是核心更新写入的）；老 current 起不来按普通错误报
-    if (recoverBaseline(coreDir, { pendingOnly: true })) return
+    if (recoverCore(coreDir, { pendingOnly: true })) return
     showStartupError('dsh 服务启动失败', '管理页没能起来。', error?.stack || String(error))
     return
   }
-  // 核心已经成功启动：新版本通过验收，清掉「待验证」标记
+  // 核心已经成功启动：新版本通过验收，清掉「待验证」标记和回滚用的上一份
   try { rmSync(join(APP_DIR, 'core', 'pending'), { force: true }) } catch { /* ignore */ }
+  try { rmSync(PREVIOUS_CORE, { recursive: true, force: true }) } catch { /* ignore */ }
   updater = createUpdater({
     version: VERSION,
     onBeforeInstall: async () => {

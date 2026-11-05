@@ -44,6 +44,35 @@ export function errorPage(title, message, detail) {
 </div></body></html>`
 }
 
+/**
+ * 首次启动在下载核心：安装包里不再带核心，这张页把等待说清楚。
+ * 进度条由 main.mjs 用 executeJavaScript 更新（#bar 的宽度、#hint 的百分比）。
+ */
+export function coreSetupPage(lang) {
+  const en = lang === 'en'
+  const title = en ? 'Downloading the runtime core' : '正在下载运行核心'
+  const hint = en ? 'First launch: fetching dsh-x-core from npm (about 12 MB).' : '第一次启动：从 npm 取 dsh-x-core（约 12 MB）。'
+  return `<!doctype html>
+<html lang="${en ? 'en' : 'zh-CN'}"><head><meta charset="utf-8"><title>DSH-X</title><style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; display: flex; align-items: center; justify-content: center;
+         background: #15171c; color: #e7e9ee; font: 14px/1.6 -apple-system, "PingFang SC", sans-serif;
+         -webkit-user-select: none; user-select: none; }
+  .card { width: 100%; padding: 0 32px; text-align: center; }
+  h1 { margin: 0 0 8px; font-size: 15px; font-weight: 600; }
+  p { margin: 0 0 18px; color: #b9bec9; }
+  .track { height: 6px; border-radius: 3px; background: #262a33; overflow: hidden; }
+  .bar { height: 100%; width: 0; border-radius: 3px; background: #3b6cff; transition: width .2s ease; }
+</style></head>
+<body><div class="card">
+  <h1>${title}</h1>
+  <p id="hint">${hint}</p>
+  <div class="track"><div class="bar" id="bar"></div></div>
+</div></body></html>`
+}
+
 /** 独立 DSH 窗口在 dsh 没跑时显示的页：给「启动」和「打开管理页」两个按钮（走 window.ipc）。 */
 export function idlePage(lang) {
   const en = lang === 'en'

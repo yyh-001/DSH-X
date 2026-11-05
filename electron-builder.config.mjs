@@ -3,13 +3,14 @@ import { join } from 'node:path'
 /**
  * electron-builder 配置：外壳/Electron 的自更新交给 electron-updater。
  *
- * 安装包拆成两层：
+ * 安装包里只有外壳：
  * - resources/app（release/shell-stage）：外壳，版本 = shell/package.json
- * - resources/core（release/core-stage）：基线核心，版本 = package.json
+ * 核心（dsh-x-core）不在安装包里：第一次启动由外壳从 npm 取到用户目录的 core/current
+ * （见 shell/core-fetch.mjs），所以外壳可以很久不发版、核心照发。
  *
  * 两个通道各自更新自己那层：
  * - 外壳/Electron：electron-updater（NSIS/dmg），换整个安装包
- * - 核心：npm（core-npm.js），换用户目录的 core/current（外壳启动时优先加载它）
+ * - 核心：npm（core-npm.js），换用户目录的 core/current
  *
  * asar: false：dsh 子进程和 compat/perf 钩子要按真实路径读文件，asar 里读不到。
  * 签名：Windows 暂不签名（SmartScreen 会警告）；macOS 没有 Developer ID 时用 ad-hoc 签名
@@ -29,10 +30,6 @@ export default {
   asar: false,
   npmRebuild: false,
   files: ['**/*'],
-  extraResources: [
-    // 基线核心：首次启动 / 用户目录里的核心坏掉时用它
-    { from: 'release/core-stage', to: 'core' },
-  ],
   publish: [
     {
       provider: 'github',

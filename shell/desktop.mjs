@@ -4,7 +4,7 @@
  * 纯函数，node --test 直接测（见 test/shell-desktop.test.mjs）。真正的 Notification /
  * dialog / clipboard 调用留在 main.mjs——那些必须跑在 Electron 主进程里。
  *
- * 不 import 核心模块：外壳（resources/app）和核心（resources/core）是分开更新的两层，
+ * 不 import 核心模块：外壳（resources/app）和核心（用户目录的 core/current）是分开更新的两层，
  * 外壳目录里没有核心文件。请求清洗在核心的 desktop.js 里已经做过一遍，这里按外壳
  * 自己的开关和平台习惯再收一道。
  */

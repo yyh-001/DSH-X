@@ -1,6 +1,6 @@
 // 外壳/Electron 的自更新：electron-updater（NSIS / dmg）。
 //
-// 核心（resources/core 或用户目录的 core/current）由 npm 通道更新；这里只管安装包本身——
+// 核心（用户目录的 core/current）由 npm 通道更新；这里只管安装包本身——
 // Electron 版本、外壳窗口/托盘/更新器代码。状态通过 host 暴露给管理页，进度走 SSE shellUpdate 事件。
 
 import { app } from 'electron'

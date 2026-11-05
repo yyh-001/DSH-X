@@ -1,14 +1,14 @@
 // Windows/macOS/Linux 打包：electron-builder 出安装包（NSIS / dmg / AppImage），
 // 外壳自更新交给 electron-updater。
 //
-// 安装包拆成两层：
-// - release/shell-stage → resources/app：Electron 外壳（main/tray/updater/preload/tabs/model/pages）
-//   + electron-updater 依赖。外壳版本读 shell/package.json，只有 Electron/主进程/托盘/更新器
-//   变化时才需要发新安装包。
-// - release/core-stage → resources/core：基线核心（server.js、public、compat/perf/packs、node 包装）。
-//   核心另有 npm 通道（dsh-x-core-*），UI/服务端改动只发约 12MB 的 npm 包。
+// 安装包里只有外壳（release/shell-stage → resources/app）：Electron main/tray/updater/preload/tabs
+// + electron-updater 依赖。核心不再随安装包发——第一次启动由外壳从 npm 取 dsh-x-core，
+// 所以外壳可以很久不发版、核心照发。
 //
-// electron-builder 直接打包 shell-stage，并把 core-stage 作为 extraResources 放进 resources/core。
+// 核心层（release/core-stage）只在打 npm 核心包时才组装，见 --stage-only：
+//   node scripts/pack.mjs --stage-only && node scripts/pack-core.mjs
+//
+// electron-builder 直接打包 shell-stage。
 
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
@@ -111,7 +111,7 @@ async function copyNodeRuntime(nodeDir) {
   ].join('\r\n'))
 }
 
-/** 基线核心：安装包里的 resources/core，也是 npm 核心包的来源。 */
+/** 核心层：npm 核心包的来源（安装包里已经不再带它）。 */
 async function buildCoreStage() {
   await rm(CORE_STAGE, { recursive: true, force: true })
   await mkdir(CORE_STAGE, { recursive: true })
@@ -168,7 +168,11 @@ function buildInstaller() {
   console.log(`安装包输出：${join(ROOT, 'release', 'eb')}`)
 }
 
-await ensureNode()
-await buildCoreStage()
-await buildShellStage()
-buildInstaller()
+if (process.argv.includes('--stage-only')) {
+  await ensureNode()
+  await buildCoreStage()
+  console.log('--stage-only：只组装核心层，不出安装包')
+} else {
+  await buildShellStage()
+  buildInstaller()
+}

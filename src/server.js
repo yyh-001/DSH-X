@@ -3262,8 +3262,8 @@ async function applyAppUpdate() {
     setTimeout(() => shutdown().finally(() => host.exit(0)), 200)
     return { ok: true, version: stagedApp.version }
   }
-  // 内置基线：复制到用户目录，写 pending 标记；外壳下次启动优先加载 current，
-  // 起不来（外壳里的 recoverBaseline）会删掉 current 回退到基线
+  // 核心不在用户目录（源码运行 / 旧布局）：复制到 core/current，写 pending 标记；
+  // 外壳下次启动优先加载 current，起不来（外壳里的 recoverCore）会删掉它并回滚/重新下载
   const pending = join(APP_DIR, 'core', 'pending')
   const version = stagedApp.version
   const stagedDir = stagedApp.dir
@@ -6572,7 +6572,7 @@ async function handleApi(req, res, url) {
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/self/app-apply') {
-    // 核心增量：内置基线 → 复制到用户目录 core/current，重启外壳（外壳优先加载它）；
+    // 核心增量：核心不在用户目录 → 复制到 core/current，重启外壳（外壳优先加载它）；
     // 已经在 core/current → 替换助手等外壳退出后原地换目录，失败回滚。
     try {
       // 已经开过一次（连点两下或两个标签页同时点）：重复替换会把刚换好的目录再挪一遍
@@ -7660,7 +7660,7 @@ export async function startServer() {
     // 给应用层增量更新的替换助手留一个「新版本启动成功」的标记
     try { writeFileSync(join(APP_DIR, 'update-ok'), String(Date.now())) } catch { /* 标记写不了不影响启动 */ }
     // 版本更新后刷新快捷方式图标（图标文件名带版本号，快捷方式还指着旧文件）。
-    // 拆包后核心在 resources/core / 用户目录里，安装根目录的快捷方式由外壳安装包负责，核心不再碰。
+    // 拆包后核心在用户目录里，安装根目录的快捷方式由外壳安装包负责，核心不再碰。
     if (process.env.DSH_CORE !== '1') void refreshShortcuts().catch(() => {})
     pushLog(`版本目录 ${DATA}`)
     pushLog(`DSH_HOME ${homeDir()}`)

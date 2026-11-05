@@ -20,7 +20,7 @@ export const IS_LINUX = process.platform === 'linux'
 export const IN_ELECTRON = Boolean(process.versions.electron)
 
 /**
- * 打包后的核心：跑在安装包里（resources/core）或用户目录的 core/current。
+ * 打包后的核心：跑在用户目录的 core/current（安装包里不再带核心）。
  * 外壳（shell/main.mjs）加载核心前会设 DSH_CORE=1——核心不在 resources/app 里，
  * 但路径和更新行为都要按安装包处理。
  */

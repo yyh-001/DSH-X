@@ -13,6 +13,7 @@
     "start": "node src/start.js",
     "server": "node src/server.js",
     "electron": "electron shell/main.mjs",
+    "stage:core": "node scripts/pack.mjs --stage-only",
     "test": "node --test",
     "dist": "node scripts/pack.mjs",
     "release:manifest": "node scripts/release-manifest.mjs make",

@@ -1,0 +1,61 @@
+// shell/core-fetch.mjs 的纯逻辑：版本比较、通道判断、挑和当前 Electron 兼容的核心。
+
+import assert from 'node:assert/strict'
+import test from 'node:test'
+
+import { channelOf, compareVersions, pickCoreRelease } from '../shell/core-fetch.mjs'
+
+const metadata = {
+  'dist-tags': { latest: '0.1.30', rc: '0.1.31-rc.2' },
+  versions: {
+    '0.1.28': { dist: { tarball: 'https://example.test/0.1.28.tgz', integrity: 'sha512-a' }, dshX: { electron: '44.7.0' } },
+    '0.1.29': { dist: { tarball: 'https://example.test/0.1.29.tgz', integrity: 'sha512-b' }, dshX: { electron: '44.7.0' } },
+    '0.1.30': { dist: { tarball: 'https://example.test/0.1.30.tgz', integrity: 'sha512-c' }, dshX: { electron: '45.0.0' } },
+    '0.1.31-rc.1': { dist: { tarball: 'https://example.test/0.1.31-rc.1.tgz' }, dshX: { electron: '44.7.0' } },
+  },
+}
+
+test('版本比较：数字段、预发布、rc 序号', () => {
+  assert.equal(compareVersions('0.1.29', '0.1.28'), 1)
+  assert.equal(compareVersions('0.1.29', '0.1.29'), 0)
+  assert.equal(compareVersions('0.1.30-rc.1', '0.1.30'), -1)
+  assert.equal(compareVersions('0.1.30', '0.1.30-rc.1'), 1)
+  assert.equal(compareVersions('0.1.30-rc.10', '0.1.30-rc.9'), 1)
+  assert.equal(compareVersions('1.0.0', '0.99.99'), 1)
+})
+
+test('通道跟着版本号：正式版 latest，预发布取前缀', () => {
+  assert.equal(channelOf('0.1.26'), 'latest')
+  assert.equal(channelOf('0.1.26-rc.1'), 'rc')
+  assert.equal(channelOf('0.1.26-alpha.3'), 'alpha')
+})
+
+test('挑核心：跳过 Electron 对不上的 dist-tag 头部，往下找兼容的', () => {
+  const picked = pickCoreRelease(metadata, { electron: '44.7.0', channel: 'latest' })
+  assert.equal(picked.version, '0.1.29', '0.1.30 要 Electron 45，正式版外壳应该停在 0.1.29')
+  assert.equal(picked.tarball, 'https://example.test/0.1.29.tgz')
+  assert.equal(picked.integrity, 'sha512-b')
+})
+
+test('挑核心：rc 外壳优先 rc，没有 rc 版本时退回正式版', () => {
+  const rc = pickCoreRelease(metadata, { electron: '44.7.0', channel: 'rc' })
+  assert.equal(rc.version, '0.1.31-rc.1')
+  const { '0.1.31-rc.1': _rc, ...stable } = metadata.versions
+  const stableOnly = pickCoreRelease({ versions: stable }, { electron: '44.7.0', channel: 'rc' })
+  assert.equal(stableOnly.version, '0.1.29', '没有 rc 版本时用兼容的正式版')
+})
+
+test('挑核心：跳过起不来的版本；没有兼容版本时返回 null', () => {
+  const picked = pickCoreRelease(metadata, { electron: '44.7.0', channel: 'latest', skip: ['0.1.29'] })
+  assert.equal(picked.version, '0.1.28')
+  assert.equal(pickCoreRelease(metadata, { electron: '99.0.0', channel: 'latest' }), null)
+})
+
+test('核心包没声明 dshX.electron 时按兼容处理', () => {
+  const picked = pickCoreRelease({
+    versions: {
+      '0.2.0': { dist: { tarball: 'https://example.test/0.2.0.tgz' } },
+    },
+  }, { electron: '44.7.0', channel: 'latest' })
+  assert.equal(picked.version, '0.2.0')
+})
