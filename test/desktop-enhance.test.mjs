@@ -1,8 +1,8 @@
 /**
- * 设置 → 常规 → 桌面增强：右侧「一键安装」把三个首方插件装进当前 profile。
+ * 桌面增强：三个首方插件跟着启动项走（新建时勾选、编辑时按 profile 回显并可补装）。
  *
- * 和以前「启动时自动补装」的区别：不点不装，装完在 dsh 插件页单独开关。
- * 这里按仓库惯例做结构检查（真装插件要跑 pnpm，单测不碰网络）。
+ * 和以前「设置页一键安装」的区别：入口在启动项弹窗里，装到哪个 profile 由启动项决定，
+ * 构建隔离环境时顺手带上。这里按仓库惯例做结构检查（真装插件要跑 pnpm，单测不碰网络）。
  */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -30,33 +30,67 @@ test('插件列表里以一组「整合包」显示（合成记录，不碰真�
 
 test('安装 / 卸载两条路由：只动缺的或装了的那几个，版本不对的给失败信息', () => {
   assert.match(server, /url\.pathname === '\/api\/desktop-enhance\/install'/)
+  assert.match(server, /async function installDesktopEnhance\(profile = PROFILE_NAME, version = ''\)/)
   assert.match(server, /const wanted = desktopEnhanceMissing\(profile\)/)
-  assert.match(server, /await addPlugin\(version, `\$\{plugin\.name\}@\$\{plugin\.spec\}`, \{ profile \}\)/)
-  assert.match(server, /versionAtLeast\(version, plugin\.minDsh\)/, '内核版本不够时跳过并报原因')
+  assert.match(server, /await addPlugin\(ver, `\$\{plugin\.name\}@\$\{plugin\.spec\}`, \{ profile \}\)/, '装法和插件页同一条链路')
+  assert.match(server, /versionAtLeast\(ver, plugin\.minDsh\)/, '内核版本不够时跳过并报原因')
   assert.match(server, /desktopEnhance: desktopEnhanceSummary\(profile\)/, '响应里带安装进度')
   assert.match(server, /url\.pathname === '\/api\/desktop-enhance\/uninstall'/, '一键卸载路由')
   assert.match(server, /runPluginCommand\(version, \['remove', plugin\.name\]/, '走 dsh plugin remove')
   assert.match(server, /removeBundleMounted\(profileDirOf\(profile\), \[plugin\.name\]\)/, '同时从层栈摘掉')
 })
 
-test('设置接口回显安装进度（设置页按钮据此显示安装 / 已安装）', () => {
-  assert.match(server, /desktopEnhance: desktopEnhanceSummary\(\)/)
-  assert.match(server, /function desktopEnhanceSummary\(profile = PROFILE_NAME\)/)
+test('启动项保存后补装，编辑时可以单独查这个 profile 装了几个', () => {
+  // 写锁放掉之后再装：装插件慢不该卡住别的启动项编辑。
+  assert.match(server, /body\.desktopEnhance === true/)
+  assert.match(server, /saved\.desktopEnhance = await launchScope\.run\(\{ home \}, \(\) => installDesktopEnhance\(saved\.entry\.profile\)\)/)
+  // 状态接口按 profile 查，home 走 x-dsh-home 头（会话隔离/项目环境也能读对）。
+  assert.match(server, /req\.method === 'GET' && url\.pathname === '\/api\/desktop-enhance'/)
+  assert.match(server, /missing: desktopEnhanceMissing\(profile\)\.map\(\(plugin\) => plugin\.name\)/)
 })
 
-test('设置页：桌面增强一块 + 右侧安装按钮 + 中英文案', () => {
-  assert.match(page, /data-i18n="桌面增强"/)
-  assert.match(page, /id="desktopEnhanceInstall" type="button"><span class="desktop-enhance-label" data-i18n="一键安装">/)
-  assert.match(page, /function showDesktopEnhance\(state\)/)
-  assert.match(page, /desktopEnhanceLabelEl\.textContent = desktopEnhanceDone \? t\('一键卸载'\) : t\('一键安装'\)/)
-  assert.match(page, /desktopEnhanceEl\.classList\.add\('loading'\)/, '安装 / 卸载时按钮转圈')
-  assert.match(css, /#desktopEnhanceInstall\.loading \.desktop-enhance-label \{ visibility: hidden; \}/, '转圈时藏文字')
-  assert.match(page, /await appConfirm\(/, '卸载前先确认（样式化弹窗，不是原生 alert）')
-  assert.match(page, /post\(uninstall \? '\/api\/desktop-enhance\/uninstall' : '\/api\/desktop-enhance\/install', \{\}\)/)
+test('启动项弹窗：开关 + 说明 + 保存时带上；设置页那块已经撤掉', () => {
+  assert.match(page, /id="launchDesktopEnhance" type="checkbox"/)
+  assert.match(page, /data-i18n="桌面增强">桌面增强/)
+  assert.match(page, /id="launchDesktopEnhanceHint"/)
+  // 说明不占一行：收进标题旁的问号，悬停/聚焦才显示
+  assert.match(page, /class="launch-enhance-help"[\s\S]{0,160}>\?<\/span>/)
+  assert.match(page, /class="launch-enhance-tip"[\s\S]{0,220}下次启动时加载/)
+  assert.match(css, /\.launch-enhance-help:hover \+ \.launch-enhance-tip/)
+  assert.doesNotMatch(page, /function launchDesktopEnhanceHintText/)
+  // 新建一律不勾；编辑只看 profile 实际装没装（装齐了就勾上），界面上不写「已安装 x/3」
+  const pageLf = page.replace(/\r\n/g, '\n')
+  assert.match(pageLf, /launchDesktopEnhanceEl\.checked = false\n      launchDesktopEnhanceHintEl\.textContent = ''/)
+  assert.match(page, /if \(entry\) void refreshLaunchDesktopEnhance\(entry\)/)
+  assert.match(page, /function refreshLaunchDesktopEnhance\(entry\)/)
+  assert.match(page, /getJson\(`\/api\/desktop-enhance\?profile=\$\{encodeURIComponent\(entry\.profile\)\}`/)
+  assert.doesNotMatch(page, /已安装 \{installed\}/, '安装数不再写进界面')
+  assert.doesNotMatch(page, /正在读取安装状态/)
+  // 保存只发一个布尔；取消勾选不会卸载，服务端只补缺的
+  assert.match(page, /desktopEnhance: launchDesktopEnhanceEl\.checked/)
+  assert.match(page, /data\.desktopEnhance\?\.failed/)
+  // 旧设置页入口整套撤掉：按钮、说明行、转圈样式
+  assert.doesNotMatch(page, /id="desktopEnhanceInstall"/)
+  assert.doesNotMatch(page, /id="desktopEnhanceHint"/)
+  assert.doesNotMatch(css, /#desktopEnhanceInstall/)
+  // 设置接口不再回显当前 profile 的进度（状态改由启动项弹窗按 profile 查）
+  assert.doesNotMatch(server, /desktopEnhance: desktopEnhanceSummary\(\),/)
   const dict = new Function(`return (${page.match(/const EN = (\{[\s\S]*?\n\})/)[1]})`)()
-  for (const key of ['桌面增强', '安装桌面增强', '一键安装', '一键卸载', '正在安装…', '正在卸载…', '已安装', '操作失败：{error}']) {
+  for (const key of [
+    '桌面增强', '正在保存并安装桌面增强…',
+    '启动项已保存，但桌面增强有 {n} 个没装上：{error}',
+    '保存时把三个官方插件（原生通知、右键菜单、侧栏浏览器）装进这个环境；下次启动时加载，正在运行的环境重启后生效。',
+  ]) {
     assert.ok(dict[key], `「${key}」有英文`)
   }
+})
+
+test('桌面增强不再记住上次的勾选：设置里没有这个键，新建永远从「不勾」开始', () => {
+  assert.doesNotMatch(settings, /launchDesktopEnhance/, '设置里不再存这个默认值')
+  assert.doesNotMatch(server, /launchDesktopEnhance: stored/)
+  assert.doesNotMatch(page, /launchDesktopEnhanceSaved/, '页面上也不再有「上次的勾选」')
+  assert.doesNotMatch(page, /queueSetting\('launchDesktopEnhance'/, '勾选不再写回设置')
+  assert.match(page, /\/\/ 桌面增强：新建一律不勾/, '新建固定不勾')
 })
 
 test('右键菜单 / 浏览器控制不再有独立开关：只有安装 + 插件页开关', () => {

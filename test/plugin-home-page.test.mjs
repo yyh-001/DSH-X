@@ -29,6 +29,7 @@ function panel() {
   vm.runInContext(section('    function applyPluginPayload(data)', '    const recoveryHintEl ='), context)
   vm.runInContext(section('    function loadPlugins(', '    function pluginButtons()'), context)
   vm.runInContext(section('    const scopedLaunchId =', '    const post ='), context)
+  vm.runInContext(section('    function applyHomes(', '    /** 左栏的「+ 添加目录」'), context)
   return { context, nodes, pending }
 }
 
@@ -136,6 +137,51 @@ test('删除最后一个 Profile 后保留目录选择；打开、关闭启动�
   assert.equal(c.packState.packs.length, 0)
 })
 
+test('插件更新期间也能关掉启动项的插件弹窗，更新在后台跑；其它占用仍挡住', async () => {
+  const { context: c, nodes } = panel()
+  nodes['pane-plugins'] = { append() {} }
+  let loads = 0
+  Object.assign(c, {
+    launchPluginsDialogEl: { hidden: false, dataset: {} }, launchPluginsCardEl: { classList: { remove() {} } },
+    pluginPanelEl: {}, pluginDialogRequest: 1, pluginDialogLoading: false, pluginDialogOrigin: null,
+    closeUiSelect() {}, hideDialog: async () => true, closePack() {}, launchAddEl: { focus() {} },
+    loadPlugins: async () => { loads += 1 },
+  })
+  vm.runInContext(section('    async function closeLaunchPlugins(', "    document.getElementById('launchPluginsClose')"), c)
+
+  // 单个更新：pluginUpdating 有值、packBusy 还是 false，也必须能关。
+  c.pluginLaunchEntry = { profile: 'web' }
+  c.launchPluginScope = 'entry-update'
+  c.pluginUpdating = 'alpha'
+  c.pluginUpdatingProfile = 'web'
+  await c.closeLaunchPlugins()
+  assert.equal(loads, 1, '关掉弹窗后回到环境页，更新不打断')
+  assert.equal(c.launchPluginScope, '')
+
+  // 更新 N 个走 updatePack，packBusy 与 pluginUpdating 同时在；这也是更新，不能挡。
+  c.launchPluginScope = 'entry-update-all'
+  c.packBusy = true
+  c.pluginUpdating = '*'
+  await c.closeLaunchPlugins()
+  assert.equal(loads, 2)
+
+  // 删 Profile / 修复 / 还原这类 packBusy 不是更新，仍不能中途抽走列表。
+  c.launchPluginScope = 'entry-other'
+  c.packBusy = true
+  c.pluginUpdating = ''
+  await c.closeLaunchPlugins()
+  assert.equal(loads, 2, '非更新的 packBusy 照旧挡住关闭')
+  assert.equal(c.launchPluginScope, 'entry-other')
+
+  // 开关请求还没回来时也不跟着插件更新一起放行。
+  c.packBusy = false
+  c.pluginUpdating = 'alpha'
+  c.pluginTogglePending.set('web:beta', { enabled: false })
+  await c.closeLaunchPlugins()
+  assert.equal(loads, 2, '开关还在落盘时仍挡住')
+  c.pluginTogglePending.clear()
+})
+
 test('登记目录进入下拉列表；添加取消、失败和移除当前目录不会留下错误状态', async () => {
   const { context: c, nodes } = panel()
   c.state.dshHomes = ['E:/saved']
@@ -143,15 +189,17 @@ test('登记目录进入下拉列表；添加取消、失败和移除当前目�
   c.paintPluginHomes()
   assert.match(nodes.pluginHome.innerHTML, /E:\/saved/)
   const calls = []
-  c.post = async (path) => { calls.push(path); return { path: '' } }
+  // 选择器换了入口（外壳在跑就走原生对话框）：这里直接桩返回，只验证加/删目录那条链路
+  c.pickDirectoryPath = async () => { calls.push('pick'); return { canceled: true, path: '' } }
   await c.changePluginHomeList('add')
-  assert.deepEqual(calls, ['/api/pick-dir'])
+  assert.deepEqual(calls, ['pick'])
   assert.equal(nodes.pluginHomesAdd.disabled, false)
-  c.post = async () => { throw new Error('picker failure') }
+  c.pickDirectoryPath = async () => ({ canceled: true, path: '', error: 'picker failure' })
   await c.changePluginHomeList('add')
   assert.equal(nodes.pluginHomesError.textContent, 'picker failure')
   assert.equal(nodes.pluginHomesError.hidden, false)
-  c.post = async (path, body) => path === '/api/pick-dir' ? { path: 'E:/新目录' } : { dshHomes: ['E:/saved', body.home] }
+  c.pickDirectoryPath = async () => ({ canceled: false, path: 'E:/新目录' })
+  c.post = async (path, body) => ({ dshHomes: ['E:/saved', body.home] })
   await c.changePluginHomeList('add')
   assert.match(nodes.pluginHome.innerHTML, /E:\/新目录/)
   assert.equal(nodes.pluginHomesError.hidden, true)

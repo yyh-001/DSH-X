@@ -4,7 +4,7 @@ import { join } from 'node:path'
 /**
  * Electron 运行时瘦身：砍掉用不上的东西再打包。
  *
- * 为什么值得做：Electron 44（Chromium 141）自带的 locale.pak 从「每种语言一份」变成
+ * 为什么值得做：Electron 44（Chromium 152）自带的 locale.pak 从「每种语言一份」变成
  * 「每种语言 × 语法性别（FEMININE/MASCULINE/NEUTER）」——mac 包里 .lproj 有 659 个目录、
  * 约 48 MB，而我们的界面只有中文和英文；另外 libvk_swiftshader 是「没有 GPU 时用 CPU 跑
  * Vulkan」的兜底，正常机器都有 Metal / D3D，只有极端环境（部分虚拟机、强制禁用 GPU）才用得到。

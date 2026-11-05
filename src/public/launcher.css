@@ -673,16 +673,30 @@ html.reduce-motion .launch-status.is-working::before { animation: none; }
 .launch-modal-fields { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 18px; margin: -2px; padding: 2px; flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; }
 #launchDialog .home-field > label { font-size: 12px; letter-spacing: 0; }
 .toggle.launch-auto-launch { margin: 0; font-size: 12px; }
-/* 折叠里的自动启动开关：跟上面字段拉开一点，别贴着说明行 */
-.launch-isolation-advanced-fields .launch-auto-launch { margin-top: 2px; }
-/* 目录那一行：输入框 + 「选择…」图标按钮。按钮不许被输入框挤扁，窄屏上也要还在右边 */
-.launch-path-row { display: flex; align-items: center; gap: 8px; }
-.launch-path-row input { min-width: 0; flex: 1; }
-.launch-path-row .icon-btn { flex: 0 0 auto; }
-/* 项目目录的说明只在填了东西时才有意义，空着别占一行高度 */
-#launchWorkdirHint:empty { display: none; }
-/* 复制来源两行叠着放：目录 + Profile，选起来不用横着找 */
-#launchCopyAdvancedPanel .launch-isolation-advanced-fields { display: grid; gap: 8px; }
+/* 引导块里的自动启动开关：跟上面两档 tab 的面板拉开一点，别贴着输入框 */
+.launch-guide .launch-auto-launch { margin-top: 2px; }
+/* 桌面增强：三种档位共用一个开关；说明收进「?」，下面那行只给编辑时的安装状态（已装 x/3） */
+.launch-desktop-enhance { display: grid; gap: 6px; }
+.launch-desktop-enhance .hint { margin: 0; }
+#launchDesktopEnhanceHint:empty { display: none; }
+.launch-enhance-label { position: relative; display: inline-flex; align-items: center; gap: 6px; min-width: 0; line-height: 1; }
+/* 表单里的 label 默认带 8px 下边距和 0.08em 字距、灰字色；不清掉会把问号撑到比文字低 4px，
+   这一行也会跟「打开启动器时启动」对不上——那行是裸 span，直接吃 .toggle 的正文色 */
+.launch-enhance-label label { margin: 0; color: inherit; font-size: inherit; letter-spacing: 0; }
+.launch-enhance-help { display: inline-grid; place-items: center; box-sizing: border-box; width: 13px; height: 13px; flex: 0 0 13px; border: 1px solid var(--line); border-radius: 50%; color: var(--muted); font-size: 9px; font-weight: 600; line-height: 1; cursor: help; user-select: none; }
+.launch-enhance-help:hover, .launch-enhance-help:focus-visible { color: var(--accent); border-color: var(--accent); }
+.launch-enhance-help:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
+.launch-enhance-tip {
+  position: absolute; z-index: 6; left: 0; bottom: calc(100% + 8px);
+  width: max-content; max-width: min(280px, calc(100vw - 96px));
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: 9px;
+  background: var(--card); box-shadow: 0 8px 24px rgba(22, 35, 61, .16);
+  color: var(--muted); font-size: 11.5px; line-height: 1.55; letter-spacing: 0; text-align: left; white-space: normal;
+  opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 120ms ease;
+}
+.launch-enhance-help:hover + .launch-enhance-tip,
+.launch-enhance-help:focus-visible + .launch-enhance-tip { opacity: 1; visibility: visible; }
+html.reduce-motion .launch-enhance-tip { transition: none; }
 /* 更新提醒跟版本下拉同一行：窄到放不下时整块换到下一行，两边的控件才对得齐。
    版本类型给固定宽度，把开关和档名装进一个有边框的控件盒——跟下拉同高同圆角，读起来是一个设置项，
    而不是飘在右上角的两粒零件；剩下的宽度都留给版本。 */
@@ -720,34 +734,116 @@ html.reduce-motion .launch-status.is-working::before { animation: none; }
 /* 换档时说明行淡入，文字别硬跳 */
 #launchIsolationHint.isolation-hint-in { animation: launch-isolation-hint-in 200ms cubic-bezier(.22,.61,.36,1) both; }
 @keyframes launch-isolation-hint-in { from { opacity: 0; transform: translateY(-2px); } }
-/* ---- 前两档下面的折叠：默认收起 = 什么都不用填，展开再指定名字/目录 ---- */
-/* 做成一条浅色小横条（跟 tab 底槽同色），比虚线框安静，展开后才在里面长出一块表单；
-   开合由 setLaunchAdvanced 做高度动画，箭头同步转 180°，跟仓库其它折叠的箭头方向一致。 */
-.launch-isolation-advanced { border-radius: 12px; background: var(--accent-soft); overflow: hidden; transition: box-shadow 160ms ease; }
-.launch-isolation-advanced[hidden] { display: none; }
-.launch-isolation-advanced:hover { box-shadow: inset 0 0 0 1px var(--line); }
-.launch-isolation-advanced.is-open { box-shadow: none; }
-.launch-isolation-advanced-toggle { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 12px; border: 0; border-radius: 12px; background: transparent; color: var(--muted); font-family: inherit; font-size: 12px; font-weight: 500; text-align: left; cursor: pointer; transition: color 160ms ease; }
-.launch-isolation-advanced-toggle:hover { color: var(--text); }
-.launch-isolation-advanced-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 10px; }
-.launch-isolation-advanced-label { flex: 1; min-width: 0; }
-.launch-isolation-advanced-chevron { width: 14px; height: 14px; flex: 0 0 auto; transition: transform 220ms cubic-bezier(.22, .61, .36, 1); }
-.launch-isolation-advanced.is-open .launch-isolation-advanced-chevron { transform: rotate(180deg); }
-.launch-isolation-advanced-panel { overflow: hidden; }
-.launch-isolation-advanced-panel[hidden] { display: none; }
-.launch-isolation-advanced-fields { display: grid; gap: 10px; padding: 0 12px 10px; }
-/* 折叠里的目录下拉也是 createUiSelect 包出来的，而 .ui-select 默认只有 148px 宽（给设置页那种小行用），
-   放在这个网格里会缩成一小截；这里让它跟下面的输入框一样占满。 */
-.launch-isolation-advanced-fields .ui-select { width: 100%; }
+/* ---- 前两档下面的引导块：目标目录（只有会话隔离有）+ 两档 tab（自己起名 / 照抄一份） ---- */
+/* 以前是上下叠着的两条折叠横条，现在换成第二排胶囊：同一时间只露一块，不用滚也不用猜哪块开着。
+   样式跟上面三档共用一套，只把浮块从等分三份改成等分两份（--pair）。 */
+.launch-guide { display: grid; gap: 8px; }
+.launch-guide[hidden] { display: none; }
+.launch-guide-dir[hidden] { display: none; }
+/* 目标目录下拉也是 createUiSelect 包出来的，而 .ui-select 默认只有 148px 宽（给设置页那种小行用），
+   放在这里会缩成一小截；让它跟下面的输入框一样占满。 */
+.launch-guide .ui-select { width: 100%; }
+/* 浮块宽度 = 等分两份：底槽内宽 100% - 两侧 padding 8px - 一道 gap 2px，再除以 2。
+   data-active 的值（name / copy）跟上面三档的（profile / home / custom）错开，免得撞上那几条平移。 */
+.launch-isolation-tabs--pair::after { width: calc((100% - 10px) / 2); }
+.launch-isolation-tabs--pair[data-active="copy"]::after { transform: translateX(calc(100% + 2px)); }
+/* 两档各自的面板：输入框 / 下拉一行一个，跟 tab 底槽同宽；切 tab 时淡入落位，切回来不闪 */
+.launch-source-panel { display: grid; gap: 8px; }
+.launch-source-panel[hidden] { display: none; }
+.launch-source-panel:not([hidden]) { animation: launch-source-in 160ms cubic-bezier(.22,.61,.36,1) both; }
+@keyframes launch-source-in { from { opacity: 0; transform: translateY(-2px); } }
+/* 复制来源那行触发器：没选过时用灰字，跟原生下拉的占位一个观感 */
+#launchDialog .select-trigger.is-placeholder .select-value { color: var(--muted); }
+/* 自定义档的用户目录 + Profile 都换成了选择窗触发器：底下那两个真下拉和包装器一起藏起来
+   （它们仍是唯一真相源，回填和保存都读它们） */
+#launchEnvField .ui-select, #launchEnvField > select { display: none; }
+/* ---- 选 Profile：三栏选择窗（用户目录 / Profile / 插件） ---- */
+/* 跟资源管理器一个路子：左目录、中 Profile、右它装了什么，点两下就选定。每栏各自滚动，
+   弹窗高度锁在视口里，短窗口下只有列表滚、标题和按钮不动。 */
+.profile-pick { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 200px 220px minmax(0, 1fr); gap: 14px; }
+.profile-pick-col { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 6px; min-width: 0; min-height: 0; }
+.profile-pick-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; }
+.profile-pick-caption { color: var(--muted); font-size: 12px; font-weight: 500; }
+.profile-pick-tools { display: inline-flex; align-items: center; gap: 4px; }
+/* 栏头工具按钮照主页启动项卡片那套：卡片色底 + 细边、34px 圆角方块，悬停才泛蓝。
+   选择器带上 .profile-pick，否则会被后面 .icon-btn 的 46px 默认尺寸盖掉。 */
+.profile-pick .profile-pick-tool {
+  width: 34px; height: 34px; padding: 8px; border: 1px solid var(--line); border-radius: 9px;
+  background: var(--card); color: var(--muted);
+}
+.profile-pick .profile-pick-tool svg { width: 18px; height: 18px; }
+.profile-pick .profile-pick-tool:hover:not(:disabled) { background: var(--accent-soft); border-color: #b9ccf0; color: var(--text); }
+.profile-pick .profile-pick-tool:disabled { opacity: .45; cursor: default; }
+/* 行尾动作照主页行内的编辑钮：无框透明，悬停才铺一层浅色 */
+.profile-pick .profile-pick-action {
+  width: 32px; height: 32px; padding: 7px; border: 0; border-radius: 8px;
+  background: transparent; color: var(--muted);
+}
+.profile-pick .profile-pick-action svg { width: 18px; height: 18px; }
+.profile-pick .profile-pick-action:hover:not(:disabled) { background: var(--accent-soft); color: var(--text); }
+.profile-pick .profile-pick-action:disabled { opacity: .4; cursor: default; }
+.profile-pick .profile-pick-action.danger:hover:not(:disabled) { background: #fff1f2; color: #e5484d; }
+.profile-pick-meta { color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.profile-pick-list { min-height: 220px; max-height: min(420px, calc(100dvh - 340px)); overflow-y: auto; display: grid; align-content: start; gap: 2px; padding: 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface, var(--card)); scrollbar-width: thin; }
+/* 一行 = 可点的正文 + 行尾动作；正文是按钮，动作用 icon-btn（按钮里不能再套按钮） */
+.profile-pick-row { position: relative; display: flex; align-items: center; gap: 4px; border-radius: 9px; color: var(--text); font-size: 13px;
+  transition: background-color 140ms ease, color 140ms ease; }
+.profile-pick-row:hover { background: var(--accent-soft); }
+.profile-pick-row.is-selected { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.profile-pick-row.is-blocked { opacity: .55; }
+.profile-pick-row.is-blocked .profile-pick-hit { cursor: default; }
+.profile-pick-hit { display: flex; align-items: center; gap: 8px; flex: 1 1 auto; min-width: 0; padding: 8px 10px; border: 0; border-radius: 9px; background: transparent; color: inherit; font: inherit; font-weight: inherit; text-align: left; cursor: pointer; transition: color 140ms ease; }
+.profile-pick-hit:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.profile-pick-hit:disabled { cursor: default; }
+.profile-pick-icon { display: inline-grid; place-items: center; width: 16px; height: 16px; flex: 0 0 16px; color: var(--muted); }
+.profile-pick-icon svg { width: 16px; height: 16px; }
+.profile-pick-text { display: grid; gap: 2px; min-width: 0; }
+.profile-pick-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile-pick-sub { color: var(--muted); font-size: 11.5px; font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile-pick-row.is-selected .profile-pick-sub { color: inherit; opacity: .85; }
+/* 行尾动作只在悬停/选中/键盘焦点时亮出来，平时让名字占满整行；尺寸和悬停样式见上面那组 */
+/* 行尾动作悬在行的右端（不占正文宽度，名字才能写全）：底色跟行的悬停色一致，
+   只在悬停/选中/键盘焦点时露出来 */
+.profile-pick-actions { position: absolute; right: 3px; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; gap: 2px; padding: 0 2px; border-radius: 9px; background: inherit; opacity: 0; transition: opacity 120ms ease; }
+.profile-pick-row:hover .profile-pick-actions,
+.profile-pick-row.is-selected .profile-pick-actions,
+.profile-pick-row:focus-within .profile-pick-actions { opacity: 1; }
+.profile-pick-note { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px; color: var(--muted); font-size: 12px; }
+/* 换目录 / 换 Profile 时列表整块重铺：淡入落位一下，别硬跳（JS 里 replayListMotion 重播） */
+@keyframes profile-pick-refresh { from { opacity: .35; transform: translateY(-2px); } }
+.profile-pick-list.is-refreshed, .profile-detail-list.is-refreshed { animation: profile-pick-refresh 160ms cubic-bezier(.22,.61,.36,1) both; }
+html.reduce-motion .profile-pick-list.is-refreshed,
+html.reduce-motion .profile-detail-list.is-refreshed,
+html.reduce-motion .profile-pick-row { transition: none; animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .profile-pick-list.is-refreshed, .profile-detail-list.is-refreshed { animation: none; }
+  .profile-pick-row, .profile-pick-hit { transition: none; }
+}
+/* 详情栏：插件一行一个，名字占满、版本靠右，关掉的那份整行压暗 */
+.profile-detail-row { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 9px; font-size: 13px; }
+.profile-detail-row:nth-child(odd) { background: rgba(22, 35, 61, .03); }
+.profile-detail-row.is-off { opacity: .55; }
+.profile-detail-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile-detail-version { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12px; }
+.profile-detail-badge { flex: 0 0 auto; padding: 1px 6px; border-radius: 999px; background: var(--accent-soft); color: var(--muted); font-size: 10.5px; }
+/* 窄窗口（标签形态那一档，最窄 720）：三栏挤不下，详情折到下面通栏，两栏各留一半 */
+@media (max-width: 980px) {
+  .profile-pick { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+  .profile-pick-col--detail { grid-column: 1 / -1; }
+  .profile-pick-col--detail .profile-pick-list { min-height: 120px; max-height: 180px; }
+  .profile-pick-row { padding: 0; }
+  .profile-pick-hit { padding: 7px 8px; }
+}
 html.reduce-motion .launch-isolation-tabs::after,
-html.reduce-motion .launch-isolation-tab,
-html.reduce-motion .launch-isolation-advanced-chevron { transition: none; }
+html.reduce-motion .launch-isolation-tab { transition: none; }
 html.reduce-motion .launch-custom-fields:not([hidden]),
+html.reduce-motion .launch-source-panel:not([hidden]),
 html.reduce-motion #launchIsolationHint.isolation-hint-in { animation: none; }
 @media (prefers-reduced-motion: reduce) {
   .launch-isolation-tabs::after,
-  .launch-isolation-tab, .launch-isolation-advanced-chevron { transition: none; }
-  .launch-custom-fields:not([hidden]), #launchIsolationHint.isolation-hint-in { animation: none; }
+  .launch-isolation-tab { transition: none; }
+  .launch-custom-fields:not([hidden]), .launch-source-panel:not([hidden]),
+  #launchIsolationHint.isolation-hint-in { animation: none; }
 }
 /* 开关的几何参数挂在包装层上：圆钮和 range 都要读，定义一处就不会两边对不上。
    圆钮靠 data-channel 选 left（0/1/2 档），带 transition——原生 range 的圆钮没法过渡，只能自绘一个。 */
@@ -1791,6 +1887,8 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 .ask-card[data-dialog-size=small] { --dialog-width: 440px; }
 .ask-card[data-dialog-size=medium] { --dialog-width: 560px; }
 .ask-card[data-dialog-size=large] { --dialog-width: 840px; }
+/* 三栏选择窗（目录 / Profile / 插件）要更宽：三栏各自留得下名字和一行说明 */
+.ask-card[data-dialog-size=xlarge] { --dialog-width: 1040px; }
 /* 标题和操作区保持可见，只有正文滚动；正文子项不能被 flex 压扁。 */
 .ask-card > * { flex-shrink: 0; }
 .ask-card > .launch-modal-fields { flex: 1 1 auto; }
@@ -2381,9 +2479,3 @@ html.reduce-motion #launchIconTrigger, html.reduce-motion #launchDialog .launch-
 #ask .ask-title { padding-right: 36px; }
 .ask-close { position: absolute; top: 12px; right: 12px; width: 30px; height: 30px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer; transition: background-color .15s ease, color .15s ease; }
 .ask-close:hover { background: var(--accent-soft); color: var(--text); }
-
-/* 桌面增强：安装 / 卸载时按钮里转圈，文字先藏起来（和 pack 安装按钮同一套做法） */
-#desktopEnhanceInstall { position: relative; min-width: 104px; }
-#desktopEnhanceInstall .spin { position: absolute; left: calc(50% - 7px); top: calc(50% - 7px); width: 14px; height: 14px; border-width: 2px; }
-#desktopEnhanceInstall.loading .desktop-enhance-label { visibility: hidden; }
-#desktopEnhanceInstall.loading .spin { display: block; }

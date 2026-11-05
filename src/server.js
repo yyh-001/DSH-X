@@ -124,7 +124,6 @@ import {
   safeArgs,
   safeUpdateChannel,
   safeWebBind,
-  safeWorkdir,
   saveSettings,
   VERSION_RE,
 } from './settings.js'
@@ -1472,8 +1471,6 @@ async function publicSettings() {
     // 内置浏览器（右侧栏浏览器）：开关与证书策略。browserHost 表明当前外壳能否清理浏览数据
     // （只有 Electron 外壳拿得到 guest 分区；浏览器里打开管理页 / 旧外壳没有这层能力）。
     browserIgnoreCertificate: stored.browserIgnoreCertificate === true,
-    // 桌面增强：当前环境装了几个（设置页右侧的「一键安装」按钮按它显示安装 / 已安装）
-    desktopEnhance: desktopEnhanceSummary(),
     browserHost: Boolean(host.browser),
     shellPrefs: process.env.DSH_SHELL_PREFS === '1',
     desktopShell: shellWindowHost(),
@@ -1729,15 +1726,9 @@ async function saveLaunchPresetNow(body) {
   if (!name || name.length > 32) throw new Error('启动项名称请填 1-32 个字符')
   const version = safeVersion(body.version)
   const profile = safeProfile(body.profile)
-  // 项目环境（issue #72）：数据目录不再另挑，固定是项目根里的 .dsh；这个派生只做一次，
-  // 页面显示的路径和真正落盘的是同一个。两个字段打架时以项目目录为准 —— 用户填了项目，
-  // 就是「这套环境属于这个项目」，容不下第二个数据目录的答案。
-  const workdir = safeWorkdir(body.workdir)
-  const dshHome = workdir ? join(workdir, '.dsh') : safeDshHome(body.dshHome)
+  // 数据目录只用 dsh 用户目录；旧的「项目目录」字段不再读取，历史启动项按已保存的 dshHome 走。
+  const dshHome = safeDshHome(body.dshHome)
   const home = dshHome || defaultHome()
-  // 项目目录本身允许不存在（「新建项目工作目录」是这个功能的一半），但不校验就可能在启动时
-  // 才炸：先建出来并试写一次，打错的盘符当场报错。
-  if (workdir) await ensureWritableDir(workdir)
   if (dshHome && dshHome !== defaultHome()) await ensureWritableDir(dshHome)
   // Profile 不存在时按名字建，建在 home 对应的目录作用域里（和 /api/profiles/create 的
   // x-dsh-home 同一套语义），页面不用先建 Profile 再存启动项——两步之间的失败会留下半截环境。
@@ -1796,7 +1787,6 @@ async function saveLaunchPresetNow(body) {
     // 用过的版本记录跟着启动项走，编辑参数不该抹掉回退历史。
     ...(existingEntry?.usedVersion ? { usedVersion: existingEntry.usedVersion } : {}),
     ...(existingEntry?.prevVersion ? { prevVersion: existingEntry.prevVersion } : {}),
-    ...(workdir ? { workdir } : {}),
     ...(dshHome ? { dshHome } : {}), ...(icon !== 'terminal' ? { icon } : {}) }
   if (index >= 0) presets[index] = entry
   else presets.push(entry)
@@ -3108,10 +3098,9 @@ function spawnDsh(version, extra, profile = '', options = {}) {
     })
   }
   return spawn(RUNTIME_NODE, dshArgs(version, extra, profile), {
-    // 项目环境（见 launchWorkdir）：子进程在项目根里跑，dsh 的默认工作目录就是 process.cwd()，
-    // 新会话因此落在项目根；数据目录仍是 <项目>/.dsh（DSH_HOME 是绝对路径，不受 cwd 影响）。
-    // 其它情况跟以前一样钉在 DSH_HOME —— 插件命令、修复脚本都靠它。
-    cwd: options.cwd || home,
+    // 子进程固定落在 DSH_HOME 里：dsh 的默认工作目录就是 process.cwd()，新会话因此在用户目录下；
+    // 插件命令、修复脚本也都靠这个 cwd，DSH_HOME 本身不受它影响。
+    cwd: home,
     env,
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
@@ -3900,12 +3889,56 @@ function desktopEnhanceMissing(profile = PROFILE_NAME) {
   return DESKTOP_PLUGINS.filter((plugin) => !Object.hasOwn(dependencies, plugin.name))
 }
 
-/** 桌面增强的安装进度摘要（设置页按钮用）：装了几个 / 共三个。 */
+/** 桌面增强的安装进度摘要（启动项弹窗用）：装了几个 / 共三个。 */
 function desktopEnhanceSummary(profile = PROFILE_NAME) {
   return {
     installed: DESKTOP_PLUGINS.length - desktopEnhanceMissing(profile).length,
     total: DESKTOP_PLUGINS.length,
   }
+}
+
+/**
+ * 把缺的桌面增强插件装进 profile。调用方负责把它放进目标 home 的 launchScope 里，
+ * 否则 profileDirOf 会读到启动器自己的 DSH_HOME。
+ *
+ * 单个插件失败只记下来、不往外抛：三个插件互不依赖，一个装不上不该拦住另外两个；
+ * 缺的那个下次保存启动项 / 点安装时还会再试。`version` 由调用方先解析好时传进来，
+ * 省一次版本探测；没传就自己按这个 profile 解析，解析不出来也算这三个都失败。
+ *
+ * @param {string} profile - profile 名。
+ * @param {string} [version] - 已经解析好的 dsh 版本。
+ * @returns {Promise<{installed: string[], failed: {name: string, error: string}[], missing: number}>}
+ */
+async function installDesktopEnhance(profile = PROFILE_NAME, version = '') {
+  const wanted = desktopEnhanceMissing(profile)
+  if (!wanted.length) return { installed: [], failed: [], missing: 0 }
+  let ver = version
+  if (!ver) {
+    try {
+      ver = await pluginCommandVersion(profile)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      return { installed: [], failed: wanted.map((plugin) => ({ name: plugin.name, error: message })), missing: wanted.length }
+    }
+  }
+  const installed = []
+  const failed = []
+  for (const plugin of wanted) {
+    if (!versionAtLeast(ver, plugin.minDsh)) {
+      failed.push({ name: plugin.name, error: `${plugin.label} 需要 dsh ${plugin.minDsh} 或更高版本` })
+      continue
+    }
+    pushLog(`桌面增强：安装 ${plugin.label}（${plugin.name}）到 ${profile}`)
+    try {
+      await addPlugin(ver, `${plugin.name}@${plugin.spec}`, { profile })
+      installed.push(plugin.name)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      failed.push({ name: plugin.name, error: message })
+      pushLog(`桌面增强：${plugin.name} 安装失败：${message}`)
+    }
+  }
+  return { installed, failed, missing: wanted.length }
 }
 
 // ---- 插件更新：查 registry 上的最新版本，按需升级 profile 里的包 ----
@@ -4808,13 +4841,11 @@ function attachProcess(version, profile, child, diagnosticContext, instanceLink)
     if (proc.diagnosis.addLine(line)) {
       scheduleDiagnosis()
     }
-    // 启动阶段只做粗粒度推断给界面看（不透出日志原文，日志里可能有 token）
-    if (proc.status === 'starting') {
-      if (/incompatible|skipping profile bundle|disabling profile plugin row/.test(String(line))) {
-        proc.startupPhase = 'verifying'
-      } else if (proc.startupPhase !== 'verifying') {
-        proc.startupPhase = 'loading'
-      }
+    // 启动阶段只做粗粒度推断给界面看（不透出日志原文，日志里可能有 token）。
+    // 插件不兼容 / 跳过 bundle 的行不算阶段：0.2.2-rc.1 起这类行在首个输出里就出现（并行做的
+    // 兼容性校验），拿它当「校验依赖」会把十几秒的启动过程整段标错。阶段只认两个：首行前 launching，之后 loading。
+    if (proc.status === 'starting' && proc.startupPhase === 'launching') {
+      proc.startupPhase = 'loading'
     }
     if (line.trim()) {
       proc.tail.push(line)
@@ -5041,27 +5072,6 @@ async function selfCheckPage(url, version) {
   }
 }
 
-/**
- * 这次启动绑定的项目目录。项目环境是「这套数据目录」的属性，不是某次点击的属性：
- * 先看这次请求带着哪个启动项，再看有没有哪个启动项把项目目录挂在这个 DSH_HOME 上。
- * 后者是给手工启动 / 重启 / 自动恢复用的——它们不带启动项 ID，但环境还是那个项目环境。
- * 目录被用户删掉时不报错：退回老行为照样能起来，只是新会话不在项目根。
- */
-function launchWorkdir() {
-  const id = launchScope.getStore()?.launchId
-  const presets = safeLaunchPresets(loadSettingsSync().launchPresets)
-  const entry = id
-    ? presets.find((item) => item.id === id)
-    : presets.find((item) => item.workdir && fileManager.samePath(item.dshHome || '', homeDir()))
-  const dir = entry?.workdir || ''
-  if (!dir) return ''
-  if (!existsSync(dir)) {
-    pushLog(`项目目录 ${dir} 不在了，这次启动按普通独立目录处理（新会话不在项目根）`)
-    return ''
-  }
-  return dir
-}
-
 /** 起一个 web 子进程并等到它打印就绪 URL；失败时把子进程输出尾巴留给 AI 当证据。 */
 async function bootOnce(ver, prof, onStarted) {
   const startedAt = performance.now()
@@ -5076,8 +5086,7 @@ async function bootOnce(ver, prof, onStarted) {
     // TIME_WAIT。真起不来时下面那条 catch 会把话说清楚。
     pushLog(`固定端口 ${pinned} 现在被占用，这次启动多半会失败`)
   }
-  const workdir = launchWorkdir()
-  pushLog(`启动 ${ver} · profile ${prof}${workdir ? ` · 项目目录 ${workdir}` : ''}${lanBindActive() ? ' · Web 绑定 局域网（dsh 仍绑 127.0.0.1，局域网经启动器代理）' : ''}${pinned ? ` · 固定端口 ${pinned}` : ''}${alongside ? '（与已在跑的实例并存）' : ''}`)
+  pushLog(`启动 ${ver} · profile ${prof}${lanBindActive() ? ' · Web 绑定 局域网（dsh 仍绑 127.0.0.1，局域网经启动器代理）' : ''}${pinned ? ` · 固定端口 ${pinned}` : ''}${alongside ? '（与已在跑的实例并存）' : ''}`)
   if (reused) {
     pushLog(remembered.key === `${ver}@${prof}`
       ? `复用自动端口：${ver}@${prof} → ${reused}`
@@ -5114,7 +5123,7 @@ async function bootOnce(ver, prof, onStarted) {
   let child
   try {
     assertStartupActive()
-    child = spawnDsh(ver, bootArgs(prof, pinned || reused), prof, { diagnosticContext, cwd: workdir, pluginProfile: true, instanceLink })
+    child = spawnDsh(ver, bootArgs(prof, pinned || reused), prof, { diagnosticContext, pluginProfile: true, instanceLink })
   } catch (error) { instanceLink.revoke(); throw error }
   instanceLink.bind(child)
   const spawnAt = performance.now()
@@ -5602,7 +5611,7 @@ async function renameProfile(profile, nextName) {
 /**
  * 建 Profile：`source` 给了就把那份配置复制过来（插件清单、开关、MCP、补丁层），
  * 复制完在目标环境里重装依赖。`sourceHome` 是来源所在的那个用户目录，空 = 当前环境；
- * 项目环境（issue #72）常从全局目录里已经调好的 Profile 复制，两个目录互不相干。
+ * 可以跨用户目录复制，两个目录互不相干。
  */
 async function createProfile(profile, source = '', sourceHome = '') {
   const name = safeProfile(profile)
@@ -6285,6 +6294,16 @@ async function handleApi(req, res, url) {
     send(res, 200, { ...packsPayload(), ...listPlugins(profileDirOf(profile)), profile, autoFix: autoFixForHome(), recovery: recoveryPayload(profile) })
     return
   }
+  if (req.method === 'GET' && url.pathname === '/api/desktop-enhance') {
+    // 启动项弹窗编辑时回显「这个 profile 装了几个」；home 走 x-dsh-home 头，profile 走参数。
+    try {
+      const profile = safeProfile(url.searchParams.get('profile') || PROFILE_NAME)
+      send(res, 200, { profile, desktopEnhance: desktopEnhanceSummary(profile), missing: desktopEnhanceMissing(profile).map((plugin) => plugin.name) })
+    } catch (error) {
+      send(res, 400, { error: error instanceof Error ? error.message : String(error) })
+    }
+    return
+  }
   if (req.method === 'POST' && ['/api/profiles/create', '/api/profiles/copy'].includes(url.pathname)) {
     const body = await readJson(req)
     const copying = url.pathname === '/api/profiles/copy'
@@ -6621,7 +6640,18 @@ async function handleApi(req, res, url) {
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/launch-presets') {
-    send(res, 200, await saveLaunchPreset(body))
+    const saved = await saveLaunchPreset(body)
+    // 桌面增强跟着启动项走：启动项落盘之后（写锁已经放掉）再补装缺的三个，
+    // 装插件慢也不会卡住别的启动项编辑。失败只带回结果，启动项本身已经保存成功。
+    if (body.desktopEnhance === true && saved?.entry?.profile) {
+      const home = saved.entry.dshHome || defaultHome()
+      saved.desktopEnhance = await launchScope.run({ home }, () => installDesktopEnhance(saved.entry.profile))
+      // 已经装齐时是空转（missing 0），不刷日志
+      if (saved.desktopEnhance.missing > 0) {
+        pushLog(`桌面增强：${saved.entry.profile} 安装完成，成功 ${saved.desktopEnhance.installed.length} 个${saved.desktopEnhance.failed.length ? `，失败 ${saved.desktopEnhance.failed.length} 个` : ''}（下次启动时加载；正在运行的环境重启后生效）`)
+      }
+    }
+    send(res, 200, saved)
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/launch-log/clear') {
@@ -6715,12 +6745,11 @@ async function handleApi(req, res, url) {
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/desktop-enhance/install') {
-    // 设置页「桌面增强 → 一键安装」：把缺的首方插件按顺序装进当前 profile。
+    // 装桌面增强：把缺的首方插件按顺序装进指定 profile（默认当前）。
     // 装法复用插件页那条 addPlugin（pnpm add + 写 dsh.profile.bundles）；
     // 已经装过的不动（link: / file: 也不会被换成 npm 版）。
     const profile = safeProfile(String(body.profile || '') || PROFILE_NAME)
-    const wanted = desktopEnhanceMissing(profile)
-    if (!wanted.length) {
+    if (!desktopEnhanceMissing(profile).length) {
       send(res, 200, { ok: true, installed: [], failed: [], desktopEnhance: desktopEnhanceSummary(profile), ...listPlugins(profileDirOf(profile)), profile })
       return
     }
@@ -6735,24 +6764,8 @@ async function handleApi(req, res, url) {
       send(res, 400, { error: error instanceof Error ? error.message : String(error) })
       return
     }
-    const installed = []
-    const failed = []
-    for (const plugin of wanted) {
-      if (!versionAtLeast(version, plugin.minDsh)) {
-        failed.push({ name: plugin.name, error: `${plugin.label} 需要 dsh ${plugin.minDsh} 或更高版本` })
-        continue
-      }
-      pushLog(`桌面增强：安装 ${plugin.label}（${plugin.name}）到 ${profile}`)
-      try {
-        await addPlugin(version, `${plugin.name}@${plugin.spec}`, { profile })
-        installed.push(plugin.name)
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        failed.push({ name: plugin.name, error: message })
-        pushLog(`桌面增强：${plugin.name} 安装失败：${message}`)
-      }
-    }
-    pushLog(`桌面增强：${profile} 安装完成，成功 ${installed.length} 个${failed.length ? `，失败 ${failed.length} 个` : ''}（重启 dsh 后生效）`)
+    const { installed, failed } = await installDesktopEnhance(profile, version)
+    pushLog(`桌面增强：${profile} 安装完成，成功 ${installed.length} 个${failed.length ? `，失败 ${failed.length} 个` : ''}（下次启动时加载；正在运行的环境重启后生效）`)
     send(res, 200, { ok: failed.length === 0, installed, failed, desktopEnhance: desktopEnhanceSummary(profile), ...listPlugins(profileDirOf(profile)), profile })
     return
   }

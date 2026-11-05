@@ -40,7 +40,7 @@
       })
     })()
   </script>
-  <link rel="stylesheet" href="/launcher.css?v=chrome-tabs-20261028" />
+  <link rel="stylesheet" href="/launcher.css?v=20261105-picker-motion" />
   <link rel="stylesheet" href="/mascot.css" />
   <link rel="stylesheet" href="/theme.css?v=chrome-tabs-20261028" />
   <link rel="stylesheet" href="/launcher-boot.css?v=20261102" />
@@ -345,20 +345,6 @@
                 </label>
               </div>
               <p class="hint" id="systemPrefsHint" role="status" aria-live="polite"></p>
-              <!-- 桌面增强：三个首方插件一键装进当前环境，装完在 dsh 插件页单独开关 -->
-              <div class="set-caption" data-i18n="桌面增强">桌面增强</div>
-              <div class="set-group">
-                <div class="set-row">
-                  <div class="set-text">
-                    <span class="set-name" data-i18n="安装桌面增强">安装桌面增强</span>
-                    <span class="set-desc" data-i18n="原生通知、右键菜单、侧栏浏览器三个插件，一键装进当前环境；装完可以在 dsh 插件页单独开关。">原生通知、右键菜单、侧栏浏览器三个插件，一键装进当前环境；装完可以在 dsh 插件页单独开关。</span>
-                  </div>
-                  <div class="set-control">
-                    <button class="ghost" id="desktopEnhanceInstall" type="button"><span class="desktop-enhance-label" data-i18n="一键安装">一键安装</span><span class="spin"></span></button>
-                  </div>
-                </div>
-              </div>
-              <p class="hint" id="desktopEnhanceHint" role="status" aria-live="polite"></p>
             </section>
             <section class="set-section" data-category="appearance" aria-labelledby="settingsAppearanceTitle" hidden>
               <div class="set-label" id="settingsAppearanceTitle" data-i18n="外观">外观</div>
@@ -696,7 +682,7 @@
       <div class="dialog-heading launch-dialog-heading"><h2 class="ask-title" id="launchDialogTitle" data-i18n="编辑启动项">编辑启动项</h2><button class="ghost icon-btn dialog-close" id="launchDialogClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
       <div class="launch-modal-fields">
         <!-- 新建启动项先问「怎么隔离」：三档用 tab 切换。前两档什么都不用填（版本、名称、目录、Profile
-             都由页面代算），直接保存就新建；想自己指定 Profile 名 / 目录的人展开各自档下面的折叠，
+             都由页面代算），直接保存就新建；想指定 Profile 名、或者照抄一份现成的，用下面那条两档 tab，
              留空还是自动取名。第三档「自定义」才是原来那张完整表单。编辑老启动项时引导整块藏起来、
              字段直接露出（见 setLaunchIsolation）。 -->
         <div class="launch-isolation" id="launchIsolationField">
@@ -707,61 +693,40 @@
             <button class="launch-isolation-tab" type="button" role="tab" data-isolation="custom" aria-selected="false" data-i18n="自定义">自定义</button>
           </div>
           <p class="hint" id="launchIsolationHint"></p>
-          <!-- 前两档各挂一块折叠：默认收起 = 全自动（跟以前一样什么都不用填）；展开可指定 Profile 名称 /
-               目录，留空仍按自动取名走。第三档「自定义」不需要这块，不用重复给输入框。
-               开合交给 setLaunchAdvanced 做高度动画：原生 <details> 关不上也展不开，没法过渡。 -->
-          <div class="launch-isolation-advanced" id="launchProfileAdvanced">
-            <button class="launch-isolation-advanced-toggle" type="button" aria-expanded="false" aria-controls="launchProfileAdvancedPanel">
-              <span class="launch-isolation-advanced-label" data-i18n="自定义 Profile">自定义 Profile</span>
-              <svg class="launch-isolation-advanced-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-            </button>
-            <div class="launch-isolation-advanced-panel" id="launchProfileAdvancedPanel" hidden>
-              <div class="launch-isolation-advanced-fields">
-                <!-- 折叠里只留一个输入框：占位符就是自动会取的名字，填了就按填的来（见 paintLaunchIsolation） -->
-                <input id="launchProfileCustom" type="text" maxlength="32" autocomplete="off" spellcheck="false" aria-label="Profile 名称" data-i18n-aria-label="Profile 名称" />
-                <label class="toggle launch-auto-launch">
-                  <span data-i18n="打开启动器时启动">打开启动器时启动</span>
-                  <input id="launchAutoLaunchProfile" type="checkbox" />
-                </label>
+          <!-- 前两档下面不再是上下叠着的折叠条，而是一条两档 tab（跟上面三档同款胶囊）：
+               要么自己起个 Profile 名，要么照抄一份现成的，同一时间只露一块。
+               会话隔离那档的目标目录留在 tab 上面——它说的是「建到哪」，跟「Profile 从哪来」
+               是两件事，切 tab 也得一直看得见。第三档「自定义」整块藏起来。 -->
+          <div class="launch-guide" id="launchGuideField">
+            <div class="launch-guide-dir" id="launchGuideDirField">
+              <select id="launchHomeCustom" aria-label="dsh 用户目录" data-i18n-aria-label="dsh 用户目录"></select>
+            </div>
+            <div class="launch-isolation-tabs launch-isolation-tabs--pair" id="launchSourceTabs" role="tablist" aria-label="Profile 来源" data-i18n-aria-label="Profile 来源" data-active="name">
+              <button class="launch-isolation-tab launch-source-tab" type="button" role="tab" data-source="name" aria-selected="true" aria-controls="launchSourceNamePanel" data-i18n="新建 Profile">新建 Profile</button>
+              <button class="launch-isolation-tab launch-source-tab" type="button" role="tab" data-source="copy" aria-selected="false" aria-controls="launchSourceCopyPanel" data-i18n="从已有 Profile 复制">从已有 Profile 复制</button>
+            </div>
+            <div class="launch-source-panel" id="launchSourceNamePanel" role="tabpanel">
+              <!-- 两个名字输入各给一档用：插件隔离换个 Profile 名，会话隔离给新目录里的 Profile 取名。
+                   占位符就是自动会取的名字，填了就按填的来（见 paintLaunchIsolation） -->
+              <input id="launchProfileCustom" type="text" maxlength="32" autocomplete="off" spellcheck="false" aria-label="Profile 名称" data-i18n-aria-label="Profile 名称" />
+              <input id="launchHomeProfile" type="text" maxlength="32" autocomplete="off" spellcheck="false" aria-label="Profile 名称" data-i18n-aria-label="Profile 名称" />
+            </div>
+            <div class="launch-source-panel" id="launchSourceCopyPanel" role="tabpanel" hidden>
+              <!-- 来源目录 × Profile 交给两栏选择窗（见 openProfilePicker）：目录一多、Profile 一多，
+                   两串下拉要一级级点开还看不全，一个窗口里左右并排点两下就选定。
+                   来源和名字是二选一：停在这档就不再读上面那个名字输入。 -->
+              <div class="select">
+                <button type="button" class="select-trigger" id="launchCopyPick" aria-haspopup="dialog" aria-expanded="false">
+                  <span class="select-value" id="launchCopyPickValue"></span>
+                  <svg class="select-caret" viewBox="0 0 12 8" aria-hidden="true"><path fill="currentColor" d="M0 0h12L6 8z"/></svg>
+                </button>
               </div>
             </div>
-          </div>
-          <div class="launch-isolation-advanced" id="launchHomeAdvanced">
-            <button class="launch-isolation-advanced-toggle" type="button" aria-expanded="false" aria-controls="launchHomeAdvancedPanel">
-              <span class="launch-isolation-advanced-label" data-i18n="自定义目录">自定义目录</span>
-              <svg class="launch-isolation-advanced-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-            </button>
-            <div class="launch-isolation-advanced-panel" id="launchHomeAdvancedPanel" hidden>
-              <div class="launch-isolation-advanced-fields">
-                <!-- 两块只给输入，不再各配一行 label / 说明：标题和占位符已经说清用途 -->
-                <select id="launchHomeCustom" aria-label="dsh 用户目录" data-i18n-aria-label="dsh 用户目录"></select>
-                <!-- 项目目录（选填）：填了就变成「项目环境」——数据目录不再是上面那个下拉，而是
-                     <项目>/.dsh；启动后 dsh 子进程在项目根里跑，新会话因此落在项目根。 -->
-                <div class="launch-path-row">
-                  <input id="launchProjectDir" type="text" autocomplete="off" spellcheck="false" aria-label="项目目录" data-placeholder-i18n="项目目录（选填）：数据放 <项目>/.dsh，新会话在项目根里跑" />
-                  <button class="ghost icon-btn" id="launchProjectPick" type="button" title="选择项目目录" aria-label="选择项目目录" data-i18n-title="选择项目目录" data-i18n-aria-label="选择项目目录"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/></svg></button>
-                </div>
-                <input id="launchHomeProfile" type="text" maxlength="32" autocomplete="off" spellcheck="false" aria-label="Profile 名称" data-i18n-aria-label="Profile 名称" />
-                <label class="toggle launch-auto-launch">
-                  <span data-i18n="打开启动器时启动">打开启动器时启动</span>
-                  <input id="launchAutoLaunchHome" type="checkbox" />
-                </label>
-              </div>
-            </div>
-          </div>
-          <!-- 从已有 Profile 复制：两档引导共用。来源目录可以是别的用户目录里已经调好的那份，
-               建新环境时把它复制过来，之后各改各的（issue #72）。 -->
-          <div class="launch-isolation-advanced" id="launchCopyAdvanced" hidden>
-            <button class="launch-isolation-advanced-toggle" type="button" aria-expanded="false" aria-controls="launchCopyAdvancedPanel">
-              <span class="launch-isolation-advanced-label" data-i18n="从已有 Profile 复制">从已有 Profile 复制</span>
-              <svg class="launch-isolation-advanced-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-            </button>
-            <div class="launch-isolation-advanced-panel" id="launchCopyAdvancedPanel" hidden>
-              <div class="launch-isolation-advanced-fields">
-                <select id="launchCopyHome" aria-label="复制来源目录" data-i18n-aria-label="复制来源目录"></select>
-                <select id="launchCopyProfile" aria-label="复制来源 Profile" data-i18n-aria-label="复制来源 Profile"></select>
-              </div>
-            </div>
+            <!-- 自动启动跟「Profile 从哪来」无关：两档共用这一份，切 tab 也不跟着藏 -->
+            <label class="toggle launch-auto-launch">
+              <span data-i18n="打开启动器时启动">打开启动器时启动</span>
+              <input id="launchAutoLaunchGuided" type="checkbox" />
+            </label>
           </div>
         </div>
         <!-- 自定义档就是原来那张完整表单：版本、端口、名称、目录、Profile 全手动挑。切到「自定义」tab
@@ -804,24 +769,19 @@
             <button class="ghost icon-btn launch-manage-version" id="launchManageVersions" type="button" title="管理版本" aria-label="管理版本" data-i18n-title="管理版本" data-i18n-aria-label="管理版本"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></button>
             <p class="hint" id="launchUpdateChannelHint"></p>
           </div>
-          <div class="home-field" id="launchHomeSelectField">
-            <label for="launchDshHome" data-i18n="dsh 用户目录（会话、记忆和插件隔离）">dsh 用户目录（会话、记忆和插件隔离）</label>
-            <select id="launchDshHome" aria-label="dsh 用户目录" data-i18n-aria-label="dsh 用户目录"></select>
-          </div>
-          <!-- 项目目录：填了就是项目环境，数据目录固定为 <项目>/.dsh（上面那个下拉就不作数），
-               启动后 dsh 子进程在项目根里跑，新会话因此落在项目根。 -->
-          <div class="home-field" id="launchWorkdirField">
-            <label for="launchWorkdir" data-i18n="项目目录（选填）">项目目录（选填）</label>
-            <div class="launch-path-row">
-              <input id="launchWorkdir" type="text" autocomplete="off" spellcheck="false" data-placeholder-i18n="填了就是项目环境：数据在 <项目>/.dsh，新会话在项目根里跑" />
-              <button class="ghost icon-btn" id="launchWorkdirPick" type="button" title="选择项目目录" aria-label="选择项目目录" data-i18n-title="选择项目目录" data-i18n-aria-label="选择项目目录"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/></svg></button>
-            </div>
-            <p class="hint" id="launchWorkdirHint"></p>
-          </div>
           <div class="home-pickers">
-            <div class="home-field" id="launchProfileSelectField">
-              <label for="launchProfile">Profile</label>
-              <select id="launchProfile" title="Profile"></select>
+            <div class="home-field" id="launchEnvField">
+              <!-- 用户目录 + Profile 都交给三栏选择窗（同「从已有 Profile 复制」那一份）：一行触发器显示
+                   「目录 › Profile」。底下两个下拉仍留着当唯一真相源（回填、保存、恢复都读它们），只是藏起来。 -->
+              <label for="launchEnvPick" data-i18n="启动环境">启动环境</label>
+              <div class="select">
+                <button type="button" class="select-trigger" id="launchEnvPick" aria-haspopup="dialog" aria-expanded="false">
+                  <span class="select-value" id="launchEnvPickValue"></span>
+                  <svg class="select-caret" viewBox="0 0 12 8" aria-hidden="true"><path fill="currentColor" d="M0 0h12L6 8z"/></svg>
+                </button>
+              </div>
+              <select id="launchDshHome" aria-label="dsh 用户目录" data-i18n-aria-label="dsh 用户目录" hidden></select>
+              <select id="launchProfile" title="Profile" hidden></select>
             </div>
             <div class="home-field port">
               <label for="launchPort" data-i18n="端口">端口</label>
@@ -836,6 +796,19 @@
           </label>
         </div>
         <!-- /launch-custom-fields -->
+        <!-- 桌面增强：三个官方插件跟着启动项走。新建时按上次的选择回显；编辑时显示这个 profile
+             实际装了几个，勾选保存只补装缺的（取消勾选不会卸载）。 -->
+        <div class="launch-desktop-enhance" id="launchDesktopEnhanceField">
+          <div class="toggle launch-auto-launch">
+            <span class="launch-enhance-label">
+              <label for="launchDesktopEnhance" data-i18n="桌面增强">桌面增强</label>
+              <span class="launch-enhance-help" id="launchDesktopEnhanceHelp" tabindex="0" role="note" aria-label="桌面增强说明" aria-describedby="launchDesktopEnhanceTip">?</span>
+              <span class="launch-enhance-tip" id="launchDesktopEnhanceTip" role="tooltip" data-i18n="保存时把三个官方插件（原生通知、右键菜单、侧栏浏览器）装进这个环境；下次启动时加载，正在运行的环境重启后生效。">保存时把三个官方插件（原生通知、右键菜单、侧栏浏览器）装进这个环境；下次启动时加载，正在运行的环境重启后生效。</span>
+            </span>
+            <input id="launchDesktopEnhance" type="checkbox" aria-describedby="launchDesktopEnhanceTip" />
+          </div>
+          <p class="hint" id="launchDesktopEnhanceHint" role="status" aria-live="polite"></p>
+        </div>
       </div>
       <div class="launch-tool-actions">
         <div class="launch-version-tools" id="launchVersionTools" hidden>
@@ -852,6 +825,41 @@
         <button class="primary" id="launchSave" type="submit" title="保存" aria-label="保存" data-i18n-title="保存" data-i18n-aria-label="保存"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12l4 4v12a2 2 0 0 1-2 2Z"/><path d="M7 3v6h10V3M7 21v-8h10v8M14 5v2"/></svg></button>
       </div>
     </form>
+  </div>
+  <div class="ask" id="profilePickDialog" hidden>
+    <div class="ask-card profile-pick-card" role="dialog" aria-modal="true" aria-labelledby="profilePickTitle" data-dialog-size="xlarge" tabindex="-1">
+      <div class="dialog-heading"><div><h2 class="ask-title" id="profilePickTitle" data-i18n="选择 Profile">选择 Profile</h2><p class="dialog-subtitle" id="profilePickSubtitle" data-i18n="左边挑用户目录，中间挑 Profile，右边是它装着的插件。">左边挑用户目录，中间挑 Profile，右边是它装着的插件。</p></div><button class="ghost icon-btn dialog-close" id="profilePickClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
+      <!-- 三栏并排（跟资源管理器一个路子）：左栏用户目录、中栏该目录里的 Profile、右栏它装了什么。
+           两栏各自能在原地加/改/删，省得为了复制或新建再跳回环境页；不能起网页的 Profile 仍列出但不可选。 -->
+      <div class="profile-pick">
+        <div class="profile-pick-col">
+          <div class="profile-pick-head">
+            <span class="profile-pick-caption" data-i18n="用户目录">用户目录</span>
+            <span class="profile-pick-tools"><button class="icon-btn profile-pick-tool" id="profilePickHomeAdd" type="button" title="添加目录" aria-label="添加目录" data-i18n-title="添加目录" data-i18n-aria-label="添加目录"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13V7a2 2 0 0 0-2-2h-7l-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h6"/><path d="M17 15v6M14 18h6"/></svg></button></span>
+          </div>
+          <div class="profile-pick-list" id="profilePickHomes" role="listbox" aria-label="用户目录" data-i18n-aria-label="用户目录"></div>
+        </div>
+        <div class="profile-pick-col">
+          <div class="profile-pick-head">
+            <span class="profile-pick-caption" data-i18n="Profile">Profile</span>
+            <span class="profile-pick-tools"><button class="icon-btn profile-pick-tool" id="profilePickCreate" type="button" title="新建 Profile" aria-label="新建 Profile" data-i18n-title="新建 Profile" data-i18n-aria-label="新建 Profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button><button class="icon-btn profile-pick-tool" id="profilePickCopy" type="button" title="复制选中的 Profile" aria-label="复制选中的 Profile" data-i18n-title="复制选中的 Profile" data-i18n-aria-label="复制选中的 Profile" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 5H6a2 2 0 0 0-2 2v9"/></svg></button></span>
+          </div>
+          <div class="profile-pick-list" id="profilePickProfiles" role="listbox" aria-label="Profile" data-i18n-aria-label="Profile"></div>
+        </div>
+        <div class="profile-pick-col profile-pick-col--detail">
+          <div class="profile-pick-head">
+            <span class="profile-pick-caption" data-i18n="这份环境里有什么">这份环境里有什么</span>
+            <span class="profile-pick-meta" id="profilePickMeta"></span>
+          </div>
+          <div class="profile-pick-list profile-detail-list" id="profilePickDetails" role="region" aria-label="Profile 详情" data-i18n-aria-label="Profile 详情"></div>
+        </div>
+      </div>
+      <p class="hint" id="profilePickHint" role="status" aria-live="polite"></p>
+      <div class="ask-actions">
+        <button class="ghost" id="profilePickCancel" type="button" data-i18n="取消">取消</button>
+        <button class="primary" id="profilePickConfirm" type="button" disabled data-i18n="用它">用它</button>
+      </div>
+    </div>
   </div>
   <div class="ask" id="versionManageDialog" hidden>
     <div class="ask-card version-manage-card" role="dialog" aria-modal="true" aria-labelledby="versionManageTitle" data-dialog-size="medium">
@@ -1438,18 +1446,11 @@
   "右键菜单": "Context menu",
   "浏览器": "Browser",
   "桌面增强": "Desktop enhancements",
-  "安装桌面增强": "Install desktop enhancements",
-  "原生通知、右键菜单、侧栏浏览器三个插件，一键装进当前环境；装完可以在 dsh 插件页单独开关。": "One-click install of the native-notifications, context-menu and sidebar-browser plugins into the current environment; each can then be toggled in the dsh plugin page.",
-  "一键安装": "Install",
-  "一键卸载": "Uninstall",
-  "卸载": "Uninstall",
-  "卸载桌面增强": "Uninstall desktop enhancements",
-  "卸载桌面增强？会从当前环境移除原生通知、右键菜单、侧栏浏览器三个插件；会话、记忆和别的插件不受影响。": "Uninstall desktop enhancements? This removes the native-notifications, context-menu and sidebar-browser plugins from the current environment. Sessions, memories and other plugins stay.",
-  "卸载完成，重启 dsh 后生效": "Uninstalled; restart dsh to apply",
-  "{n} 个失败：{error}": "{n} failed: {error}",
+  "保存时把三个官方插件（原生通知、右键菜单、侧栏浏览器）装进这个环境；下次启动时加载，正在运行的环境重启后生效。": "Installs the three official plugins (native notifications, context menu, sidebar browser) into this environment when you save; they load on the next start, and a running environment picks them up after a restart.",
+  "正在保存并安装桌面增强…": "Saving and installing desktop enhancements…",
+  "启动项已保存，但桌面增强有 {n} 个没装上：{error}": "Launch item saved, but {n} desktop enhancement plugin(s) failed: {error}",
   "操作失败：{error}": "Action failed: {error}",
   "正在安装…": "Installing…",
-  "装好了，重启 dsh 后生效": "Installed; restart dsh to apply",
   "启用右键菜单": "Enable context menu",
   "在 dsh 网页里给会话行、工作区行、选中文字、链接和输入框加一套右键菜单。关闭后启动新的 dsh 实例生效。": "Adds a right-click menu to session rows, workspaces, selected text, links and inputs in the dsh web UI. Takes effect when a new dsh instance starts.",
   "忽略证书校验": "Skip certificate validation",
@@ -1732,7 +1733,6 @@
   "升级失败": "Upgrade failed",
   "正在启动 dsh": "Starting dsh",
   "正在加载插件": "Loading plugins",
-  "正在校验依赖": "Verifying dependencies",
   "实际加载来源尚未确认；先核对来源和兼容版本，不要豁免版本检查或批量禁用插件。": "The actual loaded source is unconfirmed. Check its origin and compatible versions; do not bypass version checks or disable plugins in bulk.",
   "配置报告 serviceVersion 缺失；仅核对字段定义文件及引用的环境变量，不代填或改写。": "The configuration reports a missing serviceVersion. Only inspect the field definition file and referenced environment variable; do not fill in or rewrite values.",
   "本次启动未传入 DSH_CLIENT_VERSION；字段是否引用此变量及定义文件，以已核实来源证据为准。": "DSH_CLIENT_VERSION was absent from this launch environment. Whether the field references this variable, and where it is defined, must be established from verified source evidence.",
@@ -1836,6 +1836,7 @@
   "禁用 {name}": "Disable {name}",
   "请先卸载此后安装的整合包": "Uninstall packs installed after this one first",
   "导出当前环境": "Export this environment",
+  "导入当前环境": "Import into this environment",
   "自动选择版本": "Version selected automatically",
   "首次启动会自动安装": "Installs automatically on first start",
   "高级选项": "Advanced options",
@@ -1948,29 +1949,53 @@
   "还没有{chosen}，暂按 {effective} 选择和提醒。{rule}": "There is no {chosen} release yet, so {effective} is used for now. {rule}",
   "优先使用正在运行的版本，否则选择本机最新已安装版本；只用所选版本类型的版本，未安装时会在首次启动下载该类型的最新版。新版本需要手动更新。": "Keep the running version, otherwise use the latest installed version, using only the selected version type. If none is installed, download the latest of that type on first launch. New releases require a manual update.",
   "隔离方式": "Isolation",
+  "Profile 来源": "Profile source",
   "插件隔离": "Plugin isolation",
   "会话隔离": "Session isolation",
   "自定义": "Custom",
   "将自动新建 Profile「{name}」：沿用全局 dsh 目录，会话与记忆共享，插件与配置独立。": "Profile「{name}」 is created automatically. The global dsh directory is kept: sessions and memories are shared, plugins and config stay separate.",
   "将自动新建独立目录：会话、记忆、插件与配置全部独立。": "A separate directory is created automatically: sessions, memories, plugins and config are all independent.",
-  "项目环境：数据目录 {path}，新会话在项目根里工作。": "Project environment: data lives in {path} and new sessions work in the project root.",
   "把「{profile}」的插件与配置复制一份，之后各改各的。": "Copy the plugins and config of「{profile}」; the two environments are then edited independently.",
   "从已有 Profile 复制": "Copy an existing profile",
-  "项目目录（选填）": "Project directory (optional)",
-  "选择项目目录": "Choose project directory",
+  "选择要复制的 Profile": "Choose a profile to copy",
+  "左边挑用户目录，右边挑 Profile；复制的是它现在装着的插件与配置。": "Pick a user directory on the left and a profile on the right; its plugins and config are copied.",
+  "选择 Profile": "Choose a profile",
+  "启动环境": "Launch environment",
+  "选择一个环境…": "Choose an environment…",
+  "左边挑用户目录，中间挑 Profile，右边是它装着的插件。": "Pick a user directory on the left, a profile in the middle, and see what it ships on the right.",
+  "左边挑用户目录，中间挑 Profile；复制的是它现在装着的插件与配置。": "Pick a user directory on the left and a profile in the middle; its current plugins and config are copied.",
+  "这份环境里有什么": "What this environment has",
+  "Profile 详情": "Profile details",
+  "复制选中的 Profile": "Copy the selected profile",
+  "还没初始化": "Not initialized",
+  "不能起网页": "Cannot start the web UI",
+  "先挑一个 Profile": "Pick a profile first",
+  "还没初始化：先用它启动一次，dsh 会建好这个环境。": "Not initialized yet: launch it once and dsh will create this environment.",
+  "这个环境里还没装插件": "No plugins installed in this environment yet",
+  "{n} 个插件 · {on} 个开着": "{n} plugins · {on} enabled",
+  "已关闭": "Off",
+  "移除「{home}」？只从列表里移除，目录里的数据都还在。": "Remove「{home}」? This only drops it from the list; the data in that directory stays.",
+  "在文件夹里打开": "Show in folder",
+  "所有文件": "All files",
+  "选择整合包文件": "Choose a modpack file",
+  "选择目录": "Choose a directory",
+  "选择一个 Profile…": "Choose a profile…",
+  "{home} › {profile}": "{home} › {profile}",
+  "{home} › {profile}（{path}）": "{home} › {profile} ({path})",
+  "用它": "Use it",
+  "正在读取 Profile…": "Reading profiles…",
+  "这个目录里还没有 Profile": "This directory has no profiles yet",
+  "不能起网页，复制过去也起不来": "Cannot start the web UI, so a copy would not either",
+  "这个目录里的 Profile 都不能起网页，换一个目录试试。": "No profile in this directory can start the web UI. Try another directory.",
+  "先选一份要复制的 Profile": "Choose a profile to copy first",
+  "先选一份要复制的 Profile：左边挑用户目录，右边挑 Profile。": "Choose a profile to copy: pick a user directory on the left, then a profile on the right.",
   "默认目录": "Default directory",
-  "不复制": "Do not copy",
-  "数据目录 {path}；新会话在项目根目录里工作。": "Data lives in {path}; new sessions work in the project root.",
-  "项目目录要填绝对路径，例如 /projects/app": "The project directory must be an absolute path, e.g. /projects/app",
-  "项目目录（选填）：数据放 <项目>/.dsh，新会话在项目根里跑": "Project directory (optional): data goes to <project>/.dsh and new sessions run in the project root",
-  "填了就是项目环境：数据在 <项目>/.dsh，新会话在项目根里跑": "Fill this in to make it a project environment: data in <project>/.dsh, new sessions in the project root",
   "数据目录还没就绪，稍后再试": "The data directory is not ready yet. Try again later.",
   "数据目录": "data directory",
-  "自定义 Profile": "Custom profile",
   "自定义目录": "Custom directory",
   "Profile 名称，留空用 web": "Profile name, web when empty",
   "这个 Profile 不能启动网页，换一个名称": "This Profile cannot start the web app. Choose another name.",
-  "版本、端口、目录和 Profile 都在这里手动选；要新目录先去「管理目录」里添加。": "Set version, port, directory and profile here manually. Add new directories from Manage directories first.",
+  "版本、端口和启动环境都在这里手动选；点「启动环境」换目录或 Profile，左栏「+」加目录。": "Set version, port and the launch environment here; use Launch environment to switch directory or profile, and + in the left column to add a directory.",
   "编辑 Profile…": "Edit profile…",
   "Profile「{profile}」还没初始化：先用它启动一次，dsh 会建好这个环境，之后就能在这里编辑。": "Profile「{profile}」 is not initialized yet. Launch it once and dsh will create the environment; then you can edit it here.",
 }
@@ -1989,7 +2014,7 @@
         el.textContent = t(el.dataset.i18n) || el.dataset.i18n
       }
       for (const el of document.querySelectorAll('[data-placeholder-i18n]')) el.placeholder = t(el.dataset.placeholderI18n)
-      for (const id of ['launchManageVersions', 'update', 'remove', 'launchRecover', 'launchProjectPick', 'launchWorkdirPick', 'mcpAdd', 'mcpProbe', 'mcpRefresh', 'versionManageCheck']) {
+      for (const id of ['launchManageVersions', 'update', 'remove', 'launchRecover', 'mcpAdd', 'mcpProbe', 'mcpRefresh', 'versionManageCheck']) {
         const el = document.getElementById(id)
         if (!el.dataset.titleI18n) el.dataset.titleI18n = el.title
         el.title = el.ariaLabel = t(el.dataset.titleI18n)
@@ -2026,33 +2051,45 @@
     const launchDshHomeEl = document.getElementById('launchDshHome')
     const launchPortEl = document.getElementById('launchPort')
     const launchAutoLaunchEl = document.getElementById('launchAutoLaunch')
-    const launchAutoLaunchProfileEl = document.getElementById('launchAutoLaunchProfile')
-    const launchAutoLaunchHomeEl = document.getElementById('launchAutoLaunchHome')
+    const launchAutoLaunchGuidedEl = document.getElementById('launchAutoLaunchGuided')
     const launchIsolationFieldEl = document.getElementById('launchIsolationField')
     const launchIsolationHintEl = document.getElementById('launchIsolationHint')
     const launchCustomFieldsEl = document.getElementById('launchCustomFields')
-    const launchProfileAdvancedEl = document.getElementById('launchProfileAdvanced')
+    // 引导块：会话隔离的目标目录 + 两档 tab（自己起名 / 照抄一份）
+    const launchGuideFieldEl = document.getElementById('launchGuideField')
+    const launchGuideDirFieldEl = document.getElementById('launchGuideDirField')
+    const launchSourceTabsEl = document.getElementById('launchSourceTabs')
+    const launchSourceNamePanelEl = document.getElementById('launchSourceNamePanel')
+    const launchSourceCopyPanelEl = document.getElementById('launchSourceCopyPanel')
     const launchProfileCustomEl = document.getElementById('launchProfileCustom')
-    const launchHomeAdvancedEl = document.getElementById('launchHomeAdvanced')
     const launchHomeCustomEl = document.getElementById('launchHomeCustom')
     const launchHomeProfileEl = document.getElementById('launchHomeProfile')
-    // 项目环境（issue #72）：项目目录 → 数据目录 <项目>/.dsh，子进程在项目根里跑
-    const launchProjectDirEl = document.getElementById('launchProjectDir')
-    const launchProjectPickEl = document.getElementById('launchProjectPick')
-    const launchWorkdirEl = document.getElementById('launchWorkdir')
-    const launchWorkdirPickEl = document.getElementById('launchWorkdirPick')
-    const launchWorkdirHintEl = document.getElementById('launchWorkdirHint')
-    const launchDshHomeFieldEl = document.getElementById('launchHomeSelectField')
-    // 从已有 Profile 复制：两档引导共用，来源目录可以是别的用户目录
-    const launchCopyAdvancedEl = document.getElementById('launchCopyAdvanced')
-    const launchCopyHomeEl = document.getElementById('launchCopyHome')
-    const launchCopyProfileEl = document.getElementById('launchCopyProfile')
+    // 从已有 Profile 复制：来源目录 × Profile 走两栏选择窗
+    const launchCopyPickEl = document.getElementById('launchCopyPick')
+    const launchCopyPickValueEl = document.getElementById('launchCopyPickValue')
+    // 自定义档的 Profile 也走同一个选择窗：触发器 + 藏起来的下拉（下拉仍是唯一真相源）
+    const launchEnvPickEl = document.getElementById('launchEnvPick')
+    const launchEnvPickValueEl = document.getElementById('launchEnvPickValue')
+    const profilePickDialogEl = document.getElementById('profilePickDialog')
+    const profilePickSubtitleEl = document.getElementById('profilePickSubtitle')
+    const profilePickHomesEl = document.getElementById('profilePickHomes')
+    const profilePickProfilesEl = document.getElementById('profilePickProfiles')
+    const profilePickDetailsEl = document.getElementById('profilePickDetails')
+    const profilePickMetaEl = document.getElementById('profilePickMeta')
+    const profilePickHintEl = document.getElementById('profilePickHint')
+    const profilePickConfirmEl = document.getElementById('profilePickConfirm')
+    const profilePickHomeAddEl = document.getElementById('profilePickHomeAdd')
+    const profilePickCreateEl = document.getElementById('profilePickCreate')
+    const profilePickCopyEl = document.getElementById('profilePickCopy')
     const launchRecoverEl = document.getElementById('launchRecover')
     const launchUpdateChannelEl = document.getElementById('launchUpdateChannel')
     const launchChannelFieldEl = document.getElementById('launchChannelField')
     const launchUpdateChannelHintEl = document.getElementById('launchUpdateChannelHint')
     const launchNameEl = document.getElementById('launchName')
     const launchSaveEl = document.getElementById('launchSave')
+    // 桌面增强：新建时是「保存后装」的开关，编辑时回显这个 profile 装了几个
+    const launchDesktopEnhanceEl = document.getElementById('launchDesktopEnhance')
+    const launchDesktopEnhanceHintEl = document.getElementById('launchDesktopEnhanceHint')
     const launchDialogEl = document.getElementById('launchDialog')
     const versionManageDialogEl = document.getElementById('versionManageDialog')
     const launchLogDialogEl = document.getElementById('launchLogDialog')
@@ -3845,6 +3882,7 @@
       if (!options.length) {
         launchProfileEl.innerHTML = ''
         launchProfileEl.disabled = true
+        paintLaunchEnvTrigger()
         return
       }
       launchProfileEl.disabled = false
@@ -3856,6 +3894,8 @@
         `<option value="${LAUNCH_PROFILE_EDIT}">${escapeHtml(t('编辑 Profile…'))}</option>`
       // options 是程序改的，不触发 change：包装器的触发器文字得手动同步一次
       syncUiSelect(launchProfileEl)
+      // 外面那行触发器也是程序改的：这里一并刷新，免得它停在旧名字上
+      paintLaunchEnvTrigger()
     }
 
     launchProfileEl.onchange = () => {
@@ -4008,76 +4048,62 @@
       return (suggestIsolatedProfile() || 'work').slice(0, 32)
     }
 
-    /** 「减少动态」开关：设置里的开关或系统偏好任一开启，折叠就不做高度动画，直接展开/收起。 */
-    function prefersReducedMotion() {
-      if (typeof document !== 'undefined' && document.documentElement?.classList?.contains?.('reduce-motion')) return true
-      return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
-        && window.matchMedia('(prefers-reduced-motion: reduce)').matches === true
-    }
-
     /**
-     * 前两档下面折叠的开合。用按钮 + 面板自己实现，而不是原生 <details>：原生只支持瞬开瞬关，
-     * 没法给面板做高度过渡；这里量一次 scrollHeight，展开从 0 长到实际高度，收起再缩回去。
+     * 第二档 tab：新建的 Profile 从哪来——自己起个名字（name），还是照抄一份现成的（copy）。
+     * 两档互斥，同一时间只露一块；切走的那块值留着，切回来还在。停在哪档决定保存时读谁的字段：
+     * 见 selectedCopy 和 prepareGuidedLaunch。
      */
-    function setLaunchAdvanced(box, open, animate = true) {
-      const toggle = box?.querySelector?.('.launch-isolation-advanced-toggle')
-      const panel = box?.querySelector?.('.launch-isolation-advanced-panel')
-      if (!toggle || !panel) return
-      const wasOpen = toggle.getAttribute('aria-expanded') === 'true'
-      toggle.setAttribute('aria-expanded', String(open))
-      box.classList?.toggle?.('is-open', open)
-      if (wasOpen === open) return
-      // 连点会起好几段动画，先把上一段掐掉，量出来的高度才是准的
-      ;(panel.getAnimations?.() || []).forEach((animation) => animation.cancel())
-      panel.style.height = ''
-      if (!animate || prefersReducedMotion() || typeof panel.animate !== 'function') {
-        panel.hidden = !open
-        return
+    let launchSourceMode = 'name'
+
+    /** 两档 tab 的选中态和面板显隐；打开弹窗复位时也走这里（不重画说明行）。 */
+    function paintLaunchSource() {
+      // 浮块靠 data-active 平移，值跟三档那排刻意错开（name / copy），免得撞上 home / custom 的位移
+      if (launchSourceTabsEl?.dataset) launchSourceTabsEl.dataset.active = launchSourceMode
+      for (const tab of document.querySelectorAll('.launch-source-tab')) {
+        tab.setAttribute('aria-selected', String(tab.dataset.source === launchSourceMode))
       }
-      if (open) panel.hidden = false
-      const height = `${panel.scrollHeight}px`
-      const animation = panel.animate(
-        [{ height: open ? '0px' : height, opacity: open ? 0 : 1 }, { height: open ? height : '0px', opacity: open ? 1 : 0 }],
-        { duration: open ? 220 : 160, easing: open ? 'cubic-bezier(.22,.61,.36,1)' : 'cubic-bezier(.4,0,.2,1)' }
-      )
-      animation.onfinish = () => {
-        panel.hidden = !open
-        panel.style.height = ''
-      }
+      if (launchSourceNamePanelEl) launchSourceNamePanelEl.hidden = launchSourceMode !== 'name'
+      if (launchSourceCopyPanelEl) launchSourceCopyPanelEl.hidden = launchSourceMode !== 'copy'
     }
 
-    // 两块折叠的头：点一下展开/收起
-    for (const box of [launchProfileAdvancedEl, launchHomeAdvancedEl, launchCopyAdvancedEl]) {
-      const toggle = box?.querySelector?.('.launch-isolation-advanced-toggle')
-      if (toggle) toggle.onclick = () => setLaunchAdvanced(box, toggle.getAttribute('aria-expanded') !== 'true')
+    /** 切第二排 tab：换面板 + 重画说明行（选了复制要说清复制的是谁）。 */
+    function setLaunchSource(mode) {
+      launchSourceMode = mode === 'copy' ? 'copy' : 'name'
+      // 第一次切到复制那档先给个默认来源：全局目录里的 web，最常见的一份，省得每次都要开选择窗
+      if (launchSourceMode === 'copy' && !launchCopySource) launchCopySource = defaultCopySource()
+      paintLaunchSource()
+      paintLaunchIsolation()
     }
 
     /**
-     * 「打开启动器时启动」在页面上有三份：两块折叠里各一份（展开就能勾），自定义档一份。
-     * 三份互相同步，保存时永远读 #launchAutoLaunch，省得按当前档挑元素。
+     * 「打开启动器时启动」在页面上有两份：引导块里一份（两档 tab 共用），自定义档一份。
+     * 两份互相同步，保存时永远读 #launchAutoLaunch，省得按当前档挑元素。
      */
     function syncLaunchAutoLaunch(checked) {
-      for (const box of [launchAutoLaunchEl, launchAutoLaunchProfileEl, launchAutoLaunchHomeEl]) {
+      for (const box of [launchAutoLaunchEl, launchAutoLaunchGuidedEl]) {
         if (box) box.checked = checked
       }
     }
-    for (const box of [launchAutoLaunchEl, launchAutoLaunchProfileEl, launchAutoLaunchHomeEl]) {
+    for (const box of [launchAutoLaunchEl, launchAutoLaunchGuidedEl]) {
       if (box) box.onchange = () => syncLaunchAutoLaunch(box.checked)
     }
 
     /**
      * 切隔离方式只改字段可见性，不动用户已经填好的值：来回切不会把名字/目录清掉。
-     * 前两档整块藏起「自定义」的字段（名称代填），各自下面挂一块可展开的折叠用来指定名字/目录；
-     * 第三档把完整表单原样露出来，两块折叠一起收起。
+     * 前两档整块藏起「自定义」的字段（名称代填），下面露引导块（目标目录 + 两档 tab 指定名字 / 来源）；
+     * 第三档把完整表单原样露出来，引导块整块收起。
      */
     function setLaunchIsolation(mode, creating = true) {
       launchIsolation = mode === 'home' || mode === 'custom' ? mode : 'profile'
       const guided = creating && launchIsolation !== 'custom'
       launchIsolationFieldEl.hidden = !creating
       launchCustomFieldsEl.hidden = guided
-      // 折叠跟档走：哪档露哪块，收起时里面的值留着（切走再切回来不用重填）
-      launchProfileAdvancedEl.hidden = !(creating && launchIsolation === 'profile')
-      launchHomeAdvancedEl.hidden = !(creating && launchIsolation === 'home')
+      // 引导块跟档走：前两档露出来，里面按档藏名字输入（值留着，切走再切回来不用重填）
+      if (launchGuideFieldEl) launchGuideFieldEl.hidden = !guided
+      // 目标目录只有会话隔离那档有：插件隔离沿用全局目录，没得挑
+      if (launchGuideDirFieldEl) launchGuideDirFieldEl.hidden = launchIsolation !== 'home'
+      if (launchProfileCustomEl) launchProfileCustomEl.hidden = launchIsolation !== 'profile'
+      if (launchHomeProfileEl) launchHomeProfileEl.hidden = launchIsolation !== 'home'
       if (guided) {
         if (!launchNameEl.value.trim() || launchNameEl.value === launchNameAuto) launchNameEl.value = guidedLaunchName()
         launchNameAuto = launchNameEl.value.trim()
@@ -4094,30 +4120,33 @@
       // 胶囊浮块靠 data-active 平移过去：赋给底槽，别让每档 tab 自己画底（浮块会被盖住）。
       const tabsEl = document.getElementById('launchIsolationTabs')
       if (tabsEl?.dataset) tabsEl.dataset.active = launchIsolation
-      for (const tab of document.querySelectorAll('.launch-isolation-tab')) {
+      // 只认带 data-isolation 的那三个：下面还有一排两档 tab，别把它的选中态一起改掉
+      for (const tab of document.querySelectorAll('.launch-isolation-tab[data-isolation]')) {
         tab.setAttribute('aria-selected', String(tab.dataset.isolation === launchIsolation))
       }
-      // 折叠里的目录是登记目录的下拉，第一项「自动新建」：每次重画时把建议路径算进文案里
+      // 引导里的目录是登记目录的下拉，第一项「自动新建」：每次重画时把建议路径算进文案里
       paintLaunchHomeCustom()
-      // 「从已有 Profile 复制」只对引导两档有意义：自定义档本来就是自己挑现成的 Profile
-      if (launchCopyAdvancedEl) launchCopyAdvancedEl.hidden = launchIsolation === 'custom'
-      // 折叠里的输入框留空时用占位符把「自动会取什么」亮出来：不展开也知道会是哪个名字
+      // 名字输入框留空时用占位符把「自动会取什么」亮出来
       if (launchProfileCustomEl) launchProfileCustomEl.placeholder = suggestIsolatedProfile()
       if (launchHomeProfileEl) launchHomeProfileEl.placeholder = t('Profile 名称，留空用 web')
-      const copy = selectedCopy()
-      const projectDir = String(launchProjectDirEl?.value || '').trim()
+      // 复制只对引导两档有意义：自定义档本来就是自己挑现成的 Profile，说明行不该提复制
+      const copying = launchIsolation !== 'custom' && launchSourceMode === 'copy'
+      const copy = copying ? selectedCopy() : null
       let hint
-      if (launchIsolation === 'profile') {
-        hint = copy
-          ? t('把「{profile}」的插件与配置复制一份，之后各改各的。', { profile: copy.profile })
-          : t('将自动新建 Profile「{name}」：沿用全局 dsh 目录，会话与记忆共享，插件与配置独立。', { name: suggestIsolatedProfile() })
+      if (copy) {
+        hint = t('把「{profile}」的插件与配置复制一份，之后各改各的。', { profile: copy.profile })
+      } else if (copying) {
+        // 停在复制那档还没选来源：说清下一步，别让人以为直接保存就复制了
+        hint = t('先选一份要复制的 Profile：左边挑用户目录，右边挑 Profile。')
+      } else if (launchIsolation === 'profile') {
+        hint = t('将自动新建 Profile「{name}」：沿用全局 dsh 目录，会话与记忆共享，插件与配置独立。', { name: suggestIsolatedProfile() })
       } else if (launchIsolation === 'home') {
-        hint = projectDir
-          ? t('项目环境：数据目录 {path}，新会话在项目根里工作。', { path: projectHomeOf(projectDir) })
-          : t('将自动新建独立目录：会话、记忆、插件与配置全部独立。')
+        hint = t('将自动新建独立目录：会话、记忆、插件与配置全部独立。')
       } else {
-        hint = t('版本、端口、目录和 Profile 都在这里手动选；要新目录先去「管理目录」里添加。')
+        hint = t('版本、端口和启动环境都在这里手动选；点「启动环境」换目录或 Profile，左栏「+」加目录。')
       }
+      // 复制来源按钮的文案也跟着刷新（切语言、换了来源都要重画）
+      paintLaunchCopy()
       if (launchIsolationHintEl.textContent === hint) return
       launchIsolationHintEl.textContent = hint
       // 换档时说明行淡入一下，文字别硬跳；测试沙箱里的元素桩没有 classList 就不做动画。
@@ -4128,8 +4157,14 @@
       }
     }
 
+    // 两排 tab 共用一个容器：先看是不是第二排（data-source），否则按隔离方式那排处理
     launchIsolationFieldEl.onclick = (event) => {
-      const tab = event.target.closest?.('.launch-isolation-tab')
+      const source = event.target.closest?.('.launch-source-tab')
+      if (source) {
+        setLaunchSource(source.dataset.source)
+        return
+      }
+      const tab = event.target.closest?.('.launch-isolation-tab[data-isolation]')
       if (!tab) return
       setLaunchIsolation(tab.dataset.isolation)
       // 记住这一档：下次打开「添加启动项」直接停在这里。编辑老启动项时引导区藏着，点不到。
@@ -4165,97 +4200,500 @@
       openPluginHomesDialog()
     }
 
-    // ---- 项目目录 / 从已有 Profile 复制（issue #72）----
+    // ---- 选 Profile：三栏选择窗（用户目录 / Profile / 插件） ----
     /**
-     * 项目目录 → 数据目录 `<项目>/.dsh`。页面只做一次字符串拼接，服务端保存时还会按同一个规则
-     * 再算一遍；分隔符统一用 `/`（Windows 也认，服务端会规范化成 `\\`），两边结果一样。
+     * 选定的复制来源 { home, profile }，null = 还没选；空 home 表示全局那份（跟「沿用全局目录」一个意思）。
+     * 目录名不进状态：切界面语言时按 home 现算，免得存着一句旧语言的「全局目录」。
      */
-    function projectHomeOf(projectDir) {
-      const dir = String(projectDir || '').trim().replace(/[\\/]+$/, '')
-      return dir ? `${dir}/.dsh` : ''
-    }
+    let launchCopySource = null
+    /**
+     * 选择窗这次拿来干嘛：copy = 给「从已有 Profile 复制」挑来源；form = 给「自定义」档挑 home + Profile。
+     * 两边的差别只在标题文案和确认后写到哪，窗里的列表、增删改、插件预览是同一套。
+     */
+    let pickerMode = 'copy'
+    // 弹窗里的临时选择：目录 + Profile。取消就丢掉，只有「用它」才写回外面
+    let pickerHome = ''
+    let pickerProfile = ''
+    let pickerRows = []
+    // 详情栏上一次画的是哪份 Profile：换了才重播淡入
+    let pickerDetailName = ''
+    // 按目录缓存 { profiles, webProfiles, packs }：切来切去不重复问服务端，增删改只失效那一份
+    const pickerCache = new Map()
+    // 每次切目录都会发请求，晚回来的旧响应不能盖掉新目录的列表
+    let pickerRevision = 0
+    // 增删改进行中：列表里的动作按钮全灰掉，免得连点建出两个
+    let pickerBusy = false
 
-    /** 项目目录说明行：填了就说清数据放哪、会话在哪开；空着不占位。 */
-    function paintProjectHint() {
-      if (!launchWorkdirHintEl) return
-      const dir = String(launchWorkdirEl?.value || '').trim()
-      launchWorkdirHintEl.textContent = dir ? t('数据目录 {path}；新会话在项目根目录里工作。', { path: projectHomeOf(dir) }) : ''
-    }
-
-    /** 项目环境里数据目录由项目推导，用户目录下拉就藏起来——两个答案同时在屏上只会打架。 */
-    function syncLaunchWorkdir() {
-      const on = Boolean(String(launchWorkdirEl?.value || '').trim())
-      if (launchDshHomeFieldEl) launchDshHomeFieldEl.hidden = on
-      paintProjectHint()
-    }
-
-    /** 复制来源的目录下拉：空值 = 默认目录（全局那份，页面里「沿用全局目录」就是这个意思）。 */
-    function paintLaunchCopyHome() {
-      if (!launchCopyHomeEl) return
-      const current = launchCopyHomeEl.value
-      const options = [`<option value="">${escapeHtml(t('默认目录'))}</option>`]
-      for (const home of homeOptions('')) options.push(`<option value="${escapeHtml(home)}">${escapeHtml(homeOptionLabel(home))}</option>`)
-      launchCopyHomeEl.innerHTML = options.join('')
-      launchCopyHomeEl.value = current && [...launchCopyHomeEl.options].some((option) => option.value === current) ? current : ''
-      syncUiSelect(launchCopyHomeEl)
+    /** 目录的显示名：全局那份叫「全局目录」，其余的优先用登记时起的名字。 */
+    function copyHomeName(home) {
+      if (!home) return t('全局目录')
+      return pluginHomeName(home, '') || home
     }
 
     /**
-     * 复制来源的 Profile 下拉：首项「不复制」= 按新名字建空白环境；其余是那个目录里已有的 Profile。
-     * 目录不存在或没登记就只剩「不复制」，别让人以为选了个真能复制的来源。
+     * 切到复制那档的默认来源：全局目录里的 web（没有 web 就挑第一份能起网页的）。
+     * 全局目录的 Profile 清单页面早就有了（state.profiles / webProfiles），不用再问服务端。
      */
-    async function refreshCopyProfiles() {
-      if (!launchCopyProfileEl) return
-      const home = String(launchCopyHomeEl?.value || '')
-      const current = launchCopyProfileEl.value
-      let profiles = []
+    function defaultCopySource() {
+      const web = (Array.isArray(state.webProfiles) && state.webProfiles.length ? state.webProfiles : (state.profiles || [])).map(String)
+      const profile = web.includes('web') ? 'web' : (web[0] || '')
+      return profile ? { home: '', profile } : null
+    }
+
+    /** 复制来源那行按钮：选过就是「目录 › Profile」，没选过是占位文案。 */
+    function paintLaunchCopy() {
+      if (!launchCopyPickEl) return
+      const { home = '', profile = '' } = launchCopySource || {}
+      launchCopyPickEl.classList.toggle('is-placeholder', !launchCopySource)
+      launchCopyPickValueEl.textContent = launchCopySource
+        ? t('{home} › {profile}', { home: copyHomeName(home), profile })
+        : t('选择一个 Profile…')
+      launchCopyPickEl.title = launchCopySource
+        ? t('{home} › {profile}（{path}）', { home: copyHomeName(home), profile, path: home || state.dshHome || '~/.dsh' })
+        : t('选择一个 Profile…')
+      launchCopyPickEl.setAttribute('aria-label', launchCopyPickValueEl.textContent)
+    }
+
+    /** 「自定义」档那行环境触发器：显示「目录 › Profile」，悬停能看到路径。 */
+    function paintLaunchEnvTrigger() {
+      if (!launchEnvPickEl) return
+      const home = launchDshHomeEl.value.trim()
+      const profile = launchProfile || ''
+      const path = home || state.dshHome || '~/.dsh'
+      const text = profile ? t('{home} › {profile}', { home: copyHomeName(home), profile }) : t('选择一个环境…')
+      launchEnvPickEl.classList.toggle('is-placeholder', !profile)
+      launchEnvPickValueEl.textContent = text
+      launchEnvPickEl.title = profile ? t('{home} › {profile}（{path}）', { home: copyHomeName(home), profile, path }) : t('选择一个环境…')
+      launchEnvPickEl.setAttribute('aria-label', text)
+    }
+
+    /**
+     * 左栏的目录：全局那份排第一（空值），后面是登记过的目录，每行带重命名/移除。
+     * 名字那行优先用登记时起的名字，路径那行只在两者不同时给，免得同一个值写两遍。
+     */
+    function paintPickerHomes() {
+      const folder = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2Z"/></svg>'
+      const openFolder = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M10 14 21 3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>'
+      const pencil = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 5 5-12 12H4v-5L16 3Z"/><path d="m14 5 5 5"/></svg>'
+      const trash = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5"/></svg>'
+      const rows = [{ home: '', name: t('全局目录'), path: state.dshHome || '~/.dsh' }]
+      for (const [home, named] of homeOptions(pickerHome)) {
+        const name = copyHomeName(home)
+        rows.push({ home, name, path: named && name !== home ? home : '' })
+      }
+      const disabled = pickerBusy ? 'disabled' : ''
+      profilePickHomesEl.innerHTML = rows.map((row) => {
+        const selected = row.home === pickerHome
+        const sub = row.path && row.path !== row.name ? `<span class="profile-pick-sub">${escapeHtml(row.path)}</span>` : ''
+        // 打开目录哪一行都有（全局那份也能在资源管理器里翻）；重命名/移除只给登记过的：
+        // 全局目录是兜底那份，服务端也会拦。
+        const open = `<button class="icon-btn profile-pick-action" type="button" data-home-open="${escapeHtml(row.home)}" title="${escapeHtml(t('在文件夹里打开'))}" aria-label="${escapeHtml(t('在文件夹里打开'))}" ${disabled}>${openFolder}</button>`
+        const edit = row.home
+          ? `<button class="icon-btn profile-pick-action" type="button" data-home-rename="${escapeHtml(row.home)}" title="${escapeHtml(t('重命名目录'))}" aria-label="${escapeHtml(t('重命名目录'))}" ${disabled}>${pencil}</button><button class="icon-btn profile-pick-action danger" type="button" data-home-remove="${escapeHtml(row.home)}" title="${escapeHtml(t('移除目录'))}" aria-label="${escapeHtml(t('移除目录'))}" ${disabled}>${trash}</button>`
+          : ''
+        return `<div class="profile-pick-row${selected ? ' is-selected' : ''}" data-home="${escapeHtml(row.home)}"><button class="profile-pick-hit" type="button" role="option" aria-selected="${selected}"><span class="profile-pick-icon">${folder}</span><span class="profile-pick-text"><span class="profile-pick-name">${escapeHtml(row.name)}</span>${sub}</span></button><span class="profile-pick-actions">${open}${edit}</span></div>`
+      }).join('')
+      for (const hit of profilePickHomesEl.querySelectorAll('[data-home] .profile-pick-hit')) {
+        hit.onclick = () => void selectPickerHome(hit.closest('[data-home]').dataset.home)
+      }
+      for (const button of profilePickHomesEl.querySelectorAll('[data-home-open]')) {
+        button.onclick = () => void openPickerHome(button.dataset.homeOpen)
+      }
+      for (const button of profilePickHomesEl.querySelectorAll('[data-home-rename]')) {
+        button.onclick = () => openProfileDialog(button.dataset.homeRename, 'home', { fromPicker: true })
+      }
+      for (const button of profilePickHomesEl.querySelectorAll('[data-home-remove]')) {
+        button.onclick = () => void removePickerHome(button.dataset.homeRemove)
+      }
+      profilePickHomeAddEl.disabled = pickerBusy
+    }
+
+    /** 行尾「打开」：在系统文件管理器里打开这个用户目录（空 home = 全局目录）。 */
+    async function openPickerHome(home) {
+      if (pickerBusy) return
       try {
-        const data = await getJson(`/api/launch-home/profiles?home=${encodeURIComponent(home)}`)
-        profiles = Array.isArray(data.profiles) ? data.profiles : []
-      } catch { profiles = [] }
-      const options = [`<option value="">${escapeHtml(t('不复制'))}</option>`]
-      for (const name of profiles) options.push(`<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`)
-      launchCopyProfileEl.innerHTML = options.join('')
-      launchCopyProfileEl.value = current && profiles.includes(current) ? current : ''
-      syncUiSelect(launchCopyProfileEl)
+        await post('/api/dsh-homes/open', { home })
+      } catch (error) {
+        profilePickHintEl.textContent = t(error.message)
+      }
     }
 
-    /** 两个下拉都选了才算「从已有 Profile 复制」；只挑目录没挑 Profile 就是新建空白环境。 */
+    /** 重播一次「刚刷新」的动效：先摘类再量一次 layout，连点也不会因为类还在而不触发。 */
+    function replayListMotion(el) {
+      if (!el?.classList) return
+      el.classList.remove('is-refreshed')
+      void el.offsetWidth
+      el.classList.add('is-refreshed')
+    }
+
+    /**
+     * 中栏的 Profile：能起网页的才能选（启动项只服务起网页的 Profile，见 paintLaunchProfiles）；
+     * 起不了的也列出来、但标灰不可选，省得人对着少了一行去猜。
+     * 每行还带插件数（来自 /api/packs），行尾给重命名/删除——增删改都作用在这个目录上。
+     */
+    function paintPickerProfiles(loading = true) {
+      const pencil = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 5 5-12 12H4v-5L16 3Z"/><path d="m14 5 5 5"/></svg>'
+      const trash = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5"/></svg>'
+      const selectedRow = pickerRows.find((row) => row.name === pickerProfile)
+      profilePickCopyEl.disabled = pickerBusy || !selectedRow
+      if (loading) {
+        profilePickProfilesEl.innerHTML = `<p class="profile-pick-note"><span class="spin" aria-hidden="true"></span>${escapeHtml(t('正在读取 Profile…'))}</p>`
+        profilePickConfirmEl.disabled = true
+        return
+      }
+      if (!pickerRows.length) {
+        profilePickProfilesEl.innerHTML = `<p class="profile-pick-note">${escapeHtml(t('这个目录里还没有 Profile'))}</p>`
+        profilePickConfirmEl.disabled = true
+        replayListMotion(profilePickProfilesEl)
+        return
+      }
+      profilePickProfilesEl.innerHTML = pickerRows.map((row) => {
+        const selected = row.name === pickerProfile
+        const blocked = row.web ? '' : ' is-blocked'
+        const count = row.pack ? (row.pack.pluginCount ?? (row.pack.plugins || []).length) : null
+        const note = row.web
+          ? (count === null ? t('还没初始化') : t('{n} 个插件', { n: count }))
+          : t('不能起网页')
+        // 没初始化的 Profile 没有 package.json：重命名/删除都会被服务端拒，干脆灰掉
+        const canEdit = Boolean(row.pack) && !pickerBusy
+        const actions = `<span class="profile-pick-actions"><button class="icon-btn profile-pick-action" type="button" data-profile-rename="${escapeHtml(row.name)}" title="${escapeHtml(t('重命名 Profile'))}" aria-label="${escapeHtml(t('重命名 Profile'))}" ${canEdit ? '' : 'disabled'}>${pencil}</button><button class="icon-btn profile-pick-action danger" type="button" data-profile-remove="${escapeHtml(row.name)}" title="${escapeHtml(t('删除 Profile'))}" aria-label="${escapeHtml(t('删除 Profile'))}" ${canEdit && row.pack?.removable !== false ? '' : 'disabled'}>${trash}</button></span>`
+        return `<div class="profile-pick-row${selected ? ' is-selected' : ''}${blocked}" data-profile="${escapeHtml(row.name)}"><button class="profile-pick-hit" type="button" role="option" aria-selected="${selected}" aria-disabled="${!row.web}" ${row.web ? '' : 'disabled'}><span class="profile-pick-text"><span class="profile-pick-name">${escapeHtml(row.name)}</span><span class="profile-pick-sub">${escapeHtml(note)}</span></span></button>${actions}</div>`
+      }).join('')
+      for (const hit of profilePickProfilesEl.querySelectorAll('[data-profile] .profile-pick-hit')) {
+        if (hit.disabled) continue
+        const name = hit.closest('[data-profile]').dataset.profile
+        hit.onclick = () => markPickerProfile(name)
+        hit.ondblclick = () => confirmProfilePick()
+      }
+      for (const button of profilePickProfilesEl.querySelectorAll('[data-profile-rename]')) {
+        button.onclick = () => openProfileDialog(button.dataset.profileRename, 'rename', { fromPicker: true })
+      }
+      for (const button of profilePickProfilesEl.querySelectorAll('[data-profile-remove]')) {
+        button.onclick = () => void removePickerProfile(button.dataset.profileRemove)
+      }
+      profilePickConfirmEl.disabled = !pickerRows.some((row) => row.web && row.name === pickerProfile)
+      replayListMotion(profilePickProfilesEl)
+    }
+
+    /** 点一行 Profile：只翻选中态，不重铺列表——重铺会把键盘焦点弄丢。 */
+    function markPickerProfile(name) {
+      pickerProfile = name
+      for (const row of profilePickProfilesEl.querySelectorAll('[data-profile]')) {
+        const selected = row.dataset.profile === name
+        row.classList.toggle('is-selected', selected)
+        row.querySelector('.profile-pick-hit')?.setAttribute('aria-selected', String(selected))
+      }
+      const picked = pickerRows.find((row) => row.name === name)
+      profilePickConfirmEl.disabled = !picked?.web
+      profilePickCopyEl.disabled = pickerBusy || !picked
+      paintPickerDetails()
+    }
+
+    /** 左栏选中态：只翻类和 aria，不重铺列表——重铺会把键盘焦点弄丢。 */
+    function markPickerHome() {
+      for (const row of profilePickHomesEl.querySelectorAll('[data-home]')) {
+        const selected = row.dataset.home === pickerHome
+        row.classList.toggle('is-selected', selected)
+        row.querySelector('.profile-pick-hit')?.setAttribute('aria-selected', String(selected))
+      }
+    }
+
+    /**
+     * 右栏：选中那份 Profile 里装了什么。数据来自 /api/packs（一次请求就带全部 Profile 的插件），
+     * 不再为每份 Profile 单独问；没初始化的那份说清「先用它启动一次」。
+     */
+    function paintPickerDetails() {
+      if (!profilePickDetailsEl) return
+      const row = pickerRows.find((item) => item.name === pickerProfile)
+      profilePickMetaEl.textContent = ''
+      // 换了 Profile 才播一次淡入；同一份重复重画（比如置忙）不闪
+      const changed = pickerDetailName !== (row?.name || '')
+      pickerDetailName = row?.name || ''
+      const render = (html) => {
+        profilePickDetailsEl.innerHTML = html
+        if (changed) replayListMotion(profilePickDetailsEl)
+      }
+      if (!row) return render(`<p class="profile-pick-note">${escapeHtml(t('先挑一个 Profile'))}</p>`)
+      if (!row.pack) return render(`<p class="profile-pick-note">${escapeHtml(t('还没初始化：先用它启动一次，dsh 会建好这个环境。'))}</p>`)
+      const plugins = Array.isArray(row.pack.plugins) ? row.pack.plugins : []
+      const on = plugins.filter((item) => item.enabled).length
+      profilePickMetaEl.textContent = t('{n} 个插件 · {on} 个开着', { n: plugins.length, on })
+      if (!plugins.length) return render(`<p class="profile-pick-note">${escapeHtml(t('这个环境里还没装插件'))}</p>`)
+      render(plugins.map((item) => `<div class="profile-detail-row${item.enabled ? '' : ' is-off'}"><span class="profile-detail-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span><span class="profile-detail-version">${escapeHtml(item.version || '')}</span>${item.enabled ? '' : `<span class="profile-detail-badge">${escapeHtml(t('已关闭'))}</span>`}</div>`).join(''))
+    }
+
+    /** 一个目录的清单：Profile 列表（含没初始化的）+ 能起网页的 + 插件卡（/api/packs）。按目录缓存。 */
+    async function loadPickerHome(home) {
+      const cached = pickerCache.get(home)
+      if (cached) return cached
+      const [profilesData, packsData] = await Promise.all([
+        getJson(`/api/launch-home/profiles?home=${encodeURIComponent(home)}`).catch(() => null),
+        // 显式指定目录：不然会落回环境页正在看的那份（apiScopeHeaders 的自动作用域）
+        getJson('/api/packs', { home, launchId: '' }).catch(() => null),
+      ])
+      const profiles = Array.isArray(profilesData?.profiles) ? profilesData.profiles.map(String) : []
+      const web = new Set(Array.isArray(profilesData?.webProfiles) ? profilesData.webProfiles : profiles)
+      const packs = Array.isArray(packsData?.packs) ? packsData.packs : []
+      const byName = new Map(packs.map((pack) => [String(pack.profile), pack]))
+      const data = { profiles, web, byName }
+      pickerCache.set(home, data)
+      return data
+    }
+
+    /** 点左栏某个目录：换目录、重铺中栏和右栏；原来选的 Profile 还在这个目录里才保留。 */
+    async function selectPickerHome(home) {
+      pickerHome = home
+      markPickerHome()
+      const revision = ++pickerRevision
+      paintPickerProfiles(true)
+      paintPickerDetails()
+      const data = await loadPickerHome(home)
+      if (revision !== pickerRevision) return
+      pickerRows = data.profiles.map((name) => ({ name, web: data.web.has(name), pack: data.byName.get(name) || null }))
+      // 换目录后原来的 Profile 不在就自动挑一份：优先 web（大家最常复制的那份），否则第一份能起网页的
+      if (!pickerRows.some((row) => row.web && row.name === pickerProfile)) {
+        const usable = pickerRows.filter((row) => row.web)
+        pickerProfile = (usable.find((row) => row.name === 'web') || usable[0] || {}).name || ''
+      }
+      if (!profilePickHintEl.textContent) {
+        profilePickHintEl.textContent = pickerRows.length && !pickerRows.some((row) => row.web)
+          ? t('这个目录里的 Profile 都不能起网页，换一个目录试试。')
+          : ''
+      }
+      paintPickerProfiles(false)
+      paintPickerDetails()
+    }
+
+    /** 弹窗标题/副标题/确认按钮文案：两档用途共用一套窗，只有这几句不同。 */
+    function setPickerHeading(title, subtitle) {
+      const titleEl = document.getElementById('profilePickTitle')
+      titleEl.dataset.i18n = title
+      titleEl.textContent = t(title)
+      profilePickSubtitleEl.dataset.i18n = subtitle
+      profilePickSubtitleEl.textContent = t(subtitle)
+    }
+
+    /** 打开选择窗：把当前选择带进去，左栏先停在那个目录上。 */
+    async function openProfilePicker(mode = 'copy') {
+      if (!profilePickDialogEl.hidden) return
+      pickerMode = mode === 'form' ? 'form' : 'copy'
+      if (pickerMode === 'form') {
+        pickerHome = launchDshHomeEl.value.trim()
+        pickerProfile = launchProfile || ''
+        setPickerHeading('选择 Profile', '左边挑用户目录，中间挑 Profile，右边是它装着的插件。')
+      } else {
+        pickerHome = launchCopySource?.home || ''
+        pickerProfile = launchCopySource?.profile || ''
+        setPickerHeading('选择要复制的 Profile', '左边挑用户目录，中间挑 Profile；复制的是它现在装着的插件与配置。')
+      }
+      pickerRows = []
+      pickerDetailName = ''
+      pickerCache.clear()
+      pickerBusy = false
+      profilePickHintEl.textContent = ''
+      profilePickProfilesEl.innerHTML = ''
+      profilePickDetailsEl.innerHTML = ''
+      profilePickMetaEl.textContent = ''
+      ;(pickerMode === 'form' ? launchEnvPickEl : launchCopyPickEl).setAttribute('aria-expanded', 'true')
+      paintPickerHomes()
+      showPackDialog(profilePickDialogEl, profilePickHomesEl.querySelector('.profile-pick-row.is-selected .profile-pick-hit') || profilePickHomesEl.querySelector('.profile-pick-hit'))
+      await selectPickerHome(pickerHome)
+    }
+
+    function closeProfilePicker() {
+      launchCopyPickEl.setAttribute('aria-expanded', 'false')
+      launchEnvPickEl.setAttribute('aria-expanded', 'false')
+      void hidePackDialog(profilePickDialogEl)
+    }
+
+    /** 「用它」：copy 档写回复制来源；form 档把 home + Profile 写回启动项表单。 */
+    function confirmProfilePick() {
+      if (profilePickConfirmEl.disabled) return
+      const choice = { home: pickerHome, profile: pickerProfile }
+      closeProfilePicker()
+      if (pickerMode === 'form') {
+        void applyPickerToLaunchForm(choice)
+        return
+      }
+      launchCopySource = choice
+      paintLaunchCopy()
+      paintLaunchIsolation()
+    }
+
+    /**
+     * form 档的写回：目录先落到下拉上（paintLaunchHomes 会按登记表重铺选项，值写得进才留得住），
+     * 再按老规矩重新拉这个目录的 Profile 列表，最后把选中的那份写进 launchProfile。
+     * 这样保存、修环境入口、恢复查询全部沿用原来的路径，不用另写一套。
+     */
+    async function applyPickerToLaunchForm({ home, profile }) {
+      paintLaunchHomes(home)
+      launchDshHomeEl.value = home
+      await refreshLaunchHomeProfiles()
+      launchProfile = profile
+      paintLaunchProfiles()
+      launchProfileEl.value = profile
+      launchProfileEl.onchange()
+      paintLaunchEnvTrigger()
+    }
+
+    /** 选择窗里干活时统一置忙：动作按钮灰掉，列表照常能看。 */
+    function setPickerBusy(busy) {
+      pickerBusy = busy
+      paintPickerHomes()
+      paintPickerProfiles(false)
+    }
+
+    /** 目录登记表变了：环境页和启动项的下拉一起重铺（跟 changePluginHomeList 共用这一处）。 */
+    function applyHomes(dshHomes) {
+      state.dshHomes = dshHomes
+      if (!launchDialogEl.hidden) {
+        paintLaunchHomes(launchHomePicked)
+        paintLaunchHomeCustom()
+      }
+      paintPluginHomes()
+    }
+
+    /** 左栏的「+ 添加目录」：挑一个磁盘目录登记进来，然后直接停在新目录上。 */
+    async function addPickerHome() {
+      if (pickerBusy) return
+      try {
+        const picked = await pickDirectoryPath(pickerHome || state.dshHome || '')
+        if (picked.error) throw new Error(picked.error)
+        if (!picked.path) return
+        setPickerBusy(true)
+        const data = await post('/api/dsh-homes/add', { home: picked.path })
+        applyHomes(data.dshHomes)
+        pickerCache.clear()
+        paintPickerHomes()
+        profilePickHintEl.textContent = ''
+        await selectPickerHome(picked.path)
+      } catch (error) {
+        profilePickHintEl.textContent = t(error.message)
+      } finally {
+        if (pickerBusy) setPickerBusy(false)
+      }
+    }
+
+    /** 左栏的「✕」：从登记表里移除（目录和里面的数据都不动，服务端会拦住正在用的）。 */
+    async function removePickerHome(home) {
+      if (pickerBusy || !home) return
+      const name = copyHomeName(home)
+      if (!await appConfirm(t('移除「{home}」？只从列表里移除，目录里的数据都还在。', { home: name }), { title: t('移除目录'), parent: profilePickDialogEl })) return
+      setPickerBusy(true)
+      try {
+        const data = await post('/api/dsh-homes/remove', { home })
+        applyHomes(data.dshHomes)
+        pickerCache.clear()
+        // 环境页正看的就是这份：退回全局目录，别停在已移除的目录上
+        if (sameHomePath(pluginHome, home)) {
+          pluginHome = ''
+          resetPluginView()
+          renderPackGrid()
+          renderPackView()
+          void loadPlugins()
+        }
+        paintPickerHomes()
+        await selectPickerHome('')
+      } catch (error) {
+        profilePickHintEl.textContent = t(error.message)
+      } finally {
+        setPickerBusy(false)
+      }
+    }
+
+    /** 中栏的「✕」：删掉这个目录里的这份 Profile（会话与记忆留着，启动项跟着删）。 */
+    async function removePickerProfile(profile) {
+      const row = pickerRows.find((item) => item.name === profile)
+      if (pickerBusy || !row?.pack) return
+      const n = row.pack.pluginCount ?? (row.pack.plugins || []).length
+      if (!await appConfirm(t('删除「{profile}」？其中的 {n} 个插件、配置和对应启动项会一并移除，会话与记忆保留。此操作无法撤销。', { profile, n }), { title: t('删除 Profile'), parent: profilePickDialogEl })) return
+      setPickerBusy(true)
+      try {
+        await post('/api/profiles/delete', { profile }, { home: pickerHome, launchId: '' })
+        pickerCache.delete(pickerHome)
+        if (pickerProfile === profile) pickerProfile = ''
+        profilePickHintEl.textContent = ''
+        await selectPickerHome(pickerHome)
+        // 删的正好是环境页正在看的那份：那边重新拉一遍，别停在旧列表上
+        if (sameHomePath(pickerHome || state.dshHome, pluginTargetHome() || state.dshHome)) void loadPlugins()
+      } catch (error) {
+        profilePickHintEl.textContent = t(error.message)
+      } finally {
+        setPickerBusy(false)
+      }
+    }
+
+    /**
+     * 当前停在「从已有 Profile 复制」那档、而且真选好了一份，才算要复制。
+     * 停在「新建 Profile」时上次选的来源不算数——tab 就代表这次用哪一种。
+     */
     function selectedCopy() {
-      const profile = String(launchCopyProfileEl?.value || '').trim()
-      if (!profile) return null
-      return { profile, home: String(launchCopyHomeEl?.value || '') }
+      if (launchSourceMode !== 'copy' || !launchCopySource) return null
+      return { profile: launchCopySource.profile, home: launchCopySource.home }
     }
 
-    /** 系统目录对话框：选完把路径填进输入框。`/api/pick-dir` 只负责弹窗，不改任何设置。 */
-    async function pickLaunchPath(input) {
-      try {
-        const result = await post('/api/pick-dir', { initialPath: String(input?.value || '').trim() })
-        if (result.error) { notify(result.error); return }
-        if (!result.path) return
-        input.value = result.path
-        input.dispatchEvent?.(new Event('input'))
-        syncLaunchWorkdir()
-      } catch (error) { notify(error.message) }
+    // 两栏列表都能用上下键走：资源管理器那套手感，不用 Tab 一格一格挪
+    for (const list of [profilePickHomesEl, profilePickProfilesEl]) {
+      list.onkeydown = (event) => {
+        if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+        const rows = [...list.querySelectorAll('.profile-pick-hit:not([disabled])')]
+        if (!rows.length) return
+        event.preventDefault()
+        const at = rows.indexOf(document.activeElement)
+        const next = event.key === 'ArrowDown' ? rows[Math.min(at + 1, rows.length - 1)] : rows[Math.max(at - 1, 0)]
+        if (next === document.activeElement && at >= 0) rows[event.key === 'ArrowDown' ? 0 : rows.length - 1].focus()
+        else next.focus()
+      }
     }
-    launchProjectPickEl.onclick = () => pickLaunchPath(launchProjectDirEl)
-    launchWorkdirPickEl.onclick = () => pickLaunchPath(launchWorkdirEl)
-    launchWorkdirEl.oninput = syncLaunchWorkdir
-    // 换来源目录就重拉那个目录的 Profile 列表；换 Profile 不动别的字段，保存时按它取名字
-    launchCopyHomeEl.onchange = () => { void refreshCopyProfiles() }
-    // 项目目录改了就重画说明行，引导说明也跟着换一句话
-    launchProjectDirEl.oninput = () => paintLaunchIsolation()
+
+    launchCopyPickEl.onclick = () => void openProfilePicker('copy')
+    launchEnvPickEl.onclick = () => void openProfilePicker('form')
+    profilePickConfirmEl.onclick = confirmProfilePick
+    profilePickHomeAddEl.onclick = () => void addPickerHome()
+    profilePickCreateEl.onclick = () => openProfileDialog('', 'create', { home: pickerHome, fromPicker: true })
+    profilePickCopyEl.onclick = () => {
+      if (profilePickCopyEl.disabled || !pickerProfile) return
+      openProfileDialog(pickerProfile, 'copy', { home: pickerHome, fromPicker: true })
+    }
+    document.getElementById('profilePickClose').onclick = closeProfilePicker
+    document.getElementById('profilePickCancel').onclick = closeProfilePicker
+    trapPackDialog(profilePickDialogEl, closeProfilePicker)
+
+    /**
+     * 编辑启动项时回显桌面增强：三个官方插件在这个 profile 里装齐了就勾上并锁住，
+     * 缺的保持不勾（要装就自己勾）。
+     * 装了几个不写在界面上——开关本身就是状态；数据目录可能不是全局那份，
+     * 用 x-dsh-home 把请求限定过去，读不到就按未装处理，保存时照常会再试一次。
+     */
+    async function refreshLaunchDesktopEnhance(entry) {
+      const revision = launchDialogRevision
+      try {
+        const data = await getJson(`/api/desktop-enhance?profile=${encodeURIComponent(entry.profile)}`, { home: entry.dshHome || '' })
+        if (revision !== launchDialogRevision || editingLaunchId !== entry.id) return
+        const installed = Number(data.desktopEnhance?.installed) || 0
+        const total = Number(data.desktopEnhance?.total) || 0
+        const missing = total - installed
+        launchDesktopEnhanceEl.disabled = missing <= 0
+        launchDesktopEnhanceEl.checked = missing <= 0
+      } catch {
+        if (revision !== launchDialogRevision || editingLaunchId !== entry.id) return
+        launchDesktopEnhanceEl.disabled = false
+        launchDesktopEnhanceEl.checked = false
+      }
+    }
 
     /**
      * 引导式新建的保存前准备：算出这次要用的 { name, profile, dshHome }。
      * 都走现有接口（建 Profile 由服务端 ensureProfile 完成），页面不用先建环境再存启动项。
      */
     async function prepareGuidedLaunch() {
-      // 两个下拉都选了才算要复制；来源目录空串 = 默认目录，服务端按当前作用域算
+      // 复制来源只在「从已有 Profile 复制」那档有效；来源目录空串 = 默认目录，服务端按当前作用域算
       const copy = selectedCopy()
-      // 折叠里填了就用填的（已存在的 Profile 直接复用），没填还是全自动；选了复制就沿用来源的名字
+      // 停在那档却没选来源：保存不会静默变成「新建空白」，直接把下一步说出来
+      if (launchSourceMode === 'copy' && !copy) throw new Error(t('先选一份要复制的 Profile'))
+      // 名字输入框只在「新建 Profile」那档算数（停在那档才读），没填还是全自动；选了复制就沿用来源的名字
       if (launchIsolation === 'profile') {
-        const typed = String(launchProfileCustomEl?.value || '').trim()
+        const typed = launchSourceMode === 'copy' ? '' : String(launchProfileCustomEl?.value || '').trim()
         const name = typed || copy?.profile || suggestIsolatedProfile()
         const web = Array.isArray(state.webProfiles) ? state.webProfiles : []
         if (typed && (state.profiles || []).includes(typed) && !web.includes(typed)) throw new Error(t('这个 Profile 不能启动网页，换一个名称'))
@@ -4265,36 +4703,30 @@
           ...(copy ? { copyFrom: copy } : {}),
         }
       }
-      // 项目目录：填了就是项目环境，数据目录固定 <项目>/.dsh，不再问用户目录（页面上那个下拉也藏了）
-      const projectDir = String(launchProjectDirEl?.value || '').trim()
-      if (projectDir && !/^([a-zA-Z]:[\\/]|[\\/]{1,2})/.test(projectDir)) throw new Error(t('项目目录要填绝对路径，例如 /projects/app'))
       // 选「自动新建」时值是空串；万一还停在「管理目录…」的哨兵值上，也按自动新建算
       const pickedHome = launchHomeCustomEl?.value === PLUGIN_HOME_MANAGE ? '' : (launchHomeCustomEl?.value || '')
-      const home = projectDir ? projectHomeOf(projectDir) : String(pickedHome).trim() || suggestIsolatedHome()
+      const home = String(pickedHome).trim() || suggestIsolatedHome()
       if (!home) throw new Error(t('数据目录还没就绪，稍后再试'))
       // 服务端会规范化路径（分隔符、大小写），后面的登记和保存都用它回传的那个。
       const data = await getJson(`/api/launch-home/profiles?home=${encodeURIComponent(home)}`)
       const realHome = data.home || home
       const profiles = Array.isArray(data.profiles) ? data.profiles : []
       const web = Array.isArray(data.webProfiles) ? data.webProfiles : []
-      // 折叠里指定了 Profile：已存在但不起网页的先拦下；不存在就交给服务端 ensureProfile 建
-      const typedProfile = String(launchHomeProfileEl?.value || '').trim()
+      // 名字输入框指定了 Profile（只有「新建 Profile」那档读）：已存在但不起网页的先拦下；
+      // 不存在就交给服务端 ensureProfile 建
+      const typedProfile = launchSourceMode === 'copy' ? '' : String(launchHomeProfileEl?.value || '').trim()
       if (typedProfile && profiles.includes(typedProfile) && !web.includes(typedProfile)) {
         throw new Error(t('这个 Profile 不能启动网页，换一个名称'))
       }
       // listProfiles 总会带上 web，所以新目录也能直接用模板 profile 启动（dsh 会自动初始化）。
       const profile = typedProfile || copy?.profile || (profiles.includes('web') ? 'web' : (profiles[0] || 'web'))
-      // 项目数据目录属于这个启动项，不进「用户目录」登记表——那张表是给人手动管环境的
-      if (!projectDir) {
-        const known = [...(state.dshHomes || []), ...launchEntries().map((entry) => entry.dshHome).filter(Boolean)]
-        if (!known.some((item) => sameHomePath(item, realHome))) await post('/api/dsh-homes/add', { home: realHome })
-      }
+      const known = [...(state.dshHomes || []), ...launchEntries().map((entry) => entry.dshHome).filter(Boolean)]
+      if (!known.some((item) => sameHomePath(item, realHome))) await post('/api/dsh-homes/add', { home: realHome })
       launchProfile = profile
       const tail = (path) => String(path).replace(/[\\/]+$/, '').split(/[\\/]/).pop() || 'dsh'
-      const name = (typedProfile || copy?.profile || tail(projectDir || realHome)).slice(0, 32)
+      const name = (typedProfile || copy?.profile || tail(realHome)).slice(0, 32)
       return {
         name, profile, dshHome: realHome,
-        ...(projectDir ? { workdir: projectDir } : {}),
         ...(copy ? { copyFrom: copy } : {}),
       }
     }
@@ -4485,8 +4917,7 @@
      */
     /** 启动阶段文案（服务端只给粗粒度阶段，不透出日志原文）与已用秒数。 */
     const startupPhaseText = (phase) => phase === 'loading' ? t('正在加载插件')
-      : phase === 'verifying' ? t('正在校验依赖')
-        : phase === 'launching' ? t('正在启动 dsh') : ''
+      : phase === 'launching' ? t('正在启动 dsh') : ''
     const startupElapsed = (item) => {
       const started = Number(item?.startedAt) || 0
       return started ? Math.max(0, Math.round((Date.now() - started) / 1000)) : 0
@@ -4872,7 +5303,7 @@
         // 想动钉子走「编辑启动项」的版本下拉。提醒的是这个启动项所跟通道里的最新版。
         const hasNewVersion = entry.version === 'auto' && version && latest && compareVersion(latest, version) > 0
         const installNote = !installedList().includes(version) && !live ? t('首次启动会自动安装') : ''
-        // 启动中的阶段（启动进程 → 加载插件 → 校验依赖）显示在说明行，按钮上的秒表每秒走一格
+        // 启动中的阶段（启动进程 → 加载插件）显示在说明行，按钮上的秒表每秒走一格
         const startupNote = live?.status === 'starting' ? startupPhaseText(live.startupPhase) : ''
         return `<div class="launch-preset" data-launch-key="${escapeHtml(entry.id)}">
           <button class="launch-app-icon" type="button" data-launch-drag-handle title="${escapeHtml(t('拖动或用方向键排序'))}" aria-label="${escapeHtml(t('调整 {name} 的顺序', { name }))}">${launchIconMarkup(entry.icon)}</button>
@@ -5246,26 +5677,25 @@
       userPicked = true
       launchProfile = entry?.profile || 'web'
       paintLaunchHomes(entry?.dshHome || '')
-      // 折叠里上次填的内容不能带进下一次新建（编辑时也藏起来了，清掉免得不小心读旧值）
+      // 引导里上次填的内容不能带进下一次新建（编辑时也藏起来了，清掉免得不小心读旧值）
       launchProfileCustomEl.value = ''
       launchHomeCustomEl.value = ''
       launchHomeProfileEl.value = ''
-      launchProjectDirEl.value = ''
-      launchCopyHomeEl.value = ''
-      launchCopyProfileEl.value = ''
-      // 项目目录只有编辑项目环境时才有值：填了就藏起用户目录下拉，并说明数据落在哪
-      launchWorkdirEl.value = entry?.workdir || ''
-      paintLaunchCopyHome()
-      void refreshCopyProfiles()
-      syncLaunchWorkdir()
-      // 折叠收回默认的收起态：新建每次从全自动开始；编辑时两块都藏着，顺手复位。
-      setLaunchAdvanced(launchProfileAdvancedEl, false, false)
-      setLaunchAdvanced(launchHomeAdvancedEl, false, false)
-      setLaunchAdvanced(launchCopyAdvancedEl, false, false)
+      // 复制来源也跟着清：新建每次从「还没选」开始，编辑时这块本来就藏着
+      launchCopySource = null
+      paintLaunchCopy()
+      // 第二排 tab 回到「新建 Profile」：新建每次从自己起名开始；编辑时引导块整个藏着，顺手复位
+      launchSourceMode = 'name'
+      paintLaunchSource()
       // 编辑老启动项只走自定义档（它的目录/Profile 组合可能本来就不在引导范围里），新建才从引导开始。
       setLaunchIsolation(entry ? 'custom' : launchIsolationSaved, !entry)
       launchPortEl.value = entry?.port ? String(entry.port) : ''
       syncLaunchAutoLaunch(entry?.autoLaunch === true)
+      // 桌面增强：新建一律不勾；编辑先按未装显示，状态回来后再按实际装没装改
+      launchDesktopEnhanceEl.disabled = false
+      launchDesktopEnhanceEl.checked = false
+      launchDesktopEnhanceHintEl.textContent = ''
+      if (entry) void refreshLaunchDesktopEnhance(entry)
       launchUpdateChannelEl.value = String(UPDATE_CHANNELS.indexOf(launchChannel(entry)))
       paintLaunchChannel()
       launchDeleteEl.hidden = !entry || entry.id === DEFAULT_LAUNCH_ID
@@ -5317,25 +5747,33 @@
         const target = guided ? await prepareGuidedLaunch() : null
         // 手填目录后直接按回车也要先刷新 Profile，不能沿用上一份目录的环境列表。
         if (!guided && !await refreshLaunchHomeProfiles(true)) return
+        // 勾了就先把说明换成「正在装」：装三个插件要跑 pnpm，保存请求会等它
+        if (launchDesktopEnhanceEl.checked && !launchDesktopEnhanceEl.disabled) {
+          launchDesktopEnhanceHintEl.textContent = t('正在保存并安装桌面增强…')
+        }
         const data = await post('/api/launch-presets', {
           id: editingLaunchId || undefined, name: guided ? target.name : launchNameEl.value, icon: launchIcon,
           version: versionValue || 'auto',
           profile: guided ? target.profile : launchProfile,
           port: launchPortEl.value.trim(),
-          // 项目环境的数据目录由项目推导，服务端还会按同一个规则再算一次，这里只负责别把旧值带过去
-          dshHome: guided ? target.dshHome : (String(launchWorkdirEl.value || '').trim() ? '' : launchDshHomeEl.value.trim()),
-          workdir: guided ? (target.workdir || '') : launchWorkdirEl.value.trim(),
+          dshHome: guided ? target.dshHome : launchDshHomeEl.value.trim(),
           ...(guided && target.copyFrom ? { copyFrom: target.copyFrom } : {}),
           autoLaunch: launchAutoLaunchEl.checked,
           updateChannel: draftLaunchChannel(),
+          // 桌面增强只补缺的：装过的不会被动，取消勾选也不会卸载
+          desktopEnhance: launchDesktopEnhanceEl.checked,
           // 让服务端保存前补建缺失的 Profile（要复制就先复制）：一次请求就落定，
           // 不会出现「Profile 建了、启动项没存上」。
           ...(guided ? { ensureProfile: true } : {}),
         })
+        const enhanceFailed = Array.isArray(data.desktopEnhance?.failed) ? data.desktopEnhance.failed : []
         updateLaunchEntry(data.entry)
         launchSaveEl.disabled = false
         await closeLaunchEditor()
         render()
+        if (enhanceFailed.length) {
+          notify(t('启动项已保存，但桌面增强有 {n} 个没装上：{error}', { n: enhanceFailed.length, error: enhanceFailed[0].error }), t('桌面增强'))
+        }
       } catch (error) { notify(error.message) }
       finally { launchSaveEl.disabled = false; render() }
     }
@@ -5938,6 +6376,47 @@
       })
     }
 
+    // ---- 本机选择器：外壳在跑就用 Electron 原生对话框，网页版落回服务端那条 ----
+    /**
+     * 服务端那条（PowerShell / AppleScript / zenity）随核心一起跑，但弹的是系统老式框，
+     * Windows 上还要拉一个隐藏的 PowerShell；外壳在跑时改走 /api/desktop/dialog，
+     * 页面上弹的就是 Electron 原生对话框（挂在本窗口下）。
+     * 网页版 / 旧外壳没有这层能力（503），这里悄悄落回服务端那条。
+     * 返回 { canceled, path, error }：取消时 path 为空串，error 只有服务端那条会给。
+     */
+    async function pickPath(request, fallback) {
+      try {
+        const data = await post('/api/desktop/dialog', request)
+        if (data && typeof data === 'object') {
+          const path = Array.isArray(data.paths) ? data.paths[0] || '' : data.path || ''
+          return { canceled: data.canceled === true || !path, path }
+        }
+      } catch { /* 外壳不在 / 旧外壳：走服务端那条 */ }
+      return fallback()
+    }
+
+    /** 选目录。外壳在跑时是原生对话框；否则用服务端的 /api/pick-dir。 */
+    function pickDirectoryPath(initialPath = '', title = '选择目录') {
+      return pickPath(
+        { kind: 'open', directory: true, title: t(title), defaultPath: String(initialPath || '') },
+        async () => {
+          const data = await post('/api/pick-dir', { initialPath: String(initialPath || '') })
+          return { canceled: !data.path, path: data.path || '', error: data.error || '' }
+        },
+      )
+    }
+
+    /** 选文件。外壳在跑时是原生对话框；否则用服务端的 /api/packs/pick-file。 */
+    function pickFilePath(title = '选择文件', filters = []) {
+      return pickPath(
+        { kind: 'open', title: t(title), filters },
+        async () => {
+          const data = await post('/api/packs/pick-file', {})
+          return { canceled: !data.path, path: data.path || '', error: data.error || '' }
+        },
+      )
+    }
+
     Promise.race([
       getJson('/api/state'),
       new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500)),
@@ -6450,9 +6929,6 @@
     }
     const autoDisableEl = document.getElementById('autoDisable')
     const autoCleanEl = document.getElementById('autoCleanVersions')
-    const desktopEnhanceEl = document.getElementById('desktopEnhanceInstall')
-    const desktopEnhanceLabelEl = desktopEnhanceEl.querySelector('.desktop-enhance-label')
-    const desktopEnhanceHintEl = document.getElementById('desktopEnhanceHint')
     // 桌面端系统开关。外壳直接读 settings.json（shell/prefs.mjs），这里的勾选只是回显与保存；
     // 没跑在认识这些键的外壳里时整组禁用（见 showSystemPrefsAvailability）。
     const systemPrefRows = [
@@ -6570,18 +7046,14 @@
       paintPluginHomes()
       try {
         if (action === 'add') {
-          const picked = await post('/api/pick-dir', { initialPath: pluginTargetHome() })
+          const picked = await pickDirectoryPath(pluginTargetHome())
           if (picked.error) throw new Error(picked.error)
           if (!picked.path) return
           home = picked.path
         }
         const data = await post(`/api/dsh-homes/${action}`, { home })
-        state.dshHomes = data.dshHomes
-        // 目录有增删，启动项那几个下拉跟着重铺，新加的目录立刻能选到。
-        if (!launchDialogEl.hidden) {
-          paintLaunchHomes(launchHomePicked)
-          paintLaunchHomeCustom()
-        }
+        // 目录有增删：登记表、启动项那几个下拉、环境页的下拉一起重铺（见 applyHomes）
+        applyHomes(data.dshHomes)
         if (action === 'remove' && pluginHome === home) {
           pluginHome = ''
           resetPluginView()
@@ -6776,25 +7248,6 @@
     }
 
     /**
-     * 桌面增强：三个首方插件的安装状态 → 右侧按钮。
-     *
-     * 装齐了按钮变「已安装」并禁用；还缺就是「一键安装」。状态来自 /api/settings 的
-     * desktopEnhance（核心按当前 profile 的 dependencies 算）。
-     */
-    let desktopEnhanceDone = false
-    function showDesktopEnhance(state) {
-      if (!state) return
-      const installed = Number(state.installed) || 0
-      const total = Number(state.total) || 0
-      desktopEnhanceDone = total > 0 && installed >= total
-      desktopEnhanceEl.disabled = false
-      desktopEnhanceEl.classList.remove('loading')
-      desktopEnhanceEl.classList.toggle('danger', desktopEnhanceDone)
-      desktopEnhanceEl.removeAttribute('aria-busy')
-      desktopEnhanceLabelEl.textContent = desktopEnhanceDone ? t('一键卸载') : t('一键安装')
-    }
-
-    /**
      * 内置浏览器：回显 + 可用性。browserHost 只有带上浏览器数据能力的 Electron 外壳才有，
      * 浏览器模式 / 旧外壳整组禁用并说明原因；清理按钮的忙碌状态也在这里收口。
      */
@@ -6831,6 +7284,7 @@
       if ('launchIsolation' in data) {
         launchIsolationSaved = data.launchIsolation === 'home' || data.launchIsolation === 'custom' ? data.launchIsolation : 'profile'
       }
+      // 默认装：只有明确关过才不勾，和设置层同一套语义
       if ('panelTransparency' in data) {
         savedPanelTransparency = Number(data.panelTransparency)
         if (!pendingSettings.has('panelTransparency')) showPanelTransparency(savedPanelTransparency)
@@ -6913,7 +7367,6 @@
       if ('pluginMarketSources' in data) pluginMarketSourcesEl.value = data.pluginMarketSources.join('\n')
       if ('autoDisablePlugins' in data) autoDisableEl.checked = data.autoDisablePlugins !== false
       if ('autoCleanVersions' in data) autoCleanEl.checked = data.autoCleanVersions !== false
-      showDesktopEnhance(data.desktopEnhance)
       showSystemPrefs(data)
       showBrowserPrefs(data)
       syncUiSelects()
@@ -6943,7 +7396,7 @@
       button.disabled = true
       hint.textContent = t('在弹出的对话框里选一个目录…')
       try {
-        const data = await post('/api/pick-dir', { initialPath: input.value.trim() })
+        const data = await pickDirectoryPath(input.value.trim())
         if (data.path) {
           input.value = data.path
           queueSetting(key, data.path)
@@ -7123,36 +7576,6 @@
     }
     browserClearCacheEl.onclick = () => void clearBrowserData('cache')
     browserClearAllEl.onclick = () => void clearBrowserData('all')
-    desktopEnhanceEl.onclick = async () => {
-      if (desktopEnhanceEl.disabled) return
-      const uninstall = desktopEnhanceDone
-      if (uninstall) {
-        const ok = await appConfirm(
-          t('卸载桌面增强？会从当前环境移除原生通知、右键菜单、侧栏浏览器三个插件；会话、记忆和别的插件不受影响。'),
-          { title: t('卸载桌面增强'), okText: t('卸载') },
-        )
-        if (!ok) return
-      }
-      desktopEnhanceEl.disabled = true
-      desktopEnhanceEl.classList.add('loading')
-      desktopEnhanceEl.setAttribute('aria-busy', 'true')
-      desktopEnhanceHintEl.textContent = uninstall ? t('正在卸载…') : t('正在安装…')
-      try {
-        const result = await post(uninstall ? '/api/desktop-enhance/uninstall' : '/api/desktop-enhance/install', {})
-        const failed = Array.isArray(result.failed) ? result.failed : []
-        if (failed.length) {
-          desktopEnhanceHintEl.textContent = t('{n} 个失败：{error}', { n: failed.length, error: failed[0].error })
-        } else {
-          desktopEnhanceHintEl.textContent = uninstall ? t('卸载完成，重启 dsh 后生效') : t('装好了，重启 dsh 后生效')
-        }
-        showDesktopEnhance(result.desktopEnhance)
-      } catch (error) {
-        desktopEnhanceHintEl.textContent = t('操作失败：{error}', { error: error.message })
-        desktopEnhanceEl.disabled = false
-        desktopEnhanceEl.classList.remove('loading')
-        desktopEnhanceEl.removeAttribute('aria-busy')
-      }
-    }
     uiLangEl.onchange = () => queueSetting('lang', uiLangEl.value)
     sourceEl.onchange = () => {
       // 提示行跟着换；设置交给自动保存，切完下一次查版本/下载就走新源
@@ -7364,7 +7787,9 @@
 
     async function closeLaunchPlugins({ afterDelete = false } = {}) {
       if (launchPluginsDialogEl.hidden || launchPluginsDialogEl.dataset.dialogClosing) return
-      if (!afterDelete && (packBusy || pluginUpdating || pluginTogglePending.size)) return
+      // 插件更新跑在服务端的 POST 里，关掉弹窗不会中断它：允许边更新边退出，回到启动项列表等它跑完。
+      // 其它 packBusy 操作（删 Profile、修复、还原）中途抽走列表会留下半截状态，照旧挡住。
+      if (!afterDelete && (pluginTogglePending.size || (packBusy && !pluginUpdating))) return
       ++pluginDialogRequest
       closeUiSelect()
       if (!(await hideDialog(launchPluginsDialogEl))) return
@@ -7836,10 +8261,15 @@
     let profileCopySource = ''
     let profileDialogMode = 'create'
     let profileSaving = false
-    function openProfileDialog(source = '', mode = source ? 'copy' : 'create') {
+    // 选择窗里改 Profile 时：改的是哪个目录，改完要不要把选择窗刷一遍（空串 = 环境页那条老路，走自动作用域）
+    let profileDialogHome = ''
+    let profileDialogFromPicker = false
+    function openProfileDialog(source = '', mode = source ? 'copy' : 'create', options = {}) {
       if (packBusy || pluginUpdating || profileSaving) return
       profileCopySource = source
       profileDialogMode = mode
+      profileDialogHome = options.home || ''
+      profileDialogFromPicker = options.fromPicker === true
       const homeName = mode === 'home'
       const renaming = mode === 'rename'
       const title = homeName ? '重命名目录' : renaming ? '重命名 Profile' : source ? '复制 Profile' : '新建 Profile'
@@ -7860,8 +8290,12 @@
         ? t('复制「{profile}」的插件与配置，依赖会重新安装，可能需要一些时间。', { profile: source })
         : t('创建独立环境，之后可以安装整合包或插件。名称只支持字母、数字、点、下划线和连字符。')
       let proposed = homeName ? pluginHomeName(source, source === state.dshHome ? t('全局目录') : pluginHomes().get(source) || t('用户目录')) : renaming ? source : source ? `${source.slice(0, 27)}-copy` : ''
+      // 复制建议名要避开目标目录里已有的 Profile：选择窗里改的是它挑的那份，环境页里改的是当前那份
+      const siblings = profileDialogFromPicker
+        ? pickerRows.map((row) => row.name)
+        : (packState.profiles || [])
       let suffix = 2
-      while (mode === 'copy' && proposed && (packState.profiles || []).some((name) => name.toLowerCase() === proposed.toLowerCase())) proposed = `${source.slice(0, 24)}-copy-${suffix++}`
+      while (mode === 'copy' && proposed && siblings.some((name) => name.toLowerCase() === proposed.toLowerCase())) proposed = `${source.slice(0, 24)}-copy-${suffix++}`
       profileNameEl.value = proposed
       profileErrorEl.hidden = true
       showPackDialog(profileDialogEl, profileNameEl)
@@ -7889,7 +8323,10 @@
         const name = profileNameEl.value.trim()
         const renaming = profileDialogMode === 'rename'
         const homeName = profileDialogMode === 'home'
-        const data = await post(homeName ? '/api/dsh-homes/rename' : renaming ? '/api/profiles/rename' : profileCopySource ? '/api/profiles/copy' : '/api/profiles/create', homeName ? { home: profileCopySource, name } : renaming ? { profile: profileCopySource, name } : { profile: name, source: profileCopySource })
+        // 选择窗里改的是它挑的目录，得显式带上作用域（空串就是全局目录，不能落回环境页那份）；
+        // 环境页那条老路仍用自动作用域
+        const scope = profileDialogFromPicker ? { home: profileDialogHome, launchId: '' } : {}
+        const data = await post(homeName ? '/api/dsh-homes/rename' : renaming ? '/api/profiles/rename' : profileCopySource ? '/api/profiles/copy' : '/api/profiles/create', homeName ? { home: profileCopySource, name } : renaming ? { profile: profileCopySource, name } : { profile: name, source: profileCopySource }, scope)
         if (homeName) state.dshHomeNames = data.dshHomeNames
         if (renaming) {
           ++pluginViewRevision
@@ -7904,6 +8341,17 @@
         await hidePackDialog(profileDialogEl)
         applyPluginPayload(data)
         if (renaming) void loadPlugins()
+        // 从选择窗来的（新建/复制/重命名/目录改名）：那一份缓存作废，刷完停在结果上
+        if (profileDialogFromPicker) {
+          pickerCache.delete(profileDialogHome)
+          if (homeName) {
+            paintPickerHomes()
+          } else {
+            if (data.createdProfile) pickerProfile = data.createdProfile
+            if (renaming && pickerProfile === profileCopySource) pickerProfile = data.renamedProfile
+            await selectPickerHome(pickerHome)
+          }
+        }
       } catch (error) {
         profileErrorEl.textContent = error.message
         profileErrorEl.hidden = false
@@ -8085,6 +8533,7 @@
       enable: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.4 12.4 2.5 2.5 5-5.2"/></svg>',
       disable: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m5.9 5.9 12.2 12.2"/></svg>',
       export: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V4"/><path d="m7 8 5-4.8L17 8"/><path d="M5 20h14"/></svg>',
+      import: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="m7 11 5 4.8L17 11"/><path d="M5 20h14"/></svg>',
       trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M9.5 7V4.5h5V7"/><path d="m6.5 7 .8 12.5h9.4L17.5 7"/></svg>',
       backup: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 8v4l3 2"/></svg>',
     }
@@ -8164,6 +8613,7 @@
         <details class="pack-more">
           <summary title="${escapeHtml(t('更多操作'))}" aria-label="${escapeHtml(t('更多操作'))}"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></summary>
           <div class="pack-more-actions">
+            <button class="ghost" type="button" data-pack-import-here="1" ${packBusy || pluginUpdating ? 'disabled' : ''}>${packMoreIcons.import}${escapeHtml(t('导入当前环境'))}</button>
             <button class="ghost" type="button" data-pack-export="1" ${packBusy || pluginUpdating ? 'disabled' : ''}>${packMoreIcons.export}${escapeHtml(t('导出当前环境'))}</button>
             <button class="ghost" type="button" data-profile-copy="1" ${packBusy || pluginUpdating ? 'disabled' : ''}>${packMoreIcons.copy}${escapeHtml(t('复制 Profile'))}</button>
             ${item.removable ? `<button class="ghost" type="button" data-profile-rename="1" ${packBusy || pluginUpdating ? 'disabled' : ''}>${packMoreIcons.rename}${escapeHtml(t('重命名 Profile'))}</button>` : ''}
@@ -8180,6 +8630,7 @@
         catch (error) { notify(error.message) }
         finally { pluginChecking = false; renderPackView() }
       })
+      actions.querySelector('[data-pack-import-here]')?.addEventListener('click', () => { actions.querySelector('.pack-more').open = false; void importIntoProfile(item.profile) })
       actions.querySelector('[data-pack-export]')?.addEventListener('click', () => openExportDialog(item))
       actions.querySelector('[data-pack-delete]')?.addEventListener('click', () => { void removeProfileDir(item) })
       actions.querySelector('[data-profile-copy]')?.addEventListener('click', () => { actions.querySelector('.pack-more').open = false; openProfileDialog(item.profile) })
@@ -8294,7 +8745,7 @@
       if (!dialog.hidden && !dialog.dataset.dialogClosing) return
       closeUiSelect()
       // 启动项弹窗里的「管理目录…」也走这条线：它当父层，目录管理当子层，关掉后焦点回到下拉。
-      const parent = explicitParent || [profileDialogEl, packInstallDialog, packDetailDialog, packImportDialog, packExportDialog, launchPluginsDialogEl, pluginHomesDialogEl, launchDialogEl].find((one) => one !== dialog && !one.hidden && !one.dataset.dialogClosing && !one.classList.contains('is-underlay'))
+      const parent = explicitParent || [profileDialogEl, packInstallDialog, packDetailDialog, packImportDialog, packExportDialog, launchPluginsDialogEl, pluginHomesDialogEl, profilePickDialogEl, launchDialogEl].find((one) => one !== dialog && !one.hidden && !one.dataset.dialogClosing && !one.classList.contains('is-underlay'))
       packDialogContext.set(dialog, { parent, origin: document.activeElement })
       dialog.classList.toggle('is-child-dialog', Boolean(parent))
       if (parent) dialog.style.zIndex = Math.max(Number(getComputedStyle(dialog).zIndex), Number(getComputedStyle(parent).zIndex) + 2)
@@ -8384,6 +8835,19 @@
     function closeImportDialog() {
       if (!packInstallDialog.hidden || !packDetailDialog.hidden) return
       hidePackDialog(packImportDialog)
+    }
+
+    /** 环境详情里的「导入当前环境」：挑一个 .dspack，直接进安装确认，目标默认是这份 profile。 */
+    async function importIntoProfile(profile) {
+      if (packBusy) return
+      try {
+        const data = await pickFilePath('选择整合包文件', [{ name: t('整合包'), extensions: ['dspack', 'zip'] }, { name: t('所有文件'), extensions: ['*'] }])
+        if (data.error) { notify(data.error); return }
+        if (!data.path) return
+        await inspectPack({ source: data.path, profile, direct: true })
+      } catch (error) {
+        notify(error.message)
+      }
     }
 
     function openExportDialog(item = null) {
@@ -8627,7 +9091,8 @@
       const controller = new AbortController()
       packInspectAbort = controller
       packBusy = true
-      if (!rechecking) openImportDialog()
+      // 环境详情里的「导入当前环境」只走确认卡，不把整合包市场垫在下面。
+      if (!rechecking && !payload.direct) openImportDialog()
       // 保留详情作为返回目标；父层只留遮罩，屏幕上仍只显示当前卡片。
       showPackDialog(packInstallDialog, document.getElementById('packInstallClose'))
       renderPackMarket()
@@ -8792,7 +9257,7 @@
     packPickEl.onclick = async () => {
       packPickEl.disabled = true
       try {
-        const data = await post('/api/packs/pick-file', {})
+        const data = await pickFilePath('选择整合包文件', [{ name: t('整合包'), extensions: ['dspack', 'zip'] }, { name: t('所有文件'), extensions: ['*'] }])
         if (data.path) {
           packSourceEl.value = data.path
           void inspectPack({ source: data.path })

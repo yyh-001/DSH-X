@@ -37,3 +37,27 @@ test('上游改写补丁目标或模块不是 ESM 时保持原样', () => {
     }
   }
 })
+
+test('启动账本钩子同时认 cordis-plugin-loader 1.0.x 与 1.1.0 的 fiber 写法', () => {
+  const url = 'file:///node_modules/@deepseek-ai/cordis-plugin-loader/lib/index.js'
+  const init = 'async _init() {\n\t\tlet moduleNamespace;'
+  const shapes = [
+    // 1.0.x：registry.plugin() 返回 entry，fiber 在 .ctx.fiber
+    'this.fiber = this.ctx.registry.plugin(plugin, this.options.config, this.getOuterStack).ctx.fiber;',
+    // 1.1.0 起：registry.plugin() 直接返回 fiber
+    'this.fiber = this.ctx.registry.plugin(plugin, this.options.config, this.getOuterStack);',
+  ]
+  for (const line of shapes) {
+    const result = perfLoad(url, {}, () => ({ format: 'module', source: `${init}\n\t\t${line}\n\t}` }))
+    assert.equal((result.source.match(/dsh-x\/plugin-profile/g) || []).length, 2)
+    assert.ok(result.source.includes(`${line}\n\t\tglobalThis[Symbol.for("dsh-x/plugin-profile")]?.imported(this);`))
+    assert.doesNotThrow(() => new Function(`return class { ${result.source} }`))
+  }
+})
+
+test('loader 换成没见过的写法时不动源码', () => {
+  const url = 'file:///node_modules/@deepseek-ai/cordis-plugin-loader/lib/index.js'
+  const source = 'async _init() {\n\t\tthis.fiber = createFiber(plugin);\n\t}'
+  const result = { format: 'module', source }
+  assert.equal(perfLoad(url, {}, () => result), result)
+})

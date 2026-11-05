@@ -95,7 +95,7 @@
   @keyframes slide { 0% { transform: translateX(-105%); } 100% { transform: translateX(225%); } }
   .phase { margin: 0; min-height: 20px; font-size: 13px; font-variant-numeric: tabular-nums; }
   .hint { margin: 0; font-size: 12px; color: var(--muted); }
-  /* 阶段点：服务端只给粗粒度阶段，这里把「启动进程 → 加载插件 → 校验依赖 → 打开页面」
+  /* 阶段点：服务端只给粗粒度阶段，这里把「启动进程 → 加载插件 → 打开页面」
      画成一条能看见在走的线，比一根假进度条诚实。 */
   .steps { position: relative; display: flex; align-items: center; gap: 0; margin: 2px 0 0; padding: 0; list-style: none; }
   .steps li { position: relative; flex: 1; padding-top: 16px; font-size: 11.5px; color: var(--muted); text-align: center; transition: color .3s ease; }
@@ -119,7 +119,7 @@
   .step-cursor {
     position: absolute; top: 4px; width: 8px; height: 8px; margin-left: -4px;
     border-radius: 50%; background: var(--accent);
-    left: calc((var(--step-index, 0) + .5) * 25%);  /* 4 步等宽，圆心落在每格中间 */
+    left: calc(100% / var(--step-count, 3) * (var(--step-index, 0) + .5));  /* 等宽分格，圆心落在每格中间 */
     transition: left .38s cubic-bezier(.2, .8, .2, 1), opacity .22s ease;
     animation: cursor-pulse 1.5s ease-in-out infinite;
     pointer-events: none;
@@ -173,7 +173,6 @@
       <span class="step-cursor" aria-hidden="true"></span>
       <li data-step="launching"></li>
       <li data-step="loading"></li>
-      <li data-step="verifying"></li>
       <li data-step="ready"></li>
     </ol>
     <p class="hint" id="hint"></p>
@@ -200,11 +199,9 @@
       'installing': '正在准备依赖',
       'stepLaunching': '启动进程',
       'stepLoading': '加载插件',
-      'stepVerifying': '校验依赖',
       'stepReady': '打开页面',
       'phLaunching': '正在启动 dsh',
       'phLoading': '正在加载插件',
-      'phVerifying': '正在校验依赖',
       'phDownload': '正在下载依赖 {done}/{total}',
       'phDownloadPct': '正在下载依赖 {pct}%',
       'phResolve': '正在解析依赖',
@@ -229,11 +226,9 @@
       'installing': 'Preparing dependencies',
       'stepLaunching': 'Process',
       'stepLoading': 'Plugins',
-      'stepVerifying': 'Dependencies',
       'stepReady': 'Open page',
       'phLaunching': 'Starting dsh',
       'phLoading': 'Loading plugins',
-      'phVerifying': 'Verifying dependencies',
       'phDownload': 'Downloading dependencies {done}/{total}',
       'phDownloadPct': 'Downloading dependencies {pct}%',
       'phResolve': 'Resolving dependencies',
@@ -294,9 +289,8 @@
   const PHASE_TEXT = {
     launching: 'phLaunching',
     loading: 'phLoading',
-    verifying: 'phVerifying',
   }
-  const STEPS = ['launching', 'loading', 'verifying', 'ready']
+  const STEPS = ['launching', 'loading', 'ready']
 
   /** 按版本 + profile（+ 目录）找本次要等的那个实例；同一个版本可能还跑着别的 profile。 */
   function findInstance() {
@@ -319,9 +313,10 @@
   function paintSteps(current) {
     const index = STEPS.indexOf(current)
     els.steps.hidden = false
-    // 光标滑到第几格（CSS 里 translateX 用这个数算位置；-1 = 还没到第一步，先藏起来）
+    // 光标滑到第几格（CSS 里按 --step-count 等分算位置；-1 = 还没到第一步，先藏起来）
     els.steps.dataset.index = String(index)
     els.steps.style.setProperty('--step-index', String(Math.max(0, index)))
+    els.steps.style.setProperty('--step-count', String(STEPS.length))
     for (const item of els.steps.querySelectorAll('li')) {
       const at = STEPS.indexOf(item.dataset.step)
       // 当前这一步已经点亮（它代表「正在做」），下一格只是提示「还差它」。
@@ -464,7 +459,7 @@
   }
 
   // 800ms 一次：服务端的启动阶段是在日志行上推断的，不会每次都推状态，
-  // 轮询比 SSE 更稳地跟住「启动进程 → 加载插件 → 校验依赖」这三级。
+  // 轮询比 SSE 更稳地跟住「启动进程 → 加载插件」这两级。
   const timer = setInterval(poll, 800)
   document.addEventListener('visibilitychange', () => { if (!document.hidden) void poll() })
   window.addEventListener('pagehide', () => clearInterval(timer), { once: true })

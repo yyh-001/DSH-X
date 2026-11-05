@@ -593,7 +593,7 @@ function editorHarness({ lang = 'zh', scene = NO_FALLBACK, live = false } = {}) 
     launchIsolation: 'custom', setLaunchIsolation() {}, paintLaunchIsolation() {},
     state: stateOf({ ...scene, entries }), remote: remoteOf(scene.published),
     launchFormEl: element('launchForm'), launchNameEl: element('launchName'), launchPortEl: element('launchPort'),
-    launchDshHomeEl: element('launchDshHome'), launchWorkdirEl: element('launchWorkdir'), launchAutoLaunchEl: element('launchAutoLaunch'),
+    launchDshHomeEl: element('launchDshHome'), launchAutoLaunchEl: element('launchAutoLaunch'),
     launchSaveEl: element('launchSave'), launchDeleteEl: element('launchDelete'), launchDialogEl: element('launchDialog'),
     launchEntries: () => entries,
     closeLaunchIcons() {}, paintLaunchIcons() {}, paintLaunchHomes() {}, showDialog() {}, hideDialog: async () => true, paintLaunchProfiles() {},

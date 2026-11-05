@@ -94,7 +94,11 @@ test('/booting：服务端渲染页面，语言与主题跟管理页一致，且
   assert.match(html, /fetch\('\/api\/state'/, '页面自己轮询 /api/state')
   assert.match(html, /location\.replace\(url\)/, '就绪后跳进 dsh')
   assert.match(html, /snapshot\?\.progress/, '首次启动要看安装/下载进度')
-  assert.match(html, /startupPhase/, '启动阶段（启动进程 / 加载插件 / 校验依赖）要在页面上走')
+  assert.match(html, /startupPhase/, '启动阶段（启动进程 / 加载插件）要在页面上走')
+  // 阶段只有三段：插件兼容性警告不再被当成「校验依赖」这个阶段（rc.1 起首行就会出现）
+  assert.equal((html.match(/data-step="/g) || []).length, 3, '步骤条是 启动进程 → 加载插件 → 打开页面')
+  assert.doesNotMatch(html, /data-step="verifying"/)
+  assert.doesNotMatch(html, /phVerifying/)
 })
 
 test('/booting：切成英文后页面跟着变', async () => {

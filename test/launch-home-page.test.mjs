@@ -15,7 +15,7 @@ function editor(getJson = async () => ({ home: 'D:/isolated', profiles: ['web'],
   const calls = []
   const elements = { launchRecover: {}, launchDshHomeTrigger: {} }
   const context = vm.createContext({
-    launchDshHomeEl: { value: '' }, launchWorkdirEl: { value: '' },
+    launchDshHomeEl: { value: '' },
     launchProfileEl: {}, launchProfile: 'web', launchDialogEl: { hidden: false }, launchDialogRevision: 1,
     editingLaunchId: 'work', launchPluginScope: '', editorRecovery: null, recoveryHintEl: {},
     state: { dshHome: 'C:/global', profile: 'web', profiles: ['web'], webProfiles: ['web'], dshHomes: [], dshHomeNames: {},
@@ -24,6 +24,7 @@ function editor(getJson = async () => ({ home: 'D:/isolated', profiles: ['web'],
     escapeHtml: (text) => text.replaceAll('&', '&amp;').replaceAll('"', '&quot;'),
     document: { getElementById: (id) => elements[id] },
     syncUiSelect() {}, renderRecovery() {}, loadRecovery() {}, notify: (text) => calls.push(text),
+    paintLaunchEnvTrigger() {}, paintPluginHomes() {},
     getJson, post: async (...args) => { calls.push(args); return {} },
     launchEntries: () => context.state.launchPresets,
     PLUGIN_HOME_MANAGE: '__manage__', openPluginHomesDialog() {},
@@ -70,20 +71,22 @@ test('目录的迟到响应不能覆盖另一次选择，目录检查后按新�
   assert.deepEqual(Array.from(c.state.profilesByHome['D:/new']), ['web'])
 })
 
-test('目录字段是环境页那套下拉，浏览与恢复两个按钮都不在了', () => {
-  const field = section('<label for="launchDshHome"', 'id="launchWorkdirField"')
-  assert.match(field, /dsh 用户目录（会话、记忆和插件隔离）/)
-  assert.match(field, /<select id="launchDshHome"[^>]*><\/select>/)
+test('自定义档的目录 + Profile 交给选择窗，底下的下拉只当真相源', () => {
+  const field = section('id="launchEnvField"', 'id="launchPort"')
+  // 一行「启动环境」触发器：点开三栏选择窗，目录和 Profile 一起挑
+  assert.match(field, /<label for="launchEnvPick"[^>]*>启动环境<\/label>/)
+  assert.match(field, /id="launchEnvPick" aria-haspopup="dialog"/)
+  assert.match(field, /id="launchEnvPickValue"/)
   assert.doesNotMatch(field, /launchPickHome|launchResetHome|readonly/)
-  assert.doesNotMatch(field, /<p(?:\s|>)|<datalist|浏览…/)
-  // 项目目录是另一件事（选填的项目绑定），单独一块：它有自己的选择按钮和说明，不跟目录下拉混在一起
-  const project = section('id="launchWorkdirField"', '<div class="home-pickers">')
-  assert.match(project, /<input id="launchWorkdir"/)
-  assert.match(project, /id="launchWorkdirPick"/)
-  // 原生 select 得接进自绘那套，否则点开的是系统菜单。
+  assert.doesNotMatch(field, /<datalist|浏览…/)
+  // 两个真下拉都还在（回填、保存、恢复都读它们），只是藏起来
+  assert.match(field, /<select id="launchDshHome"[^>]*hidden><\/select>/)
+  assert.match(field, /<select id="launchProfile" title="Profile" hidden><\/select>/)
+  assert.ok(!page.includes('id="launchHomeSelectField"'), '目录下拉不再单独占一行')
+  // 项目目录已经下线：编辑弹窗里只剩这一处环境字段
+  assert.doesNotMatch(page, /id="launchWorkdir"|id="launchProjectDir"/)
+  // 原生 select 得接进自绘那套，否则点开的是系统菜单（藏起来的这两个也在其中）
   assert.match(page, /querySelectorAll\('#launchDshHome[^']*#launchProfile[^']*#pluginHome/)
-  // 复制来源的两个下拉也走自绘那套，否则点开的是系统菜单
-  assert.match(page, /#launchCopyHome, #launchCopyProfile/)
 })
 
 test('下拉末项是管理目录：选中它只开弹窗，不会把占位值当成目录', () => {
@@ -103,9 +106,10 @@ test('环境页目录有增删时，启动项下拉跟着重铺', async () => {
   Object.assign(c, { pluginHomesBusy: false, packBusy: false, pluginUpdating: '', pluginTogglePending: new Map(),
     pluginHome: '', pluginHomesErrorEl: { hidden: true }, paintPluginHomes() {}, pluginTargetHome: () => 'C:/global',
     paintLaunchHomeCustom() {}, resetPluginView() {}, renderPackGrid() {}, renderPackView() {}, loadPlugins() {} })
-  vm.runInContext(section('    async function changePluginHomeList(', '    pluginHomesAddEl.onclick'), c)
+  vm.runInContext(section('    function applyHomes(', '    /** 左栏的「+ 添加目录」') + section('    async function changePluginHomeList(', '    pluginHomesAddEl.onclick'), c)
   c.paintLaunchHomes('D:/isolated')
-  c.post = async (url) => url === '/api/pick-dir' ? { path: 'E:/新目录' } : { dshHomes: ['D:/isolated', 'E:/新目录'] }
+  c.pickDirectoryPath = async () => ({ canceled: false, path: 'E:/新目录' })
+  c.post = async () => ({ dshHomes: ['D:/isolated', 'E:/新目录'] })
   await c.changePluginHomeList('add')
   assert.match(c.launchDshHomeEl.innerHTML, /E:\/新目录/, '新登记的目录立刻能选')
   assert.equal(c.launchDshHomeEl.value, 'D:/isolated', '重铺选项不能改掉当前选择')
@@ -149,6 +153,7 @@ test('直接回车保存也先检查新目录；坏路径不落盘，不改全�
     Object.assign(c, {
       launchFormEl: {}, launchSaveEl: { disabled: false }, launchNameEl: { value: '独立工作' },
       launchIcon: 'terminal', versionValue: 'auto', launchPortEl: { value: '' }, launchAutoLaunchEl: { checked: true },
+      launchDesktopEnhanceEl: { checked: false, disabled: false }, launchDesktopEnhanceHintEl: { textContent: '' },
       draftLaunchChannel: () => 'rc', closeLaunchEditor() {}, render() {},
     })
     c.launchDshHomeEl.value = invalid ? './bad' : 'D:/isolated'

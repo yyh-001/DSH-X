@@ -39,8 +39,6 @@ function bootContext(home, profile, fail = false) {
     randomBytes: () => ({ toString: () => `${home}:${profile}:attempt` }),
     profileFingerprint: (targetHome, targetProfile) => `${targetHome}/${targetProfile}`,
     bootArgs: (targetProfile, port) => ({ targetProfile, port }),
-    // 启动项的项目目录（#72）：这一段用例只关心诊断身份，启动目录照旧是 DSH_HOME
-    launchWorkdir: () => '',
     spawnDsh(version, args, targetProfile, options) {
       observations.spawn = { version, args, targetProfile, context: options.diagnosticContext }
       return { pid: 123 }

@@ -45,8 +45,8 @@ const EN_REQUIRED = [
   '将自动新建 Profile「{name}」：沿用全局 dsh 目录，会话与记忆共享，插件与配置独立。',
   '将自动新建独立目录：会话、记忆、插件与配置全部独立。',
   '数据目录还没就绪，稍后再试',
-  '版本、端口、目录和 Profile 都在这里手动选；要新目录先去「管理目录」里添加。',
-  '自定义 Profile', '自定义目录', '自动新建（{path}）',
+  '版本、端口和启动环境都在这里手动选；点「启动环境」换目录或 Profile，左栏「+」加目录。',
+  '新建 Profile', '自定义目录', '自动新建（{path}）',
   'Profile 名称，留空用 web',
   '这个 Profile 不能启动网页，换一个名称',
   '编辑 Profile…',
@@ -59,8 +59,8 @@ test('三档 tab：默认插件隔离，顺序固定，tab 带无障碍角色和
   assert.match(dialog, /<div class="launch-isolation-tabs" id="launchIsolationTabs" role="tablist" aria-label="隔离方式"[^>]*data-active="profile">/, '浮块默认停在插件隔离')
   const tabs = [...dialog.matchAll(/<button class="launch-isolation-tab"[^>]*data-isolation="(profile|home|custom)"[^>]*>/g)]
   assert.deepEqual(tabs.map((match) => match[1]), ['profile', 'home', 'custom'], 'tab 顺序：插件隔离 → 会话隔离 → 自定义')
-  assert.equal((dialog.match(/role="tab"/g) || []).length, 3, '三个 tab 都要 role=tab')
-  assert.equal((dialog.match(/aria-selected="true"/g) || []).length, 1, '只允许一个当前档')
+  assert.equal((dialog.match(/<button class="launch-isolation-tab" type="button" role="tab" data-isolation=/g) || []).length, 3, '三个 tab 都要 role=tab')
+  assert.equal((dialog.match(/aria-selected="true"/g) || []).length, 2, '两排 tab 各有一档选中')
   assert.match(dialog, /data-isolation="profile" aria-selected="true"/, '默认选中插件隔离')
   for (const label of ['插件隔离', '会话隔离', '自定义']) {
     assert.ok(dialog.includes(`data-i18n="${label}">${label}</button>`), `tab 文案要有中英翻译：${label}`)
@@ -75,47 +75,48 @@ test('三档 tab：默认插件隔离，顺序固定，tab 带无障碍角色和
   assert.ok(!page.includes('launch-isolation-option'), '旧的单选卡片样式已经换成 tab')
 })
 
-test('前两档下面各挂一块折叠：默认收起，展开可指定 Profile 名称 / 目录', () => {
+test('前两档下面挂一条两档 tab：自己起名 / 从已有 Profile 复制，同一时间只露一块', () => {
   const isolation = section('<div class="launch-isolation" id="launchIsolationField">', '<div class="launch-custom-fields" id="launchCustomFields">')
-  // 折叠顺序跟 tab 一致：插件隔离那块在前，会话隔离那块在后
-  const profileAt = isolation.indexOf('id="launchProfileAdvanced"')
-  const homeAt = isolation.indexOf('id="launchHomeAdvanced"')
-  assert.ok(profileAt >= 0 && homeAt > profileAt, '两块折叠按 Profile / 会话隔离的顺序排列')
-  // 折叠头是按钮（开合动画由 setLaunchAdvanced 控制），默认 aria-expanded=false、面板 hidden
-  assert.match(isolation, /<div class="launch-isolation-advanced" id="launchProfileAdvanced">\s*<button class="launch-isolation-advanced-toggle" type="button" aria-expanded="false" aria-controls="launchProfileAdvancedPanel">/)
-  assert.match(isolation, /<div class="launch-isolation-advanced" id="launchHomeAdvanced">\s*<button class="launch-isolation-advanced-toggle" type="button" aria-expanded="false" aria-controls="launchHomeAdvancedPanel">/)
-  assert.match(isolation, /<span class="launch-isolation-advanced-label" data-i18n="自定义 Profile">/)
-  assert.match(isolation, /<span class="launch-isolation-advanced-label" data-i18n="自定义目录">/)
-  assert.match(isolation, /<div class="launch-isolation-advanced-panel" id="launchProfileAdvancedPanel" hidden>/)
-  assert.match(isolation, /<div class="launch-isolation-advanced-panel" id="launchHomeAdvancedPanel" hidden>/)
-  //插件隔离折叠：只留一个输入框，占位符就是自动会取的名字
-  assert.match(isolation, /id="launchProfileAdvanced"[\s\S]*<input id="launchProfileCustom" type="text" maxlength="32"/)
-  assert.match(isolation, /id="launchProfileCustom"[^>]*aria-label="Profile 名称"/, '没有可见 label，读屏靠 aria-label')
-  // 会话隔离折叠：目录下拉（和「自定义」一样是登记目录）+ Profile 名称
-  assert.match(isolation, /id="launchHomeAdvanced"[\s\S]*<select id="launchHomeCustom" aria-label="dsh 用户目录"[^>]*><\/select>/)
-  assert.ok(!isolation.includes('launchHomePick'), '目录改成下拉后不再需要「选择目录…」按钮')
-  assert.match(isolation, /id="launchHomeProfile"[^>]*maxlength="32"/)
-  assert.match(isolation, /id="launchHomeProfile"[^>]*aria-label="Profile 名称"/)
-  // 折叠里不再堆 label / 说明文字：标题 + 控件 + 开关就够，说明只在顶上那一行
-  const profilePanel = section('id="launchProfileAdvancedPanel"', 'id="launchHomeAdvanced"')
-  const homePanel = section('id="launchHomeAdvancedPanel"', '<div class="launch-custom-fields"')
-  for (const panel of [profilePanel, homePanel]) {
-    assert.ok(!panel.includes('<p class="hint"'), '折叠里不再放说明段')
-    assert.ok(!panel.includes('<label for='), '折叠里不再放可见 label')
+  // 引导块夹在说明行和完整表单之间，不打断原来的字段顺序
+  assert.ok(isolation.indexOf('id="launchIsolationHint"') < isolation.indexOf('id="launchGuideField"'), '引导块放在说明行下面')
+  assert.match(isolation, /<div class="launch-guide" id="launchGuideField">/)
+  // 两档 tab 跟上面三档同款胶囊，只是等分两份；data-active 取值（name / copy）跟三档的错开
+  assert.match(isolation, /<div class="launch-isolation-tabs launch-isolation-tabs--pair" id="launchSourceTabs" role="tablist" aria-label="Profile 来源"[^>]*data-active="name">/)
+  const tabs = [...isolation.matchAll(/<button class="launch-isolation-tab launch-source-tab"[^>]*data-source="(name|copy)"[^>]*>/g)]
+  assert.deepEqual(tabs.map((match) => match[1]), ['name', 'copy'], 'tab 顺序：新建 Profile → 从已有 Profile 复制')
+  assert.match(isolation, /data-source="name" aria-selected="true" aria-controls="launchSourceNamePanel"/, '默认停在自己起名那档')
+  assert.match(isolation, /data-source="copy" aria-selected="false" aria-controls="launchSourceCopyPanel"/)
+  for (const label of ['新建 Profile', '从已有 Profile 复制']) {
+    assert.ok(isolation.includes(`data-i18n="${label}">${label}</button>`), `tab 文案要有中英翻译：${label}`)
   }
-  // 自动启动开关也放进折叠：展开就能勾，不用切回自定义档
-  assert.match(isolation, /id="launchProfileAdvanced"[\s\S]*<input id="launchAutoLaunchProfile" type="checkbox"/)
-  assert.match(isolation, /id="launchHomeAdvanced"[\s\S]*<input id="launchAutoLaunchHome" type="checkbox"/)
-  // 折叠夹在说明行和完整表单之间，不打断原来的字段顺序
-  assert.ok(isolation.indexOf('id="launchIsolationHint"') < profileAt, '折叠放在说明行下面')
+  // 面板：名字那档默认露出来，复制来源那块先藏着
+  assert.match(isolation, /<div class="launch-source-panel" id="launchSourceNamePanel" role="tabpanel">/)
+  assert.match(isolation, /<div class="launch-source-panel" id="launchSourceCopyPanel" role="tabpanel" hidden>/)
+  // 名字输入两档各一个：插件隔离改 Profile 名，会话隔离给新目录里的 Profile 取名
+  assert.match(isolation, /id="launchProfileCustom"[^>]*aria-label="Profile 名称"/, '没有可见 label，读屏靠 aria-label')
+  assert.match(isolation, /id="launchHomeProfile"[^>]*aria-label="Profile 名称"/)
+  // 会话隔离的目标目录在 tab 上面：它说的是「建到哪」，跟「Profile 从哪来」是两件事
+  assert.match(isolation, /id="launchGuideDirField">\s*<select id="launchHomeCustom" aria-label="dsh 用户目录"[^>]*><\/select>/)
+  assert.ok(isolation.indexOf('id="launchHomeCustom"') < isolation.indexOf('id="launchSourceTabs"'), '目录在 tab 上面')
+  // 复制来源不再用两串下拉：一行按钮打开两栏选择窗（见下面专门的用例）
+  assert.match(isolation, /id="launchSourceCopyPanel"[\s\S]*id="launchCopyPick" aria-haspopup="dialog"[\s\S]*id="launchCopyPickValue"/)
+  assert.ok(!isolation.includes('id="launchCopyHome"'), '来源目录不再是下拉')
+  assert.ok(!isolation.includes('id="launchCopyProfile"'), '来源 Profile 不再是下拉')
+  // 自动启动跟「Profile 从哪来」无关，两档共用一份，不跟着隐藏
+  assert.match(isolation, /<input id="launchAutoLaunchGuided" type="checkbox"/)
+  assert.ok(!isolation.includes('id="launchAutoLaunchHome"'), '不再每档各放一份自动启动开关')
+  // 旧的折叠条整套撤掉：不再有标题横条和箭头
+  assert.ok(!isolation.includes('launch-isolation-advanced'))
+  assert.ok(!isolation.includes('自定义目录'), '标题变成 tab，不再有「自定义目录」那条横条')
 })
 
 test('自定义档是可显隐的字段块：原来那张完整表单原样搬进来，id 一个没改', () => {
   const fields = section('<div class="launch-custom-fields" id="launchCustomFields">', '<!-- /launch-custom-fields -->')
   assert.match(fields, /id="versionPicker"[\s\S]*id="launchUpdateChannel"/, '版本行也在里面')
   assert.match(fields, /id="launchIdentityField"[\s\S]*id="launchName"/)
-  assert.match(fields, /id="launchHomeSelectField"[\s\S]*<label for="launchDshHome"[\s\S]*<select id="launchDshHome"[^>]*><\/select>/)
-  assert.match(fields, /id="launchProfileSelectField"[\s\S]*<select id="launchProfile" title="Profile"><\/select>/)
+  // 用户目录 + Profile 合并成一个「启动环境」触发器，两个下拉藏在同一格里当真相源
+  assert.match(fields, /id="launchEnvField"[\s\S]*<label for="launchEnvPick"[\s\S]*id="launchEnvPick" aria-haspopup="dialog"[\s\S]*id="launchEnvPickValue"[\s\S]*<select id="launchDshHome"[^>]*hidden><\/select>[\s\S]*<select id="launchProfile" title="Profile" hidden><\/select>/, '环境选择窗触发器 + 两个隐藏下拉')
+  assert.ok(!fields.includes('id="launchHomeSelectField"'), '目录下拉不再单独占一行')
   assert.match(fields, /id="launchPort"/)
   // 「打开启动器时启动」自定义档里也有一份（折叠里那两份跟它同步）
   assert.match(fields, /<label class="toggle launch-auto-launch">[\s\S]*id="launchAutoLaunch"/, '自动启动开关自定义档里也有一份')
@@ -138,18 +139,20 @@ test('切档时字段块靠 hidden 显隐，tab 是胶囊分段：底槽 + 当�
   assert.match(css, /\.launch-isolation-tab\[aria-selected="true"\] \{ color: var\(--accent\); font-weight: 600; \}/, '当前档只改文字，不铺底')
   assert.match(css, /\.launch-isolation-tab:focus-visible \{ outline:/, '键盘焦点描边')
   assert.match(css, /html\.reduce-motion \.launch-isolation-tabs::after,/, '减少动态时浮块不滑动')
-  // 折叠条：浅色小横条 + 自绘箭头，展开时箭头转 180°（开合由 setLaunchAdvanced 做高度动画）
-  assert.match(css, /\.launch-isolation-advanced \{ border-radius: 12px; background: var\(--accent-soft\); overflow: hidden; transition: box-shadow 160ms ease; \}/)
-  assert.match(css, /\.launch-isolation-advanced\[hidden\] \{ display: none; \}/)
-  assert.match(css, /\.launch-isolation-advanced-toggle \{ display: flex; align-items: center; gap: 8px; width: 100%;/)
-  assert.match(css, /\.launch-isolation-advanced-chevron \{ width: 14px; height: 14px; flex: 0 0 auto; transition: transform 220ms/, '箭头旋转要有过渡')
-  assert.match(css, /\.launch-isolation-advanced\.is-open \.launch-isolation-advanced-chevron \{ transform: rotate\(180deg\); \}/)
-  assert.match(css, /\.launch-isolation-advanced-panel \{ overflow: hidden; \}/)
-  assert.match(css, /\.launch-isolation-advanced-panel\[hidden\] \{ display: none; \}/)
-  // 目录改成下拉后，输入框那套行样式一并撤掉；下拉本体要占满折叠宽度（.ui-select 默认 148px 太窄）
-  assert.match(css, /\.launch-isolation-advanced-fields \.ui-select \{ width: 100%; \}/)
+  // 引导块：第二排胶囊等分两份，浮块滑到「复制」那档；面板是网格，切 tab 淡入
+  assert.match(css, /\.launch-guide \{ display: grid; gap: 8px; \}/)
+  assert.match(css, /\.launch-guide\[hidden\] \{ display: none; \}/)
+  assert.match(css, /\.launch-guide-dir\[hidden\] \{ display: none; \}/)
+  assert.match(css, /\.launch-guide \.ui-select \{ width: 100%; \}/, '目标目录下拉要占满（.ui-select 默认 148px 太窄）')
+  assert.match(css, /\.launch-isolation-tabs--pair::after \{ width: calc\(\(100% - 10px\) \/ 2\); \}/, '浮块等分两份')
+  assert.match(css, /\.launch-isolation-tabs--pair\[data-active="copy"\]::after \{ transform: translateX\(calc\(100% \+ 2px\)\); \}/)
+  assert.match(css, /\.launch-source-panel \{ display: grid; gap: 8px; \}/)
+  assert.match(css, /\.launch-source-panel\[hidden\] \{ display: none; \}/)
+  assert.match(css, /\.launch-source-panel:not\(\[hidden\]\) \{ animation: launch-source-in/, '切 tab 时面板淡入')
+  // 目录改成下拉后，输入框那套行样式一并撤掉
   assert.ok(!css.includes('.launch-home-path-row'), '目录改成下拉后不再需要输入框那一行')
   assert.ok(!css.includes('.launch-isolation-option'), '旧的单选卡片样式换成了 tab')
+  assert.ok(!css.includes('.launch-isolation-advanced'), '旧的折叠条样式整套撤掉')
 })
 
 test('英文界面有全部引导文案（t() 的字典里逐条存在，不能漏翻）', () => {
@@ -165,8 +168,10 @@ function isolationHarness() {
     guidedLaunchName: () => { calls.autoNames += 1; return 'auto-name' },
     launchIsolationFieldEl: { hidden: false },
     launchCustomFieldsEl: { hidden: false },
-    launchProfileAdvancedEl: { hidden: false },
-    launchHomeAdvancedEl: { hidden: false },
+    launchGuideFieldEl: { hidden: false },
+    launchGuideDirFieldEl: { hidden: false },
+    launchProfileCustomEl: { hidden: false },
+    launchHomeProfileEl: { hidden: false },
     launchNameEl: { value: '', required: true },
     launchNameAuto: '',
     launchRecoverEl: { hidden: false },
@@ -181,8 +186,10 @@ test('切档只改可见性：前两档收起字段块、名字代填，自定�
   context.setLaunchIsolation('profile', true)
   assert.equal(context.launchIsolationFieldEl.hidden, false, '新建时 tab 要露出来')
   assert.equal(context.launchCustomFieldsEl.hidden, true, '插件隔离什么都不用填')
-  assert.equal(context.launchProfileAdvancedEl.hidden, false, '插件隔离的折叠可以展开')
-  assert.equal(context.launchHomeAdvancedEl.hidden, true, '另一档的折叠不露')
+  assert.equal(context.launchGuideFieldEl.hidden, false, '插件隔离的引导块露出来')
+  assert.equal(context.launchGuideDirFieldEl.hidden, true, '插件隔离沿用全局目录，没得挑')
+  assert.equal(context.launchProfileCustomEl.hidden, false, '名字输入给插件隔离用')
+  assert.equal(context.launchHomeProfileEl.hidden, true, '另一档的名字输入不露')
   assert.equal(context.launchNameEl.value, 'auto-name', '名字代填好，用户不用填')
   assert.equal(context.launchNameEl.required, false, '藏起来的名称输入不能拦着提交')
   assert.equal(context.launchRecoverEl.hidden, true, '一键新建没什么可修的，修复环境按钮不露')
@@ -191,14 +198,15 @@ test('切档只改可见性：前两档收起字段块、名字代填，自定�
   context.launchNameEl.value = ''
   context.setLaunchIsolation('home', true)
   assert.equal(context.launchCustomFieldsEl.hidden, true, '会话隔离同样什么都不用填')
-  assert.equal(context.launchProfileAdvancedEl.hidden, true)
-  assert.equal(context.launchHomeAdvancedEl.hidden, false, '会话隔离的折叠可以展开')
+  assert.equal(context.launchGuideFieldEl.hidden, false)
+  assert.equal(context.launchGuideDirFieldEl.hidden, false, '会话隔离要挑建到哪个目录')
+  assert.equal(context.launchProfileCustomEl.hidden, true)
+  assert.equal(context.launchHomeProfileEl.hidden, false, '会话隔离的名字输入露出来')
   assert.equal(context.launchNameEl.value, 'auto-name')
 
   context.setLaunchIsolation('custom', true)
   assert.equal(context.launchCustomFieldsEl.hidden, false, '自定义档把完整表单还回来')
-  assert.equal(context.launchProfileAdvancedEl.hidden, true, '完整表单里不重复给折叠')
-  assert.equal(context.launchHomeAdvancedEl.hidden, true)
+  assert.equal(context.launchGuideFieldEl.hidden, true, '完整表单里不重复给引导块')
   assert.equal(context.launchNameEl.required, true, '自定义档名称仍然是必填')
   assert.equal(context.launchRecoverEl.hidden, false, '自定义档照旧给修复环境入口')
 })
@@ -209,15 +217,14 @@ test('编辑已有启动项不显示隔离 tab，字段块直接露出来', () =
   context.setLaunchIsolation('custom', false)
   assert.equal(context.launchIsolationFieldEl.hidden, true, '编辑老启动项时引导整块收起')
   assert.equal(context.launchCustomFieldsEl.hidden, false, '手填字段不能藏起来')
-  assert.equal(context.launchProfileAdvancedEl.hidden, true, '编辑时折叠跟着收起')
-  assert.equal(context.launchHomeAdvancedEl.hidden, true)
+  assert.equal(context.launchGuideFieldEl.hidden, true, '编辑时引导块跟着收起')
   assert.equal(context.launchNameEl.value, '我的工作环境', '编辑时不代填名字')
   assert.equal(context.launchNameEl.required, true)
   assert.equal(calls.autoNames, 0, '编辑不调用代填')
 })
 
 /** prepareGuidedLaunch 的 vm 环境：真实建议值函数 + 接口收集桩，验证它算出什么、发了哪些请求。 */
-function guidedHarness({ mode, dataDir = 'C:\\data', dshHomes = [], profiles = ['web'], webProfiles = ['web'], home, profileCustom = '', homeCustom = '', homeProfile = '', projectDir = '', copyHome = '', copyProfile = '' } = {}) {
+function guidedHarness({ mode, dataDir = 'C:\\data', dshHomes = [], profiles = ['web'], webProfiles = ['web'], home, profileCustom = '', homeCustom = '', homeProfile = '', copyHome = '', copyProfile = '' } = {}) {
   const calls = { gets: [], posts: [] }
   const context = vm.createContext({
     t: (text) => text,
@@ -227,9 +234,6 @@ function guidedHarness({ mode, dataDir = 'C:\\data', dshHomes = [], profiles = [
     launchProfileCustomEl: { value: profileCustom },
     launchHomeCustomEl: { value: homeCustom },
     launchHomeProfileEl: { value: homeProfile },
-    launchProjectDirEl: { value: projectDir },
-    launchCopyHomeEl: { value: copyHome },
-    launchCopyProfileEl: { value: copyProfile },
     PLUGIN_HOME_MANAGE: '__manage__',
     getJson: async (url) => {
       calls.gets.push(url)
@@ -239,8 +243,11 @@ function guidedHarness({ mode, dataDir = 'C:\\data', dshHomes = [], profiles = [
     post: async (url, body) => { calls.posts.push([url, body]); return { ok: true } },
   })
   context.launchIsolation = mode
+  // 第二排来源 tab：选好了来源（两栏选择窗「用它」写回的状态）才走 copy 分支
+  context.launchSourceMode = copyProfile ? 'copy' : 'name'
+  context.launchCopySource = copyProfile ? { home: copyHome, profile: copyProfile } : null
   vm.runInContext(
-    `${pathHelpers}\n${functionSource('suggestIsolatedHome')}\n${functionSource('suggestIsolatedProfile')}\n${functionSource('projectHomeOf')}
+    `${pathHelpers}\n${functionSource('suggestIsolatedHome')}\n${functionSource('suggestIsolatedProfile')}
 ${functionSource('selectedCopy')}
 ${functionSource('prepareGuidedLaunch')}`,
     context,
@@ -282,7 +289,7 @@ test('会话隔离：目录代算在数据目录 homes 下、自动登记，重�
   await assert.rejects(noData.context.prepareGuidedLaunch(), /数据目录还没就绪/)
 })
 
-test('折叠里填了就用填的：Profile 名称 / 目录 / Profile 都能覆盖自动取名', async () => {
+test('名字或目录填了就用填的：Profile 名称 / 目录 / Profile 都能覆盖自动取名', async () => {
   //插件隔离：填一个没占用的名字，就用它
   const named = guidedHarness({ mode: 'profile', profileCustom: 'dev' })
   const target = await named.context.prepareGuidedLaunch()
@@ -313,7 +320,7 @@ test('折叠里填了就用填的：Profile 名称 / 目录 / Profile 都能覆�
   await assert.rejects(notWebHome.context.prepareGuidedLaunch(), /不能启动网页/)
 })
 
-test('折叠接线：说明行/号占位符随档刷新、目录下拉由登记目录铺开、打开新建时清空上次填的值', () => {
+test('引导接线：说明行/占位符随档刷新、目录下拉由登记目录铺开、打开新建时清空上次填的值', () => {
   const paint = section('    function paintLaunchIsolation() {', '    launchIsolationFieldEl.onclick =')
   assert.match(paint, /tabsEl\.dataset\.active = launchIsolation/, '切档把胶囊浮块滑到对应位置')
   assert.match(paint, /paintLaunchHomeCustom\(\)/, '切档时重画目录下拉（第一项跟着自动目录变）')
@@ -327,11 +334,11 @@ test('折叠接线：说明行/号占位符随档刷新、目录下拉由登记�
   const manage = section('    launchHomeCustomEl.onchange = () => {', '    /**')
   assert.match(manage, /openPluginHomesDialog\(\)/, '选「管理目录…」打开目录管理弹窗')
   const open = section('    function openLaunchEditor(entry) {', '    async function closeLaunchEditor()')
-  assert.match(open, /launchProfileCustomEl\.value = ''/, '每次打开都清掉上次折叠里填的值')
+  assert.match(open, /launchProfileCustomEl\.value = ''/, '每次打开都清掉上次引导里填的值')
   assert.match(open, /launchHomeCustomEl\.value = ''/)
   assert.match(open, /launchHomeProfileEl\.value = ''/)
-  assert.match(open, /setLaunchAdvanced\(launchProfileAdvancedEl, false, false\)/, '折叠也收回默认的收起状态（不动画）')
-  assert.match(open, /setLaunchAdvanced\(launchHomeAdvancedEl, false, false\)/)
+  assert.match(open, /launchSourceMode = 'name'/, '第二排 tab 回到「新建 Profile」')
+  assert.match(open, /paintLaunchSource\(\)/, '复位后连面板一起重画')
 })
 
 /** paintLaunchHomeCustom 的 vm 环境：真实铺选项逻辑 + 桩掉的页面函数。 */
@@ -370,86 +377,146 @@ test('会话隔离的目录下拉：自动新建排第一、登记目录跟后�
   assert.equal(sentinel.select.value, '')
 })
 
-test('「打开启动器时启动」三份互相同步：折叠里勾了保存也生效，打开弹窗按启动项回填', () => {
+test('「打开启动器时启动」两份互相同步：引导块勾了保存也生效，打开弹窗按启动项回填', () => {
   const sync = section('    function syncLaunchAutoLaunch(checked) {', '    /**')
-  assert.match(sync, /for \(const box of \[launchAutoLaunchEl, launchAutoLaunchProfileEl, launchAutoLaunchHomeEl\]\)/, '三份一起同步')
-  assert.match(sync, /box\.onchange = \(\) => syncLaunchAutoLaunch\(box\.checked\)/, '勾任意一份都同步到其它两份')
+  assert.match(sync, /for \(const box of \[launchAutoLaunchEl, launchAutoLaunchGuidedEl\]\)/, '两份一起同步')
+  assert.match(sync, /box\.onchange = \(\) => syncLaunchAutoLaunch\(box\.checked\)/, '勾任意一份都同步到另一份')
   const open = section('    function openLaunchEditor(entry) {', '    async function closeLaunchEditor()')
-  assert.match(open, /syncLaunchAutoLaunch\(entry\?\.autoLaunch === true\)/, '打开弹窗按启动项回填三份开关')
-  // 保存只读主开关（#launchAutoLaunch），所以折叠里那份勾上后也一定能带出去
+  assert.match(open, /syncLaunchAutoLaunch\(entry\?\.autoLaunch === true\)/, '打开弹窗按启动项回填两份开关')
+  // 保存只读主开关（#launchAutoLaunch），所以引导块里那份勾上后也一定能带出去
   assert.match(section('    launchFormEl.onsubmit = async', '    launchDeleteEl.onclick = async'), /autoLaunch: launchAutoLaunchEl\.checked/)
 
-  // vm：勾任意一份，三份一起变
-  const boxes = [{ checked: false }, { checked: false }, { checked: false }]
-  const context = vm.createContext({ launchAutoLaunchEl: boxes[0], launchAutoLaunchProfileEl: boxes[1], launchAutoLaunchHomeEl: boxes[2] })
+  // vm：勾任意一份，两份一起变
+  const boxes = [{ checked: false }, { checked: false }]
+  const context = vm.createContext({ launchAutoLaunchEl: boxes[0], launchAutoLaunchGuidedEl: boxes[1] })
   vm.runInContext(functionSource('syncLaunchAutoLaunch'), context)
   context.syncLaunchAutoLaunch(true)
-  assert.deepEqual(boxes.map((box) => box.checked), [true, true, true])
+  assert.deepEqual(boxes.map((box) => box.checked), [true, true])
   context.syncLaunchAutoLaunch(false)
-  assert.deepEqual(boxes.map((box) => box.checked), [false, false, false])
+  assert.deepEqual(boxes.map((box) => box.checked), [false, false])
 })
 
-test('折叠开合走高度动画：展开从 0 长到内容高度，收起缩回再隐藏，减少动态时直接跳', () => {
-  const build = (reduceMotion = false) => {
-    const state = { expanded: 'false', classes: new Set(), animations: [] }
-    const panel = {
-      hidden: true,
-      style: {},
-      scrollHeight: 120,
-      animate(keyframes, options) {
-        const animation = { keyframes, options, cancelled: false, onfinish: null, cancel() { this.cancelled = true } }
-        state.animations.push(animation)
-        return animation
-      },
-      getAnimations() { return state.animations.filter((animation) => !animation.cancelled) },
-    }
-    const toggle = { getAttribute: () => state.expanded, setAttribute: (_, value) => { state.expanded = value } }
-    const box = {
-      querySelector: (selector) => (selector.includes('toggle') ? toggle : panel),
-      classList: { toggle(name, on) { if (on) state.classes.add(name); else state.classes.delete(name) } },
-    }
-    const context = vm.createContext({
-      document: { documentElement: { classList: { contains: () => reduceMotion } } },
-      launchProfileAdvancedEl: box,
-    })
-    vm.runInContext(functionSource('prefersReducedMotion'), context)
-    vm.runInContext(functionSource('setLaunchAdvanced'), context)
-    return { context, state, panel }
-  }
+test('两档 tab 只换面板：浮块按 data-active 平移，选中态各排各的，停在哪档决定读谁的值', () => {
+  const paint = section('    function paintLaunchSource() {', '    /** 切第二排 tab')
+  assert.match(paint, /launchSourceTabsEl\.dataset\.active = launchSourceMode/, '浮块位置靠 data-active')
+  assert.match(paint, /tab\.dataset\.source === launchSourceMode/, '当前档靠 aria-selected，样式跟着它走')
+  assert.match(paint, /launchSourceNamePanelEl\.hidden = launchSourceMode !== 'name'/)
+  assert.match(paint, /launchSourceCopyPanelEl\.hidden = launchSourceMode !== 'copy'/)
+  const set = section('    function setLaunchSource(mode) {', '    /**')
+  assert.match(set, /launchSourceMode = mode === 'copy' \? 'copy' : 'name'/, '只认两档，别的值当自己起名')
+  assert.match(set, /if \(launchSourceMode === 'copy' && !launchCopySource\) launchCopySource = defaultCopySource\(\)/, '第一次切到复制那档默认「全局目录 › web」')
+  assert.match(set, /paintLaunchSource\(\)/)
+  assert.match(set, /paintLaunchIsolation\(\)/, '说明行跟着换（选了复制要说清复制的是谁）')
+  // 同一个容器里两排 tab：先认第二排，再认隔离方式那排
+  assert.match(page, /const source = event\.target\.closest\?\.\('\.launch-source-tab'\)/)
+  assert.match(page, /setLaunchSource\(source\.dataset\.source\)/)
+  // 复制来源只在停在「从已有 Profile 复制」时才算数
+  const copy = section('    function selectedCopy() {', '    /**')
+  assert.match(copy, /if \(launchSourceMode !== 'copy' \|\| !launchCopySource\) return null/, '切回自己起名那档就不再复制')
+  assert.match(copy, /profile: launchCopySource\.profile, home: launchCopySource\.home/, '来源是选择窗写回的状态，不再读下拉')
+  const prepare = section('    async function prepareGuidedLaunch() {', '    /**\n     * 版本比较')
+  assert.match(prepare, /launchSourceMode === 'copy' \? '' : String\(launchProfileCustomEl\?\.value/, '名字输入只在名字那档算数')
+  assert.match(prepare, /launchSourceMode === 'copy' \? '' : String\(launchHomeProfileEl\?\.value/, '会话隔离同理')
+  assert.match(prepare, /if \(launchSourceMode === 'copy' && !copy\) throw new Error\(t\('先选一份要复制的 Profile'\)\)/, '停在复制那档却没来源就不许保存')
+})
 
-  const opened = build()
-  opened.context.setLaunchAdvanced(opened.context.launchProfileAdvancedEl, true)
-  assert.equal(opened.state.expanded, 'true', '按钮 aria-expanded 跟着翻')
-  assert.ok(opened.state.classes.has('is-open'), '箭头靠 is-open 转向')
-  assert.equal(opened.panel.hidden, false, '展开时面板先放出来才能量高度')
-  const openAnimation = opened.state.animations[0]
-  assert.deepEqual(Array.from(openAnimation.keyframes, (frame) => frame.height), ['0px', '120px'], '从 0 长到实际高度')
-  assert.equal(openAnimation.options.duration, 220)
-  openAnimation.onfinish()
-  assert.equal(opened.panel.style.height, '', '动画收尾清掉临时高度，交回内容自适应')
+test('选 Profile 是三栏选择窗：目录 / Profile / 插件，两档用途共用一个窗', () => {
+  const dialog = section('id="profilePickDialog"', 'id="versionManageDialog"')
+  assert.match(dialog, /data-dialog-size="xlarge"/, '三栏要够宽')
+  assert.match(dialog, /<div class="profile-pick">[\s\S]*id="profilePickHomes" role="listbox"[\s\S]*id="profilePickProfiles" role="listbox"[\s\S]*id="profilePickDetails"/, '三栏从左到右：目录 → Profile → 插件')
+  assert.ok(dialog.indexOf('id="profilePickHomes"') < dialog.indexOf('id="profilePickProfiles"'), '目录在左，Profile 在中')
+  assert.ok(dialog.indexOf('id="profilePickProfiles"') < dialog.indexOf('id="profilePickDetails"'), '插件预览在最右')
+  assert.match(dialog, /id="profilePickConfirm" type="button" disabled data-i18n="用它"/, '没选好之前「用它」是灰的')
+  // 两栏/中栏的动作按钮：目录加、Profile 建/复制
+  assert.match(dialog, /id="profilePickHomeAdd" type="button"/)
+  assert.match(dialog, /id="profilePickCreate" type="button"/)
+  assert.match(dialog, /id="profilePickCopy" type="button"[^>]*disabled/)
+  // 复制来源那行：一个按钮打开弹窗，不再是两串下拉；自定义档同样换了触发器
+  const panel = section('id="launchSourceCopyPanel"', 'launch-auto-launch')
+  assert.match(panel, /id="launchCopyPick" aria-haspopup="dialog"/)
+  assert.ok(!panel.includes('<select'), '面板里不再有下拉')
 
-  opened.context.setLaunchAdvanced(opened.context.launchProfileAdvancedEl, false)
-  const closeAnimation = opened.state.animations[1]
-  assert.deepEqual(Array.from(closeAnimation.keyframes, (frame) => frame.height), ['120px', '0px'], '收起缩回 0')
-  assert.equal(opened.panel.hidden, false, '收起动画期间面板还在')
-  closeAnimation.onfinish()
-  assert.equal(opened.panel.hidden, true, '收起动画结束才隐藏')
-  assert.equal(opened.state.classes.has('is-open'), false)
+  // 选项铺法：全局目录排第一；起不了网页的仍然列出但不可选
+  const paintHomes = section('    function paintPickerHomes() {', '    /**\n     * 中栏的 Profile')
+  assert.match(paintHomes, /\[\{ home: '', name: t\('全局目录'\), path: state\.dshHome \|\| '~\/\.dsh' \}\]/, '全局目录排第一，值是空串')
+  assert.match(paintHomes, /data-home-open="\$\{escapeHtml\(row\.home\)\}"/, '行尾带打开（全局那行也有）')
+  assert.match(paintHomes, /data-home-rename="\$\{escapeHtml\(row\.home\)\}"/, '行尾带重命名')
+  assert.match(paintHomes, /data-home-remove="\$\{escapeHtml\(row\.home\)\}"/, '行尾带移除（全局目录那条不给）')
+  const paintProfiles = section('    function paintPickerProfiles(loading = true) {', '    /** 点一行 Profile')
+  assert.match(paintProfiles, /aria-disabled="\$\{!row\.web\}" \$\{row\.web \? '' : 'disabled'\}/, '起不了网页的不可选')
+  assert.match(paintProfiles, /data-profile-rename|data-profile-remove/, '行尾带重命名/删除')
+  assert.ok(!page.includes('不复制'), '「不复制」这个选项整套删掉了')
 
-  // 打开弹窗复位：只翻状态，不做动画
-  const instant = build()
-  instant.context.setLaunchAdvanced(instant.context.launchProfileAdvancedEl, false, false)
-  assert.equal(instant.panel.hidden, true)
-  assert.equal(instant.state.animations.length, 0, '复位不做动画')
+  // 两档用途：标题不同，确认后写到不同地方
+  const open = section('    async function openProfilePicker(mode = ', '    function closeProfilePicker() {')
+  assert.match(open, /pickerMode = mode === 'form' \? 'form' : 'copy'/)
+  assert.match(open, /setPickerHeading\('选择 Profile'/, 'form 档：给自定义档挑')
+  assert.match(open, /setPickerHeading\('选择要复制的 Profile'/, 'copy 档：挑复制来源')
+  const confirm = section('    function confirmProfilePick() {', '    /**\n     * form 档的写回')
+  assert.match(confirm, /if \(pickerMode === 'form'\) \{\s*void applyPickerToLaunchForm\(choice\)/, 'form 档写回启动项表单')
+  assert.match(confirm, /launchCopySource = choice/, 'copy 档写回复制来源')
+  const apply = section('    async function applyPickerToLaunchForm(', '    /** 选择窗里干活时统一置忙')
+  assert.match(apply, /paintLaunchHomes\(home\)/, '目录落到下拉上')
+  assert.match(apply, /await refreshLaunchHomeProfiles\(\)/, '按老路重拉这个目录的 Profile')
+  assert.match(apply, /launchProfileEl\.value = profile[\s\S]*launchProfileEl\.onchange\(\)/, '最后走原来的 onchange，恢复查询和保存都不用另写')
 
-  // 减少动态：一样直接跳，不排动画
-  const reduced = build(true)
-  reduced.context.setLaunchAdvanced(reduced.context.launchProfileAdvancedEl, true)
-  assert.equal(reduced.panel.hidden, false)
-  assert.equal(reduced.state.animations.length, 0, '减少动态时跳过高度动画')
+  // 三栏数据：一次 /api/packs 就带全部 Profile 的插件
+  const load = section('    async function loadPickerHome(home) {', '    /** 点左栏某个目录')
+  assert.match(load, /getJson\('\/api\/packs', \{ home, launchId: '' \}\)/, '显式指定目录，别落回环境页那份')
+  const details = section('    function paintPickerDetails() {', '    /** 一个目录的清单')
+  assert.match(details, /row\.pack\.plugins/, '插件行来自 packs')
+  assert.match(details, /还没初始化：先用它启动一次/, '没初始化的那份要说清')
 
-  // 点击折叠头 = 取反当前 aria-expanded
-  assert.match(page, /toggle\.onclick = \(\) => setLaunchAdvanced\(box, toggle\.getAttribute\('aria-expanded'\) !== 'true'\)/)
+  // 选择窗里改 Profile：请求必须按它挑的目录走（空串 = 全局目录，不能落回环境页那份）
+  const submit = section("document.getElementById('profileForm').onsubmit = async", '    // ---- Profile 备份与回退 ----')
+  assert.match(submit, /profileDialogFromPicker \? \{ home: profileDialogHome, launchId: '' \} : \{\}/, '选择窗里按 pickerHome 请求')
+  assert.match(submit, /if \(profileDialogFromPicker\) \{/, '改完要回刷选择窗')
+  const remove = section('    async function removePickerProfile(', '     * 当前停在')
+  assert.match(remove, /\{ home: pickerHome, launchId: '' \}/, '删除也按选择窗的目录走')
+  const openHome = section('    async function openPickerHome(', '     * 中栏的 Profile')
+  assert.match(openHome, /post\('\/api\/dsh-homes\/open', \{ home \}\)/, '「打开」走系统文件管理器那条接口')
+  assert.match(page, /button\.onclick = \(\) => void openPickerHome\(button\.dataset\.homeOpen\)/, '行尾按钮接到打开')
+  // 默认来源：还没有来源时就是全局目录里的 web
+  const fallback = section('    function defaultCopySource() {', '    /** 复制来源那行按钮')
+  assert.match(fallback, /web\.includes\('web'\) \? 'web' : \(web\[0\] \|\| ''\)/, '有 web 就默认 web，否则挑第一份')
+  assert.match(fallback, /return profile \? \{ home: '', profile \} : null/, '空 home = 全局目录')
+})
+
+test('两档 tab 的 vm：切档只翻显隐，切走的值留着，切回来还在', () => {
+  const tabs = [
+    { dataset: { source: 'name' }, selected: 'true', setAttribute(name, value) { this.selected = value } },
+    { dataset: { source: 'copy' }, selected: 'false', setAttribute(name, value) { this.selected = value } },
+  ]
+  const calls = { paint: 0, defaults: 0 }
+  const context = vm.createContext({
+    launchSourceTabsEl: { dataset: {} },
+    launchSourceNamePanelEl: { hidden: false },
+    launchSourceCopyPanelEl: { hidden: true },
+    launchCopySource: null,
+    defaultCopySource: () => { calls.defaults += 1; return { home: '', profile: 'web' } },
+    document: { querySelectorAll: () => tabs },
+    paintLaunchIsolation: () => { calls.paint += 1 },
+  })
+  vm.runInContext(functionSource('paintLaunchSource'), context)
+  vm.runInContext(functionSource('setLaunchSource'), context)
+
+  context.setLaunchSource('copy')
+  assert.equal(context.launchSourceTabsEl.dataset.active, 'copy', '浮块滑到复制那档')
+  assert.deepEqual(tabs.map((tab) => tab.selected), ['false', 'true'], '选中态跟着换')
+  assert.equal(context.launchSourceNamePanelEl.hidden, true, '名字那档收起')
+  assert.equal(context.launchSourceCopyPanelEl.hidden, false, '复制来源露出来')
+  assert.equal(calls.paint, 1, '切完要重画说明行')
+  assert.equal(context.launchCopySource?.profile, 'web', '第一次切过来就默认「全局目录 › web」')
+  assert.equal(context.launchCopySource?.home, '')
+  assert.equal(calls.defaults, 1, '只补一次默认值')
+
+  // 已经选过来源就不该再被默认值盖掉：换回名字档、再切回复制，来源和取默认值的次数都不变
+  context.setLaunchSource('name')
+  assert.equal(context.launchSourceCopyPanelEl.hidden, true, '切回自己起名那档，复制收起（值不动）')
+  assert.equal(context.launchSourceNamePanelEl.hidden, false)
+  context.setLaunchSource('copy')
+  assert.equal(calls.defaults, 1, '有来源之后不再取默认值')
+  assert.equal(context.launchCopySource?.profile, 'web', '来源原样留着')
 })
 
 test('保存与打开弹窗的接线：新建走引导时名字也代填，带 ensureProfile；编辑/自定义仍用原来的下拉值', () => {
@@ -459,9 +526,8 @@ test('保存与打开弹窗的接线：新建走引导时名字也代填，带 e
   assert.match(submit, /name: guided \? target\.name : launchNameEl\.value/)
   assert.match(submit, /\.\.\.\(guided \? \{ ensureProfile: true \} : \{\}\)/)
   assert.match(submit, /guided \? target\.profile : launchProfile/)
-  // 项目环境：数据目录由项目推导，编辑时填了项目目录就不再传下拉值；workdir 一路带到保存接口
-  assert.match(submit, /dshHome: guided \? target\.dshHome : \(String\(launchWorkdirEl\.value \|\| ''\)\.trim\(\) \? '' : launchDshHomeEl\.value\.trim\(\)\)/)
-  assert.match(submit, /workdir: guided \? \(target\.workdir \|\| ''\) : launchWorkdirEl\.value\.trim\(\)/)
+  assert.match(submit, /dshHome: guided \? target\.dshHome : launchDshHomeEl\.value\.trim()/)
+  assert.doesNotMatch(submit, /workdir:/, '项目目录已经下线，保存不再带 workdir')
   assert.match(submit, /\.\.\.\(guided && target\.copyFrom \? \{ copyFrom: target\.copyFrom \} : \{\}\)/, '复制来源只在引导档里传')
   // 引导模式不再刷新下拉（新目录/新 Profile 由服务端处理），编辑和自定义才刷新
   assert.match(submit, /if \(!guided && !await refreshLaunchHomeProfiles\(true\)\) return/)
@@ -492,27 +558,18 @@ test('动效接线：胶囊浮块滑动、字段淡入、说明行淡入，都�
   assert.match(css, /\.launch-custom-fields:not\(\[hidden\]\) \{ animation: launch-custom-in/, '切到自定义时字段淡入')
   assert.match(css, /#launchIsolationHint\.isolation-hint-in \{ animation: launch-isolation-hint-in/, '换档时说明行淡入')
   assert.match(css, /html\.reduce-motion #launchIsolationHint\.isolation-hint-in \{ animation: none; \}/, '减少动态时不做动画')
-  assert.match(css, /html\.reduce-motion \.launch-isolation-tabs::after,\nhtml\.reduce-motion \.launch-isolation-tab,\nhtml\.reduce-motion \.launch-isolation-advanced-chevron \{ transition: none; \}/, '浮块和折叠箭头的过渡都尊重减少动态')
+  assert.match(css, /html\.reduce-motion \.launch-isolation-tabs::after,\nhtml\.reduce-motion \.launch-isolation-tab \{ transition: none; \}/, '浮块的过渡尊重减少动态')
+  assert.match(css, /html\.reduce-motion \.launch-source-panel:not\(\[hidden\]\)/, '切 tab 的面板淡入也尊重减少动态')
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/, '系统级减少动态也要跟着关掉')
-  assert.match(css, /  \.launch-isolation-tabs::after,\n  \.launch-isolation-tab, \.launch-isolation-advanced-chevron \{ transition: none; \}/, '系统级减少动态时浮块直接跳')
+  assert.match(css, /  \.launch-isolation-tabs::after,\n  \.launch-isolation-tab \{ transition: none; \}/, '系统级减少动态时浮块直接跳')
   const paint = section('    function paintLaunchIsolation() {', '    launchIsolationFieldEl.onclick =')
   assert.match(paint, /tab\.setAttribute\('aria-selected'/, '当前档靠 aria-selected，样式跟着它走')
   assert.match(paint, /tabsEl\.dataset\.active = launchIsolation/, '浮块位置靠 data-active 平移')
   assert.match(paint, /if \(launchIsolationHintEl\.textContent === hint\) return/, '文字相同就不重播动画')
   assert.match(paint, /classList\.remove\('isolation-hint-in'\)\n\s+void launchIsolationHintEl\.offsetWidth\n\s+launchIsolationHintEl\.classList\.add\('isolation-hint-in'\)/, '重播动画前先复位，避免连点不触发')
   // tab 点击 = 切档：只认带 data-isolation 的按钮，避免点到容器也触发
-  assert.match(page, /event\.target\.closest\?\.\('\.launch-isolation-tab'\)/)
+  assert.match(page, /event\.target\.closest\?\.\('\.launch-isolation-tab\[data-isolation\]'\)/)
   assert.match(page, /setLaunchIsolation\(tab\.dataset\.isolation\)/)
-})
-
-test('项目环境：选了项目目录就把数据目录算成 <项目>/.dsh，不登记成普通用户目录', async () => {
-  const h = guidedHarness({ mode: 'home', projectDir: 'D:/projects/app' })
-  const target = await h.context.prepareGuidedLaunch()
-  assert.equal(target.workdir, 'D:/projects/app', '项目目录要一路带到保存接口')
-  assert.equal(String(target.dshHome).replace(/\\/g, '/'), 'D:/projects/app/.dsh', '数据目录固定在项目里')
-  assert.equal(target.profile, 'web')
-  assert.equal(target.name, 'app', '启动项名字取项目目录最后一段')
-  assert.deepEqual(h.calls.posts, [], '项目数据目录不进「管理目录」登记表')
 })
 
 test('从已有 Profile 复制：来源目录 + Profile 一起带进保存接口，名字沿用来源', async () => {
@@ -526,12 +583,13 @@ test('从已有 Profile 复制：来源目录 + Profile 一起带进保存接口
   assert.deepEqual(h.calls.posts, [], '复制由保存接口一次完成，页面不先建 Profile')
 })
 
-test('项目环境也能从已有 Profile 复制：两个选择互不顶替', async () => {
-  const h = guidedHarness({ mode: 'home', projectDir: 'D:/projects/app', copyProfile: 'ios-dev', copyHome: 'C:/global', profiles: ['web', 'ios-dev'] })
+test('独立目录也能从已有 Profile 复制：目录和 Profile 一起带进保存接口', async () => {
+  const h = guidedHarness({ mode: 'home', home: 'D:/homes/iso', copyProfile: 'ios-dev', copyHome: 'C:/global', profiles: ['web', 'ios-dev'] })
   const target = await h.context.prepareGuidedLaunch()
-  assert.equal(target.workdir, 'D:/projects/app')
+  assert.equal(target.dshHome, 'D:/homes/iso')
   // 跨 realm 的对象原型不同，deepEqual 会较真，逐字段比更实在
   assert.equal(target.copyFrom?.profile, 'ios-dev', '复制来源的 Profile')
   assert.equal(target.copyFrom?.home, 'C:/global', '复制来源的目录')
   assert.equal(target.profile, 'ios-dev')
+  assert.ok(h.calls.posts.some(([url]) => url === '/api/dsh-homes/add'), '独立目录照常登记到「管理目录」')
 })
