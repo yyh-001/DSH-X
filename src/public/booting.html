@@ -95,41 +95,6 @@
   @keyframes slide { 0% { transform: translateX(-105%); } 100% { transform: translateX(225%); } }
   .phase { margin: 0; min-height: 20px; font-size: 13px; font-variant-numeric: tabular-nums; }
   .hint { margin: 0; font-size: 12px; color: var(--muted); }
-  /* 阶段点：服务端只给粗粒度阶段，这里把「启动进程 → 加载插件 → 打开页面」
-     画成一条能看见在走的线，比一根假进度条诚实。 */
-  .steps { position: relative; display: flex; align-items: center; gap: 0; margin: 2px 0 0; padding: 0; list-style: none; }
-  .steps li { position: relative; flex: 1; padding-top: 16px; font-size: 11.5px; color: var(--muted); text-align: center; transition: color .3s ease; }
-  .steps li::before {
-    content: ""; position: absolute; top: 4px; left: 50%; width: 8px; height: 8px; margin-left: -4px;
-    border-radius: 50%; background: var(--track); transition: background .25s ease, box-shadow .25s ease;
-  }
-  /* 连接线从左边长过去：done 的那段用 background-size 过渡，比整段突然变色顺 */
-  .steps li + li::after {
-    content: ""; position: absolute; top: 7px; right: 50%; width: 100%; height: 2px; border-radius: 1px;
-    background: linear-gradient(var(--accent), var(--accent)) left center / 0% 100% no-repeat, var(--track);
-    transition: background-size .4s cubic-bezier(.2, .8, .2, 1);
-  }
-  .steps li[data-state="done"] + li::after { background-size: 100% 100%, auto; }
-  .steps li[data-state="done"] { color: var(--text); }
-  .steps li[data-state="done"]::before { background: var(--accent); }
-  .steps li[data-state="next"] { color: var(--text); }
-  .steps li[data-state="next"]::before { background: var(--muted); }
-  /* 走到哪一格：一颗同色的光标停在当前那一步上，换阶段时是「滑过去」而不是原地跳到下一格。
-     呼吸只改光晕（不碰 transform，免得和滑动的 transition 打架），两端都回到原值、不过冲。 */
-  .step-cursor {
-    position: absolute; top: 4px; width: 8px; height: 8px; margin-left: -4px;
-    border-radius: 50%; background: var(--accent);
-    left: calc(100% / var(--step-count, 3) * (var(--step-index, 0) + .5));  /* 等宽分格，圆心落在每格中间 */
-    transition: left .38s cubic-bezier(.2, .8, .2, 1), opacity .22s ease;
-    animation: cursor-pulse 1.5s ease-in-out infinite;
-    pointer-events: none;
-  }
-  .steps[data-index="-1"] .step-cursor { opacity: 0; animation: none; }
-  @keyframes cursor-pulse {
-    0%, 100% { box-shadow: 0 0 0 3px var(--accent-soft); }
-    50% { box-shadow: 0 0 0 6px var(--accent-soft); }
-  }
-  .steps[hidden] { display: none; }
   .actions { display: flex; gap: 9px; flex-wrap: wrap; }
   .actions[hidden], .hint[hidden] { display: none; }
   button {
@@ -154,8 +119,6 @@
   @media (prefers-reduced-motion: reduce) {
     .spinner { animation: none; }
     .bar.indeterminate > span { animation: none; width: 100%; }
-    .step-cursor { animation: none; transition: none; }
-    .steps li + li::after { transition: none; }
   }
 </style>
 </head>
@@ -169,12 +132,6 @@
     <p class="meta" id="meta"></p>
     <div class="bar indeterminate" id="bar" aria-hidden="true"><span id="barFill"></span></div>
     <p class="phase" id="phase"></p>
-    <ol class="steps" id="steps">
-      <span class="step-cursor" aria-hidden="true"></span>
-      <li data-step="launching"></li>
-      <li data-step="loading"></li>
-      <li data-step="ready"></li>
-    </ol>
     <p class="hint" id="hint"></p>
     <div class="error" id="error" hidden>
       <p class="error-title" id="errorTitle"></p>
@@ -197,9 +154,6 @@
       'phaseNoProfile': '{phase} · {elapsed}s',
       'elapsedOnly': '已用 {elapsed}s',
       'installing': '正在准备依赖',
-      'stepLaunching': '启动进程',
-      'stepLoading': '加载插件',
-      'stepReady': '打开页面',
       'phLaunching': '正在启动 dsh',
       'phLoading': '正在加载插件',
       'phDownload': '正在下载依赖 {done}/{total}',
@@ -207,7 +161,6 @@
       'phResolve': '正在解析依赖',
       'phOptimize': '正在优化依赖',
       'phUnpack': '正在解包 {done}/{total}',
-      'hintOpen': '启动完成后这个页面会自动打开 dsh',
       'hintSlow': '首次启动要下载依赖，通常会久一点；也可以回管理页看实时日志',
       'hintOffline': '与管理页的连接断了一下，正在重试…',
       'opening': '启动完成，正在打开…',
@@ -224,9 +177,6 @@
       'phaseNoProfile': '{phase} · {elapsed}s',
       'elapsedOnly': '{elapsed}s elapsed',
       'installing': 'Preparing dependencies',
-      'stepLaunching': 'Process',
-      'stepLoading': 'Plugins',
-      'stepReady': 'Open page',
       'phLaunching': 'Starting dsh',
       'phLoading': 'Loading plugins',
       'phDownload': 'Downloading dependencies {done}/{total}',
@@ -234,7 +184,6 @@
       'phResolve': 'Resolving dependencies',
       'phOptimize': 'Optimizing dependencies',
       'phUnpack': 'Unpacking {done}/{total}',
-      'hintOpen': 'This page opens dsh automatically once it is ready',
       'hintSlow': 'The first start downloads dependencies and takes longer; the launcher page shows the live log',
       'hintOffline': 'Lost the launcher for a moment, retrying…',
       'opening': 'Ready — opening…',
@@ -255,7 +204,6 @@
     bar: document.getElementById('bar'),
     barFill: document.getElementById('barFill'),
     phase: document.getElementById('phase'),
-    steps: document.getElementById('steps'),
     hint: document.getElementById('hint'),
     error: document.getElementById('error'),
     errorTitle: document.getElementById('errorTitle'),
@@ -264,7 +212,6 @@
     manager: document.getElementById('manager'),
     retry: document.getElementById('retry'),
   }
-  els.steps.querySelectorAll('li').forEach((item) => { item.textContent = t(`step${item.dataset.step[0].toUpperCase()}${item.dataset.step.slice(1)}`) })
   els.manager.textContent = t('toManager')
   els.retry.textContent = t('retry')
   els.manager.onclick = () => { location.href = '/' }
@@ -290,7 +237,6 @@
     launching: 'phLaunching',
     loading: 'phLoading',
   }
-  const STEPS = ['launching', 'loading', 'ready']
 
   /** 按版本 + profile（+ 目录）找本次要等的那个实例；同一个版本可能还跑着别的 profile。 */
   function findInstance() {
@@ -308,20 +254,6 @@
     if (profile && failure.profile !== profile) return null
     if (home && !samePath(failure.home, home)) return null
     return Number(failure.at) >= waitStartedAt - 2000 ? failure : null
-  }
-
-  function paintSteps(current) {
-    const index = STEPS.indexOf(current)
-    els.steps.hidden = false
-    // 光标滑到第几格（CSS 里按 --step-count 等分算位置；-1 = 还没到第一步，先藏起来）
-    els.steps.dataset.index = String(index)
-    els.steps.style.setProperty('--step-index', String(Math.max(0, index)))
-    els.steps.style.setProperty('--step-count', String(STEPS.length))
-    for (const item of els.steps.querySelectorAll('li')) {
-      const at = STEPS.indexOf(item.dataset.step)
-      // 当前这一步已经点亮（它代表「正在做」），下一格只是提示「还差它」。
-      item.dataset.state = index < 0 ? '' : at <= index ? 'done' : at === index + 1 ? 'next' : ''
-    }
   }
 
   /** 阶段文案：换字的时候淡入一下，别硬切（同一句不重复播）。 */
@@ -350,7 +282,6 @@
     failed = true
     els.spinner.hidden = true
     els.bar.hidden = true
-    els.steps.hidden = true
     els.title.textContent = t('failedTitle')
     els.phase.textContent = ''
     els.error.hidden = false
@@ -370,7 +301,6 @@
     els.spinner.hidden = true
     els.bar.classList.remove('indeterminate')
     els.barFill.style.width = '100%'
-    paintSteps('ready')
     // replace 而不是 assign：dsh 起来后按后退不该回到这张过渡页。
     location.replace(url)
   }
@@ -385,9 +315,6 @@
     if (live?.status === 'starting') {
       const phase = live.startupPhase || 'launching'
       setBar(null)
-      paintSteps(phase)
-      els.hint.hidden = false
-      els.hint.textContent = t('hintOpen')
       setPhase(`${t(PHASE_TEXT[phase] || 'phLaunching')}`)
       els.meta.textContent = [profile, elapsedText(live.startedAt)].filter(Boolean).join(' · ')
       return
@@ -396,7 +323,6 @@
     const progress = snapshot?.progress
     if (progress) {
       const determinate = !setBar(progress)
-      els.steps.hidden = true
       els.title.textContent = t('installing')
       let text = t('phResolve')
       if (progress.phase === 'download') {
@@ -413,10 +339,7 @@
     }
     // 页面比启动请求先打开：这段时间什么都不用报，只说在准备。
     setBar(null)
-    paintSteps('launching')
     setPhase(t('preparing'))
-    els.hint.hidden = false
-    els.hint.textContent = t('hintOpen')
     const failure = findFailure()
     if (failure) showFailure(failure)
   }
@@ -444,10 +367,7 @@
       const response = await fetch('/api/state', { cache: 'no-store' })
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
       snapshot = await response.json()
-      if (offline) {
-        offline = false
-        els.hint.textContent = t('hintOpen')
-      }
+      offline = false
       render()
     } catch {
       if (!offline) {
