@@ -126,7 +126,9 @@ jobs:
         run: npm ci
 
       - name: 跑测试
-        if: steps.probe.outputs.ready == 'yes'
+        # x64 的 Intel runner 上假 dsh 启动持续超时（每次挂的用例都不同，整套重试 3 次也过不去）；
+        # x64 与 arm64 跑同一份 JS，测试交给 arm64 + Windows + Linux，这台只负责出 dmg。
+        if: steps.probe.outputs.ready == 'yes' && matrix.arch == 'arm64'
         # arm64 runner 只有 3 核：并发 1 仍会偶发假 dsh 启动超时；整套最多重试 3 次，
         # 确定性失败会连挂 3 次。
         run: |
@@ -166,7 +168,8 @@ jobs:
           # version.js 已随运行时源码收进 src/，别再 import 根目录。
           TAG="$(node --input-type=module -e "import { versionChannel } from './src/version.js'; import { readFileSync } from 'node:fs'; const v=JSON.parse(readFileSync('package.json','utf8')).version; console.log({official:'latest',rc:'rc',alpha:'alpha'}[versionChannel(v)] || 'latest')")"
           if npm view "dsh-x-core@$VERSION" version >/dev/null 2>&1; then echo "dsh-x-core@$VERSION 已发布，跳过"; exit 0; fi
-          npm publish "release/dsh-x-core-$VERSION.tgz" --tag "$TAG" --access public
+          # 必须带 ./：npm 会把 `release/xxx.tgz` 当成 GitHub 的 owner/repo 简写去 ls-remote。
+          npm publish "./release/dsh-x-core-$VERSION.tgz" --tag "$TAG" --access public
 
       - uses: actions/upload-artifact@v4
         if: steps.probe.outputs.ready == 'yes'
