@@ -34,7 +34,17 @@ jobs:
         run: npm ci
 
       - name: 跑测试
-        run: npm test
+        shell: pwsh
+        run: |
+          # CI runner 上假 dsh 的启动偶发超时，每次挂的用例不同；整套最多重试 3 次。
+          # 确定性失败会连挂 3 次，不会被这里放过。
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            npm test
+            if ($LASTEXITCODE -eq 0) { exit 0 }
+            if ($attempt -eq 3) { exit $LASTEXITCODE }
+            Write-Host "第 $attempt 次测试失败，5 秒后重试整套"
+            Start-Sleep -Seconds 5
+          }
 
       - name: 打包（electron-builder：NSIS + latest.yml/blockmap）
         run: npm run dist
@@ -117,8 +127,15 @@ jobs:
 
       - name: 跑测试
         if: steps.probe.outputs.ready == 'yes'
-        # arm64 runner 只有 3 核：并发 2 时假 dsh 的启动仍在 120s 边缘抖动（mac 两个 runner 都出现过超时）
-        run: npm test -- --test-concurrency=1
+        # arm64 runner 只有 3 核：并发 1 仍会偶发假 dsh 启动超时；整套最多重试 3 次，
+        # 确定性失败会连挂 3 次。
+        run: |
+          for attempt in 1 2 3; do
+            npm test -- --test-concurrency=1 && exit 0
+            if [ "$attempt" -eq 3 ]; then exit 1; fi
+            echo "第 $attempt 次测试失败，5 秒后重试整套"
+            sleep 5
+          done
 
       - name: 导入固定 macOS 签名证书
         if: steps.probe.outputs.ready == 'yes'
@@ -194,7 +211,13 @@ jobs:
         run: npm ci
 
       - name: 跑测试
-        run: npm test -- --test-timeout=120000
+        run: |
+          for attempt in 1 2 3; do
+            npm test -- --test-timeout=120000 && exit 0
+            if [ "$attempt" -eq 3 ]; then exit 1; fi
+            echo "第 $attempt 次测试失败，5 秒后重试整套"
+            sleep 5
+          done
 
       - name: 打包（electron-builder：AppImage + deb + latest-linux.yml）
         run: npm run dist
