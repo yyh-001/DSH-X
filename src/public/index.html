@@ -8884,7 +8884,11 @@
     const backupProgressLabelEl = document.getElementById('backupProgressLabel')
     const backupProgressTrackEl = document.getElementById('backupProgressTrack')
     let backupProfile = ''
+    // backupLoading：回退 / 备份这类长操作在进行；列表加载单独用一个标志，
+    // 不能复用——否则列备份期间渲染出来的按钮会带着 disabled，加载完也没人重画。
     let backupLoading = false
+    let backupListLoading = false
+    let backupListRequest = 0
     let backupPhase = ''
     function backupTimeText(at) {
       const date = new Date(Number(at) || 0)
@@ -8923,15 +8927,19 @@
       paintProgress(backupProgressTrackEl, backupProgressTrackEl.querySelector('.progress-bar'), progress, true)
     }
     async function loadProfileBackups() {
-      if (!backupProfile || backupLoading) return
-      backupLoading = true
+      if (!backupProfile) return
+      const request = ++backupListRequest
+      const profile = backupProfile
+      backupListLoading = true
       try {
-        const data = await getJson(`/api/profile-backups?profile=${encodeURIComponent(backupProfile)}`)
-        if (!backupDialogEl.hidden) paintProfileBackups(data.backups)
+        const data = await getJson(`/api/profile-backups?profile=${encodeURIComponent(profile)}`)
+        // 迟到的响应不能画进另一个环境/已经关掉的弹窗
+        if (request !== backupListRequest || backupDialogEl.hidden || backupProfile !== profile) return
+        paintProfileBackups(data.backups)
       } catch (error) {
         notify(error.message)
       } finally {
-        backupLoading = false
+        if (request === backupListRequest) backupListLoading = false
       }
     }
     function openProfileBackups(profile) {

@@ -211,6 +211,30 @@ test('回退 / 备份期间：进度区出现、按钮禁用，依赖重装时�
   assert.equal(sandbox.backupNowEl.disabled, false)
 })
 
+test('列备份不会把回退按钮渲染成禁用（列表加载与长操作分开计）', async () => {
+  const sandbox = {
+    backupProfile: 'web',
+    backupDialogEl: { hidden: false },
+    backupLoading: false,
+    backupListLoading: false,
+    backupListRequest: 0,
+    getJson: async () => ({ backups: [{ id: '1' }, { id: '2' }] }),
+    notify() {},
+    painted: [],
+    paintProfileBackups(rows) {
+      sandbox.painted.push({ rows, loading: sandbox.backupLoading, listLoading: sandbox.backupListLoading })
+    },
+  }
+  vm.createContext(sandbox)
+  vm.runInContext(functionSource('loadProfileBackups'), sandbox)
+  await vm.runInContext('loadProfileBackups()', sandbox)
+  assert.equal(sandbox.painted.length, 1)
+  assert.equal(sandbox.painted[0].rows.length, 2)
+  assert.equal(sandbox.painted[0].loading, false, '列备份时 backupLoading 必须保持 false，否则按钮渲染成禁用')
+  assert.equal(sandbox.backupLoading, false)
+  assert.equal(sandbox.backupListLoading, false)
+})
+
 test('样式与英文文案：列表限高滚动、行内按钮不换行，文案全部有译文', () => {
   const styles = cssSection('.backup-list {', '.pack-source {')
   assert.match(styles, /\.backup-list \{[^}]*max-height: min\(46vh, 360px\)[^}]*overflow-y: auto/)
