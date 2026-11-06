@@ -89,3 +89,16 @@ test('内部标签按环境和版本识别，重启更换端口与认证 token �
   assert.equal(internalTabTarget(instance, '工作').id, first.id, '标题不参与标签身份')
   assert.equal(first.title, 'web · 1.0.0', '没有启动项时退回 profile · 版本')
 })
+
+test('WSL 的标签身份只用 home 与 profile，不等探测版本', () => {
+  const base = {
+    home: 'wsl://Fedora/~%2F.dsh', version: 'auto', profile: 'web', backend: 'wsl',
+    status: 'starting', url: 'http://127.0.0.1:43474/?token=first',
+  }
+  const waiting = internalTabTarget(base, 'WSL 测试')
+  const running = internalTabTarget({ ...base, version: '0.2.1-rc.5', status: 'running', url: 'http://127.0.0.1:43474/?token=second' }, 'WSL 测试')
+  assert.equal(waiting.id, running.id, '等待页与实例页必须落同一个标签')
+  assert.equal(waiting.title, 'WSL 测试')
+  assert.notEqual(waiting.id, internalTabTarget({ ...base, profile: 'other' }).id)
+  assert.notEqual(waiting.id, internalTabTarget({ ...base, home: 'wsl://Fedora/~%2Fwork' }).id)
+})
