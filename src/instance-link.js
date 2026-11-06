@@ -57,7 +57,9 @@ export async function createInstanceLink({ entry, profile, profileArgIndex = 0, 
     sockets.set(socket, null)
     let pending = ''
     let child
-    socket.setTimeout(LINK.connectTimeoutMs, () => socket.destroy())
+    // 只清掉「连上却一直不发握手帧」的连接：握手帧在 preload 里立刻写出，但两边的同步启动
+    // 都可能把事件循环占住一阵，用短的墙钟超时在这里抢先断线会误杀正常启动（见 #87）。
+    socket.setTimeout(LINK.handshakeTimeoutMs, () => socket.destroy())
     socket.on('error', () => {})
     socket.on('close', () => sockets.delete(socket))
     socket.on('data', chunk => {

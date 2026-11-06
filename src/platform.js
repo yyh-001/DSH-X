@@ -1,5 +1,4 @@
-import { existsSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 /**
@@ -33,16 +32,17 @@ export const NPM_MODE = process.env.DSH_NPM === '1'
  * 拉子进程（dsh、npm、pnpm）用的 node。
  *
  * 普通情况下就是正在跑的这个 node（源码运行 = 系统 node）。Electron 外壳里没有单独的 node
- * 可执行文件：Electron 本体就带着 Node（44 起是 Node 24），子进程设 ELECTRON_RUN_AS_NODE=1
- * 后按 node 跑。所以这里把 Electron 本体当 node 返回，环境变量由 RUNTIME_NODE_ENV 补。
- * （0.1.19 及以前的安装包在 node/ 下自带过一份 node，保留 existsSync 判断兼容它们。）
- * DSH_RUNTIME_NODE 可以显式指定（打包脚本和开发测试用）。
+ * 可执行文件：Electron 本体就带着 Node（Electron 44 是 24.21，满足 dsh 的 engines >=24.9），
+ * 子进程设 ELECTRON_RUN_AS_NODE=1 后按 node 跑，所以这里固定把 Electron 本体当 node 返回。
+ *
+ * 安装包里的 node/ 只有 npm/pnpm 和命令行 shim（node.cmd 转调 Electron），**不发 node.exe**。
+ * ≤0.1.19 的旧安装可能在 core 目录里留下 node.exe（v22.19，低于 dsh 的要求），就地升级后
+ * 这份残留不能被优先使用：旧判断看的是 `join(root,'node','node.exe')`，一旦命中就会让
+ * dsh 跑在过时的 Node 上（见 #89）。DSH_RUNTIME_NODE 仍可显式指定运行时（打包脚本/测试用）。
  */
-export function runtimeNode(env = process.env, root = ROOT, inElectron = IN_ELECTRON) {
+export function runtimeNode(env = process.env, _root = ROOT, inElectron = IN_ELECTRON) {
   if (!inElectron) return process.execPath
   if (env.DSH_RUNTIME_NODE) return env.DSH_RUNTIME_NODE
-  const bundled = join(root, 'node', IS_WINDOWS ? 'node.exe' : 'node')
-  if (existsSync(bundled)) return bundled
   return process.execPath
 }
 

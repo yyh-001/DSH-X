@@ -35,7 +35,7 @@ import {
   setPluginEnabled,
 } from './plugins.js'
 import { listMcpServers, probeMcpServer, removeMcpServer, saveMcpServer, setMcpEnabled } from './mcp.js'
-import { listPatchBackups, restoreProfileBackup, sanitizeProfile, withProfileLock } from './recovery.js'
+import { latestRecovery, listPatchBackups, restoreProfileBackup, sanitizeProfile, withProfileLock } from './recovery.js'
 import { createMarketStatsReader, marketRepository } from './pack-market.js'
 import {
   createSkill,
@@ -1376,6 +1376,8 @@ async function snapshotDefault() {
     },
     health: lastHealth,
     failure: publicFailure(lastFailure),
+    // 安全启动移走配置层之后，首页提示行也要能给出还原入口（#88）
+    recovery: recoveryPayload(),
     diagnosticRepairs: publicFailure({ message: '', diagnosis: diagnosticRepairs.history().map(record => ({ ...record, recorded: recordedChanges(record) })) }).diagnosis,
     dataDir: DATA,
     progress: installProgress,
@@ -5240,9 +5242,20 @@ const autoFixForHome = () => lastAutoFix?.home === homeDir() ? lastAutoFix : nul
 /** 最近一次「安全启动」（整份补丁层备份 + 摘掉第三方 bundle），管理页显示 + 一键还原。 */
 let lastRecovery = null
 
-/** 管理页的恢复档载荷：最近一次结果 + profile 里现存的补丁层备份。 */
+/**
+ * 管理页的恢复档载荷：最近一次结果 + profile 里现存的补丁层备份。
+ * 内存里的那条只在本次管理器进程里有效；重启后从补丁层备份的侧车推回来，
+ * 否则「安全启动移走了配置」这个事实会跟着进程一起消失（#88）。
+ */
 function recoveryPayload(profile = PROFILE_NAME) {
-  return { profile, last: lastRecovery?.profile === profile && lastRecovery.home === homeDir() ? lastRecovery : null, backups: listPatchBackups(profileDirOf(profile)) }
+  const dir = profileDirOf(profile)
+  const backups = listPatchBackups(dir)
+  const remembered = lastRecovery?.profile === profile && lastRecovery.home === homeDir() ? lastRecovery : null
+  const durable = remembered ? null : latestRecovery(dir)
+  const last = remembered || (durable
+    ? { at: durable.at, home: homeDir(), profile, backup: durable.backup, dropped: durable.dropped, warning: null }
+    : null)
+  return { profile, home: homeDir(), last, backups }
 }
 
 /**
@@ -6770,6 +6783,11 @@ async function handleApi(req, res, url) {
       const profile = body.profile ? String(body.profile) : PROFILE_NAME
       const dir = profileDirOf(profile)
       if (maintainingProfiles.has(profileKey(profile))) throw new Error(`profile「${profile}」正在修改，稍后再试`)
+      // 补丁层马上要改名移出 profile：先在启动器自己的配置备份里留一份（#88 里那次快照
+      // 拍在安全启动之后，cordis.patch.yml 已经不在，回退也拿不回用户的自定义 provider）。
+      await snapshotProfileConfig(profile, { force: true }).catch((error) => {
+        pushLog(`[恢复] 安全启动前的配置快照没成：${error instanceof Error ? error.message : error}`)
+      })
       const result = await sanitizeProfile(dir)
       lastRecovery = { at: Date.now(), home: homeDir(), profile, backup: result.backup, dropped: result.dropped, warning: result.warning || null }
       pushLog(`[恢复] 安全启动（${profile}）：补丁层${result.backup ? `已备份到 ${basename(result.backup)}` : '本来就没有'}，摘掉第三方 bundle ${result.dropped.length} 个${result.dropped.length ? `（${result.dropped.join('、')}）` : ''}${result.warning ? `；${result.warning}` : ''}`)
@@ -7554,10 +7572,18 @@ export async function startServer() {
   WEB_BIND = resolveWebBind()
   if (CLI_ARGS.length) pushLog(`DSH.exe 传入启动参数：${CLI_ARGS.join(' ')}`)
   const stored = await loadSettings()
-  // 跑 dsh 的 node 不是自带的 Electron 时记一笔：出问题时日志里能看出用的是哪个
-  if (IN_ELECTRON && !RUNTIME_NODE_ENV.ELECTRON_RUN_AS_NODE) {
-    const version = nodeVersionOf(RUNTIME_NODE)
-    pushLog(`跑 dsh 的 node：${RUNTIME_NODE}${version ? `（v${version}）` : ''}`)
+  // 跑 dsh 的 node 记一笔：Electron 自带的那份也写清楚版本。日志里能分辨实际用的是哪个，
+  // 也就能解释「安装目录里还有个旧 node.exe」这类疑问（它不参与，见 platform.js runtimeNode）。
+  if (IN_ELECTRON) {
+    const bundled = Boolean(RUNTIME_NODE_ENV.ELECTRON_RUN_AS_NODE)
+    // 自带的那份就是当前进程自己：直接读 process.versions.node。spawn DSH.exe --version 会
+    // 再起一个 Electron（单实例锁/Chromium），拿到的不是 Node 版本，还可能闪一下窗口。
+    const version = bundled ? process.versions.node : nodeVersionOf(RUNTIME_NODE)
+    pushLog(`跑 dsh 的 node：${RUNTIME_NODE}${version ? `（v${version}）` : ''}${bundled ? '（Electron 自带）' : ''}`)
+    const required = nodeRequirementForInstalled()
+    if (required && version && cmpVer(parseVer(version), parseVer(required)) < 0) {
+      pushLog(`跑 dsh 的 node v${version} 低于 dsh 要求的 >=${required}，启动可能失败；可在设置里把「运行 dsh 的 Node」换成「启动器自带」`)
+    }
   }
   // 钉死端口的实例表：启动、重启都读它（页面改这张表走 /api/instance-port）
   INSTANCE_PORTS = safeInstancePorts(stored.instancePorts)

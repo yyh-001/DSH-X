@@ -1914,12 +1914,15 @@
   "已保存。重启启动器后生效。": "Saved. Takes effect after restarting the launcher.",
   "修复环境": "Repair environment",
   "正在修复环境…": "Repairing environment…",
-  "已修复环境 {profile}：停用第三方插件 {count} 个，重启后生效。": "Environment {profile} repaired: {count} third-party plugins disabled. Restart to apply.",
+  "已修复环境 {profile}：补丁层已备份，停用第三方插件 {count} 个，重启后生效。": "Environment {profile} repaired: the patch layer is backed up and {count} third-party plugins are disabled. Restart to apply.",
   "环境 {profile} 有一份配置备份，可还原。": "Environment {profile} has a configuration backup that can be restored.",
   "启动 / 重启此环境": "Start / restart this environment",
   "已还原环境 {profile} 的配置；重启后生效。": "Configuration for {profile} restored. Restart to apply.",
-  "修复环境 {profile}：备份配置并停用第三方插件，重启后生效。继续？": "Repair {profile}: back up configuration and disable third-party plugins. Restart to apply. Continue?",
+  "修复环境 {profile}：把补丁层（自定义 provider、主题等）备份后移出启动路径，并停用第三方插件；重启后生效。继续？": "Repair {profile}: move the patch layer (custom providers, themes, etc.) out of the startup path after backing it up, and disable third-party plugins. Takes effect after restart. Continue?",
   "配置已修复，可启动或重启此环境。": "Configuration repaired. Start or restart this environment to apply.",
+  "还原配置": "Restore configuration",
+  "安全启动移出了配置层": "Safe start moved the configuration layer aside",
+  "安全启动移出了配置层（停用第三方插件 {count} 个）": "Safe start moved the configuration layer aside ({count} third-party plugins disabled)",
   "环境 {profile} 已启动。": "Environment {profile} started.",
   "启动参数、修复、端口、网络与目录。": "Launch arguments, recovery, ports, network and directories.",
   "AI 自检": "AI self-check",
@@ -6217,6 +6220,26 @@
       const fixed = stateAutoFix()
       if (!hintEl.textContent && fixed) hintEl.textContent = t('启动时自动禁用了：{names}（环境页可恢复）', { names: fixed })
       if (!hintEl.textContent && state.health?.failed?.length) hintEl.textContent = t('⚠ 页面自检：{failed}/{total} 个插件包加载失败', { failed: state.health.failed.length, total: state.health.total })
+      // 「安全启动」把整个补丁层改名挪走了（自定义 provider / 主题 / 沙箱都在里面）。还原入口
+      // 必须出现在首页提示行上，不能只藏在启动项弹窗底部：dsh 会重新生成一份最小补丁层，
+      // 用户看到的就是「配置被清空了」（#88）。
+      const recovery = state.recovery
+      // 首页只认默认目录 + 默认 profile 的恢复档；启动项弹窗里给别的 profile 做安全启动时，
+      // 那份结果会被 loadRecovery 写进 state.recovery，别让它跑到首页上来。
+      if (recovery?.last?.backup && recovery.profile === state.profile && sameHomePath(recovery.home || state.dshHome, state.dshHome)) {
+        const count = recovery.last.dropped?.length || 0
+        const undo = document.createElement('button')
+        undo.type = 'button'
+        undo.dataset.recover = recovery.last.backup
+        undo.dataset.profile = recovery.profile
+        undo.textContent = t('还原配置')
+        hintEl.append(
+          document.createTextNode(hintEl.textContent ? ' · ' : ''),
+          document.createTextNode(count ? t('安全启动移出了配置层（停用第三方插件 {count} 个）', { count }) : t('安全启动移出了配置层')),
+          document.createTextNode(' · '),
+          undo,
+        )
+      }
       if (!versionManageDialogEl.hidden) paintVersionManager()
     }
 
@@ -6352,6 +6375,9 @@
     removeEl.onclick = () => { void uninstallVersion(selected()) }
     hintEl.addEventListener('click', (event) => {
       if (event.target.closest('[data-failure]') && state.failure) showFailure(state.failure)
+      const undo = event.target.closest('[data-recover]')
+      // 首页提示行走默认目录的作用域；不要沿用环境页当前选中的独立目录。
+      if (undo) void restoreRecovery(undo.dataset.profile || '', undo.dataset.recover, { launchId: '', home: state.dshHome })
     })
     document.getElementById('clear').onclick = () => logView.clear()
     document.getElementById('exportLogs').onclick = async () => {
@@ -6451,7 +6477,8 @@
         // 老服务进程没有这个字段：留空，自动选版本按以前不分类型的口径走（见 recommendedVersion）
         channelPlans: data.channelPlans && typeof data.channelPlans === 'object' ? data.channelPlans : null,
         autoFix: data.autoFix ?? null,
-        recovery: state.recovery,
+        // 服务端推送（/api/state）现在带着默认 profile 的恢复档；旧服务没有这个字段时保留原值
+        recovery: data.recovery && typeof data.recovery === 'object' ? data.recovery : state.recovery,
         health: data.health ?? null,
         failure: data.failure ?? null,
         diagnosticRepairs: Array.isArray(data.diagnosticRepairs) ? data.diagnosticRepairs : [],
@@ -8276,7 +8303,7 @@
       }
       recoveryHintEl.hidden = false
       recoveryHintEl.innerHTML = escapeHtml(last
-        ? t('已修复环境 {profile}：停用第三方插件 {count} 个，重启后生效。', { profile, count: last.dropped?.length || 0 })
+        ? t('已修复环境 {profile}：补丁层已备份，停用第三方插件 {count} 个，重启后生效。', { profile, count: last.dropped?.length || 0 })
         : t('环境 {profile} 有一份配置备份，可还原。', { profile }))
         + (last?.warning ? ` ${escapeHtml(last.warning)}` : '')
         + (backup ? ` <button class="link-button" type="button" id="recoverUndo" ${packBusy ? 'disabled' : ''}>${escapeHtml(t('还原'))}</button>` : '')
@@ -8285,13 +8312,16 @@
       document.getElementById('recoverRestart')?.addEventListener('click', () => restartEnvironment(profile))
     }
 
-    async function restoreRecovery(profile, backup) {
-      const options = recoveryOptions()
+    async function restoreRecovery(profile, backup, scope = recoveryOptions()) {
+      const options = scope
       if (packBusy || !options) return
       packBusy = true
       renderPackView()
       try {
-        await post('/api/recover/restore', { profile, backup }, options)
+        const data = await post('/api/recover/restore', { profile, backup }, options)
+        // 首页提示行和启动项弹窗共用 state.recovery：还原成功后入口立刻收掉，
+        // 不能等下一次状态推送（弹窗关着时 loadRecovery 会直接返回）。
+        if (data?.recovery) { state.recovery = data.recovery; renderRecovery(); render() }
         await loadPlugins()
         await loadRecovery(profile)
       } catch (error) { notify(error.message) }
@@ -8301,7 +8331,7 @@
     async function repairEnvironment(profile) {
       const options = recoveryOptions()
       if (packBusy || !options) return
-      if (!(await appConfirm(t('修复环境 {profile}：备份配置并停用第三方插件，重启后生效。继续？', { profile }), { title: t('修复环境') }))) return
+      if (!(await appConfirm(t('修复环境 {profile}：把补丁层（自定义 provider、主题等）备份后移出启动路径，并停用第三方插件；重启后生效。继续？', { profile }), { title: t('修复环境') }))) return
       packBusy = true
       renderPackView()
       recoveryHintEl.hidden = false
@@ -8310,6 +8340,8 @@
         const data = await post('/api/recover', { profile }, options)
         await loadPlugins()
         state.recovery = data.recovery
+        // 首页提示行也要立刻出现「还原配置」入口，别等下一次状态推送
+        render()
         await loadRecovery(profile)
         notify(t('配置已修复，可启动或重启此环境。'), t('修复环境'))
       } catch (error) { notify(error.message, t('修复环境')) }
