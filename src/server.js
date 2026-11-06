@@ -2611,6 +2611,44 @@ async function restoreProfileConfig(profile, id) {
 }
 
 /**
+ * 配置层回退之后再按清单把依赖装齐。
+ *
+ * 备份里只有配置文件，node_modules 不在其中；回退可能让 package.json 重新引用已经卸掉的
+ * 包，插件页就会整片「包不可用」。这里跑一次 `dsh plugin install`，让 node_modules 和
+ * 还原后的清单对齐。装失败不影响回退本身，只把原因带回去给页面显示。
+ */
+async function reinstallAfterRollback(profile) {
+  let manifest
+  try {
+    manifest = JSON.parse(readFileSync(join(profileDirOf(profile), 'package.json'), 'utf8'))
+  } catch {
+    return null
+  }
+  const dependencies = manifest?.dependencies
+  // 没有直接依赖就没什么可装的（官方 bundle 由 dsh 自己带），别白起一次 pnpm。
+  if (!dependencies || typeof dependencies !== 'object' || !Object.keys(dependencies).length) return { ok: true, skipped: true }
+  if (pluginBusy) return { ok: false, error: '正在装插件或整合包，跳过依赖重装' }
+  let version
+  try {
+    version = await pluginCommandVersion(profile)
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+  pluginBusy = true
+  try {
+    await runProfileInstall(version, { profile })
+    pushLog(`[备份] Profile ${profile} 回退后已重装依赖`)
+    return { ok: true }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    pushLog(`[备份] Profile ${profile} 回退后重装依赖失败：${message}`)
+    return { ok: false, error: message }
+  } finally {
+    pluginBusy = false
+  }
+}
+
+/**
  * 这次启动要不要开局域网代理：只看设置里的 Web 绑定。
  * 远程访问插件的「局域网访问」开关不再参与：新版插件自己起转发，旧版写的 0.0.0.0
  * 补丁块在 dsh 0.2.1-rc.2 起本来就会被拒（通配地址不再支持）。
@@ -6919,7 +6957,12 @@ async function handleApi(req, res, url) {
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/profile-backups/restore') {
-    try { send(res, 200, await restoreProfileConfig(body.profile, body.id)) }
+    try {
+      const profile = safeProfile(String(body.profile || '') || PROFILE_NAME)
+      const restored = await restoreProfileConfig(profile, body.id)
+      // 配置回退完再按清单装依赖：node_modules 不在备份里，光改 package.json 会让插件全变「包不可用」。
+      send(res, 200, { ...restored, install: await reinstallAfterRollback(profile) })
+    }
     catch (error) {
       // 备份不存在给 404，参数/状态不对给 400，页面靠这两个码区分提示。
       const message = error instanceof Error ? error.message : String(error)

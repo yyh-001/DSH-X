@@ -1845,9 +1845,12 @@
   "回退到此备份": "Restore this backup",
   "立即备份": "Back up now",
   "还没有备份。每次启动会存一份，也可以点「立即备份」。": "No backups yet. One is saved before each launch, or click “Back up now”.",
-  "Profile「{profile}」的配置层快照：补丁、依赖清单和 npmrc；node_modules 不在备份里。": "Config-layer snapshots of {profile}: patch, dependency manifest and npmrc. node_modules is not included.",
-  "回退到这份备份？当前配置会先自动存一份，回退后需要重启这个 Profile 的实例才生效。": "Restore this backup? The current config is backed up first; restart this profile's instance afterwards to apply it.",
+  "Profile「{profile}」的配置层快照：补丁、依赖清单和 npmrc；回退时会按清单重装依赖，node_modules 本身不在备份里。": "Config-layer snapshots of {profile}: patch, dependency manifest and npmrc. Restoring also reinstalls dependencies from the manifest; node_modules itself is not backed up.",
+  "回退到这份备份？当前配置会先自动存一份，回退后会自动重装依赖（可能比较慢），并需要重启这个 Profile 的实例才生效。": "Restore this backup? The current config is backed up first, dependencies are reinstalled afterwards (this can take a while), and the profile's instance must be restarted to apply it.",
   "已回退。重启这个 Profile 的实例后生效。": "Restored. Restart this profile's instance to apply it.",
+  "已回退并重装依赖。重启这个 Profile 的实例后生效。": "Restored and dependencies reinstalled. Restart this profile's instance to apply it.",
+  "正在回退并重装依赖…": "Restoring and reinstalling dependencies…",
+  "配置已回退，但依赖重装失败：{error}。可以再回退一次重试。": "Configuration restored, but reinstalling dependencies failed: {error}. Restore again to retry.",
   "回退完成": "Rollback complete",
   "已生成新备份。": "New backup created.",
   "配置没有变化，不需要新备份。": "Config unchanged; no new backup needed.",
@@ -8896,7 +8899,7 @@
     function openProfileBackups(profile) {
       if (!profile || packBusy || pluginUpdating || pluginRemoving || pluginAdding) return
       backupProfile = profile
-      backupHintEl.textContent = t('Profile「{profile}」的配置层快照：补丁、依赖清单和 npmrc；node_modules 不在备份里。', { profile })
+      backupHintEl.textContent = t('Profile「{profile}」的配置层快照：补丁、依赖清单和 npmrc；回退时会按清单重装依赖，node_modules 本身不在备份里。', { profile })
       paintProfileBackups([])
       showPackDialog(backupDialogEl)
       void loadProfileBackups()
@@ -8906,19 +8909,28 @@
     }
     async function restoreProfileBackup(id) {
       if (!backupProfile || !id || backupLoading) return
-      const ok = await appConfirm(t('回退到这份备份？当前配置会先自动存一份，回退后需要重启这个 Profile 的实例才生效。'))
+      const ok = await appConfirm(t('回退到这份备份？当前配置会先自动存一份，回退后会自动重装依赖（可能比较慢），并需要重启这个 Profile 的实例才生效。'))
       if (!ok) return
       backupLoading = true
+      const profile = backupProfile
+      backupHintEl.textContent = t('正在回退并重装依赖…')
       try {
-        await post('/api/profile-backups/restore', { profile: backupProfile, id })
-        notify(t('已回退。重启这个 Profile 的实例后生效。'), t('回退完成'))
+        const data = await post('/api/profile-backups/restore', { profile, id })
+        const install = data?.install
+        if (install?.ok === false) {
+          notify(t('配置已回退，但依赖重装失败：{error}。可以再回退一次重试。', { error: install.error }), t('回退完成'))
+        } else {
+          notify(install?.skipped ? t('已回退。重启这个 Profile 的实例后生效。') : t('已回退并重装依赖。重启这个 Profile 的实例后生效。'), t('回退完成'))
+        }
         await loadProfileBackups()
         await loadPlugins({ checkUpdates: false })
-        loadRecovery(backupProfile)
+        loadRecovery(profile)
       } catch (error) {
         notify(error.message)
       } finally {
         backupLoading = false
+        // 进度文案收回去，弹窗还开着时继续显示这份环境的说明
+        if (backupProfile) backupHintEl.textContent = t('Profile「{profile}」的配置层快照：补丁、依赖清单和 npmrc；回退时会按清单重装依赖，node_modules 本身不在备份里。', { profile: backupProfile })
       }
     }
     backupNowEl.onclick = async () => {

@@ -29,9 +29,9 @@ test('添加与卸载插件：装进指定环境、写层栈，卸载清掉补�
 
   const lib = join(data, 'versions', VERSION, 'node_modules', '@deepseek-ai', 'dsh', 'lib')
   mkdirSync(lib, { recursive: true })
-  // 假 dsh：add/remove 只动 profile 的清单和 node_modules，不跑 pnpm。
+  // 假 dsh：add/remove/install 只动 profile 的清单和 node_modules，不跑 pnpm。
   writeFileSync(join(lib, 'bin.js'), `
-import { appendFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 const args = process.argv.slice(2)
 if (args[0] === 'plugin') {
@@ -39,10 +39,17 @@ if (args[0] === 'plugin') {
   const dir = join(process.env.DSH_HOME, 'profiles', profile)
   const pkgFile = join(dir, 'package.json')
   const pkg = JSON.parse(readFileSync(pkgFile, 'utf8'))
-  const verbAt = args.findIndex((value) => value === 'add' || value === 'remove')
+  const verbAt = args.findIndex((value) => value === 'add' || value === 'remove' || value === 'install')
   const verb = args[verbAt]
-  const spec = args[verbAt + 1] === '-w' ? args[verbAt + 2] : args[verbAt + 1]
+  const spec = verb === 'install' ? '' : (args[verbAt + 1] === '-w' ? args[verbAt + 2] : args[verbAt + 1])
   appendFileSync(${JSON.stringify(calls)}, JSON.stringify({ verb, spec, argv: args }) + '\\n')
+  const mount = (name, version) => {
+    const target = join(dir, 'node_modules', name)
+    if (existsSync(join(target, 'package.json'))) return
+    mkdirSync(target, { recursive: true })
+    writeFileSync(join(target, 'package.json'), JSON.stringify({ name, version, dsh: { bundle: { patch: 'cordis.patch.yml' } } }))
+    writeFileSync(join(target, 'cordis.patch.yml'), '- insert:\\n    - id: demo-row\\n      name: demo-plugin\\n')
+  }
   if (verb === 'add') {
     let name, version
     if (spec.startsWith('file:')) {
@@ -55,13 +62,13 @@ if (args[0] === 'plugin') {
       version = match[2] || '1.0.0'
     }
     pkg.dependencies = { ...pkg.dependencies, [name]: version }
-    const target = join(dir, 'node_modules', name)
-    mkdirSync(target, { recursive: true })
-    writeFileSync(join(target, 'package.json'), JSON.stringify({ name, version, dsh: { bundle: { patch: 'cordis.patch.yml' } } }))
-    writeFileSync(join(target, 'cordis.patch.yml'), '- insert:\\n    - id: demo-row\\n      name: demo-plugin\\n')
+    mount(name, version)
   } else if (verb === 'remove') {
     delete pkg.dependencies[spec]
     rmSync(join(dir, 'node_modules', spec), { recursive: true, force: true })
+  } else if (verb === 'install') {
+    // 按清单把缺的包装回来；已存在的（官方组件）不动
+    for (const [name, version] of Object.entries(pkg.dependencies || {})) mount(name, version)
   }
   writeFileSync(pkgFile, JSON.stringify(pkg, null, 2))
 }
@@ -169,6 +176,22 @@ if (args[0] === 'plugin') {
     assert.match(command.spec, /^file:/)
     assert.equal(manifest('work').dependencies['local-plugin'], '0.1.0')
     assert(manifest('work').dsh.profile.bundles.includes('local-plugin'), '包名靠安装前后依赖清单的增量识别')
+  })
+
+  await t.test('配置回退后按还原的清单重装依赖，插件不会停在「包不可用」', async () => {
+    // 装回 demo-plugin 并留一份含它的快照
+    assert.equal((await api('/api/plugins/add', { spec: `${PLUGIN}@1.0.0`, profile: 'web' })).status, 200)
+    const snap = await api('/api/profile-backups/snapshot', { profile: 'web' })
+    assert.ok(snap.backup, '应生成一份配置快照')
+    // 卸掉它：回退会把清单改回含它的版本，但 node_modules 里已经没有这个包
+    assert.equal((await api('/api/plugins/remove', { name: PLUGIN, profile: 'web' })).status, 200)
+    assert.equal(Object.hasOwn(manifest().dependencies, PLUGIN), false)
+    const restored = await api('/api/profile-backups/restore', { profile: 'web', id: snap.backup.id })
+    assert.equal(restored.status, 200, JSON.stringify(restored))
+    assert.equal(restored.install?.ok, true, JSON.stringify(restored.install))
+    assert.equal(commands().at(-1).verb, 'install', '回退后必须跑一次 dsh plugin install')
+    assert.equal(manifest().dependencies[PLUGIN], '1.0.0')
+    assert.equal((await view()).plugins.some((plugin) => plugin.name === PLUGIN), true, '插件应重新变得可用')
   })
 })
 

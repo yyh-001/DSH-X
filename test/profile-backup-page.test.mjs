@@ -88,7 +88,7 @@ test('页面逻辑：列备份、回退先确认、成功后刷新插件与恢�
   assert.match(restore, /appConfirm\(/)
   assert.match(restore, /post\('\/api\/profile-backups\/restore'/)
   assert.match(restore, /loadPlugins\(\{ checkUpdates: false \}\)/)
-  assert.match(restore, /loadRecovery\(backupProfile\)/)
+  assert.match(restore, /loadRecovery\(profile\)/)
   const load = functionSource('loadProfileBackups')
   assert.match(load, /\/api\/profile-backups\?profile=/)
   assert.match(page, /\/api\/profile-backups\/snapshot/)
