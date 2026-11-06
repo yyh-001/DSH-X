@@ -169,11 +169,16 @@ export function listPlugins(profileDir) {
     // 空 profile：返回空清单
   }
   const deps = Object.keys(manifest?.dependencies ?? {}).sort()
+  // 0.2.x 起层栈只挂载 dsh.profile.bundles 里的包：包还在依赖里、但被「安全启动」
+  // 摘出了清单时，它其实不会被加载，列表里必须显示成关闭（打开开关会重新挂回去，
+  // 见 setPluginEnabled）。客户端插件没有加载行，不参与挂载判断。
+  const bundles = Array.isArray(manifest?.dsh?.profile?.bundles) ? manifest.dsh.profile.bundles : []
   const plugins = deps.map((name) => {
     const ids = packageRowIds(profileDir, name)
     const official = PROTECTED_PACKAGE_RE.test(name)
     const marketOwned = ids.length > 0 && ids.every((id) => MARKET_ROW_RE.test(id))
     const disabled = ids.some((id) => state.disables.includes(id))
+    const mounted = !ids.length || bundles.includes(name)
     let toggleable = true
     let reason = ''
     if (!ids.length) {
@@ -187,7 +192,7 @@ export function listPlugins(profileDir) {
       reason = '市场自管行，不提供开关'
     }
     const meta = packageMeta(profileDir, name)
-    return { name, version: meta.version, description: meta.description, ids, enabled: !disabled, toggleable, reason, official }
+    return { name, version: meta.version, description: meta.description, ids, enabled: mounted && !disabled, mounted, toggleable, reason, official }
   })
   return { profileDir, patchPath, plugins, disables: state.disables }
 }

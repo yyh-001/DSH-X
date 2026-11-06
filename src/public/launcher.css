@@ -2327,7 +2327,12 @@ html[data-color-scheme="dark"] .skel-line::after { background: linear-gradient(9
 #packInstallDialog .pack-actions .primary .spin { position: absolute; left: calc(50% - 7px); top: calc(50% - 7px); width: 14px; height: 14px; border-width: 2px; }
 #packPreparing { flex: 1 1 auto; min-height: 0; color: var(--muted); font-size: 13px; margin: 16px 0 24px; }
 /* 插件筛选保留在标题右侧，列表独立滚动，统计仅作次要说明。 */
-#launchPluginsCard { position: relative; }
+#launchPluginsCard {
+  position: relative;
+  /* 固定高度：环境里插件多少不一，卡片不跟着内容忽高忽低；右上「更多操作」的下拉
+     菜单也才有足够空间完整展开，不会被卡片底边裁掉。 */
+  height: min(680px, calc(100dvh - var(--dialog-safe-area)));
+}
 .launch-plugins-head { position: absolute; top: 24px; right: 24px; align-items: center; margin: 0; }
 #launchPluginsDialog .pack-detail-top { padding-right: 0; gap: 8px; }
 #launchPluginsClose { display: none; }

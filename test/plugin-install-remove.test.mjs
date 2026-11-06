@@ -193,6 +193,20 @@ if (args[0] === 'plugin') {
     assert.equal(manifest().dependencies[PLUGIN], '1.0.0')
     assert.equal((await view()).plugins.some((plugin) => plugin.name === PLUGIN), true, '插件应重新变得可用')
   })
+
+  await t.test('安全启动摘掉 bundle 后列表显示为关闭，打开开关会重新挂载', async () => {
+    assert.equal((await view()).plugins.find((plugin) => plugin.name === PLUGIN)?.enabled, true)
+    const recovered = await api('/api/recover', { profile: 'web' })
+    assert.equal(recovered.status, 200, JSON.stringify(recovered.error || ''))
+    assert.equal(manifest().dsh.profile.bundles.includes(PLUGIN), false, '安全启动会把第三方 bundle 摘出清单')
+    const after = (await view()).plugins.find((plugin) => plugin.name === PLUGIN)
+    assert.equal(after?.enabled, false, '不在 bundles 里就不该显示为开着')
+    assert.equal(after?.mounted, false)
+    const on = await api('/api/plugins/toggle', { name: PLUGIN, enabled: true, profile: 'web' })
+    assert.equal(on.status, 200, JSON.stringify(on))
+    assert.equal(manifest().dsh.profile.bundles.includes(PLUGIN), true, '打开开关要把包重新挂进 bundles')
+    assert.equal((await view()).plugins.find((plugin) => plugin.name === PLUGIN)?.enabled, true)
+  })
 })
 
 test('界面入口与文案：环境详情里有添加按钮，行尾有卸载按钮，删改都要提醒重启', () => {

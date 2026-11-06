@@ -10,6 +10,7 @@ import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
 
 const html = readFileSync(fileURLToPath(new URL('../src/public/index.html', import.meta.url)), 'utf8')
+const css = readFileSync(fileURLToPath(new URL('../src/public/launcher.css', import.meta.url)), 'utf8')
 
 const slice = (from, to) => {
   const start = html.indexOf(from)
@@ -71,6 +72,9 @@ test('页面逻辑：一张卡就是一个 profile，点开进详情，开关/�
   assert.ok(!/data-pack-toggle/.test(html), '列表卡片不再承担批量操作')
   assert.match(html, /<button class="pack-card\$\{/, '环境卡片是可通过键盘操作的按钮')
   assert.match(html, /<details class="pack-more">/, '次要操作收进更多操作')
+  // 弹窗高度固定，插件数量变化不改变卡片高度；右上「更多操作」菜单才有空间完整展开
+  assert.match(css, /#launchPluginsCard \{[^}]*height: min\(680px, calc\(100dvh - var\(--dialog-safe-area\)\)\)/)
+  assert.match(css, /\.pack-more-actions \{[^}]*max-height: min\(50vh, 380px\)/)
   assert.match(html, /data-pack-check-updates/, '当前环境详情可检查更新')
   assert.match(html, /<details class="pack-advanced">/, '装包的技术清单可按需展开')
   assert.match(html, /packSourceTags\(item\)/, '来源是以标签形式标在卡片上的')
