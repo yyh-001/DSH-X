@@ -98,6 +98,24 @@ export function insertedIds(text) {
   return ids
 }
 
+/**
+ * 已装包是不是一个可挂载进 `dsh.profile.bundles` 的 bundle。
+ *
+ * 只看磁盘上的声明，不为猜包名服务：`dsh` 字段（任何形状）或根目录的
+ * `cordis.patch.yml` 都算 bundle；纯依赖/客户端插件没有这两样，挂进层栈只会让
+ * dsh 启动时解析不到 bundle 而整棵插件树失败。
+ */
+export function packageLooksLikeBundle(profileDir, packageName) {
+  const pkgDir = join(profileDir, 'node_modules', packageName)
+  try {
+    const manifest = JSON.parse(readFileSync(join(pkgDir, 'package.json'), 'utf8'))
+    if (manifest?.dsh !== undefined) return true
+  } catch {
+    return false
+  }
+  return existsSync(join(pkgDir, 'cordis.patch.yml'))
+}
+
 /** 一个已安装插件包拥有的 loader 行：声明的 dsh.bundle.patch + 根目录 cordis.patch.yml。 */
 export function packageRowIds(profileDir, packageName) {
   const pkgDir = join(profileDir, 'node_modules', packageName)
@@ -291,6 +309,26 @@ export function enableRowId(profileDir, rowId) {
 }
 
 /**
+ * 一次性摘掉若干行的禁用块（卸载插件后清掉它留下的开关状态）。
+ *
+ * 不清理的话，补丁层会留下指向已卸载包的 `disabled: true`；这个包以后重装时
+ * 会莫名其妙地处于禁用状态，而用户早已不记得关过它。只删 `disabled: true`，
+ * 行里别的覆盖键留着；整行只剩 id/disabled 时按现有规则整块删掉。
+ */
+export function dropRowDisables(profileDir, rowIds) {
+  const ids = [...new Set(rowIds)].filter((id) => ROW_ID_RE.test(id) && !MARKET_ROW_RE.test(id))
+  if (!ids.length) return { ok: true, changed: false }
+  const patchPath = patchPathOf(profileDir)
+  const state = readPatchState(patchPath)
+  let text = state.text
+  for (const id of ids) text = removeDisableBlock(text, id)
+  if (text === state.text) return { ok: true, changed: false }
+  backupOnce(patchPath)
+  writeFileSync(patchPath, ensurePlaceholder(text))
+  return { ok: true, changed: true }
+}
+
+/**
  * 强制启用/取消强制启用一条 loader 行（写/删 `disabled: false` 覆盖块）。
  *
  * 官方模板会把某些行 patch 成 disabled（如 web 模板默认关掉本地技能加载），
@@ -355,7 +393,7 @@ export function setPluginEnabled(profileDir, packageName, enabled) {
 }
 
 /** 从安装 spec（`pkg@1.2`、`@scope/pkg@1.2`、file:/git: 源）里取出纯包名；本地/远端源取不出，返回空串。 */
-function bundleNameOf(spec) {
+export function bundleNameOf(spec) {
   const value = String(spec ?? '')
   if (/^(?:file:|git\+|github:|https?:)/.test(value)) return ''
   // 带 scope 的包名里那个 `@` 是名字的一部分（`@scope/pkg`），版本号才是名字之后那个 `@`。

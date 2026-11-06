@@ -109,6 +109,7 @@ test('更新期间重画按钮，成功和失败都会在 finally 恢复', async
     let buttonsDisabled = false
     const context = {
       pluginProfile: 'web', pluginUpdating: '', pluginUpdatingProfile: '', pluginProgress: null, packBusy: false,
+      pluginRemoving: '', pluginAdding: false,
       document: { querySelectorAll: () => [] }, paintProgress() {},
       renderPackGrid() { buttonsDisabled = Boolean(context.pluginUpdating) },
       renderPackView() { buttonsDisabled = Boolean(context.pluginUpdating) },

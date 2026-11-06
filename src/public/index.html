@@ -677,6 +677,20 @@
       </div>
     </div>
   </div>
+  <div class="ask" id="pluginAddDialog" hidden>
+    <form class="ask-card" id="pluginAddForm" role="dialog" aria-modal="true" aria-labelledby="pluginAddTitle" data-dialog-size="small">
+      <div class="dialog-heading"><h2 class="ask-title" id="pluginAddTitle" data-i18n="添加插件">添加插件</h2><button class="ghost icon-btn dialog-close" id="pluginAddClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
+      <div class="dialog-body">
+        <p class="dialog-subtitle" data-i18n="输入插件的 npm 包名、GitHub 地址或本地路径。">输入插件的 npm 包名、GitHub 地址或本地路径。</p>
+        <label class="mcp-field" for="pluginAddSpec"><span data-i18n="包名或地址">包名或地址</span><input id="pluginAddSpec" type="text" autocomplete="off" spellcheck="false" placeholder="dsh-plugin-whale-pet" /></label>
+        <p class="hint" data-i18n="例如 dsh-xxx、@作者/插件名、github:owner/repo，或本机目录。">例如 dsh-xxx、@作者/插件名、github:owner/repo，或本机目录。</p>
+        <p class="hint" id="pluginAddTarget"></p>
+        <p class="hint profile-error" id="pluginAddError" role="alert" hidden></p>
+        <div class="progress" id="pluginAddProgress" hidden><div class="progress-bar" id="pluginAddProgressBar"></div></div>
+      </div>
+      <div class="profile-dialog-actions"><button class="ghost" id="pluginAddCancel" type="button" data-i18n="取消">取消</button><button class="primary" id="pluginAddGo" type="submit"><span class="spin" aria-hidden="true"></span><span data-i18n="安装">安装</span></button></div>
+    </form>
+  </div>
   <div class="ask" id="launchDialog" hidden>
     <form class="ask-card" id="launchForm" role="dialog" aria-modal="true" aria-labelledby="launchDialogTitle" data-dialog-size="medium">
       <div class="dialog-heading launch-dialog-heading"><h2 class="ask-title" id="launchDialogTitle" data-i18n="编辑启动项">编辑启动项</h2><button class="ghost icon-btn dialog-close" id="launchDialogClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
@@ -1859,7 +1873,18 @@
   "暂时无法获取最新版本": "The latest version is temporarily unavailable",
   "用于版本、插件、整合包和启动器更新。": "Used for versions, plugins, packs and launcher updates. ",
   "卸载整合包": "Uninstall pack",
+  "卸载": "Uninstall",
   "卸载 {name}": "Uninstall {name}",
+  "卸载插件": "Uninstall plugin",
+  "卸载失败": "Uninstall failed",
+  "卸载「{name}」？卸载后它提供的功能会消失，重启 dsh 后生效。": "Uninstall \"{name}\"? Its features will disappear; restart dsh to apply.",
+  "添加插件": "Add plugin",
+  "输入插件的 npm 包名、GitHub 地址或本地路径。": "Enter the plugin's npm package name, GitHub address or local path.",
+  "包名或地址": "Package name or address",
+  "例如 dsh-xxx、@作者/插件名、github:owner/repo，或本机目录。": "For example dsh-xxx, @author/plugin, github:owner/repo, or a local folder.",
+  "装进环境「{profile}」": "Install into \"{profile}\"",
+  "请填写插件包名或地址": "Enter a package name or address",
+  "已装好 {spec}，重启 dsh 后生效。": "Installed {spec}; restart dsh to apply.",
   "更新 {name} 的 {n} 个插件": "Update {n} plugins in {name}",
   "启用 {name}": "Enable {name}",
   "禁用 {name}": "Disable {name}",
@@ -6550,6 +6575,7 @@
           if (data?.kind === 'plugin') {
             pluginProgress = !data || data.phase === 'idle' ? null : data
             setPluginProgress(Boolean(pluginProgress))
+            paintPluginAddProgress()
             return
           }
           if (data?.kind === 'pack') {
@@ -7325,7 +7351,7 @@
       const homes = pluginHomes()
       pluginHomeEl.innerHTML = `<option value="">${escapeHtml(homeOptionLabel(state.dshHome, pluginHomeName(state.dshHome, t('全局目录'))))}</option>` + [...homes].map(([home, name]) => `<option value="${escapeHtml(home)}">${escapeHtml(homeOptionLabel(home, name))}</option>`).join('') + `<option value="${PLUGIN_HOME_MANAGE}">${escapeHtml(t('管理目录…'))}</option>`
       pluginHomeEl.value = pluginHome
-      pluginHomeEl.disabled = Boolean(packBusy || pluginUpdating || pluginTogglePending.size || pluginHomesBusy)
+      pluginHomeEl.disabled = Boolean(packBusy || pluginUpdating || pluginRemoving || pluginAdding || pluginTogglePending.size || pluginHomesBusy)
       syncUiSelect(pluginHomeEl)
       if (!pluginHomesDialogEl.hidden) paintPluginHomesDialog()
     }
@@ -7377,7 +7403,7 @@
       showPackDialog(pluginHomesDialogEl, pluginHomesAddEl)
     }
     async function changePluginHomeList(action, home) {
-      if (pluginHomesBusy || packBusy || pluginUpdating || pluginTogglePending.size || launchPluginScope) return
+      if (pluginHomesBusy || packBusy || pluginUpdating || pluginRemoving || pluginAdding || pluginTogglePending.size || launchPluginScope) return
       pluginHomesBusy = true
       pluginHomesErrorEl.hidden = true
       paintPluginHomes()
@@ -7424,7 +7450,7 @@
       packPluginListEl.dataset.profile = ''
     }
     pluginHomeEl.onchange = () => {
-      if (packBusy || pluginUpdating || pluginTogglePending.size || pluginHomesBusy || launchPluginScope) { paintPluginHomes(); return }
+      if (packBusy || pluginUpdating || pluginRemoving || pluginAdding || pluginTogglePending.size || pluginHomesBusy || launchPluginScope) { paintPluginHomes(); return }
       if (pluginHomeEl.value === PLUGIN_HOME_MANAGE) {
         // 管理入口不是数据目录，打开弹窗前恢复所选环境，避免插件请求带上这个占位值。
         paintPluginHomes()
@@ -8077,6 +8103,14 @@
     const paneTopEl = pluginPanelEl.querySelector('.pane-top')
     const launchPluginsDialogEl = document.getElementById('launchPluginsDialog')
     const launchPluginsCardEl = document.getElementById('launchPluginsCard')
+    const pluginAddDialogEl = document.getElementById('pluginAddDialog')
+    const pluginAddFormEl = document.getElementById('pluginAddForm')
+    const pluginAddSpecEl = document.getElementById('pluginAddSpec')
+    const pluginAddTargetEl = document.getElementById('pluginAddTarget')
+    const pluginAddErrorEl = document.getElementById('pluginAddError')
+    const pluginAddGoEl = document.getElementById('pluginAddGo')
+    const pluginAddProgressEl = document.getElementById('pluginAddProgress')
+    const pluginAddProgressBarEl = document.getElementById('pluginAddProgressBar')
     let pluginLaunchEntry = null
     let pluginDialogLoading = false
     let pluginDialogRequest = 0
@@ -8160,12 +8194,109 @@
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
     }
+
+    /**
+     * 添加插件（官方做法：把 spec 交给 `dsh plugin add`，由 pnpm 解析）。
+     *
+     * 装进当前正在查看的环境；启动项弹窗里就是那个启动项绑定的 profile。
+     * 关掉弹窗不会中断服务端的安装（进度走 SSE），只是看不到进度条了。
+     */
+    function openPluginAdd() {
+      if (packBusy || pluginUpdating || pluginRemoving || pluginAdding || pluginTogglePending.size) return
+      if (!openedPack?.profile) return
+      pluginAddSpecEl.value = ''
+      pluginAddErrorEl.hidden = true
+      pluginAddTargetEl.textContent = t('装进环境「{profile}」', { profile: openedPack.profile })
+      pluginAddGoEl.disabled = false
+      pluginAddGoEl.classList.remove('loading')
+      paintProgress(pluginAddProgressEl, pluginAddProgressBarEl, null, false)
+      showPackDialog(pluginAddDialogEl, pluginAddSpecEl)
+    }
+    function closePluginAdd() {
+      // 安装请求在服务端跑，关掉弹窗只是看不到进度；pluginAdding 会一直挡住重新打开，
+      // 直到请求结束，避免同一时间排进第二次安装。
+      void hidePackDialog(pluginAddDialogEl)
+    }
+    document.getElementById('pluginAddClose').onclick = closePluginAdd
+    document.getElementById('pluginAddCancel').onclick = closePluginAdd
+    pluginAddFormEl.onsubmit = async (event) => {
+      event.preventDefault()
+      if (pluginAdding || !openedPack?.profile) return
+      const spec = pluginAddSpecEl.value.trim()
+      pluginAddErrorEl.hidden = true
+      if (!spec) {
+        pluginAddErrorEl.textContent = t('请填写插件包名或地址')
+        pluginAddErrorEl.hidden = false
+        pluginAddSpecEl.focus()
+        return
+      }
+      const profile = openedPack.profile
+      pluginAdding = true
+      pluginAddGoEl.disabled = true
+      pluginAddGoEl.classList.add('loading')
+      paintProgress(pluginAddProgressEl, pluginAddProgressBarEl, pluginProgress, Boolean(pluginProgress))
+      try {
+        const data = await post('/api/plugins/add', { spec, profile })
+        applyPluginPayload(data)
+        if (profile === pluginProfile) await loadPlugins({ checkUpdates: false })
+        await hidePackDialog(pluginAddDialogEl)
+        notify(t('已装好 {spec}，重启 dsh 后生效。', { spec: data.name || spec }), t('添加插件'))
+      } catch (error) {
+        pluginAddErrorEl.textContent = error.message
+        pluginAddErrorEl.hidden = false
+        pluginAddSpecEl.focus()
+      } finally {
+        pluginAdding = false
+        pluginAddGoEl.disabled = false
+        pluginAddGoEl.classList.remove('loading')
+        paintProgress(pluginAddProgressEl, pluginAddProgressBarEl, null, false)
+      }
+    }
+
+    /** 卸载一个第三方插件：确认后才动 pnpm；官方组件没有入口，服务端也再挡一次。 */
+    async function removePlugin(name, profile = pluginProfile) {
+      if (!name || packBusy || pluginUpdating || pluginRemoving || pluginAdding || pluginTogglePending.size) return
+      const parent = launchPluginsDialogEl.hidden ? null : launchPluginsDialogEl
+      const confirmed = await appConfirm(
+        t('卸载「{name}」？卸载后它提供的功能会消失，重启 dsh 后生效。', { name }),
+        { title: t('卸载插件'), okText: t('卸载'), parent },
+      )
+      if (!confirmed) return
+      pluginRemoving = name
+      pluginUpdatingProfile = profile
+      pluginProgress = null
+      pluginButtons()
+      try {
+        const data = await post('/api/plugins/remove', { name, profile })
+        applyPluginPayload(data)
+        if (profile === pluginProfile) await loadPlugins({ checkUpdates: false })
+      } catch (error) {
+        notify(error.message, t('卸载失败'))
+        if (profile === pluginProfile) await loadPlugins({ checkUpdates: false })
+      } finally {
+        pluginRemoving = ''
+        pluginUpdatingProfile = ''
+        pluginProgress = null
+        pluginButtons()
+      }
+    }
+
+    /** 添加弹窗里的进度条：插件没有行可以挂进度，就在弹窗里画。 */
+    function paintPluginAddProgress() {
+      if (pluginAddDialogEl.hidden) return
+      const active = pluginAdding && pluginProgress && pluginProgress.profile === openedPack?.profile
+      paintProgress(pluginAddProgressEl, pluginAddProgressBarEl, pluginProgress, Boolean(active))
+    }
     let pluginsLoaded = false
     // 插件更新：name → { current, latest, hasUpdate, error? }（服务端查 registry，页面上只做展示）
     let pluginUpdates = {}
     let pluginUpdating = ''
     let pluginUpdatingProfile = ''
     let pluginUpdatingGroup = ''
+    // 卸载一个插件时用它记名字：行里的进度条要知道自己显示「卸载」还是「更新」；
+    // pluginAdding 只负责锁住添加弹窗的重复提交。
+    let pluginRemoving = ''
+    let pluginAdding = false
     let pluginChecking = false
     const pluginTogglePending = new Map()
     const pluginGroupPending = new Map()
@@ -8200,6 +8331,10 @@
       const pending = pluginTogglePending.get(`${profile}:${plugin.name}`)
       const enabled = pending ? pending.enabled : plugin.enabled
       const update = updates[plugin.name]
+      // 官方组件跟着 dsh 走，不给卸载入口（和开关同一条保护线）。
+      const removable = !plugin.official
+      const busy = packBusy || Boolean(pluginUpdating) || Boolean(pluginRemoving) || Boolean(pluginAdding)
+      const progressLabel = pluginRemoving === plugin.name ? t('正在卸载…') : t('正在更新…')
       const scoped = /^(@[^/]+\/)(.+)$/.exec(plugin.name)
       const nameHtml = scoped
         ? `<span class="plugin-scope">${escapeHtml(scoped[1])}</span>${escapeHtml(scoped[2])}`
@@ -8216,16 +8351,25 @@
           ${sharedPacks.length ? `<span class="plugin-source">${escapeHtml(t('同时包含于：{names}', { names: sharedPacks.join('、') }))}</span>` : ''}
           ${plugin.description ? `<span class="plugin-desc">${escapeHtml(plugin.description)}</span>` : ''}
         </span>
-        ${update?.hasUpdate ? `<button class="plugin-update" type="button" data-update="${escapeHtml(plugin.name)}" data-profile="${escapeHtml(profile)}" aria-label="${escapeHtml(`${plugin.name} ${t('更新到 {latest}', { latest: update.latest })}`)}" ${pluginUpdating ? 'disabled' : ''}><span class="spin" aria-hidden="true"></span><span class="update-label">${escapeHtml(t('更新到 {latest}', { latest: update.latest }))}</span></button>` : ''}
-        <input type="checkbox" data-plugin="${escapeHtml(plugin.name)}" data-profile="${escapeHtml(profile)}" ${enabled ? 'checked' : ''} ${!plugin.toggleable || pending || packBusy ? 'disabled' : ''} ${pending ? 'class="is-switching" aria-busy="true"' : ''} />
+        ${removable ? `<button class="ghost icon-btn plugin-remove" type="button" data-remove="${escapeHtml(plugin.name)}" data-profile="${escapeHtml(profile)}" title="${escapeHtml(t('卸载 {name}', { name: plugin.name }))}" aria-label="${escapeHtml(t('卸载 {name}', { name: plugin.name }))}" ${busy ? 'disabled' : ''}>${packMoreIcons.trash}</button>` : ''}
+        ${update?.hasUpdate ? `<button class="plugin-update" type="button" data-update="${escapeHtml(plugin.name)}" data-profile="${escapeHtml(profile)}" aria-label="${escapeHtml(`${plugin.name} ${t('更新到 {latest}', { latest: update.latest })}`)}" ${busy ? 'disabled' : ''}><span class="spin" aria-hidden="true"></span><span class="update-label">${escapeHtml(t('更新到 {latest}', { latest: update.latest }))}</span></button>` : ''}
+        <input type="checkbox" data-plugin="${escapeHtml(plugin.name)}" data-profile="${escapeHtml(profile)}" ${enabled ? 'checked' : ''} ${!plugin.toggleable || pending || busy ? 'disabled' : ''} ${pending ? 'class="is-switching" aria-busy="true"' : ''} />
       </label><div class="plugin-row-progress" data-plugin-progress="${escapeHtml(plugin.name)}" data-profile="${escapeHtml(profile)}" hidden>
-        <span class="plugin-progress-label">${escapeHtml(t('正在更新…'))}</span><div class="progress" role="progressbar" aria-label="${escapeHtml(`${plugin.name} ${t('正在更新…')}`)}"><div class="progress-bar"></div></div>
+        <span class="plugin-progress-label">${escapeHtml(progressLabel)}</span><div class="progress" role="progressbar" aria-label="${escapeHtml(`${plugin.name} ${progressLabel}`)}"><div class="progress-bar"></div></div>
       </div></div>`
     }
 
     function bindPluginRowEvents(root, profile = '') {
       root.querySelectorAll('input[data-plugin]').forEach((el) => {
         el.onchange = () => { void togglePlugin(el.dataset.plugin, el.checked, el.dataset.profile || profile, el) }
+      })
+      root.querySelectorAll('button[data-remove]').forEach((el) => {
+        el.onclick = (event) => {
+          // 整行是个 label（点哪都能开关），按钮的点击不能顺带把插件关掉
+          event.preventDefault()
+          event.stopPropagation()
+          void removePlugin(el.dataset.remove, el.dataset.profile || profile || pluginProfile)
+        }
       })
       root.querySelectorAll('button[data-update]').forEach((el) => {
         el.onclick = (event) => {
@@ -8372,7 +8516,7 @@
     async function togglePlugin(name, enabled, profile = '', control = null) {
       profile = profile || pluginProfile
       const key = `${profile}:${name}`
-      if (packBusy || pluginUpdating || pluginTogglePending.has(key)) return
+      if (packBusy || pluginUpdating || pluginRemoving || pluginAdding || pluginTogglePending.has(key)) return
       pluginTogglePending.set(key, { enabled })
       paintPluginHomes()
       markSwitchPending(control, enabled)
@@ -8430,7 +8574,7 @@
     }
 
     async function updatePlugin(name, profile = pluginProfile) {
-      if (pluginUpdating || packBusy) return
+      if (pluginUpdating || pluginRemoving || pluginAdding || packBusy) return
       pluginUpdating = name
       pluginUpdatingProfile = profile
       pluginProgress = null
@@ -8452,7 +8596,7 @@
     }
 
     async function updateAllPlugins() {
-      if (pluginUpdating || packBusy) return
+      if (pluginUpdating || pluginRemoving || pluginAdding || packBusy) return
       const profile = pluginProfile
       pluginUpdating = '*'
       pluginUpdatingProfile = profile
@@ -8570,7 +8714,7 @@
     }
 
     async function togglePluginGroup(item, group, enabled, control) {
-      if (packBusy || pluginUpdating || pluginTogglePending.size || !group) return
+      if (packBusy || pluginUpdating || pluginRemoving || pluginAdding || pluginTogglePending.size || !group) return
       packBusy = true
       const key = `${item.profile}:${group.key}`
       pluginGroupPending.set(key, enabled)
@@ -8613,7 +8757,7 @@
     let profileDialogHome = ''
     let profileDialogFromPicker = false
     function openProfileDialog(source = '', mode = source ? 'copy' : 'create', options = {}) {
-      if (packBusy || pluginUpdating || profileSaving) return
+      if (packBusy || pluginUpdating || pluginRemoving || pluginAdding || profileSaving) return
       profileCopySource = source
       profileDialogMode = mode
       profileDialogHome = options.home || ''
@@ -8635,7 +8779,7 @@
       document.getElementById('profileDialogNote').textContent = homeName
         ? t('只修改显示名称，目录路径与数据保持不变。')
         : renaming ? t('重命名后，对应启动项会自动使用新名称。请先停止此环境的全部实例。') : source
-        ? t('复制「{profile}」的插件与配置，依赖会重新安装，可能需要一些时间。', { profile: source })
+        ? t('复制「{profile}」的插件与配置，依赖会重新安装，可能需要一些时间。技能与 Prompt 设置不随之复制。', { profile: source })
         : t('创建独立环境，之后可以安装整合包或插件。名称只支持字母、数字、点、下划线和连字符。')
       let proposed = homeName ? pluginHomeName(source, source === state.dshHome ? t('全局目录') : pluginHomes().get(source) || t('用户目录')) : renaming ? source : source ? `${source.slice(0, 27)}-copy` : ''
       // 复制建议名要避开目标目录里已有的 Profile：选择窗里改的是它挑的那份，环境页里改的是当前那份
@@ -8750,7 +8894,7 @@
       }
     }
     function openProfileBackups(profile) {
-      if (!profile || packBusy || pluginUpdating) return
+      if (!profile || packBusy || pluginUpdating || pluginRemoving || pluginAdding) return
       backupProfile = profile
       backupHintEl.textContent = t('Profile「{profile}」的配置层快照：补丁、依赖清单和 npmrc；node_modules 不在备份里。', { profile })
       paintProfileBackups([])
@@ -8800,7 +8944,7 @@
     function renderPackGrid() {
       paintPluginHomes()
       const list = Array.isArray(packState.packs) ? packState.packs : []
-      document.getElementById('profileAdd').disabled = Boolean(packBusy || pluginUpdating)
+      document.getElementById('profileAdd').disabled = Boolean(packBusy || pluginUpdating || pluginRemoving || pluginAdding)
       const cards = list.map((item) => {
         const tags = packSourceTags(item)
         const removable = item.removable === true
@@ -8816,9 +8960,9 @@
           <span class="pack-card-arrow" aria-hidden="true">›</span>
         </button><details class="pack-more profile-menu"><summary title="${escapeHtml(t('更多操作'))}" aria-label="${escapeHtml(t('更多操作'))}"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></summary><div class="pack-more-actions">
           <button class="ghost" type="button" data-profile-backups="${escapeHtml(item.profile)}">${packMoreIcons.backup}${escapeHtml(t('备份与回退'))}</button>
-          <button class="ghost" type="button" data-profile-copy="${escapeHtml(item.profile)}" ${packBusy || pluginUpdating ? 'disabled' : ''}>${packMoreIcons.copy}${escapeHtml(t('复制 Profile'))}</button>
-          <button class="ghost" type="button" data-profile-rename="${escapeHtml(item.profile)}" ${!removable || packBusy || pluginUpdating ? 'disabled' : ''} ${!removable ? `title="${escapeHtml(t('系统环境不能重命名'))}"` : ''}>${packMoreIcons.rename}${escapeHtml(t('重命名 Profile'))}</button>
-          <button class="ghost danger" type="button" data-profile-delete="${escapeHtml(item.profile)}" ${!removable || packBusy || pluginUpdating ? 'disabled' : ''} ${!removable ? `title="${escapeHtml(t('系统环境不能删除'))}"` : ''}>${packMoreIcons.trash}${escapeHtml(t('删除 Profile'))}</button>
+          <button class="ghost" type="button" data-profile-copy="${escapeHtml(item.profile)}" ${packBusy || pluginUpdating || pluginRemoving || pluginAdding ? 'disabled' : ''}>${packMoreIcons.copy}${escapeHtml(t('复制 Profile'))}</button>
+          <button class="ghost" type="button" data-profile-rename="${escapeHtml(item.profile)}" ${!removable || packBusy || pluginUpdating || pluginRemoving || pluginAdding ? 'disabled' : ''} ${!removable ? `title="${escapeHtml(t('系统环境不能重命名'))}"` : ''}>${packMoreIcons.rename}${escapeHtml(t('重命名 Profile'))}</button>
+          <button class="ghost danger" type="button" data-profile-delete="${escapeHtml(item.profile)}" ${!removable || packBusy || pluginUpdating || pluginRemoving || pluginAdding ? 'disabled' : ''} ${!removable ? `title="${escapeHtml(t('系统环境不能删除'))}"` : ''}>${packMoreIcons.trash}${escapeHtml(t('删除 Profile'))}</button>
         </div></details></div>`
       }).join('')
       // 安装整合包的入口在环境详情里（装进这个环境），网格里不再放独立的加卡
@@ -8873,6 +9017,7 @@
 
     /** 「更多操作」菜单的行首图标：stroke 风格跟顶栏按钮一套。 */
     const packMoreIcons = {
+      add: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
       rename: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 5 5-12 12H4v-5L16 3Z"/><path d="m14 5 5 5"/></svg>',
       copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>',
       install: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9M12 5v4M10 7h4"/></svg>',
@@ -8955,20 +9100,22 @@
       const latest = records.filter((record) => !record.synthetic).at(-1)
       // 顶部只剩一行：左上返回图标（在静态结构里），右上全部操作；批量启停收进「更多操作」
       packHeadEl.innerHTML = `
-        <button class="ghost icon-btn pack-tool" type="button" data-pack-import="1" title="${escapeHtml(t('装整合包'))}" aria-label="${escapeHtml(t('装整合包'))}" ${packBusy || pluginUpdating ? 'disabled' : ''}>${packMoreIcons.install}</button>
-        ${item.profile === packState.profile ? `<button class="ghost icon-btn pack-tool${pluginChecking ? ' is-checking' : ''}" type="button" data-pack-check-updates="1" title="${escapeHtml(t('检查更新'))}" aria-label="${escapeHtml(t('检查更新'))}" aria-busy="${pluginChecking}" ${pluginChecking || pluginUpdating || packBusy ? 'disabled' : ''}>${packMoreIcons.refresh}</button>` : ''}
-        ${pending || pluginUpdating === '*' ? `<button class="ghost icon-btn pack-tool pack-update${pluginUpdating === '*' ? ' loading' : ''}" type="button" data-pack-update="1" title="${escapeHtml(t('更新 {n} 个', { n: pending }))}" aria-label="${escapeHtml(t('更新 {n} 个', { n: pending }))}" aria-busy="${pluginUpdating === '*'}" ${pluginUpdating || packBusy ? 'disabled' : ''}><span class="spin" aria-hidden="true"></span>${packMoreIcons.update}<span class="pack-update-count" aria-hidden="true">${pending}</span></button>` : ''}
+        <button class="ghost icon-btn pack-tool" type="button" data-plugin-add="1" title="${escapeHtml(t('添加插件'))}" aria-label="${escapeHtml(t('添加插件'))}" ${packBusy || pluginUpdating || pluginRemoving || pluginAdding ? 'disabled' : ''}>${packMoreIcons.add}</button>
+        <button class="ghost icon-btn pack-tool" type="button" data-pack-import="1" title="${escapeHtml(t('装整合包'))}" aria-label="${escapeHtml(t('装整合包'))}" ${packBusy || pluginUpdating || pluginRemoving ? 'disabled' : ''}>${packMoreIcons.install}</button>
+        ${item.profile === packState.profile ? `<button class="ghost icon-btn pack-tool${pluginChecking ? ' is-checking' : ''}" type="button" data-pack-check-updates="1" title="${escapeHtml(t('检查更新'))}" aria-label="${escapeHtml(t('检查更新'))}" aria-busy="${pluginChecking}" ${pluginChecking || pluginUpdating || pluginRemoving || packBusy ? 'disabled' : ''}>${packMoreIcons.refresh}</button>` : ''}
+        ${pending || pluginUpdating === '*' ? `<button class="ghost icon-btn pack-tool pack-update${pluginUpdating === '*' ? ' loading' : ''}" type="button" data-pack-update="1" title="${escapeHtml(t('更新 {n} 个', { n: pending }))}" aria-label="${escapeHtml(t('更新 {n} 个', { n: pending }))}" aria-busy="${pluginUpdating === '*'}" ${pluginUpdating || pluginRemoving || packBusy ? 'disabled' : ''}><span class="spin" aria-hidden="true"></span>${packMoreIcons.update}<span class="pack-update-count" aria-hidden="true">${pending}</span></button>` : ''}
         <details class="pack-more">
           <summary title="${escapeHtml(t('更多操作'))}" aria-label="${escapeHtml(t('更多操作'))}"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></summary>
           <div class="pack-more-actions">
-            <button class="ghost" type="button" data-pack-import-here="1" ${packBusy || pluginUpdating ? 'disabled' : ''}>${packMoreIcons.import}${escapeHtml(t('导入当前环境'))}</button>
-            <button class="ghost" type="button" data-pack-export="1" ${packBusy || pluginUpdating ? 'disabled' : ''}>${packMoreIcons.export}${escapeHtml(t('导出当前环境'))}</button>
-            <button class="ghost" type="button" data-profile-copy="1" ${packBusy || pluginUpdating ? 'disabled' : ''}>${packMoreIcons.copy}${escapeHtml(t('复制 Profile'))}</button>
-            ${item.removable ? `<button class="ghost" type="button" data-profile-rename="1" ${packBusy || pluginUpdating ? 'disabled' : ''}>${packMoreIcons.rename}${escapeHtml(t('重命名 Profile'))}</button>` : ''}
-            ${item.removable ? `<button class="ghost danger" type="button" data-pack-delete="1" ${packBusy || pluginUpdating ? 'disabled' : ''}>${packMoreIcons.trash}${escapeHtml(t('删除 Profile'))}</button>` : ''}
+            <button class="ghost" type="button" data-pack-import-here="1" ${packBusy || pluginUpdating || pluginRemoving ? 'disabled' : ''}>${packMoreIcons.import}${escapeHtml(t('导入当前环境'))}</button>
+            <button class="ghost" type="button" data-pack-export="1" ${packBusy || pluginUpdating || pluginRemoving ? 'disabled' : ''}>${packMoreIcons.export}${escapeHtml(t('导出当前环境'))}</button>
+            <button class="ghost" type="button" data-profile-copy="1" ${packBusy || pluginUpdating || pluginRemoving ? 'disabled' : ''}>${packMoreIcons.copy}${escapeHtml(t('复制 Profile'))}</button>
+            ${item.removable ? `<button class="ghost" type="button" data-profile-rename="1" ${packBusy || pluginUpdating || pluginRemoving ? 'disabled' : ''}>${packMoreIcons.rename}${escapeHtml(t('重命名 Profile'))}</button>` : ''}
+            ${item.removable ? `<button class="ghost danger" type="button" data-pack-delete="1" ${packBusy || pluginUpdating || pluginRemoving ? 'disabled' : ''}>${packMoreIcons.trash}${escapeHtml(t('删除 Profile'))}</button>` : ''}
           </div>
         </details>`
       const actions = packHeadEl
+      actions.querySelector('[data-plugin-add]')?.addEventListener('click', () => openPluginAdd())
       actions.querySelector('[data-pack-import]')?.addEventListener('click', () => openImportDialog())
       actions.querySelector('[data-pack-check-updates]')?.addEventListener('click', async () => {
         if (pluginChecking) return
@@ -9009,7 +9156,7 @@
           const updates = item.profile === packState.profile ? members.filter((plugin) => pluginUpdates[plugin.name]?.hasUpdate).length : 0
           const record = records.find((one) => group.key === `pack:${one.name}`)
           const updating = pluginUpdating === '*' && pluginUpdatingGroup === group.key
-          const disabled = packBusy || pluginUpdating || pluginTogglePending.size
+          const disabled = packBusy || pluginUpdating || pluginRemoving || pluginAdding || pluginTogglePending.size
           return `<div class="plugin-group-card"><div class="plugin-group-tools">
             ${updates || updating ? `<button class="ghost icon-btn group-update${updating ? ' loading' : ''}" type="button" data-group-update="${escapeHtml(group.key)}" title="${escapeHtml(t('更新 {name} 的 {n} 个插件', { name: group.name, n: updates }))}" aria-label="${escapeHtml(t('更新 {name} 的 {n} 个插件', { name: group.name, n: updates }))}" ${disabled ? 'disabled' : ''}><span class="spin" aria-hidden="true"></span>${packMoreIcons.update}<span class="pack-update-count" aria-hidden="true">${updates}</span></button>` : ''}
             ${record && !record.synthetic ? `<button class="ghost icon-btn danger" type="button" data-group-remove="${escapeHtml(group.key)}" title="${escapeHtml(record === latest ? t('卸载 {name}', { name: group.name }) : t('请先卸载此后安装的整合包'))}" aria-label="${escapeHtml(t('卸载 {name}', { name: group.name }))}" ${disabled || record !== latest ? 'disabled' : ''}>${packMoreIcons.trash}</button>` : ''}
@@ -9035,7 +9182,7 @@
 
     /** 更新正在查看的 profile，不改各启动项的环境设置。 */
     async function updatePack(item, group = null) {
-      if (packBusy || pluginUpdating) return
+      if (packBusy || pluginUpdating || pluginRemoving || pluginAdding) return
       packBusy = true
       pluginUpdating = '*'
       pluginUpdatingGroup = group?.key || ''
@@ -9063,7 +9210,7 @@
 
     /** 删除的是整个 Profile，与整合包按安装顺序撤销是两种操作。 */
     async function removeProfileDir(item) {
-      if (!item || packBusy || pluginUpdating) return
+      if (!item || packBusy || pluginUpdating || pluginRemoving || pluginAdding) return
       if (!(await appConfirm(t('删除「{profile}」？其中的 {n} 个插件、配置和对应启动项会一并移除，会话与记忆保留。此操作无法撤销。', { profile: item.profile, n: item.pluginCount }), { title: t('删除 Profile') }))) return
       packBusy = true
       renderPackGrid()
@@ -9157,6 +9304,7 @@
     trapPackDialog(packDetailDialog, closeMarketDetail)
     trapPackDialog(packInstallDialog, closeInstallDialog)
     trapPackDialog(packExportDialog, closeExportDialog)
+    trapPackDialog(pluginAddDialogEl, closePluginAdd)
     document.getElementById('launchLogClose').onclick = () => closeLaunchLog()
     launchLogCopyEl.onclick = () => { void copyLaunchLog() }
     launchLogExportEl.onclick = () => { void exportLaunchLog() }

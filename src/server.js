@@ -24,10 +24,14 @@ import { DiagnosticRepairs, verificationSummary } from './repair-actions.js'
 import { recordedChanges } from './repair-evidence.js'
 import { describeDiagnosticCommandFailure } from './diagnostic-command-error.js'
 import {
+  bundleNameOf,
   disableRowId,
+  dropRowDisables,
   listPlugins,
   ensureBundleMounted,
   ownerOfRow,
+  packageLooksLikeBundle,
+  packageRowIds,
   parseFailedRows,
   parseUnresolvedBundles,
   pluginsNamedInFailure,
@@ -173,6 +177,12 @@ const SPEC_RE = /^(?:@[a-z0-9._~-]+\/)?[a-z0-9._~-]+(?:@[a-z0-9._~+-]+)?$/i
 const GITHUB_SPEC_RE = /^github:[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:#[\w./-]+)?$/
 /** 本地路径形态的插件源（内置插件走这条）：只认绝对路径，`file:` 后面必须是盘符或 /。 */
 const FILE_SPEC_RE = /^file:(?:[A-Za-z]:[\\/]|\/)[^\0]+$/
+/**
+ * 远端插件源：官方 `dsh plugin add` 能接的 Git / tarball 地址。
+ * 和官方插件管理器一样把地址原样交给 pnpm，由 pnpm 决定能不能拉；
+ * 启动器不在这里替用户下载或执行任何东西（pnpm ≥10 默认也禁用构建脚本）。
+ */
+const REMOTE_SPEC_RE = /^(?:git\+)?(?:https?|ssh|git):\/\/\S+$|^git@[A-Za-z0-9_.-]+:[^\s]+$/
 const READY_RE = /dsh web:\s+(https?:\/\/[^\s]+)/
 const START_TIMEOUT_MS = 120_000
 // 启动 profile：设置页可改，startServer() 里按设置定值
@@ -603,10 +613,35 @@ async function pruneVersions(config) {
 }
 
 function safeSpec(spec) {
-  if (typeof spec !== 'string' || !(SPEC_RE.test(spec) || GITHUB_SPEC_RE.test(spec) || FILE_SPEC_RE.test(spec))) {
+  const value = typeof spec === 'string' ? spec.trim() : ''
+  if (!value || !(SPEC_RE.test(value) || GITHUB_SPEC_RE.test(value) || FILE_SPEC_RE.test(value) || REMOTE_SPEC_RE.test(value))) {
     throw new Error('非法插件源')
   }
-  return spec
+  return value
+}
+
+/**
+ * 页面里输入的插件源：纯本地绝对路径补成 `file:`，其余交给 safeSpec 校验。
+ *
+ * 用户从资源管理器/访达复制来的路径没有 `file:` 前缀；官方 `dsh plugin add`
+ * 也接受裸路径，但统一成 `file:` 后更容易和版本号、Git 地址区分开。反斜杠
+ * 换成斜杠：`file:C:\x` 在 pnpm 的 URL 解析里会把盘符吃掉。
+ */
+function normalizePluginSpec(input) {
+  const value = String(input ?? '').trim()
+  if (!value) throw new Error('请填写插件包名或地址')
+  if (isAbsolute(value)) return safeSpec(`file:${value.replace(/\\/g, '/')}`)
+  return safeSpec(value)
+}
+
+/** profile 清单里的直接依赖（读不到就当空）。 */
+function profileDependencies(profileDir) {
+  try {
+    const manifest = JSON.parse(readFileSync(join(profileDir, 'package.json'), 'utf8'))
+    return manifest?.dependencies && typeof manifest.dependencies === 'object' ? manifest.dependencies : {}
+  } catch {
+    return {}
+  }
 }
 
 async function loadConfig() {
@@ -3836,7 +3871,10 @@ async function addPlugin(version, spec, { profile = PROFILE_NAME } = {}) {
   emitPluginProgress({ phase: 'resolve' })
   await mkdir(homeDir(), { recursive: true })
   await ensureProfileNpmrc(profile)
-  const broken = pruneDanglingLinks(join(profileDirOf(profile), 'node_modules'))
+  const dir = profileDirOf(profile)
+  // git / 本地目录的 spec 里没有包名，装完只能靠依赖清单的增量认出来。
+  const before = new Set(Object.keys(profileDependencies(dir)))
+  const broken = pruneDanglingLinks(join(dir, 'node_modules'))
   if (broken) pushLog(`先清理了 ${broken} 个悬空的链接（断链会让安装报 unknown error）`)
   pushLog(`安装插件 ${pkg} 到 ${profile} profile`)
   try {
@@ -3864,10 +3902,68 @@ async function addPlugin(version, spec, { profile = PROFILE_NAME } = {}) {
     }
     // 0.2.x 的 dsh plugin add 是纯 pnpm 透传、不再写挂载清单（0.1.x 会写）：
     // 启动器接管这一步，不补的话插件在 dsh 里永远是关闭状态。
-    const mounted = ensureBundleMounted(profileDirOf(profile), pkg)
-    if (mounted.ok && mounted.changed) pushLog(`已挂载 ${mounted.name}（写入 ${profile} 的 dsh.profile.bundles）`)
-    else if (!mounted.ok) pushLog(`挂载 ${pkg} 没做成：${mounted.reason}`)
+    // npm 名能直接取出包名；git / 本地目录只有装完才知道真实包名，所以对比
+    // 安装前后的 dependencies，把新增的那个挂上去。挂载前确认它真是个 bundle，
+    // 别把自动装进来的 peer/普通依赖塞进层栈——那会让 dsh 启动时解析不到 bundle。
+    const guessed = bundleNameOf(pkg)
+    const after = profileDependencies(dir)
+    const targets = guessed
+      ? (Object.hasOwn(after, guessed) ? [guessed] : [])
+      : Object.keys(after).filter((name) => !before.has(name))
+    if (guessed && !targets.length) pushLog(`${guessed} 没有出现在依赖清单里，未写入 dsh.profile.bundles`)
+    for (const name of targets) {
+      if (!packageLooksLikeBundle(dir, name)) {
+        pushLog(`${name} 不是可挂载的 bundle，未写入 dsh.profile.bundles`)
+        continue
+      }
+      const mounted = ensureBundleMounted(dir, name)
+      if (mounted.ok && mounted.changed) pushLog(`已挂载 ${mounted.name}（写入 ${profile} 的 dsh.profile.bundles）`)
+      else if (!mounted.ok) pushLog(`挂载 ${pkg} 没做成：${mounted.reason}`)
+    }
+    if (!guessed && !targets.length) pushLog(`无法从 ${pkg} 判断包名，未自动挂载；插件没生效时请在 dsh 里手动启用`)
     pushLog(`${pkg} 已在 ${profile} profile`)
+  } finally {
+    pluginBusy = false
+    pluginProgressName = ''
+    pluginProgressProfile = ''
+    emitPluginProgress(null)
+  }
+}
+
+/**
+ * 从 profile 卸载一个插件包。
+ *
+ * 和官方插件管理器同一套语义：先 `dsh plugin remove`（pnpm 删依赖与文件），
+ * 再从 `dsh.profile.bundles` 摘掉（0.2.x 起层栈只认这份清单，光删依赖会留下
+ * 一个解析不到的 bundle，dsh 下次启动直接失败），最后清掉这个包以前写进
+ * `cordis.patch.yml` 的 `disabled: true`——否则以后重装时插件会莫名其妙地
+ * 保持禁用。补丁清理只碰没有被其它已装插件共用的行。
+ */
+async function removePlugin(version, name, { profile = PROFILE_NAME } = {}) {
+  profile = safeProfile(profile)
+  const ver = safeVersion(version)
+  if (pluginBusy) throw new Error('正在安装或卸载插件')
+  if (!existsSync(binPath(ver))) throw new Error('找不到官方入口 lib/bin.js')
+  const dir = profileDirOf(profile)
+  const ids = packageRowIds(dir, name)
+  pluginBusy = true
+  pluginProgressName = name
+  pluginProgressProfile = profile
+  emitPluginProgress({ phase: 'resolve' })
+  try {
+    pushLog(`从 ${profile} 卸载插件 ${name}`)
+    await runPluginCommand(ver, ['remove', name], `dsh plugin remove ${name}`, { profile })
+    const unmounted = removeBundleMounted(dir, [name])
+    if (!unmounted.ok) pushLog(`未能从 dsh.profile.bundles 摘掉 ${name}（${unmounted.reason || '清单不可写'}）；下次启动可能失败`)
+    // 补丁清理是收尾，写不进去不该把已经完成的卸载报成失败。
+    try {
+      const remaining = new Set(listPlugins(dir).plugins.flatMap((plugin) => plugin.ids))
+      const stale = ids.filter((id) => !remaining.has(id))
+      if (dropRowDisables(dir, stale).changed) pushLog(`已清理 ${name} 留在补丁层的开关记录`)
+    } catch (error) {
+      pushLog(`清理 ${name} 的补丁层开关失败：${error instanceof Error ? error.message : error}`)
+    }
+    pushLog(`${name} 已从 ${profile} 卸载（重启 dsh 后生效）`)
   } finally {
     pluginBusy = false
     pluginProgressName = ''
@@ -6901,6 +6997,56 @@ async function handleApi(req, res, url) {
     }
     pushLog(`桌面增强：${profile} 卸载完成，成功 ${removed.length} 个${failed.length ? `，失败 ${failed.length} 个` : ''}（重启 dsh 后生效）`)
     send(res, 200, { ok: failed.length === 0, removed, failed, desktopEnhance: desktopEnhanceSummary(profile), ...listPlugins(profileDirOf(profile)), profile })
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/plugins/add') {
+    try {
+      if (pluginBusy) {
+        send(res, 409, { error: '正在安装或卸载插件，等它结束再试' })
+        return
+      }
+      const profile = safeProfile(String(body.profile || PROFILE_NAME))
+      const spec = normalizePluginSpec(body.spec)
+      const name = bundleNameOf(spec)
+      const target = profileDirOf(profile)
+      // 官方组件随 dsh 版本走，单独装/换版本会和运行时的 @deepseek-ai/* 对不上。
+      if (name && name.startsWith('@deepseek-ai/')) throw new Error('官方组件随 dsh 安装，不能单独添加')
+      if (name && Object.hasOwn(profileDependencies(target), name)) {
+        throw new Error(`${name} 已经在这个环境里；要升级请用插件行的更新按钮`)
+      }
+      const version = await pluginCommandVersion(profile)
+      await addPlugin(version, spec, { profile })
+      pluginUpdateCache.at = 0
+      pushLog(`插件 ${name || spec} 已装进 ${profile}（重启 dsh 后生效）`)
+      send(res, 200, { ok: true, spec, name, ...packsPayload(), ...listPlugins(target), profile, autoFix: autoFixForHome(), recovery: recoveryPayload(profile) })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      pushLog(`添加插件失败：${message}`)
+      send(res, 400, { error: message })
+    }
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/plugins/remove') {
+    try {
+      if (pluginBusy) {
+        send(res, 409, { error: '正在安装或卸载插件，等它结束再试' })
+        return
+      }
+      const profile = safeProfile(String(body.profile || PROFILE_NAME))
+      const name = String(body.name || '').trim()
+      if (!name) throw new Error('请选择要卸载的插件')
+      if (name.startsWith('@deepseek-ai/')) throw new Error('官方组件随 dsh 安装，不能在这里卸载')
+      const target = profileDirOf(profile)
+      if (!Object.hasOwn(profileDependencies(target), name)) throw new Error(`这个环境里没有装 ${name}`)
+      const version = await pluginCommandVersion(profile)
+      await removePlugin(version, name, { profile })
+      pluginUpdateCache.at = 0
+      send(res, 200, { ok: true, name, ...packsPayload(), ...listPlugins(target), profile, autoFix: autoFixForHome(), recovery: recoveryPayload(profile) })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      pushLog(`卸载插件失败：${message}`)
+      send(res, 400, { error: message })
+    }
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/plugins/toggle') {

@@ -15,7 +15,7 @@ function panel() {
       { id: 'work2', name: '工作副本', dshHome: 'D:/工作', profile: 'bot' },
     ], instances: [] },
     pluginHome: '', pluginViewRevision: 0, pluginLoadRequest: 0, launchPluginScope: '', pluginLaunchEntry: null,
-    pluginProfile: 'web', pluginUpdates: {}, pluginsLoaded: false, packBusy: false, pluginUpdating: '', pluginTogglePending: new Map(),
+    pluginProfile: 'web', pluginUpdates: {}, pluginsLoaded: false, packBusy: false, pluginUpdating: '', pluginRemoving: '', pluginAdding: false, pluginTogglePending: new Map(),
     openedPack: null, packState: { packs: [] }, packPluginListEl: { dataset: {} },
     packImportDialog: { hidden: true }, launchProfile: 'web',
     launchDialogEl: { hidden: true }, launchHomePicked: '',

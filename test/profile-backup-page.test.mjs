@@ -95,6 +95,8 @@ test('打开弹窗：提示里带上 Profile 名，先清空列表再拉取', ()
     escapeHtml: (value) => String(value ?? ''),
     packBusy: false,
     pluginUpdating: false,
+    pluginRemoving: '',
+    pluginAdding: false,
     backupProfile: '',
     backupDialogEl: { hidden: true },
     painted: [],

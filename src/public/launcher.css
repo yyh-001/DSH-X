@@ -1559,6 +1559,31 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 .plugin-actions .ui-select { width: 104px; max-width: 170px; }
 .plugin-actions .ui-select .select-trigger { min-height: var(--control-height); height: var(--control-height); margin-top: 4px; padding: 0 var(--control-padding); border-radius: var(--control-radius); font-size: var(--control-font-size); }
 .plugin-actions .ui-select .select-caret { width: 10px; height: var(--control-height); }
+/* 行尾的卸载图标：平时淡着，悬停这一行才实心；触屏没有 hover 时半透明也点得到 */
+.plugin-remove {
+  flex: 0 0 auto;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  padding: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  opacity: 0.55;
+}
+.plugin-remove svg { width: 16px; height: 16px; }
+.plugin-row:hover .plugin-remove, .plugin-row:focus-within .plugin-remove { opacity: 1; }
+.plugin-remove:hover:not(:disabled) { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }
+.plugin-remove:disabled { opacity: 0.25; cursor: default; }
+/* 添加弹窗：包名/地址可能很长，输入框占满整行比和标签并排好读 */
+#pluginAddDialog .mcp-field { flex-direction: column; align-items: stretch; gap: 7px; }
+#pluginAddDialog .mcp-field input { width: 100%; }
+#pluginAddDialog .mcp-field > span { color: var(--text); }
+#pluginAddDialog #pluginAddTarget:empty { display: none; }
+#pluginAddDialog .progress { margin: 2px 0 0; }
+@media (max-width: 560px) {
+  .plugin-remove { width: 26px; min-width: 26px; height: 26px; padding: 5px; }
+}
 .plugin-update {
   flex: 0 0 auto;
   border: 1px solid #c7d8f7;
