@@ -64,6 +64,25 @@ test('环境页卡片菜单多了「备份与回退」入口，图标和点击�
   assert.match(page, /'备份与回退'/)
 })
 
+test('环境详情（首页插件弹窗）的 ⋯ 菜单也有「备份与回退」', () => {
+  const view = section('packHeadEl.innerHTML = `', 'const actions = packHeadEl')
+  assert.match(view, /data-profile-backups="1"/)
+  assert.match(view, /packMoreIcons\.backup/)
+  const handler = section("actions.querySelector('[data-profile-backups]')", "actions.querySelector('[data-profile-copy]')")
+  assert.match(handler, /openProfileBackups\(item\.profile\)/)
+})
+
+test('备份弹窗的请求跟随启动项 / 环境目录的作用域', () => {
+  const sandbox = { launchPluginScope: 'work', pluginHome: '' }
+  vm.createContext(sandbox)
+  vm.runInContext(section('    const scopedLaunchId =', '    const post ='), sandbox)
+  assert.equal(vm.runInContext("scopedLaunchId('/api/profile-backups?profile=web')", sandbox), 'work', '启动项弹窗里带 launchId')
+  sandbox.launchPluginScope = ''
+  assert.equal(vm.runInContext("scopedLaunchId('/api/profile-backups?profile=web')", sandbox), '', '没有启动项作用域时不乱带')
+  sandbox.pluginHome = 'D:/custom'
+  assert.equal(vm.runInContext("apiScopeHeaders('/api/profile-backups?profile=web')", sandbox)['x-dsh-home'], encodeURIComponent('D:/custom'))
+})
+
 test('页面逻辑：列备份、回退先确认、成功后刷新插件与恢复档', () => {
   const restore = functionSource('restoreProfileBackup')
   assert.match(restore, /appConfirm\(/)

@@ -3626,12 +3626,12 @@
     let pluginHome = ''
     let pluginViewRevision = 0
     let pluginLoadRequest = 0
-    const scopedLaunchId = (path, explicit) => explicit !== undefined ? explicit : (launchPluginScope && /^\/api\/(plugins|packs|profiles|recover|sync|mcp|skills|start|stop|instance-port)(?:\/|\?|$)/.test(path) ? launchPluginScope : '')
+    const scopedLaunchId = (path, explicit) => explicit !== undefined ? explicit : (launchPluginScope && /^\/api\/(plugins|packs|profiles|profile-backups|recover|sync|mcp|skills|start|stop|instance-port)(?:\/|\?|$)/.test(path) ? launchPluginScope : '')
     function apiScopeHeaders(path, options = {}) {
       const launchId = scopedLaunchId(path, options.launchId)
       if (launchId) return { 'x-dsh-launch-id': launchId }
       // 设置页只限定插件、整合包和 Profile；其它设置仍保留自己的全局作用域。
-      const home = options.home ?? (options.launchId === undefined && /^\/api\/(plugins|packs|profiles|recover)(?:\/|\?|$)/.test(path) ? pluginHome : '')
+      const home = options.home ?? (options.launchId === undefined && /^\/api\/(plugins|packs|profiles|profile-backups|recover)(?:\/|\?|$)/.test(path) ? pluginHome : '')
       return home ? { 'x-dsh-home': encodeURIComponent(home) } : {}
     }
     const post = (path, body = {}, options = {}) => fetch(path, {
@@ -9109,6 +9109,7 @@
           <div class="pack-more-actions">
             <button class="ghost" type="button" data-pack-import-here="1" ${packBusy || pluginUpdating || pluginRemoving ? 'disabled' : ''}>${packMoreIcons.import}${escapeHtml(t('导入当前环境'))}</button>
             <button class="ghost" type="button" data-pack-export="1" ${packBusy || pluginUpdating || pluginRemoving ? 'disabled' : ''}>${packMoreIcons.export}${escapeHtml(t('导出当前环境'))}</button>
+            <button class="ghost" type="button" data-profile-backups="1" ${packBusy || pluginUpdating || pluginRemoving || pluginAdding ? 'disabled' : ''}>${packMoreIcons.backup}${escapeHtml(t('备份与回退'))}</button>
             <button class="ghost" type="button" data-profile-copy="1" ${packBusy || pluginUpdating || pluginRemoving ? 'disabled' : ''}>${packMoreIcons.copy}${escapeHtml(t('复制 Profile'))}</button>
             ${item.removable ? `<button class="ghost" type="button" data-profile-rename="1" ${packBusy || pluginUpdating || pluginRemoving ? 'disabled' : ''}>${packMoreIcons.rename}${escapeHtml(t('重命名 Profile'))}</button>` : ''}
             ${item.removable ? `<button class="ghost danger" type="button" data-pack-delete="1" ${packBusy || pluginUpdating || pluginRemoving ? 'disabled' : ''}>${packMoreIcons.trash}${escapeHtml(t('删除 Profile'))}</button>` : ''}
@@ -9127,6 +9128,7 @@
       })
       actions.querySelector('[data-pack-import-here]')?.addEventListener('click', () => { actions.querySelector('.pack-more').open = false; void importIntoProfile(item.profile) })
       actions.querySelector('[data-pack-export]')?.addEventListener('click', () => openExportDialog(item))
+      actions.querySelector('[data-profile-backups]')?.addEventListener('click', () => { actions.querySelector('.pack-more').open = false; openProfileBackups(item.profile) })
       actions.querySelector('[data-pack-delete]')?.addEventListener('click', () => { void removeProfileDir(item) })
       actions.querySelector('[data-profile-copy]')?.addEventListener('click', () => { actions.querySelector('.pack-more').open = false; openProfileDialog(item.profile) })
       actions.querySelector('[data-profile-rename]')?.addEventListener('click', () => { actions.querySelector('.pack-more').open = false; openProfileDialog(item.profile, 'rename') })
