@@ -107,7 +107,11 @@ test('/booting：服务端渲染页面，语言与主题跟管理页一致，且
   assert.match(html, /fetch\('\/api\/state'/, '页面自己轮询 /api/state')
   assert.match(html, /location\.replace\(url\)/, '就绪后跳进 dsh')
   assert.match(html, /snapshot\?\.progress/, '首次启动要看安装/下载进度')
-  assert.match(html, /startupPhase/, '启动阶段（启动进程 / 加载插件 / 校验依赖）要在页面上走')
+  assert.match(html, /startupPhase/, '启动阶段（启动进程 / 加载插件）要在页面上走')
+  // 底下的步骤条和「启动完成后这个页面会自动打开 dsh」都撤了：阶段靠标题和进度条说
+  assert.doesNotMatch(html, /data-step="/, '不再画步骤条')
+  assert.doesNotMatch(html, /hintOpen/, '不再提示自动打开')
+  assert.doesNotMatch(html, /phVerifying/)
 })
 
 test('/booting：切成英文后页面跟着变', async () => {

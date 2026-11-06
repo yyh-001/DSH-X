@@ -15,6 +15,7 @@ import { cmpVer, currentRegistry, describeNpmFailure, installSpec, listPackage, 
 import { VERSION_CHANNEL, VERSION_CHANNELS, effectiveChannel, versionChannel, versionInChannel } from './version.js'
 import { CORE_VERSION } from './app-version.js'
 import { createLogWriter } from './log-writer.js'
+import { checkPluginCompatibility } from './pre-update.js'
 import { createStartupDiagnosis } from './startup-diagnosis.js'
 import { createInstanceLink } from './instance-link.js'
 import { DESKTOP_ENHANCE_ID, DESKTOP_ENHANCE_NAME, DESKTOP_PLUGINS, versionAtLeast } from './desktop-plugins.js'
@@ -88,7 +89,6 @@ import {
   defaultDshHome,
   ensureSettings,
   ensureWritableDir,
-  lanBindToggleOn,
   loadSettings,
   loadSettingsSync,
   parseArgs,
@@ -125,7 +125,6 @@ import {
   safeArgs,
   safeUpdateChannel,
   safeWebBind,
-  safeWorkdir,
   safeWslDistro,
   safeWslPath,
   safeWslPorts,
@@ -138,6 +137,7 @@ import { allocateWslPort, inspectWslDistro, invalidateWslCache, listWslDistros, 
 // 带代理的 fetch：Node 的全局 fetch 既不看系统代理也不看 HTTP_PROXY，外网请求都走 netFetch
 import { netFetch, proxyEnv, resetProxyCache, resolveProxy } from './proxy.js'
 import { APP_DIR, fileManager } from './filemanager.js'
+import { lanUrlOf, pickLanAddress, startLanProxy } from './lan-proxy.js'
 import { DESKTOP_API_VERSION, DESKTOP_CAPABILITIES, parseDesktopRequest } from './desktop.js'
 import { checkCoreUpdate, downloadCoreTarball, extractCoreTarball, stagingExists, stagingStats } from './core-npm.js'
 import { IN_ELECTRON, IS_LINUX, IS_MAC, IS_WINDOWS, LAUNCHER_NAME, MAC_APP_NAME, NPM_MODE, PACKAGED, RUNTIME_NODE, RUNTIME_NODE_ENV } from './platform.js'
@@ -189,12 +189,9 @@ let PROFILE_NAME = resolveProfile()
 const CLI_ARGS = /start\.js$/i.test(process.argv[1] || '') ? process.argv.slice(2) : []
 // 额外启动参数：用户自己加的 argv，拼在命令行末尾（设置页可改）
 let EXTRA_ARGS = composeExtraArgs(loadSettingsSync().args)
-// Web 绑定方式：loopback（默认）/ lan。lan 时启动 web 不注入 --host/--port，
-// 绑定交给配置层（远程访问插件的「局域网访问」开关写的 profile 补丁块）决定
+// Web 绑定方式：loopback（默认）/ lan。两种模式 dsh 都只绑 127.0.0.1；lan 时启动器另在
+// 「局域网 IP + 同一端口」上起反向代理（lan-proxy.js），本机回环和所有探活都不受影响
 let WEB_BIND = resolveWebBind()
-// 远程访问插件的「局域网访问」开关（读 dsh 的 settings.yaml）：开着时同样不注入
-// --host，否则命令行显式 --host 永远压着插件的开关和补丁块（详见 lanBindToggleOn）
-let LAN_TOGGLE = false
 // 手工钉死端口的实例（键 `版本@profile` → 端口）：没钉的组合每次启动由系统挑一个。
 // 和 WEB_BIND 一样是「改完立刻生效」的内存副本，启动时与保存设置时各刷新一次。
 let INSTANCE_PORTS = safeInstancePorts(loadSettingsSync().instancePorts)
@@ -238,6 +235,9 @@ const LOG_DIR = APP_DIR
 const LOG_FILE = join(LOG_DIR, 'manager.log')
 const LOG_MAX_BYTES = 5 * 1024 * 1024
 const NOISY_LOG_RE = /^(?:已安装 \d+\/\d+|已解析 \d+)/
+// 内置 DeepSeek provider 每 10 分钟各刷一次模型目录，成功时打一条 info；只写内存日志，不落盘刷屏。
+// 失败（failed）不在过滤范围内，仍然保留。
+const NOISY_LISTING_RE = /model listing from \S+ loaded \d+ model\(s\), skipped \d+ row\(s\)/
 const logWriter = createLogWriter(LOG_FILE, { maxBytes: LOG_MAX_BYTES })
 /** 每个启动项一份日志：启动时行里的上下文带上 launchId，`pushLog` 顺手 tee 过来。 */
 const LAUNCH_LOG_DIR = join(APP_DIR, 'launch-logs')
@@ -684,7 +684,7 @@ async function saveConfig(config) {
 
 /** 把重要日志追加到 manager.log（进度类噪音行丢弃，超过 5MB 轮转一次）。 */
 function persistLog(text) {
-  if (NOISY_LOG_RE.test(text)) return
+  if (NOISY_LOG_RE.test(text) || NOISY_LISTING_RE.test(text)) return
   const line = `[${new Date().toISOString()}] ${text}\n`
   logWriter.append(line)
   // 启动项启动/停止期间的行同时落到它自己的日志里；手动启动（没有启动项）只有全局那份。
@@ -1217,6 +1217,9 @@ function instanceInfo(proc) {
     home: proc.home,
     status: proc.status,
     url: proc.url,
+    // 局域网模式：复制给别的设备用的地址（只换主机，token 不变）；代理没起来时给原因
+    lanUrl: proc.lanProxy ? lanUrlOf(proc.url, proc.lanProxy.lanHost) : '',
+    lanError: proc.lanError || null,
     startedAt: proc.startedAt,
     startupMs: proc.startupMs ?? null,
     startupPhase: proc.status === 'starting' ? (proc.startupPhase || 'launching') : '',
@@ -1545,14 +1548,10 @@ async function publicSettings() {
     // 内置浏览器（右侧栏浏览器）：开关与证书策略。browserHost 表明当前外壳能否清理浏览数据
     // （只有 Electron 外壳拿得到 guest 分区；浏览器里打开管理页 / 旧外壳没有这层能力）。
     browserIgnoreCertificate: stored.browserIgnoreCertificate === true,
-    // 桌面增强：当前环境装了几个（设置页右侧的「一键安装」按钮按它显示安装 / 已安装）
-    desktopEnhance: desktopEnhanceSummary(),
     browserHost: Boolean(host.browser),
     shellPrefs: process.env.DSH_SHELL_PREFS === '1',
     desktopShell: shellWindowHost(),
-    // Web 绑定：设置值 + 插件开关是否压着它（页面要如实说明当前生效的是哪一个）
     webBind: WEB_BIND,
-    webBindLan: LAN_TOGGLE,
   }
 }
 
@@ -1829,7 +1828,6 @@ async function saveLaunchPresetNow(body) {
   const version = safeVersion(body.version)
   const profile = safeProfile(body.profile)
   const backend = body.backend === 'wsl' ? 'wsl' : 'local'
-  let workdir = ''
   let dshHome = ''
   let wslDistro = ''
   let wslHome = ''
@@ -1848,15 +1846,9 @@ async function saveLaunchPresetNow(body) {
     if (!wslInfo.ok) throw new Error(wslInfo.error || `WSL 里的 dsh 不可用（${wslDistro}）`)
     if (!wslInfo.profiles.includes(profile) && !TEMPLATE_PROFILES.includes(profile)) throw new Error(`WSL 里没有 profile ${profile}，先在 WSL 里用 dsh 建一次`)
   } else {
-    // 项目环境（issue #72）：数据目录不再另挑，固定是项目根里的 .dsh；这个派生只做一次，
-    // 页面显示的路径和真正落盘的是同一个。两个字段打架时以项目目录为准 —— 用户填了项目，
-    // 就是「这套环境属于这个项目」，容不下第二个数据目录的答案。
-    workdir = safeWorkdir(body.workdir)
-    dshHome = workdir ? join(workdir, '.dsh') : safeDshHome(body.dshHome)
+    // 数据目录只用 dsh 用户目录；旧的「项目目录」字段不再读取，历史启动项按已保存的 dshHome 走。
+    dshHome = safeDshHome(body.dshHome)
     home = dshHome || defaultHome()
-    // 项目目录本身允许不存在（「新建项目工作目录」是这个功能的一半），但不校验就可能在启动时
-    // 才炸：先建出来并试写一次，打错的盘符当场报错。
-    if (workdir) await ensureWritableDir(workdir)
     if (dshHome && dshHome !== defaultHome()) await ensureWritableDir(dshHome)
     // Profile 不存在时按名字建，建在 home 对应的目录作用域里（和 /api/profiles/create 的
     // x-dsh-home 同一套语义），页面不用先建 Profile 再存启动项——两步之间的失败会留下半截环境。
@@ -1932,7 +1924,7 @@ async function saveLaunchPresetNow(body) {
     ...(existingEntry?.prevVersion ? { prevVersion: existingEntry.prevVersion } : {}),
     ...(backend === 'wsl'
       ? { backend: 'wsl', wslDistro, ...(wslHome ? { wslHome } : {}), ...(wslWorkdir ? { wslWorkdir } : {}), wslServiceMode: DEFAULT_WSL_SERVICE_MODE }
-      : { ...(workdir ? { workdir } : {}), ...(dshHome ? { dshHome } : {}) }),
+      : { ...(dshHome ? { dshHome } : {}) }),
     ...(icon !== 'terminal' ? { icon } : {}) }
   if (index >= 0) presets[index] = entry
   else presets.push(entry)
@@ -2150,7 +2142,6 @@ async function saveManagerSettings(body) {
   // profile 立即生效：插件页、启动参数、npmrc 都读这个变量（已经在跑的 dsh 不受影响）
   EXTRA_ARGS = composeExtraArgs(stored.args)
   WEB_BIND = safeWebBind(stored.webBind)
-  LAN_TOGGLE = lanBindToggleOn(homeDir(), PROFILE_NAME)
   INSTANCE_PORTS = safeInstancePorts(stored.instancePorts)
   ENVIRONMENT_PORTS = safeEnvironmentPorts(stored.environmentPorts)
   WSL_PORTS = safeWslPorts(stored.wslPorts)
@@ -2726,12 +2717,13 @@ async function restoreProfileConfig(profile, id) {
 }
 
 /**
- * 当前是否按局域网绑定：设置里选了局域网，或远程访问插件的「局域网访问」开关
- * 开着。两者都是用户明确的局域网意图，任一条成立启动器就不再注入 --host。
+ * 这次启动要不要开局域网代理：只看设置里的 Web 绑定。
+ * 远程访问插件的「局域网访问」开关不再参与：新版插件自己起转发，旧版写的 0.0.0.0
+ * 补丁块在 dsh 0.2.1-rc.2 起本来就会被拒（通配地址不再支持）。
  * 纯函数（参数缺省取模块状态），方便单测。
  */
-export function lanBindActive(webBind = WEB_BIND, toggle = LAN_TOGGLE) {
-  return webBind === 'lan' || toggle === true
+export function lanBindActive(webBind = WEB_BIND) {
+  return webBind === 'lan'
 }
 
 /** 设置页的额外启动参数 + DSH.exe 命令行传来的参数，后者拼在后面（更具体，覆盖前者）。 */
@@ -2956,12 +2948,12 @@ function sidebarBrowserPatchArgs(profile) {
 }
 
 /**
- * dsh 启动参数。`alongside` = 已经有一个实例在跑（多开），局域网下要另给端口。
+ * dsh 启动参数。Web 绑定选哪种都一样：dsh 只绑回环，局域网由启动器的代理负责
+ * （dsh 不接受 0.0.0.0，绑具体局域网 IP 又会让本机回环和启动器的探活全部失效）。
  * @param {string} profile 这次启动用的 profile（多开下同一版本可以各用各的）
- * @param {boolean} alongside
  * @param {number} pinned 手工固定或自动记忆的端口（0 = 首次，由系统挑）
  */
-function bootArgs(profile = PROFILE_NAME, alongside = false, pinned = 0) {
+function bootArgs(profile = PROFILE_NAME, pinned = 0) {
   // 不起 web 的 profile（headless / acp / sdk…）不提供 HTTP 服务，也不认这几个 flag：
   // 参数是透传给 profile 对应 app 的，会被它自己的 commander 打回 `unknown option`
   // 并 exit 1（`dsh headless --no-open` 就是这条），所以只对会起 web 的注入
@@ -2970,15 +2962,6 @@ function bootArgs(profile = PROFILE_NAME, alongside = false, pinned = 0) {
   // app 参数之前（见 dsh 的 `dsh tui --patch ./extra.yml` 示例）。
   const overlay = sidebarBrowserPatchArgs(profile)
   const port = pinned > 0 ? String(pinned) : '0'
-  if (lanBindActive(WEB_BIND, lanBindToggleOn(homeDir(), profile))) {
-    // 局域网：--host 不传。CLI 硬禁 --host 0.0.0.0，绑定只能走配置层（远程插件的
-    // lan-bind 开关写进 profile 补丁的 webserver 块）；--port 0 也一样会压过配置层，
-    // 把插件钉好的端口抹成随机值，所以端口也交给配置层决定。
-    // 两个例外，都是「不显式给端口就出事」：多开时配置层里只有一个端口，第二个实例
-    // 撞上去就是 EADDRINUSE；用户自己钉了端口，就是要它——这两种情况显式传 --port。
-    if (!pinned && !alongside) return [profile, ...overlay, '--no-open', ...EXTRA_ARGS]
-    return [profile, ...overlay, '--port', port, '--no-open', ...EXTRA_ARGS]
-  }
   // 默认姿势：钉死回环 + 端口（首次 --port 0，让 OS 现挑一个；dsh 会把真实地址
   // 打出来，启动器读它，所以顺延也不影响页面拿到链接）。
   // 额外参数放最后：用户可以用它覆盖 --port 之类（启动器是从 dsh 的输出里读真实地址的，
@@ -2993,11 +2976,10 @@ function pinnedPort(version, profile) {
   return ports?.[`${version}@${profile}`] || 0
 }
 
-/** 自动端口只接管默认回环模式；局域网配置和用户额外参数仍由用户决定。 */
+/** 自动端口：局域网模式也一样记（dsh 照样绑回环，端口不变局域网链接也不变）；用户额外参数仍由用户决定。 */
 function remembersAutoPort(profile, pinned) {
   if (launchIsWsl()) return false
   return !pinned && bootsWebApp(profile)
-    && !lanBindActive(WEB_BIND, lanBindToggleOn(homeDir(), profile))
     && !EXTRA_ARGS.some((arg) => /^--(?:port|host)(?:=|$)/.test(arg))
 }
 
@@ -3283,10 +3265,9 @@ function spawnDsh(version, extra, profile = '', options = {}) {
     })
   }
   return spawn(RUNTIME_NODE, dshArgs(version, extra, profile), {
-    // 项目环境（见 launchWorkdir）：子进程在项目根里跑，dsh 的默认工作目录就是 process.cwd()，
-    // 新会话因此落在项目根；数据目录仍是 <项目>/.dsh（DSH_HOME 是绝对路径，不受 cwd 影响）。
-    // 其它情况跟以前一样钉在 DSH_HOME —— 插件命令、修复脚本都靠它。
-    cwd: options.cwd || home,
+    // 子进程固定落在 DSH_HOME 里：dsh 的默认工作目录就是 process.cwd()，新会话因此在用户目录下；
+    // 插件命令、修复脚本也都靠这个 cwd，DSH_HOME 本身不受它影响。
+    cwd: home,
     env,
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
@@ -4075,12 +4056,56 @@ function desktopEnhanceMissing(profile = PROFILE_NAME) {
   return DESKTOP_PLUGINS.filter((plugin) => !Object.hasOwn(dependencies, plugin.name))
 }
 
-/** 桌面增强的安装进度摘要（设置页按钮用）：装了几个 / 共三个。 */
+/** 桌面增强的安装进度摘要（启动项弹窗用）：装了几个 / 共三个。 */
 function desktopEnhanceSummary(profile = PROFILE_NAME) {
   return {
     installed: DESKTOP_PLUGINS.length - desktopEnhanceMissing(profile).length,
     total: DESKTOP_PLUGINS.length,
   }
+}
+
+/**
+ * 把缺的桌面增强插件装进 profile。调用方负责把它放进目标 home 的 launchScope 里，
+ * 否则 profileDirOf 会读到启动器自己的 DSH_HOME。
+ *
+ * 单个插件失败只记下来、不往外抛：三个插件互不依赖，一个装不上不该拦住另外两个；
+ * 缺的那个下次保存启动项 / 点安装时还会再试。`version` 由调用方先解析好时传进来，
+ * 省一次版本探测；没传就自己按这个 profile 解析，解析不出来也算这三个都失败。
+ *
+ * @param {string} profile - profile 名。
+ * @param {string} [version] - 已经解析好的 dsh 版本。
+ * @returns {Promise<{installed: string[], failed: {name: string, error: string}[], missing: number}>}
+ */
+async function installDesktopEnhance(profile = PROFILE_NAME, version = '') {
+  const wanted = desktopEnhanceMissing(profile)
+  if (!wanted.length) return { installed: [], failed: [], missing: 0 }
+  let ver = version
+  if (!ver) {
+    try {
+      ver = await pluginCommandVersion(profile)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      return { installed: [], failed: wanted.map((plugin) => ({ name: plugin.name, error: message })), missing: wanted.length }
+    }
+  }
+  const installed = []
+  const failed = []
+  for (const plugin of wanted) {
+    if (!versionAtLeast(ver, plugin.minDsh)) {
+      failed.push({ name: plugin.name, error: `${plugin.label} 需要 dsh ${plugin.minDsh} 或更高版本` })
+      continue
+    }
+    pushLog(`桌面增强：安装 ${plugin.label}（${plugin.name}）到 ${profile}`)
+    try {
+      await addPlugin(ver, `${plugin.name}@${plugin.spec}`, { profile })
+      installed.push(plugin.name)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      failed.push({ name: plugin.name, error: message })
+      pushLog(`桌面增强：${plugin.name} 安装失败：${message}`)
+    }
+  }
+  return { installed, failed, missing: wanted.length }
 }
 
 // ---- 插件更新：查 registry 上的最新版本，按需升级 profile 里的包 ----
@@ -4993,16 +5018,15 @@ function attachProcess(version, profile, child, diagnosticContext, instanceLink)
     if (proc.diagnosis.addLine(line)) {
       scheduleDiagnosis()
     }
-    // 启动阶段只做粗粒度推断给界面看（不透出日志原文，日志里可能有 token）
-    if (proc.status === 'starting') {
-      if (/incompatible|skipping profile bundle|disabling profile plugin row/.test(String(line))) {
-        proc.startupPhase = 'verifying'
-      } else if (proc.startupPhase !== 'verifying') {
-        proc.startupPhase = 'loading'
-      }
+    // 启动阶段只做粗粒度推断给界面看（不透出日志原文，日志里可能有 token）。
+    // 插件不兼容 / 跳过 bundle 的行不算阶段：0.2.2-rc.1 起这类行在首个输出里就出现（并行做的
+    // 兼容性校验），拿它当「校验依赖」会把十几秒的启动过程整段标错。阶段只认两个：首行前 launching，之后 loading。
+    if (proc.status === 'starting' && proc.startupPhase === 'launching') {
+      proc.startupPhase = 'loading'
     }
     if (line.trim()) {
-      proc.tail.push(line)
+      // tail 会进失败报告；和落盘日志一样，不能把 dsh web 的真 token 带出去。
+      proc.tail.push(line.replace(/([?&]token=)[^\s&]+/g, '$1***'))
       if (proc.tail.length > 200) proc.tail.shift()
     }
     pushLog(`${tag}${line.replace(/([?&]token=)[^\s&]+/g, '$1***')}`)
@@ -5016,6 +5040,7 @@ function attachProcess(version, profile, child, diagnosticContext, instanceLink)
       // 正常启动不发通知：用户点了启动就有进度页和窗口，再响一声只是噪音。
       // 只有失败 / 意外退出（下面那条）才值得打断。
       emitState()
+      void openLanProxy(proc, tag)
     }
   }
   // 管道的 chunk 没有行/UTF-8 边界；逐块 split 会截断中文、错误码，甚至整个就绪 URL。
@@ -5036,6 +5061,7 @@ function attachProcess(version, profile, child, diagnosticContext, instanceLink)
     clearTimeout(proc.diagnosticTimer)
     proc.diagnosticTimer = null
     proc.exit = { code, signal }
+    void closeLanProxy(proc)
     instanceLink?.exited(child)
     ready()
     pushLog(`${tag}已退出 code=${code ?? '-'} signal=${signal ?? '-'}`)
@@ -5050,6 +5076,61 @@ function attachProcess(version, profile, child, diagnosticContext, instanceLink)
     emitState()
   })
   return proc
+}
+
+/** 局域网端口 → 当前持有代理的实例（同一端口同时只能有一份代理）。 */
+const lanProxyOwners = new Map()
+
+/**
+ * 局域网模式下给一个已就绪的实例起代理（lan-proxy.js）：局域网 IP + dsh 的同一端口 → 127.0.0.1。
+ * 局域网 IP 在这一刻取（换网络后重启实例才跟上）。起不来只丢局域网这一路：dsh 本身照常可用，
+ * 原因写进日志并挂在实例上给页面显示。自重启的继任进程会再走一次这里，所以按地址幂等。
+ */
+async function openLanProxy(proc, tag) {
+  if (!lanBindActive()) return
+  const port = urlPortOf(proc.url)
+  const lanHost = pickLanAddress()
+  if (proc.lanProxy?.port === port && proc.lanProxy.lanHost === lanHost) return
+  await closeLanProxy(proc)
+  // 自重启：继任进程可能先打出就绪行，前任的退出回调还在等输出流（最多 200ms），
+  // 它的代理仍占着同一个局域网端口——由继任者接手，否则这里会撞 EADDRINUSE
+  const previous = lanProxyOwners.get(port)
+  if (previous && previous !== proc) await closeLanProxy(previous)
+  if (!lanHost) {
+    // 页面按 code 拼当前语言的文案，这里只给事实；日志照旧写中文
+    proc.lanError = { code: 'no-address' }
+    pushLog(`${tag}没有找到可用的局域网 IPv4 地址，这次只能本机访问`)
+    void emitState()
+    return
+  }
+  try {
+    const proxy = await startLanProxy({ lanHost, port, onError: message => pushLog(`${tag}局域网代理：${message}`) })
+    // 等监听的这段时间里实例可能已经退出或换了地址：迟到的代理直接关掉
+    if (proc.exit || instances.get(proc.key) !== proc || urlPortOf(proc.url) !== port) {
+      await proxy.close()
+      return
+    }
+    proc.lanProxy = proxy
+    proc.lanError = null
+    lanProxyOwners.set(port, proc)
+    pushLog(`${tag}局域网访问 http://${lanHost}:${port}/ → 127.0.0.1:${port}`)
+  } catch (error) {
+    const address = `${lanHost}:${port}`
+    proc.lanError = { code: error?.code === 'EADDRINUSE' ? 'in-use' : 'listen', address }
+    pushLog(error?.code === 'EADDRINUSE'
+      ? `${tag}局域网地址 ${address} 已被占用（远程访问插件的「局域网访问」开着时会占这个地址，请关掉它）`
+      : `${tag}局域网代理没能监听 ${address}：${error?.message || error}`)
+  }
+  void emitState()
+}
+
+/** 实例退出（停止 / 重启 / 崩溃）时把它的局域网代理一起关掉。 */
+async function closeLanProxy(proc) {
+  const proxy = proc.lanProxy
+  proc.lanProxy = null
+  if (!proxy) return
+  if (lanProxyOwners.get(proxy.port) === proc) lanProxyOwners.delete(proxy.port)
+  await proxy.close().catch(() => {})
 }
 
 async function waitUntilReady(proc, version) {
@@ -5169,27 +5250,6 @@ async function selfCheckPage(url, version) {
   }
 }
 
-/**
- * 这次启动绑定的项目目录。项目环境是「这套数据目录」的属性，不是某次点击的属性：
- * 先看这次请求带着哪个启动项，再看有没有哪个启动项把项目目录挂在这个 DSH_HOME 上。
- * 后者是给手工启动 / 重启 / 自动恢复用的——它们不带启动项 ID，但环境还是那个项目环境。
- * 目录被用户删掉时不报错：退回老行为照样能起来，只是新会话不在项目根。
- */
-function launchWorkdir() {
-  const id = launchScope.getStore()?.launchId
-  const presets = safeLaunchPresets(loadSettingsSync().launchPresets)
-  const entry = id
-    ? presets.find((item) => item.id === id)
-    : presets.find((item) => item.workdir && fileManager.samePath(item.dshHome || '', homeDir()))
-  const dir = entry?.workdir || ''
-  if (!dir) return ''
-  if (!existsSync(dir)) {
-    pushLog(`项目目录 ${dir} 不在了，这次启动按普通独立目录处理（新会话不在项目根）`)
-    return ''
-  }
-  return dir
-}
-
 /** 起一个 web 子进程并等到它打印就绪 URL；失败时把子进程输出尾巴留给 AI 当证据。 */
 async function bootOnce(ver, prof, onStarted) {
   const startedAt = performance.now()
@@ -5204,8 +5264,7 @@ async function bootOnce(ver, prof, onStarted) {
     // TIME_WAIT。真起不来时下面那条 catch 会把话说清楚。
     pushLog(`固定端口 ${pinned} 现在被占用，这次启动多半会失败`)
   }
-  const workdir = launchWorkdir()
-  pushLog(`启动 ${ver} · profile ${prof}${workdir ? ` · 项目目录 ${workdir}` : ''}${lanBindActive(WEB_BIND, lanBindToggleOn(homeDir(), prof)) ? ' · Web 绑定 局域网(0.0.0.0，由配置层决定)' : ''}${pinned ? ` · 固定端口 ${pinned}` : ''}${alongside ? '（与已在跑的实例并存）' : ''}`)
+  pushLog(`启动 ${ver} · profile ${prof}${lanBindActive() ? ' · Web 绑定 局域网（dsh 仍绑 127.0.0.1，局域网经启动器代理）' : ''}${pinned ? ` · 固定端口 ${pinned}` : ''}${alongside ? '（与已在跑的实例并存）' : ''}`)
   if (reused) {
     pushLog(remembered.key === `${ver}@${prof}`
       ? `复用自动端口：${ver}@${prof} → ${reused}`
@@ -5242,7 +5301,7 @@ async function bootOnce(ver, prof, onStarted) {
   let child
   try {
     assertStartupActive()
-    child = spawnDsh(ver, bootArgs(prof, alongside, pinned || reused), prof, { diagnosticContext, cwd: workdir, pluginProfile: true, instanceLink })
+    child = spawnDsh(ver, bootArgs(prof, pinned || reused), prof, { diagnosticContext, pluginProfile: true, instanceLink })
   } catch (error) { instanceLink.revoke(); throw error }
   instanceLink.bind(child)
   const spawnAt = performance.now()
@@ -5275,7 +5334,7 @@ async function bootOnce(ver, prof, onStarted) {
     // 钉了端口却没落到上面（额外参数里另有 --port，或 dsh 自己顺延了）：如实说一句，
     // 否则用户以为存下来的地址还有效
     if (pinned && urlPortOf(result.url) !== pinned) {
-      pushLog(`固定端口 ${pinned} 没拿到，这次落在 ${result.url}`)
+      pushLog(`固定端口 ${pinned} 没拿到，这次落在 ${String(result.url).replace(/([?&]token=)[^\s&]+/g, '$1***')}`)
     }
     lastHealth = null
     if (failureIsFor(ver, prof)) lastFailure = null
@@ -5856,7 +5915,6 @@ async function renameProfile(profile, nextName) {
         ENVIRONMENT_PORTS = safeEnvironmentPorts(saved.environmentPorts)
         if (sameHome(defaultHome())) {
           PROFILE_NAME = saved.profile
-          LAN_TOGGLE = lanBindToggleOn(home, PROFILE_NAME)
         }
       } catch (error) {
         // 配置落盘失败也要回到旧名称，不能留下半改名的环境。
@@ -5887,7 +5945,7 @@ async function renameProfile(profile, nextName) {
 /**
  * 建 Profile：`source` 给了就把那份配置复制过来（插件清单、开关、MCP、补丁层），
  * 复制完在目标环境里重装依赖。`sourceHome` 是来源所在的那个用户目录，空 = 当前环境；
- * 项目环境（issue #72）常从全局目录里已经调好的 Profile 复制，两个目录互不相干。
+ * 可以跨用户目录复制，两个目录互不相干。
  */
 async function createProfile(profile, source = '', sourceHome = '') {
   const name = safeProfile(profile)
@@ -6595,10 +6653,46 @@ async function handleApi(req, res, url) {
     send(res, 200, { home, profiles, webProfiles: profiles.filter((name) => profileBootsWebIn(home, name)) })
     return
   }
+  if (req.method === 'POST' && url.pathname === '/api/plugins/check-compatibility') {
+    try {
+      const body = await readJson(req)
+      const version = safeVersion(body.version)
+      const profile = safeProfile(body.profile || PROFILE_NAME)
+      // 目标可以尚未安装；只借用本地 Harness 的 semver，不导入其启动代码或插件实现。
+      let semver
+      for (const installed of [version, ...scanInstalled()]) {
+        try {
+          const require = createRequire(binPath(installed))
+          // pnpm 的严格依赖布局不会把 app-boot 的 semver 提升到 CLI 旁边。
+          try { semver = createRequire(require.resolve('@deepseek-ai/dsh-app-boot'))('semver') }
+          catch { semver = require('semver') }
+          break
+        } catch { /* 尝试下一份本地运行时 */ }
+      }
+      if (!semver) throw new Error('请先安装一个 DSH 版本以提供兼容性检查。')
+      if (!semver.valid(version)) throw new Error('Invalid dsh target version')
+      const result = checkPluginCompatibility(profileDirOf(profile), version,
+        (target, range) => semver.satisfies(target, range, { includePrerelease: true }))
+      send(res, 200, { ...result, profile })
+    } catch (error) {
+      send(res, 400, { error: error instanceof Error ? error.message : String(error) })
+    }
+    return
+  }
   if (req.method === 'GET' && url.pathname === '/api/plugins') {
     // 浏览插件的 profile 与启动默认值分开；查看另一份配置不能偷偷改变启动行为。
     const profile = safeProfile(url.searchParams.get('profile') || PROFILE_NAME)
     send(res, 200, { ...packsPayload(), ...listPlugins(profileDirOf(profile)), profile, autoFix: autoFixForHome(), recovery: recoveryPayload(profile) })
+    return
+  }
+  if (req.method === 'GET' && url.pathname === '/api/desktop-enhance') {
+    // 启动项弹窗编辑时回显「这个 profile 装了几个」；home 走 x-dsh-home 头，profile 走参数。
+    try {
+      const profile = safeProfile(url.searchParams.get('profile') || PROFILE_NAME)
+      send(res, 200, { profile, desktopEnhance: desktopEnhanceSummary(profile), missing: desktopEnhanceMissing(profile).map((plugin) => plugin.name) })
+    } catch (error) {
+      send(res, 400, { error: error instanceof Error ? error.message : String(error) })
+    }
     return
   }
   if (req.method === 'POST' && ['/api/profiles/create', '/api/profiles/copy'].includes(url.pathname)) {
@@ -6937,7 +7031,18 @@ async function handleApi(req, res, url) {
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/launch-presets') {
-    send(res, 200, await saveLaunchPreset(body))
+    const saved = await saveLaunchPreset(body)
+    // 桌面增强跟着启动项走：启动项落盘之后（写锁已经放掉）再补装缺的三个，
+    // 装插件慢也不会卡住别的启动项编辑。失败只带回结果，启动项本身已经保存成功。
+    if (body.desktopEnhance === true && saved?.entry?.profile) {
+      const home = saved.entry.dshHome || defaultHome()
+      saved.desktopEnhance = await launchScope.run({ home }, () => installDesktopEnhance(saved.entry.profile))
+      // 已经装齐时是空转（missing 0），不刷日志
+      if (saved.desktopEnhance.missing > 0) {
+        pushLog(`桌面增强：${saved.entry.profile} 安装完成，成功 ${saved.desktopEnhance.installed.length} 个${saved.desktopEnhance.failed.length ? `，失败 ${saved.desktopEnhance.failed.length} 个` : ''}（下次启动时加载；正在运行的环境重启后生效）`)
+      }
+    }
+    send(res, 200, saved)
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/launch-log/clear') {
@@ -7031,12 +7136,11 @@ async function handleApi(req, res, url) {
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/desktop-enhance/install') {
-    // 设置页「桌面增强 → 一键安装」：把缺的首方插件按顺序装进当前 profile。
+    // 装桌面增强：把缺的首方插件按顺序装进指定 profile（默认当前）。
     // 装法复用插件页那条 addPlugin（pnpm add + 写 dsh.profile.bundles）；
     // 已经装过的不动（link: / file: 也不会被换成 npm 版）。
     const profile = safeProfile(String(body.profile || '') || PROFILE_NAME)
-    const wanted = desktopEnhanceMissing(profile)
-    if (!wanted.length) {
+    if (!desktopEnhanceMissing(profile).length) {
       send(res, 200, { ok: true, installed: [], failed: [], desktopEnhance: desktopEnhanceSummary(profile), ...listPlugins(profileDirOf(profile)), profile })
       return
     }
@@ -7051,24 +7155,8 @@ async function handleApi(req, res, url) {
       send(res, 400, { error: error instanceof Error ? error.message : String(error) })
       return
     }
-    const installed = []
-    const failed = []
-    for (const plugin of wanted) {
-      if (!versionAtLeast(version, plugin.minDsh)) {
-        failed.push({ name: plugin.name, error: `${plugin.label} 需要 dsh ${plugin.minDsh} 或更高版本` })
-        continue
-      }
-      pushLog(`桌面增强：安装 ${plugin.label}（${plugin.name}）到 ${profile}`)
-      try {
-        await addPlugin(version, `${plugin.name}@${plugin.spec}`, { profile })
-        installed.push(plugin.name)
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        failed.push({ name: plugin.name, error: message })
-        pushLog(`桌面增强：${plugin.name} 安装失败：${message}`)
-      }
-    }
-    pushLog(`桌面增强：${profile} 安装完成，成功 ${installed.length} 个${failed.length ? `，失败 ${failed.length} 个` : ''}（重启 dsh 后生效）`)
+    const { installed, failed } = await installDesktopEnhance(profile, version)
+    pushLog(`桌面增强：${profile} 安装完成，成功 ${installed.length} 个${failed.length ? `，失败 ${failed.length} 个` : ''}（下次启动时加载；正在运行的环境重启后生效）`)
     send(res, 200, { ok: failed.length === 0, installed, failed, desktopEnhance: desktopEnhanceSummary(profile), ...listPlugins(profileDirOf(profile)), profile })
     return
   }
@@ -7418,7 +7506,6 @@ async function handleApi(req, res, url) {
         await saveSettings({ launchPresets: presets, ...(resetProfile ? { profile: nextProfile } : {}) })
         if (resetProfile) {
           PROFILE_NAME = nextProfile
-          LAN_TOGGLE = lanBindToggleOn(homeDir(), PROFILE_NAME)
         }
       })
       pushLog(`已删掉整个 profile「${profile}」`)
@@ -7787,8 +7874,6 @@ export async function startServer() {
   PROFILE_NAME = resolveProfile()
   EXTRA_ARGS = composeExtraArgs((await loadSettings()).args)
   WEB_BIND = resolveWebBind()
-  // 远程插件的「局域网访问」开关：开着时启动 web 不注入 --host（每次起管理器读一次）
-  LAN_TOGGLE = lanBindToggleOn(homeDir(), PROFILE_NAME)
   if (CLI_ARGS.length) pushLog(`DSH.exe 传入启动参数：${CLI_ARGS.join(' ')}`)
   const stored = await loadSettings()
   // 跑 dsh 的 node 不是自带的 Electron 时记一笔：出问题时日志里能看出用的是哪个

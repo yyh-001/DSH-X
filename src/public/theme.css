@@ -111,6 +111,9 @@ html[data-color-scheme="dark"] .set-control .ghost.danger { color: #f2797f; bord
 html[data-color-scheme="dark"] .set-control .ghost.danger:hover:not(:disabled) { background: rgba(225, 29, 72, 0.16); }
 /* 编辑启动项的删除图标钮：悬停铺同款淡玫瑰红（浅色主题那条 #fff1f2 在暗色里太亮） */
 html[data-color-scheme="dark"] .launch-save-actions .launch-delete:hover:not(:disabled) { background: rgba(225, 29, 72, 0.16); border-color: rgba(225, 29, 72, 0.35); }
+/* 选 Profile 的三栏窗：工具按钮跟「更多操作」同套配色（浅色那几条 #b9ccf0 / #fff1f2 在暗色里太亮） */
+html[data-color-scheme="dark"] .profile-pick .profile-pick-tool:hover:not(:disabled) { border-color: #898a91; }
+html[data-color-scheme="dark"] .profile-pick .profile-pick-action.danger:hover:not(:disabled) { background: rgba(225, 29, 72, 0.16); color: #f2797f; }
 html[data-color-scheme="dark"] .ghost:hover:not(:disabled),
 html[data-color-scheme="dark"] #restart.icon-btn:hover:not(:disabled),
 html[data-color-scheme="dark"] #update.icon-btn:hover:not(:disabled),

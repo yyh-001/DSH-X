@@ -58,6 +58,8 @@ test('页面逻辑：一张卡就是一个 profile，点开进详情，开关/�
   assert.match(html, /post\('\/api\/profiles\/delete'/, '手动拼的 profile 走「删除 profile」')
   assert.match(html, /post\('\/api\/packs\/install'/, '安装走 install')
   assert.match(html, /post\('\/api\/packs\/export'/, '导出走 export')
+  assert.match(html, /data-pack-import-here="1"/, '环境详情里能导入当前环境')
+  assert.match(html, /function importIntoProfile\(profile\)/, '导入先选 .dspack，再进安装确认')
   assert.match(html, /post\('\/api\/packs\/pick-file'/, '选本地文件走 pick-file')
   assert.match(html, /post\('\/api\/packs\/reveal'/, '导出的文件能在文件夹里定位')
   assert.match(html, /getJson\(`\/api\/packs\/market/, '市场列表由服务端读')

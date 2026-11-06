@@ -11,16 +11,16 @@ const at = (needle) => {
   return index
 }
 
-test('编辑启动项按运行位置 → 名称 → 版本 → 用户目录 → 项目目录 → Profile 排列', () => {
+test('编辑启动项按运行位置 → 名称 → 版本 → WSL 目录/Profile → 本机启动环境排列', () => {
   const order = [
     'id="launchBackendField"',
     'id="launchIdentityField"',
     'id="launchLocalVersionGroup"',
     'id="launchWslHomeField"',
-    'id="launchHomeSelectField"',
+    'id="launchWslProfileField"',
     'id="launchWslWorkdirField"',
-    'id="launchWorkdirField"',
-    'id="launchProfileSelectField"',
+    'id="launchEnvField"',
+    'id="launchPort"',
   ]
   const indexes = order.map(at)
   assert.deepEqual(indexes, [...indexes].sort((a, b) => a - b), '字段顺序不能乱；WSL 和本机字段按同一位置成对出现')

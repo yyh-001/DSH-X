@@ -35,6 +35,7 @@ test('构建把外壳和核心分成两个 stage，安装包用 extraResources �
   assert.match(builder, /app: 'release\/shell-stage'/)
   assert.match(builder, /from: 'release\/core-stage', to: 'core'/)
   assert.match(builder, /target: 'AppImage'/, 'Linux 出 AppImage')
+  assert.match(builder, /minimumSystemVersion: '13\.0'/, 'macOS 最低版本跟 Electron 44（Chromium 152）对齐')
   const core = read('scripts/pack-core.mjs')
   assert.match(core, /release', 'core-stage'/)
   assert.match(core, /main: 'server\.js'/)

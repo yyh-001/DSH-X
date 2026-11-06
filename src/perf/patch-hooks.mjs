@@ -16,9 +16,11 @@ const PROFILE_BOOT = /\/dsh\/lib\/profile-boot(?:-[^/]+)?\.js(?:\?.*)?$/
 /** Cordis loader：启动账本靠它知道每个 entry 什么时候结算完（只观测，不改行为）。 */
 const LOADER = 'cordis-plugin-loader/lib/index.js'
 const LOADER_ENTRY = 'async _init() {'
-const LOADER_FIBER = 'this.fiber = this.ctx.registry.plugin(plugin, this.options.config, this.getOuterStack).ctx.fiber;'
+/** `registry.plugin()` 的返回值形状换过一次：1.0.x 是 entry（fiber 在 .ctx.fiber），1.1.0 起直接是 fiber。 */
+const LOADER_FIBER_ASSIGN = 'this.fiber = this.ctx.registry.plugin(plugin, this.options.config, this.getOuterStack)'
+const LOADER_FIBER_ANCHORS = [`${LOADER_FIBER_ASSIGN}.ctx.fiber;`, `${LOADER_FIBER_ASSIGN};`]
 const LOADER_ENTRY_HOOK = 'async _init() {\n\t\tglobalThis[Symbol.for("dsh-x/plugin-profile")]?.enter(this);'
-const LOADER_FIBER_HOOK = `${LOADER_FIBER}\n\t\tglobalThis[Symbol.for("dsh-x/plugin-profile")]?.imported(this);`
+const LOADER_FIBER_HOOK = '\n\t\tglobalThis[Symbol.for("dsh-x/plugin-profile")]?.imported(this);'
 
 /** 已知的慢实现（用于校验，必须精确匹配才动手）。 */
 const SLOW_NEWLINE = 'function newlineCount(value) {\n\tlet count = 0;\n\tfor (const char of value) if (char === "\\n") count += 1;\n\treturn count;\n}'
@@ -41,8 +43,9 @@ export function load(url, context, nextLoad) {
   }
   if (loader) {
     // 两个锚点都在才注入：上游改了 loader 实现就整段跳过，账本自然没有 entry 时间线，启动照旧。
-    if (!source.includes(LOADER_ENTRY) || !source.includes(LOADER_FIBER)) return result
-    const patched = source.replace(LOADER_ENTRY, LOADER_ENTRY_HOOK).replace(LOADER_FIBER, LOADER_FIBER_HOOK)
+    const fiberAnchor = LOADER_FIBER_ANCHORS.find((anchor) => source.includes(anchor))
+    if (!source.includes(LOADER_ENTRY) || !fiberAnchor) return result
+    const patched = source.replace(LOADER_ENTRY, LOADER_ENTRY_HOOK).replace(fiberAnchor, fiberAnchor + LOADER_FIBER_HOOK)
     return { ...result, source: patched }
   }
   const applied = []

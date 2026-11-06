@@ -65,6 +65,9 @@ export default {
     target: [{ target: 'dmg', arch: ['arm64', 'x64'] }],
     icon: join('src', 'assets', 'icon.png'),
     category: 'public.app-category.developer-tools',
+    // Electron 44（Chromium 152）起 macOS 12 不再受支持；显式对齐，别只靠 Electron 自带
+    // Info.plist 里的值——换 Electron 版本时这里会直接提醒改 README 和发版说明。
+    minimumSystemVersion: '13.0',
     executableName: 'DSH',
     artifactName: 'DSH-X-${version}-${arch}.${ext}',
     // 没有固定证书时用 ad-hoc 签名（'-'）；有证书的 tag 构建交给 electron-builder 自动发现

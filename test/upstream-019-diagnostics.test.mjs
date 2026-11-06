@@ -35,14 +35,10 @@ function bootContext(home, profile, fail = false) {
     recordLaunchRun() {},
     readProcessRssMB: () => 300,
     lanBindActive: () => false,
-    lanBindToggleOn: () => false,
-    WEB_BIND: '',
     assertStartupActive() {},
     randomBytes: () => ({ toString: () => `${home}:${profile}:attempt` }),
     profileFingerprint: (targetHome, targetProfile) => `${targetHome}/${targetProfile}`,
-    bootArgs: (targetProfile, alongside, port) => ({ targetProfile, alongside, port }),
-    // 启动项的项目目录（#72）：这一段用例只关心诊断身份，启动目录照旧是 DSH_HOME
-    launchWorkdir: () => '',
+    bootArgs: (targetProfile, port) => ({ targetProfile, port }),
     spawnDsh(version, args, targetProfile, options) {
       observations.spawn = { version, args, targetProfile, context: options.diagnosticContext }
       return { pid: 123 }
