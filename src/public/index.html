@@ -946,6 +946,13 @@
     <div class="ask-card" role="dialog" aria-modal="true" aria-labelledby="backupDialogTitle" data-dialog-size="medium">
       <div class="dialog-heading"><h2 class="ask-title" id="backupDialogTitle" data-i18n="Profile 备份与回退">Profile 备份与回退</h2><button class="ghost icon-btn dialog-close" id="backupClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
       <p class="dialog-subtitle" id="backupDialogHint"></p>
+      <div class="backup-progress" id="backupProgress" hidden>
+        <span class="spin" aria-hidden="true"></span>
+        <div class="backup-progress-body">
+          <span class="backup-progress-label" id="backupProgressLabel"></span>
+          <div class="progress" id="backupProgressTrack" role="progressbar"><div class="progress-bar"></div></div>
+        </div>
+      </div>
       <div class="backup-list" id="backupList"></div>
       <div class="ask-actions"><button class="ghost" id="backupRefresh" type="button" data-i18n="刷新">刷新</button><button class="ghost" id="backupNow" type="button" data-i18n="立即备份">立即备份</button></div>
     </div>
@@ -1849,7 +1856,9 @@
   "回退到这份备份？当前配置会先自动存一份，回退后会自动重装依赖（可能比较慢），并需要重启这个 Profile 的实例才生效。": "Restore this backup? The current config is backed up first, dependencies are reinstalled afterwards (this can take a while), and the profile's instance must be restarted to apply it.",
   "已回退。重启这个 Profile 的实例后生效。": "Restored. Restart this profile's instance to apply it.",
   "已回退并重装依赖。重启这个 Profile 的实例后生效。": "Restored and dependencies reinstalled. Restart this profile's instance to apply it.",
-  "正在回退并重装依赖…": "Restoring and reinstalling dependencies…",
+  "正在回退配置…": "Restoring configuration…",
+  "正在重装依赖…": "Reinstalling dependencies…",
+  "正在生成备份…": "Creating backup…",
   "配置已回退，但依赖重装失败：{error}。可以再回退一次重试。": "Configuration restored, but reinstalling dependencies failed: {error}. Restore again to retry.",
   "回退完成": "Rollback complete",
   "已生成新备份。": "New backup created.",
@@ -6226,6 +6235,7 @@
       if (versionOpen) paintVersionPanel()
       setProgress(Boolean(state.installing) || action === 'install' || action === 'update')
       setPluginProgress(Boolean(pluginProgress))
+      paintBackupProgress()
       paintLaunchHome()
       hintEl.textContent = action === 'optimize' || installProgress?.phase === 'optimize' ? t('正在优化依赖…')
         : action === 'install' || action === 'update' || state.installing ? progressHint(t('正在安装'))
@@ -6579,6 +6589,7 @@
             pluginProgress = !data || data.phase === 'idle' ? null : data
             setPluginProgress(Boolean(pluginProgress))
             paintPluginAddProgress()
+            paintBackupProgress()
             return
           }
           if (data?.kind === 'pack') {
@@ -8869,8 +8880,12 @@
     const backupHintEl = document.getElementById('backupDialogHint')
     const backupNowEl = document.getElementById('backupNow')
     const backupRefreshEl = document.getElementById('backupRefresh')
+    const backupProgressEl = document.getElementById('backupProgress')
+    const backupProgressLabelEl = document.getElementById('backupProgressLabel')
+    const backupProgressTrackEl = document.getElementById('backupProgressTrack')
     let backupProfile = ''
     let backupLoading = false
+    let backupPhase = ''
     function backupTimeText(at) {
       const date = new Date(Number(at) || 0)
       if (Number.isNaN(date.getTime())) return ''
@@ -8879,10 +8894,33 @@
     }
     function paintProfileBackups(backups) {
       const rows = Array.isArray(backups) ? backups : []
-      backupListEl.innerHTML = rows.length ? rows.map((item) => `<div class="backup-row"><div class="backup-row-text"><span class="backup-time">${escapeHtml(backupTimeText(item.createdAt))}</span><span class="backup-files">${escapeHtml((item.files || []).map((file) => file.name).join('、'))}</span></div><button class="ghost" type="button" data-backup-restore="${escapeHtml(item.id)}">${escapeHtml(t('回退到此备份'))}</button></div>`).join('') : `<p class="hint">${escapeHtml(t('还没有备份。每次启动会存一份，也可以点「立即备份」。'))}</p>`
+      backupListEl.innerHTML = rows.length ? rows.map((item) => `<div class="backup-row"><div class="backup-row-text"><span class="backup-time">${escapeHtml(backupTimeText(item.createdAt))}</span><span class="backup-files">${escapeHtml((item.files || []).map((file) => file.name).join('、'))}</span></div><button class="ghost" type="button" data-backup-restore="${escapeHtml(item.id)}" ${backupLoading ? 'disabled' : ''}>${escapeHtml(t('回退到此备份'))}</button></div>`).join('') : `<p class="hint">${escapeHtml(t('还没有备份。每次启动会存一份，也可以点「立即备份」。'))}</p>`
       backupListEl.querySelectorAll('[data-backup-restore]').forEach((button) => {
         button.onclick = () => { void restoreProfileBackup(button.dataset.backupRestore) }
       })
+    }
+
+    /**
+     * 回退 / 立即备份的忙碌状态：转圈 + 进度条。
+     * 依赖重装时服务端会推 pluginProgress，进度条跟着真实进度走；只挪配置文件那一段没有
+     * 细粒度进度，用不确定态（滑动条）表示还在跑。
+     */
+    function paintBackupProgress() {
+      const active = backupLoading
+      backupProgressEl.hidden = !active
+      backupNowEl.disabled = active
+      backupRefreshEl.disabled = active
+      for (const button of backupListEl.querySelectorAll('[data-backup-restore]')) button.disabled = active
+      if (!active) {
+        paintProgress(backupProgressTrackEl, backupProgressTrackEl.querySelector('.progress-bar'), null, false)
+        backupProgressLabelEl.textContent = ''
+        return
+      }
+      const progress = pluginProgress && pluginProgress.profile === backupProfile ? pluginProgress : null
+      backupProgressLabelEl.textContent = progress
+        ? t('正在重装依赖…')
+        : backupPhase === 'snapshot' ? t('正在生成备份…') : t('正在回退配置…')
+      paintProgress(backupProgressTrackEl, backupProgressTrackEl.querySelector('.progress-bar'), progress, true)
     }
     async function loadProfileBackups() {
       if (!backupProfile || backupLoading) return
@@ -8899,8 +8937,10 @@
     function openProfileBackups(profile) {
       if (!profile || packBusy || pluginUpdating || pluginRemoving || pluginAdding) return
       backupProfile = profile
+      backupPhase = ''
       backupHintEl.textContent = t('Profile「{profile}」的配置层快照：补丁、依赖清单和 npmrc；回退时会按清单重装依赖，node_modules 本身不在备份里。', { profile })
       paintProfileBackups([])
+      paintBackupProgress()
       showPackDialog(backupDialogEl)
       void loadProfileBackups()
     }
@@ -8911,9 +8951,10 @@
       if (!backupProfile || !id || backupLoading) return
       const ok = await appConfirm(t('回退到这份备份？当前配置会先自动存一份，回退后会自动重装依赖（可能比较慢），并需要重启这个 Profile 的实例才生效。'))
       if (!ok) return
-      backupLoading = true
       const profile = backupProfile
-      backupHintEl.textContent = t('正在回退并重装依赖…')
+      backupPhase = 'restore'
+      backupLoading = true
+      paintBackupProgress()
       try {
         const data = await post('/api/profile-backups/restore', { profile, id })
         const install = data?.install
@@ -8929,14 +8970,15 @@
         notify(error.message)
       } finally {
         backupLoading = false
-        // 进度文案收回去，弹窗还开着时继续显示这份环境的说明
-        if (backupProfile) backupHintEl.textContent = t('Profile「{profile}」的配置层快照：补丁、依赖清单和 npmrc；回退时会按清单重装依赖，node_modules 本身不在备份里。', { profile: backupProfile })
+        backupPhase = ''
+        paintBackupProgress()
       }
     }
     backupNowEl.onclick = async () => {
       if (!backupProfile || backupLoading) return
+      backupPhase = 'snapshot'
       backupLoading = true
-      backupNowEl.disabled = true
+      paintBackupProgress()
       try {
         const data = await post('/api/profile-backups/snapshot', { profile: backupProfile })
         notify(data.backup ? t('已生成新备份。') : t('配置没有变化，不需要新备份。'), t('备份'))
@@ -8945,7 +8987,8 @@
         notify(error.message)
       } finally {
         backupLoading = false
-        backupNowEl.disabled = false
+        backupPhase = ''
+        paintBackupProgress()
       }
     }
     backupRefreshEl.onclick = () => { void loadProfileBackups() }
