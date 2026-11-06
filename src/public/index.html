@@ -705,22 +705,22 @@
               <button class="launch-isolation-tab launch-source-tab" type="button" role="tab" data-source="name" aria-selected="true" aria-controls="launchSourceNamePanel" data-i18n="新建 Profile">新建 Profile</button>
               <button class="launch-isolation-tab launch-source-tab" type="button" role="tab" data-source="copy" aria-selected="false" aria-controls="launchSourceCopyPanel" data-i18n="从已有 Profile 复制">从已有 Profile 复制</button>
             </div>
-            <div class="launch-source-panel" id="launchSourceNamePanel" role="tabpanel">
-              <!-- 两个名字输入各给一档用：插件隔离换个 Profile 名，会话隔离给新目录里的 Profile 取名。
-                   占位符就是自动会取的名字，填了就按填的来（见 paintLaunchIsolation） -->
-              <input id="launchProfileCustom" type="text" maxlength="32" autocomplete="off" spellcheck="false" aria-label="Profile 名称" data-i18n-aria-label="Profile 名称" />
-              <input id="launchHomeProfile" type="text" maxlength="32" autocomplete="off" spellcheck="false" aria-label="Profile 名称" data-i18n-aria-label="Profile 名称" />
-            </div>
             <div class="launch-source-panel" id="launchSourceCopyPanel" role="tabpanel" hidden>
               <!-- 来源目录 × Profile 交给两栏选择窗（见 openProfilePicker）：目录一多、Profile 一多，
-                   两串下拉要一级级点开还看不全，一个窗口里左右并排点两下就选定。
-                   来源和名字是二选一：停在这档就不再读上面那个名字输入。 -->
+                   两串下拉要一级级点开还看不全，一个窗口里左右并排点两下就选定。 -->
               <div class="select">
                 <button type="button" class="select-trigger" id="launchCopyPick" aria-haspopup="dialog" aria-expanded="false">
                   <span class="select-value" id="launchCopyPickValue"></span>
                   <svg class="select-caret" viewBox="0 0 12 8" aria-hidden="true"><path fill="currentColor" d="M0 0h12L6 8z"/></svg>
                 </button>
               </div>
+            </div>
+            <div class="launch-source-panel" id="launchSourceNamePanel" role="tabpanel">
+              <!-- 新 Profile 的名字两档都要：自己起名时留空由页面代算，复制档预填「来源-copy」并可改。
+                   两个输入各给一档用：插件隔离在全局目录里新建，会话隔离给新目录里的 Profile 取名。
+                   占位符就是自动会取的名字，填了就按填的来（见 paintLaunchIsolation） -->
+              <input id="launchProfileCustom" type="text" maxlength="32" autocomplete="off" spellcheck="false" aria-label="Profile 名称" data-i18n-aria-label="Profile 名称" />
+              <input id="launchHomeProfile" type="text" maxlength="32" autocomplete="off" spellcheck="false" aria-label="Profile 名称" data-i18n-aria-label="Profile 名称" />
             </div>
             <!-- 自动启动跟「Profile 从哪来」无关：两档共用这一份，切 tab 也不跟着藏 -->
             <label class="toggle launch-auto-launch">
@@ -1256,6 +1256,8 @@
   "启动项列表已变化，请刷新后重新排序": "The launch list has changed. Refresh and reorder again",
   "移除目录": "Remove directory",
   "重命名目录": "Rename directory",
+  "失效的目录名": "Stale directory name",
+  "清除这个失效的目录名": "Clear this stale directory name",
   "目录名称": "Directory name",
   "只修改显示名称，目录路径与数据保持不变。": "Changes the display name. The directory path and data stay the same.",
   "目录名称应为 1 到 64 个字符": "Directory names must contain 1 to 64 characters.",
@@ -1841,7 +1843,7 @@
   "创建": "Create",
   "复制": "Duplicate",
   "创建独立环境，之后可以安装整合包或插件。名称只支持字母、数字、点、下划线和连字符。": "Create an independent environment, then add packs or plugins. Use letters, numbers, dots, underscores or hyphens in the name.",
-  "复制「{profile}」的插件与配置，依赖会重新安装，可能需要一些时间。": "Duplicate plugins and settings from {profile}. Dependencies will be reinstalled and may take a little while.",
+  "复制「{profile}」的插件与配置，依赖会重新安装，可能需要一些时间。技能与 Prompt 设置不随之复制。": "Duplicate plugins and settings from {profile}. Dependencies will be reinstalled and may take a little while. Skills and Prompt settings are not copied.",
   "删除「{profile}」？其中的 {n} 个插件、配置和对应启动项会一并移除，会话与记忆保留。此操作无法撤销。": "Delete {profile}? Its {n} plugins, settings and launch entries will be removed. Sessions and memories will remain. This cannot be undone.",
   "系统环境不能删除": "System profiles cannot be deleted",
   "这个 Profile 尚未初始化": "This profile has not been initialized",
@@ -1982,7 +1984,12 @@
   "自定义": "Custom",
   "将自动新建 Profile「{name}」：沿用全局 dsh 目录，会话与记忆共享，插件与配置独立。": "Profile「{name}」 is created automatically. The global dsh directory is kept: sessions and memories are shared, plugins and config stay separate.",
   "将自动新建独立目录：会话、记忆、插件与配置全部独立。": "A separate directory is created automatically: sessions, memories, plugins and config are all independent.",
-  "把「{profile}」的插件与配置复制一份，之后各改各的。": "Copy the plugins and config of「{profile}」; the two environments are then edited independently.",
+  "把「{profile}」复制成新的 Profile「{name}」：插件与配置跟过来，技能、Prompt 管理和会话不跟。": "Copy「{profile}」 into a new profile「{name}」: plugins and config come along; skills, Prompt settings and sessions do not.",
+  "「{name}」是系统保留名称，换个 Profile 名称（例如 {name}-copy）。": "「{name}」 is reserved by the system. Choose another profile name (for example {name}-copy).",
+  "目标名字不能和来源「{profile}」一样，换一个 Profile 名称。": "The target name cannot be the same as the source「{profile}」. Choose another profile name.",
+  "全局目录里已经有「{name}」，换个名字再复制。": "The global directory already has「{name}」. Pick another name to copy.",
+  "这个目录里已经有「{profile}」，换个名字再复制。": "This directory already has「{profile}」. Pick another name to copy.",
+  "（待定）": "(pending)",
   "从已有 Profile 复制": "Copy an existing profile",
   "选择要复制的 Profile": "Choose a profile to copy",
   "左边挑用户目录，右边挑 Profile；复制的是它现在装着的插件与配置。": "Pick a user directory on the left and a profile on the right; its plugins and config are copied.",
@@ -2015,7 +2022,7 @@
   "不能起网页，复制过去也起不来": "Cannot start the web UI, so a copy would not either",
   "这个目录里的 Profile 都不能起网页，换一个目录试试。": "No profile in this directory can start the web UI. Try another directory.",
   "先选一份要复制的 Profile": "Choose a profile to copy first",
-  "先选一份要复制的 Profile：左边挑用户目录，右边挑 Profile。": "Choose a profile to copy: pick a user directory on the left, then a profile on the right.",
+  "先选一份要复制的 Profile：左边挑用户目录，右边挑 Profile；复制出来的环境从空白会话开始。": "Choose a profile to copy: pick a user directory on the left, then a profile on the right. The copy starts with empty sessions.",
   "默认目录": "Default directory",
   "数据目录还没就绪，稍后再试": "The data directory is not ready yet. Try again later.",
   "数据目录": "data directory",
@@ -2086,7 +2093,6 @@
     const launchGuideFieldEl = document.getElementById('launchGuideField')
     const launchGuideDirFieldEl = document.getElementById('launchGuideDirField')
     const launchSourceTabsEl = document.getElementById('launchSourceTabs')
-    const launchSourceNamePanelEl = document.getElementById('launchSourceNamePanel')
     const launchSourceCopyPanelEl = document.getElementById('launchSourceCopyPanel')
     const launchProfileCustomEl = document.getElementById('launchProfileCustom')
     const launchHomeCustomEl = document.getElementById('launchHomeCustom')
@@ -4046,6 +4052,11 @@
     let launchNameAuto = ''
     const normalizeHomePath = (home) => String(home || '').trim().replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
     const sameHomePath = (left, right) => normalizeHomePath(left) === normalizeHomePath(right)
+    /**
+     * 不能当 Profile 名字的保留名，跟服务端 createProfile / renameProfile 那两份检查一致：
+     * dsh 的模板名 + CLI 不认的 desktop + node_modules。页面先拦一次，好把错误指到名字输入框上。
+     */
+    const RESERVED_PROFILE_NAMES = new Set(['node_modules', 'desktop', 'web', 'headless', 'acp', 'sdk', 'sdk-minimal'])
 
     /** 会话隔离的默认目录：数据目录的 homes/<名字>；撞名就加序号，免得两次新建落到同一处。 */
     function suggestIsolatedHome(seed = 'dsh') {
@@ -4068,22 +4079,68 @@
       return 'work'
     }
 
-    /** 引导模式给启动项代填的名字：Profile 档用 Profile 名，会话隔离档用目录的最后一段。 */
+    /** 引导模式代填的启动项名：Profile 档用 Profile 名，会话隔离档用目录的最后一段。 */
     function guidedLaunchName() {
       if (launchIsolation === 'home') {
         const home = suggestIsolatedHome()
         const tail = String(home || '').replace(/[\\/]+$/, '').split(/[\\/]/).pop() || 'dsh'
         return tail.slice(0, 32) || 'dsh'
       }
-      return (suggestIsolatedProfile() || 'work').slice(0, 32)
+      // 复制档的目标名就是新 Profile 的名字，自己起名那档才是全自动的建议值
+      const typed = launchIsolation === 'profile' ? String(launchProfileCustomEl?.value || '').trim() : ''
+      return (typed || suggestIsolatedProfile() || 'work').slice(0, 32)
+    }
+
+    /**
+     * 复制档的默认目标名：`来源-copy`。撞上已有 Profile 或保留名（desktop / node_modules）
+     * 就往后顺延，免得「以 desktop 为模板」这种最常用的复制被保留名检查挡下来。
+     */
+    function suggestCopyProfile(seed = '') {
+      const taken = new Set((Array.isArray(state.profiles) ? state.profiles : []).map((name) => String(name).toLowerCase()))
+      const reserved = (name) => !name || taken.has(name) || name === 'node_modules' || name === 'desktop'
+      // 留出 `-copy-99` 的位置，别让顺延后的名字超过 safeProfile 的 32 字符上限
+      const base = String(seed || '').trim().toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^[-.]+|[-.]+$/g, '').slice(0, 24).replace(/[-.]+$/, '')
+      const stem = base ? `${base}-copy` : 'work'
+      if (!reserved(stem)) return stem
+      for (let n = 2; n < 100; n += 1) if (!reserved(`${stem}-${n}`)) return `${stem}-${n}`
+      return ''
     }
 
     /**
      * 第二档 tab：新建的 Profile 从哪来——自己起个名字（name），还是照抄一份现成的（copy）。
-     * 两档互斥，同一时间只露一块；切走的那块值留着，切回来还在。停在哪档决定保存时读谁的字段：
-     * 见 selectedCopy 和 prepareGuidedLaunch。
+     * 名字输入两档共用（复制档预填「来源-copy」），切 tab 只换「怎么拿到那份配置」，
+     * 所以切走再切回来填过的名字还在。停在哪档决定保存时读谁的字段：见 selectedCopy。
      */
     let launchSourceMode = 'name'
+    /** 复制档上次代填的目标名：用户没改过就一直跟着来源走，改过就不再覆盖。 */
+    const launchCopyNameAuto = { profile: '', home: '' }
+
+    /** 当前档（插件隔离 / 会话隔离）用的那个名字输入。 */
+    function guidedProfileNameEl() {
+      return launchIsolation === 'home' ? launchHomeProfileEl : launchProfileCustomEl
+    }
+
+    /** 复制档把目标名填成「来源-copy」：空着、或还是上次代填的值才刷新，手填的不动。 */
+    function fillCopyProfileName() {
+      const copy = launchSourceMode === 'copy' ? selectedCopy() : null
+      const el = guidedProfileNameEl()
+      if (!el) return
+      if (!copy) {
+        // 切回自己起名那档：清掉代填痕迹，回到「留空就自动取名」
+        if (el.value === launchCopyNameAuto[launchIsolation]) el.value = ''
+        launchCopyNameAuto[launchIsolation] = ''
+        return
+      }
+      const auto = suggestCopyProfile(copy.profile)
+      if (!el.value.trim() || el.value === launchCopyNameAuto[launchIsolation]) el.value = auto
+      launchCopyNameAuto[launchIsolation] = auto
+    }
+
+    /** 引导模式代填的启动项名：用户自己改过就不再覆盖，名字输入改了也要跟着走。 */
+    function fillGuidedLaunchName() {
+      if (!launchNameEl.value.trim() || launchNameEl.value === launchNameAuto) launchNameEl.value = guidedLaunchName()
+      launchNameAuto = launchNameEl.value.trim()
+    }
 
     /** 两档 tab 的选中态和面板显隐；打开弹窗复位时也走这里（不重画说明行）。 */
     function paintLaunchSource() {
@@ -4092,7 +4149,7 @@
       for (const tab of document.querySelectorAll('.launch-source-tab')) {
         tab.setAttribute('aria-selected', String(tab.dataset.source === launchSourceMode))
       }
-      if (launchSourceNamePanelEl) launchSourceNamePanelEl.hidden = launchSourceMode !== 'name'
+      // 名字那块两档都露着（复制档要能改目标名），只有来源选择跟着 tab 走
       if (launchSourceCopyPanelEl) launchSourceCopyPanelEl.hidden = launchSourceMode !== 'copy'
     }
 
@@ -4102,6 +4159,8 @@
       // 第一次切到复制那档先给个默认来源：全局目录里的 web，最常见的一份，省得每次都要开选择窗
       if (launchSourceMode === 'copy' && !launchCopySource) launchCopySource = defaultCopySource()
       paintLaunchSource()
+      fillCopyProfileName()
+      fillGuidedLaunchName()
       paintLaunchIsolation()
     }
 
@@ -4135,14 +4194,48 @@
       if (launchProfileCustomEl) launchProfileCustomEl.hidden = launchIsolation !== 'profile'
       if (launchHomeProfileEl) launchHomeProfileEl.hidden = launchIsolation !== 'home'
       if (guided) {
-        if (!launchNameEl.value.trim() || launchNameEl.value === launchNameAuto) launchNameEl.value = guidedLaunchName()
-        launchNameAuto = launchNameEl.value.trim()
+        // 换档等于换了一个名字输入：复制档要把新档的输入也填上「来源-copy」
+        fillCopyProfileName()
+        fillGuidedLaunchName()
       }
       // 引导模式不显示名称输入，也就不能让它挡着提交；自定义和编辑仍按老规矩必填。
       launchNameEl.required = !guided
       // 新建前两档没什么可修的：环境是刚自动建的，修复入口只会让人误点；编辑和自定义里还留着。
       launchRecoverEl.hidden = guided
       paintLaunchIsolation()
+    }
+
+    /** 说明行：只重画文案（名字输入每敲一个字都要跟着变，别顺带把目录下拉也重铺一遍）。 */
+    function paintLaunchHint() {
+      // 复制只对引导两档有意义：自定义档本来就是自己挑现成的 Profile，说明行不该提复制
+      const copying = launchIsolation !== 'custom' && launchSourceMode === 'copy'
+      const copy = copying ? selectedCopy() : null
+      const typedName = String(guidedProfileNameEl()?.value || '').trim()
+      let hint
+      if (copy) {
+        // 说清复制的是 Profile，不是整个环境：技能、Prompt 和会话都不跟过来，别让人以为搬完就完工
+        hint = t('把「{profile}」复制成新的 Profile「{name}」：插件与配置跟过来，技能、Prompt 管理和会话不跟。', {
+          profile: copy.profile,
+          name: typedName || suggestCopyProfile(copy.profile) || t('（待定）'),
+        })
+      } else if (copying) {
+        // 停在复制那档还没选来源：说清下一步，别让人以为直接保存就复制了
+        hint = t('先选一份要复制的 Profile：左边挑用户目录，右边挑 Profile；复制出来的环境从空白会话开始。')
+      } else if (launchIsolation === 'profile') {
+        hint = t('将自动新建 Profile「{name}」：沿用全局 dsh 目录，会话与记忆共享，插件与配置独立。', { name: typedName || suggestIsolatedProfile() })
+      } else if (launchIsolation === 'home') {
+        hint = t('将自动新建独立目录：会话、记忆、插件与配置全部独立。')
+      } else {
+        hint = t('版本、端口和启动环境都在这里手动选；点「启动环境」换目录或 Profile，左栏「+」加目录。')
+      }
+      if (launchIsolationHintEl.textContent === hint) return
+      launchIsolationHintEl.textContent = hint
+      // 换档时说明行淡入一下，文字别硬跳；测试沙箱里的元素桩没有 classList 就不做动画。
+      if (launchIsolationHintEl.classList) {
+        launchIsolationHintEl.classList.remove('isolation-hint-in')
+        void launchIsolationHintEl.offsetWidth
+        launchIsolationHintEl.classList.add('isolation-hint-in')
+      }
     }
 
     /** tab 选中态、说明行一起刷新（切界面语言后 hint 也要跟着重画）。 */
@@ -4159,31 +4252,17 @@
       // 名字输入框留空时用占位符把「自动会取什么」亮出来
       if (launchProfileCustomEl) launchProfileCustomEl.placeholder = suggestIsolatedProfile()
       if (launchHomeProfileEl) launchHomeProfileEl.placeholder = t('Profile 名称，留空用 web')
-      // 复制只对引导两档有意义：自定义档本来就是自己挑现成的 Profile，说明行不该提复制
-      const copying = launchIsolation !== 'custom' && launchSourceMode === 'copy'
-      const copy = copying ? selectedCopy() : null
-      let hint
-      if (copy) {
-        hint = t('把「{profile}」的插件与配置复制一份，之后各改各的。', { profile: copy.profile })
-      } else if (copying) {
-        // 停在复制那档还没选来源：说清下一步，别让人以为直接保存就复制了
-        hint = t('先选一份要复制的 Profile：左边挑用户目录，右边挑 Profile。')
-      } else if (launchIsolation === 'profile') {
-        hint = t('将自动新建 Profile「{name}」：沿用全局 dsh 目录，会话与记忆共享，插件与配置独立。', { name: suggestIsolatedProfile() })
-      } else if (launchIsolation === 'home') {
-        hint = t('将自动新建独立目录：会话、记忆、插件与配置全部独立。')
-      } else {
-        hint = t('版本、端口和启动环境都在这里手动选；点「启动环境」换目录或 Profile，左栏「+」加目录。')
-      }
       // 复制来源按钮的文案也跟着刷新（切语言、换了来源都要重画）
       paintLaunchCopy()
-      if (launchIsolationHintEl.textContent === hint) return
-      launchIsolationHintEl.textContent = hint
-      // 换档时说明行淡入一下，文字别硬跳；测试沙箱里的元素桩没有 classList 就不做动画。
-      if (launchIsolationHintEl.classList) {
-        launchIsolationHintEl.classList.remove('isolation-hint-in')
-        void launchIsolationHintEl.offsetWidth
-        launchIsolationHintEl.classList.add('isolation-hint-in')
+      paintLaunchHint()
+    }
+
+    // 名字边打边更新说明行；换名字也会改启动项名（用户改过的启动项名不覆盖，见 fillGuidedLaunchName）
+    for (const input of [launchProfileCustomEl, launchHomeProfileEl]) {
+      if (!input) continue
+      input.oninput = () => {
+        fillGuidedLaunchName()
+        paintLaunchHint()
       }
     }
 
@@ -4212,8 +4291,10 @@
       const current = launchHomeCustomEl.value
       const auto = t('自动新建（{path}）', { path: suggestIsolatedHome() || t('数据目录') })
       const options = [`<option value="">${escapeHtml(auto)}</option>`]
-      for (const home of homeOptions(current)) {
-        options.push(`<option value="${escapeHtml(home)}">${escapeHtml(homeOptionLabel(home))}</option>`)
+      // homeOptions 给的是 Map：必须按 [路径, 名字] 解构，直接迭代拿到的是那一对数组，
+      // String([home, name]) 会拼成「路径,名字」，选中的目录就成了一个带逗号的新路径。
+      for (const [home, name] of homeOptions(current)) {
+        options.push(`<option value="${escapeHtml(home)}">${escapeHtml(homeOptionLabel(home, name))}</option>`)
       }
       options.push(`<option value="${PLUGIN_HOME_MANAGE}">${escapeHtml(t('管理目录…'))}</option>`)
       launchHomeCustomEl.innerHTML = options.join('')
@@ -4547,6 +4628,9 @@
       }
       launchCopySource = choice
       paintLaunchCopy()
+      // 换了来源，目标名跟着换成「新来源-copy」（手改过的名字不动）
+      fillCopyProfileName()
+      fillGuidedLaunchName()
       paintLaunchIsolation()
     }
 
@@ -4721,12 +4805,24 @@
       const copy = selectedCopy()
       // 停在那档却没选来源：保存不会静默变成「新建空白」，直接把下一步说出来
       if (launchSourceMode === 'copy' && !copy) throw new Error(t('先选一份要复制的 Profile'))
-      // 名字输入框只在「新建 Profile」那档算数（停在那档才读），没填还是全自动；选了复制就沿用来源的名字
+      // 名字输入两档都读：复制档预填「来源-copy」并允许改（见 fillCopyProfileName），
+      // 留空就按当前档给个建议值。名字是 dsh 的目录名，保留名必须当场拦下来并点名。
+      const typed = String(guidedProfileNameEl()?.value || '').trim()
+      if (typed && (RESERVED_PROFILE_NAMES.has(typed.toLowerCase()))) {
+        throw new Error(t('「{name}」是系统保留名称，换个 Profile 名称（例如 {name}-copy）。', { name: typed }))
+      }
       if (launchIsolation === 'profile') {
-        const typed = launchSourceMode === 'copy' ? '' : String(launchProfileCustomEl?.value || '').trim()
-        const name = typed || copy?.profile || suggestIsolatedProfile()
+        const name = typed || (copy ? suggestCopyProfile(copy.profile) : '') || suggestIsolatedProfile()
         const web = Array.isArray(state.webProfiles) ? state.webProfiles : []
         if (typed && (state.profiles || []).includes(typed) && !web.includes(typed)) throw new Error(t('这个 Profile 不能启动网页，换一个名称'))
+        if (copy) {
+          // 同名 + 同目录 = 拿自己复制自己：服务端只会报「已存在」，说清该改哪个字段
+          if (sameHomePath(copy.home || state.dshHome, state.dshHome) && name === copy.profile) {
+            throw new Error(t('目标名字不能和来源「{profile}」一样，换一个 Profile 名称。', { profile: copy.profile }))
+          }
+          // 目标已存在时保存接口不会复制（只挂一个启动项指向它），当场说明，别让人以为已经复制了
+          if ((state.profiles || []).includes(name)) throw new Error(t('全局目录里已经有「{name}」，换个名字再复制。', { name }))
+        }
         launchProfile = name
         return {
           name: name.slice(0, 32) || 'work', profile: name, dshHome: '',
@@ -4742,19 +4838,24 @@
       const realHome = data.home || home
       const profiles = Array.isArray(data.profiles) ? data.profiles : []
       const web = Array.isArray(data.webProfiles) ? data.webProfiles : []
-      // 名字输入框指定了 Profile（只有「新建 Profile」那档读）：已存在但不起网页的先拦下；
-      // 不存在就交给服务端 ensureProfile 建
-      const typedProfile = launchSourceMode === 'copy' ? '' : String(launchHomeProfileEl?.value || '').trim()
+      // 名字输入两档都读：已存在但不起网页的先拦下；不存在就交给服务端 ensureProfile 建
+      const typedProfile = typed
       if (typedProfile && profiles.includes(typedProfile) && !web.includes(typedProfile)) {
         throw new Error(t('这个 Profile 不能启动网页，换一个名称'))
       }
+      if (copy && sameHomePath(copy.home || state.dshHome, realHome) && typedProfile === copy.profile) {
+        throw new Error(t('目标名字不能和来源「{profile}」一样，换一个 Profile 名称。', { profile: copy.profile }))
+      }
+      if (copy && typedProfile && profiles.includes(typedProfile)) {
+        throw new Error(t('这个目录里已经有「{profile}」，换个名字再复制。', { profile: typedProfile }))
+      }
       // listProfiles 总会带上 web，所以新目录也能直接用模板 profile 启动（dsh 会自动初始化）。
-      const profile = typedProfile || copy?.profile || (profiles.includes('web') ? 'web' : (profiles[0] || 'web'))
+      const profile = typedProfile || (copy ? suggestCopyProfile(copy.profile) : '') || (profiles.includes('web') ? 'web' : (profiles[0] || 'web'))
       const known = [...(state.dshHomes || []), ...launchEntries().map((entry) => entry.dshHome).filter(Boolean)]
       if (!known.some((item) => sameHomePath(item, realHome))) await post('/api/dsh-homes/add', { home: realHome })
       launchProfile = profile
       const tail = (path) => String(path).replace(/[\\/]+$/, '').split(/[\\/]/).pop() || 'dsh'
-      const name = (typedProfile || copy?.profile || tail(realHome)).slice(0, 32)
+      const name = (typedProfile || (copy ? suggestCopyProfile(copy.profile) : '') || tail(realHome)).slice(0, 32)
       return {
         name, profile, dshHome: realHome,
         ...(copy ? { copyFrom: copy } : {}),
@@ -5938,6 +6039,9 @@
       launchHomeProfileEl.value = ''
       // 复制来源也跟着清：新建每次从「还没选」开始，编辑时这块本来就藏着
       launchCopySource = null
+      // 复制档代填过的名字也要忘掉，否则下一次打开会把旧名字当成「用户手填的」留着
+      launchCopyNameAuto.profile = ''
+      launchCopyNameAuto.home = ''
       paintLaunchCopy()
       // 第二排 tab 回到「新建 Profile」：新建每次从自己起名开始；编辑时引导块整个藏着，顺手复位
       launchSourceMode = 'name'
@@ -7202,6 +7306,7 @@
       const rows = [[state.dshHome, pluginHomeName(state.dshHome, t('全局目录'))], ...pluginHomes()]
       const folder = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2Z"/></svg>'
       pluginHomesListEl.innerHTML = rows.map(([home, name], index) => `<div class="plugin-home-row"><span class="plugin-home-folder">${folder}</span><div class="plugin-home-info"><strong>${escapeHtml(name === home ? t('用户目录') : name)}</strong><span>${escapeHtml(home)}</span></div><div class="plugin-home-actions"><button class="icon-btn plugin-home-action" type="button" data-home-open="${escapeHtml(home)}" title="${escapeHtml(t('打开目录：{path}', { path: home }))}" aria-label="${escapeHtml(t('打开目录：{path}', { path: home }))}" ${pluginHomesBusy ? 'disabled' : ''}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M10 14 21 3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg></button><button class="icon-btn plugin-home-action" type="button" data-home-rename="${escapeHtml(home)}" title="${escapeHtml(t('重命名目录'))}" aria-label="${escapeHtml(t('重命名目录'))}" ${pluginHomesBusy || packBusy ? 'disabled' : ''}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 5 5-12 12H4v-5L16 3Z"/><path d="m14 5 5 5"/></svg></button>${index ? `<button class="icon-btn plugin-home-action danger" type="button" data-home-remove="${escapeHtml(home)}" title="${escapeHtml(t('移除目录'))}" aria-label="${escapeHtml(t('移除目录'))}" ${pluginHomesBusy ? 'disabled' : ''}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5"/></svg></button>` : ''}</div></div>`).join('')
+        + staleHomeNames().map(([home, name]) => `<div class="plugin-home-row is-stale"><span class="plugin-home-folder">${folder}</span><div class="plugin-home-info"><strong>${escapeHtml(t('失效的目录名'))}</strong><span>${escapeHtml(t('{name}（{home}）', { name, home }))}</span></div><div class="plugin-home-actions"><button class="icon-btn plugin-home-action danger" type="button" data-home-forget="${escapeHtml(home)}" title="${escapeHtml(t('清除这个失效的目录名'))}" aria-label="${escapeHtml(t('清除这个失效的目录名'))}" ${pluginHomesBusy ? 'disabled' : ''}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5"/></svg></button></div></div>`).join('')
       pluginHomesAddEl.disabled = pluginHomesBusy
       pluginHomesListEl.querySelectorAll('[data-home-open]').forEach((button) => {
         button.onclick = () => void openPluginHome(button)
@@ -7212,6 +7317,18 @@
       pluginHomesListEl.querySelectorAll('[data-home-remove]').forEach((button) => {
         button.onclick = () => void changePluginHomeList('remove', button.dataset.homeRemove)
       })
+      pluginHomesListEl.querySelectorAll('[data-home-forget]').forEach((button) => {
+        button.onclick = () => void changePluginHomeList('forget', button.dataset.homeForget)
+      })
+    }
+    /**
+     * 只在 dshHomeNames 里、已经不在任何登记列表里的目录名（历史脏数据、被外部删掉的目录）。
+     * 「用户目录」列表遍历的是 dshHomes，这些条目本来哪都看不到，只能手改 settings.json；
+     * 这里单独列出来，标成失效并允许清掉。
+     */
+    function staleHomeNames() {
+      const known = new Set([state.dshHome, ...pluginHomes().keys()].map(normalizeHomePath))
+      return Object.entries(state.dshHomeNames || {}).filter(([home]) => !known.has(normalizeHomePath(home)))
     }
     async function openPluginHome(button) {
       if (button.disabled || pluginHomesBusy) return
@@ -7243,6 +7360,12 @@
           if (picked.error) throw new Error(picked.error)
           if (!picked.path) return
           home = picked.path
+        }
+        if (action === 'forget') {
+          // 只清显示名：失效条目的目录早就不在登记表里了，删不掉也改不了
+          const cleared = await post('/api/dsh-homes/forget-name', { home })
+          state.dshHomeNames = cleared.dshHomeNames || {}
+          return
         }
         const data = await post(`/api/dsh-homes/${action}`, { home })
         // 目录有增删：登记表、启动项那几个下拉、环境页的下拉一起重铺（见 applyHomes）

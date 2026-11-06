@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { join, sep } from 'node:path'
 import test from 'node:test'
 
-import { defaultDshHome, safeDataDir, safeDshHome } from '../src/settings.js'
+import { defaultDshHome, ensureWritableDir, safeDataDir, safeDshHome } from '../src/settings.js'
 
 test('绝对路径放行，末尾斜杠和空白顺手规范掉', () => {
   const base = join(tmpdir(), 'dsh-data')
@@ -36,4 +37,31 @@ test('dsh 用户目录：留空表示用默认位置，填了必须是绝对路�
   assert.throws(() => safeDshHome('dsh-home'), /绝对路径/)
   assert.throws(() => safeDshHome({ path: base }), /路径/)
   assert.equal(defaultDshHome(), join(homedir(), '.dsh'))
+})
+
+test('建目录失败时回滚这次新建的上层目录，已存在的路径一根都不动', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'dsh-mkdir-rollback-'))
+  try {
+    // 路径本来就存在（这里是个文件）：失败也不能删
+    writeFileSync(join(root, 'blocker'), 'x')
+    await assert.rejects(ensureWritableDir(join(root, 'blocker')), /这不是一个目录|目录不可用/)
+    assert.ok(existsSync(join(root, 'blocker')), '已存在的路径失败后仍然保留')
+
+    if (process.platform === 'win32') {
+      // 非法字符：Windows 的 recursive mkdir 会先建出 root/a、root/a/b，再在 bad<name 上失败
+      await assert.rejects(ensureWritableDir(join(root, 'a', 'b', 'bad<name')), /目录不可用|这不是一个目录/)
+      assert.equal(existsSync(join(root, 'a')), false, '这次新建的半截目录要删掉')
+      assert.ok(existsSync(join(root, 'blocker')), '用户原有的文件不能碰')
+    } else {
+      t.diagnostic('非 Windows 没有稳定的「建到一半再失败」路径，跳过回滚断言')
+    }
+
+    // 正常情况：建好、探针写过又删掉
+    const fresh = join(root, 'ok', 'nested')
+    assert.equal(await ensureWritableDir(fresh), fresh)
+    assert.ok(existsSync(fresh))
+    assert.equal(existsSync(join(fresh, '.dsh-write-probe')), false, '探针文件用完就删')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
 })

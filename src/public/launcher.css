@@ -1694,6 +1694,9 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 .plugin-homes-list { display: grid; gap: 10px; min-width: 0; }
 .plugin-home-row { display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 14px; background: color-mix(in srgb, var(--accent-soft) 55%, var(--card)); min-width: 0; transition: background 150ms ease; }
 .plugin-home-row:hover, .plugin-home-row:focus-within { background: color-mix(in srgb, var(--accent-soft) 85%, var(--card)); }
+/* 失效条目：目录已经不在任何登记列表里，只剩一条显示名，弱化但可读 */
+.plugin-home-row.is-stale { background: transparent; border: 1px dashed color-mix(in srgb, var(--border) 80%, transparent); }
+.plugin-home-row.is-stale .plugin-home-folder, .plugin-home-row.is-stale .plugin-home-info strong { color: var(--muted); }
 /* 全局目录没有移除操作，固定三列可让各行的打开与重命名按钮对齐。 */
 .plugin-home-actions { display: grid; grid-template-columns: repeat(3, 36px); align-items: center; gap: 4px; flex: 0 0 auto; }
 .plugin-home-folder { display: grid; place-items: center; width: 36px; height: 36px; flex: 0 0 36px; border-radius: 11px; color: var(--accent); background: var(--card); }

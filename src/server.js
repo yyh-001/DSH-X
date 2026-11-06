@@ -5541,7 +5541,9 @@ async function renameProfile(profile, nextName) {
         if (manifest.name === `dsh-profile-${from}`) manifest.name = `dsh-profile-${name}`
         for (const key of ['dependencies', 'devDependencies', 'optionalDependencies']) {
           for (const [pkg, spec] of Object.entries(manifest[key] || {})) {
-            if (typeof spec === 'string' && spec.startsWith('file:')) manifest[key][pkg] = `file:${rebase(spec.slice(5))}`
+            // file:/link:/portal: 都按同一套路径语义搬（相对路径跟着新目录走，指向旧目录的绝对路径改到新目录）
+            const local = typeof spec === 'string' ? /^(file|link|portal):(.+)$/.exec(spec) : null
+            if (local) manifest[key][pkg] = `${local[1]}:${rebase(local[2])}`
           }
         }
         rewrite(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`)
@@ -5616,6 +5618,34 @@ async function renameProfile(profile, nextName) {
 }
 
 /**
+ * 清单里的本地依赖（file: / link: / portal:）跟着 Profile 换位置。
+ *
+ * 相对路径以清单所在目录为基准——复制到另一个 Profile（甚至另一个用户目录）后，
+ * 原样的 `link:../../plugins/x` 会指到不存在的目录，插件直接断。
+ * 目标在旧目录里面的改成新目录下的对应位置；在旧目录外面的保留绝对路径，
+ * 这样跨 home 的工作区仍指回原处，而不是复制完就坏。
+ */
+export function rebaseLocalDeps(manifest, fromDir, toDir) {
+  let changed = false
+  for (const key of ['dependencies', 'devDependencies', 'optionalDependencies']) {
+    for (const [pkg, spec] of Object.entries(manifest?.[key] || {})) {
+      const local = typeof spec === 'string' ? /^(file|link|portal):(.+)$/.exec(spec) : null
+      if (!local) continue
+      const target = isAbsolute(local[2]) ? local[2] : resolve(fromDir, local[2])
+      // 前缀要带分隔符：`dsh-profiles-old` 不算 `dsh-profiles` 下面
+      const inside = target.startsWith(`${fromDir}${sep}`)
+      // 一律写成 /：pnpm 把 file:/link: 当 URL 解析，`file:C:\x` 会把盘符吃掉
+      const nextPath = (inside ? join(toDir, relative(fromDir, target)) : target).replaceAll('\\', '/')
+      const value = `${local[1]}:${nextPath}`
+      if (value === spec) continue
+      manifest[key][pkg] = value
+      changed = true
+    }
+  }
+  return changed
+}
+
+/**
  * 建 Profile：`source` 给了就把那份配置复制过来（插件清单、开关、MCP、补丁层），
  * 复制完在目标环境里重装依赖。`sourceHome` 是来源所在的那个用户目录，空 = 当前环境；
  * 可以跨用户目录复制，两个目录互不相干。
@@ -5652,15 +5682,8 @@ async function createProfile(profile, source = '', sourceHome = '') {
       const manifest = from ? JSON.parse(await readFile(join(staging, 'package.json'), 'utf8')) : profileSkeleton(name)
       manifest.name = `dsh-profile-${name}`
       manifest.private = true
-      // file: 相对依赖以原环境为基准解析，搬目录后不能指到另一份不存在的插件。
-      for (const key of ['dependencies', 'devDependencies', 'optionalDependencies']) {
-        for (const [pkgName, spec] of Object.entries(manifest[key] || {})) {
-          if (from && typeof spec === 'string' && spec.startsWith('file:')) {
-            const dependency = resolve(original, spec.slice(5))
-            manifest[key][pkgName] = `file:${dependency.startsWith(`${original}${sep}`) ? join(target, relative(original, dependency)) : dependency}`
-          }
-        }
-      }
+      // file:/link:/portal: 这类本地依赖以原环境为基准解析，搬目录后不能指到另一份不存在的插件。
+      if (from) rebaseLocalDeps(manifest, original, target)
       await writeFile(join(staging, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`)
       // file: 依赖的路径已经改变，旧锁文件不能继续锁住原目录。
       if (from) await rm(join(staging, 'pnpm-lock.yaml'), { force: true })
@@ -6661,6 +6684,19 @@ async function handleApi(req, res, url) {
       return { dshHomeNames: { ...names, [canonical]: name } }
     })
     send(res, 200, { dshHomeNames: safeDshHomeNames(saved.dshHomeNames) })
+    await emitState()
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/dsh-homes/forget-name') {
+    // 清掉一条显示名：目录早就从登记表里消失的历史条目（「用户目录」列表遍历的是 dshHomes，
+    // 界面上看不到它们）只能靠这个收拾，否则永远留在 settings.json 里。
+    const home = safeDshHome(body.home)
+    if (!home) throw new Error('请选择用户目录')
+    const same = (dir) => fileManager.samePath(dir, home)
+    const cleared = await saveSettings((current) => ({
+      dshHomeNames: Object.fromEntries(Object.entries(safeDshHomeNames(current.dshHomeNames)).filter(([dir]) => !same(dir))),
+    }))
+    send(res, 200, { dshHomeNames: safeDshHomeNames(cleared.dshHomeNames) })
     await emitState()
     return
   }

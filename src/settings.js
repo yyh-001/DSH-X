@@ -33,11 +33,15 @@ function describeDirError(dir, error) {
  * 版本目录得真的能写：先建目录，再写一个探针文件。
  * 单靠 mkdir 不够——目录已存在时 recursive mkdir 会静默成功，但里面未必能写文件。
  * 失败在切换目录**之前**抛出，所以 DATA / settings.json 都不会被改坏。
+ * 顺手回滚这次新建的部分：建到一半失败（或探针写不进去）时，不在盘上留半截空目录。
  */
 export async function ensureWritableDir(dir) {
+  // 建之前最上层那个还不存在的目录：失败时只删这一棵，用户原有的目录一根都不碰
+  const createdRoot = firstMissingAncestor(dir)
   try {
     await mkdir(dir, { recursive: true })
   } catch (error) {
+    await removeCreated(createdRoot)
     throw new Error(describeDirError(dir, error))
   }
   const probe = join(dir, '.dsh-write-probe')
@@ -45,9 +49,36 @@ export async function ensureWritableDir(dir) {
     await writeFile(probe, '')
     await rm(probe, { force: true })
   } catch (error) {
+    await removeCreated(createdRoot)
     throw new Error(describeDirError(dir, error))
   }
   return dir
+}
+
+/**
+ * 这次会新建的最上层目录：从 dir 往上爬，直到上一层已经存在为止。
+ * dir 本身已存在、或整条路径的祖先都在（比如盘符根不存在）时返回空串——那种情况一个字节都不该删。
+ * 注意只返回**不存在**的路径：挡路的可能是个同名文件，删它就等于删用户的东西。
+ */
+function firstMissingAncestor(dir) {
+  const target = resolve(dir)
+  if (existsSync(target)) return ''
+  let current = target
+  for (let guard = 0; guard < 512; guard += 1) {
+    const parent = dirname(current)
+    if (parent === current) return ''
+    if (existsSync(parent)) return current
+    current = parent
+  }
+  return ''
+}
+
+/** 只删这次新建出来的那棵目录，失败也不影响真正的错误信息。 */
+async function removeCreated(createdRoot) {
+  if (!createdRoot) return
+  try {
+    await rm(createdRoot, { recursive: true, force: true })
+  } catch { /* 删不掉就留着，报错还是照原文 */ }
 }
 
 /** dsh 的启动 profile（一个 profile 一套插件和数据），默认 web。 */

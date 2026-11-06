@@ -20,6 +20,8 @@ function panel() {
     packImportDialog: { hidden: true }, launchProfile: 'web',
     launchDialogEl: { hidden: true }, launchHomePicked: '',
     document: { getElementById: (id) => nodes[id] },
+    // 失效目录名判断用页面里的路径归一化（这一段不在面板的源码切片里）
+    normalizeHomePath: (home) => String(home || '').trim().replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase(),
     t: (text, values = {}) => text.replace(/\{(\w+)\}/g, (_, key) => values[key] ?? ''),
     escapeHtml: (text) => String(text ?? ''), syncUiSelect() {}, renderRecovery() {}, notify() {},
     renderPackGrid() {}, renderPackView() {}, refreshPluginUpdates: async () => {},
