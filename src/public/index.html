@@ -904,20 +904,26 @@
       <div class="dialog-heading"><div><h2 class="ask-title" id="launchLogTitle" data-i18n="启动项日志">启动项日志</h2><p class="dialog-subtitle" id="launchLogSubtitle"></p></div><button class="ghost icon-btn dialog-close" id="launchLogClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
       <div class="dialog-body">
         <div class="launch-log-tools" id="launchLogTools" hidden><span class="hint" id="launchLogHint"></span></div>
+        <div class="launch-log-tabs" id="launchLogTabs" role="tablist" aria-label="启动项日志视图" data-i18n-aria-label="启动项日志视图">
+          <button class="launch-log-tab" type="button" role="tab" data-log-tab="raw" aria-selected="true" data-i18n="原始日志">原始日志</button>
+          <button class="launch-log-tab" type="button" role="tab" data-log-tab="time" aria-selected="false" data-i18n="耗时构成" hidden>耗时构成</button>
+          <button class="launch-log-tab" type="button" role="tab" data-log-tab="space" aria-selected="false" data-i18n="空间构成" hidden>空间构成</button>
+          <button class="launch-log-tab" type="button" role="tab" data-log-tab="diagnosis" aria-selected="false" data-i18n="插件诊断" hidden>插件诊断</button>
+        </div>
         <div class="launch-log-loading" id="launchLogLoading" hidden><span class="spin"></span><span data-i18n="正在读取日志…">正在读取日志…</span></div>
-        <section class="launch-log-card" id="launchLogDiagnosis" hidden>
+        <section class="launch-log-card" id="launchLogDiagnosis" data-log-panel="diagnosis" hidden>
           <div class="launch-log-card-head"><h3 data-i18n="插件诊断">插件诊断</h3><span class="launch-log-head-meta"><span id="launchLogDiagnosisMeta"></span></span></div>
           <div class="launch-log-block" id="launchLogDiagnosisRows"></div>
         </section>
-        <section class="launch-log-card" id="launchLogVisual" hidden>
+        <section class="launch-log-card" id="launchLogVisual" data-log-panel="time" hidden>
           <div class="launch-log-card-head"><h3 data-i18n="耗时构成">耗时构成</h3><span class="launch-log-head-meta"><span id="launchLogWindow"></span><span id="launchLogRss" hidden></span></span></div>
           <div class="launch-log-block" id="launchLogPlugins"></div>
         </section>
-        <section class="launch-log-card" id="launchLogSpace" hidden>
+        <section class="launch-log-card" id="launchLogSpace" data-log-panel="space" hidden>
           <div class="launch-log-card-head"><h3 data-i18n="空间构成">空间构成</h3><span class="launch-log-head-meta"><span id="launchLogSpaceMeta"></span></span></div>
           <div class="launch-log-block" id="launchLogSpaceBody"></div>
         </section>
-        <section class="launch-log-card" id="launchLogCard">
+        <section class="launch-log-card" id="launchLogCard" data-log-panel="raw">
           <div class="launch-log-card-head"><h3 data-i18n="原始日志">原始日志</h3><span class="launch-log-actions"><button class="ghost" type="button" id="launchLogCopy" data-i18n="复制">复制</button><button class="ghost" type="button" id="launchLogExport" data-i18n="导出">导出</button><button class="ghost" type="button" id="launchLogClear" data-i18n="清空">清空</button></span></div>
           <pre class="launch-log-text" id="launchLogText"></pre>
         </section>
@@ -1536,6 +1542,7 @@
   "启动耗时 {seconds}s": "Started in {seconds}s",
   "启动明细": "Startup details",
   "启动项日志": "Launch log",
+  "启动项日志视图": "Launch log view",
   "查看 {name} 的日志": "View the log for {name}",
   "正在读取日志…": "Reading log…",
   "这个启动项还没有日志。启动一次后，它自己的输出会出现在这里。": "This launch entry has no log yet. Start it once and its own output will show up here.",
@@ -2202,6 +2209,14 @@
     const launchLogSpaceBodyEl = document.getElementById('launchLogSpaceBody')
     const launchLogDiagnosisEl = document.getElementById('launchLogDiagnosis')
     const launchLogDiagnosisMetaEl = document.getElementById('launchLogDiagnosisMeta')
+    const launchLogTabsEl = document.getElementById('launchLogTabs')
+    const launchLogTabButtons = [...document.querySelectorAll('.launch-log-tab[data-log-tab]')]
+    const launchLogPanels = {
+      raw: launchLogCardEl,
+      time: launchLogVisualEl,
+      space: launchLogSpaceEl,
+      diagnosis: launchLogDiagnosisEl,
+    }
     const launchLogDiagnosisRowsEl = document.getElementById('launchLogDiagnosisRows')
     const manageVersionsEl = document.getElementById('launchManageVersions')
     const versionInstallSelectEl = document.getElementById('versionInstallSelect')
@@ -5148,6 +5163,9 @@
     let launchLogQuery = 0
     let launchLogReportKey = ''
     let launchLogStorageKey = ''
+    // 日志弹窗的页签：原始日志常驻；耗时/空间/诊断有数据才出现
+    let launchLogTab = 'raw'
+    const launchLogAvailable = { raw: true, time: false, space: false, diagnosis: false }
     // 耗时账本按「这一次运行」缓存：同一次运行反复打开直接复用，重启后 runAt 变了才重取。
     const launchReportCache = new Map()
     // 日志正文按启动项缓存：再次打开先显示上次看到的全文，后台刷新再替换，不用空白等一次请求。
@@ -5163,8 +5181,24 @@
       return value >= 1000 ? `${(value / 1000).toFixed(2)}s` : `${Math.round(value)}ms`
     }
 
+    /** 只显示当前页签对应的卡片；没有内容的页签直接收起来。 */
+    function paintLaunchLogTabs() {
+      if (!launchLogAvailable[launchLogTab]) launchLogTab = 'raw'
+      for (const button of launchLogTabButtons) {
+        const key = button.dataset.logTab
+        button.hidden = !launchLogAvailable[key]
+        button.setAttribute('aria-selected', String(key === launchLogTab))
+        button.tabIndex = key === launchLogTab ? 0 : -1
+      }
+      for (const [key, panel] of Object.entries(launchLogPanels)) {
+        panel.hidden = !(launchLogAvailable[key] && key === launchLogTab)
+      }
+      launchLogTabsEl.hidden = false
+    }
+
     function syncLaunchLogVisual() {
-      launchLogVisualEl.hidden = launchLogPluginsEl.hidden
+      launchLogAvailable.time = !launchLogPluginsEl.hidden && launchLogPluginsEl.innerHTML.trim().length > 0
+      paintLaunchLogTabs()
     }
 
     /** 诊断里的问题行：同一个包只列一次，标签沿用诊断面板的叫法。 */
@@ -5211,6 +5245,8 @@
     function renderLaunchLogDiagnosis(warning) {
       const rows = warning ? diagnosisIssueRows(warning.diagnosis) : []
       launchLogDiagnosisEl.hidden = !rows.length
+      launchLogAvailable.diagnosis = rows.length > 0
+      paintLaunchLogTabs()
       launchLogDiagnosisMetaEl.textContent = rows.length ? [warning.profile, warning.version].filter(Boolean).join(' · ') : ''
       launchLogDiagnosisRowsEl.replaceChildren(...rows.map((row) => {
         const line = document.createElement('div')
@@ -5327,7 +5363,8 @@
         <div class="launch-log-subhead">${escapeHtml(t('最占空间的 5 项'))}</div>
         <div class="launch-log-bars">${items.map((item) => `<div class="launch-log-bar-row${item.plugin ? ' is-plugin' : ''}"><span class="name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span><span class="track"><span class="fill" style="width:${Math.max(2, (Number(item.bytes) || 0) / max * 100).toFixed(1)}%"></span></span><span class="value">${escapeHtml(formatBytes(item.bytes))}</span></div>`).join('')}</div>
         <p class="hint launch-log-note">${escapeHtml(t('插件按它引用到的依赖计入（共用依赖按引用它的插件均摊）；合计是版本目录 + 这个环境目录的逻辑大小，pnpm 共享 store 不重复计入。'))}</p>`
-      launchLogSpaceEl.hidden = false
+      launchLogAvailable.space = true
+      paintLaunchLogTabs()
     }
 
     async function loadStorageBreakdown(entry, version) {
@@ -5352,6 +5389,8 @@
         launchLogSpaceEl.hidden = true
         launchLogSpaceMetaEl.textContent = ''
         launchLogSpaceBodyEl.innerHTML = ''
+        launchLogAvailable.space = false
+        paintLaunchLogTabs()
       }
     }
 
@@ -5398,7 +5437,6 @@
         launchLogTextEl.textContent = simplifyLogText(data.text)
         launchLogTextCache.set(entry.id, launchLogTextEl.textContent)
         if (launchLogTextCache.size > 8) launchLogTextCache.delete(launchLogTextCache.keys().next().value)
-        launchLogCardEl.hidden = !data.text
         setLaunchLogHint(data.text
           ? (data.clipped ? t('只显示最后 120 KB。') : '')
           : t('这个启动项还没有日志。启动一次后，它自己的输出会出现在这里。'))
@@ -5435,7 +5473,6 @@
       launchLogRssEl.textContent = ''
       launchLogRssEl.title = ''
       launchLogWindowEl.textContent = ''
-      launchLogCardEl.hidden = !cachedText
       launchLogReportKey = ''
       launchLogPluginsEl.hidden = true
       launchLogPluginsEl.innerHTML = ''
@@ -5443,6 +5480,10 @@
       launchLogSpaceEl.hidden = true
       launchLogSpaceMetaEl.textContent = ''
       launchLogSpaceBodyEl.innerHTML = ''
+      launchLogTab = 'raw'
+      launchLogAvailable.time = false
+      launchLogAvailable.space = false
+      launchLogAvailable.diagnosis = false
       renderLaunchLogDiagnosis(null)
       syncLaunchLogVisual()
       await showDialog(launchLogDialogEl)
@@ -9493,6 +9534,21 @@
     trapPackDialog(packExportDialog, closeExportDialog)
     trapPackDialog(pluginAddDialogEl, closePluginAdd)
     document.getElementById('launchLogClose').onclick = () => closeLaunchLog()
+    for (const button of launchLogTabButtons) {
+      button.onclick = () => { launchLogTab = button.dataset.logTab; paintLaunchLogTabs() }
+    }
+    launchLogTabsEl.onkeydown = (event) => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+      const visible = launchLogTabButtons.filter((button) => !button.hidden)
+      const index = visible.indexOf(document.activeElement)
+      if (index < 0) return
+      event.preventDefault()
+      const step = event.key === 'ArrowRight' ? 1 : visible.length - 1
+      const next = visible[(index + step) % visible.length]
+      launchLogTab = next.dataset.logTab
+      paintLaunchLogTabs()
+      next.focus()
+    }
     launchLogCopyEl.onclick = () => { void copyLaunchLog() }
     launchLogExportEl.onclick = () => { void exportLaunchLog() }
     launchLogClearEl.onclick = () => { void clearLaunchLog() }

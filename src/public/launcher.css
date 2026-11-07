@@ -1429,6 +1429,14 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 .launch-log-loading[hidden] { display: none; }
 .launch-log-loading .spin { display: block; width: 16px; height: 16px; }
 .launch-log-tools .hint { margin: 0; }
+/* 日志弹窗的页签：原始日志常驻，耗时/空间/诊断有数据才出现 */
+.launch-log-tabs { display: flex; gap: 2px; padding: 4px; margin-bottom: 10px; border-radius: 12px; background: var(--accent-soft); }
+.launch-log-tabs[hidden] { display: none; }
+.launch-log-tab { flex: 1 1 0; padding: 7px 8px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font-family: inherit; font-size: 12.5px; font-weight: 500; cursor: pointer; transition: color 160ms ease, background 160ms ease; }
+.launch-log-tab[hidden] { display: none; }
+.launch-log-tab:hover { color: var(--text); }
+.launch-log-tab[aria-selected="true"] { background: var(--card); color: var(--accent); font-weight: 600; box-shadow: 0 2px 8px rgba(22, 35, 61, .1); }
+.launch-log-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .launch-log-tools .hint:empty { display: none; }
 .launch-log-meta { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; background: rgba(127, 127, 127, .1); color: var(--text); font-size: 12px; }
 .launch-log-card { border: 1px solid var(--line); border-radius: 14px; padding: 14px; background: rgba(127, 127, 127, .035); }
