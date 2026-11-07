@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { BrowserTabs } from './tabs.mjs'
 import { BROWSER_IPC, DesktopBrowserGuests } from './browser-guests.mjs'
-import { corePackageName, channelOf, fetchCoreMetadata, installCore, pickCoreRelease } from './core-fetch.mjs'
+import { corePackageName, channelOf, coreRegistries, fetchCoreMetadata, installCore, pickCoreRelease, tarballFor } from './core-fetch.mjs'
 import { createUpdater } from './updater.mjs'
 import { readPrefs } from './prefs.mjs'
 import { coreSetupPage, dataUrl, errorPage, idlePage, resolveDark } from './pages.mjs'
@@ -422,13 +422,90 @@ function showCoreSetupWindow() {
   }
 }
 
-function updateCoreSetupProgress(window, done, total) {
+let coreSetupPaintAt = 0
+let coreSetupPaintTimer = null
+let coreSetupPaintPending = null
+
+/**
+ * 首启窗口的进度绘制：按 ~8fps 节流。
+ * 以前每个 chunk 都 executeJavaScript 一次，下载快时会堆一长串跨进程调用，窗口看起来反而卡住；
+ * 总大小未知时也别把进度条钉在 0%，切成不确定态动画并显示已下载字节数。
+ */
+function paintCoreSetup(window, next) {
   if (!window || window.isDestroyed()) return
-  const percent = total ? Math.max(0, Math.min(100, Math.round((done / total) * 100))) : 0
-  const hint = state.lang === 'en' ? `Downloading dsh-x-core… ${percent}%` : `正在下载运行核心… ${percent}%`
-  window.webContents.executeJavaScript(
-    `(() => { const bar = document.getElementById('bar'); if (bar) bar.style.width = ${percent}%; const hint = document.getElementById('hint'); if (hint) hint.textContent = ${JSON.stringify(hint)}; })()`,
+  coreSetupPaintPending = { window, state: next }
+  const wait = Math.max(0, 120 - (Date.now() - coreSetupPaintAt))
+  if (wait === 0) flushCoreSetupPaint()
+  else if (!coreSetupPaintTimer) coreSetupPaintTimer = setTimeout(flushCoreSetupPaint, wait)
+}
+
+function flushCoreSetupPaint() {
+  coreSetupPaintTimer = null
+  const job = coreSetupPaintPending
+  coreSetupPaintPending = null
+  if (!job || !job.window || job.window.isDestroyed()) return
+  coreSetupPaintAt = Date.now()
+  const en = state.lang === 'en'
+  const { phase, done = 0, total = 0, version = '', source = '' } = job.state
+  const known = total > 0
+  const percent = known ? Math.max(0, Math.min(100, Math.round((done / total) * 100))) : 0
+  const mb = (value) => (value / 1048576).toFixed(1)
+  const hint = phase === 'extract'
+    ? (en ? 'Installing the runtime core…' : '正在安装运行核心…')
+    : phase === 'download'
+      ? (en ? `Downloading the runtime core${version ? ` ${version}` : ''}…` : `正在下载运行核心${version ? ` ${version}` : ''}…`)
+      : (en ? 'Contacting the download source…' : '正在连接下载源…')
+  const detail = phase === 'download'
+    ? (known
+      ? `${mb(done)} MB / ${mb(total)} MB · ${percent}%`
+      : (en ? `Downloaded ${mb(done)} MB` : `已下载 ${mb(done)} MB`))
+    : phase === 'extract'
+      ? (en ? 'Download complete, extracting…' : '下载完成，正在解压…')
+      : ''
+  const sourceText = source ? (en ? `Source: ${source}` : `下载源：${source}`) : ''
+  job.window.webContents.executeJavaScript(
+    `(() => {
+      const bar = document.getElementById('bar')
+      const track = document.getElementById('track')
+      const hint = document.getElementById('hint')
+      const detail = document.getElementById('detail')
+      const source = document.getElementById('source')
+      if (bar) bar.style.width = ${percent}%
+      if (track) track.classList.toggle('is-indeterminate', ${!known})
+      if (hint) hint.textContent = ${JSON.stringify(hint)}
+      if (detail) detail.textContent = ${JSON.stringify(detail)}
+      if (source && ${JSON.stringify(sourceText)}) source.textContent = ${JSON.stringify(sourceText)}
+    })()`,
   ).catch(() => { /* 窗口已经关了 */ })
+}
+
+function registryHost(registry) {
+  try { return new URL(registry).host } catch { return String(registry) }
+}
+
+/** 按「镜像 → 官方」逐个问；慢镜像最多等 6 秒，别让首启窗口干等。 */
+async function chooseCoreRelease(fetchImpl) {
+  const registries = coreRegistries()
+  let last = null
+  for (const [index, registry] of registries.entries()) {
+    try {
+      const metadata = await fetchCoreMetadata(corePackageName(), {
+        fetchImpl,
+        registry,
+        timeoutMs: index === 0 ? 6_000 : 30_000,
+      })
+      const release = pickCoreRelease(metadata, {
+        electron: process.versions.electron,
+        channel: channelOf(VERSION),
+        skip: [failedCoreVersion()].filter(Boolean),
+      })
+      if (release) return { release, registry }
+      last = new Error(`npm 上没有和当前外壳（Electron ${process.versions.electron}）兼容的核心版本`)
+    } catch (error) {
+      last = error
+    }
+  }
+  throw last || new Error('没有可用的核心下载源')
 }
 
 /** 起不来的核心版本（recoverCore 写）；挑版本时跳过它，免得下载 → 回退 → 再下载。 */
@@ -444,23 +521,37 @@ async function setupCore() {
   const setup = showCoreSetupWindow()
   // 首启时还没有核心，读不到设置里的下载源/代理；用 Electron 的 net.fetch，至少跟随系统代理
   const fetchImpl = (url, init) => net.fetch(url, init)
+  paintCoreSetup(setup.window, { phase: 'connect' })
   try {
-    const metadata = await fetchCoreMetadata(corePackageName(), { fetchImpl })
-    const release = pickCoreRelease(metadata, {
-      electron: process.versions.electron,
-      channel: channelOf(VERSION),
-      skip: [failedCoreVersion()].filter(Boolean),
+    const { release, registry } = await chooseCoreRelease(fetchImpl)
+    let currentRegistry = registry
+    const paint = (next) => paintCoreSetup(setup.window, {
+      ...next,
+      version: release.version,
+      source: registryHost(currentRegistry),
     })
-    if (!release) throw new Error(`npm 上没有和当前外壳（Electron ${process.versions.electron}）兼容的核心版本`)
-    console.log(`下载核心 ${release.version}（${corePackageName()}）`)
-    await installCore({
-      release,
+    console.log(`下载核心 ${release.version}（${corePackageName()}，${registryHost(registry)}）`)
+    const install = (targetRelease) => installCore({
+      release: targetRelease,
       target: ACTIVE_CORE,
       previous: PREVIOUS_CORE,
       fetchImpl,
-      onProgress: ({ done, total }) => updateCoreSetupProgress(setup.window, done, total),
+      onPhase: (phase) => paint({ phase }),
+      onProgress: ({ done, total }) => paint({ phase: 'download', done, total }),
     })
-    console.log(`核心已就绪：${ACTIVE_CORE}（${release.version}）`)
+    try {
+      await install(release)
+    } catch (error) {
+      // 镜像只同步了元数据、tarball 却拉不动（或反过来）时，换另一个源的重试一次
+      const alternate = coreRegistries().find((item) => item !== currentRegistry)
+      const tarball = alternate && tarballFor(alternate, corePackageName(), release.version)
+      if (!tarball) throw error
+      console.warn(`从 ${registryHost(currentRegistry)} 下载核心失败，换 ${registryHost(alternate)} 重试：${error?.message || error}`)
+      currentRegistry = alternate
+      paint({ phase: 'connect' })
+      await install({ ...release, tarball })
+    }
+    console.log(`核心已就绪：${ACTIVE_CORE}（${release.version}，${registryHost(currentRegistry)}）`)
     return ACTIVE_CORE
   } catch (error) {
     setup.finish()

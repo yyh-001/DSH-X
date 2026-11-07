@@ -37,18 +37,33 @@ function metadataUrl(registry, name) {
   return `${String(registry).replace(/\/+$/, '')}/${name.startsWith('@') ? name.replace('/', '%2F') : name}`
 }
 
+/**
+ * 指定版本在某个 registry 上的 tarball 地址。
+ * 镜像偶尔元数据同步了、tarball 却拉不动（或反过来），下载失败时可以换另一个源重试。
+ */
+export function tarballFor(registry, name, version) {
+  const base = String(registry).replace(/\/+$/, '')
+  if (!base || !name || !version) return ''
+  const bare = name.startsWith('@') ? name.slice(name.indexOf('/') + 1) : name
+  return `${base}/${name}/-/${bare}-${version}.tgz`
+}
+
 function doFetch(fetchImpl) {
   return typeof fetchImpl === 'function' ? fetchImpl : fetch
 }
 
-export async function fetchCoreMetadata(name = corePackageName(), { fetchImpl } = {}) {
+/**
+ * 读 npm 元数据。`registry` 指定单个源（首启按镜像 → 官方逐个试）；
+ * `timeoutMs` 让慢镜像尽快失败，别让首启窗口干等。
+ */
+export async function fetchCoreMetadata(name = corePackageName(), { fetchImpl, registry = '', timeoutMs = 30_000 } = {}) {
   let last = null
-  for (const registry of coreRegistries()) {
+  for (const base of registry ? [String(registry).replace(/\/+$/, '')] : coreRegistries()) {
     try {
-      const res = await doFetch(fetchImpl)(metadataUrl(registry, name), {
+      const res = await doFetch(fetchImpl)(metadataUrl(base, name), {
         redirect: 'follow',
         headers: { accept: 'application/json', 'user-agent': 'dsh-x' },
-        signal: AbortSignal.timeout(30_000),
+        signal: AbortSignal.timeout(timeoutMs),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       return await res.json()
@@ -206,13 +221,16 @@ export async function downloadCoreTarball(url, dest, { integrity = '', onProgres
  * 把核心装进指定目录（安装版的 core/current）。
  * 旧目录先挪到 previous：新核心起不来时外壳的 recoverCore 会把它换回来。
  */
-export async function installCore({ release, target, previous = '', onProgress, fetchImpl } = {}) {
+export async function installCore({ release, target, previous = '', onProgress, onPhase, fetchImpl } = {}) {
   if (!release?.tarball) throw new Error('核心包没有下载地址')
   const tarball = `${target}.download-${process.pid}.tgz`
   const staging = `${target}.staging-${process.pid}`
   await mkdir(dirname(target), { recursive: true })
   try {
+    onPhase?.('download')
     await downloadCoreTarball(release.tarball, tarball, { integrity: release.integrity, onProgress, fetchImpl })
+    // 解压用的是 spawnSync 的 tar，主进程会短暂停住；先把窗口切到「安装中」，别让进度条停在 100%。
+    onPhase?.('extract')
     const pkg = extractCoreTarball(tarball, staging)
     if (release.version && String(pkg.version) !== String(release.version)) {
       throw new Error(`核心包版本不一致：${pkg.version} != ${release.version}`)

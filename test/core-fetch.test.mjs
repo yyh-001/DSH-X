@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { channelOf, compareVersions, pickCoreRelease } from '../shell/core-fetch.mjs'
+import { channelOf, compareVersions, fetchCoreMetadata, pickCoreRelease, tarballFor } from '../shell/core-fetch.mjs'
 
 const metadata = {
   'dist-tags': { latest: '0.1.30', rc: '0.1.31-rc.2' },
@@ -58,4 +58,43 @@ test('核心包没声明 dshX.electron 时按兼容处理', () => {
     },
   }, { electron: '44.7.0', channel: 'latest' })
   assert.equal(picked.version, '0.2.0')
+})
+
+test('换源重试用同一个版本拼 tarball 地址（含 scope）', () => {
+  assert.equal(
+    tarballFor('https://registry.npmjs.org', 'dsh-x-core', '0.1.26-rc.2'),
+    'https://registry.npmjs.org/dsh-x-core/-/dsh-x-core-0.1.26-rc.2.tgz',
+  )
+  assert.equal(
+    tarballFor('https://registry.npmmirror.com/', '@scope/pkg', '1.2.3'),
+    'https://registry.npmmirror.com/@scope/pkg/-/pkg-1.2.3.tgz',
+  )
+  assert.equal(tarballFor('', 'dsh-x-core', '1.0.0'), '')
+})
+
+test('元数据读取：镜像失败自动落到官方源；指定 registry 时只问一个', async () => {
+  const calls = []
+  const fetchImpl = async (url) => {
+    calls.push(url)
+    if (url.includes('npmmirror')) throw new Error('offline')
+    return { ok: true, json: async () => ({ versions: { '1.0.0': {} } }) }
+  }
+  const data = await fetchCoreMetadata('dsh-x-core', { fetchImpl })
+  assert.deepEqual(data, { versions: { '1.0.0': {} } })
+  assert.equal(calls.length, 2)
+  assert.match(calls[0], /registry\.npmmirror\.com/)
+  assert.match(calls[1], /registry\.npmjs\.org/)
+
+  const single = []
+  await fetchCoreMetadata('dsh-x-core', {
+    fetchImpl: async (url, init) => {
+      single.push({ url, hasSignal: Boolean(init?.signal) })
+      return { ok: true, json: async () => ({}) }
+    },
+    registry: 'https://example.test/',
+    timeoutMs: 1_000,
+  })
+  assert.equal(single.length, 1, '指定 registry 时不再偷偷多问一个源')
+  assert.equal(single[0].url, 'https://example.test/dsh-x-core')
+  assert.equal(single[0].hasSignal, true, '请求要带超时信号，慢镜像才会尽快失败')
 })

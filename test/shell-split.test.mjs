@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
+import { coreSetupPage } from '../shell/pages.mjs'
+
 const read = (path) => readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), 'utf8')
 
 test('外壳不依赖核心模块，核心目录在运行时解析', () => {
@@ -80,4 +82,25 @@ test('npm CLI 带着外壳启动，核心目录通过 DSH_CORE_DIR 传入', () =
   assert.match(pack, /shellPkg\.version/, 'CLI 版本跟外壳走')
   assert.match(read('npm-package/lib/core.mjs'), /shell\/core-fetch\.mjs/, 'CLI 复用外壳那套核心获取逻辑')
   assert.match(read('shell/core-fetch.mjs'), /'dsh-x-core'/, '核心包名跨平台，只有一个')
+})
+
+test('首启下载页：实时进度、下载源、取消，总大小未知时走不确定态', () => {
+  const zh = coreSetupPage('zh')
+  for (const id of ['hint', 'track', 'bar', 'detail', 'source', 'cancel']) {
+    assert.match(zh, new RegExp(`id="${id}"`), `下载页缺少 #${id}`)
+  }
+  assert.match(zh, /is-indeterminate/, '总大小未知时进度条要滑动，不能停在 0%')
+  assert.match(zh, /正在连接下载源/)
+  assert.match(zh, /取消/, '窗口要能取消，不能只能等')
+  const en = coreSetupPage('en')
+  assert.match(en, /Contacting the download source/)
+  assert.match(en, /Cancel/)
+
+  const main = read('shell/main.mjs')
+  assert.match(main, /paintCoreSetup\(/, '进度统一走节流绘制')
+  assert.match(main, /coreSetupPaintAt/, '每个 chunk 都跨进程执行会让窗口发卡')
+  assert.match(main, /下载源：/, '窗口要显示实际下载源')
+  assert.match(main, /timeoutMs: index === 0 \? 6_000/, '慢镜像 6 秒就换官方源')
+  assert.match(main, /tarballFor\(alternate/, 'tarball 下载失败换源重试')
+  assert.match(main, /onPhase: \(phase\) => paint\(\{ phase \}\)/, '解压阶段要切到「安装中」')
 })
