@@ -574,6 +574,15 @@ function pnpmPackageName(entry) {
 /** 一个 node_modules 里各包的大小；pnpm 的 .pnpm 虚拟目录按包名合并，符号链接跳过。 */
 async function packageSizesIn(nodeModules) {
   const sizes = new Map()
+  // 目录名和 package.json 的 name 不一定一样（平台二进制 wrapper 常见），按真实包名归并，
+  // 这样依赖图（按 package.json 的 name 建）和大小才能对上。
+  const nameOf = (dir, fallback) => {
+    try { return JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')).name || fallback } catch { return fallback }
+  }
+  const add = async (dir, fallback) => {
+    const name = nameOf(dir, fallback)
+    sizes.set(name, (sizes.get(name) || 0) + await directoryBytes(dir))
+  }
   const entries = await readdir(nodeModules, { withFileTypes: true }).catch(() => [])
   for (const entry of entries) {
     if (entry.isSymbolicLink()) continue
@@ -592,17 +601,105 @@ async function packageSizesIn(nodeModules) {
       const scoped = await readdir(join(nodeModules, entry.name), { withFileTypes: true }).catch(() => [])
       for (const sub of scoped) {
         if (sub.isSymbolicLink() || !sub.isDirectory()) continue
-        sizes.set(`${entry.name}/${sub.name}`, await directoryBytes(join(nodeModules, entry.name, sub.name)))
+        await add(join(nodeModules, entry.name, sub.name), `${entry.name}/${sub.name}`)
       }
       continue
     }
-    sizes.set(entry.name, await directoryBytes(join(nodeModules, entry.name)))
+    await add(join(nodeModules, entry.name), entry.name)
   }
   return sizes
 }
 
 const STORAGE_BREAKDOWN_TTL_MS = 5 * 60_000
 const storageBreakdownCache = new Map()
+
+/** 包名 → 它声明的依赖名。用来把传递依赖归到引用它的插件头上。 */
+async function packageGraph(nodeModules) {
+  const graph = new Map()
+  const add = async (dir) => {
+    try {
+      const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'))
+      if (!pkg?.name) return
+      const deps = new Set([
+        ...(pkg.dependencies ? Object.keys(pkg.dependencies) : []),
+        ...(pkg.optionalDependencies ? Object.keys(pkg.optionalDependencies) : []),
+      ])
+      graph.set(pkg.name, deps)
+    } catch { /* 没有 package.json 的残缺目录 */ }
+  }
+  const entries = await readdir(nodeModules, { withFileTypes: true }).catch(() => [])
+  for (const entry of entries) {
+    if (entry.isSymbolicLink() || !entry.isDirectory() || entry.name.startsWith('.')) continue
+    if (entry.name.startsWith('@')) {
+      const scoped = await readdir(join(nodeModules, entry.name), { withFileTypes: true }).catch(() => [])
+      for (const sub of scoped) {
+        if (sub.isSymbolicLink() || !sub.isDirectory()) continue
+        await add(join(nodeModules, entry.name, sub.name))
+      }
+      continue
+    }
+    await add(join(nodeModules, entry.name))
+  }
+  // pnpm 隔离布局：.pnpm/<pkg>@<ver>/node_modules/<pkg>
+  const virtual = await readdir(join(nodeModules, '.pnpm'), { withFileTypes: true }).catch(() => [])
+  for (const item of virtual) {
+    if (item.isSymbolicLink() || !item.isDirectory()) continue
+    const inner = await readdir(join(nodeModules, '.pnpm', item.name, 'node_modules'), { withFileTypes: true }).catch(() => [])
+    for (const sub of inner) {
+      if (sub.isSymbolicLink() || !sub.isDirectory()) continue
+      if (sub.name.startsWith('@')) {
+        const scoped = await readdir(join(nodeModules, '.pnpm', item.name, 'node_modules', sub.name), { withFileTypes: true }).catch(() => [])
+        for (const child of scoped) {
+          if (child.isSymbolicLink() || !child.isDirectory()) continue
+          await add(join(nodeModules, '.pnpm', item.name, 'node_modules', sub.name, child.name))
+        }
+        continue
+      }
+      await add(join(nodeModules, '.pnpm', item.name, 'node_modules', sub.name))
+    }
+  }
+  return graph
+}
+
+/** 每个直接插件能到达哪些包；共用包按引用它的插件数量均摊。 */
+async function attributePlugins(nodeModules, direct, sizes) {
+  const graph = await packageGraph(nodeModules)
+  const parents = new Map()
+  for (const start of direct) {
+    const seen = new Set([start])
+    const queue = [start]
+    while (queue.length) {
+      const current = queue.shift()
+      for (const next of graph.get(current) || []) {
+        if (seen.has(next)) continue
+        seen.add(next)
+        queue.push(next)
+      }
+    }
+    for (const name of seen) {
+      if (name === start) continue
+      const owners = parents.get(name) || new Set()
+      owners.add(start)
+      parents.set(name, owners)
+    }
+  }
+  const totals = new Map()
+  for (const name of direct) totals.set(name, sizes.get(name) || 0)
+  let depsBytes = 0
+  for (const [name, owners] of parents) {
+    if (direct.includes(name)) continue
+    const size = sizes.get(name) || 0
+    if (!size) continue
+    depsBytes += size
+    const share = size / owners.size
+    for (const owner of owners) totals.set(owner, (totals.get(owner) || 0) + share)
+  }
+  const plugins = [...totals.entries()]
+    .map(([name, bytes]) => ({ name, bytes: Math.round(bytes) }))
+    .filter((plugin) => plugin.bytes >= 1)
+    .sort((left, right) => right.bytes - left.bytes)
+  return { plugins, depsBytes }
+}
 
 /**
  * 一个启动项（版本 + profile）的空间构成：版本目录 + 这个 profile 目录的逻辑大小。
@@ -624,23 +721,24 @@ async function storageBreakdown(version, profile) {
   ])
   const sum = (map) => [...map.values()].reduce((totalBytes, bytes) => totalBytes + bytes, 0)
   const direct = new Set(Object.keys(profileDependencies(profilePath)))
-  let pluginBytes = 0
-  for (const name of direct) pluginBytes += profilePackages.get(name) || 0
+  const { plugins, depsBytes: pluginDepsBytes } = await attributePlugins(profileNodeModules, [...direct], profilePackages)
+  let pluginOwnBytes = 0
+  for (const name of direct) pluginOwnBytes += profilePackages.get(name) || 0
   let runtimeBytes = 0
-  let otherVersionBytes = sum(versionPackages)
+  let runtimeDepsBytes = 0
   for (const [name, bytes] of versionPackages) {
-    if (!name.startsWith('@deepseek-ai/')) continue
-    runtimeBytes += bytes
-    otherVersionBytes -= bytes
+    if (name.startsWith('@deepseek-ai/')) runtimeBytes += bytes
+    else runtimeDepsBytes += bytes
   }
-  const depsBytes = otherVersionBytes + Math.max(0, sum(profilePackages) - pluginBytes)
   const dataBytes = Math.max(0, profileBytes - profileNodeModulesBytes)
   const total = versionBytes + profileBytes
-  const restBytes = Math.max(0, total - pluginBytes - runtimeBytes - depsBytes - dataBytes)
+  // 到不了的 profile 包（残留/未声明）和版本目录非 node_modules 的部分都算「未归类」
+  const restBytes = Math.max(0, total - pluginOwnBytes - pluginDepsBytes - runtimeBytes - runtimeDepsBytes - dataBytes)
   const segments = [
-    { key: 'plugin', bytes: pluginBytes },
+    { key: 'plugin', bytes: pluginOwnBytes },
+    { key: 'plugin-deps', bytes: pluginDepsBytes },
     { key: 'runtime', bytes: runtimeBytes },
-    { key: 'deps', bytes: depsBytes },
+    { key: 'runtime-deps', bytes: runtimeDepsBytes },
     { key: 'data', bytes: dataBytes },
     { key: 'rest', bytes: restBytes },
   ].filter((segment) => segment.bytes >= 1)
@@ -653,7 +751,7 @@ async function storageBreakdown(version, profile) {
     combined.set(name, item)
   }
   const items = [...combined.values()].sort((left, right) => right.bytes - left.bytes).slice(0, 5)
-  const data = { version, profile, total, segments, items }
+  const data = { version, profile, total, segments, plugins, items }
   storageBreakdownCache.set(key, { at: Date.now(), data })
   return data
 }

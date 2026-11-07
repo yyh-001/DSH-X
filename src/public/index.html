@@ -1565,12 +1565,16 @@
   "耗时构成": "Time breakdown",
   "空间构成": "Disk usage",
   "运行时": "Runtime",
-  "其它依赖": "Other dependencies",
+  "插件本体": "Plugin packages",
+  "插件依赖": "Plugin dependencies",
+  "运行时依赖": "Runtime dependencies",
   "配置与数据": "Config & data",
   "未归类": "Unaccounted",
   "合计 {size}": "{size} total",
   "最占空间的 5 项": "Top 5 by size",
-  "合计是版本目录 + 这个环境目录的逻辑大小；pnpm 共享 store 不重复计入。": "Total is the logical size of the version directory plus this environment directory; the shared pnpm store is not counted twice.",
+  "各插件占用（含它带进来的依赖）": "Disk usage by plugin (including its dependencies)",
+  "其余 {n} 个插件合计 {size}": "Other {n} plugins: {size} total",
+  "插件按它引用到的依赖计入（共用依赖按引用它的插件均摊）；合计是版本目录 + 这个环境目录的逻辑大小，pnpm 共享 store 不重复计入。": "Plugins are counted with the dependencies they pull in (shared dependencies are split across the plugins that use them); the total is the logical size of the version directory plus this environment directory, and the shared pnpm store is not counted twice.",
   "窗口 {window} · CPU {cpu}": "Window {window} · CPU {cpu}",
   "最耗时的 5 项": "Top 5 by time",
   "插件合计只占 {plugin}%；其余为模块解析、文件扫描与 Node 启动。": "Plugins account for only {plugin}%; the rest is module resolution, file scanning and Node startup.",
@@ -5299,7 +5303,10 @@
 
     /** 启动项的空间构成：版本目录 + 这个 profile 目录，按插件 / 运行时 / 其它依赖 / 配置与数据分。 */
     function renderStorageBreakdown(data) {
-      const labels = { plugin: t('插件'), runtime: t('运行时'), deps: t('其它依赖'), data: t('配置与数据'), rest: t('未归类') }
+      const labels = {
+        plugin: t('插件本体'), 'plugin-deps': t('插件依赖'), runtime: t('运行时'),
+        'runtime-deps': t('运行时依赖'), data: t('配置与数据'), rest: t('未归类'),
+      }
       const segments = (data?.segments || [])
         .map((segment) => ({ ...segment, label: labels[segment.key] || segment.key }))
         .filter((segment) => Number(segment.bytes) >= 1)
@@ -5307,13 +5314,19 @@
       const percent = (bytes) => Math.round(Number(bytes) / total * 100)
       const items = (data?.items || []).filter((item) => Number(item.bytes) >= 1)
       const max = Math.max(...items.map((item) => Number(item.bytes) || 0), 1)
+      const plugins = (data?.plugins || []).filter((plugin) => Number(plugin.bytes) >= 1)
+      const pluginMax = Math.max(...plugins.map((plugin) => Number(plugin.bytes) || 0), 1)
+      const restPlugins = plugins.slice(5)
       launchLogSpaceMetaEl.textContent = t('合计 {size}', { size: formatBytes(data.total) })
       launchLogSpaceBodyEl.innerHTML = `
         <div class="launch-log-ledger" role="img" aria-label="${escapeHtml(segments.map((segment) => `${segment.label} ${formatBytes(segment.bytes)}`).join('，'))}">${segments.map((segment) => `<span class="ledger-${segment.key}" style="flex:${Math.max(segment.bytes, total * 0.004)} 1 0" title="${escapeHtml(`${segment.label} ${formatBytes(segment.bytes)}`)}"><span>${percent(segment.bytes)}%</span></span>`).join('')}</div>
         <div class="launch-log-legend">${segments.map((segment) => `<span><i class="ledger-${segment.key}"></i>${escapeHtml(segment.label)} <b>${escapeHtml(formatBytes(segment.bytes))}</b></span>`).join('')}</div>
+        ${plugins.length ? `<div class="launch-log-subhead">${escapeHtml(t('各插件占用（含它带进来的依赖）'))}</div>
+        <div class="launch-log-bars">${plugins.slice(0, 5).map((plugin) => `<div class="launch-log-bar-row is-plugin"><span class="name" title="${escapeHtml(plugin.name)}">${escapeHtml(plugin.name)}</span><span class="track"><span class="fill" style="width:${Math.max(2, (Number(plugin.bytes) || 0) / pluginMax * 100).toFixed(1)}%"></span></span><span class="value">${escapeHtml(formatBytes(plugin.bytes))}</span></div>`).join('')}</div>
+        ${restPlugins.length ? `<p class="hint launch-log-note">${escapeHtml(t('其余 {n} 个插件合计 {size}', { n: restPlugins.length, size: formatBytes(restPlugins.reduce((sum, plugin) => sum + Number(plugin.bytes || 0), 0)) }))}</p>` : ''}` : ''}
         <div class="launch-log-subhead">${escapeHtml(t('最占空间的 5 项'))}</div>
         <div class="launch-log-bars">${items.map((item) => `<div class="launch-log-bar-row${item.plugin ? ' is-plugin' : ''}"><span class="name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span><span class="track"><span class="fill" style="width:${Math.max(2, (Number(item.bytes) || 0) / max * 100).toFixed(1)}%"></span></span><span class="value">${escapeHtml(formatBytes(item.bytes))}</span></div>`).join('')}</div>
-        <p class="hint launch-log-note">${escapeHtml(t('合计是版本目录 + 这个环境目录的逻辑大小；pnpm 共享 store 不重复计入。'))}</p>`
+        <p class="hint launch-log-note">${escapeHtml(t('插件按它引用到的依赖计入（共用依赖按引用它的插件均摊）；合计是版本目录 + 这个环境目录的逻辑大小，pnpm 共享 store 不重复计入。'))}</p>`
       launchLogSpaceEl.hidden = false
     }
 

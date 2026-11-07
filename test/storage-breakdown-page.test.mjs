@@ -23,7 +23,7 @@ test('启动项日志里有空间构成卡片，日志打开时按启动项拉�
   assert.match(css, /\.ledger-data \{[^}]*background:/, '配置与数据有自己的颜色')
 })
 
-test('空间构成：分类条、图例、top5 和总计都画出来', () => {
+test('空间构成：分类条、各插件占用、top5 和总计都画出来', () => {
   const code = html.slice(
     html.indexOf('    function renderStorageBreakdown('),
     html.indexOf('    async function loadStorageBreakdown('),
@@ -42,14 +42,19 @@ test('空间构成：分类条、图例、top5 和总计都画出来', () => {
   vm.runInContext(`renderStorageBreakdown(${JSON.stringify({
     total: 200 * mb,
     segments: [
-      { key: 'plugin', bytes: 100 * mb },
+      { key: 'plugin', bytes: 20 * mb },
+      { key: 'plugin-deps', bytes: 80 * mb },
       { key: 'runtime', bytes: 60 * mb },
-      { key: 'deps', bytes: 30 * mb },
+      { key: 'runtime-deps', bytes: 30 * mb },
       { key: 'data', bytes: 10 * mb },
       { key: 'rest', bytes: 0 },
     ],
+    plugins: [
+      { name: 'dsh-ops', bytes: 100 * mb },
+      { name: 'dsh-im', bytes: 20 * mb },
+    ],
     items: [
-      { name: 'demo-plugin', bytes: 100 * mb, plugin: true },
+      { name: 'bash-win32-x64', bytes: 80 * mb, plugin: false },
       { name: '@deepseek-ai/dsh', bytes: 60 * mb, plugin: false },
     ],
   })})`, sandbox)
@@ -57,14 +62,19 @@ test('空间构成：分类条、图例、top5 和总计都画出来', () => {
   assert.equal(sandbox.launchLogSpaceEl.hidden, false)
   assert.equal(sandbox.launchLogSpaceMetaEl.textContent, '合计 200.0 MB')
   const body = sandbox.launchLogSpaceBodyEl.innerHTML
-  assert.match(body, /ledger-plugin[^>]*>.*?50%/, '插件 100/200 = 50%')
+  assert.match(body, /ledger-plugin[^>]*>.*?10%/, '插件本体 20/200 = 10%')
+  assert.match(body, /ledger-plugin-deps/)
   assert.match(body, /ledger-runtime/)
-  assert.match(body, /ledger-deps/)
+  assert.match(body, /ledger-runtime-deps/)
   assert.match(body, /ledger-data/)
   assert.doesNotMatch(body, /ledger-rest/, '0 字节的分类不画')
+  assert.match(body, /插件本体/)
+  assert.match(body, /插件依赖/)
+  assert.match(body, /运行时依赖/)
+  assert.match(body, /各插件占用（含它带进来的依赖）/)
+  assert.match(body, /dsh-ops/, '各插件占用里有插件名')
+  assert.match(body, /100\.0 MB/, '插件总占用含它带进来的依赖')
   assert.match(body, /最占空间的 5 项/)
-  assert.match(body, /demo-plugin/)
-  assert.match(body, /@deepseek-ai\/dsh/)
-  assert.match(body, /100\.0 MB/)
+  assert.match(body, /bash-win32-x64/)
   assert.match(body, /共享 store 不重复计入/)
 })

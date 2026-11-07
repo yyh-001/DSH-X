@@ -10,7 +10,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { isolateUserHome } from './isolated-home.mjs'
 
-test('空间构成接口把版本与 profile 拆成插件/运行时/其它依赖/配置与数据', async (t) => {
+test('空间构成接口把传递依赖归到插件，并拆开插件依赖/运行时依赖', async (t) => {
   const root = mkdtempSync(join(tmpdir(), 'dsh-storage-breakdown-'))
   const app = isolateUserHome(root)
   const home = join(root, 'home')
@@ -36,6 +36,13 @@ test('空间构成接口把版本与 profile 拆成插件/运行时/其它依赖
   mkdirSync(transitivePkg, { recursive: true })
   writeFileSync(join(pluginPkg, 'index.js'), Buffer.alloc(300))
   writeFileSync(join(transitivePkg, 'index.js'), Buffer.alloc(80))
+  // 依赖图：demo-plugin → transitive，用来验证传递依赖归到插件头上
+  const pluginJson = JSON.stringify({ name: 'demo-plugin', version: '1.0.0', dependencies: { transitive: '2.0.0' } })
+  const transitiveJson = JSON.stringify({ name: 'transitive', version: '2.0.0' })
+  writeFileSync(join(pluginPkg, 'package.json'), pluginJson)
+  writeFileSync(join(transitivePkg, 'package.json'), transitiveJson)
+  const pluginBytes = 300 + pluginJson.length
+  const transitiveBytes = 80 + transitiveJson.length
   const manifest = JSON.stringify({ dependencies: { 'demo-plugin': '1.0.0' }, dsh: { profile: { bundles: [] } } })
   writeFileSync(join(profile, 'package.json'), manifest)
   writeFileSync(join(profile, 'cordis.patch.yml'), '[]\n')
@@ -60,11 +67,13 @@ test('空间构成接口把版本与 profile 拆成插件/运行时/其它依赖
   assert.equal(res.status, 200)
   const result = await res.json()
   const bytesOf = (key) => result.segments.find((segment) => segment.key === key)?.bytes || 0
-  assert.equal(bytesOf('plugin'), 300)
+  assert.equal(bytesOf('plugin'), pluginBytes, '插件本体')
+  assert.equal(bytesOf('plugin-deps'), transitiveBytes, '插件的传递依赖')
   assert.equal(bytesOf('runtime'), bin.length + 100)
-  assert.equal(bytesOf('deps'), 50 + 80)
+  assert.equal(bytesOf('runtime-deps'), 50, '版本目录里非官方的依赖')
   assert.equal(bytesOf('data'), manifest.length + '[]\n'.length)
-  assert.equal(result.total, bin.length + 100 + 50 + 300 + 80 + manifest.length + 3)
+  assert.equal(result.total, bin.length + 100 + 50 + pluginBytes + transitiveBytes + manifest.length + 3)
+  assert.equal(result.plugins.find((plugin) => plugin.name === 'demo-plugin')?.bytes, pluginBytes + transitiveBytes, '插件的总占用含它带进来的依赖')
   assert.equal(result.items[0].name, 'demo-plugin', '最大的包排第一')
   assert.equal(result.items[0].plugin, true, '直接依赖标记成插件')
   assert.equal(result.items.find((item) => item.name === 'other-dep')?.plugin, false)
