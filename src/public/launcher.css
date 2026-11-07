@@ -1471,6 +1471,12 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 .ledger-data { background: #3fa27a; }
 .launch-log-ledger > .ledger-rest { color: #4a5160; }
 .launch-log-bars { display: flex; flex-direction: column; gap: 6px; }
+/* 空间构成：标题和合计固定，内容多时在卡片内部滚动，别把弹窗撑长 */
+#launchLogSpace .launch-log-block { max-height: min(46vh, 400px); overflow-y: auto; padding-right: 8px; scrollbar-width: thin; scrollbar-color: #8ea4ff transparent; }
+#launchLogSpace .launch-log-block::-webkit-scrollbar { width: 10px; }
+#launchLogSpace .launch-log-block::-webkit-scrollbar-track { background: rgba(127, 127, 127, .08); border-radius: 999px; }
+#launchLogSpace .launch-log-block::-webkit-scrollbar-thumb { background: #8ea4ff; border-radius: 999px; border: 2px solid transparent; background-clip: content-box; }
+#launchLogSpace .launch-log-block::-webkit-scrollbar-thumb:hover { background: #6f8cff; background-clip: content-box; }
 .launch-log-bar-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 56px; gap: 10px; align-items: center; font-size: 12px; }
 .launch-log-bar-row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
 .launch-log-bar-row .track { height: 7px; border-radius: 999px; background: rgba(127, 127, 127, .12); overflow: hidden; }
