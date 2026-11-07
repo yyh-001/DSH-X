@@ -400,8 +400,8 @@ async function managerRequest(path, { method = 'GET', timeout = 30_000 } = {}) {
 /** 下载窗口：这时候还没有管理页，至少把等待和进度说清楚。 */
 function showCoreSetupWindow() {
   const window = new BrowserWindow({
-    width: 460,
-    height: 196,
+    width: 480,
+    height: 280,
     resizable: false,
     title: 'DSH-X',
     // 和错误窗口一样：macOS 用 hiddenInset，Windows 用无边框（页面里没有关闭按钮，下载完自己关）
@@ -461,9 +461,7 @@ function flushCoreSetupPaint() {
     ? (known
       ? `${mb(done)} MB / ${mb(total)} MB · ${percent}%`
       : (en ? `Downloaded ${mb(done)} MB` : `已下载 ${mb(done)} MB`))
-    : phase === 'extract'
-      ? (en ? 'Download complete, extracting…' : '下载完成，正在解压…')
-      : ''
+    : ''
   const sourceText = source ? (en ? `Source: ${source}` : `下载源：${source}`) : ''
   return job.window.webContents.executeJavaScript(coreSetupPaintScript({
     percent,

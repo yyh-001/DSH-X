@@ -48,35 +48,31 @@ export function errorPage(title, message, detail) {
  * 首次启动在下载核心：安装包里不再带核心，这张页把等待说清楚。
  * 进度由 main.mjs 节流后用 executeJavaScript 更新（#bar 宽度、#hint 状态、#detail 字节数、
  * #source 下载源）；总大小未知时进度条走不确定态动画，不会停在 0%。
+ * 窗口固定高度、页面禁止滚动：内容比窗口高时右侧会冒出滚动条，很难看。
  */
 export function coreSetupPage(lang) {
   const en = lang === 'en'
   const title = en ? 'Preparing the runtime core' : '正在准备运行核心'
   const hint = en ? 'Contacting the download source…' : '正在连接下载源…'
-  const cancel = en ? 'Cancel' : '取消'
   const source = en ? 'npm mirror first, official registry as fallback' : '镜像源优先，失败自动切到官方源'
   return `<!doctype html>
 <html lang="${en ? 'en' : 'zh-CN'}"><head><meta charset="utf-8"><title>DSH-X</title><style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
-  html, body { height: 100%; }
+  html, body { height: 100%; overflow: hidden; }
   body { margin: 0; display: flex; align-items: center; justify-content: center;
          background: #15171c; color: #e7e9ee; font: 14px/1.6 -apple-system, "PingFang SC", sans-serif;
          -webkit-user-select: none; user-select: none; -webkit-app-region: drag; }
-  .card { width: 100%; padding: 0 32px; text-align: center; }
-  .spinner { width: 22px; height: 22px; margin: 0 auto 14px; border: 2px solid #333947;
+  .card { width: 100%; max-width: 360px; padding: 0 24px; text-align: center; }
+  .spinner { width: 18px; height: 18px; margin: 0 auto 12px; border: 2px solid #2b303b;
              border-top-color: #3b6cff; border-radius: 50%; animation: spin .8s linear infinite; }
-  h1 { margin: 0 0 8px; font-size: 15px; font-weight: 600; }
-  p { margin: 0 0 14px; color: #b9bec9; }
-  .track { height: 6px; border-radius: 3px; background: #262a33; overflow: hidden; }
+  h1 { margin: 0 0 6px; font-size: 15px; font-weight: 600; }
+  #hint { margin: 0 0 16px; color: #b9bec9; font-size: 13px; }
+  .track { height: 5px; border-radius: 3px; background: #262a33; overflow: hidden; }
   .bar { height: 100%; width: 0; border-radius: 3px; background: #3b6cff; transition: width .2s ease; }
   .track.is-indeterminate .bar { width: 32%; animation: slide 1.1s ease-in-out infinite; }
-  .detail { min-height: 18px; margin: 10px 0 0; color: #8f96a5; font-size: 12px; font-variant-numeric: tabular-nums; }
-  .source { min-height: 16px; margin: 4px 0 0; color: #6f7686; font-size: 11px; }
-  .cancel { margin-top: 18px; border: 1px solid #333947; border-radius: 8px; padding: 6px 16px;
-            background: transparent; color: #b9bec9; font: inherit; font-size: 12px; cursor: pointer;
-            -webkit-app-region: no-drag; }
-  .cancel:hover { background: #22262f; color: #e7e9ee; }
+  .detail { min-height: 17px; margin: 10px 0 0; color: #8f96a5; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+  .source { min-height: 15px; margin: 5px 0 0; color: #6f7686; font-size: 11px; }
   @keyframes spin { to { transform: rotate(360deg); } }
   @keyframes slide { 0% { transform: translateX(-110%); } 100% { transform: translateX(330%); } }
   @media (prefers-reduced-motion: reduce) {
@@ -91,7 +87,6 @@ export function coreSetupPage(lang) {
   <div class="track" id="track"><div class="bar" id="bar"></div></div>
   <p class="detail" id="detail"></p>
   <p class="source" id="source">${source}</p>
-  <button class="cancel" id="cancel" type="button" onclick="window.close()">${cancel}</button>
 </div></body></html>`
 }
 

@@ -84,19 +84,20 @@ test('npm CLI 带着外壳启动，核心目录通过 DSH_CORE_DIR 传入', () =
   assert.match(read('shell/core-fetch.mjs'), /'dsh-x-core'/, '核心包名跨平台，只有一个')
 })
 
-test('首启下载页：实时进度、下载源、取消，总大小未知时走不确定态', () => {
+test('首启下载页：实时进度与下载源，总大小未知时走不确定态', () => {
   const zh = coreSetupPage('zh')
-  for (const id of ['hint', 'track', 'bar', 'detail', 'source', 'cancel']) {
+  for (const id of ['hint', 'track', 'bar', 'detail', 'source']) {
     assert.match(zh, new RegExp(`id="${id}"`), `下载页缺少 #${id}`)
   }
   assert.match(zh, /is-indeterminate/, '总大小未知时进度条要滑动，不能停在 0%')
+  assert.match(zh, /html, body \{[^}]*overflow: hidden/, '页面禁止滚动，窗口右侧不能冒出滚动条')
   assert.match(zh, /正在连接下载源/)
-  assert.match(zh, /取消/, '窗口要能取消，不能只能等')
+  assert.doesNotMatch(zh, /取消/, '首启窗口不放取消按钮')
   const en = coreSetupPage('en')
   assert.match(en, /Contacting the download source/)
-  assert.match(en, /Cancel/)
 
   const main = read('shell/main.mjs')
+  assert.match(main, /width: 480,[\s\S]{0,40}height: 280/, '窗口要放得下整页内容，别靠滚动条')
   assert.match(main, /paintCoreSetup\(/, '进度统一走节流绘制')
   assert.match(main, /coreSetupPaintAt/, '每个 chunk 都跨进程执行会让窗口发卡')
   assert.match(main, /下载源：/, '窗口要显示实际下载源')
