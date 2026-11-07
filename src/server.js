@@ -12,7 +12,7 @@ import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep 
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import { cmpVer, currentRegistry, describeNpmFailure, installSpec, listPackage, optimizeDependencies, parsePnpmProgress, parseVer } from './registry.js'
-import { VERSION_CHANNEL, VERSION_CHANNELS, effectiveChannel, versionChannel, versionInChannel } from './version.js'
+import { VERSION_CHANNEL, VERSION_CHANNELS, effectiveChannel, leastStableChannel, versionChannel, versionInChannel } from './version.js'
 import { CORE_VERSION } from './app-version.js'
 import { createLogWriter } from './log-writer.js'
 import { checkPluginCompatibility } from './pre-update.js'
@@ -3724,11 +3724,12 @@ async function checkAppUpdate({ force = false } = {}) {
   const latest = APP_VERSION
   let result
   try {
-    // 通道跟着当前版本走（正式版只收正式版，rc 版收 rc / alpha），没有单独的通道开关。
+    // 通道取外壳和核心里更激进的那档：rc 外壳沿用了旧的正式版核心时，也要继续收到 rc 核心更新。
+    const channel = leastStableChannel([SHELL_VERSION, APP_VERSION])
     result = await checkCoreUpdate({
       current: APP_VERSION,
       source: UPDATE_SOURCE,
-      channel: versionChannel(APP_VERSION) || VERSION_CHANNEL.OFFICIAL,
+      channel,
     })
   } catch (error) {
     return remember({ available: false, reason: 'manifest', latest, error: error?.message || String(error) })
