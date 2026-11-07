@@ -449,10 +449,12 @@ function flushCoreSetupPaint() {
   coreSetupPaintAt = Date.now()
   const en = state.lang === 'en'
   const { phase, done = 0, total = 0, version = '', source = '' } = job.state
+  const extracting = phase === 'extract'
   const known = total > 0
-  const percent = known ? Math.max(0, Math.min(100, Math.round((done / total) * 100))) : 0
+  // 解压没有细粒度进度：保持满格，别让进度条看起来从 0 重来
+  const percent = extracting ? 100 : known ? Math.max(0, Math.min(100, Math.round((done / total) * 100))) : 0
   const mb = (value) => (value / 1048576).toFixed(1)
-  const hint = phase === 'extract'
+  const hint = extracting
     ? (en ? 'Installing the runtime core…' : '正在安装运行核心…')
     : phase === 'download'
       ? (en ? `Downloading the runtime core${version ? ` ${version}` : ''}…` : `正在下载运行核心${version ? ` ${version}` : ''}…`)
@@ -461,11 +463,13 @@ function flushCoreSetupPaint() {
     ? (known
       ? `${mb(done)} MB / ${mb(total)} MB · ${percent}%`
       : (en ? `Downloaded ${mb(done)} MB` : `已下载 ${mb(done)} MB`))
-    : ''
+    : extracting
+      ? (en ? 'Download complete, unpacking (a few seconds)…' : '下载完成，正在解压（通常几秒）…')
+      : ''
   const sourceText = source ? (en ? `Source: ${source}` : `下载源：${source}`) : ''
   return job.window.webContents.executeJavaScript(coreSetupPaintScript({
     percent,
-    indeterminate: !known,
+    indeterminate: !extracting && !known,
     hint,
     detail,
     source: sourceText,
