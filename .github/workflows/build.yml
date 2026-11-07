@@ -228,7 +228,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: macos-14 # Apple Silicon
+          - runner: macos-15 # Apple Silicon（macos-14 的 arm64 镜像 GitHub 已退役，用了会直接报 unsupported）
             arch: arm64
           - runner: macos-15-intel # Intel（macos-13 这个标签 GitHub 已经退役，用了会一直排队）
             arch: x64
