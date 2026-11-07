@@ -674,8 +674,16 @@ html.reduce-motion .launch-status.is-working::before { animation: none; }
 .launch-add[hidden] { display: none; }
 #pane-control #hint:empty { display: none; }
 /* 正文只纵向滚动；给焦点描边留出空间，避免边缘控件触发横向滚动或被裁掉。 */
-.launch-modal-fields { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 18px; margin: -2px; padding: 2px; flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+.launch-modal-fields { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 14px; margin: -2px; padding: 2px; flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; }
 #launchDialog .home-field > label { font-size: 12px; letter-spacing: 0; }
+/* 运行位置下面再挂 WSL 的发行版；与其它字段保持同一段间距。 */
+.launch-wsl-location { margin-top: 14px; }
+/* .home-pickers 自带 display:flex，会盖掉浏览器对 hidden 的默认 display:none；这里补一条，
+   否则 WSL 模式整组藏起来时仍会占一行高度。 */
+.home-pickers[hidden] { display: none; }
+/* 空说明不占行：运行位置从 WSL 切回本机时，这里会清空，否则会在名称上方留下一条空白。 */
+#launchBackendHint:empty, #launchWslHint:empty { display: none; }
+#launchWslHint { margin-top: 6px; font-size: 11.5px; line-height: 1.6; }
 .toggle.launch-auto-launch { margin: 0; font-size: 12px; }
 /* 引导块里的自动启动开关：跟上面两档 tab 的面板拉开一点，别贴着输入框 */
 .launch-guide .launch-auto-launch { margin-top: 2px; }
@@ -728,6 +736,10 @@ html.reduce-motion .launch-enhance-tip { transition: none; }
 .launch-isolation-tab { flex: 1 1 0; position: relative; z-index: 1; padding: 8px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font-family: inherit; font-size: 13px; font-weight: 500; cursor: pointer; transition: color 160ms ease; }
 .launch-isolation-tab:hover { color: var(--text); }
 .launch-isolation-tab[aria-selected="true"] { color: var(--accent); font-weight: 600; }
+/* 运行位置只有本机 / WSL 两档，沿用同一套胶囊动效：浮块按两等分，当前项读 aria-checked。 */
+#launchBackendTabs::after { width: calc((100% - 10px) / 2); }
+#launchBackendTabs[data-active="wsl"]::after { transform: translateX(calc(100% + 2px)); }
+#launchBackendTabs .launch-isolation-tab[aria-checked="true"] { color: var(--accent); font-weight: 600; }
 .launch-isolation-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .launch-custom-fields { display: grid; gap: 14px; }
 .launch-custom-fields[hidden] { display: none; }

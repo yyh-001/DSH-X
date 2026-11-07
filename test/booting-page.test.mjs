@@ -62,6 +62,19 @@ test('进度页地址带上版本、profile、目录和启动项名称', () => {
   assert.equal(urls.length, 0, '拼地址不该顺手打开页面')
 })
 
+test('WSL 自动版本在进度页保持 auto，并带合成目录', () => {
+  const { context } = bootPageSandbox({
+    state: {
+      dshHome: 'C:/global',
+      launchPresets: [{ id: 'wsl', name: 'WSL 环境', profile: 'web', backend: 'wsl', version: 'auto', wslDistro: 'Fedora', wslHome: '~/.dsh' }],
+    },
+  })
+  context.launchHomeOf = () => 'wsl://Fedora/~%2F.dsh'
+  const url = new URL(context.bootPageUrl('0.2.1-rc.5', 'web', 'wsl'))
+  assert.equal(url.searchParams.get('version'), 'auto', 'WSL auto 不能把上次用过的旧版本传给进度页')
+  assert.equal(url.searchParams.get('home'), 'wsl://Fedora/~%2F.dsh')
+})
+
 test('全局目录的启动项不写 dshHome，换成默认目录', () => {
   const { context } = bootPageSandbox()
   const url = new URL(context.bootPageUrl('1.2.3', 'web', ''))
