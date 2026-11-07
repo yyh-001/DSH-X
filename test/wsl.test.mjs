@@ -79,12 +79,14 @@ test('wsl.exe 的 UTF-16LE 输出能解码，普通 UTF-8 不被误判', () => {
 })
 
 test('短的中文 UTF-16LE（无 BOM、无 NUL）也按 UTF-16LE 解，不出乱码', () => {
-  // 纯汉字没有 ASCII 高字节的 0，靠 NUL 比例认不出来；UTF-8 解出替换字符时要回退。
+  // 纯汉字没有 ASCII 高字节的 0，靠 NUL 比例认不出来；严格 UTF-8 解不过时要回退。
   for (const text of ['没有已安装的分发', '错误', '已停止']) {
     assert.equal(decodeWslOutput(Buffer.from(text, 'utf16le')), text)
   }
   // 真 UTF-8 的短中文不能被反向误判。
   assert.equal(decodeWslOutput(Buffer.from('没有已安装的分发', 'utf8')), '没有已安装的分发')
+  // 合法 UTF-8 里的字面 U+FFFD 不是「解码失败」，不能被再按 UTF-16 解一遍。
+  assert.equal(decodeWslOutput(Buffer.from('\uFFFD\uFFFD', 'utf8')), '\uFFFD\uFFFD')
 })
 
 test('wrapper 脚本：pidfile 按实例区分，前台 exec dsh，停止先 TERM 再按端口兜底', () => {

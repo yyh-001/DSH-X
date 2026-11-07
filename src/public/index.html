@@ -4296,12 +4296,11 @@
     /**
      * 发行版列表按需拉：/api/state 每次推送都探测 WSL 等于让不用 WSL 的人一直付
      * 一次 wsl.exe 的启动成本（本机实测 ~100ms），所以状态里只留「有没有 wsl.exe」。
-     * 打开设置页走 /api/settings，打开启动项编辑器走这里；同一页面只拉一次。
+     * 打开设置页走 /api/settings，打开启动项编辑器走这里；每次切到 WSL 都拉一次，
+     * 服务端有 10 秒缓存（重复点 tab 只多一个请求，不会重复 spawn），这里只做并发去重。
      */
     let wslInfoPromise = null
-    let wslInfoLoaded = false
-    async function ensureWslInfo(force = false) {
-      if (!force && wslInfoLoaded) return state.wsl
+    async function ensureWslInfo() {
       if (wslInfoPromise) return wslInfoPromise
       wslInfoPromise = (async () => {
         try {
@@ -4313,9 +4312,7 @@
             error: data.error || '',
             ...(data.defaults || {}),
           }
-          wslInfoLoaded = true
         } catch (error) {
-          // 探测失败不写进「已加载」，下次打开编辑器还会再试一次。
           state.wsl = { ...(state.wsl || {}), distros: state.wsl?.distros || [], error: error.message }
         } finally {
           wslInfoPromise = null
@@ -4358,9 +4355,9 @@
         launchWslWorkdirEl.value = entry?.wslWorkdir || ''
         launchBackendHintEl.textContent = t('WSL 里要已经装好 dsh；首版只管理启动、停止、日志和打开方式。')
         // 发行版列表是打开编辑器才去探的：先按已保存的发行版画一版，探测回来再补全。
-        // 手里一个发行版都没有时强制刷新：用户可能刚装完，别让页面缓存一直显示旧结果。
+        // 每次切到 WSL 都拉一次，用户刚装好的发行版不用整页刷新就能看到。
         void (async () => {
-          await ensureWslInfo(!(state.wsl?.distros || []).length)
+          await ensureWslInfo()
           if (!launchBackendIsWsl()) return
           paintLaunchWslDistros(entry?.wslDistro || launchWslDistroEl.value || '')
           if (!launchWslDistroEl.value) {

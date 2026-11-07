@@ -6196,14 +6196,12 @@ export async function launchInstalled() {
     return { version: live.version, url: live.url }
   }
   if (live?.status === 'starting') {
-    // WSL 实例的 scope 必须带上发行版和 WSL 目录，只传合成 home 会被当成 Windows 本机启动。
-    const preset = live.launchId ? safeLaunchPresets(loadSettingsSync().launchPresets).find((item) => item.id === live.launchId) : null
-    // 和 restartInstalled 一样：auto 的 WSL 启动项要按启动项语义重新探测，不能拿记录的具体版本当钉子。
-    const version = preset?.backend === 'wsl' && preset.version === 'auto' ? 'auto' : live.version
+    // 已经在起：等它就行。重新走一遍启动流程会按「当前探测到的版本」拼实例键，
+    // WSL 里的 dsh 恰好在这段时间升级时找不到这个正在起的实例，可能再起一个同目录的进程。
     const scope = live.backend === 'wsl'
       ? { backend: 'wsl', home: live.home, wslDistro: live.distro, wslHome: live.wslHome, wslWorkdir: live.wslWorkdir, ...(live.launchId ? { launchId: live.launchId } : {}) }
       : { home: live.home }
-    const result = await launchScope.run(scope, () => start(version, live.profile))
+    const result = await launchScope.run(scope, () => waitUntilReady(live, live.version))
     return { version: live.version, url: result.url }
   }
   const installed = listedVersions(await loadConfig())

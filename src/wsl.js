@@ -87,6 +87,11 @@ function runProcess(command, args, options = {}) {
   })
 }
 
+/** 严格 UTF-8：字节不合法时返回 null，而不是拿替换字符冒充解码成功。 */
+function decodeUtf8Strict(buf) {
+  try { return new TextDecoder('utf-8', { fatal: true }).decode(buf) } catch { return null }
+}
+
 /** wsl.exe --list 的输出是 UTF-16LE；bash 的输出是 UTF-8。中间用这个函数兜住两种。 */
 export function decodeWslOutput(buffer) {
   const buf = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer || '')
@@ -97,14 +102,15 @@ export function decodeWslOutput(buffer) {
   let zeros = 0
   for (let index = 1; index < sample.length; index += 2) if (sample[index] === 0) zeros += 1
   if (zeros >= Math.max(1, sample.length / 8)) return buf.toString('utf16le').replace(/^\uFEFF/, '')
-  const text = buf.toString('utf8')
-  // 短的中文 UTF-16LE 没有 ASCII 帮忙，奇数位全是汉字高字节、一个 NUL 都没有，上面认不出来；
-  // 按 UTF-8 解会得到替换字符。偶数长度、且 UTF-16 解得干净时按 UTF-16LE 处理。
-  if (text.includes('\uFFFD') && buf.length % 2 === 0) {
+  const strict = decodeUtf8Strict(buf)
+  if (strict !== null) return strict
+  // 不是合法 UTF-8：短的中文 UTF-16LE 没有 ASCII 帮忙，奇数位一个 NUL 都没有，上面认不出来；
+  // 偶数长度、且 UTF-16 解得干净时按 UTF-16LE 处理（wsl.exe 自己的错误提示就是这种）。
+  if (buf.length % 2 === 0) {
     const utf16 = buf.toString('utf16le')
     if (!utf16.includes('\uFFFD')) return utf16.replace(/^\uFEFF/, '')
   }
-  return text
+  return buf.toString('utf8')
 }
 
 /**
