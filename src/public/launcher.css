@@ -1456,6 +1456,10 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 .ledger-other { background: #b6bcc8; }
 .ledger-native { background: #d99a2b; }
 .ledger-rest { background: #dfe3ea; }
+/* 空间构成：运行时 / 其它依赖 / 配置与数据 */
+.ledger-runtime { background: #6f7684; }
+.ledger-deps { background: #b6bcc8; }
+.ledger-data { background: #3fa27a; }
 .launch-log-ledger > .ledger-rest { color: #4a5160; }
 .launch-log-bars { display: flex; flex-direction: column; gap: 6px; }
 .launch-log-bar-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 56px; gap: 10px; align-items: center; font-size: 12px; }

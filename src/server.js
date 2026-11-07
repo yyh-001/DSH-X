@@ -552,12 +552,13 @@ async function directoryBytes(dir) {
     if (entry.isDirectory()) dirs.push(entry.name)
     else if (entry.isFile()) files.push(entry.name)
   }
-  let total = 0
+  // 并发累加不能写 `total += await ...`：两个 worker 会读到同一个旧值，后写的把先写的覆盖掉
+  const sizes = []
   await mapLimit(files, 32, async (name) => {
-    try { total += (await stat(join(dir, name))).size } catch { /* 文件刚好被删 */ }
+    try { sizes.push((await stat(join(dir, name))).size) } catch { /* 文件刚好被删 */ }
   })
-  await mapLimit(dirs, 8, async (name) => { total += await directoryBytes(join(dir, name)) })
-  return total
+  await mapLimit(dirs, 8, async (name) => { sizes.push(await directoryBytes(join(dir, name))) })
+  return sizes.reduce((total, bytes) => total + bytes, 0)
 }
 
 const VERSION_SIZE_TTL_MS = 5 * 60_000
@@ -570,6 +571,104 @@ function humanBytes(bytes) {
   if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`
   if (value < 1024 * 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB`
   return `${(value / (1024 * 1024 * 1024)).toFixed(2)} GB`
+}
+
+/** .pnpm 目录名 → 包名：`pkg@1.2.3`、`@scope+pkg@1.2.3(peer@x)`。 */
+function pnpmPackageName(entry) {
+  const raw = String(entry).replace(/\(.*$/, '')
+  const at = raw.lastIndexOf('@')
+  return (at > 0 ? raw.slice(0, at) : raw).replace(/\+/g, '/')
+}
+
+/** 一个 node_modules 里各包的大小；pnpm 的 .pnpm 虚拟目录按包名合并，符号链接跳过。 */
+async function packageSizesIn(nodeModules) {
+  const sizes = new Map()
+  const entries = await readdir(nodeModules, { withFileTypes: true }).catch(() => [])
+  for (const entry of entries) {
+    if (entry.isSymbolicLink()) continue
+    if (entry.name === '.pnpm') {
+      const virtual = await readdir(join(nodeModules, '.pnpm'), { withFileTypes: true }).catch(() => [])
+      for (const item of virtual) {
+        if (item.isSymbolicLink() || !item.isDirectory()) continue
+        const name = pnpmPackageName(item.name)
+        if (!name) continue
+        sizes.set(name, (sizes.get(name) || 0) + await directoryBytes(join(nodeModules, '.pnpm', item.name)))
+      }
+      continue
+    }
+    if (entry.name.startsWith('.') || !entry.isDirectory()) continue
+    if (entry.name.startsWith('@')) {
+      const scoped = await readdir(join(nodeModules, entry.name), { withFileTypes: true }).catch(() => [])
+      for (const sub of scoped) {
+        if (sub.isSymbolicLink() || !sub.isDirectory()) continue
+        sizes.set(`${entry.name}/${sub.name}`, await directoryBytes(join(nodeModules, entry.name, sub.name)))
+      }
+      continue
+    }
+    sizes.set(entry.name, await directoryBytes(join(nodeModules, entry.name)))
+  }
+  return sizes
+}
+
+const STORAGE_BREAKDOWN_TTL_MS = 5 * 60_000
+const storageBreakdownCache = new Map()
+
+/**
+ * 一个启动项（版本 + profile）的空间构成：版本目录 + 这个 profile 目录的逻辑大小。
+ * 插件只算 profile 的直接依赖；pnpm 共享 store 不在这些目录里，不重复计入。
+ */
+async function storageBreakdown(version, profile) {
+  const key = `${homeDir()}\0${version}\0${profile}`
+  const cached = storageBreakdownCache.get(key)
+  if (cached && Date.now() - cached.at < STORAGE_BREAKDOWN_TTL_MS) return cached.data
+  const versionPath = versionDir(version)
+  const profilePath = join(homeDir(), 'profiles', safeProfile(profile))
+  const profileNodeModules = join(profilePath, 'node_modules')
+  const [versionBytes, profileBytes, profileNodeModulesBytes, versionPackages, profilePackages] = await Promise.all([
+    directoryBytes(versionPath),
+    directoryBytes(profilePath),
+    directoryBytes(profileNodeModules),
+    packageSizesIn(join(versionPath, 'node_modules')),
+    packageSizesIn(profileNodeModules),
+  ])
+  const sum = (map) => [...map.values()].reduce((totalBytes, bytes) => totalBytes + bytes, 0)
+  const direct = new Set(Object.keys(profileDependencies(profilePath)))
+  let pluginBytes = 0
+  for (const name of direct) pluginBytes += profilePackages.get(name) || 0
+  let runtimeBytes = 0
+  let otherVersionBytes = sum(versionPackages)
+  for (const [name, bytes] of versionPackages) {
+    if (!name.startsWith('@deepseek-ai/')) continue
+    runtimeBytes += bytes
+    otherVersionBytes -= bytes
+  }
+  const depsBytes = otherVersionBytes + Math.max(0, sum(profilePackages) - pluginBytes)
+  const dataBytes = Math.max(0, profileBytes - profileNodeModulesBytes)
+  const total = versionBytes + profileBytes
+  const restBytes = Math.max(0, total - pluginBytes - runtimeBytes - depsBytes - dataBytes)
+  const segments = [
+    { key: 'plugin', bytes: pluginBytes },
+    { key: 'runtime', bytes: runtimeBytes },
+    { key: 'deps', bytes: depsBytes },
+    { key: 'data', bytes: dataBytes },
+    { key: 'rest', bytes: restBytes },
+  ].filter((segment) => segment.bytes >= 1)
+  const combined = new Map()
+  for (const [name, bytes] of versionPackages) combined.set(name, { name, bytes, plugin: false })
+  for (const [name, bytes] of profilePackages) {
+    const item = combined.get(name) || { name, bytes: 0, plugin: false }
+    item.bytes += bytes
+    item.plugin = item.plugin || direct.has(name)
+    combined.set(name, item)
+  }
+  const items = [...combined.values()].sort((left, right) => right.bytes - left.bytes).slice(0, 5)
+  const data = { version, profile, total, segments, items }
+  storageBreakdownCache.set(key, { at: Date.now(), data })
+  return data
+}
+
+function invalidateStorageBreakdown() {
+  storageBreakdownCache.clear()
 }
 
 /** 已装版本各自占多少（只算 DATA/versions 下受管版本；系统全局装的不归启动器管）。 */
@@ -674,6 +773,7 @@ async function pruneVersions(config) {
   }
   if (removed.length) {
     versionSizesCache.at = 0
+    invalidateStorageBreakdown()
     config.versions = listedVersions(config)
     await saveConfig(config)
     for (const version of removed) await dropInstancePorts(version)
@@ -4033,6 +4133,7 @@ async function addPlugin(version, spec, { profile = PROFILE_NAME } = {}) {
     pluginBusy = false
     pluginProgressName = ''
     pluginProgressProfile = ''
+    invalidateStorageBreakdown()
     emitPluginProgress(null)
   }
 }
@@ -4075,6 +4176,7 @@ async function removePlugin(version, name, { profile = PROFILE_NAME } = {}) {
     pluginBusy = false
     pluginProgressName = ''
     pluginProgressProfile = ''
+    invalidateStorageBreakdown()
     emitPluginProgress(null)
   }
 }
@@ -4293,6 +4395,7 @@ async function runProfileInstall(version, options = {}) {
   } finally {
     pluginProgressName = ''
     pluginProgressProfile = ''
+    invalidateStorageBreakdown()
     emitPluginProgress(null)
   }
 }
@@ -6853,12 +6956,14 @@ async function handleApi(req, res, url) {
   if (req.method === 'POST' && url.pathname === '/api/install') {
     await install(body.version)
     versionSizesCache.at = 0
+    invalidateStorageBreakdown()
     send(res, 200, { ok: true })
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/versions/optimize') {
     const result = await optimizeVersion(body.version)
     versionSizesCache.at = 0
+    invalidateStorageBreakdown()
     send(res, 200, result)
     return
   }
@@ -6983,12 +7088,22 @@ async function handleApi(req, res, url) {
   if (req.method === 'POST' && url.pathname === '/api/uninstall') {
     await uninstall(body.version)
     versionSizesCache.at = 0
+    invalidateStorageBreakdown()
     send(res, 200, { ok: true })
     return
   }
   if (req.method === 'GET' && url.pathname === '/api/versions/sizes') {
     try { send(res, 200, await versionSizes()) }
     catch (error) { send(res, 500, { error: error instanceof Error ? error.message : String(error) }) }
+    return
+  }
+  if (req.method === 'GET' && url.pathname === '/api/storage/breakdown') {
+    try {
+      const version = safeVersion(url.searchParams.get('version') || '')
+      const profile = safeProfile(url.searchParams.get('profile') || PROFILE_NAME)
+      if (!existsSync(versionDir(version))) throw new Error(`${version} 没有安装在启动器的版本目录里`)
+      send(res, 200, await storageBreakdown(version, profile))
+    } catch (error) { send(res, 400, { error: error instanceof Error ? error.message : String(error) }) }
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/settings') {
@@ -7126,6 +7241,7 @@ async function handleApi(req, res, url) {
       }
     } finally {
       pluginBusy = false
+      invalidateStorageBreakdown()
     }
     pushLog(`桌面增强：${profile} 卸载完成，成功 ${removed.length} 个${failed.length ? `，失败 ${failed.length} 个` : ''}（重启 dsh 后生效）`)
     send(res, 200, { ok: failed.length === 0, removed, failed, desktopEnhance: desktopEnhanceSummary(profile), ...listPlugins(profileDirOf(profile)), profile })

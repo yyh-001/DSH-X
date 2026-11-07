@@ -913,6 +913,10 @@
           <div class="launch-log-card-head"><h3 data-i18n="耗时构成">耗时构成</h3><span class="launch-log-head-meta"><span id="launchLogWindow"></span><span id="launchLogRss" hidden></span></span></div>
           <div class="launch-log-block" id="launchLogPlugins"></div>
         </section>
+        <section class="launch-log-card" id="launchLogSpace" hidden>
+          <div class="launch-log-card-head"><h3 data-i18n="空间构成">空间构成</h3><span class="launch-log-head-meta"><span id="launchLogSpaceMeta"></span></span></div>
+          <div class="launch-log-block" id="launchLogSpaceBody"></div>
+        </section>
         <section class="launch-log-card" id="launchLogCard">
           <div class="launch-log-card-head"><h3 data-i18n="原始日志">原始日志</h3><span class="launch-log-actions"><button class="ghost" type="button" id="launchLogCopy" data-i18n="复制">复制</button><button class="ghost" type="button" id="launchLogExport" data-i18n="导出">导出</button><button class="ghost" type="button" id="launchLogClear" data-i18n="清空">清空</button></span></div>
           <pre class="launch-log-text" id="launchLogText"></pre>
@@ -1559,6 +1563,14 @@
   "主线程 {pct}% 在跑；插件合计只占 {plugin}%，其余主要是模块解析与文件扫描。": "Main thread busy {pct}%; plugins only {plugin}%, the rest is module resolution and file scanning.",
   "原始日志": "Raw log",
   "耗时构成": "Time breakdown",
+  "空间构成": "Disk usage",
+  "运行时": "Runtime",
+  "其它依赖": "Other dependencies",
+  "配置与数据": "Config & data",
+  "未归类": "Unaccounted",
+  "合计 {size}": "{size} total",
+  "最占空间的 5 项": "Top 5 by size",
+  "合计是版本目录 + 这个环境目录的逻辑大小；pnpm 共享 store 不重复计入。": "Total is the logical size of the version directory plus this environment directory; the shared pnpm store is not counted twice.",
   "窗口 {window} · CPU {cpu}": "Window {window} · CPU {cpu}",
   "最耗时的 5 项": "Top 5 by time",
   "插件合计只占 {plugin}%；其余为模块解析、文件扫描与 Node 启动。": "Plugins account for only {plugin}%; the rest is module resolution, file scanning and Node startup.",
@@ -2181,6 +2193,9 @@
     const launchLogCardEl = document.getElementById('launchLogCard')
     const launchLogVisualEl = document.getElementById('launchLogVisual')
     const launchLogPluginsEl = document.getElementById('launchLogPlugins')
+    const launchLogSpaceEl = document.getElementById('launchLogSpace')
+    const launchLogSpaceMetaEl = document.getElementById('launchLogSpaceMeta')
+    const launchLogSpaceBodyEl = document.getElementById('launchLogSpaceBody')
     const launchLogDiagnosisEl = document.getElementById('launchLogDiagnosis')
     const launchLogDiagnosisMetaEl = document.getElementById('launchLogDiagnosisMeta')
     const launchLogDiagnosisRowsEl = document.getElementById('launchLogDiagnosisRows')
@@ -5128,6 +5143,7 @@
     let launchLogTimer = null
     let launchLogQuery = 0
     let launchLogReportKey = ''
+    let launchLogStorageKey = ''
     // 耗时账本按「这一次运行」缓存：同一次运行反复打开直接复用，重启后 runAt 变了才重取。
     const launchReportCache = new Map()
     // 日志正文按启动项缓存：再次打开先显示上次看到的全文，后台刷新再替换，不用空白等一次请求。
@@ -5281,6 +5297,51 @@
       }
     }
 
+    /** 启动项的空间构成：版本目录 + 这个 profile 目录，按插件 / 运行时 / 其它依赖 / 配置与数据分。 */
+    function renderStorageBreakdown(data) {
+      const labels = { plugin: t('插件'), runtime: t('运行时'), deps: t('其它依赖'), data: t('配置与数据'), rest: t('未归类') }
+      const segments = (data?.segments || [])
+        .map((segment) => ({ ...segment, label: labels[segment.key] || segment.key }))
+        .filter((segment) => Number(segment.bytes) >= 1)
+      const total = Math.max(1, Number(data?.total) || 0)
+      const percent = (bytes) => Math.round(Number(bytes) / total * 100)
+      const items = (data?.items || []).filter((item) => Number(item.bytes) >= 1)
+      const max = Math.max(...items.map((item) => Number(item.bytes) || 0), 1)
+      launchLogSpaceMetaEl.textContent = t('合计 {size}', { size: formatBytes(data.total) })
+      launchLogSpaceBodyEl.innerHTML = `
+        <div class="launch-log-ledger" role="img" aria-label="${escapeHtml(segments.map((segment) => `${segment.label} ${formatBytes(segment.bytes)}`).join('，'))}">${segments.map((segment) => `<span class="ledger-${segment.key}" style="flex:${Math.max(segment.bytes, total * 0.004)} 1 0" title="${escapeHtml(`${segment.label} ${formatBytes(segment.bytes)}`)}"><span>${percent(segment.bytes)}%</span></span>`).join('')}</div>
+        <div class="launch-log-legend">${segments.map((segment) => `<span><i class="ledger-${segment.key}"></i>${escapeHtml(segment.label)} <b>${escapeHtml(formatBytes(segment.bytes))}</b></span>`).join('')}</div>
+        <div class="launch-log-subhead">${escapeHtml(t('最占空间的 5 项'))}</div>
+        <div class="launch-log-bars">${items.map((item) => `<div class="launch-log-bar-row${item.plugin ? ' is-plugin' : ''}"><span class="name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span><span class="track"><span class="fill" style="width:${Math.max(2, (Number(item.bytes) || 0) / max * 100).toFixed(1)}%"></span></span><span class="value">${escapeHtml(formatBytes(item.bytes))}</span></div>`).join('')}</div>
+        <p class="hint launch-log-note">${escapeHtml(t('合计是版本目录 + 这个环境目录的逻辑大小；pnpm 共享 store 不重复计入。'))}</p>`
+      launchLogSpaceEl.hidden = false
+    }
+
+    async function loadStorageBreakdown(entry, version) {
+      if (!entry || !version) return
+      const profile = entry.profile || 'web'
+      const key = `${entry.id}\0${version}\0${profile}`
+      launchLogStorageKey = key
+      launchLogSpaceEl.hidden = false
+      launchLogSpaceMetaEl.textContent = t('正在计算占用…')
+      launchLogSpaceBodyEl.innerHTML = ''
+      try {
+        const data = await getJson(
+          `/api/storage/breakdown?version=${encodeURIComponent(version)}&profile=${encodeURIComponent(profile)}`,
+          { launchId: entry.id },
+        )
+        if (launchLogStorageKey !== key) return
+        if (!Array.isArray(data?.segments) || !data.segments.length) throw new Error('empty')
+        renderStorageBreakdown(data)
+      } catch {
+        if (launchLogStorageKey !== key) return
+        // 算不出来就收起这块，不占着位置
+        launchLogSpaceEl.hidden = true
+        launchLogSpaceMetaEl.textContent = ''
+        launchLogSpaceBodyEl.innerHTML = ''
+      }
+    }
+
     /** 提示行只在有话说时出现，避免顶部留一条空白。 */
     function setLaunchLogHint(text) {
       launchLogHintEl.textContent = text || ''
@@ -5365,12 +5426,17 @@
       launchLogReportKey = ''
       launchLogPluginsEl.hidden = true
       launchLogPluginsEl.innerHTML = ''
+      launchLogStorageKey = ''
+      launchLogSpaceEl.hidden = true
+      launchLogSpaceMetaEl.textContent = ''
+      launchLogSpaceBodyEl.innerHTML = ''
       renderLaunchLogDiagnosis(null)
       syncLaunchLogVisual()
       await showDialog(launchLogDialogEl)
       launchLogTextEl.scrollTop = launchLogTextEl.scrollHeight
       const data = await refreshLaunchLog()
       if (version) await loadLaunchReport(version, entry.profile || 'web', data?.runs?.[0]?.at || '')
+      if (version) void loadStorageBreakdown(entry, version)
       launchLogLoadingEl.hidden = true
       clearInterval(launchLogTimer)
       launchLogTimer = setInterval(() => {
@@ -5380,6 +5446,7 @@
 
     function closeLaunchLog() {
       launchLogEntry = null
+      launchLogStorageKey = ''
       launchLogQuery += 1
       launchLogLoadingEl.hidden = true
       clearInterval(launchLogTimer)
