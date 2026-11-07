@@ -81,7 +81,7 @@ export function nextBackupPath(patchPath, now = Date.now()) {
   return candidate
 }
 
-/** profile 里现存的补丁层备份（新到旧）。侧车在就带上被摘掉的 bundle 列表。 */
+/** profile 里现存的补丁层备份（新到旧）。侧车在就带上被摘掉的 bundle 列表与时间。 */
 export function listPatchBackups(profileDir) {
   let names
   try {
@@ -95,12 +95,27 @@ export function listPatchBackups(profileDir) {
     .map((name) => {
       const path = join(profileDir, name)
       let dropped = null
+      let at = null
       try {
         const parsed = JSON.parse(readFileSync(sidecarOf(path), 'utf8'))
-        if (Array.isArray(parsed?.dropped)) dropped = parsed.dropped
+        if (Array.isArray(parsed?.dropped)) {
+          dropped = parsed.dropped
+          if (Number.isFinite(parsed.at)) at = parsed.at
+        }
       } catch { /* 没侧车或坏了：只知道有这份备份 */ }
-      return { name, path, dropped }
+      return { name, path, dropped, at }
     })
+}
+
+/**
+ * 最近一次「安全启动」留下的备份：只有那次会写侧车，普通改名（还原前挪开的现役补丁）
+ * 没有。管理器重启后据此恢复「可还原」提示，不必依赖内存里的 lastRecovery。
+ */
+export function latestRecovery(profileDir) {
+  for (const item of listPatchBackups(profileDir)) {
+    if (Array.isArray(item.dropped)) return { backup: item.path, dropped: item.dropped, at: item.at }
+  }
+  return null
 }
 
 /**

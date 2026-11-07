@@ -10,6 +10,7 @@ import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
 
 const html = readFileSync(fileURLToPath(new URL('../src/public/index.html', import.meta.url)), 'utf8')
+const css = readFileSync(fileURLToPath(new URL('../src/public/launcher.css', import.meta.url)), 'utf8')
 
 const slice = (from, to) => {
   const start = html.indexOf(from)
@@ -71,6 +72,9 @@ test('页面逻辑：一张卡就是一个 profile，点开进详情，开关/�
   assert.ok(!/data-pack-toggle/.test(html), '列表卡片不再承担批量操作')
   assert.match(html, /<button class="pack-card\$\{/, '环境卡片是可通过键盘操作的按钮')
   assert.match(html, /<details class="pack-more">/, '次要操作收进更多操作')
+  // 弹窗高度固定，插件数量变化不改变卡片高度；右上「更多操作」菜单才有空间完整展开
+  assert.match(css, /#launchPluginsCard \{[^}]*height: min\(680px, calc\(100dvh - var\(--dialog-safe-area\)\)\)/)
+  assert.match(css, /\.pack-more-actions \{[^}]*max-height: min\(50vh, 380px\)/)
   assert.match(html, /data-pack-check-updates/, '当前环境详情可检查更新')
   assert.match(html, /<details class="pack-advanced">/, '装包的技术清单可按需展开')
   assert.match(html, /packSourceTags\(item\)/, '来源是以标签形式标在卡片上的')
@@ -282,7 +286,7 @@ test('按整合包清单分组：共同插件只出现一次，别名可归类�
 test('删除 Profile 先确认，取消不发请求，确认后定向删除', async () => {
   const calls = []
   let approved = false
-  const context = { packBusy: false, pluginUpdating: '', launchPluginScope: '', openedPack: null, pluginProfile: 'web', state: { profile: 'web' }, t: (s) => s,
+  const context = { packBusy: false, pluginUpdating: '', pluginRemoving: '', pluginAdding: false, launchPluginScope: '', openedPack: null, pluginProfile: 'web', state: { profile: 'web' }, t: (s) => s,
     appConfirm: async () => approved, renderPackGrid() {}, renderPackView() {}, applyPluginPayload() {}, notify() {},
     post: async (...args) => { calls.push(args); return {} } }
   const source = html.match(/    async function removeProfileDir\(item\) \{[\s\S]*?\n    \}/)[0]
@@ -300,7 +304,7 @@ test('删除 Profile 先确认，取消不发请求，确认后定向删除', as
 
 test('从启动项弹窗删除最后一个 Profile 后关闭失效作用域', async () => {
   const calls = []
-  const context = { packBusy: false, pluginUpdating: '', launchPluginScope: 'isolated-entry',
+  const context = { packBusy: false, pluginUpdating: '', pluginRemoving: '', pluginAdding: false, launchPluginScope: 'isolated-entry',
     openedPack: { profile: 'web' }, pluginProfile: 'web', state: { profile: 'web' }, t: (s) => s,
     appConfirm: async () => true, renderPackGrid() {}, renderPackView() {}, notify() {},
     applyPluginPayload: (data) => { calls.push(['payload', data.packs.length]) },

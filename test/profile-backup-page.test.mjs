@@ -52,6 +52,10 @@ test('弹窗结构：标题、提示、列表、立即备份/刷新和关闭按�
   assert.match(dialog, /id="backupRefresh"[^>]*data-i18n="刷新"/)
   assert.match(dialog, /id="backupNow"[^>]*data-i18n="立即备份"/)
   assert.match(dialog, /id="backupClose"[^>]*aria-label="关闭"/)
+  // 回退 / 备份期间要有转圈 + 进度条
+  assert.match(dialog, /id="backupProgress" hidden/)
+  assert.match(dialog, /id="backupProgressLabel"/)
+  assert.match(dialog, /id="backupProgressTrack" role="progressbar"/)
 })
 
 test('环境页卡片菜单多了「备份与回退」入口，图标和点击都接上', () => {
@@ -64,12 +68,31 @@ test('环境页卡片菜单多了「备份与回退」入口，图标和点击�
   assert.match(page, /'备份与回退'/)
 })
 
+test('环境详情（首页插件弹窗）的 ⋯ 菜单也有「备份与回退」', () => {
+  const view = section('packHeadEl.innerHTML = `', 'const actions = packHeadEl')
+  assert.match(view, /data-profile-backups="1"/)
+  assert.match(view, /packMoreIcons\.backup/)
+  const handler = section("actions.querySelector('[data-profile-backups]')", "actions.querySelector('[data-profile-copy]')")
+  assert.match(handler, /openProfileBackups\(item\.profile\)/)
+})
+
+test('备份弹窗的请求跟随启动项 / 环境目录的作用域', () => {
+  const sandbox = { launchPluginScope: 'work', pluginHome: '' }
+  vm.createContext(sandbox)
+  vm.runInContext(section('    const scopedLaunchId =', '    const post ='), sandbox)
+  assert.equal(vm.runInContext("scopedLaunchId('/api/profile-backups?profile=web')", sandbox), 'work', '启动项弹窗里带 launchId')
+  sandbox.launchPluginScope = ''
+  assert.equal(vm.runInContext("scopedLaunchId('/api/profile-backups?profile=web')", sandbox), '', '没有启动项作用域时不乱带')
+  sandbox.pluginHome = 'D:/custom'
+  assert.equal(vm.runInContext("apiScopeHeaders('/api/profile-backups?profile=web')", sandbox)['x-dsh-home'], encodeURIComponent('D:/custom'))
+})
+
 test('页面逻辑：列备份、回退先确认、成功后刷新插件与恢复档', () => {
   const restore = functionSource('restoreProfileBackup')
   assert.match(restore, /appConfirm\(/)
   assert.match(restore, /post\('\/api\/profile-backups\/restore'/)
   assert.match(restore, /loadPlugins\(\{ checkUpdates: false \}\)/)
-  assert.match(restore, /loadRecovery\(backupProfile\)/)
+  assert.match(restore, /loadRecovery\(profile\)/)
   const load = functionSource('loadProfileBackups')
   assert.match(load, /\/api\/profile-backups\?profile=/)
   assert.match(page, /\/api\/profile-backups\/snapshot/)
@@ -95,6 +118,8 @@ test('打开弹窗：提示里带上 Profile 名，先清空列表再拉取', ()
     escapeHtml: (value) => String(value ?? ''),
     packBusy: false,
     pluginUpdating: false,
+    pluginRemoving: '',
+    pluginAdding: false,
     backupProfile: '',
     backupDialogEl: { hidden: true },
     painted: [],
@@ -102,6 +127,7 @@ test('打开弹窗：提示里带上 Profile 名，先清空列表再拉取', ()
     backupHintEl: { textContent: '' },
     backupListEl: { innerHTML: '', querySelectorAll: () => [] },
     paintProfileBackups: (rows) => sandbox.painted.push(rows),
+    paintBackupProgress: () => {},
     showPackDialog: (dialog) => sandbox.shown.push(dialog),
     loadProfileBackups: () => { sandbox.loadRequested = true },
     document: { getElementById: (id) => (sandbox.elements[id] ||= { hidden: true, textContent: '', innerHTML: '' }) },
@@ -121,6 +147,7 @@ test('列表渲染：空列表给提示，有备份时每行是时间 + 文件 +
   const sandbox = {
     t: (zh, vars) => String(zh).replace(/\{(\w+)\}/g, (all, key) => (vars && key in vars ? vars[key] : all)),
     escapeHtml: (value) => String(value ?? '').replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch])),
+    backupLoading: false,
     handlers: [],
     backupListEl: {
       innerHTML: '',
@@ -144,13 +171,79 @@ test('列表渲染：空列表给提示，有备份时每行是时间 + 文件 +
   assert.equal(typeof sandbox.handlers[0].onclick, 'function')
 })
 
+test('回退 / 备份期间：进度区出现、按钮禁用，依赖重装时跟着真实进度', () => {
+  const buttons = [{ disabled: false }, { disabled: false }]
+  const sandbox = {
+    backupLoading: true, backupPhase: 'restore', backupProfile: 'web', pluginProgress: null,
+    t: (text) => text,
+    painted: null,
+    paintProgress: (wrap, bar, state, busy) => { sandbox.painted = { state, busy } },
+    backupProgressEl: { hidden: true },
+    backupProgressLabelEl: { textContent: '' },
+    backupProgressTrackEl: { querySelector: () => ({ style: {} }) },
+    backupNowEl: { disabled: false },
+    backupRefreshEl: { disabled: false },
+    backupListEl: { querySelectorAll: () => buttons },
+  }
+  vm.createContext(sandbox)
+  vm.runInContext(functionSource('paintBackupProgress'), sandbox)
+  vm.runInContext('paintBackupProgress()', sandbox)
+  assert.equal(sandbox.backupProgressEl.hidden, false, '回退中要显示进度区')
+  assert.equal(sandbox.backupProgressLabelEl.textContent, '正在回退配置…')
+  assert.equal(sandbox.painted.busy, true)
+  assert.ok(buttons.every((button) => button.disabled), '回退中不能再点别的备份')
+  assert.equal(sandbox.backupNowEl.disabled, true)
+  assert.equal(sandbox.backupRefreshEl.disabled, true)
+  // 服务端推来的依赖重装进度：同一 profile 才认
+  sandbox.pluginProgress = { profile: 'work', phase: 'resolve', done: 3 }
+  vm.runInContext('paintBackupProgress()', sandbox)
+  assert.equal(sandbox.backupProgressLabelEl.textContent, '正在回退配置…', '别的 profile 的进度不混用')
+  sandbox.pluginProgress = { profile: 'web', phase: 'resolve', done: 3 }
+  vm.runInContext('paintBackupProgress()', sandbox)
+  assert.equal(sandbox.backupProgressLabelEl.textContent, '正在重装依赖…')
+  assert.equal(sandbox.painted.state.phase, 'resolve')
+  // 结束：进度区收起，按钮解禁
+  sandbox.backupLoading = false
+  vm.runInContext('paintBackupProgress()', sandbox)
+  assert.equal(sandbox.backupProgressEl.hidden, true)
+  assert.equal(sandbox.painted.busy, false)
+  assert.ok(buttons.every((button) => !button.disabled))
+  assert.equal(sandbox.backupNowEl.disabled, false)
+})
+
+test('列备份不会把回退按钮渲染成禁用（列表加载与长操作分开计）', async () => {
+  const sandbox = {
+    backupProfile: 'web',
+    backupDialogEl: { hidden: false },
+    backupLoading: false,
+    backupListLoading: false,
+    backupListRequest: 0,
+    getJson: async () => ({ backups: [{ id: '1' }, { id: '2' }] }),
+    notify() {},
+    painted: [],
+    paintProfileBackups(rows) {
+      sandbox.painted.push({ rows, loading: sandbox.backupLoading, listLoading: sandbox.backupListLoading })
+    },
+  }
+  vm.createContext(sandbox)
+  vm.runInContext(functionSource('loadProfileBackups'), sandbox)
+  await vm.runInContext('loadProfileBackups()', sandbox)
+  assert.equal(sandbox.painted.length, 1)
+  assert.equal(sandbox.painted[0].rows.length, 2)
+  assert.equal(sandbox.painted[0].loading, false, '列备份时 backupLoading 必须保持 false，否则按钮渲染成禁用')
+  assert.equal(sandbox.backupLoading, false)
+  assert.equal(sandbox.backupListLoading, false)
+})
+
 test('样式与英文文案：列表限高滚动、行内按钮不换行，文案全部有译文', () => {
   const styles = cssSection('.backup-list {', '.pack-source {')
   assert.match(styles, /\.backup-list \{[^}]*max-height: min\(46vh, 360px\)[^}]*overflow-y: auto/)
   assert.match(styles, /\.backup-row \{[^}]*display: flex[^}]*align-items: center/)
   assert.match(styles, /\.backup-files \{[^}]*overflow-wrap: anywhere/)
+  assert.match(styles, /\.backup-progress \{[^}]*display: flex/)
+  assert.match(styles, /\.backup-progress \.spin \{[^}]*display: block/)
   const en = page.slice(page.indexOf('const EN = {'), page.indexOf('\n}\n', page.indexOf('const EN = {')))
-  for (const key of ['备份与回退', 'Profile 备份与回退', '回退到此备份', '立即备份', '回退完成', '已生成新备份。', '配置没有变化，不需要新备份。', '备份']) {
+  for (const key of ['备份与回退', 'Profile 备份与回退', '回退到此备份', '立即备份', '回退完成', '已生成新备份。', '配置没有变化，不需要新备份。', '备份', '正在回退配置…', '正在重装依赖…', '正在生成备份…']) {
     assert.ok(en.includes(`"${key}":`), `英文文案缺少「${key}」`)
   }
 })

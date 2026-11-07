@@ -33,6 +33,13 @@ await mkdir(STAGE, { recursive: true })
 await cp(SOURCE, STAGE, { recursive: true })
 // 外壳：Electron 入口是包根的 shell/main.mjs；托盘图标在 src/assets（Windows 用 tray.ico）
 await cp(join(ROOT, 'shell'), join(STAGE, 'shell'), { recursive: true })
+// lib/core.mjs 在仓库里指向 ../../shell（npm-package/lib 的上一级才是仓库根）；
+// 打进包里以后 lib/ 和 shell/ 都在包根下，路径要重写成 ../shell。
+await writeFile(join(STAGE, 'lib', 'core.mjs'), [
+  '// 核心获取的实现见 shell/core-fetch.mjs（安装版外壳共用这一份）。',
+  "export * from '../shell/core-fetch.mjs'",
+  '',
+].join('\n'))
 await mkdir(join(STAGE, 'assets'), { recursive: true })
 for (const icon of ['icon.png', 'tray.ico', 'tray.png']) {
   await cp(join(ROOT, 'src', 'assets', icon), join(STAGE, 'assets', icon))

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import { listPatchBackups, lockIsActive, nextBackupPath, restoreProfileBackup, sanitizeProfile, withProfileLock } from '../src/recovery.js'
+import { latestRecovery, listPatchBackups, lockIsActive, nextBackupPath, restoreProfileBackup, sanitizeProfile, withProfileLock } from '../src/recovery.js'
 
 /** 一份最小 profile：清单（bundles）+ 可选的补丁层。 */
 function makeProfile({ bundles, patch } = {}) {
@@ -105,12 +105,30 @@ test('备份列表：新到旧、忽略侧车文件、带上被摘清单', async
   const dir = makeProfile({})
   writeFileSync(join(dir, 'cordis.patch.yml.bak-1000'), 'a')
   writeFileSync(join(dir, 'cordis.patch.yml.bak-2000'), 'b')
-  writeFileSync(join(dir, 'cordis.patch.yml.bak-2000.json'), JSON.stringify({ dropped: ['x'] }))
+  writeFileSync(join(dir, 'cordis.patch.yml.bak-2000.json'), JSON.stringify({ at: 2000, dropped: ['x'] }))
   writeFileSync(join(dir, 'cordis.patch.yml.bak'), 'old')
   const list = listPatchBackups(dir)
   assert.deepEqual(list.map((item) => item.name), ['cordis.patch.yml.bak-2000', 'cordis.patch.yml.bak-1000'])
   assert.deepEqual(list[0].dropped, ['x'])
+  assert.equal(list[0].at, 2000)
   assert.equal(list[1].dropped, null)
+  assert.equal(list[1].at, null)
+})
+
+test('最近一次安全启动：管理器重启后仍能从侧车认出来，还原后消失', async () => {
+  const dir = makeProfile({ bundles: ['@deepseek-ai/dsh-web-app', 'third-party-plugin'], patch: '[]\n' })
+  assert.equal(latestRecovery(dir), null, '什么都没做过时没有恢复档')
+  const { backup, dropped } = await sanitizeProfile(dir)
+  const found = latestRecovery(dir)
+  assert.equal(found.backup, backup)
+  assert.deepEqual(found.dropped, dropped)
+  assert.ok(Number.isFinite(found.at), '侧车里的时间要带出来')
+  // 普通改名（还原前挪开的现役补丁）没有侧车，不能被当成「安全启动」的恢复档
+  const moved = nextBackupPath(patchOf(dir))
+  writeFileSync(moved, 'newer')
+  assert.equal(latestRecovery(dir).backup, backup, '新但没有侧车的备份不参与')
+  await restoreProfileBackup(dir, backup)
+  assert.equal(latestRecovery(dir), null, '还原后入口跟着收掉')
 })
 
 test('profile 锁：同步/异步操作都能拿返回值，用完就放锁', async () => {

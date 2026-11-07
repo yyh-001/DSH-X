@@ -179,3 +179,12 @@ test('safeLaunchPresets：内置项也保存自己的通道，结果再过一遍
   assert.ok(builtin)
   assert.equal(builtin.updateChannel ?? 'official', 'official')
 })
+
+test('leastStableChannel：外壳 rc + 核心正式按 rc 查，认不出时回正式版', () => {
+  assert.equal(version.leastStableChannel(['0.1.26-rc.3', '0.1.25']), 'rc')
+  assert.equal(version.leastStableChannel(['0.1.25', '0.1.26-rc.3']), 'rc')
+  assert.equal(version.leastStableChannel(['0.1.25', '0.1.26']), 'official')
+  assert.equal(version.leastStableChannel(['0.1.26-rc.3', '0.1.27-alpha.1']), 'alpha')
+  assert.equal(version.leastStableChannel([]), 'official')
+  assert.equal(version.leastStableChannel(['bad', '']), 'official')
+})

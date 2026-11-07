@@ -162,7 +162,7 @@ test('托盘启动项：操作可用性跟着各自的状态和地址走', () =>
   assert.ok(!launchActionEnabled(external, 'open'))
 })
 
-test('Electron 外壳里，dsh 子进程用 Electron 自带的 Node（旧包仍认 node/node.exe）', () => {
+test('Electron 外壳里，dsh 子进程固定用 Electron 自带的 Node（旧包残留的 node.exe 不参与）', () => {
   const root = mkdtempSync(join(tmpdir(), 'dsh-runtime-node-'))
   try {
     // 不在 Electron 里：就是正在跑的 node
@@ -171,11 +171,11 @@ test('Electron 外壳里，dsh 子进程用 Electron 自带的 Node（旧包仍�
     assert.equal(runtimeNode({ DSH_RUNTIME_NODE: '/custom/node' }, root, true), '/custom/node')
     // 打包后没有自带 node：就是 Electron 本体（加 ELECTRON_RUN_AS_NODE 环境变量）
     assert.equal(runtimeNode({ PATH: '' }, root, true), process.execPath)
-    // 0.1.19 及更早的安装包里有 node/node.exe：继续优先用它
+    // ≤0.1.19 的安装包会在 core 目录留下 node/node.exe（v22.19）：它低于 dsh 的 engines，
+    // 就地升级后不能被优先使用，否则 dsh 会跑在过时的 Node 上（#89）
     mkdirSync(join(root, 'node'))
-    const legacy = join(root, 'node', process.platform === 'win32' ? 'node.exe' : 'node')
-    writeFileSync(legacy, '')
-    assert.equal(runtimeNode({ PATH: '' }, root, true), legacy)
+    writeFileSync(join(root, 'node', process.platform === 'win32' ? 'node.exe' : 'node'), '')
+    assert.equal(runtimeNode({ PATH: '' }, root, true), process.execPath)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }

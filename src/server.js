@@ -4,7 +4,7 @@ import { createHash, randomBytes } from 'node:crypto'
 import { createServer } from 'node:http'
 import { createServer as createNetServer } from 'node:net'
 import { createInterface } from 'node:readline'
-import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { accessSync, chmodSync, closeSync, constants as fsConstants, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { createRequire } from 'node:module'
@@ -12,7 +12,7 @@ import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep 
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import { cmpVer, currentRegistry, describeNpmFailure, installSpec, listPackage, optimizeDependencies, parsePnpmProgress, parseVer } from './registry.js'
-import { VERSION_CHANNEL, VERSION_CHANNELS, effectiveChannel, versionChannel, versionInChannel } from './version.js'
+import { VERSION_CHANNEL, VERSION_CHANNELS, effectiveChannel, leastStableChannel, versionChannel, versionInChannel } from './version.js'
 import { CORE_VERSION } from './app-version.js'
 import { createLogWriter } from './log-writer.js'
 import { checkPluginCompatibility } from './pre-update.js'
@@ -24,10 +24,14 @@ import { DiagnosticRepairs, verificationSummary } from './repair-actions.js'
 import { recordedChanges } from './repair-evidence.js'
 import { describeDiagnosticCommandFailure } from './diagnostic-command-error.js'
 import {
+  bundleNameOf,
   disableRowId,
+  dropRowDisables,
   listPlugins,
   ensureBundleMounted,
   ownerOfRow,
+  packageLooksLikeBundle,
+  packageRowIds,
   parseFailedRows,
   parseUnresolvedBundles,
   pluginsNamedInFailure,
@@ -35,7 +39,7 @@ import {
   setPluginEnabled,
 } from './plugins.js'
 import { listMcpServers, probeMcpServer, removeMcpServer, saveMcpServer, setMcpEnabled } from './mcp.js'
-import { listPatchBackups, restoreProfileBackup, sanitizeProfile, withProfileLock } from './recovery.js'
+import { latestRecovery, listPatchBackups, restoreProfileBackup, sanitizeProfile, withProfileLock } from './recovery.js'
 import { createMarketStatsReader, marketRepository } from './pack-market.js'
 import {
   createSkill,
@@ -179,6 +183,12 @@ const SPEC_RE = /^(?:@[a-z0-9._~-]+\/)?[a-z0-9._~-]+(?:@[a-z0-9._~+-]+)?$/i
 const GITHUB_SPEC_RE = /^github:[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:#[\w./-]+)?$/
 /** 本地路径形态的插件源（内置插件走这条）：只认绝对路径，`file:` 后面必须是盘符或 /。 */
 const FILE_SPEC_RE = /^file:(?:[A-Za-z]:[\\/]|\/)[^\0]+$/
+/**
+ * 远端插件源：官方 `dsh plugin add` 能接的 Git / tarball 地址。
+ * 和官方插件管理器一样把地址原样交给 pnpm，由 pnpm 决定能不能拉；
+ * 启动器不在这里替用户下载或执行任何东西（pnpm ≥10 默认也禁用构建脚本）。
+ */
+const REMOTE_SPEC_RE = /^(?:git\+)?(?:https?|ssh|git):\/\/\S+$|^git@[A-Za-z0-9_.-]+:[^\s]+$/
 const READY_RE = /dsh web:\s+(https?:\/\/[^\s]+)/
 const START_TIMEOUT_MS = 120_000
 // 启动 profile：设置页可改，startServer() 里按设置定值
@@ -195,7 +205,8 @@ let WEB_BIND = resolveWebBind()
 // 手工钉死端口的实例（键 `版本@profile` → 端口）：没钉的组合每次启动由系统挑一个。
 // 和 WEB_BIND 一样是「改完立刻生效」的内存副本，启动时与保存设置时各刷新一次。
 let INSTANCE_PORTS = safeInstancePorts(loadSettingsSync().instancePorts)
-let ENVIRONMENT_PORTS = safeEnvironmentPorts(loadSettingsSync().environmentPorts)
+// 额外目录的端口表在 defaultHome() 定义之后再填（要判断哪些目录还活着，见 #90）。
+let ENVIRONMENT_PORTS = {}
 // WSL 的固定端口单独一张表：按发行版分开，键仍然是 版本@profile。
 let WSL_PORTS = safeWslPorts(loadSettingsSync().wslPorts)
 let WSL_SETTINGS = safeWslSettings(loadSettingsSync().wsl)
@@ -212,6 +223,21 @@ let HIDE_BIG_FISH = loadSettingsSync().hideBigFish === true
 let DSH_HOME_DIR = safeDshHome(loadSettingsSync().dshHome)
 const launchScope = new AsyncLocalStorage()
 const defaultHome = () => DSH_HOME_DIR || defaultDshHome()
+/**
+ * 固定端口只认「还登记过、目录也还在」的环境。旧 DSH_HOME 被删掉/换盘后，
+ * environmentPorts 里那条钉子会把端口永久占住（#90），这里直接把它当不存在。
+ */
+function liveEnvironmentPorts(stored) {
+  const environments = safeEnvironmentPorts(stored?.environmentPorts)
+  const known = [
+    defaultHome(),
+    ...safeDshHomes(stored?.dshHomes),
+    ...safeLaunchPresets(stored?.launchPresets).map((entry) => entry.dshHome).filter(Boolean),
+  ]
+  return Object.fromEntries(Object.entries(environments).filter(([dir]) =>
+    existsSync(dir) && known.some((item) => fileManager.samePath(dir, item))))
+}
+ENVIRONMENT_PORTS = liveEnvironmentPorts(loadSettingsSync())
 const profileKey = (profile) => `${homeDir()}\0${profile}`
 // 启动器更新的下载源：direct（默认直连 GitHub）/ mirror（国内加速，直连失败时走前缀镜像）
 let UPDATE_SOURCE = updateSourceForDownload(loadSettingsSync().downloadSource)
@@ -574,6 +600,252 @@ function scanInstalled() {
   return found
 }
 
+/** 小并发跑异步任务，避免一次 stat 几万个文件把句柄打满。 */
+async function mapLimit(items, limit, task) {
+  let index = 0
+  const workers = Array.from({ length: Math.min(limit, items.length || 1) }, async () => {
+    while (index < items.length) {
+      const item = items[index]
+      index += 1
+      await task(item)
+    }
+  })
+  await Promise.all(workers)
+}
+
+/**
+ * 目录的逻辑占用。符号链接跳过：pnpm 的 node_modules 里大量是链接，顺着走会把共享 store
+ * 里的同一份包重复算进每个版本。
+ */
+async function directoryBytes(dir) {
+  let entries
+  try { entries = await readdir(dir, { withFileTypes: true }) } catch { return 0 }
+  const files = []
+  const dirs = []
+  for (const entry of entries) {
+    if (entry.isSymbolicLink()) continue
+    if (entry.isDirectory()) dirs.push(entry.name)
+    else if (entry.isFile()) files.push(entry.name)
+  }
+  // 并发累加不能写 `total += await ...`：两个 worker 会读到同一个旧值，后写的把先写的覆盖掉
+  const sizes = []
+  await mapLimit(files, 32, async (name) => {
+    try { sizes.push((await stat(join(dir, name))).size) } catch { /* 文件刚好被删 */ }
+  })
+  await mapLimit(dirs, 8, async (name) => { sizes.push(await directoryBytes(join(dir, name))) })
+  return sizes.reduce((total, bytes) => total + bytes, 0)
+}
+
+const VERSION_SIZE_TTL_MS = 5 * 60_000
+let versionSizesCache = { at: 0, data: null }
+
+/** .pnpm 目录名 → 包名：`pkg@1.2.3`、`@scope+pkg@1.2.3(peer@x)`。 */
+function pnpmPackageName(entry) {
+  const raw = String(entry).replace(/\(.*$/, '')
+  const at = raw.lastIndexOf('@')
+  return (at > 0 ? raw.slice(0, at) : raw).replace(/\+/g, '/')
+}
+
+/** 一个 node_modules 里各包的大小；pnpm 的 .pnpm 虚拟目录按包名合并，符号链接跳过。 */
+async function packageSizesIn(nodeModules) {
+  const sizes = new Map()
+  // 目录名和 package.json 的 name 不一定一样（平台二进制 wrapper 常见），按真实包名归并，
+  // 这样依赖图（按 package.json 的 name 建）和大小才能对上。
+  const nameOf = (dir, fallback) => {
+    try { return JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')).name || fallback } catch { return fallback }
+  }
+  const add = async (dir, fallback) => {
+    const name = nameOf(dir, fallback)
+    sizes.set(name, (sizes.get(name) || 0) + await directoryBytes(dir))
+  }
+  const entries = await readdir(nodeModules, { withFileTypes: true }).catch(() => [])
+  for (const entry of entries) {
+    if (entry.isSymbolicLink()) continue
+    if (entry.name === '.pnpm') {
+      const virtual = await readdir(join(nodeModules, '.pnpm'), { withFileTypes: true }).catch(() => [])
+      for (const item of virtual) {
+        if (item.isSymbolicLink() || !item.isDirectory()) continue
+        const name = pnpmPackageName(item.name)
+        if (!name) continue
+        sizes.set(name, (sizes.get(name) || 0) + await directoryBytes(join(nodeModules, '.pnpm', item.name)))
+      }
+      continue
+    }
+    if (entry.name.startsWith('.') || !entry.isDirectory()) continue
+    if (entry.name.startsWith('@')) {
+      const scoped = await readdir(join(nodeModules, entry.name), { withFileTypes: true }).catch(() => [])
+      for (const sub of scoped) {
+        if (sub.isSymbolicLink() || !sub.isDirectory()) continue
+        await add(join(nodeModules, entry.name, sub.name), `${entry.name}/${sub.name}`)
+      }
+      continue
+    }
+    await add(join(nodeModules, entry.name), entry.name)
+  }
+  return sizes
+}
+
+const STORAGE_BREAKDOWN_TTL_MS = 5 * 60_000
+const storageBreakdownCache = new Map()
+
+/** 包名 → 它声明的依赖名。用来把传递依赖归到引用它的插件头上。 */
+async function packageGraph(nodeModules) {
+  const graph = new Map()
+  const add = async (dir) => {
+    try {
+      const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'))
+      if (!pkg?.name) return
+      const deps = new Set([
+        ...(pkg.dependencies ? Object.keys(pkg.dependencies) : []),
+        ...(pkg.optionalDependencies ? Object.keys(pkg.optionalDependencies) : []),
+      ])
+      graph.set(pkg.name, deps)
+    } catch { /* 没有 package.json 的残缺目录 */ }
+  }
+  const entries = await readdir(nodeModules, { withFileTypes: true }).catch(() => [])
+  for (const entry of entries) {
+    if (entry.isSymbolicLink() || !entry.isDirectory() || entry.name.startsWith('.')) continue
+    if (entry.name.startsWith('@')) {
+      const scoped = await readdir(join(nodeModules, entry.name), { withFileTypes: true }).catch(() => [])
+      for (const sub of scoped) {
+        if (sub.isSymbolicLink() || !sub.isDirectory()) continue
+        await add(join(nodeModules, entry.name, sub.name))
+      }
+      continue
+    }
+    await add(join(nodeModules, entry.name))
+  }
+  // pnpm 隔离布局：.pnpm/<pkg>@<ver>/node_modules/<pkg>
+  const virtual = await readdir(join(nodeModules, '.pnpm'), { withFileTypes: true }).catch(() => [])
+  for (const item of virtual) {
+    if (item.isSymbolicLink() || !item.isDirectory()) continue
+    const inner = await readdir(join(nodeModules, '.pnpm', item.name, 'node_modules'), { withFileTypes: true }).catch(() => [])
+    for (const sub of inner) {
+      if (sub.isSymbolicLink() || !sub.isDirectory()) continue
+      if (sub.name.startsWith('@')) {
+        const scoped = await readdir(join(nodeModules, '.pnpm', item.name, 'node_modules', sub.name), { withFileTypes: true }).catch(() => [])
+        for (const child of scoped) {
+          if (child.isSymbolicLink() || !child.isDirectory()) continue
+          await add(join(nodeModules, '.pnpm', item.name, 'node_modules', sub.name, child.name))
+        }
+        continue
+      }
+      await add(join(nodeModules, '.pnpm', item.name, 'node_modules', sub.name))
+    }
+  }
+  return graph
+}
+
+/** 每个直接插件能到达哪些包；共用包按引用它的插件数量均摊。 */
+async function attributePlugins(nodeModules, direct, sizes) {
+  const graph = await packageGraph(nodeModules)
+  const parents = new Map()
+  for (const start of direct) {
+    const seen = new Set([start])
+    const queue = [start]
+    while (queue.length) {
+      const current = queue.shift()
+      for (const next of graph.get(current) || []) {
+        if (seen.has(next)) continue
+        seen.add(next)
+        queue.push(next)
+      }
+    }
+    for (const name of seen) {
+      if (name === start) continue
+      const owners = parents.get(name) || new Set()
+      owners.add(start)
+      parents.set(name, owners)
+    }
+  }
+  const totals = new Map()
+  for (const name of direct) totals.set(name, sizes.get(name) || 0)
+  let depsBytes = 0
+  for (const [name, owners] of parents) {
+    if (direct.includes(name)) continue
+    const size = sizes.get(name) || 0
+    if (!size) continue
+    depsBytes += size
+    const share = size / owners.size
+    for (const owner of owners) totals.set(owner, (totals.get(owner) || 0) + share)
+  }
+  const plugins = [...totals.entries()]
+    .map(([name, bytes]) => ({ name, bytes: Math.round(bytes) }))
+    .filter((plugin) => plugin.bytes >= 1)
+    .sort((left, right) => right.bytes - left.bytes)
+  return { plugins, depsBytes }
+}
+
+/**
+ * 一个启动项（版本 + profile）的空间构成：版本目录 + 这个 profile 目录的逻辑大小。
+ * 插件只算 profile 的直接依赖；pnpm 共享 store 不在这些目录里，不重复计入。
+ */
+async function storageBreakdown(version, profile) {
+  const key = `${homeDir()}\0${version}\0${profile}`
+  const cached = storageBreakdownCache.get(key)
+  if (cached && Date.now() - cached.at < STORAGE_BREAKDOWN_TTL_MS) return cached.data
+  const versionPath = versionDir(version)
+  const profilePath = join(homeDir(), 'profiles', safeProfile(profile))
+  const profileNodeModules = join(profilePath, 'node_modules')
+  const [versionBytes, profileBytes, profileNodeModulesBytes, versionPackages, profilePackages] = await Promise.all([
+    directoryBytes(versionPath),
+    directoryBytes(profilePath),
+    directoryBytes(profileNodeModules),
+    packageSizesIn(join(versionPath, 'node_modules')),
+    packageSizesIn(profileNodeModules),
+  ])
+  const sum = (map) => [...map.values()].reduce((totalBytes, bytes) => totalBytes + bytes, 0)
+  const direct = new Set(Object.keys(profileDependencies(profilePath)))
+  const { plugins, depsBytes: pluginDepsBytes } = await attributePlugins(profileNodeModules, [...direct], profilePackages)
+  let pluginOwnBytes = 0
+  for (const name of direct) pluginOwnBytes += profilePackages.get(name) || 0
+  let runtimeBytes = 0
+  let runtimeDepsBytes = 0
+  for (const [name, bytes] of versionPackages) {
+    if (name.startsWith('@deepseek-ai/')) runtimeBytes += bytes
+    else runtimeDepsBytes += bytes
+  }
+  const dataBytes = Math.max(0, profileBytes - profileNodeModulesBytes)
+  const total = versionBytes + profileBytes
+  // 到不了的 profile 包（残留/未声明）和版本目录非 node_modules 的部分都算「未归类」
+  const restBytes = Math.max(0, total - pluginOwnBytes - pluginDepsBytes - runtimeBytes - runtimeDepsBytes - dataBytes)
+  const segments = [
+    { key: 'plugin', bytes: pluginOwnBytes },
+    { key: 'plugin-deps', bytes: pluginDepsBytes },
+    { key: 'runtime', bytes: runtimeBytes },
+    { key: 'runtime-deps', bytes: runtimeDepsBytes },
+    { key: 'data', bytes: dataBytes },
+    { key: 'rest', bytes: restBytes },
+  ].filter((segment) => segment.bytes >= 1)
+  const combined = new Map()
+  for (const [name, bytes] of versionPackages) combined.set(name, { name, bytes, plugin: false })
+  for (const [name, bytes] of profilePackages) {
+    const item = combined.get(name) || { name, bytes: 0, plugin: false }
+    item.bytes += bytes
+    item.plugin = item.plugin || direct.has(name)
+    combined.set(name, item)
+  }
+  const items = [...combined.values()].sort((left, right) => right.bytes - left.bytes).slice(0, 5)
+  const data = { version, profile, total, segments, plugins, items }
+  storageBreakdownCache.set(key, { at: Date.now(), data })
+  return data
+}
+
+function invalidateStorageBreakdown() {
+  storageBreakdownCache.clear()
+}
+
+/** 已装版本各自占多少（只算 DATA/versions 下受管版本；系统全局装的不归启动器管）。 */
+async function versionSizes() {
+  if (versionSizesCache.data && Date.now() - versionSizesCache.at < VERSION_SIZE_TTL_MS) return versionSizesCache.data
+  const versions = scanInstalled().filter(isManaged)
+  const sizes = {}
+  for (const version of versions) sizes[version] = await directoryBytes(versionDir(version))
+  const total = Object.values(sizes).reduce((sum, bytes) => sum + bytes, 0)
+  versionSizesCache = { at: Date.now(), data: { versions: sizes, total } }
+  return versionSizesCache.data
+}
+
 function listedVersions(config) {
   const onDisk = new Set(scanInstalled())
   const fromConfig = (config.versions || [])
@@ -654,6 +926,8 @@ async function pruneVersions(config) {
     }
   }
   if (removed.length) {
+    versionSizesCache.at = 0
+    invalidateStorageBreakdown()
     config.versions = listedVersions(config)
     await saveConfig(config)
     for (const version of removed) await dropInstancePorts(version)
@@ -662,10 +936,35 @@ async function pruneVersions(config) {
 }
 
 function safeSpec(spec) {
-  if (typeof spec !== 'string' || !(SPEC_RE.test(spec) || GITHUB_SPEC_RE.test(spec) || FILE_SPEC_RE.test(spec))) {
+  const value = typeof spec === 'string' ? spec.trim() : ''
+  if (!value || !(SPEC_RE.test(value) || GITHUB_SPEC_RE.test(value) || FILE_SPEC_RE.test(value) || REMOTE_SPEC_RE.test(value))) {
     throw new Error('非法插件源')
   }
-  return spec
+  return value
+}
+
+/**
+ * 页面里输入的插件源：纯本地绝对路径补成 `file:`，其余交给 safeSpec 校验。
+ *
+ * 用户从资源管理器/访达复制来的路径没有 `file:` 前缀；官方 `dsh plugin add`
+ * 也接受裸路径，但统一成 `file:` 后更容易和版本号、Git 地址区分开。反斜杠
+ * 换成斜杠：`file:C:\x` 在 pnpm 的 URL 解析里会把盘符吃掉。
+ */
+function normalizePluginSpec(input) {
+  const value = String(input ?? '').trim()
+  if (!value) throw new Error('请填写插件包名或地址')
+  if (isAbsolute(value)) return safeSpec(`file:${value.replace(/\\/g, '/')}`)
+  return safeSpec(value)
+}
+
+/** profile 清单里的直接依赖（读不到就当空）。 */
+function profileDependencies(profileDir) {
+  try {
+    const manifest = JSON.parse(readFileSync(join(profileDir, 'package.json'), 'utf8'))
+    return manifest?.dependencies && typeof manifest.dependencies === 'object' ? manifest.dependencies : {}
+  } catch {
+    return {}
+  }
 }
 
 async function loadConfig() {
@@ -1446,6 +1745,8 @@ async function snapshotDefault() {
     },
     health: lastHealth,
     failure: publicFailure(lastFailure),
+    // 安全启动移走配置层之后，首页提示行也要能给出还原入口（#88）
+    recovery: recoveryPayload(),
     diagnosticRepairs: publicFailure({ message: '', diagnosis: diagnosticRepairs.history().map(record => ({ ...record, recorded: recordedChanges(record) })) }).diagnosis,
     dataDir: DATA,
     progress: installProgress,
@@ -1586,7 +1887,7 @@ async function setInstancePortNow(version, profile, port) {
       ? { environmentPorts: { ...ENVIRONMENT_PORTS, [home]: next } }
       : { instancePorts: next })
     INSTANCE_PORTS = safeInstancePorts(saved.instancePorts)
-    ENVIRONMENT_PORTS = safeEnvironmentPorts(saved.environmentPorts)
+    ENVIRONMENT_PORTS = liveEnvironmentPorts(saved)
   }
   const text = String(port ?? '').trim()
   if (!text || Number(text) === 0) {
@@ -1939,10 +2240,40 @@ async function removeLaunchPresetNow(id) {
   const stored = await loadSettings()
   if (installing || packInstalling) throw new Error('正在安装，稍后再编辑启动项')
   const presets = safeLaunchPresets(stored.launchPresets)
+  const entry = presets.find((item) => item.id === id)
   const next = presets.filter((item) => item.id !== id)
-  if (next.length === presets.length) throw new Error('这个启动项已不存在，请刷新后重试')
-  // 删除快捷入口不改实例端口，避免影响同一组合的手动启动设置。
-  await saveSettings({ launchPresets: next })
+  if (!entry) throw new Error('这个启动项已不存在，请刷新后重试')
+  // 启动项是端口钉子的唯一入口：它删掉、又没有别的启动项用同一个版本@profile 时，
+  // 钉子一起清掉，否则端口会被一个已经不存在的启动项永久占住（#90）。
+  const home = entry.dshHome || defaultHome()
+  const profile = entry.profile || 'web'
+  const keys = new Set([entry.version !== 'auto' ? entry.version : '', entry.usedVersion, entry.prevVersion]
+    .filter(Boolean).map((version) => `${version}@${profile}`))
+  for (const other of next) {
+    if (!fileManager.samePath(other.dshHome || defaultHome(), home)) continue
+    for (const version of [other.version !== 'auto' ? other.version : '', other.usedVersion, other.prevVersion]) {
+      if (version) keys.delete(`${version}@${other.profile || 'web'}`)
+    }
+  }
+  const patch = { launchPresets: next }
+  if (keys.size) {
+    if (fileManager.samePath(home, defaultHome())) {
+      const ports = { ...safeInstancePorts(stored.instancePorts) }
+      for (const key of keys) delete ports[key]
+      patch.instancePorts = ports
+    } else {
+      const environments = safeEnvironmentPorts(stored.environmentPorts)
+      const dir = Object.keys(environments).find((item) => fileManager.samePath(item, home))
+      if (dir) {
+        const ports = { ...environments[dir] }
+        for (const key of keys) delete ports[key]
+        patch.environmentPorts = { ...environments, [dir]: ports }
+      }
+    }
+  }
+  const saved = await saveSettings(patch)
+  INSTANCE_PORTS = safeInstancePorts(saved.instancePorts)
+  ENVIRONMENT_PORTS = liveEnvironmentPorts(saved)
   dropLaunchLog(id)
   await emitState()
   return { ok: true }
@@ -1992,7 +2323,7 @@ async function dropInstancePorts(version) {
     && Object.entries(environments).every(([home, ports]) => Object.keys(ports).length === Object.keys(ENVIRONMENT_PORTS[home]).length)) return
   const saved = await saveSettings({ instancePorts: kept, environmentPorts: environments })
   INSTANCE_PORTS = safeInstancePorts(saved.instancePorts)
-  ENVIRONMENT_PORTS = safeEnvironmentPorts(saved.environmentPorts)
+  ENVIRONMENT_PORTS = liveEnvironmentPorts(saved)
 }
 
 async function saveManagerSettings(body) {
@@ -2143,7 +2474,7 @@ async function saveManagerSettings(body) {
   EXTRA_ARGS = composeExtraArgs(stored.args)
   WEB_BIND = safeWebBind(stored.webBind)
   INSTANCE_PORTS = safeInstancePorts(stored.instancePorts)
-  ENVIRONMENT_PORTS = safeEnvironmentPorts(stored.environmentPorts)
+  ENVIRONMENT_PORTS = liveEnvironmentPorts(stored)
   WSL_PORTS = safeWslPorts(stored.wslPorts)
   WSL_SETTINGS = safeWslSettings(stored.wsl)
   if ('wsl' in body) invalidateWslCache()
@@ -2717,6 +3048,44 @@ async function restoreProfileConfig(profile, id) {
 }
 
 /**
+ * 配置层回退之后再按清单把依赖装齐。
+ *
+ * 备份里只有配置文件，node_modules 不在其中；回退可能让 package.json 重新引用已经卸掉的
+ * 包，插件页就会整片「包不可用」。这里跑一次 `dsh plugin install`，让 node_modules 和
+ * 还原后的清单对齐。装失败不影响回退本身，只把原因带回去给页面显示。
+ */
+async function reinstallAfterRollback(profile) {
+  let manifest
+  try {
+    manifest = JSON.parse(readFileSync(join(profileDirOf(profile), 'package.json'), 'utf8'))
+  } catch {
+    return null
+  }
+  const dependencies = manifest?.dependencies
+  // 没有直接依赖就没什么可装的（官方 bundle 由 dsh 自己带），别白起一次 pnpm。
+  if (!dependencies || typeof dependencies !== 'object' || !Object.keys(dependencies).length) return { ok: true, skipped: true }
+  if (pluginBusy) return { ok: false, error: '正在装插件或整合包，跳过依赖重装' }
+  let version
+  try {
+    version = await pluginCommandVersion(profile)
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+  pluginBusy = true
+  try {
+    await runProfileInstall(version, { profile })
+    pushLog(`[备份] Profile ${profile} 回退后已重装依赖`)
+    return { ok: true }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    pushLog(`[备份] Profile ${profile} 回退后重装依赖失败：${message}`)
+    return { ok: false, error: message }
+  } finally {
+    pluginBusy = false
+  }
+}
+
+/**
  * 这次启动要不要开局域网代理：只看设置里的 Web 绑定。
  * 远程访问插件的「局域网访问」开关不再参与：新版插件自己起转发，旧版写的 0.0.0.0
  * 补丁块在 dsh 0.2.1-rc.2 起本来就会被拒（通配地址不再支持）。
@@ -3023,7 +3392,7 @@ async function autoPortUsable(port, stored) {
   // 自动端口不能抢手工指定给其他实例的端口；真实监听也要检查（含别的程序）。
   // WSL 的固定端口也按发行版分开记，但 localhostForwarding 把端口映射到同一个 Windows 回环，
   // 所以这里把所有发行版的 wslPorts 都当保留端口，避免自动端口抢了另一个发行版钉住的端口。
-  const reserved = [stored.instancePorts, ...Object.values(stored.environmentPorts || {}), ...Object.values(stored.wslPorts || {})]
+  const reserved = [stored.instancePorts, ...Object.values(liveEnvironmentPorts(stored)), ...Object.values(stored.wslPorts || {})]
     .some((ports) => Object.values(ports || {}).includes(port))
     || safeLaunchPresets(stored.launchPresets).some((entry) => entry.port === port)
   // 检查监听会让出执行权；不同目录的并发启动不能同时复用同一个历史端口。
@@ -3425,8 +3794,8 @@ async function applyAppUpdate() {
     setTimeout(() => shutdown().finally(() => host.exit(0)), 200)
     return { ok: true, version: stagedApp.version }
   }
-  // 内置基线：复制到用户目录，写 pending 标记；外壳下次启动优先加载 current，
-  // 起不来（外壳里的 recoverBaseline）会删掉 current 回退到基线
+  // 核心不在用户目录（源码运行 / 旧布局）：复制到 core/current，写 pending 标记；
+  // 外壳下次启动优先加载 current，起不来（外壳里的 recoverCore）会删掉它并回滚/重新下载
   const pending = join(APP_DIR, 'core', 'pending')
   const version = stagedApp.version
   const stagedDir = stagedApp.dir
@@ -3518,11 +3887,12 @@ async function checkAppUpdate({ force = false } = {}) {
   const latest = APP_VERSION
   let result
   try {
-    // 通道跟着当前版本走（正式版只收正式版，rc 版收 rc / alpha），没有单独的通道开关。
+    // 通道取外壳和核心里更激进的那档：rc 外壳沿用了旧的正式版核心时，也要继续收到 rc 核心更新。
+    const channel = leastStableChannel([SHELL_VERSION, APP_VERSION])
     result = await checkCoreUpdate({
       current: APP_VERSION,
       source: UPDATE_SOURCE,
-      channel: versionChannel(APP_VERSION) || VERSION_CHANNEL.OFFICIAL,
+      channel,
     })
   } catch (error) {
     return remember({ available: false, reason: 'manifest', latest, error: error?.message || String(error) })
@@ -3783,7 +4153,9 @@ async function releaseNotes(kind, version) {
   const entry = entries.find((item) => item.version === wanted)
   if (!entry) return { found: false, url: fallbackUrl }
   const raw = decodeEntities(entry.content)
-  const englishAt = raw.search(/id="[^"]*en-v[^"]*"/i)
+  // 英文段的锚点写法变过：老正文是 `id="en-v0.1.18"`，现在是 `<a id="en">`，
+  // 经 GitHub 渲染后都带 `user-content-` 前缀。只认 `en-v` 会把整段英文留在弹窗里。
+  const englishAt = raw.search(/id="(?:[^"]*-)?en(?:-[^"]*)?"/i)
   // 正文开头那行「中文 | English」是语言导航，不是变更内容
   const blocks = parseNotes(englishAt > 0 ? raw.slice(0, englishAt) : raw)
     .filter((block) => !/^(?:中文|English)(?:\s*\|\s*(?:中文|English))+$/i.test(block.text))
@@ -3995,7 +4367,10 @@ async function addPlugin(version, spec, { profile = PROFILE_NAME } = {}) {
   emitPluginProgress({ phase: 'resolve' })
   await mkdir(homeDir(), { recursive: true })
   await ensureProfileNpmrc(profile)
-  const broken = pruneDanglingLinks(join(profileDirOf(profile), 'node_modules'))
+  const dir = profileDirOf(profile)
+  // git / 本地目录的 spec 里没有包名，装完只能靠依赖清单的增量认出来。
+  const before = new Set(Object.keys(profileDependencies(dir)))
+  const broken = pruneDanglingLinks(join(dir, 'node_modules'))
   if (broken) pushLog(`先清理了 ${broken} 个悬空的链接（断链会让安装报 unknown error）`)
   pushLog(`安装插件 ${pkg} 到 ${profile} profile`)
   try {
@@ -4023,14 +4398,74 @@ async function addPlugin(version, spec, { profile = PROFILE_NAME } = {}) {
     }
     // 0.2.x 的 dsh plugin add 是纯 pnpm 透传、不再写挂载清单（0.1.x 会写）：
     // 启动器接管这一步，不补的话插件在 dsh 里永远是关闭状态。
-    const mounted = ensureBundleMounted(profileDirOf(profile), pkg)
-    if (mounted.ok && mounted.changed) pushLog(`已挂载 ${mounted.name}（写入 ${profile} 的 dsh.profile.bundles）`)
-    else if (!mounted.ok) pushLog(`挂载 ${pkg} 没做成：${mounted.reason}`)
+    // npm 名能直接取出包名；git / 本地目录只有装完才知道真实包名，所以对比
+    // 安装前后的 dependencies，把新增的那个挂上去。挂载前确认它真是个 bundle，
+    // 别把自动装进来的 peer/普通依赖塞进层栈——那会让 dsh 启动时解析不到 bundle。
+    const guessed = bundleNameOf(pkg)
+    const after = profileDependencies(dir)
+    const targets = guessed
+      ? (Object.hasOwn(after, guessed) ? [guessed] : [])
+      : Object.keys(after).filter((name) => !before.has(name))
+    if (guessed && !targets.length) pushLog(`${guessed} 没有出现在依赖清单里，未写入 dsh.profile.bundles`)
+    for (const name of targets) {
+      if (!packageLooksLikeBundle(dir, name)) {
+        pushLog(`${name} 不是可挂载的 bundle，未写入 dsh.profile.bundles`)
+        continue
+      }
+      const mounted = ensureBundleMounted(dir, name)
+      if (mounted.ok && mounted.changed) pushLog(`已挂载 ${mounted.name}（写入 ${profile} 的 dsh.profile.bundles）`)
+      else if (!mounted.ok) pushLog(`挂载 ${pkg} 没做成：${mounted.reason}`)
+    }
+    if (!guessed && !targets.length) pushLog(`无法从 ${pkg} 判断包名，未自动挂载；插件没生效时请在 dsh 里手动启用`)
     pushLog(`${pkg} 已在 ${profile} profile`)
   } finally {
     pluginBusy = false
     pluginProgressName = ''
     pluginProgressProfile = ''
+    invalidateStorageBreakdown()
+    emitPluginProgress(null)
+  }
+}
+
+/**
+ * 从 profile 卸载一个插件包。
+ *
+ * 和官方插件管理器同一套语义：先 `dsh plugin remove`（pnpm 删依赖与文件），
+ * 再从 `dsh.profile.bundles` 摘掉（0.2.x 起层栈只认这份清单，光删依赖会留下
+ * 一个解析不到的 bundle，dsh 下次启动直接失败），最后清掉这个包以前写进
+ * `cordis.patch.yml` 的 `disabled: true`——否则以后重装时插件会莫名其妙地
+ * 保持禁用。补丁清理只碰没有被其它已装插件共用的行。
+ */
+async function removePlugin(version, name, { profile = PROFILE_NAME } = {}) {
+  profile = safeProfile(profile)
+  const ver = safeVersion(version)
+  if (pluginBusy) throw new Error('正在安装或卸载插件')
+  if (!existsSync(binPath(ver))) throw new Error('找不到官方入口 lib/bin.js')
+  const dir = profileDirOf(profile)
+  const ids = packageRowIds(dir, name)
+  pluginBusy = true
+  pluginProgressName = name
+  pluginProgressProfile = profile
+  emitPluginProgress({ phase: 'resolve' })
+  try {
+    pushLog(`从 ${profile} 卸载插件 ${name}`)
+    await runPluginCommand(ver, ['remove', name], `dsh plugin remove ${name}`, { profile })
+    const unmounted = removeBundleMounted(dir, [name])
+    if (!unmounted.ok) pushLog(`未能从 dsh.profile.bundles 摘掉 ${name}（${unmounted.reason || '清单不可写'}）；下次启动可能失败`)
+    // 补丁清理是收尾，写不进去不该把已经完成的卸载报成失败。
+    try {
+      const remaining = new Set(listPlugins(dir).plugins.flatMap((plugin) => plugin.ids))
+      const stale = ids.filter((id) => !remaining.has(id))
+      if (dropRowDisables(dir, stale).changed) pushLog(`已清理 ${name} 留在补丁层的开关记录`)
+    } catch (error) {
+      pushLog(`清理 ${name} 的补丁层开关失败：${error instanceof Error ? error.message : error}`)
+    }
+    pushLog(`${name} 已从 ${profile} 卸载（重启 dsh 后生效）`)
+  } finally {
+    pluginBusy = false
+    pluginProgressName = ''
+    pluginProgressProfile = ''
+    invalidateStorageBreakdown()
     emitPluginProgress(null)
   }
 }
@@ -4231,6 +4666,10 @@ async function runProfileInstall(version, options = {}) {
   const run = () => runPluginCommand(version, ['install', '--config.auto-install-peers=false'], 'dsh plugin install', { profile, onProgress })
   await mkdir(homeDir(), { recursive: true })
   await ensureProfileNpmrc(profile)
+  // 这轮进度属于哪个 profile：恢复档弹窗据此把「正在重装依赖」接到真实进度上。
+  pluginProgressName = ''
+  pluginProgressProfile = profile
+  emitPluginProgress({ phase: 'resolve' })
   try {
     await run()
   } catch (error1) {
@@ -4242,6 +4681,11 @@ async function runProfileInstall(version, options = {}) {
     const again = pruneDanglingLinks(join(target(), 'node_modules'))
     if (again) log(`先清理了 ${again} 个悬空的链接`)
     await run()
+  } finally {
+    pluginProgressName = ''
+    pluginProgressProfile = ''
+    invalidateStorageBreakdown()
+    emitPluginProgress(null)
   }
 }
 
@@ -5561,9 +6005,20 @@ const autoFixForHome = () => lastAutoFix?.home === homeDir() ? lastAutoFix : nul
 /** 最近一次「安全启动」（整份补丁层备份 + 摘掉第三方 bundle），管理页显示 + 一键还原。 */
 let lastRecovery = null
 
-/** 管理页的恢复档载荷：最近一次结果 + profile 里现存的补丁层备份。 */
+/**
+ * 管理页的恢复档载荷：最近一次结果 + profile 里现存的补丁层备份。
+ * 内存里的那条只在本次管理器进程里有效；重启后从补丁层备份的侧车推回来，
+ * 否则「安全启动移走了配置」这个事实会跟着进程一起消失（#88）。
+ */
 function recoveryPayload(profile = PROFILE_NAME) {
-  return { profile, last: lastRecovery?.profile === profile && lastRecovery.home === homeDir() ? lastRecovery : null, backups: listPatchBackups(profileDirOf(profile)) }
+  const dir = profileDirOf(profile)
+  const backups = listPatchBackups(dir)
+  const remembered = lastRecovery?.profile === profile && lastRecovery.home === homeDir() ? lastRecovery : null
+  const durable = remembered ? null : latestRecovery(dir)
+  const last = remembered || (durable
+    ? { at: durable.at, home: homeDir(), profile, backup: durable.backup, dropped: durable.dropped, warning: null }
+    : null)
+  return { profile, home: homeDir(), last, backups }
 }
 
 /**
@@ -5868,7 +6323,9 @@ async function renameProfile(profile, nextName) {
         if (manifest.name === `dsh-profile-${from}`) manifest.name = `dsh-profile-${name}`
         for (const key of ['dependencies', 'devDependencies', 'optionalDependencies']) {
           for (const [pkg, spec] of Object.entries(manifest[key] || {})) {
-            if (typeof spec === 'string' && spec.startsWith('file:')) manifest[key][pkg] = `file:${rebase(spec.slice(5))}`
+            // file:/link:/portal: 都按同一套路径语义搬（相对路径跟着新目录走，指向旧目录的绝对路径改到新目录）
+            const local = typeof spec === 'string' ? /^(file|link|portal):(.+)$/.exec(spec) : null
+            if (local) manifest[key][pkg] = `${local[1]}:${rebase(local[2])}`
           }
         }
         rewrite(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`)
@@ -5912,7 +6369,7 @@ async function renameProfile(profile, nextName) {
           autoPorts: Object.fromEntries(Object.entries(safeEnvironmentPorts(current.autoPorts)).map(([dir, value]) => [dir, sameHome(dir) ? ports(value) : value])),
         }))
         INSTANCE_PORTS = safeInstancePorts(saved.instancePorts)
-        ENVIRONMENT_PORTS = safeEnvironmentPorts(saved.environmentPorts)
+        ENVIRONMENT_PORTS = liveEnvironmentPorts(saved)
         if (sameHome(defaultHome())) {
           PROFILE_NAME = saved.profile
         }
@@ -5940,6 +6397,34 @@ async function renameProfile(profile, nextName) {
   pushLog(`已重命名 Profile「${from}」为「${name}」`)
   await emitState()
   return { ok: true, ...packsPayload(), renamedProfile: name, profile: name, state: await snapshot(), webProfiles: listProfiles().filter((profile) => profileBootsWebIn(home, profile)) }
+}
+
+/**
+ * 清单里的本地依赖（file: / link: / portal:）跟着 Profile 换位置。
+ *
+ * 相对路径以清单所在目录为基准——复制到另一个 Profile（甚至另一个用户目录）后，
+ * 原样的 `link:../../plugins/x` 会指到不存在的目录，插件直接断。
+ * 目标在旧目录里面的改成新目录下的对应位置；在旧目录外面的保留绝对路径，
+ * 这样跨 home 的工作区仍指回原处，而不是复制完就坏。
+ */
+export function rebaseLocalDeps(manifest, fromDir, toDir) {
+  let changed = false
+  for (const key of ['dependencies', 'devDependencies', 'optionalDependencies']) {
+    for (const [pkg, spec] of Object.entries(manifest?.[key] || {})) {
+      const local = typeof spec === 'string' ? /^(file|link|portal):(.+)$/.exec(spec) : null
+      if (!local) continue
+      const target = isAbsolute(local[2]) ? local[2] : resolve(fromDir, local[2])
+      // 前缀要带分隔符：`dsh-profiles-old` 不算 `dsh-profiles` 下面
+      const inside = target.startsWith(`${fromDir}${sep}`)
+      // 一律写成 /：pnpm 把 file:/link: 当 URL 解析，`file:C:\x` 会把盘符吃掉
+      const nextPath = (inside ? join(toDir, relative(fromDir, target)) : target).replaceAll('\\', '/')
+      const value = `${local[1]}:${nextPath}`
+      if (value === spec) continue
+      manifest[key][pkg] = value
+      changed = true
+    }
+  }
+  return changed
 }
 
 /**
@@ -5979,15 +6464,8 @@ async function createProfile(profile, source = '', sourceHome = '') {
       const manifest = from ? JSON.parse(await readFile(join(staging, 'package.json'), 'utf8')) : profileSkeleton(name)
       manifest.name = `dsh-profile-${name}`
       manifest.private = true
-      // file: 相对依赖以原环境为基准解析，搬目录后不能指到另一份不存在的插件。
-      for (const key of ['dependencies', 'devDependencies', 'optionalDependencies']) {
-        for (const [pkgName, spec] of Object.entries(manifest[key] || {})) {
-          if (from && typeof spec === 'string' && spec.startsWith('file:')) {
-            const dependency = resolve(original, spec.slice(5))
-            manifest[key][pkgName] = `file:${dependency.startsWith(`${original}${sep}`) ? join(target, relative(original, dependency)) : dependency}`
-          }
-        }
-      }
+      // file:/link:/portal: 这类本地依赖以原环境为基准解析，搬目录后不能指到另一份不存在的插件。
+      if (from) rebaseLocalDeps(manifest, original, target)
       await writeFile(join(staging, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`)
       // file: 依赖的路径已经改变，旧锁文件不能继续锁住原目录。
       if (from) await rm(join(staging, 'pnpm-lock.yaml'), { force: true })
@@ -6930,7 +7408,7 @@ async function handleApi(req, res, url) {
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/self/app-apply') {
-    // 核心增量：内置基线 → 复制到用户目录 core/current，重启外壳（外壳优先加载它）；
+    // 核心增量：核心不在用户目录 → 复制到 core/current，重启外壳（外壳优先加载它）；
     // 已经在 core/current → 替换助手等外壳退出后原地换目录，失败回滚。
     try {
       // 已经开过一次（连点两下或两个标签页同时点）：重复替换会把刚换好的目录再挪一遍
@@ -6960,11 +7438,16 @@ async function handleApi(req, res, url) {
   }
   if (req.method === 'POST' && url.pathname === '/api/install') {
     await install(body.version)
+    versionSizesCache.at = 0
+    invalidateStorageBreakdown()
     send(res, 200, { ok: true })
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/versions/optimize') {
-    send(res, 200, await optimizeVersion(body.version))
+    const result = await optimizeVersion(body.version)
+    versionSizesCache.at = 0
+    invalidateStorageBreakdown()
+    send(res, 200, result)
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/start') {
@@ -7000,8 +7483,16 @@ async function handleApi(req, res, url) {
       // 启动项仍在用的目录不能悄悄消失，也不能为了移除列表而删掉启动项。
       if (removing && safeLaunchPresets(current.launchPresets).some((entry) => entry.dshHome && same(entry.dshHome, home))) throw new Error('启动项正在使用此目录，请先修改或删除对应启动项')
       const homes = safeDshHomes(current.dshHomes).filter((item) => !same(item, home))
-      return { dshHomes: removing ? homes : [...homes, home] }
+      return {
+        dshHomes: removing ? homes : [...homes, home],
+        // 目录都不在了，钉在它上面的端口也没意义；留着会占住端口（#90）。
+        ...(removing ? {
+          environmentPorts: Object.fromEntries(Object.entries(safeEnvironmentPorts(current.environmentPorts))
+            .filter(([dir]) => !same(dir, home))),
+        } : {}),
+      }
     })
+    if (removing) ENVIRONMENT_PORTS = liveEnvironmentPorts(stored)
     send(res, 200, { dshHomes: safeDshHomes(stored.dshHomes) })
     await emitState()
     return
@@ -7019,6 +7510,19 @@ async function handleApi(req, res, url) {
       return { dshHomeNames: { ...names, [canonical]: name } }
     })
     send(res, 200, { dshHomeNames: safeDshHomeNames(saved.dshHomeNames) })
+    await emitState()
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/dsh-homes/forget-name') {
+    // 清掉一条显示名：目录早就从登记表里消失的历史条目（「用户目录」列表遍历的是 dshHomes，
+    // 界面上看不到它们）只能靠这个收拾，否则永远留在 settings.json 里。
+    const home = safeDshHome(body.home)
+    if (!home) throw new Error('请选择用户目录')
+    const same = (dir) => fileManager.samePath(dir, home)
+    const cleared = await saveSettings((current) => ({
+      dshHomeNames: Object.fromEntries(Object.entries(safeDshHomeNames(current.dshHomeNames)).filter(([dir]) => !same(dir))),
+    }))
+    send(res, 200, { dshHomeNames: safeDshHomeNames(cleared.dshHomeNames) })
     await emitState()
     return
   }
@@ -7074,7 +7578,23 @@ async function handleApi(req, res, url) {
   }
   if (req.method === 'POST' && url.pathname === '/api/uninstall') {
     await uninstall(body.version)
+    versionSizesCache.at = 0
+    invalidateStorageBreakdown()
     send(res, 200, { ok: true })
+    return
+  }
+  if (req.method === 'GET' && url.pathname === '/api/versions/sizes') {
+    try { send(res, 200, await versionSizes()) }
+    catch (error) { send(res, 500, { error: error instanceof Error ? error.message : String(error) }) }
+    return
+  }
+  if (req.method === 'GET' && url.pathname === '/api/storage/breakdown') {
+    try {
+      const version = safeVersion(url.searchParams.get('version') || '')
+      const profile = safeProfile(url.searchParams.get('profile') || PROFILE_NAME)
+      if (!existsSync(versionDir(version))) throw new Error(`${version} 没有安装在启动器的版本目录里`)
+      send(res, 200, await storageBreakdown(version, profile))
+    } catch (error) { send(res, 400, { error: error instanceof Error ? error.message : String(error) }) }
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/settings') {
@@ -7092,6 +7612,11 @@ async function handleApi(req, res, url) {
       const profile = body.profile ? String(body.profile) : PROFILE_NAME
       const dir = profileDirOf(profile)
       if (maintainingProfiles.has(profileKey(profile))) throw new Error(`profile「${profile}」正在修改，稍后再试`)
+      // 补丁层马上要改名移出 profile：先在启动器自己的配置备份里留一份（#88 里那次快照
+      // 拍在安全启动之后，cordis.patch.yml 已经不在，回退也拿不回用户的自定义 provider）。
+      await snapshotProfileConfig(profile, { force: true }).catch((error) => {
+        pushLog(`[恢复] 安全启动前的配置快照没成：${error instanceof Error ? error.message : error}`)
+      })
       const result = await sanitizeProfile(dir)
       lastRecovery = { at: Date.now(), home: homeDir(), profile, backup: result.backup, dropped: result.dropped, warning: result.warning || null }
       pushLog(`[恢复] 安全启动（${profile}）：补丁层${result.backup ? `已备份到 ${basename(result.backup)}` : '本来就没有'}，摘掉第三方 bundle ${result.dropped.length} 个${result.dropped.length ? `（${result.dropped.join('、')}）` : ''}${result.warning ? `；${result.warning}` : ''}`)
@@ -7127,7 +7652,12 @@ async function handleApi(req, res, url) {
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/profile-backups/restore') {
-    try { send(res, 200, await restoreProfileConfig(body.profile, body.id)) }
+    try {
+      const profile = safeProfile(String(body.profile || '') || PROFILE_NAME)
+      const restored = await restoreProfileConfig(profile, body.id)
+      // 配置回退完再按清单装依赖：node_modules 不在备份里，光改 package.json 会让插件全变「包不可用」。
+      send(res, 200, { ...restored, install: await reinstallAfterRollback(profile) })
+    }
     catch (error) {
       // 备份不存在给 404，参数/状态不对给 400，页面靠这两个码区分提示。
       const message = error instanceof Error ? error.message : String(error)
@@ -7202,9 +7732,60 @@ async function handleApi(req, res, url) {
       }
     } finally {
       pluginBusy = false
+      invalidateStorageBreakdown()
     }
     pushLog(`桌面增强：${profile} 卸载完成，成功 ${removed.length} 个${failed.length ? `，失败 ${failed.length} 个` : ''}（重启 dsh 后生效）`)
     send(res, 200, { ok: failed.length === 0, removed, failed, desktopEnhance: desktopEnhanceSummary(profile), ...listPlugins(profileDirOf(profile)), profile })
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/plugins/add') {
+    try {
+      if (pluginBusy) {
+        send(res, 409, { error: '正在安装或卸载插件，等它结束再试' })
+        return
+      }
+      const profile = safeProfile(String(body.profile || PROFILE_NAME))
+      const spec = normalizePluginSpec(body.spec)
+      const name = bundleNameOf(spec)
+      const target = profileDirOf(profile)
+      // 官方组件随 dsh 版本走，单独装/换版本会和运行时的 @deepseek-ai/* 对不上。
+      if (name && name.startsWith('@deepseek-ai/')) throw new Error('官方组件随 dsh 安装，不能单独添加')
+      if (name && Object.hasOwn(profileDependencies(target), name)) {
+        throw new Error(`${name} 已经在这个环境里；要升级请用插件行的更新按钮`)
+      }
+      const version = await pluginCommandVersion(profile)
+      await addPlugin(version, spec, { profile })
+      pluginUpdateCache.at = 0
+      pushLog(`插件 ${name || spec} 已装进 ${profile}（重启 dsh 后生效）`)
+      send(res, 200, { ok: true, spec, name, ...packsPayload(), ...listPlugins(target), profile, autoFix: autoFixForHome(), recovery: recoveryPayload(profile) })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      pushLog(`添加插件失败：${message}`)
+      send(res, 400, { error: message })
+    }
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/plugins/remove') {
+    try {
+      if (pluginBusy) {
+        send(res, 409, { error: '正在安装或卸载插件，等它结束再试' })
+        return
+      }
+      const profile = safeProfile(String(body.profile || PROFILE_NAME))
+      const name = String(body.name || '').trim()
+      if (!name) throw new Error('请选择要卸载的插件')
+      if (name.startsWith('@deepseek-ai/')) throw new Error('官方组件随 dsh 安装，不能在这里卸载')
+      const target = profileDirOf(profile)
+      if (!Object.hasOwn(profileDependencies(target), name)) throw new Error(`这个环境里没有装 ${name}`)
+      const version = await pluginCommandVersion(profile)
+      await removePlugin(version, name, { profile })
+      pluginUpdateCache.at = 0
+      send(res, 200, { ok: true, name, ...packsPayload(), ...listPlugins(target), profile, autoFix: autoFixForHome(), recovery: recoveryPayload(profile) })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      pushLog(`卸载插件失败：${message}`)
+      send(res, 400, { error: message })
+    }
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/plugins/toggle') {
@@ -7876,14 +8457,28 @@ export async function startServer() {
   WEB_BIND = resolveWebBind()
   if (CLI_ARGS.length) pushLog(`DSH.exe 传入启动参数：${CLI_ARGS.join(' ')}`)
   const stored = await loadSettings()
-  // 跑 dsh 的 node 不是自带的 Electron 时记一笔：出问题时日志里能看出用的是哪个
-  if (IN_ELECTRON && !RUNTIME_NODE_ENV.ELECTRON_RUN_AS_NODE) {
-    const version = nodeVersionOf(RUNTIME_NODE)
-    pushLog(`跑 dsh 的 node：${RUNTIME_NODE}${version ? `（v${version}）` : ''}`)
+  // 跑 dsh 的 node 记一笔：Electron 自带的那份也写清楚版本。日志里能分辨实际用的是哪个，
+  // 也就能解释「安装目录里还有个旧 node.exe」这类疑问（它不参与，见 platform.js runtimeNode）。
+  if (IN_ELECTRON) {
+    const bundled = Boolean(RUNTIME_NODE_ENV.ELECTRON_RUN_AS_NODE)
+    // 自带的那份就是当前进程自己：直接读 process.versions.node。spawn DSH.exe --version 会
+    // 再起一个 Electron（单实例锁/Chromium），拿到的不是 Node 版本，还可能闪一下窗口。
+    const version = bundled ? process.versions.node : nodeVersionOf(RUNTIME_NODE)
+    pushLog(`跑 dsh 的 node：${RUNTIME_NODE}${version ? `（v${version}）` : ''}${bundled ? '（Electron 自带）' : ''}`)
+    const required = nodeRequirementForInstalled()
+    if (required && version && cmpVer(parseVer(version), parseVer(required)) < 0) {
+      pushLog(`跑 dsh 的 node v${version} 低于 dsh 要求的 >=${required}，启动可能失败；可在设置里把「运行 dsh 的 Node」换成「启动器自带」`)
+    }
   }
   // 钉死端口的实例表：启动、重启都读它（页面改这张表走 /api/instance-port）
   INSTANCE_PORTS = safeInstancePorts(stored.instancePorts)
-  ENVIRONMENT_PORTS = safeEnvironmentPorts(stored.environmentPorts)
+  // 旧环境留下的端口钉子：内存里不算它，文件里也顺手清掉，不然重装也不会消失（#90）。
+  const storedEnvironments = safeEnvironmentPorts(stored.environmentPorts)
+  ENVIRONMENT_PORTS = liveEnvironmentPorts(stored)
+  if (Object.keys(ENVIRONMENT_PORTS).length !== Object.keys(storedEnvironments).length) {
+    await saveSettings({ environmentPorts: ENVIRONMENT_PORTS }).catch(() => {})
+    pushLog('已清理旧环境留下的固定端口记录')
+  }
   // 用户在设置页的选择要跨重启与升级保留，安装语言只初始化缺失的设置。
   const storedLang = safeLang(stored.lang)
   const fromInstall = storedLang ? '' : installLang()
@@ -8027,7 +8622,7 @@ export async function startServer() {
     // 给应用层增量更新的替换助手留一个「新版本启动成功」的标记
     try { writeFileSync(join(APP_DIR, 'update-ok'), String(Date.now())) } catch { /* 标记写不了不影响启动 */ }
     // 版本更新后刷新快捷方式图标（图标文件名带版本号，快捷方式还指着旧文件）。
-    // 拆包后核心在 resources/core / 用户目录里，安装根目录的快捷方式由外壳安装包负责，核心不再碰。
+    // 拆包后核心在用户目录里，安装根目录的快捷方式由外壳安装包负责，核心不再碰。
     if (process.env.DSH_CORE !== '1') void refreshShortcuts().catch(() => {})
     pushLog(`版本目录 ${DATA}`)
     pushLog(`DSH_HOME ${homeDir()}`)

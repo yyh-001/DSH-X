@@ -88,6 +88,46 @@ setTimeout(() => server.listen(0, '127.0.0.1', () => console.log('dsh web: http:
     assert.equal(existsSync(join(home, 'profiles', 'missing-source')), false)
   })
 
+  await t.test('复制 Profile 的本地依赖按新位置改写，目录外的保持原路径', () => {
+    // 纯函数单测：真跑一次复制会触发 pnpm 安装，这里只验清单改写规则
+    const from = join(root, 'h1', 'profiles', 'web')
+    const to = join(root, 'h2', 'profiles', 'web-copy')
+    const outside = join(root, 'workspace', 'pkg').replaceAll('\\', '/')
+    const manifest = {
+      dependencies: {
+        inside: 'link:./plugins/local-plugin',
+        outside: `file:${outside}`,
+        relative: 'file:../../../workspace/pkg',
+        registry: '^1.2.3',
+        git: 'github:a/b',
+      },
+    }
+    server.rebaseLocalDeps(manifest, from, to)
+    const deps = manifest.dependencies
+    assert.equal(deps.inside, `link:${join(to, 'plugins', 'local-plugin').replaceAll('\\', '/')}`, '目录内的 link: 跟着搬到新 Profile（并且还是 link:）')
+    assert.equal(deps.outside, `file:${outside}`, '目录外的绝对路径原样保留')
+    assert.equal(deps.relative, `file:${outside}`, '目录外的相对路径补成绝对路径，复制后不会断')
+    assert.equal(deps.registry, '^1.2.3', '普通版本范围不动')
+    assert.equal(deps.git, 'github:a/b', 'git 源不动')
+    // 前缀要按目录比：名字相近的兄弟目录不算「目录内」
+    const sibling = { dependencies: { pkg: `file:${from.replaceAll('\\', '/')}-other/x` } }
+    server.rebaseLocalDeps(sibling, from, to)
+    assert.equal(sibling.dependencies.pkg, `file:${from.replaceAll('\\', '/')}-other/x`)
+  })
+
+  await t.test('失效的目录名能从设置里清掉，正常改名仍然要求名字非空', async () => {
+    // 只剩显示名、目录早就不在任何列表里的历史条目
+    const ghost = join(root, 'ghost,ghost')
+    const settingsFile = join(app, 'settings.json')
+    const stored = JSON.parse(readFileSync(settingsFile, 'utf8'))
+    writeFileSync(settingsFile, JSON.stringify({ ...stored, dshHomeNames: { ...(stored.dshHomeNames || {}), [ghost]: 'ghost' } }))
+    assert.ok((await api('/api/state')).dshHomeNames[ghost], '脏条目确实读得出来')
+    const cleared = await api('/api/dsh-homes/forget-name', { home: ghost })
+    assert.equal(cleared.dshHomeNames[ghost], undefined, '清掉这条显示名')
+    assert.equal((await api('/api/state')).dshHomeNames[ghost], undefined, '落盘也清掉了')
+    await assert.rejects(api('/api/dsh-homes/rename', { home: ghost, name: '' }), /目录名称应为/)
+  })
+
   await t.test('默认选择之外，启动中与多版本运行的环境都不能删除或卸载', async () => {
     rememberPack(data, { name: 'demo', profile: 'guarded', createdProfile: true, files: [] })
     const launching = api('/api/start', { version: versions[0], profile: 'guarded' })

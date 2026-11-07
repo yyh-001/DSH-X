@@ -38,7 +38,7 @@ export function corePackageName() {
 
 /** 生成核心 tarball；返回路径与完整性信息（演示和 CI 共用）。 */
 export async function buildCorePackage({ appDir = DEFAULT_APP, version, outDir = join(ROOT, 'release'), electronVersion, name } = {}) {
-  if (!existsSync(join(appDir, 'server.js'))) throw new Error(`缺少核心层：${appDir}（先跑 npm run dist）`)
+  if (!existsSync(join(appDir, 'server.js'))) throw new Error(`缺少核心层：${appDir}（先跑 npm run stage:core）`)
   // 跨平台核心包要在 mac 上也能直接跑：POSIX 包装脚本必须带可执行位（npm pack 会保留）
   if (process.platform !== 'win32') {
     for (const name of ['node', 'npm', 'npx', 'pnpm', 'pnpx']) {

@@ -708,6 +708,20 @@
       </div>
     </div>
   </div>
+  <div class="ask" id="pluginAddDialog" hidden>
+    <form class="ask-card" id="pluginAddForm" role="dialog" aria-modal="true" aria-labelledby="pluginAddTitle" data-dialog-size="small">
+      <div class="dialog-heading"><h2 class="ask-title" id="pluginAddTitle" data-i18n="添加插件">添加插件</h2><button class="ghost icon-btn dialog-close" id="pluginAddClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
+      <div class="dialog-body">
+        <p class="dialog-subtitle" data-i18n="输入插件的 npm 包名、GitHub 地址或本地路径。">输入插件的 npm 包名、GitHub 地址或本地路径。</p>
+        <label class="mcp-field" for="pluginAddSpec"><span data-i18n="包名或地址">包名或地址</span><input id="pluginAddSpec" type="text" autocomplete="off" spellcheck="false" placeholder="dsh-plugin-whale-pet" /></label>
+        <p class="hint" data-i18n="例如 dsh-xxx、@作者/插件名、github:owner/repo，或本机目录。">例如 dsh-xxx、@作者/插件名、github:owner/repo，或本机目录。</p>
+        <p class="hint" id="pluginAddTarget"></p>
+        <p class="hint profile-error" id="pluginAddError" role="alert" hidden></p>
+        <div class="progress" id="pluginAddProgress" hidden><div class="progress-bar" id="pluginAddProgressBar"></div></div>
+      </div>
+      <div class="profile-dialog-actions"><button class="ghost" id="pluginAddCancel" type="button" data-i18n="取消">取消</button><button class="primary" id="pluginAddGo" type="submit"><span class="spin" aria-hidden="true"></span><span data-i18n="安装">安装</span></button></div>
+    </form>
+  </div>
   <div class="ask" id="launchDialog" hidden>
     <form class="ask-card" id="launchForm" role="dialog" aria-modal="true" aria-labelledby="launchDialogTitle" data-dialog-size="medium">
       <div class="dialog-heading launch-dialog-heading"><h2 class="ask-title" id="launchDialogTitle" data-i18n="编辑启动项">编辑启动项</h2><button class="ghost icon-btn dialog-close" id="launchDialogClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
@@ -736,22 +750,22 @@
               <button class="launch-isolation-tab launch-source-tab" type="button" role="tab" data-source="name" aria-selected="true" aria-controls="launchSourceNamePanel" data-i18n="新建 Profile">新建 Profile</button>
               <button class="launch-isolation-tab launch-source-tab" type="button" role="tab" data-source="copy" aria-selected="false" aria-controls="launchSourceCopyPanel" data-i18n="从已有 Profile 复制">从已有 Profile 复制</button>
             </div>
-            <div class="launch-source-panel" id="launchSourceNamePanel" role="tabpanel">
-              <!-- 两个名字输入各给一档用：插件隔离换个 Profile 名，会话隔离给新目录里的 Profile 取名。
-                   占位符就是自动会取的名字，填了就按填的来（见 paintLaunchIsolation） -->
-              <input id="launchProfileCustom" type="text" maxlength="32" autocomplete="off" spellcheck="false" aria-label="Profile 名称" data-i18n-aria-label="Profile 名称" />
-              <input id="launchHomeProfile" type="text" maxlength="32" autocomplete="off" spellcheck="false" aria-label="Profile 名称" data-i18n-aria-label="Profile 名称" />
-            </div>
             <div class="launch-source-panel" id="launchSourceCopyPanel" role="tabpanel" hidden>
               <!-- 来源目录 × Profile 交给两栏选择窗（见 openProfilePicker）：目录一多、Profile 一多，
-                   两串下拉要一级级点开还看不全，一个窗口里左右并排点两下就选定。
-                   来源和名字是二选一：停在这档就不再读上面那个名字输入。 -->
+                   两串下拉要一级级点开还看不全，一个窗口里左右并排点两下就选定。 -->
               <div class="select">
                 <button type="button" class="select-trigger" id="launchCopyPick" aria-haspopup="dialog" aria-expanded="false">
                   <span class="select-value" id="launchCopyPickValue"></span>
                   <svg class="select-caret" viewBox="0 0 12 8" aria-hidden="true"><path fill="currentColor" d="M0 0h12L6 8z"/></svg>
                 </button>
               </div>
+            </div>
+            <div class="launch-source-panel" id="launchSourceNamePanel" role="tabpanel">
+              <!-- 新 Profile 的名字两档都要：自己起名时留空由页面代算，复制档预填「来源-copy」并可改。
+                   两个输入各给一档用：插件隔离在全局目录里新建，会话隔离给新目录里的 Profile 取名。
+                   占位符就是自动会取的名字，填了就按填的来（见 paintLaunchIsolation） -->
+              <input id="launchProfileCustom" type="text" maxlength="32" autocomplete="off" spellcheck="false" aria-label="Profile 名称" data-i18n-aria-label="Profile 名称" />
+              <input id="launchHomeProfile" type="text" maxlength="32" autocomplete="off" spellcheck="false" aria-label="Profile 名称" data-i18n-aria-label="Profile 名称" />
             </div>
             <!-- 自动启动跟「Profile 从哪来」无关：两档共用这一份，切 tab 也不跟着藏 -->
             <label class="toggle launch-auto-launch">
@@ -946,7 +960,7 @@
       </form>
       <p class="hint" id="versionManageHint" role="status" aria-live="polite"></p>
       <div class="progress" id="versionManageProgress" hidden><div class="progress-bar" id="versionManageProgressBar"></div></div>
-      <h3 class="version-manage-heading" data-i18n="已安装">已安装</h3>
+      <div class="version-manage-heading-row"><h3 class="version-manage-heading" data-i18n="已安装">已安装</h3><span class="version-manage-total" id="versionManageTotal"></span></div>
       <div class="version-manage-list" id="versionManageList" role="list"></div>
     </div>
   </div>
@@ -955,16 +969,26 @@
       <div class="dialog-heading"><div><h2 class="ask-title" id="launchLogTitle" data-i18n="启动项日志">启动项日志</h2><p class="dialog-subtitle" id="launchLogSubtitle"></p></div><button class="ghost icon-btn dialog-close" id="launchLogClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
       <div class="dialog-body">
         <div class="launch-log-tools" id="launchLogTools" hidden><span class="hint" id="launchLogHint"></span></div>
+        <div class="launch-log-tabs" id="launchLogTabs" role="tablist" aria-label="启动项日志视图" data-i18n-aria-label="启动项日志视图">
+          <button class="launch-log-tab" type="button" role="tab" data-log-tab="raw" aria-selected="true" data-i18n="原始日志">原始日志</button>
+          <button class="launch-log-tab" type="button" role="tab" data-log-tab="time" aria-selected="false" data-i18n="耗时构成" hidden>耗时构成</button>
+          <button class="launch-log-tab" type="button" role="tab" data-log-tab="space" aria-selected="false" data-i18n="空间构成" hidden>空间构成</button>
+          <button class="launch-log-tab" type="button" role="tab" data-log-tab="diagnosis" aria-selected="false" data-i18n="插件诊断" hidden>插件诊断</button>
+        </div>
         <div class="launch-log-loading" id="launchLogLoading" hidden><span class="spin"></span><span data-i18n="正在读取日志…">正在读取日志…</span></div>
-        <section class="launch-log-card" id="launchLogDiagnosis" hidden>
+        <section class="launch-log-card" id="launchLogDiagnosis" data-log-panel="diagnosis" hidden>
           <div class="launch-log-card-head"><h3 data-i18n="插件诊断">插件诊断</h3><span class="launch-log-head-meta"><span id="launchLogDiagnosisMeta"></span></span></div>
           <div class="launch-log-block" id="launchLogDiagnosisRows"></div>
         </section>
-        <section class="launch-log-card" id="launchLogVisual" hidden>
+        <section class="launch-log-card" id="launchLogVisual" data-log-panel="time" hidden>
           <div class="launch-log-card-head"><h3 data-i18n="耗时构成">耗时构成</h3><span class="launch-log-head-meta"><span id="launchLogWindow"></span><span id="launchLogRss" hidden></span></span></div>
           <div class="launch-log-block" id="launchLogPlugins"></div>
         </section>
-        <section class="launch-log-card" id="launchLogCard">
+        <section class="launch-log-card" id="launchLogSpace" data-log-panel="space" hidden>
+          <div class="launch-log-card-head"><h3 data-i18n="空间构成">空间构成</h3><span class="launch-log-head-meta"><span id="launchLogSpaceMeta"></span></span></div>
+          <div class="launch-log-block" id="launchLogSpaceBody"></div>
+        </section>
+        <section class="launch-log-card" id="launchLogCard" data-log-panel="raw">
           <div class="launch-log-card-head"><h3 data-i18n="原始日志">原始日志</h3><span class="launch-log-actions"><button class="ghost" type="button" id="launchLogCopy" data-i18n="复制">复制</button><button class="ghost" type="button" id="launchLogExport" data-i18n="导出">导出</button><button class="ghost" type="button" id="launchLogClear" data-i18n="清空">清空</button></span></div>
           <pre class="launch-log-text" id="launchLogText"></pre>
         </section>
@@ -997,6 +1021,13 @@
     <div class="ask-card" role="dialog" aria-modal="true" aria-labelledby="backupDialogTitle" data-dialog-size="medium">
       <div class="dialog-heading"><h2 class="ask-title" id="backupDialogTitle" data-i18n="Profile 备份与回退">Profile 备份与回退</h2><button class="ghost icon-btn dialog-close" id="backupClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
       <p class="dialog-subtitle" id="backupDialogHint"></p>
+      <div class="backup-progress" id="backupProgress" hidden>
+        <span class="spin" aria-hidden="true"></span>
+        <div class="backup-progress-body">
+          <span class="backup-progress-label" id="backupProgressLabel"></span>
+          <div class="progress" id="backupProgressTrack" role="progressbar"><div class="progress-bar"></div></div>
+        </div>
+      </div>
       <div class="backup-list" id="backupList"></div>
       <div class="ask-actions"><button class="ghost" id="backupRefresh" type="button" data-i18n="刷新">刷新</button><button class="ghost" id="backupNow" type="button" data-i18n="立即备份">立即备份</button></div>
     </div>
@@ -1259,6 +1290,8 @@
   "这个 profile 已存在，依赖与层栈会并进去": "this profile exists — dependencies and layers are merged in",
   "安装": "Install",
   "已安装": "Installed",
+  "共 {size}": "{size} total",
+  "正在计算占用…": "Calculating disk usage…",
   "不看这个了": "Dismiss",
   "正在读社区整合包列表…": "Reading the community modpack list…",
   "市场里现在有 {n} 个整合包。": "The market has {n} modpack(s) right now.",
@@ -1345,6 +1378,8 @@
   "启动项列表已变化，请刷新后重新排序": "The launch list has changed. Refresh and reorder again",
   "移除目录": "Remove directory",
   "重命名目录": "Rename directory",
+  "失效的目录名": "Stale directory name",
+  "清除这个失效的目录名": "Clear this stale directory name",
   "目录名称": "Directory name",
   "只修改显示名称，目录路径与数据保持不变。": "Changes the display name. The directory path and data stay the same.",
   "目录名称应为 1 到 64 个字符": "Directory names must contain 1 to 64 characters.",
@@ -1596,6 +1631,7 @@
   "启动耗时 {seconds}s": "Started in {seconds}s",
   "启动明细": "Startup details",
   "启动项日志": "Launch log",
+  "启动项日志视图": "Launch log view",
   "查看 {name} 的日志": "View the log for {name}",
   "正在读取日志…": "Reading log…",
   "这个启动项还没有日志。启动一次后，它自己的输出会出现在这里。": "This launch entry has no log yet. Start it once and its own output will show up here.",
@@ -1623,8 +1659,31 @@
   "主线程 {pct}% 在跑；插件合计只占 {plugin}%，其余主要是模块解析与文件扫描。": "Main thread busy {pct}%; plugins only {plugin}%, the rest is module resolution and file scanning.",
   "原始日志": "Raw log",
   "耗时构成": "Time breakdown",
+  "空间构成": "Disk usage",
+  "运行时": "Runtime",
+  "插件本体": "Plugin packages",
+  "插件依赖": "Plugin dependencies",
+  "运行时依赖": "Runtime dependencies",
+  "配置与数据": "Config & data",
+  "未归类": "Unaccounted",
+  "合计 {size}": "{size} total",
+  "最占空间的 5 项": "Top 5 by size",
+  "各插件占用（含它带进来的依赖）": "Disk usage by plugin (including its dependencies)",
+  "其余 {n} 个插件合计 {size}": "Other {n} plugins: {size} total",
+  "插件按它引用到的依赖计入（共用依赖按引用它的插件均摊）；合计是版本目录 + 这个环境目录的逻辑大小，pnpm 共享 store 不重复计入。": "Plugins are counted with the dependencies they pull in (shared dependencies are split across the plugins that use them); the total is the logical size of the version directory plus this environment directory, and the shared pnpm store is not counted twice.",
   "窗口 {window} · CPU {cpu}": "Window {window} · CPU {cpu}",
   "最耗时的 5 项": "Top 5 by time",
+  "最耗时的 5 项（不含 Node 内部）": "Top 5 by time (excluding Node internals)",
+  "各插件耗时（含依赖加载与运行）": "Time by plugin (including dependency loading and execution)",
+  "插件（加载+运行）": "Plugins (load + run)",
+  "运行时与其它": "Runtime & other",
+  "加载 {load} · 运行 {run}": "load {load} · run {run}",
+  "加载 {load} · 解析 {resolve} · JS {cpu} · 原生 {native}": "load {load} · resolve {resolve} · JS {cpu} · native {native}",
+  "原生与 GC 明细": "Native & GC breakdown",
+  "原生/GC 已按最近的 JS 调用方归到包；这里只按系统调用/GC 类型汇总。": "Native/GC time is attributed to the nearest JS caller's package; this lists it by syscall/GC type only.",
+  "插件合计 {plugin}%（含它带进来的依赖）；其余为运行时启动、文件扫描与未归属。": "Plugins total {plugin}% (including the dependencies they pull in); the rest is runtime startup, file scanning and unattributed time.",
+  "未归属原生/GC": "Unattributed native/GC",
+  "JS {cpu} · 原生 {native}": "JS {cpu} · native {native}",
   "插件合计只占 {plugin}%；其余为模块解析、文件扫描与 Node 启动。": "Plugins account for only {plugin}%; the rest is module resolution, file scanning and Node startup.",
   "清空这个启动项的日志？": "Clear this launch entry's log?",
   "日志已清空。": "Log cleared.",
@@ -1918,9 +1977,14 @@
   "回退到此备份": "Restore this backup",
   "立即备份": "Back up now",
   "还没有备份。每次启动会存一份，也可以点「立即备份」。": "No backups yet. One is saved before each launch, or click “Back up now”.",
-  "Profile「{profile}」的配置层快照：补丁、依赖清单和 npmrc；node_modules 不在备份里。": "Config-layer snapshots of {profile}: patch, dependency manifest and npmrc. node_modules is not included.",
-  "回退到这份备份？当前配置会先自动存一份，回退后需要重启这个 Profile 的实例才生效。": "Restore this backup? The current config is backed up first; restart this profile's instance afterwards to apply it.",
+  "Profile「{profile}」的配置层快照：补丁、依赖清单和 npmrc；回退时会按清单重装依赖，node_modules 本身不在备份里。": "Config-layer snapshots of {profile}: patch, dependency manifest and npmrc. Restoring also reinstalls dependencies from the manifest; node_modules itself is not backed up.",
+  "回退到这份备份？当前配置会先自动存一份，回退后会自动重装依赖（可能比较慢），并需要重启这个 Profile 的实例才生效。": "Restore this backup? The current config is backed up first, dependencies are reinstalled afterwards (this can take a while), and the profile's instance must be restarted to apply it.",
   "已回退。重启这个 Profile 的实例后生效。": "Restored. Restart this profile's instance to apply it.",
+  "已回退并重装依赖。重启这个 Profile 的实例后生效。": "Restored and dependencies reinstalled. Restart this profile's instance to apply it.",
+  "正在回退配置…": "Restoring configuration…",
+  "正在重装依赖…": "Reinstalling dependencies…",
+  "正在生成备份…": "Creating backup…",
+  "配置已回退，但依赖重装失败：{error}。可以再回退一次重试。": "Configuration restored, but reinstalling dependencies failed: {error}. Restore again to retry.",
   "回退完成": "Rollback complete",
   "已生成新备份。": "New backup created.",
   "配置没有变化，不需要新备份。": "Config unchanged; no new backup needed.",
@@ -1930,7 +1994,7 @@
   "创建": "Create",
   "复制": "Duplicate",
   "创建独立环境，之后可以安装整合包或插件。名称只支持字母、数字、点、下划线和连字符。": "Create an independent environment, then add packs or plugins. Use letters, numbers, dots, underscores or hyphens in the name.",
-  "复制「{profile}」的插件与配置，依赖会重新安装，可能需要一些时间。": "Duplicate plugins and settings from {profile}. Dependencies will be reinstalled and may take a little while.",
+  "复制「{profile}」的插件与配置，依赖会重新安装，可能需要一些时间。技能与 Prompt 设置不随之复制。": "Duplicate plugins and settings from {profile}. Dependencies will be reinstalled and may take a little while. Skills and Prompt settings are not copied.",
   "删除「{profile}」？其中的 {n} 个插件、配置和对应启动项会一并移除，会话与记忆保留。此操作无法撤销。": "Delete {profile}? Its {n} plugins, settings and launch entries will be removed. Sessions and memories will remain. This cannot be undone.",
   "系统环境不能删除": "System profiles cannot be deleted",
   "这个 Profile 尚未初始化": "This profile has not been initialized",
@@ -1946,7 +2010,18 @@
   "暂时无法获取最新版本": "The latest version is temporarily unavailable",
   "用于版本、插件、整合包和启动器更新。": "Used for versions, plugins, packs and launcher updates. ",
   "卸载整合包": "Uninstall pack",
+  "卸载": "Uninstall",
   "卸载 {name}": "Uninstall {name}",
+  "卸载插件": "Uninstall plugin",
+  "卸载失败": "Uninstall failed",
+  "卸载「{name}」？卸载后它提供的功能会消失，重启 dsh 后生效。": "Uninstall \"{name}\"? Its features will disappear; restart dsh to apply.",
+  "添加插件": "Add plugin",
+  "输入插件的 npm 包名、GitHub 地址或本地路径。": "Enter the plugin's npm package name, GitHub address or local path.",
+  "包名或地址": "Package name or address",
+  "例如 dsh-xxx、@作者/插件名、github:owner/repo，或本机目录。": "For example dsh-xxx, @author/plugin, github:owner/repo, or a local folder.",
+  "装进环境「{profile}」": "Install into \"{profile}\"",
+  "请填写插件包名或地址": "Enter a package name or address",
+  "已装好 {spec}，重启 dsh 后生效。": "Installed {spec}; restart dsh to apply.",
   "更新 {name} 的 {n} 个插件": "Update {n} plugins in {name}",
   "启用 {name}": "Enable {name}",
   "禁用 {name}": "Disable {name}",
@@ -2001,12 +2076,15 @@
   "已保存。重启启动器后生效。": "Saved. Takes effect after restarting the launcher.",
   "修复环境": "Repair environment",
   "正在修复环境…": "Repairing environment…",
-  "已修复环境 {profile}：停用第三方插件 {count} 个，重启后生效。": "Environment {profile} repaired: {count} third-party plugins disabled. Restart to apply.",
+  "已修复环境 {profile}：补丁层已备份，停用第三方插件 {count} 个，重启后生效。": "Environment {profile} repaired: the patch layer is backed up and {count} third-party plugins are disabled. Restart to apply.",
   "环境 {profile} 有一份配置备份，可还原。": "Environment {profile} has a configuration backup that can be restored.",
   "启动 / 重启此环境": "Start / restart this environment",
   "已还原环境 {profile} 的配置；重启后生效。": "Configuration for {profile} restored. Restart to apply.",
-  "修复环境 {profile}：备份配置并停用第三方插件，重启后生效。继续？": "Repair {profile}: back up configuration and disable third-party plugins. Restart to apply. Continue?",
+  "修复环境 {profile}：把补丁层（自定义 provider、主题等）备份后移出启动路径，并停用第三方插件；重启后生效。继续？": "Repair {profile}: move the patch layer (custom providers, themes, etc.) out of the startup path after backing it up, and disable third-party plugins. Takes effect after restart. Continue?",
   "配置已修复，可启动或重启此环境。": "Configuration repaired. Start or restart this environment to apply.",
+  "还原配置": "Restore configuration",
+  "安全启动移出了配置层": "Safe start moved the configuration layer aside",
+  "安全启动移出了配置层（停用第三方插件 {count} 个）": "Safe start moved the configuration layer aside ({count} third-party plugins disabled)",
   "环境 {profile} 已启动。": "Environment {profile} started.",
   "启动参数、修复、端口、网络与目录。": "Launch arguments, recovery, ports, network and directories.",
   "AI 自检": "AI self-check",
@@ -2071,7 +2149,12 @@
   "自定义": "Custom",
   "将自动新建 Profile「{name}」：沿用全局 dsh 目录，会话与记忆共享，插件与配置独立。": "Profile「{name}」 is created automatically. The global dsh directory is kept: sessions and memories are shared, plugins and config stay separate.",
   "将自动新建独立目录：会话、记忆、插件与配置全部独立。": "A separate directory is created automatically: sessions, memories, plugins and config are all independent.",
-  "把「{profile}」的插件与配置复制一份，之后各改各的。": "Copy the plugins and config of「{profile}」; the two environments are then edited independently.",
+  "把「{profile}」复制成新的 Profile「{name}」：插件与配置跟过来，技能、Prompt 管理和会话不跟。": "Copy「{profile}」 into a new profile「{name}」: plugins and config come along; skills, Prompt settings and sessions do not.",
+  "「{name}」是系统保留名称，换个 Profile 名称（例如 {name}-copy）。": "「{name}」 is reserved by the system. Choose another profile name (for example {name}-copy).",
+  "目标名字不能和来源「{profile}」一样，换一个 Profile 名称。": "The target name cannot be the same as the source「{profile}」. Choose another profile name.",
+  "全局目录里已经有「{name}」，换个名字再复制。": "The global directory already has「{name}」. Pick another name to copy.",
+  "这个目录里已经有「{profile}」，换个名字再复制。": "This directory already has「{profile}」. Pick another name to copy.",
+  "（待定）": "(pending)",
   "从已有 Profile 复制": "Copy an existing profile",
   "选择要复制的 Profile": "Choose a profile to copy",
   "左边挑用户目录，右边挑 Profile；复制的是它现在装着的插件与配置。": "Pick a user directory on the left and a profile on the right; its plugins and config are copied.",
@@ -2104,7 +2187,7 @@
   "不能起网页，复制过去也起不来": "Cannot start the web UI, so a copy would not either",
   "这个目录里的 Profile 都不能起网页，换一个目录试试。": "No profile in this directory can start the web UI. Try another directory.",
   "先选一份要复制的 Profile": "Choose a profile to copy first",
-  "先选一份要复制的 Profile：左边挑用户目录，右边挑 Profile。": "Choose a profile to copy: pick a user directory on the left, then a profile on the right.",
+  "先选一份要复制的 Profile：左边挑用户目录，右边挑 Profile；复制出来的环境从空白会话开始。": "Choose a profile to copy: pick a user directory on the left, then a profile on the right. The copy starts with empty sessions.",
   "默认目录": "Default directory",
   "数据目录还没就绪，稍后再试": "The data directory is not ready yet. Try again later.",
   "数据目录": "data directory",
@@ -2191,7 +2274,6 @@
     const launchGuideFieldEl = document.getElementById('launchGuideField')
     const launchGuideDirFieldEl = document.getElementById('launchGuideDirField')
     const launchSourceTabsEl = document.getElementById('launchSourceTabs')
-    const launchSourceNamePanelEl = document.getElementById('launchSourceNamePanel')
     const launchSourceCopyPanelEl = document.getElementById('launchSourceCopyPanel')
     const launchProfileCustomEl = document.getElementById('launchProfileCustom')
     const launchHomeCustomEl = document.getElementById('launchHomeCustom')
@@ -2238,8 +2320,19 @@
     const launchLogCardEl = document.getElementById('launchLogCard')
     const launchLogVisualEl = document.getElementById('launchLogVisual')
     const launchLogPluginsEl = document.getElementById('launchLogPlugins')
+    const launchLogSpaceEl = document.getElementById('launchLogSpace')
+    const launchLogSpaceMetaEl = document.getElementById('launchLogSpaceMeta')
+    const launchLogSpaceBodyEl = document.getElementById('launchLogSpaceBody')
     const launchLogDiagnosisEl = document.getElementById('launchLogDiagnosis')
     const launchLogDiagnosisMetaEl = document.getElementById('launchLogDiagnosisMeta')
+    const launchLogTabsEl = document.getElementById('launchLogTabs')
+    const launchLogTabButtons = [...document.querySelectorAll('.launch-log-tab[data-log-tab]')]
+    const launchLogPanels = {
+      raw: launchLogCardEl,
+      time: launchLogVisualEl,
+      space: launchLogSpaceEl,
+      diagnosis: launchLogDiagnosisEl,
+    }
     const launchLogDiagnosisRowsEl = document.getElementById('launchLogDiagnosisRows')
     const manageVersionsEl = document.getElementById('launchManageVersions')
     const versionInstallSelectEl = document.getElementById('versionInstallSelect')
@@ -3700,12 +3793,12 @@
     let pluginHome = ''
     let pluginViewRevision = 0
     let pluginLoadRequest = 0
-    const scopedLaunchId = (path, explicit) => explicit !== undefined ? explicit : (launchPluginScope && /^\/api\/(plugins|packs|profiles|recover|sync|mcp|skills|start|stop|instance-port)(?:\/|\?|$)/.test(path) ? launchPluginScope : '')
+    const scopedLaunchId = (path, explicit) => explicit !== undefined ? explicit : (launchPluginScope && /^\/api\/(plugins|packs|profiles|profile-backups|recover|sync|mcp|skills|start|stop|instance-port)(?:\/|\?|$)/.test(path) ? launchPluginScope : '')
     function apiScopeHeaders(path, options = {}) {
       const launchId = scopedLaunchId(path, options.launchId)
       if (launchId) return { 'x-dsh-launch-id': launchId }
       // 设置页只限定插件、整合包和 Profile；其它设置仍保留自己的全局作用域。
-      const home = options.home ?? (options.launchId === undefined && /^\/api\/(plugins|packs|profiles|recover)(?:\/|\?|$)/.test(path) ? pluginHome : '')
+      const home = options.home ?? (options.launchId === undefined && /^\/api\/(plugins|packs|profiles|profile-backups|recover)(?:\/|\?|$)/.test(path) ? pluginHome : '')
       return home ? { 'x-dsh-home': encodeURIComponent(home) } : {}
     }
     const post = (path, body = {}, options = {}) => fetch(path, {
@@ -4335,6 +4428,11 @@
     let launchNameAuto = ''
     const normalizeHomePath = (home) => String(home || '').trim().replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
     const sameHomePath = (left, right) => normalizeHomePath(left) === normalizeHomePath(right)
+    /**
+     * 不能当 Profile 名字的保留名，跟服务端 createProfile / renameProfile 那两份检查一致：
+     * dsh 的模板名 + CLI 不认的 desktop + node_modules。页面先拦一次，好把错误指到名字输入框上。
+     */
+    const RESERVED_PROFILE_NAMES = new Set(['node_modules', 'desktop', 'web', 'headless', 'acp', 'sdk', 'sdk-minimal'])
 
     /** 会话隔离的默认目录：数据目录的 homes/<名字>；撞名就加序号，免得两次新建落到同一处。 */
     function suggestIsolatedHome(seed = 'dsh') {
@@ -4357,22 +4455,68 @@
       return 'work'
     }
 
-    /** 引导模式给启动项代填的名字：Profile 档用 Profile 名，会话隔离档用目录的最后一段。 */
+    /** 引导模式代填的启动项名：Profile 档用 Profile 名，会话隔离档用目录的最后一段。 */
     function guidedLaunchName() {
       if (launchIsolation === 'home') {
         const home = suggestIsolatedHome()
         const tail = String(home || '').replace(/[\\/]+$/, '').split(/[\\/]/).pop() || 'dsh'
         return tail.slice(0, 32) || 'dsh'
       }
-      return (suggestIsolatedProfile() || 'work').slice(0, 32)
+      // 复制档的目标名就是新 Profile 的名字，自己起名那档才是全自动的建议值
+      const typed = launchIsolation === 'profile' ? String(launchProfileCustomEl?.value || '').trim() : ''
+      return (typed || suggestIsolatedProfile() || 'work').slice(0, 32)
+    }
+
+    /**
+     * 复制档的默认目标名：`来源-copy`。撞上已有 Profile 或保留名（desktop / node_modules）
+     * 就往后顺延，免得「以 desktop 为模板」这种最常用的复制被保留名检查挡下来。
+     */
+    function suggestCopyProfile(seed = '') {
+      const taken = new Set((Array.isArray(state.profiles) ? state.profiles : []).map((name) => String(name).toLowerCase()))
+      const reserved = (name) => !name || taken.has(name) || name === 'node_modules' || name === 'desktop'
+      // 留出 `-copy-99` 的位置，别让顺延后的名字超过 safeProfile 的 32 字符上限
+      const base = String(seed || '').trim().toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^[-.]+|[-.]+$/g, '').slice(0, 24).replace(/[-.]+$/, '')
+      const stem = base ? `${base}-copy` : 'work'
+      if (!reserved(stem)) return stem
+      for (let n = 2; n < 100; n += 1) if (!reserved(`${stem}-${n}`)) return `${stem}-${n}`
+      return ''
     }
 
     /**
      * 第二档 tab：新建的 Profile 从哪来——自己起个名字（name），还是照抄一份现成的（copy）。
-     * 两档互斥，同一时间只露一块；切走的那块值留着，切回来还在。停在哪档决定保存时读谁的字段：
-     * 见 selectedCopy 和 prepareGuidedLaunch。
+     * 名字输入两档共用（复制档预填「来源-copy」），切 tab 只换「怎么拿到那份配置」，
+     * 所以切走再切回来填过的名字还在。停在哪档决定保存时读谁的字段：见 selectedCopy。
      */
     let launchSourceMode = 'name'
+    /** 复制档上次代填的目标名：用户没改过就一直跟着来源走，改过就不再覆盖。 */
+    const launchCopyNameAuto = { profile: '', home: '' }
+
+    /** 当前档（插件隔离 / 会话隔离）用的那个名字输入。 */
+    function guidedProfileNameEl() {
+      return launchIsolation === 'home' ? launchHomeProfileEl : launchProfileCustomEl
+    }
+
+    /** 复制档把目标名填成「来源-copy」：空着、或还是上次代填的值才刷新，手填的不动。 */
+    function fillCopyProfileName() {
+      const copy = launchSourceMode === 'copy' ? selectedCopy() : null
+      const el = guidedProfileNameEl()
+      if (!el) return
+      if (!copy) {
+        // 切回自己起名那档：清掉代填痕迹，回到「留空就自动取名」
+        if (el.value === launchCopyNameAuto[launchIsolation]) el.value = ''
+        launchCopyNameAuto[launchIsolation] = ''
+        return
+      }
+      const auto = suggestCopyProfile(copy.profile)
+      if (!el.value.trim() || el.value === launchCopyNameAuto[launchIsolation]) el.value = auto
+      launchCopyNameAuto[launchIsolation] = auto
+    }
+
+    /** 引导模式代填的启动项名：用户自己改过就不再覆盖，名字输入改了也要跟着走。 */
+    function fillGuidedLaunchName() {
+      if (!launchNameEl.value.trim() || launchNameEl.value === launchNameAuto) launchNameEl.value = guidedLaunchName()
+      launchNameAuto = launchNameEl.value.trim()
+    }
 
     /** 两档 tab 的选中态和面板显隐；打开弹窗复位时也走这里（不重画说明行）。 */
     function paintLaunchSource() {
@@ -4381,7 +4525,7 @@
       for (const tab of document.querySelectorAll('.launch-source-tab')) {
         tab.setAttribute('aria-selected', String(tab.dataset.source === launchSourceMode))
       }
-      if (launchSourceNamePanelEl) launchSourceNamePanelEl.hidden = launchSourceMode !== 'name'
+      // 名字那块两档都露着（复制档要能改目标名），只有来源选择跟着 tab 走
       if (launchSourceCopyPanelEl) launchSourceCopyPanelEl.hidden = launchSourceMode !== 'copy'
     }
 
@@ -4391,6 +4535,8 @@
       // 第一次切到复制那档先给个默认来源：全局目录里的 web，最常见的一份，省得每次都要开选择窗
       if (launchSourceMode === 'copy' && !launchCopySource) launchCopySource = defaultCopySource()
       paintLaunchSource()
+      fillCopyProfileName()
+      fillGuidedLaunchName()
       paintLaunchIsolation()
     }
 
@@ -4424,14 +4570,48 @@
       if (launchProfileCustomEl) launchProfileCustomEl.hidden = launchIsolation !== 'profile'
       if (launchHomeProfileEl) launchHomeProfileEl.hidden = launchIsolation !== 'home'
       if (guided) {
-        if (!launchNameEl.value.trim() || launchNameEl.value === launchNameAuto) launchNameEl.value = guidedLaunchName()
-        launchNameAuto = launchNameEl.value.trim()
+        // 换档等于换了一个名字输入：复制档要把新档的输入也填上「来源-copy」
+        fillCopyProfileName()
+        fillGuidedLaunchName()
       }
       // 引导模式不显示名称输入，也就不能让它挡着提交；自定义和编辑仍按老规矩必填。
       launchNameEl.required = !guided
       // 新建前两档没什么可修的：环境是刚自动建的，修复入口只会让人误点；编辑和自定义里还留着。
       launchRecoverEl.hidden = guided
       paintLaunchIsolation()
+    }
+
+    /** 说明行：只重画文案（名字输入每敲一个字都要跟着变，别顺带把目录下拉也重铺一遍）。 */
+    function paintLaunchHint() {
+      // 复制只对引导两档有意义：自定义档本来就是自己挑现成的 Profile，说明行不该提复制
+      const copying = launchIsolation !== 'custom' && launchSourceMode === 'copy'
+      const copy = copying ? selectedCopy() : null
+      const typedName = String(guidedProfileNameEl()?.value || '').trim()
+      let hint
+      if (copy) {
+        // 说清复制的是 Profile，不是整个环境：技能、Prompt 和会话都不跟过来，别让人以为搬完就完工
+        hint = t('把「{profile}」复制成新的 Profile「{name}」：插件与配置跟过来，技能、Prompt 管理和会话不跟。', {
+          profile: copy.profile,
+          name: typedName || suggestCopyProfile(copy.profile) || t('（待定）'),
+        })
+      } else if (copying) {
+        // 停在复制那档还没选来源：说清下一步，别让人以为直接保存就复制了
+        hint = t('先选一份要复制的 Profile：左边挑用户目录，右边挑 Profile；复制出来的环境从空白会话开始。')
+      } else if (launchIsolation === 'profile') {
+        hint = t('将自动新建 Profile「{name}」：沿用全局 dsh 目录，会话与记忆共享，插件与配置独立。', { name: typedName || suggestIsolatedProfile() })
+      } else if (launchIsolation === 'home') {
+        hint = t('将自动新建独立目录：会话、记忆、插件与配置全部独立。')
+      } else {
+        hint = t('版本、端口和启动环境都在这里手动选；点「启动环境」换目录或 Profile，左栏「+」加目录。')
+      }
+      if (launchIsolationHintEl.textContent === hint) return
+      launchIsolationHintEl.textContent = hint
+      // 换档时说明行淡入一下，文字别硬跳；测试沙箱里的元素桩没有 classList 就不做动画。
+      if (launchIsolationHintEl.classList) {
+        launchIsolationHintEl.classList.remove('isolation-hint-in')
+        void launchIsolationHintEl.offsetWidth
+        launchIsolationHintEl.classList.add('isolation-hint-in')
+      }
     }
 
     /** tab 选中态、说明行一起刷新（切界面语言后 hint 也要跟着重画）。 */
@@ -4448,31 +4628,17 @@
       // 名字输入框留空时用占位符把「自动会取什么」亮出来
       if (launchProfileCustomEl) launchProfileCustomEl.placeholder = suggestIsolatedProfile()
       if (launchHomeProfileEl) launchHomeProfileEl.placeholder = t('Profile 名称，留空用 web')
-      // 复制只对引导两档有意义：自定义档本来就是自己挑现成的 Profile，说明行不该提复制
-      const copying = launchIsolation !== 'custom' && launchSourceMode === 'copy'
-      const copy = copying ? selectedCopy() : null
-      let hint
-      if (copy) {
-        hint = t('把「{profile}」的插件与配置复制一份，之后各改各的。', { profile: copy.profile })
-      } else if (copying) {
-        // 停在复制那档还没选来源：说清下一步，别让人以为直接保存就复制了
-        hint = t('先选一份要复制的 Profile：左边挑用户目录，右边挑 Profile。')
-      } else if (launchIsolation === 'profile') {
-        hint = t('将自动新建 Profile「{name}」：沿用全局 dsh 目录，会话与记忆共享，插件与配置独立。', { name: suggestIsolatedProfile() })
-      } else if (launchIsolation === 'home') {
-        hint = t('将自动新建独立目录：会话、记忆、插件与配置全部独立。')
-      } else {
-        hint = t('版本、端口和启动环境都在这里手动选；点「启动环境」换目录或 Profile，左栏「+」加目录。')
-      }
       // 复制来源按钮的文案也跟着刷新（切语言、换了来源都要重画）
       paintLaunchCopy()
-      if (launchIsolationHintEl.textContent === hint) return
-      launchIsolationHintEl.textContent = hint
-      // 换档时说明行淡入一下，文字别硬跳；测试沙箱里的元素桩没有 classList 就不做动画。
-      if (launchIsolationHintEl.classList) {
-        launchIsolationHintEl.classList.remove('isolation-hint-in')
-        void launchIsolationHintEl.offsetWidth
-        launchIsolationHintEl.classList.add('isolation-hint-in')
+      paintLaunchHint()
+    }
+
+    // 名字边打边更新说明行；换名字也会改启动项名（用户改过的启动项名不覆盖，见 fillGuidedLaunchName）
+    for (const input of [launchProfileCustomEl, launchHomeProfileEl]) {
+      if (!input) continue
+      input.oninput = () => {
+        fillGuidedLaunchName()
+        paintLaunchHint()
       }
     }
 
@@ -4501,8 +4667,10 @@
       const current = launchHomeCustomEl.value
       const auto = t('自动新建（{path}）', { path: suggestIsolatedHome() || t('数据目录') })
       const options = [`<option value="">${escapeHtml(auto)}</option>`]
-      for (const home of homeOptions(current)) {
-        options.push(`<option value="${escapeHtml(home)}">${escapeHtml(homeOptionLabel(home))}</option>`)
+      // homeOptions 给的是 Map：必须按 [路径, 名字] 解构，直接迭代拿到的是那一对数组，
+      // String([home, name]) 会拼成「路径,名字」，选中的目录就成了一个带逗号的新路径。
+      for (const [home, name] of homeOptions(current)) {
+        options.push(`<option value="${escapeHtml(home)}">${escapeHtml(homeOptionLabel(home, name))}</option>`)
       }
       options.push(`<option value="${PLUGIN_HOME_MANAGE}">${escapeHtml(t('管理目录…'))}</option>`)
       launchHomeCustomEl.innerHTML = options.join('')
@@ -4836,6 +5004,9 @@
       }
       launchCopySource = choice
       paintLaunchCopy()
+      // 换了来源，目标名跟着换成「新来源-copy」（手改过的名字不动）
+      fillCopyProfileName()
+      fillGuidedLaunchName()
       paintLaunchIsolation()
     }
 
@@ -5010,12 +5181,24 @@
       const copy = selectedCopy()
       // 停在那档却没选来源：保存不会静默变成「新建空白」，直接把下一步说出来
       if (launchSourceMode === 'copy' && !copy) throw new Error(t('先选一份要复制的 Profile'))
-      // 名字输入框只在「新建 Profile」那档算数（停在那档才读），没填还是全自动；选了复制就沿用来源的名字
+      // 名字输入两档都读：复制档预填「来源-copy」并允许改（见 fillCopyProfileName），
+      // 留空就按当前档给个建议值。名字是 dsh 的目录名，保留名必须当场拦下来并点名。
+      const typed = String(guidedProfileNameEl()?.value || '').trim()
+      if (typed && (RESERVED_PROFILE_NAMES.has(typed.toLowerCase()))) {
+        throw new Error(t('「{name}」是系统保留名称，换个 Profile 名称（例如 {name}-copy）。', { name: typed }))
+      }
       if (launchIsolation === 'profile') {
-        const typed = launchSourceMode === 'copy' ? '' : String(launchProfileCustomEl?.value || '').trim()
-        const name = typed || copy?.profile || suggestIsolatedProfile()
+        const name = typed || (copy ? suggestCopyProfile(copy.profile) : '') || suggestIsolatedProfile()
         const web = Array.isArray(state.webProfiles) ? state.webProfiles : []
         if (typed && (state.profiles || []).includes(typed) && !web.includes(typed)) throw new Error(t('这个 Profile 不能启动网页，换一个名称'))
+        if (copy) {
+          // 同名 + 同目录 = 拿自己复制自己：服务端只会报「已存在」，说清该改哪个字段
+          if (sameHomePath(copy.home || state.dshHome, state.dshHome) && name === copy.profile) {
+            throw new Error(t('目标名字不能和来源「{profile}」一样，换一个 Profile 名称。', { profile: copy.profile }))
+          }
+          // 目标已存在时保存接口不会复制（只挂一个启动项指向它），当场说明，别让人以为已经复制了
+          if ((state.profiles || []).includes(name)) throw new Error(t('全局目录里已经有「{name}」，换个名字再复制。', { name }))
+        }
         launchProfile = name
         return {
           name: name.slice(0, 32) || 'work', profile: name, dshHome: '',
@@ -5031,19 +5214,24 @@
       const realHome = data.home || home
       const profiles = Array.isArray(data.profiles) ? data.profiles : []
       const web = Array.isArray(data.webProfiles) ? data.webProfiles : []
-      // 名字输入框指定了 Profile（只有「新建 Profile」那档读）：已存在但不起网页的先拦下；
-      // 不存在就交给服务端 ensureProfile 建
-      const typedProfile = launchSourceMode === 'copy' ? '' : String(launchHomeProfileEl?.value || '').trim()
+      // 名字输入两档都读：已存在但不起网页的先拦下；不存在就交给服务端 ensureProfile 建
+      const typedProfile = typed
       if (typedProfile && profiles.includes(typedProfile) && !web.includes(typedProfile)) {
         throw new Error(t('这个 Profile 不能启动网页，换一个名称'))
       }
+      if (copy && sameHomePath(copy.home || state.dshHome, realHome) && typedProfile === copy.profile) {
+        throw new Error(t('目标名字不能和来源「{profile}」一样，换一个 Profile 名称。', { profile: copy.profile }))
+      }
+      if (copy && typedProfile && profiles.includes(typedProfile)) {
+        throw new Error(t('这个目录里已经有「{profile}」，换个名字再复制。', { profile: typedProfile }))
+      }
       // listProfiles 总会带上 web，所以新目录也能直接用模板 profile 启动（dsh 会自动初始化）。
-      const profile = typedProfile || copy?.profile || (profiles.includes('web') ? 'web' : (profiles[0] || 'web'))
+      const profile = typedProfile || (copy ? suggestCopyProfile(copy.profile) : '') || (profiles.includes('web') ? 'web' : (profiles[0] || 'web'))
       const known = [...(state.dshHomes || []), ...launchEntries().map((entry) => entry.dshHome).filter(Boolean)]
       if (!known.some((item) => sameHomePath(item, realHome))) await post('/api/dsh-homes/add', { home: realHome })
       launchProfile = profile
       const tail = (path) => String(path).replace(/[\\/]+$/, '').split(/[\\/]/).pop() || 'dsh'
-      const name = (typedProfile || copy?.profile || tail(realHome)).slice(0, 32)
+      const name = (typedProfile || (copy ? suggestCopyProfile(copy.profile) : '') || tail(realHome)).slice(0, 32)
       return {
         name, profile, dshHome: realHome,
         ...(copy ? { copyFrom: copy } : {}),
@@ -5279,6 +5467,10 @@
     let launchLogTimer = null
     let launchLogQuery = 0
     let launchLogReportKey = ''
+    let launchLogStorageKey = ''
+    // 日志弹窗的页签：原始日志常驻；耗时/空间/诊断有数据才出现
+    let launchLogTab = 'raw'
+    const launchLogAvailable = { raw: true, time: false, space: false, diagnosis: false }
     // 耗时账本按「这一次运行」缓存：同一次运行反复打开直接复用，重启后 runAt 变了才重取。
     const launchReportCache = new Map()
     // 日志正文按启动项缓存：再次打开先显示上次看到的全文，后台刷新再替换，不用空白等一次请求。
@@ -5294,8 +5486,24 @@
       return value >= 1000 ? `${(value / 1000).toFixed(2)}s` : `${Math.round(value)}ms`
     }
 
+    /** 只显示当前页签对应的卡片；没有内容的页签直接收起来。 */
+    function paintLaunchLogTabs() {
+      if (!launchLogAvailable[launchLogTab]) launchLogTab = 'raw'
+      for (const button of launchLogTabButtons) {
+        const key = button.dataset.logTab
+        button.hidden = !launchLogAvailable[key]
+        button.setAttribute('aria-selected', String(key === launchLogTab))
+        button.tabIndex = key === launchLogTab ? 0 : -1
+      }
+      for (const [key, panel] of Object.entries(launchLogPanels)) {
+        panel.hidden = !(launchLogAvailable[key] && key === launchLogTab)
+      }
+      launchLogTabsEl.hidden = false
+    }
+
     function syncLaunchLogVisual() {
-      launchLogVisualEl.hidden = launchLogPluginsEl.hidden
+      launchLogAvailable.time = !launchLogPluginsEl.hidden && launchLogPluginsEl.innerHTML.trim().length > 0
+      paintLaunchLogTabs()
     }
 
     /** 诊断里的问题行：同一个包只列一次，标签沿用诊断面板的叫法。 */
@@ -5342,6 +5550,8 @@
     function renderLaunchLogDiagnosis(warning) {
       const rows = warning ? diagnosisIssueRows(warning.diagnosis) : []
       launchLogDiagnosisEl.hidden = !rows.length
+      launchLogAvailable.diagnosis = rows.length > 0
+      paintLaunchLogTabs()
       launchLogDiagnosisMetaEl.textContent = rows.length ? [warning.profile, warning.version].filter(Boolean).join(' · ') : ''
       launchLogDiagnosisRowsEl.replaceChildren(...rows.map((row) => {
         const line = document.createElement('div')
@@ -5358,50 +5568,79 @@
       }))
     }
 
-    /** 启动 CPU 账本：插件 / Node 内部 / 其它包 / 原生与 GC 四桶相加，别再让时间“不知去向”。 */
+    /** 启动 CPU 账本：插件按「依赖加载 + 运行」归并，剩余是运行时与未归属原生/GC。 */
     function renderLaunchReport(report) {
       const packages = Array.isArray(report?.packages) ? report.packages : []
       const native = Array.isArray(report?.native) ? report.native : []
-      const sumOf = (rows, pick) => rows.reduce((sum, row) => sum + (pick(row) ? Number(row.cpuMs) || 0 : 0), 0)
-      const pluginMs = sumOf(packages, (row) => row.plugin)
-      const nodeMs = sumOf(packages, (row) => row.name === '(Node 内部)')
-      const otherMs = sumOf(packages, (row) => !row.plugin && row.name !== '(Node 内部)')
-      const nativeMs = sumOf(native, () => true)
-      const ledger = pluginMs + nodeMs + otherMs + nativeMs
-      if (ledger < 1) {
+      const totalOf = (row) => Number(row.totalMs ?? row.cpuMs) || 0
+      const sumOf = (rows, pick) => rows.reduce((sum, row) => sum + (pick(row) ? totalOf(row) : 0), 0)
+      // 新报告带 plugins：加载耗时已经沿依赖图归并，还带运行耗时；旧报告退回按包算。
+      const pluginList = Array.isArray(report?.plugins)
+        ? report.plugins.map((row) => ({
+          name: String(row.name || ''),
+          loadMs: Number(row.loadMs) || 0,
+          runMs: Number(row.runMs) || 0,
+          totalMs: Number(row.totalMs) || (Number(row.loadMs) || 0) + (Number(row.runMs) || 0),
+        })).filter((row) => row.name && row.totalMs >= 1).sort((left, right) => right.totalMs - left.totalMs)
+        : null
+      const pluginMs = pluginList ? pluginList.reduce((sum, row) => sum + row.totalMs, 0) : sumOf(packages, (row) => row.plugin)
+      // 新报告把原生/GC 按调用方归到包，只把找不到调用方的部分单列；旧报告没有归属，全部单列。
+      const unattributed = Number(report?.nativeUnattributedMs)
+      const nativeMs = Number.isFinite(unattributed) ? unattributed : native.reduce((sum, row) => sum + (Number(row.cpuMs) || 0), 0)
+      const cpu = Math.max(1, Number(report.cpuMs) || 0)
+      const runtimeMs = Math.max(0, cpu - pluginMs - nativeMs)
+      const ledger = pluginMs + runtimeMs + nativeMs
+      // 没有采样（连包和原生调用都没有）时没有账本可画，别只显示一条 100% 的运行时。
+      if (ledger < 1 || (!packages.length && !native.length && pluginMs < 1)) {
         launchLogPluginsEl.hidden = true
         launchLogPluginsEl.innerHTML = ''
         syncLaunchLogVisual()
         return
       }
-      const cpu = Math.max(1, Number(report.cpuMs) || ledger)
-      const percent = (ms) => Math.round(ms / cpu * 100)
+      const total = Math.max(1, ledger)
+      const percent = (ms) => Math.round(ms / total * 100)
       const segments = [
-        { key: 'plugin', label: t('插件'), ms: pluginMs },
-        { key: 'node', label: t('Node 内部'), ms: nodeMs },
-        { key: 'other', label: t('其它包'), ms: otherMs },
-        { key: 'native', label: t('原生与 GC'), ms: nativeMs },
-        { key: 'rest', label: t('未归类'), ms: Math.max(0, cpu - ledger) },
+        { key: 'plugin', label: t('插件（加载+运行）'), ms: pluginMs },
+        { key: 'node', label: t('运行时与其它'), ms: runtimeMs },
+        { key: 'native', label: t('未归属原生/GC'), ms: nativeMs },
       ].filter((segment) => segment.ms >= 1)
-      const rows = [...packages].filter((row) => Number(row.cpuMs) >= 1).sort((left, right) => right.cpuMs - left.cpuMs).slice(0, 5)
-      const max = Math.max(...rows.map((row) => Number(row.cpuMs) || 0), 1)
-      const busy = Number(report.windowMs) > 0 && Number(report.cpuMs) / Number(report.windowMs) >= 0.8
-      const nativeList = native
-        .filter((row) => Number(row.cpuMs) >= 1)
-        .sort((left, right) => right.cpuMs - left.cpuMs)
-        .slice(0, 3)
-        .map((row) => `${row.name} ${formatProfileMs(row.cpuMs)}`)
-        .join(' · ')
+      const splitTitle = (row) => t('JS {cpu} · 原生 {native}', { cpu: formatProfileMs(Number(row.cpuMs) || 0), native: formatProfileMs(Number(row.nativeMs) || 0) })
+      const packageTitle = (row) => row.resolveMs === undefined
+        ? splitTitle(row)
+        : t('加载 {load} · 解析 {resolve} · JS {cpu} · 原生 {native}', {
+          load: formatProfileMs(Number(row.loadMs) || 0),
+          resolve: formatProfileMs(Number(row.resolveMs) || 0),
+          cpu: formatProfileMs(Number(row.cpuMs) || 0),
+          native: formatProfileMs(Number(row.nativeMs) || 0),
+        })
+      const pluginTitle = (row) => pluginList
+        ? t('加载 {load} · 运行 {run}', { load: formatProfileMs(row.loadMs), run: formatProfileMs(row.runMs) })
+        : splitTitle(row)
+      const pluginValue = (row) => pluginList ? row.totalMs : totalOf(row)
+      const pluginRows = pluginList
+        ? pluginList.slice(0, 5)
+        : packages.filter((row) => row.plugin && totalOf(row) >= 1).sort((left, right) => totalOf(right) - totalOf(left)).slice(0, 5)
+      const pluginMax = Math.max(...pluginRows.map(pluginValue), 1)
+      // Node 内部的采样大多是模块加载/文件扫描，已经体现在插件的加载耗时和运行时里，单列会重复加总。
+      const rows = packages
+        .filter((row) => row.name !== '(Node 内部)' && row.name !== '(启动器钩子)' && totalOf(row) >= 1)
+        .sort((left, right) => totalOf(right) - totalOf(left))
+        .slice(0, 5)
+      const max = Math.max(...rows.map((row) => totalOf(row)), 1)
+      const nativeRows = native.filter((row) => Number(row.cpuMs) >= 1).sort((left, right) => right.cpuMs - left.cpuMs).slice(0, 6)
+      const nativeMax = Math.max(...nativeRows.map((row) => Number(row.cpuMs) || 0), 1)
       launchLogWindowEl.textContent = t('窗口 {window} · CPU {cpu}', { window: formatProfileMs(report.windowMs), cpu: formatProfileMs(report.cpuMs) })
       launchLogPluginsEl.innerHTML = `
-        <div class="launch-log-ledger" role="img" aria-label="${escapeHtml(segments.map((segment) => `${segment.label} ${formatProfileMs(segment.ms)}`).join('，'))}">${segments.map((segment) => `<span class="ledger-${segment.key}" style="flex:${Math.max(segment.ms, cpu * 0.004)} 1 0" title="${escapeHtml(`${segment.label} ${formatProfileMs(segment.ms)}`)}"><span>${percent(segment.ms)}%</span></span>`).join('')}</div>
+        <div class="launch-log-ledger" role="img" aria-label="${escapeHtml(segments.map((segment) => `${segment.label} ${formatProfileMs(segment.ms)}`).join('，'))}">${segments.map((segment) => `<span class="ledger-${segment.key}" style="flex:${Math.max(segment.ms, total * 0.004)} 1 0" title="${escapeHtml(`${segment.label} ${formatProfileMs(segment.ms)}`)}"><span>${percent(segment.ms)}%</span></span>`).join('')}</div>
         <div class="launch-log-legend">${segments.map((segment) => `<span><i class="ledger-${segment.key}"></i>${escapeHtml(segment.label)} <b>${escapeHtml(formatProfileMs(segment.ms))}</b></span>`).join('')}</div>
-        <div class="launch-log-subhead">${escapeHtml(t('最耗时的 5 项'))}</div>
-        <div class="launch-log-bars">${rows.map((row) => `<div class="launch-log-bar-row${row.plugin ? ' is-plugin' : ''}"><span class="name" title="${escapeHtml(row.name)}">${escapeHtml(row.name)}</span><span class="track"><span class="fill" style="width:${Math.max(2, (Number(row.cpuMs) || 0) / max * 100).toFixed(1)}%"></span></span><span class="value">${escapeHtml(formatProfileMs(row.cpuMs))}</span></div>`).join('')}</div>
-        ${nativeList ? `<p class="hint launch-log-note">${escapeHtml(t('原生与 GC {total}：{list}', { total: formatProfileMs(nativeMs), list: nativeList }))}</p>` : ''}
-        <p class="hint launch-log-note">${escapeHtml(busy
-          ? t('插件合计只占 {plugin}%；其余为模块解析、文件扫描与 Node 启动。', { plugin: percent(pluginMs) })
-          : t('插件合计只占 {plugin}%。', { plugin: percent(pluginMs) }))}</p>`
+        ${pluginRows.length ? `<div class="launch-log-subhead">${escapeHtml(t('各插件耗时（含依赖加载与运行）'))}</div>
+        <div class="launch-log-bars">${pluginRows.map((row) => `<div class="launch-log-bar-row is-plugin"><span class="name" title="${escapeHtml(`${row.name} · ${pluginTitle(row)}`)}">${escapeHtml(row.name)}</span><span class="track"><span class="fill" style="width:${Math.max(2, pluginValue(row) / pluginMax * 100).toFixed(1)}%"></span></span><span class="value">${escapeHtml(formatProfileMs(pluginValue(row)))}</span></div>`).join('')}</div>` : ''}
+        <div class="launch-log-subhead">${escapeHtml(t('最耗时的 5 项（不含 Node 内部）'))}</div>
+        <div class="launch-log-bars">${rows.map((row) => `<div class="launch-log-bar-row${row.plugin ? ' is-plugin' : ''}"><span class="name" title="${escapeHtml(`${row.name} · ${packageTitle(row)}`)}">${escapeHtml(row.name)}</span><span class="track"><span class="fill" style="width:${Math.max(2, totalOf(row) / max * 100).toFixed(1)}%"></span></span><span class="value">${escapeHtml(formatProfileMs(totalOf(row)))}</span></div>`).join('')}</div>
+        ${nativeRows.length ? `<div class="launch-log-subhead">${escapeHtml(t('原生与 GC 明细'))}</div>
+        <div class="launch-log-bars">${nativeRows.map((row) => `<div class="launch-log-bar-row"><span class="name" title="${escapeHtml(row.name)}">${escapeHtml(row.name)}</span><span class="track"><span class="fill" style="width:${Math.max(2, (Number(row.cpuMs) || 0) / nativeMax * 100).toFixed(1)}%"></span></span><span class="value">${escapeHtml(formatProfileMs(row.cpuMs))}</span></div>`).join('')}</div>` : ''}
+        ${nativeRows.length ? `<p class="hint launch-log-note">${escapeHtml(t('原生/GC 已按最近的 JS 调用方归到包；这里只按系统调用/GC 类型汇总。'))}</p>` : ''}
+        <p class="hint launch-log-note">${escapeHtml(t('插件合计 {plugin}%（含它带进来的依赖）；其余为运行时启动、文件扫描与未归属。', { plugin: percent(pluginMs) }))}</p>`
       launchLogPluginsEl.hidden = false
       syncLaunchLogVisual()
     }
@@ -5429,6 +5668,63 @@
         renderLaunchReport(report)
       } catch {
         // 没有账本就只显示日志
+      }
+    }
+
+    /** 启动项的空间构成：版本目录 + 这个 profile 目录，按插件 / 运行时 / 其它依赖 / 配置与数据分。 */
+    function renderStorageBreakdown(data) {
+      const labels = {
+        plugin: t('插件本体'), 'plugin-deps': t('插件依赖'), runtime: t('运行时'),
+        'runtime-deps': t('运行时依赖'), data: t('配置与数据'), rest: t('未归类'),
+      }
+      const segments = (data?.segments || [])
+        .map((segment) => ({ ...segment, label: labels[segment.key] || segment.key }))
+        .filter((segment) => Number(segment.bytes) >= 1)
+      const total = Math.max(1, Number(data?.total) || 0)
+      const percent = (bytes) => Math.round(Number(bytes) / total * 100)
+      const items = (data?.items || []).filter((item) => Number(item.bytes) >= 1)
+      const max = Math.max(...items.map((item) => Number(item.bytes) || 0), 1)
+      const plugins = (data?.plugins || []).filter((plugin) => Number(plugin.bytes) >= 1)
+      const pluginMax = Math.max(...plugins.map((plugin) => Number(plugin.bytes) || 0), 1)
+      const restPlugins = plugins.slice(5)
+      launchLogSpaceMetaEl.textContent = t('合计 {size}', { size: formatBytes(data.total) })
+      launchLogSpaceBodyEl.innerHTML = `
+        <div class="launch-log-ledger" role="img" aria-label="${escapeHtml(segments.map((segment) => `${segment.label} ${formatBytes(segment.bytes)}`).join('，'))}">${segments.map((segment) => `<span class="ledger-${segment.key}" style="flex:${Math.max(segment.bytes, total * 0.004)} 1 0" title="${escapeHtml(`${segment.label} ${formatBytes(segment.bytes)}`)}"><span>${percent(segment.bytes)}%</span></span>`).join('')}</div>
+        <div class="launch-log-legend">${segments.map((segment) => `<span><i class="ledger-${segment.key}"></i>${escapeHtml(segment.label)} <b>${escapeHtml(formatBytes(segment.bytes))}</b></span>`).join('')}</div>
+        ${plugins.length ? `<div class="launch-log-subhead">${escapeHtml(t('各插件占用（含它带进来的依赖）'))}</div>
+        <div class="launch-log-bars">${plugins.slice(0, 5).map((plugin) => `<div class="launch-log-bar-row is-plugin"><span class="name" title="${escapeHtml(plugin.name)}">${escapeHtml(plugin.name)}</span><span class="track"><span class="fill" style="width:${Math.max(2, (Number(plugin.bytes) || 0) / pluginMax * 100).toFixed(1)}%"></span></span><span class="value">${escapeHtml(formatBytes(plugin.bytes))}</span></div>`).join('')}</div>
+        ${restPlugins.length ? `<p class="hint launch-log-note">${escapeHtml(t('其余 {n} 个插件合计 {size}', { n: restPlugins.length, size: formatBytes(restPlugins.reduce((sum, plugin) => sum + Number(plugin.bytes || 0), 0)) }))}</p>` : ''}` : ''}
+        <div class="launch-log-subhead">${escapeHtml(t('最占空间的 5 项'))}</div>
+        <div class="launch-log-bars">${items.map((item) => `<div class="launch-log-bar-row${item.plugin ? ' is-plugin' : ''}"><span class="name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span><span class="track"><span class="fill" style="width:${Math.max(2, (Number(item.bytes) || 0) / max * 100).toFixed(1)}%"></span></span><span class="value">${escapeHtml(formatBytes(item.bytes))}</span></div>`).join('')}</div>
+        <p class="hint launch-log-note">${escapeHtml(t('插件按它引用到的依赖计入（共用依赖按引用它的插件均摊）；合计是版本目录 + 这个环境目录的逻辑大小，pnpm 共享 store 不重复计入。'))}</p>`
+      launchLogAvailable.space = true
+      paintLaunchLogTabs()
+    }
+
+    async function loadStorageBreakdown(entry, version) {
+      if (!entry || !version) return
+      const profile = entry.profile || 'web'
+      const key = `${entry.id}\0${version}\0${profile}`
+      launchLogStorageKey = key
+      launchLogSpaceEl.hidden = false
+      launchLogSpaceMetaEl.textContent = t('正在计算占用…')
+      launchLogSpaceBodyEl.innerHTML = ''
+      try {
+        const data = await getJson(
+          `/api/storage/breakdown?version=${encodeURIComponent(version)}&profile=${encodeURIComponent(profile)}`,
+          { launchId: entry.id },
+        )
+        if (launchLogStorageKey !== key) return
+        if (!Array.isArray(data?.segments) || !data.segments.length) throw new Error('empty')
+        renderStorageBreakdown(data)
+      } catch {
+        if (launchLogStorageKey !== key) return
+        // 算不出来就收起这块，不占着位置
+        launchLogSpaceEl.hidden = true
+        launchLogSpaceMetaEl.textContent = ''
+        launchLogSpaceBodyEl.innerHTML = ''
+        launchLogAvailable.space = false
+        paintLaunchLogTabs()
       }
     }
 
@@ -5475,7 +5771,6 @@
         launchLogTextEl.textContent = simplifyLogText(data.text)
         launchLogTextCache.set(entry.id, launchLogTextEl.textContent)
         if (launchLogTextCache.size > 8) launchLogTextCache.delete(launchLogTextCache.keys().next().value)
-        launchLogCardEl.hidden = !data.text
         setLaunchLogHint(data.text
           ? (data.clipped ? t('只显示最后 120 KB。') : '')
           : t('这个启动项还没有日志。启动一次后，它自己的输出会出现在这里。'))
@@ -5514,16 +5809,24 @@
       launchLogRssEl.textContent = ''
       launchLogRssEl.title = ''
       launchLogWindowEl.textContent = ''
-      launchLogCardEl.hidden = !cachedText
       launchLogReportKey = ''
       launchLogPluginsEl.hidden = true
       launchLogPluginsEl.innerHTML = ''
+      launchLogStorageKey = ''
+      launchLogSpaceEl.hidden = true
+      launchLogSpaceMetaEl.textContent = ''
+      launchLogSpaceBodyEl.innerHTML = ''
+      launchLogTab = 'raw'
+      launchLogAvailable.time = false
+      launchLogAvailable.space = false
+      launchLogAvailable.diagnosis = false
       renderLaunchLogDiagnosis(null)
       syncLaunchLogVisual()
       await showDialog(launchLogDialogEl)
       launchLogTextEl.scrollTop = launchLogTextEl.scrollHeight
       const data = await refreshLaunchLog()
       if (version && version !== 'auto') await loadLaunchReport(version, entry.profile || 'web', data?.runs?.[0]?.at || '')
+      if (version) void loadStorageBreakdown(entry, version)
       launchLogLoadingEl.hidden = true
       clearInterval(launchLogTimer)
       launchLogTimer = setInterval(() => {
@@ -5533,6 +5836,7 @@
 
     function closeLaunchLog() {
       launchLogEntry = null
+      launchLogStorageKey = ''
       launchLogQuery += 1
       launchLogLoadingEl.hidden = true
       clearInterval(launchLogTimer)
@@ -5886,6 +6190,10 @@
     let versionManageOrigin = null
     let versionManageRevision = 0
     let versionManageMarkup = ''
+    // 版本目录大小：打开版本管理时按需向服务端要（服务端有缓存），不跟着状态推送反复扫盘
+    let versionSizes = null
+    let versionSizesTotal = 0
+    let versionSizesLoading = false
     let versionInstallOptions = ''
 
     function openVersionManager() {
@@ -5901,6 +6209,7 @@
       }
       versionManageDialogEl.classList.toggle('is-child-dialog', versionManageReturnToEditor)
       paintVersionManager()
+      void loadVersionSizes()
       showDialog(versionManageDialogEl)
       document.getElementById('versionManageClose').focus()
       // 打开就顺手静默刷新一次远程列表（服务端 60 秒内走缓存，不会每次都打网络）：
@@ -6000,6 +6309,7 @@
       try {
         await post('/api/install', { version })
         applyState(await getJson('/api/state'))
+        void loadVersionSizes()
       } catch (error) { notify(error.message) }
       finally { action = ''; render() }
     }
@@ -6012,13 +6322,45 @@
       try {
         await post('/api/versions/optimize', { version })
         applyState(await getJson('/api/state'))
+        void loadVersionSizes()
         notify(t('依赖优化完成'), t('优化依赖'))
       } catch (error) { notify(error.message) }
       finally { action = ''; render() }
     }
 
+    /** 目录大小的显示单位：B / KB / MB / GB。 */
+    function formatBytes(bytes) {
+      const value = Number(bytes) || 0
+      if (value < 1024) return `${value} B`
+      if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`
+      if (value < 1024 * 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB`
+      return `${(value / (1024 * 1024 * 1024)).toFixed(2)} GB`
+    }
+
+    /** 打开版本管理时算一次每个版本的磁盘占用；服务端有 5 分钟缓存。 */
+    async function loadVersionSizes() {
+      if (typeof versionManageDialogEl === 'undefined' || versionSizesLoading) return
+      versionSizesLoading = true
+      if (!versionManageDialogEl.hidden) paintVersionManager()
+      try {
+        const data = await getJson('/api/versions/sizes')
+        versionSizes = data?.versions && typeof data.versions === 'object' ? data.versions : null
+        versionSizesTotal = Number(data?.total) || 0
+      } catch { /* 算不出来不影响版本管理 */ }
+      finally {
+        versionSizesLoading = false
+        if (!versionManageDialogEl.hidden) paintVersionManager()
+      }
+    }
+
     function paintVersionManager() {
       const installed = [...installedList()].sort((a, b) => compareVersion(b, a))
+      const totalEl = document.getElementById('versionManageTotal')
+      if (totalEl) {
+        totalEl.textContent = versionSizesLoading && !versionSizes
+          ? t('正在计算占用…')
+          : versionSizesTotal ? t('共 {size}', { size: formatBytes(versionSizesTotal) }) : ''
+      }
       const latest = latestRemoteVersion()
       const available = [...new Set([latest, ...allVersionList()])].filter((version) => version && !installed.includes(version))
         .sort((a, b) => compareVersion(b, a))
@@ -6054,7 +6396,8 @@
           : t('正在运行 · {profile}', { profile: live.profile || t('运行中') }) : t('未运行')
         const label = t('卸载版本')
         const optimize = t('优化依赖')
-        return `<div class="version-manage-row" role="listitem"><div class="version-manage-info"><strong>${escapeHtml(version)}</strong>${live ? `<span title="${escapeHtml(status)}">${escapeHtml(status)}</span>` : ''}</div><button class="ghost version-optimize" type="button" data-optimize-version="${escapeHtml(version)}" title="${escapeHtml(t('整理重复依赖，减少内存和磁盘占用'))}" ${busy || live ? 'disabled' : ''}>${escapeHtml(optimize)}</button><button class="ghost icon-btn version-remove" type="button" data-remove-version="${escapeHtml(version)}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" ${busy || live ? 'disabled' : ''}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg></button></div>`
+        const size = versionSizes?.[version] ? formatBytes(versionSizes[version]) : ''
+        return `<div class="version-manage-row" role="listitem"><div class="version-manage-info"><strong>${escapeHtml(version)}</strong>${size ? `<span class="version-manage-size">${escapeHtml(size)}</span>` : ''}${live ? `<span title="${escapeHtml(status)}">${escapeHtml(status)}</span>` : ''}</div><button class="ghost version-optimize" type="button" data-optimize-version="${escapeHtml(version)}" title="${escapeHtml(t('整理重复依赖，减少内存和磁盘占用'))}" ${busy || live ? 'disabled' : ''}>${escapeHtml(optimize)}</button><button class="ghost icon-btn version-remove" type="button" data-remove-version="${escapeHtml(version)}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" ${busy || live ? 'disabled' : ''}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg></button></div>`
       }).join('') || `<p class="hint version-manage-empty">${escapeHtml(t('尚未安装任何版本'))}</p>`
       // 状态推送和安装进度频繁变化，保留相同的行以免键盘焦点被重建打断。
       if (versionManageMarkup !== markup) {
@@ -6219,6 +6562,7 @@
       try {
         await post('/api/uninstall', { version })
         applyState(await getJson('/api/state'))
+        void loadVersionSizes()
       }
       catch (error) { notify(error.message) }
       finally { action = ''; render() }
@@ -6251,6 +6595,9 @@
       launchHomeProfileEl.value = ''
       // 复制来源也跟着清：新建每次从「还没选」开始，编辑时这块本来就藏着
       launchCopySource = null
+      // 复制档代填过的名字也要忘掉，否则下一次打开会把旧名字当成「用户手填的」留着
+      launchCopyNameAuto.profile = ''
+      launchCopyNameAuto.home = ''
       paintLaunchCopy()
       // 第二排 tab 回到「新建 Profile」：新建每次从自己起名开始；编辑时引导块整个藏着，顺手复位
       launchSourceMode = 'name'
@@ -6426,6 +6773,7 @@
       if (versionOpen) paintVersionPanel()
       setProgress(Boolean(state.installing) || action === 'install' || action === 'update')
       setPluginProgress(Boolean(pluginProgress))
+      paintBackupProgress()
       paintLaunchHome()
       hintEl.textContent = action === 'optimize' || installProgress?.phase === 'optimize' ? t('正在优化依赖…')
         : action === 'install' || action === 'update' || state.installing ? progressHint(t('正在安装'))
@@ -6448,6 +6796,26 @@
       const fixed = stateAutoFix()
       if (!hintEl.textContent && fixed) hintEl.textContent = t('启动时自动禁用了：{names}（环境页可恢复）', { names: fixed })
       if (!hintEl.textContent && state.health?.failed?.length) hintEl.textContent = t('⚠ 页面自检：{failed}/{total} 个插件包加载失败', { failed: state.health.failed.length, total: state.health.total })
+      // 「安全启动」把整个补丁层改名挪走了（自定义 provider / 主题 / 沙箱都在里面）。还原入口
+      // 必须出现在首页提示行上，不能只藏在启动项弹窗底部：dsh 会重新生成一份最小补丁层，
+      // 用户看到的就是「配置被清空了」（#88）。
+      const recovery = state.recovery
+      // 首页只认默认目录 + 默认 profile 的恢复档；启动项弹窗里给别的 profile 做安全启动时，
+      // 那份结果会被 loadRecovery 写进 state.recovery，别让它跑到首页上来。
+      if (recovery?.last?.backup && recovery.profile === state.profile && sameHomePath(recovery.home || state.dshHome, state.dshHome)) {
+        const count = recovery.last.dropped?.length || 0
+        const undo = document.createElement('button')
+        undo.type = 'button'
+        undo.dataset.recover = recovery.last.backup
+        undo.dataset.profile = recovery.profile
+        undo.textContent = t('还原配置')
+        hintEl.append(
+          document.createTextNode(hintEl.textContent ? ' · ' : ''),
+          document.createTextNode(count ? t('安全启动移出了配置层（停用第三方插件 {count} 个）', { count }) : t('安全启动移出了配置层')),
+          document.createTextNode(' · '),
+          undo,
+        )
+      }
       if (!versionManageDialogEl.hidden) paintVersionManager()
     }
 
@@ -6589,6 +6957,9 @@
     removeEl.onclick = () => { void uninstallVersion(selected()) }
     hintEl.addEventListener('click', (event) => {
       if (event.target.closest('[data-failure]') && state.failure) showFailure(state.failure)
+      const undo = event.target.closest('[data-recover]')
+      // 首页提示行走默认目录的作用域；不要沿用环境页当前选中的独立目录。
+      if (undo) void restoreRecovery(undo.dataset.profile || '', undo.dataset.recover, { launchId: '', home: state.dshHome })
     })
     document.getElementById('clear').onclick = () => logView.clear()
     document.getElementById('exportLogs').onclick = async () => {
@@ -6690,7 +7061,8 @@
         autoFix: data.autoFix ?? null,
         // 老服务没有 wsl 字段：保留旧值，别把已经探测到的发行版丢掉
         wsl: data.wsl && typeof data.wsl === 'object' ? { ...(state.wsl || {}), ...data.wsl } : (state.wsl || null),
-        recovery: state.recovery,
+        // 服务端推送（/api/state）现在带着默认 profile 的恢复档；旧服务没有这个字段时保留原值
+        recovery: data.recovery && typeof data.recovery === 'object' ? data.recovery : state.recovery,
         health: data.health ?? null,
         failure: data.failure ?? null,
         diagnosticRepairs: Array.isArray(data.diagnosticRepairs) ? data.diagnosticRepairs : [],
@@ -6762,6 +7134,8 @@
           if (data?.kind === 'plugin') {
             pluginProgress = !data || data.phase === 'idle' ? null : data
             setPluginProgress(Boolean(pluginProgress))
+            paintPluginAddProgress()
+            paintBackupProgress()
             return
           }
           if (data?.kind === 'pack') {
@@ -7541,7 +7915,7 @@
       const homes = pluginHomes()
       pluginHomeEl.innerHTML = `<option value="">${escapeHtml(homeOptionLabel(state.dshHome, pluginHomeName(state.dshHome, t('全局目录'))))}</option>` + [...homes].map(([home, name]) => `<option value="${escapeHtml(home)}">${escapeHtml(homeOptionLabel(home, name))}</option>`).join('') + `<option value="${PLUGIN_HOME_MANAGE}">${escapeHtml(t('管理目录…'))}</option>`
       pluginHomeEl.value = pluginHome
-      pluginHomeEl.disabled = Boolean(packBusy || pluginUpdating || pluginTogglePending.size || pluginHomesBusy)
+      pluginHomeEl.disabled = Boolean(packBusy || pluginUpdating || pluginRemoving || pluginAdding || pluginTogglePending.size || pluginHomesBusy)
       syncUiSelect(pluginHomeEl)
       if (!pluginHomesDialogEl.hidden) paintPluginHomesDialog()
     }
@@ -7549,6 +7923,7 @@
       const rows = [[state.dshHome, pluginHomeName(state.dshHome, t('全局目录'))], ...pluginHomes()]
       const folder = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2Z"/></svg>'
       pluginHomesListEl.innerHTML = rows.map(([home, name], index) => `<div class="plugin-home-row"><span class="plugin-home-folder">${folder}</span><div class="plugin-home-info"><strong>${escapeHtml(name === home ? t('用户目录') : name)}</strong><span>${escapeHtml(home)}</span></div><div class="plugin-home-actions"><button class="icon-btn plugin-home-action" type="button" data-home-open="${escapeHtml(home)}" title="${escapeHtml(t('打开目录：{path}', { path: home }))}" aria-label="${escapeHtml(t('打开目录：{path}', { path: home }))}" ${pluginHomesBusy ? 'disabled' : ''}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M10 14 21 3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg></button><button class="icon-btn plugin-home-action" type="button" data-home-rename="${escapeHtml(home)}" title="${escapeHtml(t('重命名目录'))}" aria-label="${escapeHtml(t('重命名目录'))}" ${pluginHomesBusy || packBusy ? 'disabled' : ''}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 5 5-12 12H4v-5L16 3Z"/><path d="m14 5 5 5"/></svg></button>${index ? `<button class="icon-btn plugin-home-action danger" type="button" data-home-remove="${escapeHtml(home)}" title="${escapeHtml(t('移除目录'))}" aria-label="${escapeHtml(t('移除目录'))}" ${pluginHomesBusy ? 'disabled' : ''}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5"/></svg></button>` : ''}</div></div>`).join('')
+        + staleHomeNames().map(([home, name]) => `<div class="plugin-home-row is-stale"><span class="plugin-home-folder">${folder}</span><div class="plugin-home-info"><strong>${escapeHtml(t('失效的目录名'))}</strong><span>${escapeHtml(t('{name}（{home}）', { name, home }))}</span></div><div class="plugin-home-actions"><button class="icon-btn plugin-home-action danger" type="button" data-home-forget="${escapeHtml(home)}" title="${escapeHtml(t('清除这个失效的目录名'))}" aria-label="${escapeHtml(t('清除这个失效的目录名'))}" ${pluginHomesBusy ? 'disabled' : ''}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5"/></svg></button></div></div>`).join('')
       pluginHomesAddEl.disabled = pluginHomesBusy
       pluginHomesListEl.querySelectorAll('[data-home-open]').forEach((button) => {
         button.onclick = () => void openPluginHome(button)
@@ -7559,6 +7934,18 @@
       pluginHomesListEl.querySelectorAll('[data-home-remove]').forEach((button) => {
         button.onclick = () => void changePluginHomeList('remove', button.dataset.homeRemove)
       })
+      pluginHomesListEl.querySelectorAll('[data-home-forget]').forEach((button) => {
+        button.onclick = () => void changePluginHomeList('forget', button.dataset.homeForget)
+      })
+    }
+    /**
+     * 只在 dshHomeNames 里、已经不在任何登记列表里的目录名（历史脏数据、被外部删掉的目录）。
+     * 「用户目录」列表遍历的是 dshHomes，这些条目本来哪都看不到，只能手改 settings.json；
+     * 这里单独列出来，标成失效并允许清掉。
+     */
+    function staleHomeNames() {
+      const known = new Set([state.dshHome, ...pluginHomes().keys()].map(normalizeHomePath))
+      return Object.entries(state.dshHomeNames || {}).filter(([home]) => !known.has(normalizeHomePath(home)))
     }
     async function openPluginHome(button) {
       if (button.disabled || pluginHomesBusy) return
@@ -7580,7 +7967,7 @@
       showPackDialog(pluginHomesDialogEl, pluginHomesAddEl)
     }
     async function changePluginHomeList(action, home) {
-      if (pluginHomesBusy || packBusy || pluginUpdating || pluginTogglePending.size || launchPluginScope) return
+      if (pluginHomesBusy || packBusy || pluginUpdating || pluginRemoving || pluginAdding || pluginTogglePending.size || launchPluginScope) return
       pluginHomesBusy = true
       pluginHomesErrorEl.hidden = true
       paintPluginHomes()
@@ -7590,6 +7977,12 @@
           if (picked.error) throw new Error(picked.error)
           if (!picked.path) return
           home = picked.path
+        }
+        if (action === 'forget') {
+          // 只清显示名：失效条目的目录早就不在登记表里了，删不掉也改不了
+          const cleared = await post('/api/dsh-homes/forget-name', { home })
+          state.dshHomeNames = cleared.dshHomeNames || {}
+          return
         }
         const data = await post(`/api/dsh-homes/${action}`, { home })
         // 目录有增删：登记表、启动项那几个下拉、环境页的下拉一起重铺（见 applyHomes）
@@ -7621,7 +8014,7 @@
       packPluginListEl.dataset.profile = ''
     }
     pluginHomeEl.onchange = () => {
-      if (packBusy || pluginUpdating || pluginTogglePending.size || pluginHomesBusy || launchPluginScope) { paintPluginHomes(); return }
+      if (packBusy || pluginUpdating || pluginRemoving || pluginAdding || pluginTogglePending.size || pluginHomesBusy || launchPluginScope) { paintPluginHomes(); return }
       if (pluginHomeEl.value === PLUGIN_HOME_MANAGE) {
         // 管理入口不是数据目录，打开弹窗前恢复所选环境，避免插件请求带上这个占位值。
         paintPluginHomes()
@@ -8313,6 +8706,14 @@
     const paneTopEl = pluginPanelEl.querySelector('.pane-top')
     const launchPluginsDialogEl = document.getElementById('launchPluginsDialog')
     const launchPluginsCardEl = document.getElementById('launchPluginsCard')
+    const pluginAddDialogEl = document.getElementById('pluginAddDialog')
+    const pluginAddFormEl = document.getElementById('pluginAddForm')
+    const pluginAddSpecEl = document.getElementById('pluginAddSpec')
+    const pluginAddTargetEl = document.getElementById('pluginAddTarget')
+    const pluginAddErrorEl = document.getElementById('pluginAddError')
+    const pluginAddGoEl = document.getElementById('pluginAddGo')
+    const pluginAddProgressEl = document.getElementById('pluginAddProgress')
+    const pluginAddProgressBarEl = document.getElementById('pluginAddProgressBar')
     let pluginLaunchEntry = null
     let pluginDialogLoading = false
     let pluginDialogRequest = 0
@@ -8396,12 +8797,109 @@
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
     }
+
+    /**
+     * 添加插件（官方做法：把 spec 交给 `dsh plugin add`，由 pnpm 解析）。
+     *
+     * 装进当前正在查看的环境；启动项弹窗里就是那个启动项绑定的 profile。
+     * 关掉弹窗不会中断服务端的安装（进度走 SSE），只是看不到进度条了。
+     */
+    function openPluginAdd() {
+      if (packBusy || pluginUpdating || pluginRemoving || pluginAdding || pluginTogglePending.size) return
+      if (!openedPack?.profile) return
+      pluginAddSpecEl.value = ''
+      pluginAddErrorEl.hidden = true
+      pluginAddTargetEl.textContent = t('装进环境「{profile}」', { profile: openedPack.profile })
+      pluginAddGoEl.disabled = false
+      pluginAddGoEl.classList.remove('loading')
+      paintProgress(pluginAddProgressEl, pluginAddProgressBarEl, null, false)
+      showPackDialog(pluginAddDialogEl, pluginAddSpecEl)
+    }
+    function closePluginAdd() {
+      // 安装请求在服务端跑，关掉弹窗只是看不到进度；pluginAdding 会一直挡住重新打开，
+      // 直到请求结束，避免同一时间排进第二次安装。
+      void hidePackDialog(pluginAddDialogEl)
+    }
+    document.getElementById('pluginAddClose').onclick = closePluginAdd
+    document.getElementById('pluginAddCancel').onclick = closePluginAdd
+    pluginAddFormEl.onsubmit = async (event) => {
+      event.preventDefault()
+      if (pluginAdding || !openedPack?.profile) return
+      const spec = pluginAddSpecEl.value.trim()
+      pluginAddErrorEl.hidden = true
+      if (!spec) {
+        pluginAddErrorEl.textContent = t('请填写插件包名或地址')
+        pluginAddErrorEl.hidden = false
+        pluginAddSpecEl.focus()
+        return
+      }
+      const profile = openedPack.profile
+      pluginAdding = true
+      pluginAddGoEl.disabled = true
+      pluginAddGoEl.classList.add('loading')
+      paintProgress(pluginAddProgressEl, pluginAddProgressBarEl, pluginProgress, Boolean(pluginProgress))
+      try {
+        const data = await post('/api/plugins/add', { spec, profile })
+        applyPluginPayload(data)
+        if (profile === pluginProfile) await loadPlugins({ checkUpdates: false })
+        await hidePackDialog(pluginAddDialogEl)
+        notify(t('已装好 {spec}，重启 dsh 后生效。', { spec: data.name || spec }), t('添加插件'))
+      } catch (error) {
+        pluginAddErrorEl.textContent = error.message
+        pluginAddErrorEl.hidden = false
+        pluginAddSpecEl.focus()
+      } finally {
+        pluginAdding = false
+        pluginAddGoEl.disabled = false
+        pluginAddGoEl.classList.remove('loading')
+        paintProgress(pluginAddProgressEl, pluginAddProgressBarEl, null, false)
+      }
+    }
+
+    /** 卸载一个第三方插件：确认后才动 pnpm；官方组件没有入口，服务端也再挡一次。 */
+    async function removePlugin(name, profile = pluginProfile) {
+      if (!name || packBusy || pluginUpdating || pluginRemoving || pluginAdding || pluginTogglePending.size) return
+      const parent = launchPluginsDialogEl.hidden ? null : launchPluginsDialogEl
+      const confirmed = await appConfirm(
+        t('卸载「{name}」？卸载后它提供的功能会消失，重启 dsh 后生效。', { name }),
+        { title: t('卸载插件'), okText: t('卸载'), parent },
+      )
+      if (!confirmed) return
+      pluginRemoving = name
+      pluginUpdatingProfile = profile
+      pluginProgress = null
+      pluginButtons()
+      try {
+        const data = await post('/api/plugins/remove', { name, profile })
+        applyPluginPayload(data)
+        if (profile === pluginProfile) await loadPlugins({ checkUpdates: false })
+      } catch (error) {
+        notify(error.message, t('卸载失败'))
+        if (profile === pluginProfile) await loadPlugins({ checkUpdates: false })
+      } finally {
+        pluginRemoving = ''
+        pluginUpdatingProfile = ''
+        pluginProgress = null
+        pluginButtons()
+      }
+    }
+
+    /** 添加弹窗里的进度条：插件没有行可以挂进度，就在弹窗里画。 */
+    function paintPluginAddProgress() {
+      if (pluginAddDialogEl.hidden) return
+      const active = pluginAdding && pluginProgress && pluginProgress.profile === openedPack?.profile
+      paintProgress(pluginAddProgressEl, pluginAddProgressBarEl, pluginProgress, Boolean(active))
+    }
     let pluginsLoaded = false
     // 插件更新：name → { current, latest, hasUpdate, error? }（服务端查 registry，页面上只做展示）
     let pluginUpdates = {}
     let pluginUpdating = ''
     let pluginUpdatingProfile = ''
     let pluginUpdatingGroup = ''
+    // 卸载一个插件时用它记名字：行里的进度条要知道自己显示「卸载」还是「更新」；
+    // pluginAdding 只负责锁住添加弹窗的重复提交。
+    let pluginRemoving = ''
+    let pluginAdding = false
     let pluginChecking = false
     const pluginTogglePending = new Map()
     const pluginGroupPending = new Map()
@@ -8436,6 +8934,10 @@
       const pending = pluginTogglePending.get(`${profile}:${plugin.name}`)
       const enabled = pending ? pending.enabled : plugin.enabled
       const update = updates[plugin.name]
+      // 官方组件跟着 dsh 走，不给卸载入口（和开关同一条保护线）。
+      const removable = !plugin.official
+      const busy = packBusy || Boolean(pluginUpdating) || Boolean(pluginRemoving) || Boolean(pluginAdding)
+      const progressLabel = pluginRemoving === plugin.name ? t('正在卸载…') : t('正在更新…')
       const scoped = /^(@[^/]+\/)(.+)$/.exec(plugin.name)
       const nameHtml = scoped
         ? `<span class="plugin-scope">${escapeHtml(scoped[1])}</span>${escapeHtml(scoped[2])}`
@@ -8452,16 +8954,25 @@
           ${sharedPacks.length ? `<span class="plugin-source">${escapeHtml(t('同时包含于：{names}', { names: sharedPacks.join('、') }))}</span>` : ''}
           ${plugin.description ? `<span class="plugin-desc">${escapeHtml(plugin.description)}</span>` : ''}
         </span>
-        ${update?.hasUpdate ? `<button class="plugin-update" type="button" data-update="${escapeHtml(plugin.name)}" data-profile="${escapeHtml(profile)}" aria-label="${escapeHtml(`${plugin.name} ${t('更新到 {latest}', { latest: update.latest })}`)}" ${pluginUpdating ? 'disabled' : ''}><span class="spin" aria-hidden="true"></span><span class="update-label">${escapeHtml(t('更新到 {latest}', { latest: update.latest }))}</span></button>` : ''}
-        <input type="checkbox" data-plugin="${escapeHtml(plugin.name)}" data-profile="${escapeHtml(profile)}" ${enabled ? 'checked' : ''} ${!plugin.toggleable || pending || packBusy ? 'disabled' : ''} ${pending ? 'class="is-switching" aria-busy="true"' : ''} />
+        ${removable ? `<button class="ghost icon-btn plugin-remove" type="button" data-remove="${escapeHtml(plugin.name)}" data-profile="${escapeHtml(profile)}" title="${escapeHtml(t('卸载 {name}', { name: plugin.name }))}" aria-label="${escapeHtml(t('卸载 {name}', { name: plugin.name }))}" ${busy ? 'disabled' : ''}>${packMoreIcons.trash}</button>` : ''}
+        ${update?.hasUpdate ? `<button class="plugin-update" type="button" data-update="${escapeHtml(plugin.name)}" data-profile="${escapeHtml(profile)}" aria-label="${escapeHtml(`${plugin.name} ${t('更新到 {latest}', { latest: update.latest })}`)}" ${busy ? 'disabled' : ''}><span class="spin" aria-hidden="true"></span><span class="update-label">${escapeHtml(t('更新到 {latest}', { latest: update.latest }))}</span></button>` : ''}
+        <input type="checkbox" data-plugin="${escapeHtml(plugin.name)}" data-profile="${escapeHtml(profile)}" ${enabled ? 'checked' : ''} ${!plugin.toggleable || pending || busy ? 'disabled' : ''} ${pending ? 'class="is-switching" aria-busy="true"' : ''} />
       </label><div class="plugin-row-progress" data-plugin-progress="${escapeHtml(plugin.name)}" data-profile="${escapeHtml(profile)}" hidden>
-        <span class="plugin-progress-label">${escapeHtml(t('正在更新…'))}</span><div class="progress" role="progressbar" aria-label="${escapeHtml(`${plugin.name} ${t('正在更新…')}`)}"><div class="progress-bar"></div></div>
+        <span class="plugin-progress-label">${escapeHtml(progressLabel)}</span><div class="progress" role="progressbar" aria-label="${escapeHtml(`${plugin.name} ${progressLabel}`)}"><div class="progress-bar"></div></div>
       </div></div>`
     }
 
     function bindPluginRowEvents(root, profile = '') {
       root.querySelectorAll('input[data-plugin]').forEach((el) => {
         el.onchange = () => { void togglePlugin(el.dataset.plugin, el.checked, el.dataset.profile || profile, el) }
+      })
+      root.querySelectorAll('button[data-remove]').forEach((el) => {
+        el.onclick = (event) => {
+          // 整行是个 label（点哪都能开关），按钮的点击不能顺带把插件关掉
+          event.preventDefault()
+          event.stopPropagation()
+          void removePlugin(el.dataset.remove, el.dataset.profile || profile || pluginProfile)
+        }
       })
       root.querySelectorAll('button[data-update]').forEach((el) => {
         el.onclick = (event) => {
@@ -8539,7 +9050,7 @@
       }
       recoveryHintEl.hidden = false
       recoveryHintEl.innerHTML = escapeHtml(last
-        ? t('已修复环境 {profile}：停用第三方插件 {count} 个，重启后生效。', { profile, count: last.dropped?.length || 0 })
+        ? t('已修复环境 {profile}：补丁层已备份，停用第三方插件 {count} 个，重启后生效。', { profile, count: last.dropped?.length || 0 })
         : t('环境 {profile} 有一份配置备份，可还原。', { profile }))
         + (last?.warning ? ` ${escapeHtml(last.warning)}` : '')
         + (backup ? ` <button class="link-button" type="button" id="recoverUndo" ${packBusy ? 'disabled' : ''}>${escapeHtml(t('还原'))}</button>` : '')
@@ -8548,13 +9059,16 @@
       document.getElementById('recoverRestart')?.addEventListener('click', () => restartEnvironment(profile))
     }
 
-    async function restoreRecovery(profile, backup) {
-      const options = recoveryOptions()
+    async function restoreRecovery(profile, backup, scope = recoveryOptions()) {
+      const options = scope
       if (packBusy || !options) return
       packBusy = true
       renderPackView()
       try {
-        await post('/api/recover/restore', { profile, backup }, options)
+        const data = await post('/api/recover/restore', { profile, backup }, options)
+        // 首页提示行和启动项弹窗共用 state.recovery：还原成功后入口立刻收掉，
+        // 不能等下一次状态推送（弹窗关着时 loadRecovery 会直接返回）。
+        if (data?.recovery) { state.recovery = data.recovery; renderRecovery(); render() }
         await loadPlugins()
         await loadRecovery(profile)
       } catch (error) { notify(error.message) }
@@ -8564,7 +9078,7 @@
     async function repairEnvironment(profile) {
       const options = recoveryOptions()
       if (packBusy || !options) return
-      if (!(await appConfirm(t('修复环境 {profile}：备份配置并停用第三方插件，重启后生效。继续？', { profile }), { title: t('修复环境') }))) return
+      if (!(await appConfirm(t('修复环境 {profile}：把补丁层（自定义 provider、主题等）备份后移出启动路径，并停用第三方插件；重启后生效。继续？', { profile }), { title: t('修复环境') }))) return
       packBusy = true
       renderPackView()
       recoveryHintEl.hidden = false
@@ -8573,6 +9087,8 @@
         const data = await post('/api/recover', { profile }, options)
         await loadPlugins()
         state.recovery = data.recovery
+        // 首页提示行也要立刻出现「还原配置」入口，别等下一次状态推送
+        render()
         await loadRecovery(profile)
         notify(t('配置已修复，可启动或重启此环境。'), t('修复环境'))
       } catch (error) { notify(error.message, t('修复环境')) }
@@ -8603,7 +9119,7 @@
     async function togglePlugin(name, enabled, profile = '', control = null) {
       profile = profile || pluginProfile
       const key = `${profile}:${name}`
-      if (packBusy || pluginUpdating || pluginTogglePending.has(key)) return
+      if (packBusy || pluginUpdating || pluginRemoving || pluginAdding || pluginTogglePending.has(key)) return
       pluginTogglePending.set(key, { enabled })
       paintPluginHomes()
       markSwitchPending(control, enabled)
@@ -8661,7 +9177,7 @@
     }
 
     async function updatePlugin(name, profile = pluginProfile) {
-      if (pluginUpdating || packBusy) return
+      if (pluginUpdating || pluginRemoving || pluginAdding || packBusy) return
       pluginUpdating = name
       pluginUpdatingProfile = profile
       pluginProgress = null
@@ -8683,7 +9199,7 @@
     }
 
     async function updateAllPlugins() {
-      if (pluginUpdating || packBusy) return
+      if (pluginUpdating || pluginRemoving || pluginAdding || packBusy) return
       const profile = pluginProfile
       pluginUpdating = '*'
       pluginUpdatingProfile = profile
@@ -8801,7 +9317,7 @@
     }
 
     async function togglePluginGroup(item, group, enabled, control) {
-      if (packBusy || pluginUpdating || pluginTogglePending.size || !group) return
+      if (packBusy || pluginUpdating || pluginRemoving || pluginAdding || pluginTogglePending.size || !group) return
       packBusy = true
       const key = `${item.profile}:${group.key}`
       pluginGroupPending.set(key, enabled)
@@ -8844,7 +9360,7 @@
     let profileDialogHome = ''
     let profileDialogFromPicker = false
     function openProfileDialog(source = '', mode = source ? 'copy' : 'create', options = {}) {
-      if (packBusy || pluginUpdating || profileSaving) return
+      if (packBusy || pluginUpdating || pluginRemoving || pluginAdding || profileSaving) return
       profileCopySource = source
       profileDialogMode = mode
       profileDialogHome = options.home || ''
@@ -8866,7 +9382,7 @@
       document.getElementById('profileDialogNote').textContent = homeName
         ? t('只修改显示名称，目录路径与数据保持不变。')
         : renaming ? t('重命名后，对应启动项会自动使用新名称。请先停止此环境的全部实例。') : source
-        ? t('复制「{profile}」的插件与配置，依赖会重新安装，可能需要一些时间。', { profile: source })
+        ? t('复制「{profile}」的插件与配置，依赖会重新安装，可能需要一些时间。技能与 Prompt 设置不随之复制。', { profile: source })
         : t('创建独立环境，之后可以安装整合包或插件。名称只支持字母、数字、点、下划线和连字符。')
       let proposed = homeName ? pluginHomeName(source, source === state.dshHome ? t('全局目录') : pluginHomes().get(source) || t('用户目录')) : renaming ? source : source ? `${source.slice(0, 27)}-copy` : ''
       // 复制建议名要避开目标目录里已有的 Profile：选择窗里改的是它挑的那份，环境页里改的是当前那份
@@ -8953,8 +9469,16 @@
     const backupHintEl = document.getElementById('backupDialogHint')
     const backupNowEl = document.getElementById('backupNow')
     const backupRefreshEl = document.getElementById('backupRefresh')
+    const backupProgressEl = document.getElementById('backupProgress')
+    const backupProgressLabelEl = document.getElementById('backupProgressLabel')
+    const backupProgressTrackEl = document.getElementById('backupProgressTrack')
     let backupProfile = ''
+    // backupLoading：回退 / 备份这类长操作在进行；列表加载单独用一个标志，
+    // 不能复用——否则列备份期间渲染出来的按钮会带着 disabled，加载完也没人重画。
     let backupLoading = false
+    let backupListLoading = false
+    let backupListRequest = 0
+    let backupPhase = ''
     function backupTimeText(at) {
       const date = new Date(Number(at) || 0)
       if (Number.isNaN(date.getTime())) return ''
@@ -8963,28 +9487,57 @@
     }
     function paintProfileBackups(backups) {
       const rows = Array.isArray(backups) ? backups : []
-      backupListEl.innerHTML = rows.length ? rows.map((item) => `<div class="backup-row"><div class="backup-row-text"><span class="backup-time">${escapeHtml(backupTimeText(item.createdAt))}</span><span class="backup-files">${escapeHtml((item.files || []).map((file) => file.name).join('、'))}</span></div><button class="ghost" type="button" data-backup-restore="${escapeHtml(item.id)}">${escapeHtml(t('回退到此备份'))}</button></div>`).join('') : `<p class="hint">${escapeHtml(t('还没有备份。每次启动会存一份，也可以点「立即备份」。'))}</p>`
+      backupListEl.innerHTML = rows.length ? rows.map((item) => `<div class="backup-row"><div class="backup-row-text"><span class="backup-time">${escapeHtml(backupTimeText(item.createdAt))}</span><span class="backup-files">${escapeHtml((item.files || []).map((file) => file.name).join('、'))}</span></div><button class="ghost" type="button" data-backup-restore="${escapeHtml(item.id)}" ${backupLoading ? 'disabled' : ''}>${escapeHtml(t('回退到此备份'))}</button></div>`).join('') : `<p class="hint">${escapeHtml(t('还没有备份。每次启动会存一份，也可以点「立即备份」。'))}</p>`
       backupListEl.querySelectorAll('[data-backup-restore]').forEach((button) => {
         button.onclick = () => { void restoreProfileBackup(button.dataset.backupRestore) }
       })
     }
+
+    /**
+     * 回退 / 立即备份的忙碌状态：转圈 + 进度条。
+     * 依赖重装时服务端会推 pluginProgress，进度条跟着真实进度走；只挪配置文件那一段没有
+     * 细粒度进度，用不确定态（滑动条）表示还在跑。
+     */
+    function paintBackupProgress() {
+      const active = backupLoading
+      backupProgressEl.hidden = !active
+      backupNowEl.disabled = active
+      backupRefreshEl.disabled = active
+      for (const button of backupListEl.querySelectorAll('[data-backup-restore]')) button.disabled = active
+      if (!active) {
+        paintProgress(backupProgressTrackEl, backupProgressTrackEl.querySelector('.progress-bar'), null, false)
+        backupProgressLabelEl.textContent = ''
+        return
+      }
+      const progress = pluginProgress && pluginProgress.profile === backupProfile ? pluginProgress : null
+      backupProgressLabelEl.textContent = progress
+        ? t('正在重装依赖…')
+        : backupPhase === 'snapshot' ? t('正在生成备份…') : t('正在回退配置…')
+      paintProgress(backupProgressTrackEl, backupProgressTrackEl.querySelector('.progress-bar'), progress, true)
+    }
     async function loadProfileBackups() {
-      if (!backupProfile || backupLoading) return
-      backupLoading = true
+      if (!backupProfile) return
+      const request = ++backupListRequest
+      const profile = backupProfile
+      backupListLoading = true
       try {
-        const data = await getJson(`/api/profile-backups?profile=${encodeURIComponent(backupProfile)}`)
-        if (!backupDialogEl.hidden) paintProfileBackups(data.backups)
+        const data = await getJson(`/api/profile-backups?profile=${encodeURIComponent(profile)}`)
+        // 迟到的响应不能画进另一个环境/已经关掉的弹窗
+        if (request !== backupListRequest || backupDialogEl.hidden || backupProfile !== profile) return
+        paintProfileBackups(data.backups)
       } catch (error) {
         notify(error.message)
       } finally {
-        backupLoading = false
+        if (request === backupListRequest) backupListLoading = false
       }
     }
     function openProfileBackups(profile) {
-      if (!profile || packBusy || pluginUpdating) return
+      if (!profile || packBusy || pluginUpdating || pluginRemoving || pluginAdding) return
       backupProfile = profile
-      backupHintEl.textContent = t('Profile「{profile}」的配置层快照：补丁、依赖清单和 npmrc；node_modules 不在备份里。', { profile })
+      backupPhase = ''
+      backupHintEl.textContent = t('Profile「{profile}」的配置层快照：补丁、依赖清单和 npmrc；回退时会按清单重装依赖，node_modules 本身不在备份里。', { profile })
       paintProfileBackups([])
+      paintBackupProgress()
       showPackDialog(backupDialogEl)
       void loadProfileBackups()
     }
@@ -8993,25 +9546,36 @@
     }
     async function restoreProfileBackup(id) {
       if (!backupProfile || !id || backupLoading) return
-      const ok = await appConfirm(t('回退到这份备份？当前配置会先自动存一份，回退后需要重启这个 Profile 的实例才生效。'))
+      const ok = await appConfirm(t('回退到这份备份？当前配置会先自动存一份，回退后会自动重装依赖（可能比较慢），并需要重启这个 Profile 的实例才生效。'))
       if (!ok) return
+      const profile = backupProfile
+      backupPhase = 'restore'
       backupLoading = true
+      paintBackupProgress()
       try {
-        await post('/api/profile-backups/restore', { profile: backupProfile, id })
-        notify(t('已回退。重启这个 Profile 的实例后生效。'), t('回退完成'))
+        const data = await post('/api/profile-backups/restore', { profile, id })
+        const install = data?.install
+        if (install?.ok === false) {
+          notify(t('配置已回退，但依赖重装失败：{error}。可以再回退一次重试。', { error: install.error }), t('回退完成'))
+        } else {
+          notify(install?.skipped ? t('已回退。重启这个 Profile 的实例后生效。') : t('已回退并重装依赖。重启这个 Profile 的实例后生效。'), t('回退完成'))
+        }
         await loadProfileBackups()
         await loadPlugins({ checkUpdates: false })
-        loadRecovery(backupProfile)
+        loadRecovery(profile)
       } catch (error) {
         notify(error.message)
       } finally {
         backupLoading = false
+        backupPhase = ''
+        paintBackupProgress()
       }
     }
     backupNowEl.onclick = async () => {
       if (!backupProfile || backupLoading) return
+      backupPhase = 'snapshot'
       backupLoading = true
-      backupNowEl.disabled = true
+      paintBackupProgress()
       try {
         const data = await post('/api/profile-backups/snapshot', { profile: backupProfile })
         notify(data.backup ? t('已生成新备份。') : t('配置没有变化，不需要新备份。'), t('备份'))
@@ -9020,7 +9584,8 @@
         notify(error.message)
       } finally {
         backupLoading = false
-        backupNowEl.disabled = false
+        backupPhase = ''
+        paintBackupProgress()
       }
     }
     backupRefreshEl.onclick = () => { void loadProfileBackups() }
@@ -9031,7 +9596,7 @@
     function renderPackGrid() {
       paintPluginHomes()
       const list = Array.isArray(packState.packs) ? packState.packs : []
-      document.getElementById('profileAdd').disabled = Boolean(packBusy || pluginUpdating)
+      document.getElementById('profileAdd').disabled = Boolean(packBusy || pluginUpdating || pluginRemoving || pluginAdding)
       const cards = list.map((item) => {
         const tags = packSourceTags(item)
         const removable = item.removable === true
@@ -9047,9 +9612,9 @@
           <span class="pack-card-arrow" aria-hidden="true">›</span>
         </button><details class="pack-more profile-menu"><summary title="${escapeHtml(t('更多操作'))}" aria-label="${escapeHtml(t('更多操作'))}"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></summary><div class="pack-more-actions">
           <button class="ghost" type="button" data-profile-backups="${escapeHtml(item.profile)}">${packMoreIcons.backup}${escapeHtml(t('备份与回退'))}</button>
-          <button class="ghost" type="button" data-profile-copy="${escapeHtml(item.profile)}" ${packBusy || pluginUpdating ? 'disabled' : ''}>${packMoreIcons.copy}${escapeHtml(t('复制 Profile'))}</button>
-          <button class="ghost" type="button" data-profile-rename="${escapeHtml(item.profile)}" ${!removable || packBusy || pluginUpdating ? 'disabled' : ''} ${!removable ? `title="${escapeHtml(t('系统环境不能重命名'))}"` : ''}>${packMoreIcons.rename}${escapeHtml(t('重命名 Profile'))}</button>
-          <button class="ghost danger" type="button" data-profile-delete="${escapeHtml(item.profile)}" ${!removable || packBusy || pluginUpdating ? 'disabled' : ''} ${!removable ? `title="${escapeHtml(t('系统环境不能删除'))}"` : ''}>${packMoreIcons.trash}${escapeHtml(t('删除 Profile'))}</button>
+          <button class="ghost" type="button" data-profile-copy="${escapeHtml(item.profile)}" ${packBusy || pluginUpdating || pluginRemoving || pluginAdding ? 'disabled' : ''}>${packMoreIcons.copy}${escapeHtml(t('复制 Profile'))}</button>
+          <button class="ghost" type="button" data-profile-rename="${escapeHtml(item.profile)}" ${!removable || packBusy || pluginUpdating || pluginRemoving || pluginAdding ? 'disabled' : ''} ${!removable ? `title="${escapeHtml(t('系统环境不能重命名'))}"` : ''}>${packMoreIcons.rename}${escapeHtml(t('重命名 Profile'))}</button>
+          <button class="ghost danger" type="button" data-profile-delete="${escapeHtml(item.profile)}" ${!removable || packBusy || pluginUpdating || pluginRemoving || pluginAdding ? 'disabled' : ''} ${!removable ? `title="${escapeHtml(t('系统环境不能删除'))}"` : ''}>${packMoreIcons.trash}${escapeHtml(t('删除 Profile'))}</button>
         </div></details></div>`
       }).join('')
       // 安装整合包的入口在环境详情里（装进这个环境），网格里不再放独立的加卡
@@ -9104,6 +9669,7 @@
 
     /** 「更多操作」菜单的行首图标：stroke 风格跟顶栏按钮一套。 */
     const packMoreIcons = {
+      add: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
       rename: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 5 5-12 12H4v-5L16 3Z"/><path d="m14 5 5 5"/></svg>',
       copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>',
       install: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9M12 5v4M10 7h4"/></svg>',
@@ -9186,20 +9752,23 @@
       const latest = records.filter((record) => !record.synthetic).at(-1)
       // 顶部只剩一行：左上返回图标（在静态结构里），右上全部操作；批量启停收进「更多操作」
       packHeadEl.innerHTML = `
-        <button class="ghost icon-btn pack-tool" type="button" data-pack-import="1" title="${escapeHtml(t('装整合包'))}" aria-label="${escapeHtml(t('装整合包'))}" ${packBusy || pluginUpdating ? 'disabled' : ''}>${packMoreIcons.install}</button>
-        ${item.profile === packState.profile ? `<button class="ghost icon-btn pack-tool${pluginChecking ? ' is-checking' : ''}" type="button" data-pack-check-updates="1" title="${escapeHtml(t('检查更新'))}" aria-label="${escapeHtml(t('检查更新'))}" aria-busy="${pluginChecking}" ${pluginChecking || pluginUpdating || packBusy ? 'disabled' : ''}>${packMoreIcons.refresh}</button>` : ''}
-        ${pending || pluginUpdating === '*' ? `<button class="ghost icon-btn pack-tool pack-update${pluginUpdating === '*' ? ' loading' : ''}" type="button" data-pack-update="1" title="${escapeHtml(t('更新 {n} 个', { n: pending }))}" aria-label="${escapeHtml(t('更新 {n} 个', { n: pending }))}" aria-busy="${pluginUpdating === '*'}" ${pluginUpdating || packBusy ? 'disabled' : ''}><span class="spin" aria-hidden="true"></span>${packMoreIcons.update}<span class="pack-update-count" aria-hidden="true">${pending}</span></button>` : ''}
+        <button class="ghost icon-btn pack-tool" type="button" data-plugin-add="1" title="${escapeHtml(t('添加插件'))}" aria-label="${escapeHtml(t('添加插件'))}" ${packBusy || pluginUpdating || pluginRemoving || pluginAdding ? 'disabled' : ''}>${packMoreIcons.add}</button>
+        <button class="ghost icon-btn pack-tool" type="button" data-pack-import="1" title="${escapeHtml(t('装整合包'))}" aria-label="${escapeHtml(t('装整合包'))}" ${packBusy || pluginUpdating || pluginRemoving ? 'disabled' : ''}>${packMoreIcons.install}</button>
+        ${item.profile === packState.profile ? `<button class="ghost icon-btn pack-tool${pluginChecking ? ' is-checking' : ''}" type="button" data-pack-check-updates="1" title="${escapeHtml(t('检查更新'))}" aria-label="${escapeHtml(t('检查更新'))}" aria-busy="${pluginChecking}" ${pluginChecking || pluginUpdating || pluginRemoving || packBusy ? 'disabled' : ''}>${packMoreIcons.refresh}</button>` : ''}
+        ${pending || pluginUpdating === '*' ? `<button class="ghost icon-btn pack-tool pack-update${pluginUpdating === '*' ? ' loading' : ''}" type="button" data-pack-update="1" title="${escapeHtml(t('更新 {n} 个', { n: pending }))}" aria-label="${escapeHtml(t('更新 {n} 个', { n: pending }))}" aria-busy="${pluginUpdating === '*'}" ${pluginUpdating || pluginRemoving || packBusy ? 'disabled' : ''}><span class="spin" aria-hidden="true"></span>${packMoreIcons.update}<span class="pack-update-count" aria-hidden="true">${pending}</span></button>` : ''}
         <details class="pack-more">
           <summary title="${escapeHtml(t('更多操作'))}" aria-label="${escapeHtml(t('更多操作'))}"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></summary>
           <div class="pack-more-actions">
-            <button class="ghost" type="button" data-pack-import-here="1" ${packBusy || pluginUpdating ? 'disabled' : ''}>${packMoreIcons.import}${escapeHtml(t('导入当前环境'))}</button>
-            <button class="ghost" type="button" data-pack-export="1" ${packBusy || pluginUpdating ? 'disabled' : ''}>${packMoreIcons.export}${escapeHtml(t('导出当前环境'))}</button>
-            <button class="ghost" type="button" data-profile-copy="1" ${packBusy || pluginUpdating ? 'disabled' : ''}>${packMoreIcons.copy}${escapeHtml(t('复制 Profile'))}</button>
-            ${item.removable ? `<button class="ghost" type="button" data-profile-rename="1" ${packBusy || pluginUpdating ? 'disabled' : ''}>${packMoreIcons.rename}${escapeHtml(t('重命名 Profile'))}</button>` : ''}
-            ${item.removable ? `<button class="ghost danger" type="button" data-pack-delete="1" ${packBusy || pluginUpdating ? 'disabled' : ''}>${packMoreIcons.trash}${escapeHtml(t('删除 Profile'))}</button>` : ''}
+            <button class="ghost" type="button" data-pack-import-here="1" ${packBusy || pluginUpdating || pluginRemoving ? 'disabled' : ''}>${packMoreIcons.import}${escapeHtml(t('导入当前环境'))}</button>
+            <button class="ghost" type="button" data-pack-export="1" ${packBusy || pluginUpdating || pluginRemoving ? 'disabled' : ''}>${packMoreIcons.export}${escapeHtml(t('导出当前环境'))}</button>
+            <button class="ghost" type="button" data-profile-backups="1" ${packBusy || pluginUpdating || pluginRemoving || pluginAdding ? 'disabled' : ''}>${packMoreIcons.backup}${escapeHtml(t('备份与回退'))}</button>
+            <button class="ghost" type="button" data-profile-copy="1" ${packBusy || pluginUpdating || pluginRemoving ? 'disabled' : ''}>${packMoreIcons.copy}${escapeHtml(t('复制 Profile'))}</button>
+            ${item.removable ? `<button class="ghost" type="button" data-profile-rename="1" ${packBusy || pluginUpdating || pluginRemoving ? 'disabled' : ''}>${packMoreIcons.rename}${escapeHtml(t('重命名 Profile'))}</button>` : ''}
+            ${item.removable ? `<button class="ghost danger" type="button" data-pack-delete="1" ${packBusy || pluginUpdating || pluginRemoving ? 'disabled' : ''}>${packMoreIcons.trash}${escapeHtml(t('删除 Profile'))}</button>` : ''}
           </div>
         </details>`
       const actions = packHeadEl
+      actions.querySelector('[data-plugin-add]')?.addEventListener('click', () => openPluginAdd())
       actions.querySelector('[data-pack-import]')?.addEventListener('click', () => openImportDialog())
       actions.querySelector('[data-pack-check-updates]')?.addEventListener('click', async () => {
         if (pluginChecking) return
@@ -9211,6 +9780,7 @@
       })
       actions.querySelector('[data-pack-import-here]')?.addEventListener('click', () => { actions.querySelector('.pack-more').open = false; void importIntoProfile(item.profile) })
       actions.querySelector('[data-pack-export]')?.addEventListener('click', () => openExportDialog(item))
+      actions.querySelector('[data-profile-backups]')?.addEventListener('click', () => { actions.querySelector('.pack-more').open = false; openProfileBackups(item.profile) })
       actions.querySelector('[data-pack-delete]')?.addEventListener('click', () => { void removeProfileDir(item) })
       actions.querySelector('[data-profile-copy]')?.addEventListener('click', () => { actions.querySelector('.pack-more').open = false; openProfileDialog(item.profile) })
       actions.querySelector('[data-profile-rename]')?.addEventListener('click', () => { actions.querySelector('.pack-more').open = false; openProfileDialog(item.profile, 'rename') })
@@ -9240,7 +9810,7 @@
           const updates = item.profile === packState.profile ? members.filter((plugin) => pluginUpdates[plugin.name]?.hasUpdate).length : 0
           const record = records.find((one) => group.key === `pack:${one.name}`)
           const updating = pluginUpdating === '*' && pluginUpdatingGroup === group.key
-          const disabled = packBusy || pluginUpdating || pluginTogglePending.size
+          const disabled = packBusy || pluginUpdating || pluginRemoving || pluginAdding || pluginTogglePending.size
           return `<div class="plugin-group-card"><div class="plugin-group-tools">
             ${updates || updating ? `<button class="ghost icon-btn group-update${updating ? ' loading' : ''}" type="button" data-group-update="${escapeHtml(group.key)}" title="${escapeHtml(t('更新 {name} 的 {n} 个插件', { name: group.name, n: updates }))}" aria-label="${escapeHtml(t('更新 {name} 的 {n} 个插件', { name: group.name, n: updates }))}" ${disabled ? 'disabled' : ''}><span class="spin" aria-hidden="true"></span>${packMoreIcons.update}<span class="pack-update-count" aria-hidden="true">${updates}</span></button>` : ''}
             ${record && !record.synthetic ? `<button class="ghost icon-btn danger" type="button" data-group-remove="${escapeHtml(group.key)}" title="${escapeHtml(record === latest ? t('卸载 {name}', { name: group.name }) : t('请先卸载此后安装的整合包'))}" aria-label="${escapeHtml(t('卸载 {name}', { name: group.name }))}" ${disabled || record !== latest ? 'disabled' : ''}>${packMoreIcons.trash}</button>` : ''}
@@ -9266,7 +9836,7 @@
 
     /** 更新正在查看的 profile，不改各启动项的环境设置。 */
     async function updatePack(item, group = null) {
-      if (packBusy || pluginUpdating) return
+      if (packBusy || pluginUpdating || pluginRemoving || pluginAdding) return
       packBusy = true
       pluginUpdating = '*'
       pluginUpdatingGroup = group?.key || ''
@@ -9294,7 +9864,7 @@
 
     /** 删除的是整个 Profile，与整合包按安装顺序撤销是两种操作。 */
     async function removeProfileDir(item) {
-      if (!item || packBusy || pluginUpdating) return
+      if (!item || packBusy || pluginUpdating || pluginRemoving || pluginAdding) return
       if (!(await appConfirm(t('删除「{profile}」？其中的 {n} 个插件、配置和对应启动项会一并移除，会话与记忆保留。此操作无法撤销。', { profile: item.profile, n: item.pluginCount }), { title: t('删除 Profile') }))) return
       packBusy = true
       renderPackGrid()
@@ -9388,7 +9958,23 @@
     trapPackDialog(packDetailDialog, closeMarketDetail)
     trapPackDialog(packInstallDialog, closeInstallDialog)
     trapPackDialog(packExportDialog, closeExportDialog)
+    trapPackDialog(pluginAddDialogEl, closePluginAdd)
     document.getElementById('launchLogClose').onclick = () => closeLaunchLog()
+    for (const button of launchLogTabButtons) {
+      button.onclick = () => { launchLogTab = button.dataset.logTab; paintLaunchLogTabs() }
+    }
+    launchLogTabsEl.onkeydown = (event) => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+      const visible = launchLogTabButtons.filter((button) => !button.hidden)
+      const index = visible.indexOf(document.activeElement)
+      if (index < 0) return
+      event.preventDefault()
+      const step = event.key === 'ArrowRight' ? 1 : visible.length - 1
+      const next = visible[(index + step) % visible.length]
+      launchLogTab = next.dataset.logTab
+      paintLaunchLogTabs()
+      next.focus()
+    }
     launchLogCopyEl.onclick = () => { void copyLaunchLog() }
     launchLogExportEl.onclick = () => { void exportLaunchLog() }
     launchLogClearEl.onclick = () => { void clearLaunchLog() }

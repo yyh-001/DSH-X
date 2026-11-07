@@ -6,7 +6,7 @@
  * 真正执行 Notification / dialog / clipboard 的代码在外壳里。
  *
  * 不许 import Electron，也不许 import shell/：核心和外壳是分开更新的两层，核心目录
- * （resources/core 或用户目录 core/current）里没有 shell/，外壳目录里也没有核心模块。
+ * （用户目录的 core/current）里没有 shell/，外壳目录里也没有核心模块。
  * 外壳侧另有 shell/desktop.mjs 做它自己的门控（通知开关、节流、Electron 对话框选项）。
  */
 import { isAbsolute } from 'node:path'

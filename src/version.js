@@ -73,6 +73,21 @@ export function versionChannel(version) {
 }
 
 /**
+ * 一组版本里最不稳定的通道：rc 外壳配着正式版核心时也要继续看 rc，
+ * 否则外壳升到 rc、核心却沿用旧的正式版，就永远收不到 rc 核心更新。
+ * 认不出的版本跳过；一个都认不出时按正式版。
+ */
+export function leastStableChannel(versions = []) {
+  let picked = ''
+  for (const version of versions) {
+    const channel = versionChannel(version)
+    if (!channel) continue
+    if (!picked || VERSION_CHANNELS.indexOf(channel) > VERSION_CHANNELS.indexOf(picked)) picked = channel
+  }
+  return picked || VERSION_CHANNEL.OFFICIAL
+}
+
+/**
  * 选了 `selected` 类型的启动项收不收 `channel` 类别的版本（自动选版本和更新提醒同一口径）：
  * 越不稳定的选择，越稳定的版本也照收（Alpha 全收、RC 不收 Alpha、正式版只收正式版）。
  * 认不出的通道一律不收，脏设置不会变成「什么都收」。

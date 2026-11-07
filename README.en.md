@@ -101,6 +101,25 @@ sha256sum DSH-X-<version>-x86_64.AppImage                # Linux
 - The manager defaults to port `3780` and tries the next port if occupied.
 - To reach dsh from another device: Settings → Advanced → **Web binding** → LAN, applied on the next start.
 
+### Adding a launch entry
+
+Pick an **isolation mode** first; it decides how far the new environment is from the existing ones:
+
+| Isolation | Created in | Shared |
+| --- | --- | --- |
+| Plugin isolation (default) | A new profile inside the global dsh directory | Sessions, memories, skills; plugins and config separate |
+| Session isolation | A new user directory under `homes/<name>` in the data directory | Nothing: sessions, skills and plugins are all separate |
+| Custom | A user directory + profile + port of your choice | Whatever that environment already has |
+
+In the first two modes, then pick where the **profile** comes from:
+
+- **New profile**: leave the name empty to have one generated (collisions get a suffix), or type your own.
+- **Copy an existing profile**: choose the source (directory on the left, profile in the middle); the new name defaults to `source-copy` and can be changed.
+
+What gets copied is the **profile**, not the whole environment: `package.json`, `cordis.patch.yml`, plugin switches and MCP settings come along,
+dependencies are reinstalled from their version ranges (not copied from `node_modules`), and the user-level `skills`, Prompt settings, per-plugin data directories and session history are not.
+Local `file:` / `link:` / `portal:` dependencies are rewritten for the new location; paths pointing outside the source directory are left as-is, so that workspace must still exist.
+
 ## Screenshots
 
 **Multiple launch entries · Dark theme**

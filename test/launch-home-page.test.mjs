@@ -110,7 +110,7 @@ test('下拉末项是管理目录：选中它只开弹窗，不会把占位值�
 
 test('环境页目录有增删时，启动项下拉跟着重铺', async () => {
   const { context: c } = editor()
-  Object.assign(c, { pluginHomesBusy: false, packBusy: false, pluginUpdating: '', pluginTogglePending: new Map(),
+  Object.assign(c, { pluginHomesBusy: false, packBusy: false, pluginUpdating: '', pluginRemoving: '', pluginAdding: false, pluginTogglePending: new Map(),
     pluginHome: '', pluginHomesErrorEl: { hidden: true }, paintPluginHomes() {}, pluginTargetHome: () => 'C:/global',
     paintLaunchHomeCustom() {}, resetPluginView() {}, renderPackGrid() {}, renderPackView() {}, loadPlugins() {} })
   vm.runInContext(section('    function applyHomes(', '    /** 左栏的「+ 添加目录」') + section('    async function changePluginHomeList(', '    pluginHomesAddEl.onclick'), c)

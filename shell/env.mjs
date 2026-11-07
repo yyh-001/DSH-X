@@ -36,7 +36,7 @@ const SETTINGS_FILE = join(APP_DATA, 'DSH', 'settings.json')
 /**
  * 从用户自己的 PATH（外加 mac 的常见前缀）里找 node：显式路径优先，只填命令名时按 PATH 找。
  * 找不到返回空串。和 server.js 的 findSystemNode 是一份逻辑，但外壳不能 import 核心
- * （核心在 resources/core，更新后会整个换掉，外壳只认自己的文件）。
+ * （核心在用户目录的 core/current，更新后会整个换掉，外壳只认自己的文件）。
  */
 function findSystemNode(explicit = '') {
   const name = IS_WINDOWS ? 'node.exe' : 'node'

@@ -265,7 +265,8 @@ export function withRuntimeNode(pathValue, options = {}) {
     exists = existsSync,
   } = options
   // Electron 本体所在目录里没有 node.exe，只有 node/ 那个包装目录能当兜底。
-  // node.exe 是 0.1.19 及以前安装包的布局，和 platform.js runtimeNode() 同一个判断。
+  // node.exe 只可能是 ≤0.1.19 安装包留下的：它只作为 PATH 兜底目录存在，不再被选成
+  // 跑 dsh 的运行时（那条优先判断已在 platform.js 去掉，见 #89）。
   const bundled = IS_WINDOWS
     ? exists(join(dir, 'node.cmd')) || exists(join(dir, 'node.exe'))
     : exists(join(dir, 'node'))

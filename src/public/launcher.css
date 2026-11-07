@@ -1441,6 +1441,14 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 .launch-log-loading[hidden] { display: none; }
 .launch-log-loading .spin { display: block; width: 16px; height: 16px; }
 .launch-log-tools .hint { margin: 0; }
+/* 日志弹窗的页签：原始日志常驻，耗时/空间/诊断有数据才出现 */
+.launch-log-tabs { display: flex; gap: 2px; padding: 4px; margin-bottom: 10px; border-radius: 12px; background: var(--accent-soft); }
+.launch-log-tabs[hidden] { display: none; }
+.launch-log-tab { flex: 1 1 0; padding: 7px 8px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font-family: inherit; font-size: 12.5px; font-weight: 500; cursor: pointer; transition: color 160ms ease, background 160ms ease; }
+.launch-log-tab[hidden] { display: none; }
+.launch-log-tab:hover { color: var(--text); }
+.launch-log-tab[aria-selected="true"] { background: var(--card); color: var(--accent); font-weight: 600; box-shadow: 0 2px 8px rgba(22, 35, 61, .1); }
+.launch-log-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .launch-log-tools .hint:empty { display: none; }
 .launch-log-meta { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; background: rgba(127, 127, 127, .1); color: var(--text); font-size: 12px; }
 .launch-log-card { border: 1px solid var(--line); border-radius: 14px; padding: 14px; background: rgba(127, 127, 127, .035); }
@@ -1468,8 +1476,19 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 .ledger-other { background: #b6bcc8; }
 .ledger-native { background: #d99a2b; }
 .ledger-rest { background: #dfe3ea; }
+/* 空间构成：运行时 / 插件依赖 / 运行时依赖 / 配置与数据 */
+.ledger-runtime { background: #6f7684; }
+.ledger-plugin-deps { background: #8ea4ff; }
+.ledger-runtime-deps { background: #e0b45a; }
+.ledger-data { background: #3fa27a; }
 .launch-log-ledger > .ledger-rest { color: #4a5160; }
 .launch-log-bars { display: flex; flex-direction: column; gap: 6px; }
+/* 空间构成 / 耗时构成：标题和合计固定，内容多时在卡片内部滚动，别把弹窗撑长 */
+#launchLogSpace .launch-log-block, #launchLogVisual .launch-log-block { max-height: min(46vh, 400px); overflow-y: auto; padding-right: 8px; scrollbar-width: thin; scrollbar-color: #8ea4ff transparent; }
+#launchLogSpace .launch-log-block::-webkit-scrollbar, #launchLogVisual .launch-log-block::-webkit-scrollbar { width: 10px; }
+#launchLogSpace .launch-log-block::-webkit-scrollbar-track, #launchLogVisual .launch-log-block::-webkit-scrollbar-track { background: rgba(127, 127, 127, .08); border-radius: 999px; }
+#launchLogSpace .launch-log-block::-webkit-scrollbar-thumb, #launchLogVisual .launch-log-block::-webkit-scrollbar-thumb { background: #8ea4ff; border-radius: 999px; border: 2px solid transparent; background-clip: content-box; }
+#launchLogSpace .launch-log-block::-webkit-scrollbar-thumb:hover, #launchLogVisual .launch-log-block::-webkit-scrollbar-thumb:hover { background: #6f8cff; background-clip: content-box; }
 .launch-log-bar-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 56px; gap: 10px; align-items: center; font-size: 12px; }
 .launch-log-bar-row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
 .launch-log-bar-row .track { height: 7px; border-radius: 999px; background: rgba(127, 127, 127, .12); overflow: hidden; }
@@ -1571,6 +1590,31 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 .plugin-actions .ui-select { width: 104px; max-width: 170px; }
 .plugin-actions .ui-select .select-trigger { min-height: var(--control-height); height: var(--control-height); margin-top: 4px; padding: 0 var(--control-padding); border-radius: var(--control-radius); font-size: var(--control-font-size); }
 .plugin-actions .ui-select .select-caret { width: 10px; height: var(--control-height); }
+/* 行尾的卸载图标：平时淡着，悬停这一行才实心；触屏没有 hover 时半透明也点得到 */
+.plugin-remove {
+  flex: 0 0 auto;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  padding: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  opacity: 0.55;
+}
+.plugin-remove svg { width: 16px; height: 16px; }
+.plugin-row:hover .plugin-remove, .plugin-row:focus-within .plugin-remove { opacity: 1; }
+.plugin-remove:hover:not(:disabled) { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }
+.plugin-remove:disabled { opacity: 0.25; cursor: default; }
+/* 添加弹窗：包名/地址可能很长，输入框占满整行比和标签并排好读 */
+#pluginAddDialog .mcp-field { flex-direction: column; align-items: stretch; gap: 7px; }
+#pluginAddDialog .mcp-field input { width: 100%; }
+#pluginAddDialog .mcp-field > span { color: var(--text); }
+#pluginAddDialog #pluginAddTarget:empty { display: none; }
+#pluginAddDialog .progress { margin: 2px 0 0; }
+@media (max-width: 560px) {
+  .plugin-remove { width: 26px; min-width: 26px; height: 26px; padding: 5px; }
+}
 .plugin-update {
   flex: 0 0 auto;
   border: 1px solid #c7d8f7;
@@ -1706,6 +1750,9 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 .plugin-homes-list { display: grid; gap: 10px; min-width: 0; }
 .plugin-home-row { display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 14px; background: color-mix(in srgb, var(--accent-soft) 55%, var(--card)); min-width: 0; transition: background 150ms ease; }
 .plugin-home-row:hover, .plugin-home-row:focus-within { background: color-mix(in srgb, var(--accent-soft) 85%, var(--card)); }
+/* 失效条目：目录已经不在任何登记列表里，只剩一条显示名，弱化但可读 */
+.plugin-home-row.is-stale { background: transparent; border: 1px dashed color-mix(in srgb, var(--border) 80%, transparent); }
+.plugin-home-row.is-stale .plugin-home-folder, .plugin-home-row.is-stale .plugin-home-info strong { color: var(--muted); }
 /* 全局目录没有移除操作，固定三列可让各行的打开与重命名按钮对齐。 */
 .plugin-home-actions { display: grid; grid-template-columns: repeat(3, 36px); align-items: center; gap: 4px; flex: 0 0 auto; }
 .plugin-home-folder { display: grid; place-items: center; width: 36px; height: 36px; flex: 0 0 36px; border-radius: 11px; color: var(--accent); background: var(--card); }
@@ -1797,6 +1844,13 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 .backup-time { font-size: 13px; color: var(--text); }
 .backup-files { font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
 .backup-row .ghost { flex: 0 0 auto; height: 32px; padding: 0 12px; border-radius: 999px; font-size: 12px; }
+/* 回退 / 立即备份期间：转圈 + 一条进度（依赖重装时用服务端推来的真实进度） */
+.backup-progress { display: flex; align-items: flex-start; gap: 10px; padding: 10px 2px 2px; }
+.backup-progress[hidden] { display: none; }
+.backup-progress .spin { display: block; flex: 0 0 auto; margin-top: 1px; color: var(--accent); }
+.backup-progress-body { display: grid; gap: 4px; flex: 1; min-width: 0; }
+.backup-progress-label { font-size: 12px; color: var(--muted); }
+.backup-progress .progress { margin-top: 2px; }
 .pack-source { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
 .pack-source input { flex: 1 1 auto; min-width: 0; }
 .pack-source .ghost { flex: 0 0 auto; }
@@ -2304,7 +2358,12 @@ html[data-color-scheme="dark"] .skel-line::after { background: linear-gradient(9
 #packInstallDialog .pack-actions .primary .spin { position: absolute; left: calc(50% - 7px); top: calc(50% - 7px); width: 14px; height: 14px; border-width: 2px; }
 #packPreparing { flex: 1 1 auto; min-height: 0; color: var(--muted); font-size: 13px; margin: 16px 0 24px; }
 /* 插件筛选保留在标题右侧，列表独立滚动，统计仅作次要说明。 */
-#launchPluginsCard { position: relative; }
+#launchPluginsCard {
+  position: relative;
+  /* 固定高度：环境里插件多少不一，卡片不跟着内容忽高忽低；右上「更多操作」的下拉
+     菜单也才有足够空间完整展开，不会被卡片底边裁掉。 */
+  height: min(680px, calc(100dvh - var(--dialog-safe-area)));
+}
 .launch-plugins-head { position: absolute; top: 24px; right: 24px; align-items: center; margin: 0; }
 #launchPluginsDialog .pack-detail-top { padding-right: 0; gap: 8px; }
 #launchPluginsClose { display: none; }
@@ -2379,6 +2438,10 @@ html .set-row:focus-within { background: transparent; box-shadow: none; }
 #versionManageHint { margin: 0; min-height: 0; font-size: 12px; }
 #versionManageHint:empty { display: none; }
 .version-manage-heading { margin: 6px 0 0; font-size: 12px; font-weight: 500; color: var(--muted); }
+/* 「已安装」右边放整体的磁盘占用；每行左边再标各自的大小 */
+.version-manage-heading-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-top: 6px; }
+.version-manage-heading-row .version-manage-heading { margin-top: 0; }
+.version-manage-total { flex: 0 0 auto; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 .version-optimize { flex: 0 0 auto; padding: 7px 10px; font-size: 12px; white-space: nowrap; }
 .version-manage-row .version-remove svg { width: 18px; height: 18px; }
 .version-manage-row .version-manage-info span { max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

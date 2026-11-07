@@ -10,6 +10,7 @@
  * loader 钩子锚点匹配不到时（dsh 升级改了实现）没有 entry 时间线，但采样仍然有效。
  */
 import { Session } from 'node:inspector/promises'
+import { registerHooks } from 'node:module'
 import { mkdirSync, renameSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -38,6 +39,48 @@ let startedAt = 0
 let timer = null
 let cap = null
 let stopped = false
+/** 同步 loader 钩子：启动期解析/读取每个模块花的时间，按「谁触发」和「读的是谁」记。 */
+let moduleHooks = null
+const resolveCalls = []
+const loadCalls = []
+/** 启动期模块数不设死上限，但真有异常多的情况也不让数组无限长。 */
+const MODULE_CALL_LIMIT = 100_000
+
+function installModuleTiming() {
+  if (moduleHooks) return
+  try {
+    moduleHooks = registerHooks({
+      resolve(specifier, context, nextResolve) {
+        const started = performance.now()
+        const result = nextResolve(specifier, context)
+        if (resolveCalls.length < MODULE_CALL_LIMIT) {
+          resolveCalls.push({
+            parent: context.parentURL || '',
+            specifier: String(specifier),
+            url: String(result?.url || ''),
+            us: (performance.now() - started) * 1000,
+          })
+        }
+        return result
+      },
+      load(url, context, nextLoad) {
+        const started = performance.now()
+        const result = nextLoad(url, context)
+        if (loadCalls.length < MODULE_CALL_LIMIT) {
+          loadCalls.push({ url: String(url || ''), us: (performance.now() - started) * 1000 })
+        }
+        return result
+      },
+    })
+  } catch {
+    moduleHooks = null
+  }
+}
+
+function stopModuleTiming() {
+  try { moduleHooks?.deregister() } catch { /* ignore */ }
+  moduleHooks = null
+}
 
 function packageOf(url, names) {
   const normalized = String(url || '').replace(/\\/g, '/')
@@ -53,11 +96,20 @@ function packageOf(url, names) {
   return '(其他)'
 }
 
-function summarize(cpuProfile, heapProfile) {
-  const names = new Set(entries.map((row) => row.name).filter((name) => name && !name.startsWith('cordis:')))
+export function summarize(cpuProfile, heapProfile, timing = { resolveCalls, loadCalls }, pluginNames = null) {
+  const names = new Set(pluginNames ?? entries.map((row) => row.name).filter((name) => name && !name.startsWith('cordis:')))
   const nodes = new Map((cpuProfile.nodes || []).map((node) => [node.id, node]))
+  // 没有 URL 的帧（open/readFileUtf8/spawn/GC…）往上找最近的 JS 调用方，
+  // 才能回答「这个插件在启动时到底占了多久」；找不到调用方的才记成未归属。
+  const parentOf = new Map()
+  for (const node of cpuProfile.nodes || []) {
+    // V8 的 children 里存的是节点 id（不是节点对象），按 id 建反向表。
+    for (const child of node.children || []) parentOf.set(child, node)
+  }
   const cpuUs = new Map()
+  const nativeByPackage = new Map()
   const nativeUs = new Map()
+  let nativeUnattributedUs = 0
   let totalUs = 0
   let idleUs = 0
   const samples = cpuProfile.samples || []
@@ -70,9 +122,18 @@ function summarize(cpuProfile, heapProfile) {
     if (fn === '(idle)' || fn === '(root)') { idleUs += delta; continue }
     const url = node?.callFrame?.url || ''
     if (!url) {
-      // 没有 URL 的帧：GC、V8 编译/内置函数。单列出来，否则会盖住插件的账。
+      // 没有 URL 的帧：GC、V8 编译/内置函数。按调用方归属，同时保留系统调用分类。
       const key = fn || '(匿名原生)'
       nativeUs.set(key, (nativeUs.get(key) || 0) + delta)
+      let owner = parentOf.get(node?.id)
+      let ownerPkg = ''
+      while (owner) {
+        const ownerUrl = owner.callFrame?.url
+        if (ownerUrl) { ownerPkg = packageOf(ownerUrl, names); break }
+        owner = parentOf.get(owner.id)
+      }
+      if (ownerPkg) nativeByPackage.set(ownerPkg, (nativeByPackage.get(ownerPkg) || 0) + delta)
+      else nativeUnattributedUs += delta
       continue
     }
     const pkg = packageOf(url, names)
@@ -93,12 +154,85 @@ function summarize(cpuProfile, heapProfile) {
   }
   walk(heapProfile?.head)
 
-  const packages = [...new Set([...cpuUs.keys(), ...allocBytes.keys()])].map((name) => ({
-    name,
-    cpuMs: Math.round((cpuUs.get(name) || 0) / 1000),
-    allocKB: Math.round((allocBytes.get(name) || 0) / 1024),
-    plugin: names.has(name),
-  })).sort((a, b) => b.cpuMs - a.cpuMs)
+  // 模块加载：resolve 的耗时记在「谁触发」上，load 记在「读的是谁」上；
+  // resolve 同时给出 import 边，最后沿依赖图把整棵子树的加载时间归到插件。
+  const moduleUs = new Map()
+  const moduleEdges = new Map()
+  const moduleRow = (name) => {
+    let row = moduleUs.get(name)
+    if (!row) { row = { resolveUs: 0, loadUs: 0 }; moduleUs.set(name, row) }
+    return row
+  }
+  let moduleTotalUs = 0
+  for (const call of timing.resolveCalls || []) {
+    moduleTotalUs += call.us
+    if (!call.parent) continue
+    const parent = packageOf(call.parent, names)
+    if (parent === '(Node 内部)' || parent === '(原生/GC)') continue
+    moduleRow(parent).resolveUs += call.us
+    const target = /^node:/.test(call.specifier) ? '(Node 内部)' : packageOf(call.url, names)
+    if (target === parent || target === '(Node 内部)' || target === '(原生/GC)') continue
+    if (!moduleEdges.has(parent)) moduleEdges.set(parent, new Set())
+    moduleEdges.get(parent).add(target)
+  }
+  for (const call of timing.loadCalls || []) {
+    moduleTotalUs += call.us
+    const pkg = packageOf(call.url, names)
+    if (pkg === '(原生/GC)') continue
+    moduleRow(pkg).loadUs += call.us
+  }
+
+  // 每个包从哪些插件可达；共用依赖按引用它的插件数均摊，和空间构成的口径一致。
+  const moduleOwners = new Map()
+  for (const plugin of names) {
+    const seen = new Set([plugin])
+    const queue = [plugin]
+    while (queue.length) {
+      const pkg = queue.shift()
+      for (const next of moduleEdges.get(pkg) || []) {
+        if (seen.has(next)) continue
+        seen.add(next)
+        queue.push(next)
+      }
+    }
+    for (const pkg of seen) {
+      if (!moduleOwners.has(pkg)) moduleOwners.set(pkg, new Set())
+      moduleOwners.get(pkg).add(plugin)
+    }
+  }
+
+  const plugins = [...names].map((name) => {
+    let loadUs = 0
+    let runUs = 0
+    for (const [pkg, owners] of moduleOwners) {
+      if (!owners.has(name)) continue
+      const share = 1 / owners.size
+      const module = moduleUs.get(pkg)
+      if (module) loadUs += (module.resolveUs + module.loadUs) * share
+      runUs += ((cpuUs.get(pkg) || 0) + (nativeByPackage.get(pkg) || 0)) * share
+    }
+    const loadMs = Math.round(loadUs / 1000)
+    const runMs = Math.round(runUs / 1000)
+    return { name, loadMs, runMs, totalMs: loadMs + runMs }
+  }).sort((left, right) => right.totalMs - left.totalMs || right.runMs - left.runMs)
+
+  const packages = [...new Set([...cpuUs.keys(), ...nativeByPackage.keys(), ...allocBytes.keys(), ...moduleUs.keys()])].map((name) => {
+    const cpuMs = Math.round((cpuUs.get(name) || 0) / 1000)
+    const nativeMs = Math.round((nativeByPackage.get(name) || 0) / 1000)
+    const module = moduleUs.get(name)
+    const loadMs = Math.round((module?.loadUs || 0) / 1000)
+    const resolveMs = Math.round((module?.resolveUs || 0) / 1000)
+    return {
+      name,
+      cpuMs,
+      nativeMs,
+      loadMs,
+      resolveMs,
+      totalMs: cpuMs + nativeMs + loadMs + resolveMs,
+      allocKB: Math.round((allocBytes.get(name) || 0) / 1024),
+      plugin: names.has(name),
+    }
+  }).sort((a, b) => b.totalMs - a.totalMs || b.cpuMs - a.cpuMs)
 
   return {
     version: REPORT_VERSION,
@@ -109,6 +243,9 @@ function summarize(cpuProfile, heapProfile) {
     idleMs: Math.round(idleUs / 1000),
     allocMB: +(totalAlloc / 1048576).toFixed(1),
     packages,
+    plugins,
+    moduleLoadMs: Math.round(moduleTotalUs / 1000),
+    nativeUnattributedMs: Math.round(nativeUnattributedUs / 1000),
     native: [...nativeUs.entries()]
       .map(([name, us]) => ({ name, cpuMs: Math.round(us / 1000) }))
       .sort((a, b) => b.cpuMs - a.cpuMs)
@@ -132,11 +269,12 @@ async function stop() {
   stopped = true
   if (timer !== null) { clearTimeout(timer); timer = null }
   if (cap !== null) { clearTimeout(cap); cap = null }
+  stopModuleTiming()
   if (!session) return
   try {
     const cpu = await session.post('Profiler.stop')
     // 堆分配采样已撤：账本只看 CPU；内存用启动结算时读一次 RSS。
-    writeReport(summarize(cpu.profile, null))
+    writeReport(summarize(cpu.profile, null, { resolveCalls, loadCalls }))
   } catch { /* 采样失败不能影响运行 */ }
   try { session.disconnect() } catch { /* ignore */ }
 }
@@ -180,6 +318,8 @@ async function start() {
 
 export function installPluginProfile() {
   if (!DIR) return
+  // 模块加载计时要抢在 dsh 的入口模块之前装上（--import 阶段）。
+  installModuleTiming()
   globalThis[KEY] = {
     enter(entry) {
       if (!entry || pending.has(entry)) return
