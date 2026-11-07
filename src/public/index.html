@@ -895,7 +895,7 @@
       </form>
       <p class="hint" id="versionManageHint" role="status" aria-live="polite"></p>
       <div class="progress" id="versionManageProgress" hidden><div class="progress-bar" id="versionManageProgressBar"></div></div>
-      <h3 class="version-manage-heading" data-i18n="已安装">已安装</h3>
+      <div class="version-manage-heading-row"><h3 class="version-manage-heading" data-i18n="已安装">已安装</h3><span class="version-manage-total" id="versionManageTotal"></span></div>
       <div class="version-manage-list" id="versionManageList" role="list"></div>
     </div>
   </div>
@@ -1191,6 +1191,8 @@
   "这个 profile 已存在，依赖与层栈会并进去": "this profile exists — dependencies and layers are merged in",
   "安装": "Install",
   "已安装": "Installed",
+  "共 {size}": "{size} total",
+  "正在计算占用…": "Calculating disk usage…",
   "不看这个了": "Dismiss",
   "正在读社区整合包列表…": "Reading the community modpack list…",
   "市场里现在有 {n} 个整合包。": "The market has {n} modpack(s) right now.",
@@ -5717,6 +5719,10 @@
     let versionManageOrigin = null
     let versionManageRevision = 0
     let versionManageMarkup = ''
+    // 版本目录大小：打开版本管理时按需向服务端要（服务端有缓存），不跟着状态推送反复扫盘
+    let versionSizes = null
+    let versionSizesTotal = 0
+    let versionSizesLoading = false
     let versionInstallOptions = ''
 
     function openVersionManager() {
@@ -5732,6 +5738,7 @@
       }
       versionManageDialogEl.classList.toggle('is-child-dialog', versionManageReturnToEditor)
       paintVersionManager()
+      void loadVersionSizes()
       showDialog(versionManageDialogEl)
       document.getElementById('versionManageClose').focus()
       // 打开就顺手静默刷新一次远程列表（服务端 60 秒内走缓存，不会每次都打网络）：
@@ -5831,6 +5838,7 @@
       try {
         await post('/api/install', { version })
         applyState(await getJson('/api/state'))
+        void loadVersionSizes()
       } catch (error) { notify(error.message) }
       finally { action = ''; render() }
     }
@@ -5843,13 +5851,45 @@
       try {
         await post('/api/versions/optimize', { version })
         applyState(await getJson('/api/state'))
+        void loadVersionSizes()
         notify(t('依赖优化完成'), t('优化依赖'))
       } catch (error) { notify(error.message) }
       finally { action = ''; render() }
     }
 
+    /** 目录大小的显示单位：B / KB / MB / GB。 */
+    function formatBytes(bytes) {
+      const value = Number(bytes) || 0
+      if (value < 1024) return `${value} B`
+      if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`
+      if (value < 1024 * 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB`
+      return `${(value / (1024 * 1024 * 1024)).toFixed(2)} GB`
+    }
+
+    /** 打开版本管理时算一次每个版本的磁盘占用；服务端有 5 分钟缓存。 */
+    async function loadVersionSizes() {
+      if (typeof versionManageDialogEl === 'undefined' || versionSizesLoading) return
+      versionSizesLoading = true
+      if (!versionManageDialogEl.hidden) paintVersionManager()
+      try {
+        const data = await getJson('/api/versions/sizes')
+        versionSizes = data?.versions && typeof data.versions === 'object' ? data.versions : null
+        versionSizesTotal = Number(data?.total) || 0
+      } catch { /* 算不出来不影响版本管理 */ }
+      finally {
+        versionSizesLoading = false
+        if (!versionManageDialogEl.hidden) paintVersionManager()
+      }
+    }
+
     function paintVersionManager() {
       const installed = [...installedList()].sort((a, b) => compareVersion(b, a))
+      const totalEl = document.getElementById('versionManageTotal')
+      if (totalEl) {
+        totalEl.textContent = versionSizesLoading && !versionSizes
+          ? t('正在计算占用…')
+          : versionSizesTotal ? t('共 {size}', { size: formatBytes(versionSizesTotal) }) : ''
+      }
       const latest = latestRemoteVersion()
       const available = [...new Set([latest, ...allVersionList()])].filter((version) => version && !installed.includes(version))
         .sort((a, b) => compareVersion(b, a))
@@ -5885,7 +5925,8 @@
           : t('正在运行 · {profile}', { profile: live.profile || t('运行中') }) : t('未运行')
         const label = t('卸载版本')
         const optimize = t('优化依赖')
-        return `<div class="version-manage-row" role="listitem"><div class="version-manage-info"><strong>${escapeHtml(version)}</strong>${live ? `<span title="${escapeHtml(status)}">${escapeHtml(status)}</span>` : ''}</div><button class="ghost version-optimize" type="button" data-optimize-version="${escapeHtml(version)}" title="${escapeHtml(t('整理重复依赖，减少内存和磁盘占用'))}" ${busy || live ? 'disabled' : ''}>${escapeHtml(optimize)}</button><button class="ghost icon-btn version-remove" type="button" data-remove-version="${escapeHtml(version)}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" ${busy || live ? 'disabled' : ''}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg></button></div>`
+        const size = versionSizes?.[version] ? formatBytes(versionSizes[version]) : ''
+        return `<div class="version-manage-row" role="listitem"><div class="version-manage-info"><strong>${escapeHtml(version)}</strong>${size ? `<span class="version-manage-size">${escapeHtml(size)}</span>` : ''}${live ? `<span title="${escapeHtml(status)}">${escapeHtml(status)}</span>` : ''}</div><button class="ghost version-optimize" type="button" data-optimize-version="${escapeHtml(version)}" title="${escapeHtml(t('整理重复依赖，减少内存和磁盘占用'))}" ${busy || live ? 'disabled' : ''}>${escapeHtml(optimize)}</button><button class="ghost icon-btn version-remove" type="button" data-remove-version="${escapeHtml(version)}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" ${busy || live ? 'disabled' : ''}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg></button></div>`
       }).join('') || `<p class="hint version-manage-empty">${escapeHtml(t('尚未安装任何版本'))}</p>`
       // 状态推送和安装进度频繁变化，保留相同的行以免键盘焦点被重建打断。
       if (versionManageMarkup !== markup) {
@@ -6050,6 +6091,7 @@
       try {
         await post('/api/uninstall', { version })
         applyState(await getJson('/api/state'))
+        void loadVersionSizes()
       }
       catch (error) { notify(error.message) }
       finally { action = ''; render() }

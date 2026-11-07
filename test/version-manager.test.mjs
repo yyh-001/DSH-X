@@ -81,7 +81,7 @@ test('运行中或停止中的任一实例都会锁住对应版本的卸载，�
   const element = (id) => {
     if (!elements.has(id)) {
       elements.set(id, {
-        value: '', innerHTML: '', disabled: false, attrs: {},
+        value: '', innerHTML: '', textContent: '', disabled: false, attrs: {},
         classList: { toggle() {} },
         setAttribute(name, value) { this.attrs[name] = value },
         querySelectorAll: () => [],
@@ -94,9 +94,11 @@ test('运行中或停止中的任一实例都会锁住对应版本的卸载，�
     action: '', remote: { versions: ['0.3.0', '0.2.0', '0.1.0'] }, installProgress: null,
     versionCheck: { busy: false, message: '', error: '' },
     versionManageMarkup: '', versionInstallOptions: '', versionInstallSelectEl: element('select'),
+    versionSizes: { '0.1.0': 1024 * 1024, '0.2.0': 2 * 1024 * 1024 }, versionSizesTotal: 3 * 1024 * 1024, versionSizesLoading: false,
+    formatBytes: (bytes) => `${(bytes / 1048576).toFixed(1)} MB`,
     installedList: () => ['0.1.0', '0.2.0'], latestRemoteVersion: () => '0.3.0', allVersionList: () => ['0.3.0', '0.2.0', '0.1.0'],
     compareVersion: (a, b) => a.localeCompare(b), runningInfo: () => null, versionNames: (values) => values,
-    t: (text) => text, escapeHtml: (text) => String(text), syncUiSelect() {}, paintProgress() {},
+    t: translate, escapeHtml: (text) => String(text), syncUiSelect() {}, paintProgress() {},
     document: { getElementById: element },
   })
   vm.runInContext(paintCode, context)
@@ -107,9 +109,25 @@ test('运行中或停止中的任一实例都会锁住对应版本的卸载，�
   assert.match(element('versionManageList').innerHTML, /data-optimize-version="0\.1\.0"[^>]*disabled/)
   assert.match(element('select').innerHTML, /value="0\.3\.0"/)
   assert.doesNotMatch(element('select').innerHTML, /value="0\.[12]\.0"/)
+  // 每个版本的大小 + 「已安装」右边的总计
+  assert.match(element('versionManageList').innerHTML, /version-manage-size">1\.0 MB/)
+  assert.match(element('versionManageList').innerHTML, /version-manage-size">2\.0 MB/)
+  assert.equal(element('versionManageTotal').textContent, '共 3.0 MB')
   context.state.instances = []
   context.paintVersionManager()
   assert.doesNotMatch(element('versionManageList').innerHTML, /disabled/)
+})
+
+test('版本占用格式化：B / KB / MB / GB 与计算中的提示', () => {
+  const formatCode = html.slice(html.indexOf('    function formatBytes('), html.indexOf('    async function loadVersionSizes('))
+  const sandbox = {}
+  vm.createContext(sandbox)
+  vm.runInContext(formatCode, sandbox)
+  assert.equal(vm.runInContext('formatBytes(512)', sandbox), '512 B')
+  assert.equal(vm.runInContext('formatBytes(2048)', sandbox), '2 KB')
+  assert.equal(vm.runInContext('formatBytes(558319616)', sandbox), '532.5 MB')
+  assert.equal(vm.runInContext('formatBytes(2.5 * 1024 ** 3)', sandbox), '2.50 GB')
+  assert.equal(vm.runInContext('formatBytes(null)', sandbox), '0 B')
 })
 
 test('检测版本的入口、结果提示与缓存绕过都在版本管理里', () => {

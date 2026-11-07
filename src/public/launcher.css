@@ -2407,6 +2407,10 @@ html .set-row:focus-within { background: transparent; box-shadow: none; }
 #versionManageHint { margin: 0; min-height: 0; font-size: 12px; }
 #versionManageHint:empty { display: none; }
 .version-manage-heading { margin: 6px 0 0; font-size: 12px; font-weight: 500; color: var(--muted); }
+/* 「已安装」右边放整体的磁盘占用；每行左边再标各自的大小 */
+.version-manage-heading-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-top: 6px; }
+.version-manage-heading-row .version-manage-heading { margin-top: 0; }
+.version-manage-total { flex: 0 0 auto; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 .version-optimize { flex: 0 0 auto; padding: 7px 10px; font-size: 12px; white-space: nowrap; }
 .version-manage-row .version-remove svg { width: 18px; height: 18px; }
 .version-manage-row .version-manage-info span { max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

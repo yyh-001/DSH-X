@@ -4,7 +4,7 @@ import { createHash, randomBytes } from 'node:crypto'
 import { createServer } from 'node:http'
 import { createServer as createNetServer } from 'node:net'
 import { createInterface } from 'node:readline'
-import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { accessSync, chmodSync, closeSync, constants as fsConstants, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { createRequire } from 'node:module'
@@ -525,6 +525,74 @@ function scanInstalled() {
   return found
 }
 
+/** 小并发跑异步任务，避免一次 stat 几万个文件把句柄打满。 */
+async function mapLimit(items, limit, task) {
+  let index = 0
+  const workers = Array.from({ length: Math.min(limit, items.length || 1) }, async () => {
+    while (index < items.length) {
+      const item = items[index]
+      index += 1
+      await task(item)
+    }
+  })
+  await Promise.all(workers)
+}
+
+/**
+ * 目录的逻辑占用。符号链接跳过：pnpm 的 node_modules 里大量是链接，顺着走会把共享 store
+ * 里的同一份包重复算进每个版本。
+ */
+async function directoryBytes(dir) {
+  let entries
+  try { entries = await readdir(dir, { withFileTypes: true }) } catch { return 0 }
+  const files = []
+  const dirs = []
+  for (const entry of entries) {
+    if (entry.isSymbolicLink()) continue
+    if (entry.isDirectory()) dirs.push(entry.name)
+    else if (entry.isFile()) files.push(entry.name)
+  }
+  let total = 0
+  await mapLimit(files, 32, async (name) => {
+    try { total += (await stat(join(dir, name))).size } catch { /* 文件刚好被删 */ }
+  })
+  await mapLimit(dirs, 8, async (name) => { total += await directoryBytes(join(dir, name)) })
+  return total
+}
+
+const VERSION_SIZE_TTL_MS = 5 * 60_000
+let versionSizesCache = { at: 0, data: null }
+
+/** 日志里的大小：B / KB / MB / GB。 */
+function humanBytes(bytes) {
+  const value = Number(bytes) || 0
+  if (value < 1024) return `${value} B`
+  if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`
+  if (value < 1024 * 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB`
+  return `${(value / (1024 * 1024 * 1024)).toFixed(2)} GB`
+}
+
+/** 已装版本各自占多少（只算 DATA/versions 下受管版本；系统全局装的不归启动器管）。 */
+async function versionSizes() {
+  if (versionSizesCache.data && Date.now() - versionSizesCache.at < VERSION_SIZE_TTL_MS) return versionSizesCache.data
+  const versions = scanInstalled().filter(isManaged)
+  const sizes = {}
+  for (const version of versions) sizes[version] = await directoryBytes(versionDir(version))
+  const total = Object.values(sizes).reduce((sum, bytes) => sum + bytes, 0)
+  versionSizesCache = { at: Date.now(), data: { versions: sizes, total } }
+  return versionSizesCache.data
+}
+
+/** 启动项的日志里带一行版本目录占用；缓存有就立刻写，没有就等启动完再后台算。 */
+function logVersionSize(version) {
+  const write = ({ versions }) => {
+    const bytes = versions?.[version]
+    if (bytes) pushLog(`[磁盘] 版本 ${version} 占用 ${humanBytes(bytes)}`)
+  }
+  if (versionSizesCache.data) write(versionSizesCache.data)
+  else setTimeout(() => { void versionSizes().then(write).catch(() => {}) }, 2_000).unref()
+}
+
 function listedVersions(config) {
   const onDisk = new Set(scanInstalled())
   const fromConfig = (config.versions || [])
@@ -605,6 +673,7 @@ async function pruneVersions(config) {
     }
   }
   if (removed.length) {
+    versionSizesCache.at = 0
     config.versions = listedVersions(config)
     await saveConfig(config)
     for (const version of removed) await dropInstancePorts(version)
@@ -5238,6 +5307,9 @@ async function bootOnce(ver, prof, onStarted) {
     pushLog(`固定端口 ${pinned} 现在被占用，这次启动多半会失败`)
   }
   pushLog(`启动 ${ver} · profile ${prof}${lanBindActive() ? ' · Web 绑定 局域网（dsh 仍绑 127.0.0.1，局域网经启动器代理）' : ''}${pinned ? ` · 固定端口 ${pinned}` : ''}${alongside ? '（与已在跑的实例并存）' : ''}`)
+  // 启动项的日志里带一行版本目录占用。单测会把 bootOnce 抠进 vm，那里没有这套依赖，
+  // 有就用（正常模块里一定在），没有也不影响启动。
+  if (typeof logVersionSize === 'function') logVersionSize(ver)
   if (reused) {
     pushLog(remembered.key === `${ver}@${prof}`
       ? `复用自动端口：${ver}@${prof} → ${reused}`
@@ -6780,11 +6852,14 @@ async function handleApi(req, res, url) {
   }
   if (req.method === 'POST' && url.pathname === '/api/install') {
     await install(body.version)
+    versionSizesCache.at = 0
     send(res, 200, { ok: true })
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/versions/optimize') {
-    send(res, 200, await optimizeVersion(body.version))
+    const result = await optimizeVersion(body.version)
+    versionSizesCache.at = 0
+    send(res, 200, result)
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/start') {
@@ -6907,7 +6982,13 @@ async function handleApi(req, res, url) {
   }
   if (req.method === 'POST' && url.pathname === '/api/uninstall') {
     await uninstall(body.version)
+    versionSizesCache.at = 0
     send(res, 200, { ok: true })
+    return
+  }
+  if (req.method === 'GET' && url.pathname === '/api/versions/sizes') {
+    try { send(res, 200, await versionSizes()) }
+    catch (error) { send(res, 500, { error: error instanceof Error ? error.message : String(error) }) }
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/settings') {
