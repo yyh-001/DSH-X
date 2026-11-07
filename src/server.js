@@ -1691,7 +1691,11 @@ async function snapshotDefault() {
   const stored = await loadSettings()
   const presets = safeLaunchPresets(stored.launchPresets)
   const profiles = listProfiles()
-  const wslProbe = wslAvailable() ? await listWslDistros() : { available: false, distros: [], error: '当前不是 Windows，或找不到 wsl.exe' }
+  // WSL 发行版列表要 spawn 一次 wsl.exe（本机实测 ~100ms），而快照是每次状态推送都做的：
+  // 放在这里等于让不用 WSL 的人也一直付出探测成本。快照只带设置里的默认值和
+  // 「本机有没有 wsl.exe」这种本地常量，发行版列表由设置页/启动项编辑器打开时
+  // 按需 GET /api/wsl 拉。
+  const wslSnapshot = { ...safeWslSettings(stored.wsl), available: wslAvailable() }
   // 启动项编辑器只提供「起网页」的 profile；sdk/headless/acp 这类 stdio 应用拉不起来
   const webProfiles = profiles.filter((name) => profileBootsWebIn(defaultHome(), name))
   return {
@@ -1709,7 +1713,7 @@ async function snapshotDefault() {
     // 手工钉死端口的实例（键 `版本@profile` → 端口）：控制页那个端口输入框回显它
     instancePorts: INSTANCE_PORTS,
     wslPorts: WSL_PORTS,
-    wsl: { ...safeWslSettings(stored.wsl), available: wslProbe.available, distros: wslProbe.distros, error: wslProbe.error },
+    wsl: wslSnapshot,
     launchPresets: presets,
     // 每种版本类型的实际类型、已装版本、最新版：页面的自动选版本和提醒都读它，不在页面上重新分类
     channelPlans: channelPlans(installed),
@@ -5881,6 +5885,9 @@ async function bootWslOnce(ver, prof, context, onStarted) {
       serviceMode: started.serviceMode,
       instanceId: started.instanceId,
       wslPort: port,
+      // 实例记住自己是哪个启动项起的：重启全部/自动启动要按启动项重来（auto 要重新探测、
+      // 钉住的端口要能找回），不能只靠 version@profile 反推。
+      launchId: launchId || '',
     })
     onStarted?.(proc)
     await emitState()
@@ -6190,10 +6197,13 @@ export async function launchInstalled() {
   }
   if (live?.status === 'starting') {
     // WSL 实例的 scope 必须带上发行版和 WSL 目录，只传合成 home 会被当成 Windows 本机启动。
+    const preset = live.launchId ? safeLaunchPresets(loadSettingsSync().launchPresets).find((item) => item.id === live.launchId) : null
+    // 和 restartInstalled 一样：auto 的 WSL 启动项要按启动项语义重新探测，不能拿记录的具体版本当钉子。
+    const version = preset?.backend === 'wsl' && preset.version === 'auto' ? 'auto' : live.version
     const scope = live.backend === 'wsl'
-      ? { backend: 'wsl', home: live.home, wslDistro: live.distro, wslHome: live.wslHome, wslWorkdir: live.wslWorkdir }
+      ? { backend: 'wsl', home: live.home, wslDistro: live.distro, wslHome: live.wslHome, wslWorkdir: live.wslWorkdir, ...(live.launchId ? { launchId: live.launchId } : {}) }
       : { home: live.home }
-    const result = await launchScope.run(scope, () => start(live.version, live.profile))
+    const result = await launchScope.run(scope, () => start(version, live.profile))
     return { version: live.version, url: result.url }
   }
   const installed = listedVersions(await loadConfig())
@@ -6208,13 +6218,22 @@ export async function launchInstalled() {
  * 某个起不来不拦着后面的，但错误要往上抛——页面得知道有实例没回来。
  */
 export async function restartInstalled() {
-  const targets = instanceList().map((proc) => ({ version: proc.version, profile: proc.profile, home: proc.home, backend: proc.backend, distro: proc.distro, wslHome: proc.wslHome, wslWorkdir: proc.wslWorkdir }))
+  const presets = safeLaunchPresets(loadSettingsSync().launchPresets)
+  const targets = instanceList().map((proc) => {
+    const preset = proc.launchId ? presets.find((item) => item.id === proc.launchId) : null
+    // 启动项填 auto 的 WSL 实例：重启要重新探测 WSL 里的 dsh（可能刚升过级），
+    // 拿上次记录的具体版本当钉子会直接报「版本不一致」，实例停着起不来。
+    const version = preset?.backend === 'wsl' && preset.version === 'auto' ? 'auto' : proc.version
+    return { version, profile: proc.profile, home: proc.home, backend: proc.backend, distro: proc.distro, wslHome: proc.wslHome, wslWorkdir: proc.wslWorkdir, launchId: proc.launchId || '' }
+  })
   if (!targets.length) return launchInstalled()
   await stop()
   let last = null
   let failure = null
-  const results = await Promise.allSettled(targets.map(({ version, profile, home, backend, distro, wslHome, wslWorkdir }) =>
-    launchScope.run(backend === 'wsl' ? { backend: 'wsl', home, wslDistro: distro, wslHome, wslWorkdir } : { home }, () => start(version, profile))))
+  const results = await Promise.allSettled(targets.map(({ version, profile, home, backend, distro, wslHome, wslWorkdir, launchId }) =>
+    launchScope.run(backend === 'wsl'
+      ? { backend: 'wsl', home, wslDistro: distro, wslHome, wslWorkdir, ...(launchId ? { launchId } : {}) }
+      : { home }, () => start(version, profile))))
   for (const [index, result] of results.entries()) {
     if (result.status === 'fulfilled') last = { version: targets[index].version, profile: targets[index].profile, url: result.value.url }
     else failure = failure || result.reason

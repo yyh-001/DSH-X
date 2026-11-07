@@ -70,7 +70,9 @@ function runProcess(command, args, options = {}) {
       settled = true
       clearTimeout(timer)
       const stdout = raw ? Buffer.concat(out) : Buffer.concat(out).toString('utf8')
-      const stderr = Buffer.concat(err).toString('utf8')
+      // wsl.exe 连报错也是 UTF-16LE；bash 的是 UTF-8。统一过同一套解码，
+      // 否则「没有已安装的发行版」这类提示会在页面上变成乱码。
+      const stderr = decodeWslOutput(Buffer.concat(err))
       resolve(Object.assign({}, result, { stdout: stdout, stderr: stderr }))
     }
     timer = setTimeout(() => {
@@ -95,7 +97,14 @@ export function decodeWslOutput(buffer) {
   let zeros = 0
   for (let index = 1; index < sample.length; index += 2) if (sample[index] === 0) zeros += 1
   if (zeros >= Math.max(1, sample.length / 8)) return buf.toString('utf16le').replace(/^\uFEFF/, '')
-  return buf.toString('utf8')
+  const text = buf.toString('utf8')
+  // 短的中文 UTF-16LE 没有 ASCII 帮忙，奇数位全是汉字高字节、一个 NUL 都没有，上面认不出来；
+  // 按 UTF-8 解会得到替换字符。偶数长度、且 UTF-16 解得干净时按 UTF-16LE 处理。
+  if (text.includes('\uFFFD') && buf.length % 2 === 0) {
+    const utf16 = buf.toString('utf16le')
+    if (!utf16.includes('\uFFFD')) return utf16.replace(/^\uFEFF/, '')
+  }
+  return text
 }
 
 /**
@@ -142,7 +151,10 @@ export async function listWslDistros(options = {}) {
   if (!options.force && distroCache.value && Date.now() - distroCache.at < 10000) return distroCache.value
   const result = await runProcess(WSL_EXE, ['--list', '--verbose'], { timeoutMs: 15000, raw: true })
   if (!result.ok) {
-    const value = { available: true, distros: [], error: result.stderr.trim() || (result.timedOut ? 'wsl --list 超时' : 'wsl --list 失败') }
+    // 「没有已安装的发行版」这类说明 wsl.exe 写在 stdout（UTF-16LE）而不是 stderr：
+    // 只报「wsl --list 失败」用户看不出该去装发行版还是先启用 WSL，取第一行说清。
+    const stdoutLine = decodeWslOutput(result.stdout).split(/\r?\n/).map((line) => line.trim()).filter(Boolean)[0] || ''
+    const value = { available: true, distros: [], error: result.stderr.trim() || stdoutLine || (result.timedOut ? 'wsl --list 超时' : 'wsl --list 失败') }
     distroCache = { at: Date.now(), value: value }
     return value
   }

@@ -78,6 +78,15 @@ test('wsl.exe 的 UTF-16LE 输出能解码，普通 UTF-8 不被误判', () => {
   assert.equal(decodeWslOutput(Buffer.alloc(0)), '')
 })
 
+test('短的中文 UTF-16LE（无 BOM、无 NUL）也按 UTF-16LE 解，不出乱码', () => {
+  // 纯汉字没有 ASCII 高字节的 0，靠 NUL 比例认不出来；UTF-8 解出替换字符时要回退。
+  for (const text of ['没有已安装的分发', '错误', '已停止']) {
+    assert.equal(decodeWslOutput(Buffer.from(text, 'utf16le')), text)
+  }
+  // 真 UTF-8 的短中文不能被反向误判。
+  assert.equal(decodeWslOutput(Buffer.from('没有已安装的分发', 'utf8')), '没有已安装的分发')
+})
+
 test('wrapper 脚本：pidfile 按实例区分，前台 exec dsh，停止先 TERM 再按端口兜底', () => {
   assert.equal(WSL_SERVICE_MODE, 'wrapper')
   assert.match(WSL_AGENT_SCRIPT, /run_dir="\$state_dir\/run"/)
@@ -113,4 +122,29 @@ test('bootWslOnce 在 finally 释放 rememberedWslPort 认领的自动端口', (
   const body = source.slice(start, end)
   assert.match(body, /const reused = remembered\.port/)
   assert.match(body, /finally \{\s*claimedAutoPorts\.delete\(reused\)\s*\}/)
+})
+
+test('状态快照不做 WSL 探测：发行版列表只在打开设置页/启动项编辑器时按需拉', () => {
+  // /api/state 每次状态推送都会走 snapshotDefault；这里放 listWslDistros 等于让
+  // 不用 WSL 的用户一直付一次 wsl.exe 的启动成本（本机实测 ~100ms）。
+  const source = readFileSync(new URL('../src/server.js', import.meta.url), 'utf8')
+  const start = source.indexOf('async function snapshotDefault')
+  const end = source.indexOf('async function publicSettings', start)
+  const body = source.slice(start, end)
+  assert.ok(body.length > 0, '找不到 snapshotDefault')
+  assert.doesNotMatch(body, /listWslDistros/, '状态快照里不能探测发行版')
+  assert.match(body, /available: wslAvailable\(\)/, '快照只报本机有没有 wsl.exe')
+})
+
+test('重启全部按启动项重来：带 launchId，auto 的 WSL 启动项重新探测版本', () => {
+  // 不带 launchId 时 bootWslOnce 找不到启动项，钉住的端口和 auto 回填都会丢；
+  // 用上次记录的具体版本重启，WSL 里 dsh 升级后会直接报「版本不一致」停在那儿。
+  const source = readFileSync(new URL('../src/server.js', import.meta.url), 'utf8')
+  const start = source.indexOf('export async function restartInstalled')
+  const end = source.indexOf('export function setHost', start)
+  const body = source.slice(start, end)
+  assert.ok(body.length > 0, '找不到 restartInstalled')
+  assert.match(body, /launchId: proc\.launchId \|\| ''/)
+  assert.match(body, /preset\.version === 'auto' \? 'auto' : proc\.version/)
+  assert.match(body, /\.\.\.\(launchId \? \{ launchId \} : \{\}\)/)
 })

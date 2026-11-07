@@ -40,3 +40,15 @@ test('WSL 发行版归在运行位置，切到 WSL 时藏掉本机版本整组',
   assert.match(css, /\.launch-modal-fields \{[^}]*gap: 14px;/)
   assert.match(css, /\.launch-wsl-location \{ margin-top: 14px; \}/)
 })
+
+test('WSL 发行版列表按需拉：切到 WSL 才请求 /api/wsl，不等状态推送', () => {
+  // /api/state 推送里不再带发行版列表（每次探测要 spawn wsl.exe），页面自己按需取。
+  const ensure = page.indexOf('async function ensureWslInfo')
+  assert.ok(ensure >= 0, '页面里要有 ensureWslInfo')
+  assert.match(page.slice(ensure, ensure + 1200), /getJson\('\/api\/wsl'\)/)
+  const backend = page.indexOf('function setLaunchBackend')
+  const body = page.slice(backend, backend + 2200)
+  assert.match(body, /await ensureWslInfo\(/, '切到 WSL / 打开 WSL 启动项时要按需拉列表')
+  assert.match(body, /ensureWslInfo\(!\(state\.wsl\?\.distros \|\| \[\]\)\.length\)/, '手里没有发行版时强制刷新，别让缓存挡住刚装好的发行版')
+  assert.match(body, /state\.wsl\?\.error \|\| t\('没有检测到 WSL 发行版。'\)/, '一个发行版都没有时要说清楚，而不是「先选择一个」')
+})

@@ -4294,6 +4294,38 @@
     }
 
     /**
+     * 发行版列表按需拉：/api/state 每次推送都探测 WSL 等于让不用 WSL 的人一直付
+     * 一次 wsl.exe 的启动成本（本机实测 ~100ms），所以状态里只留「有没有 wsl.exe」。
+     * 打开设置页走 /api/settings，打开启动项编辑器走这里；同一页面只拉一次。
+     */
+    let wslInfoPromise = null
+    let wslInfoLoaded = false
+    async function ensureWslInfo(force = false) {
+      if (!force && wslInfoLoaded) return state.wsl
+      if (wslInfoPromise) return wslInfoPromise
+      wslInfoPromise = (async () => {
+        try {
+          const data = await getJson('/api/wsl')
+          state.wsl = {
+            ...(state.wsl || {}),
+            available: data.available === true,
+            distros: Array.isArray(data.distros) ? data.distros : [],
+            error: data.error || '',
+            ...(data.defaults || {}),
+          }
+          wslInfoLoaded = true
+        } catch (error) {
+          // 探测失败不写进「已加载」，下次打开编辑器还会再试一次。
+          state.wsl = { ...(state.wsl || {}), distros: state.wsl?.distros || [], error: error.message }
+        } finally {
+          wslInfoPromise = null
+        }
+        return state.wsl
+      })()
+      return wslInfoPromise
+    }
+
+    /**
      * 运行位置切换：WSL 关掉本机版本、用户目录、项目目录和隔离引导，换成同一位置上的
      * WSL 版本、用户目录与项目目录；名称、Profile、端口、自动启动两边共用。切回本机时
      * 按当前是否新建把隔离引导恢复出来。
@@ -4325,7 +4357,20 @@
         launchWslHomeEl.value = entry?.wslHome || ''
         launchWslWorkdirEl.value = entry?.wslWorkdir || ''
         launchBackendHintEl.textContent = t('WSL 里要已经装好 dsh；首版只管理启动、停止、日志和打开方式。')
-        void refreshWslProfiles(true)
+        // 发行版列表是打开编辑器才去探的：先按已保存的发行版画一版，探测回来再补全。
+        // 手里一个发行版都没有时强制刷新：用户可能刚装完，别让页面缓存一直显示旧结果。
+        void (async () => {
+          await ensureWslInfo(!(state.wsl?.distros || []).length)
+          if (!launchBackendIsWsl()) return
+          paintLaunchWslDistros(entry?.wslDistro || launchWslDistroEl.value || '')
+          if (!launchWslDistroEl.value) {
+            launchWslProfiles = []
+            paintLaunchProfiles()
+            launchWslHintEl.textContent = state.wsl?.error || t('没有检测到 WSL 发行版。')
+            return
+          }
+          await refreshWslProfiles(true)
+        })()
       } else {
         launchBackendHintEl.textContent = ''
         paintLaunchProfiles()
