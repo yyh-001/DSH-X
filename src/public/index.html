@@ -973,10 +973,9 @@
           <button class="launch-log-tab" type="button" role="tab" data-log-tab="raw" aria-selected="true" data-i18n="原始日志">原始日志</button>
           <button class="launch-log-tab" type="button" role="tab" data-log-tab="time" aria-selected="false" data-i18n="耗时构成" hidden>耗时构成</button>
           <button class="launch-log-tab" type="button" role="tab" data-log-tab="space" aria-selected="false" data-i18n="空间构成" hidden>空间构成</button>
-          <button class="launch-log-tab" type="button" role="tab" data-log-tab="diagnosis" aria-selected="false" data-i18n="插件诊断" hidden>插件诊断</button>
         </div>
         <div class="launch-log-loading" id="launchLogLoading" hidden><span class="spin"></span><span data-i18n="正在读取日志…">正在读取日志…</span></div>
-        <section class="launch-log-card" id="launchLogDiagnosis" data-log-panel="diagnosis" hidden>
+        <section class="launch-log-card" id="launchLogDiagnosis" hidden>
           <div class="launch-log-card-head"><h3 data-i18n="插件诊断">插件诊断</h3><span class="launch-log-head-meta"><span id="launchLogDiagnosisMeta"></span></span></div>
           <div class="launch-log-block" id="launchLogDiagnosisRows"></div>
         </section>
@@ -2331,7 +2330,6 @@
       raw: launchLogCardEl,
       time: launchLogVisualEl,
       space: launchLogSpaceEl,
-      diagnosis: launchLogDiagnosisEl,
     }
     const launchLogDiagnosisRowsEl = document.getElementById('launchLogDiagnosisRows')
     const manageVersionsEl = document.getElementById('launchManageVersions')
@@ -5540,6 +5538,8 @@
       for (const [key, panel] of Object.entries(launchLogPanels)) {
         panel.hidden = !(launchLogAvailable[key] && key === launchLogTab)
       }
+      // 插件诊断和原始日志同屏，不单独占页签；有诊断数据且停在原始日志时才出现
+      launchLogDiagnosisEl.hidden = !(launchLogAvailable.diagnosis && launchLogTab === 'raw')
       launchLogTabsEl.hidden = false
     }
 
