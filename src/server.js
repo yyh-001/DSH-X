@@ -564,15 +564,6 @@ async function directoryBytes(dir) {
 const VERSION_SIZE_TTL_MS = 5 * 60_000
 let versionSizesCache = { at: 0, data: null }
 
-/** 日志里的大小：B / KB / MB / GB。 */
-function humanBytes(bytes) {
-  const value = Number(bytes) || 0
-  if (value < 1024) return `${value} B`
-  if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`
-  if (value < 1024 * 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB`
-  return `${(value / (1024 * 1024 * 1024)).toFixed(2)} GB`
-}
-
 /** .pnpm 目录名 → 包名：`pkg@1.2.3`、`@scope+pkg@1.2.3(peer@x)`。 */
 function pnpmPackageName(entry) {
   const raw = String(entry).replace(/\(.*$/, '')
@@ -680,16 +671,6 @@ async function versionSizes() {
   const total = Object.values(sizes).reduce((sum, bytes) => sum + bytes, 0)
   versionSizesCache = { at: Date.now(), data: { versions: sizes, total } }
   return versionSizesCache.data
-}
-
-/** 启动项的日志里带一行版本目录占用；缓存有就立刻写，没有就等启动完再后台算。 */
-function logVersionSize(version) {
-  const write = ({ versions }) => {
-    const bytes = versions?.[version]
-    if (bytes) pushLog(`[磁盘] 版本 ${version} 占用 ${humanBytes(bytes)}`)
-  }
-  if (versionSizesCache.data) write(versionSizesCache.data)
-  else setTimeout(() => { void versionSizes().then(write).catch(() => {}) }, 2_000).unref()
 }
 
 function listedVersions(config) {
@@ -5410,9 +5391,6 @@ async function bootOnce(ver, prof, onStarted) {
     pushLog(`固定端口 ${pinned} 现在被占用，这次启动多半会失败`)
   }
   pushLog(`启动 ${ver} · profile ${prof}${lanBindActive() ? ' · Web 绑定 局域网（dsh 仍绑 127.0.0.1，局域网经启动器代理）' : ''}${pinned ? ` · 固定端口 ${pinned}` : ''}${alongside ? '（与已在跑的实例并存）' : ''}`)
-  // 启动项的日志里带一行版本目录占用。单测会把 bootOnce 抠进 vm，那里没有这套依赖，
-  // 有就用（正常模块里一定在），没有也不影响启动。
-  if (typeof logVersionSize === 'function') logVersionSize(ver)
   if (reused) {
     pushLog(remembered.key === `${ver}@${prof}`
       ? `复用自动端口：${ver}@${prof} → ${reused}`
