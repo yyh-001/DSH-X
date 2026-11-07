@@ -199,7 +199,8 @@ let WEB_BIND = resolveWebBind()
 // 手工钉死端口的实例（键 `版本@profile` → 端口）：没钉的组合每次启动由系统挑一个。
 // 和 WEB_BIND 一样是「改完立刻生效」的内存副本，启动时与保存设置时各刷新一次。
 let INSTANCE_PORTS = safeInstancePorts(loadSettingsSync().instancePorts)
-let ENVIRONMENT_PORTS = safeEnvironmentPorts(loadSettingsSync().environmentPorts)
+// 额外目录的端口表在 defaultHome() 定义之后再填（要判断哪些目录还活着，见 #90）。
+let ENVIRONMENT_PORTS = {}
 // 界面语言（zh / en）：settings.json 为准；lang.txt 只为尚未选择语言的用户提供首次默认值。
 const INSTALL_LANG = join(ROOT, 'lang.txt')
 let LANG = safeLang(loadSettingsSync().lang) || installLang() || 'zh'
@@ -213,6 +214,21 @@ let HIDE_BIG_FISH = loadSettingsSync().hideBigFish === true
 let DSH_HOME_DIR = safeDshHome(loadSettingsSync().dshHome)
 const launchScope = new AsyncLocalStorage()
 const defaultHome = () => DSH_HOME_DIR || defaultDshHome()
+/**
+ * 固定端口只认「还登记过、目录也还在」的环境。旧 DSH_HOME 被删掉/换盘后，
+ * environmentPorts 里那条钉子会把端口永久占住（#90），这里直接把它当不存在。
+ */
+function liveEnvironmentPorts(stored) {
+  const environments = safeEnvironmentPorts(stored?.environmentPorts)
+  const known = [
+    defaultHome(),
+    ...safeDshHomes(stored?.dshHomes),
+    ...safeLaunchPresets(stored?.launchPresets).map((entry) => entry.dshHome).filter(Boolean),
+  ]
+  return Object.fromEntries(Object.entries(environments).filter(([dir]) =>
+    existsSync(dir) && known.some((item) => fileManager.samePath(dir, item))))
+}
+ENVIRONMENT_PORTS = liveEnvironmentPorts(loadSettingsSync())
 const profileKey = (profile) => `${homeDir()}\0${profile}`
 // 启动器更新的下载源：direct（默认直连 GitHub）/ mirror（国内加速，直连失败时走前缀镜像）
 let UPDATE_SOURCE = updateSourceForDownload(loadSettingsSync().downloadSource)
@@ -1791,7 +1807,7 @@ async function setInstancePortNow(version, profile, port) {
       ? { environmentPorts: { ...ENVIRONMENT_PORTS, [home]: next } }
       : { instancePorts: next })
     INSTANCE_PORTS = safeInstancePorts(saved.instancePorts)
-    ENVIRONMENT_PORTS = safeEnvironmentPorts(saved.environmentPorts)
+    ENVIRONMENT_PORTS = liveEnvironmentPorts(saved)
   }
   const text = String(port ?? '').trim()
   if (!text || Number(text) === 0) {
@@ -2090,10 +2106,40 @@ async function removeLaunchPresetNow(id) {
   const stored = await loadSettings()
   if (installing || packInstalling) throw new Error('正在安装，稍后再编辑启动项')
   const presets = safeLaunchPresets(stored.launchPresets)
+  const entry = presets.find((item) => item.id === id)
   const next = presets.filter((item) => item.id !== id)
-  if (next.length === presets.length) throw new Error('这个启动项已不存在，请刷新后重试')
-  // 删除快捷入口不改实例端口，避免影响同一组合的手动启动设置。
-  await saveSettings({ launchPresets: next })
+  if (!entry) throw new Error('这个启动项已不存在，请刷新后重试')
+  // 启动项是端口钉子的唯一入口：它删掉、又没有别的启动项用同一个版本@profile 时，
+  // 钉子一起清掉，否则端口会被一个已经不存在的启动项永久占住（#90）。
+  const home = entry.dshHome || defaultHome()
+  const profile = entry.profile || 'web'
+  const keys = new Set([entry.version !== 'auto' ? entry.version : '', entry.usedVersion, entry.prevVersion]
+    .filter(Boolean).map((version) => `${version}@${profile}`))
+  for (const other of next) {
+    if (!fileManager.samePath(other.dshHome || defaultHome(), home)) continue
+    for (const version of [other.version !== 'auto' ? other.version : '', other.usedVersion, other.prevVersion]) {
+      if (version) keys.delete(`${version}@${other.profile || 'web'}`)
+    }
+  }
+  const patch = { launchPresets: next }
+  if (keys.size) {
+    if (fileManager.samePath(home, defaultHome())) {
+      const ports = { ...safeInstancePorts(stored.instancePorts) }
+      for (const key of keys) delete ports[key]
+      patch.instancePorts = ports
+    } else {
+      const environments = safeEnvironmentPorts(stored.environmentPorts)
+      const dir = Object.keys(environments).find((item) => fileManager.samePath(item, home))
+      if (dir) {
+        const ports = { ...environments[dir] }
+        for (const key of keys) delete ports[key]
+        patch.environmentPorts = { ...environments, [dir]: ports }
+      }
+    }
+  }
+  const saved = await saveSettings(patch)
+  INSTANCE_PORTS = safeInstancePorts(saved.instancePorts)
+  ENVIRONMENT_PORTS = liveEnvironmentPorts(saved)
   dropLaunchLog(id)
   await emitState()
   return { ok: true }
@@ -2139,7 +2185,7 @@ async function dropInstancePorts(version) {
     && Object.entries(environments).every(([home, ports]) => Object.keys(ports).length === Object.keys(ENVIRONMENT_PORTS[home]).length)) return
   const saved = await saveSettings({ instancePorts: kept, environmentPorts: environments })
   INSTANCE_PORTS = safeInstancePorts(saved.instancePorts)
-  ENVIRONMENT_PORTS = safeEnvironmentPorts(saved.environmentPorts)
+  ENVIRONMENT_PORTS = liveEnvironmentPorts(saved)
 }
 
 async function saveManagerSettings(body) {
@@ -2288,7 +2334,7 @@ async function saveManagerSettings(body) {
   EXTRA_ARGS = composeExtraArgs(stored.args)
   WEB_BIND = safeWebBind(stored.webBind)
   INSTANCE_PORTS = safeInstancePorts(stored.instancePorts)
-  ENVIRONMENT_PORTS = safeEnvironmentPorts(stored.environmentPorts)
+  ENVIRONMENT_PORTS = liveEnvironmentPorts(stored)
   if (safeLang(stored.lang)) LANG = safeLang(stored.lang)
   THEME = safeTheme(stored.theme)
   PANEL_TRANSPARENCY = safePanelTransparency(stored.panelTransparency)
@@ -3199,7 +3245,7 @@ function autoPortCandidates(stored, version, profile) {
 /** 这个端口这次真的能拿来复用吗（不能的话调用方会换一个新的）。 */
 async function autoPortUsable(port, stored) {
   // 自动端口不能抢手工指定给其他实例的端口；真实监听也要检查（含别的程序）。
-  const reserved = [stored.instancePorts, ...Object.values(stored.environmentPorts || {})]
+  const reserved = [stored.instancePorts, ...Object.values(liveEnvironmentPorts(stored))]
     .some((ports) => Object.values(ports || {}).includes(port))
     || safeLaunchPresets(stored.launchPresets).some((entry) => entry.port === port)
   // 检查监听会让出执行权；不同目录的并发启动不能同时复用同一个历史端口。
@@ -5993,7 +6039,7 @@ async function renameProfile(profile, nextName) {
           autoPorts: Object.fromEntries(Object.entries(safeEnvironmentPorts(current.autoPorts)).map(([dir, value]) => [dir, sameHome(dir) ? ports(value) : value])),
         }))
         INSTANCE_PORTS = safeInstancePorts(saved.instancePorts)
-        ENVIRONMENT_PORTS = safeEnvironmentPorts(saved.environmentPorts)
+        ENVIRONMENT_PORTS = liveEnvironmentPorts(saved)
         if (sameHome(defaultHome())) {
           PROFILE_NAME = saved.profile
         }
@@ -7076,8 +7122,16 @@ async function handleApi(req, res, url) {
       // 启动项仍在用的目录不能悄悄消失，也不能为了移除列表而删掉启动项。
       if (removing && safeLaunchPresets(current.launchPresets).some((entry) => entry.dshHome && same(entry.dshHome, home))) throw new Error('启动项正在使用此目录，请先修改或删除对应启动项')
       const homes = safeDshHomes(current.dshHomes).filter((item) => !same(item, home))
-      return { dshHomes: removing ? homes : [...homes, home] }
+      return {
+        dshHomes: removing ? homes : [...homes, home],
+        // 目录都不在了，钉在它上面的端口也没意义；留着会占住端口（#90）。
+        ...(removing ? {
+          environmentPorts: Object.fromEntries(Object.entries(safeEnvironmentPorts(current.environmentPorts))
+            .filter(([dir]) => !same(dir, home))),
+        } : {}),
+      }
     })
+    if (removing) ENVIRONMENT_PORTS = liveEnvironmentPorts(stored)
     send(res, 200, { dshHomes: safeDshHomes(stored.dshHomes) })
     await emitState()
     return
@@ -8057,7 +8111,13 @@ export async function startServer() {
   }
   // 钉死端口的实例表：启动、重启都读它（页面改这张表走 /api/instance-port）
   INSTANCE_PORTS = safeInstancePorts(stored.instancePorts)
-  ENVIRONMENT_PORTS = safeEnvironmentPorts(stored.environmentPorts)
+  // 旧环境留下的端口钉子：内存里不算它，文件里也顺手清掉，不然重装也不会消失（#90）。
+  const storedEnvironments = safeEnvironmentPorts(stored.environmentPorts)
+  ENVIRONMENT_PORTS = liveEnvironmentPorts(stored)
+  if (Object.keys(ENVIRONMENT_PORTS).length !== Object.keys(storedEnvironments).length) {
+    await saveSettings({ environmentPorts: ENVIRONMENT_PORTS }).catch(() => {})
+    pushLog('已清理旧环境留下的固定端口记录')
+  }
   // 用户在设置页的选择要跨重启与升级保留，安装语言只初始化缺失的设置。
   const storedLang = safeLang(stored.lang)
   const fromInstall = storedLang ? '' : installLang()
