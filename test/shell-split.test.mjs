@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-import { coreSetupPage } from '../shell/pages.mjs'
+import { coreSetupPage, coreSetupPaintScript } from '../shell/pages.mjs'
 
 const read = (path) => readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), 'utf8')
 
@@ -102,5 +102,32 @@ test('首启下载页：实时进度、下载源、取消，总大小未知时�
   assert.match(main, /下载源：/, '窗口要显示实际下载源')
   assert.match(main, /timeoutMs: index === 0 \? 6_000/, '慢镜像 6 秒就换官方源')
   assert.match(main, /tarballFor\(alternate/, 'tarball 下载失败换源重试')
-  assert.match(main, /onPhase: \(phase\) => paint\(\{ phase \}\)/, '解压阶段要切到「安装中」')
+  assert.match(main, /await paint\(\{ phase \}, \{ immediate: true \}\)/, '解压前同步画「安装中」')
+  assert.match(main, /setTimeout\(resolve, 80\)/, '解压前留一帧，窗口别停在 100% 就消失')
+  assert.match(read('shell/core-fetch.mjs'), /await onPhase\?\.\('extract'\)/, '解压阶段回调要 await')
+})
+
+test('下载窗口注入脚本必须是合法 JS，并能更新进度/来源', () => {
+  const nodes = {
+    bar: { style: {} },
+    track: { classList: { value: null, toggle(name, on) { this.value = [name, on] } } },
+    hint: { textContent: '' },
+    detail: { textContent: '' },
+    source: { textContent: '' },
+  }
+  const document = { getElementById: (id) => nodes[id] }
+  const script = coreSetupPaintScript({ percent: 42, indeterminate: false, hint: '下载中', detail: '1.0 MB / 2.0 MB · 50%', source: '下载源：example.test' })
+  // 解析失败会直接抛 SyntaxError（曾因为 bar.style.width = 50% 少引号整段被空 catch 吞掉）
+  assert.doesNotThrow(() => new Function('document', script))
+  new Function('document', script)(document)
+  assert.equal(nodes.bar.style.width, '42%')
+  assert.deepEqual(nodes.track.classList.value, ['is-indeterminate', false])
+  assert.equal(nodes.hint.textContent, '下载中')
+  assert.equal(nodes.detail.textContent, '1.0 MB / 2.0 MB · 50%')
+  assert.equal(nodes.source.textContent, '下载源：example.test')
+  // 总大小未知：不确定态 + 百分号仍被正确引起来
+  const unknown = coreSetupPaintScript({ percent: 0, indeterminate: true, hint: 'h', detail: '已下载 0.5 MB' })
+  new Function('document', unknown)(document)
+  assert.equal(nodes.bar.style.width, '0%')
+  assert.deepEqual(nodes.track.classList.value, ['is-indeterminate', true])
 })

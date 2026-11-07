@@ -95,6 +95,26 @@ export function coreSetupPage(lang) {
 </div></body></html>`
 }
 
+/**
+ * 首启下载窗口的注入脚本。单独成函数是为了能在单测里 `new Function(script)` 验一遍——
+ * 拼字符串时少个引号（`width = 50%`）会让整段脚本解析失败，再被空 catch 吞掉，窗口看起来完全不动。
+ */
+export function coreSetupPaintScript({ percent = 0, indeterminate = false, hint = '', detail = '', source = '' } = {}) {
+  const width = `${Math.max(0, Math.min(100, Number(percent) || 0))}%`
+  return `(() => {
+    const bar = document.getElementById('bar')
+    const track = document.getElementById('track')
+    const hint = document.getElementById('hint')
+    const detail = document.getElementById('detail')
+    const source = document.getElementById('source')
+    if (bar) bar.style.width = ${JSON.stringify(width)}
+    if (track) track.classList.toggle('is-indeterminate', ${Boolean(indeterminate)})
+    if (hint) hint.textContent = ${JSON.stringify(String(hint))}
+    if (detail) detail.textContent = ${JSON.stringify(String(detail))}
+    if (source && ${JSON.stringify(String(source))}) source.textContent = ${JSON.stringify(String(source))}
+  })()`
+}
+
 /** 独立 DSH 窗口在 dsh 没跑时显示的页：给「启动」和「打开管理页」两个按钮（走 window.ipc）。 */
 export function idlePage(lang) {
   const en = lang === 'en'

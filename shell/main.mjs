@@ -10,7 +10,7 @@ import { BROWSER_IPC, DesktopBrowserGuests } from './browser-guests.mjs'
 import { corePackageName, channelOf, coreRegistries, fetchCoreMetadata, installCore, pickCoreRelease, tarballFor } from './core-fetch.mjs'
 import { createUpdater } from './updater.mjs'
 import { readPrefs } from './prefs.mjs'
-import { coreSetupPage, dataUrl, errorPage, idlePage, resolveDark } from './pages.mjs'
+import { coreSetupPage, coreSetupPaintScript, dataUrl, errorPage, idlePage, resolveDark } from './pages.mjs'
 import { clickTarget, dialogOptions, notificationDecision, notifyThrottled } from './desktop.mjs'
 import {
   LAUNCH_ACTIONS,
@@ -431,19 +431,21 @@ let coreSetupPaintPending = null
  * 以前每个 chunk 都 executeJavaScript 一次，下载快时会堆一长串跨进程调用，窗口看起来反而卡住；
  * 总大小未知时也别把进度条钉在 0%，切成不确定态动画并显示已下载字节数。
  */
-function paintCoreSetup(window, next) {
-  if (!window || window.isDestroyed()) return
+function paintCoreSetup(window, next, { immediate = false } = {}) {
+  if (!window || window.isDestroyed()) return Promise.resolve()
   coreSetupPaintPending = { window, state: next }
+  if (immediate) return flushCoreSetupPaint()
   const wait = Math.max(0, 120 - (Date.now() - coreSetupPaintAt))
-  if (wait === 0) flushCoreSetupPaint()
-  else if (!coreSetupPaintTimer) coreSetupPaintTimer = setTimeout(flushCoreSetupPaint, wait)
+  if (wait === 0) return flushCoreSetupPaint()
+  if (!coreSetupPaintTimer) coreSetupPaintTimer = setTimeout(flushCoreSetupPaint, wait)
+  return Promise.resolve()
 }
 
 function flushCoreSetupPaint() {
   coreSetupPaintTimer = null
   const job = coreSetupPaintPending
   coreSetupPaintPending = null
-  if (!job || !job.window || job.window.isDestroyed()) return
+  if (!job || !job.window || job.window.isDestroyed()) return Promise.resolve()
   coreSetupPaintAt = Date.now()
   const en = state.lang === 'en'
   const { phase, done = 0, total = 0, version = '', source = '' } = job.state
@@ -463,20 +465,13 @@ function flushCoreSetupPaint() {
       ? (en ? 'Download complete, extracting…' : '下载完成，正在解压…')
       : ''
   const sourceText = source ? (en ? `Source: ${source}` : `下载源：${source}`) : ''
-  job.window.webContents.executeJavaScript(
-    `(() => {
-      const bar = document.getElementById('bar')
-      const track = document.getElementById('track')
-      const hint = document.getElementById('hint')
-      const detail = document.getElementById('detail')
-      const source = document.getElementById('source')
-      if (bar) bar.style.width = ${percent}%
-      if (track) track.classList.toggle('is-indeterminate', ${!known})
-      if (hint) hint.textContent = ${JSON.stringify(hint)}
-      if (detail) detail.textContent = ${JSON.stringify(detail)}
-      if (source && ${JSON.stringify(sourceText)}) source.textContent = ${JSON.stringify(sourceText)}
-    })()`,
-  ).catch(() => { /* 窗口已经关了 */ })
+  return job.window.webContents.executeJavaScript(coreSetupPaintScript({
+    percent,
+    indeterminate: !known,
+    hint,
+    detail,
+    source: sourceText,
+  })).catch(() => { /* 窗口已经关了 */ })
 }
 
 function registryHost(registry) {
@@ -525,18 +520,22 @@ async function setupCore() {
   try {
     const { release, registry } = await chooseCoreRelease(fetchImpl)
     let currentRegistry = registry
-    const paint = (next) => paintCoreSetup(setup.window, {
+    const paint = (next, options) => paintCoreSetup(setup.window, {
       ...next,
       version: release.version,
       source: registryHost(currentRegistry),
-    })
+    }, options)
     console.log(`下载核心 ${release.version}（${corePackageName()}，${registryHost(registry)}）`)
     const install = (targetRelease) => installCore({
       release: targetRelease,
       target: ACTIVE_CORE,
       previous: PREVIOUS_CORE,
       fetchImpl,
-      onPhase: (phase) => paint({ phase }),
+      // 解压是 spawnSync，会占住主进程；先把「正在安装」同步画上去并留一帧，别让窗口停在 100% 后消失
+      onPhase: async (phase) => {
+        await paint({ phase }, { immediate: true })
+        if (phase === 'extract') await new Promise((resolve) => setTimeout(resolve, 80))
+      },
       onProgress: ({ done, total }) => paint({ phase: 'download', done, total }),
     })
     try {

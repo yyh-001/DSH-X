@@ -227,10 +227,10 @@ export async function installCore({ release, target, previous = '', onProgress, 
   const staging = `${target}.staging-${process.pid}`
   await mkdir(dirname(target), { recursive: true })
   try {
-    onPhase?.('download')
+    await onPhase?.('download')
     await downloadCoreTarball(release.tarball, tarball, { integrity: release.integrity, onProgress, fetchImpl })
     // 解压用的是 spawnSync 的 tar，主进程会短暂停住；先把窗口切到「安装中」，别让进度条停在 100%。
-    onPhase?.('extract')
+    await onPhase?.('extract')
     const pkg = extractCoreTarball(tarball, staging)
     if (release.version && String(pkg.version) !== String(release.version)) {
       throw new Error(`核心包版本不一致：${pkg.version} != ${release.version}`)
