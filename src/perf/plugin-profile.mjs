@@ -53,11 +53,20 @@ function packageOf(url, names) {
   return '(其他)'
 }
 
-function summarize(cpuProfile, heapProfile) {
+export function summarize(cpuProfile, heapProfile) {
   const names = new Set(entries.map((row) => row.name).filter((name) => name && !name.startsWith('cordis:')))
   const nodes = new Map((cpuProfile.nodes || []).map((node) => [node.id, node]))
+  // 没有 URL 的帧（open/readFileUtf8/spawn/GC…）往上找最近的 JS 调用方，
+  // 才能回答「这个插件在启动时到底占了多久」；找不到调用方的才记成未归属。
+  const parentOf = new Map()
+  for (const node of cpuProfile.nodes || []) {
+    // V8 的 children 里存的是节点 id（不是节点对象），按 id 建反向表。
+    for (const child of node.children || []) parentOf.set(child, node)
+  }
   const cpuUs = new Map()
+  const nativeByPackage = new Map()
   const nativeUs = new Map()
+  let nativeUnattributedUs = 0
   let totalUs = 0
   let idleUs = 0
   const samples = cpuProfile.samples || []
@@ -70,9 +79,18 @@ function summarize(cpuProfile, heapProfile) {
     if (fn === '(idle)' || fn === '(root)') { idleUs += delta; continue }
     const url = node?.callFrame?.url || ''
     if (!url) {
-      // 没有 URL 的帧：GC、V8 编译/内置函数。单列出来，否则会盖住插件的账。
+      // 没有 URL 的帧：GC、V8 编译/内置函数。按调用方归属，同时保留系统调用分类。
       const key = fn || '(匿名原生)'
       nativeUs.set(key, (nativeUs.get(key) || 0) + delta)
+      let owner = parentOf.get(node?.id)
+      let ownerPkg = ''
+      while (owner) {
+        const ownerUrl = owner.callFrame?.url
+        if (ownerUrl) { ownerPkg = packageOf(ownerUrl, names); break }
+        owner = parentOf.get(owner.id)
+      }
+      if (ownerPkg) nativeByPackage.set(ownerPkg, (nativeByPackage.get(ownerPkg) || 0) + delta)
+      else nativeUnattributedUs += delta
       continue
     }
     const pkg = packageOf(url, names)
@@ -93,12 +111,18 @@ function summarize(cpuProfile, heapProfile) {
   }
   walk(heapProfile?.head)
 
-  const packages = [...new Set([...cpuUs.keys(), ...allocBytes.keys()])].map((name) => ({
-    name,
-    cpuMs: Math.round((cpuUs.get(name) || 0) / 1000),
-    allocKB: Math.round((allocBytes.get(name) || 0) / 1024),
-    plugin: names.has(name),
-  })).sort((a, b) => b.cpuMs - a.cpuMs)
+  const packages = [...new Set([...cpuUs.keys(), ...nativeByPackage.keys(), ...allocBytes.keys()])].map((name) => {
+    const cpuMs = Math.round((cpuUs.get(name) || 0) / 1000)
+    const nativeMs = Math.round((nativeByPackage.get(name) || 0) / 1000)
+    return {
+      name,
+      cpuMs,
+      nativeMs,
+      totalMs: cpuMs + nativeMs,
+      allocKB: Math.round((allocBytes.get(name) || 0) / 1024),
+      plugin: names.has(name),
+    }
+  }).sort((a, b) => b.totalMs - a.totalMs || b.cpuMs - a.cpuMs)
 
   return {
     version: REPORT_VERSION,
@@ -109,6 +133,7 @@ function summarize(cpuProfile, heapProfile) {
     idleMs: Math.round(idleUs / 1000),
     allocMB: +(totalAlloc / 1048576).toFixed(1),
     packages,
+    nativeUnattributedMs: Math.round(nativeUnattributedUs / 1000),
     native: [...nativeUs.entries()]
       .map(([name, us]) => ({ name, cpuMs: Math.round(us / 1000) }))
       .sort((a, b) => b.cpuMs - a.cpuMs)

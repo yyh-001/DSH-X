@@ -1584,6 +1584,12 @@
   "插件按它引用到的依赖计入（共用依赖按引用它的插件均摊）；合计是版本目录 + 这个环境目录的逻辑大小，pnpm 共享 store 不重复计入。": "Plugins are counted with the dependencies they pull in (shared dependencies are split across the plugins that use them); the total is the logical size of the version directory plus this environment directory, and the shared pnpm store is not counted twice.",
   "窗口 {window} · CPU {cpu}": "Window {window} · CPU {cpu}",
   "最耗时的 5 项": "Top 5 by time",
+  "各插件耗时（含它触发的原生/GC）": "Time by plugin (including the native/GC it triggers)",
+  "原生与 GC 明细": "Native & GC breakdown",
+  "原生/GC 已按调用方归到上面的包；这里只按系统调用/GC 类型汇总。": "Native/GC time is attributed to the calling package above; this lists it by syscall/GC type only.",
+  "插件（含它触发的原生/GC）合计 {plugin}%；其余为 Node 启动、其它包与未归属。": "Plugins (including the native/GC they trigger) total {plugin}%; the rest is Node startup, other packages and unattributed time.",
+  "未归属原生/GC": "Unattributed native/GC",
+  "JS {cpu} · 原生 {native}": "JS {cpu} · native {native}",
   "插件合计只占 {plugin}%；其余为模块解析、文件扫描与 Node 启动。": "Plugins account for only {plugin}%; the rest is module resolution, file scanning and Node startup.",
   "清空这个启动项的日志？": "Clear this launch entry's log?",
   "日志已清空。": "Log cleared.",
@@ -5263,15 +5269,18 @@
       }))
     }
 
-    /** 启动 CPU 账本：插件 / Node 内部 / 其它包 / 原生与 GC 四桶相加，别再让时间“不知去向”。 */
+    /** 启动 CPU 账本：插件 / Node 内部 / 其它包 / 未归属原生/GC 相加；原生时间按调用方归到包。 */
     function renderLaunchReport(report) {
       const packages = Array.isArray(report?.packages) ? report.packages : []
       const native = Array.isArray(report?.native) ? report.native : []
-      const sumOf = (rows, pick) => rows.reduce((sum, row) => sum + (pick(row) ? Number(row.cpuMs) || 0 : 0), 0)
+      const totalOf = (row) => Number(row.totalMs ?? row.cpuMs) || 0
+      const sumOf = (rows, pick) => rows.reduce((sum, row) => sum + (pick(row) ? totalOf(row) : 0), 0)
       const pluginMs = sumOf(packages, (row) => row.plugin)
       const nodeMs = sumOf(packages, (row) => row.name === '(Node 内部)')
       const otherMs = sumOf(packages, (row) => !row.plugin && row.name !== '(Node 内部)')
-      const nativeMs = sumOf(native, () => true)
+      // 新报告把原生/GC 按调用方归到包，只把找不到调用方的部分单列；旧报告没有归属，全部单列。
+      const unattributed = Number(report?.nativeUnattributedMs)
+      const nativeMs = Number.isFinite(unattributed) ? unattributed : native.reduce((sum, row) => sum + (Number(row.cpuMs) || 0), 0)
       const ledger = pluginMs + nodeMs + otherMs + nativeMs
       if (ledger < 1) {
         launchLogPluginsEl.hidden = true
@@ -5285,28 +5294,28 @@
         { key: 'plugin', label: t('插件'), ms: pluginMs },
         { key: 'node', label: t('Node 内部'), ms: nodeMs },
         { key: 'other', label: t('其它包'), ms: otherMs },
-        { key: 'native', label: t('原生与 GC'), ms: nativeMs },
+        { key: 'native', label: t('未归属原生/GC'), ms: nativeMs },
         { key: 'rest', label: t('未归类'), ms: Math.max(0, cpu - ledger) },
       ].filter((segment) => segment.ms >= 1)
-      const rows = [...packages].filter((row) => Number(row.cpuMs) >= 1).sort((left, right) => right.cpuMs - left.cpuMs).slice(0, 5)
-      const max = Math.max(...rows.map((row) => Number(row.cpuMs) || 0), 1)
-      const busy = Number(report.windowMs) > 0 && Number(report.cpuMs) / Number(report.windowMs) >= 0.8
-      const nativeList = native
-        .filter((row) => Number(row.cpuMs) >= 1)
-        .sort((left, right) => right.cpuMs - left.cpuMs)
-        .slice(0, 3)
-        .map((row) => `${row.name} ${formatProfileMs(row.cpuMs)}`)
-        .join(' · ')
+      const splitTitle = (row) => t('JS {cpu} · 原生 {native}', { cpu: formatProfileMs(Number(row.cpuMs) || 0), native: formatProfileMs(Number(row.nativeMs) || 0) })
+      const pluginRows = packages.filter((row) => row.plugin && totalOf(row) >= 1).sort((left, right) => totalOf(right) - totalOf(left)).slice(0, 5)
+      const pluginMax = Math.max(...pluginRows.map((row) => totalOf(row)), 1)
+      const rows = [...packages].filter((row) => totalOf(row) >= 1).sort((left, right) => totalOf(right) - totalOf(left)).slice(0, 5)
+      const max = Math.max(...rows.map((row) => totalOf(row)), 1)
+      const nativeRows = native.filter((row) => Number(row.cpuMs) >= 1).sort((left, right) => right.cpuMs - left.cpuMs).slice(0, 6)
+      const nativeMax = Math.max(...nativeRows.map((row) => Number(row.cpuMs) || 0), 1)
       launchLogWindowEl.textContent = t('窗口 {window} · CPU {cpu}', { window: formatProfileMs(report.windowMs), cpu: formatProfileMs(report.cpuMs) })
       launchLogPluginsEl.innerHTML = `
         <div class="launch-log-ledger" role="img" aria-label="${escapeHtml(segments.map((segment) => `${segment.label} ${formatProfileMs(segment.ms)}`).join('，'))}">${segments.map((segment) => `<span class="ledger-${segment.key}" style="flex:${Math.max(segment.ms, cpu * 0.004)} 1 0" title="${escapeHtml(`${segment.label} ${formatProfileMs(segment.ms)}`)}"><span>${percent(segment.ms)}%</span></span>`).join('')}</div>
         <div class="launch-log-legend">${segments.map((segment) => `<span><i class="ledger-${segment.key}"></i>${escapeHtml(segment.label)} <b>${escapeHtml(formatProfileMs(segment.ms))}</b></span>`).join('')}</div>
+        ${pluginRows.length ? `<div class="launch-log-subhead">${escapeHtml(t('各插件耗时（含它触发的原生/GC）'))}</div>
+        <div class="launch-log-bars">${pluginRows.map((row) => `<div class="launch-log-bar-row is-plugin"><span class="name" title="${escapeHtml(`${row.name} · ${splitTitle(row)}`)}">${escapeHtml(row.name)}</span><span class="track"><span class="fill" style="width:${Math.max(2, totalOf(row) / pluginMax * 100).toFixed(1)}%"></span></span><span class="value">${escapeHtml(formatProfileMs(totalOf(row)))}</span></div>`).join('')}</div>` : ''}
         <div class="launch-log-subhead">${escapeHtml(t('最耗时的 5 项'))}</div>
-        <div class="launch-log-bars">${rows.map((row) => `<div class="launch-log-bar-row${row.plugin ? ' is-plugin' : ''}"><span class="name" title="${escapeHtml(row.name)}">${escapeHtml(row.name)}</span><span class="track"><span class="fill" style="width:${Math.max(2, (Number(row.cpuMs) || 0) / max * 100).toFixed(1)}%"></span></span><span class="value">${escapeHtml(formatProfileMs(row.cpuMs))}</span></div>`).join('')}</div>
-        ${nativeList ? `<p class="hint launch-log-note">${escapeHtml(t('原生与 GC {total}：{list}', { total: formatProfileMs(nativeMs), list: nativeList }))}</p>` : ''}
-        <p class="hint launch-log-note">${escapeHtml(busy
-          ? t('插件合计只占 {plugin}%；其余为模块解析、文件扫描与 Node 启动。', { plugin: percent(pluginMs) })
-          : t('插件合计只占 {plugin}%。', { plugin: percent(pluginMs) }))}</p>`
+        <div class="launch-log-bars">${rows.map((row) => `<div class="launch-log-bar-row${row.plugin ? ' is-plugin' : ''}"><span class="name" title="${escapeHtml(`${row.name} · ${splitTitle(row)}`)}">${escapeHtml(row.name)}</span><span class="track"><span class="fill" style="width:${Math.max(2, totalOf(row) / max * 100).toFixed(1)}%"></span></span><span class="value">${escapeHtml(formatProfileMs(totalOf(row)))}</span></div>`).join('')}</div>
+        ${nativeRows.length ? `<div class="launch-log-subhead">${escapeHtml(t('原生与 GC 明细'))}</div>
+        <div class="launch-log-bars">${nativeRows.map((row) => `<div class="launch-log-bar-row"><span class="name" title="${escapeHtml(row.name)}">${escapeHtml(row.name)}</span><span class="track"><span class="fill" style="width:${Math.max(2, (Number(row.cpuMs) || 0) / nativeMax * 100).toFixed(1)}%"></span></span><span class="value">${escapeHtml(formatProfileMs(row.cpuMs))}</span></div>`).join('')}</div>` : ''}
+        ${nativeRows.length ? `<p class="hint launch-log-note">${escapeHtml(t('原生/GC 已按调用方归到上面的包；这里只按系统调用/GC 类型汇总。'))}</p>` : ''}
+        <p class="hint launch-log-note">${escapeHtml(t('插件（含它触发的原生/GC）合计 {plugin}%；其余为 Node 启动、其它包与未归属。', { plugin: percent(pluginMs) }))}</p>`
       launchLogPluginsEl.hidden = false
       syncLaunchLogVisual()
     }

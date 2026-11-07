@@ -41,7 +41,7 @@ test('日志弹窗结构：页签、四块面板和样式都在', () => {
   assert.match(html, /data-log-panel="raw">/)
   assert.match(css, /\.launch-log-tabs \{[^}]*display: flex/)
   assert.match(css, /\.launch-log-tab\[aria-selected="true"\]/)
-  assert.match(css, /#launchLogSpace \.launch-log-block \{[^}]*overflow-y: auto/, '空间构成卡片内部要能滚动')
+  assert.match(css, /#launchLogSpace \.launch-log-block[^{]*\{[^}]*overflow-y: auto/, '空间构成卡片内部要能滚动')
 })
 
 test('没有内容的页签收起；切走的面板隐藏；当前页签消失时回到原始日志', () => {
