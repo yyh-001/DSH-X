@@ -514,6 +514,7 @@ function failedCoreVersion() {
  */
 async function setupCore() {
   const setup = showCoreSetupWindow()
+  const shownAt = Date.now()
   // 首启时还没有核心，读不到设置里的下载源/代理；用 Electron 的 net.fetch，至少跟随系统代理
   const fetchImpl = (url, init) => net.fetch(url, init)
   paintCoreSetup(setup.window, { phase: 'connect' })
@@ -551,6 +552,9 @@ async function setupCore() {
       await install({ ...release, tarball })
     }
     console.log(`核心已就绪：${ACTIVE_CORE}（${release.version}，${registryHost(currentRegistry)}）`)
+    // 网快时 12 MB 一秒就下完，窗口一闪而过；至少留 1.2 秒把进度和结果展示完
+    const remain = 1_200 - (Date.now() - shownAt)
+    if (remain > 0) await new Promise((resolve) => setTimeout(resolve, remain))
     return ACTIVE_CORE
   } catch (error) {
     setup.finish()

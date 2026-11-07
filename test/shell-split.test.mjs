@@ -104,6 +104,7 @@ test('首启下载页：实时进度、下载源、取消，总大小未知时�
   assert.match(main, /tarballFor\(alternate/, 'tarball 下载失败换源重试')
   assert.match(main, /await paint\(\{ phase \}, \{ immediate: true \}\)/, '解压前同步画「安装中」')
   assert.match(main, /setTimeout\(resolve, 80\)/, '解压前留一帧，窗口别停在 100% 就消失')
+  assert.match(main, /1_200 - \(Date\.now\(\) - shownAt\)/, '网快时窗口至少留 1.2 秒，别一闪而过')
   assert.match(read('shell/core-fetch.mjs'), /await onPhase\?\.\('extract'\)/, '解压阶段回调要 await')
 })
 
