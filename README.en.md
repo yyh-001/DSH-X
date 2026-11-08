@@ -38,13 +38,14 @@
 ## Features
 
 - 🚀 **Launch entries and multiple instances** — choose a home directory, profile, version and port per entry; start entries concurrently and add entries while DSH is running.
-- 📦 **Version management** — a dedicated manager for detecting new releases, manually installing, removing and assigning versions to launch entries.
-- 🧩 **Plugins and packs** — install, toggle and update plugins by environment and configure default indexes for the official custom plugin market; browse, search and sort the masonry-style community market, or import and export packs.
+- 📦 **Version management** — a dedicated manager for detecting new releases, manually installing, removing, checking disk usage and assigning versions to launch entries.
+- 🧩 **Plugins and packs** — install, uninstall, toggle and update plugins by environment (npm package names, local paths or Git URLs) and configure default indexes for the official custom plugin market; browse, search and sort the masonry-style community market, or import and export packs.
 - 🖥️ **Desktop enhancements** — tick it when adding a launch item to install three first-party plugins (native notifications, context menu, sidebar browser) into that environment; add missing ones later by editing the launch item, then toggle or update them individually on the Plugins page.
 - 🛠️ **MCP and skills** — configure MCP servers and import, manage and toggle skills.
 - 🪟 **Opening modes** — tabs inside DSH-X, a system browser tab, a standalone browser window or a desktop window.
 - 🎨 **Appearance** — light / dark themes, transparency, opening and launch-entry animations, and separate background and Big Fish switches.
-- 🔄 **Updates and recovery** — self-update, profile recovery and configurable old-version retention; each launch entry's current and previous versions are kept additionally.
+- 🔄 **Updates and recovery** — self-update, profile recovery, profile backups and rollback, plus configurable old-version retention; each launch entry's current and previous versions are kept additionally.
+- 🔍 **Startup troubleshooting** — the launch log has three tabs (raw log / time breakdown / disk usage) and plugin diagnostics on the raw log page: startup time and dependencies rolled up per plugin, native/GC detail, and disk usage split into plugin code, dependencies, runtime and config/data; the log icon turns red when a plugin errors.
 - ⚙️ **Desktop system switches** — hardware acceleration, automatic update download (install manually), task notifications and sound, hide to tray on close, and keep-awake.
 - 💻 **Windows / macOS / Linux** — installers for all three platforms, tray / menu bar operation and launch at login, plus bundled npm / pnpm wrappers.
 
@@ -57,6 +58,9 @@ Download the installer for your platform from [Releases](https://github.com/yyh-
 | Windows | Windows 10 or later, x64 | `DSH-Setup-<version>.exe` (NSIS) |
 | macOS | macOS 13 or later | `DSH-X-<version>-arm64.dmg` (Apple Silicon) / `DSH-X-<version>-x64.dmg` (Intel) |
 | Linux | x64; AppImage needs FUSE | `DSH-X-<version>-x86_64.AppImage` / `DSH-X-<version>-amd64.deb` |
+
+> [!NOTE]
+> The installer ships only the shell and Electron; the core is not bundled. The first launch needs network access: it downloads the current channel's `dsh-x-core` from npm and shows live progress and the download source. Later core updates also come from npm.
 
 ### Windows
 
@@ -119,6 +123,15 @@ In the first two modes, then pick where the **profile** comes from:
 What gets copied is the **profile**, not the whole environment: `package.json`, `cordis.patch.yml`, plugin switches and MCP settings come along,
 dependencies are reinstalled from their version ranges (not copied from `node_modules`), and the user-level `skills`, Prompt settings, per-plugin data directories and session history are not.
 Local `file:` / `link:` / `portal:` dependencies are rewritten for the new location; paths pointing outside the source directory are left as-is, so that workspace must still exist.
+
+### Troubleshooting a launch
+
+The launch log dialog has three tabs, shown only when data was collected: **Raw log** is always there, **Time breakdown** groups startup time by plugin (shared dependencies are split across the plugins that use them), and **Disk usage** splits the footprint into plugin code, plugin dependencies, runtime, runtime dependencies, and config & data. The raw log page also shows **Plugin diagnostics** at the top: which plugin is incompatible, where startup failed, and any repair plan. When a plugin errors, the log icon on the launch entry turns red.
+
+### Plugins and profiles
+
+- The **+** button on the Plugins page adds a plugin by npm package name, local absolute path or Git URL; installing and removing keeps the bundle layer stack and dependencies in sync.
+- The home plugin dialog's **More actions** menu has **Profile backups & rollback**: a config-layer snapshot is saved before each launch, and you can also click **Back up now**. Restoring reinstalls dependencies from the restored manifest and requires restarting that profile's instance to take effect.
 
 ## Screenshots
 
@@ -255,6 +268,8 @@ npm run dist
 ```
 
 Windows produces `release/eb/DSH-Setup-<version>.exe` (NSIS) plus the legacy `release/eb/DSH-Setup.exe` bridge for the 0.1.18 updater; macOS produces `release/eb/DSH-X-<version>-<arch>.dmg`; Linux produces `release/eb/DSH-X-<version>-x86_64.AppImage`. Installers are built with electron-builder; Rust / Inno Setup are no longer required.
+
+The installer contains only the shell and Electron; the core is not bundled. On first launch `shell/core-fetch.mjs` fetches it from npm into `core/current` in the user data directory, and later core updates follow npm.
 
 Builds also write an SBOM and release manifest for local checking (not uploaded to the release). Check the version and artifacts before publishing:
 
