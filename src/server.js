@@ -3068,7 +3068,8 @@ async function reinstallAfterRollback(profile) {
   try {
     manifest = JSON.parse(readFileSync(join(profileDirOf(profile), 'package.json'), 'utf8'))
   } catch {
-    return null
+    // 还原后没有（或读不了）清单：没东西可装。明确回 skipped，页面才不会说「已重装依赖」
+    return { ok: true, skipped: true }
   }
   const dependencies = manifest?.dependencies
   // 没有直接依赖就没什么可装的（官方 bundle 由 dsh 自己带），别白起一次 pnpm。

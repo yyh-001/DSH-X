@@ -461,7 +461,7 @@ test('两档 tab 只换来源面板：浮块按 data-active 平移，选中态�
   assert.match(prepare, /const typed = String\(guidedProfileNameEl\(\)\?\.value \|\| ''\)\.trim\(\)/, '名字两档都读')
   assert.match(prepare, /typed \|\| \(copy \? suggestCopyProfile\(copy\.profile\) : ''\) \|\| suggestIsolatedProfile\(\)/, '复制档建议「来源-copy」')
   assert.match(prepare, /if \(launchSourceMode === 'copy' && !copy\) throw new Error\(t\('先选一份要复制的 Profile'\)\)/, '停在复制那档却没来源就不许保存')
-  assert.match(prepare, /RESERVED_PROFILE_NAMES\.has\(typed\.toLowerCase\(\)\)/, '保留名在页面就拦住，错误指向名字输入')
+  assert.match(prepare, /RESERVED_PROFILE_NAMES\.has\(lower\)/, '保留名在页面就拦住，错误指向名字输入')
   assert.match(prepare, /已经有「\{name\}」，换个名字再复制/, '目标已存在时说清保存会跳过复制')
 })
 
@@ -664,6 +664,8 @@ test('复制档的坏输入当场说清：保留名、和来源同名、目标�
   // 手填保留名：服务端只会报「系统保留名称」，页面把错误指到名字输入上
   const reserved = guidedHarness({ mode: 'profile', copyProfile: 'ios-dev', profileCustom: 'desktop', profiles: ['web', 'ios-dev'] })
   await assert.rejects(reserved.context.prepareGuidedLaunch(), /系统保留名称/)
+  const reservedTemplate = guidedHarness({ mode: 'profile', copyProfile: 'ios-dev', profileCustom: 'web', profiles: ['web', 'ios-dev'] })
+  await assert.rejects(reservedTemplate.context.prepareGuidedLaunch(), /系统保留名称/, '复制总是新建：模板名也不能当目标')
 
   // 同目录同名字 = 拿自己复制自己
   const same = guidedHarness({ mode: 'home', home: 'C:/global', copyHome: '', copyProfile: 'ios-dev', homeProfile: 'ios-dev', profiles: ['web', 'ios-dev'], webProfiles: ['web', 'ios-dev'] })
@@ -695,3 +697,27 @@ test('复制建议名：撞名顺延、长度不超 32、保留名永远不当�
   assert.equal(context.suggestCopyProfile(''), 'work', '没有来源名时退回通用名')
 })
 
+
+test('不复制时模板名 web 照常能用（占位符就写着「留空用 web」），已有的 desktop 也能直接复用', async () => {
+  const web = guidedHarness({ mode: 'home', home: 'D:/homes/iso', homeProfile: 'web', profiles: ['web'], webProfiles: ['web'] })
+  const target = await web.context.prepareGuidedLaunch()
+  assert.equal(target.profile, 'web')
+  const desktop = guidedHarness({ mode: 'profile', profileCustom: 'desktop', profiles: ['web', 'desktop'], webProfiles: ['web', 'desktop'] })
+  assert.equal((await desktop.context.prepareGuidedLaunch()).profile, 'desktop')
+  const fresh = guidedHarness({ mode: 'profile', profileCustom: 'desktop', profiles: ['web'] })
+  await assert.rejects(fresh.context.prepareGuidedLaunch(), /系统保留名称/, '没有 desktop 时不许新建这个名字')
+  const modules = guidedHarness({ mode: 'profile', profileCustom: 'node_modules', profiles: ['web'] })
+  await assert.rejects(modules.context.prepareGuidedLaunch(), /系统保留名称/)
+})
+
+test('跨目录复制、名字留空：建议名按目标目录里已有的 Profile 顺延，不会悄悄复用旧的', async () => {
+  const h = guidedHarness({ mode: 'home', home: 'D:/homes/iso', copyProfile: 'ios-dev', copyHome: 'C:/global', profileCustom: '', profiles: ['web', 'ios-dev'] })
+  h.context.state.profiles = ['web', 'ios-dev']
+  const original = h.context.getJson
+  h.context.getJson = async (url) => {
+    const data = await original(url)
+    return url.startsWith('/api/launch-home/profiles') ? { ...data, profiles: ['web', 'ios-dev-copy'] } : data
+  }
+  const target = await h.context.prepareGuidedLaunch()
+  assert.equal(target.profile, 'ios-dev-copy-2', '目标目录里已经有 ios-dev-copy')
+})
