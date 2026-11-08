@@ -151,3 +151,32 @@ test('profile 锁：有人在用就拒绝，僵死锁清掉重来', async () => 
   assert.equal(await withProfileLock(dir, () => 'ok', gone), 'ok')
   assert.equal(existsSync(lockPath), false)
 })
+
+test('连着安全启动两次：提示指向最早那份（用户真正的配置），还原后整串收掉，不会冒出旧的', async () => {
+  const dir = makeProfile({ bundles: ['@deepseek-ai/dsh-web-app', 'plugin-a'], patch: 'user-config\n' })
+  const first = await sanitizeProfile(dir)
+  // 中间 dsh 自己重建了补丁层，用户又装了一个插件，再安全启动一次
+  writeFileSync(patchOf(dir), '[]\n')
+  writeFileSync(join(dir, 'package.json'), `${JSON.stringify({ name: 'web', dsh: { profile: { bundles: ['@deepseek-ai/dsh-web-app', 'plugin-b'] } } }, null, 2)}\n`)
+  const second = await sanitizeProfile(dir)
+  assert.notEqual(first.backup, second.backup)
+  const found = latestRecovery(dir)
+  assert.equal(found.backup, first.backup, '最早那份里才是用户的补丁层')
+  assert.deepEqual(found.dropped.sort(), ['plugin-a', 'plugin-b'], '两次摘掉的 bundle 合起来')
+  const result = await restoreProfileBackup(dir, found.backup)
+  assert.equal(readFileSync(patchOf(dir), 'utf8'), 'user-config\n')
+  assert.deepEqual(result.restoredBundles.sort(), ['plugin-a', 'plugin-b'])
+  assert.deepEqual(bundlesOf(dir).sort(), ['@deepseek-ai/dsh-web-app', 'plugin-a', 'plugin-b'])
+  assert.equal(latestRecovery(dir), null, '还原了一份，这一串都算处理过了')
+})
+
+test('备份列表：同一毫秒撞名的 -1 序号按时间排在原备份之后（更新），不沉到最旧', () => {
+  const dir = makeProfile({ patch: '[]\n' })
+  const patch = patchOf(dir)
+  writeFileSync(`${patch}.bak-1000`, 'a')
+  writeFileSync(`${patch}.bak-2000`, 'b')
+  writeFileSync(`${patch}.bak-2000-1`, 'c')
+  assert.deepEqual(listPatchBackups(dir).map((item) => item.name), [
+    'cordis.patch.yml.bak-2000-1', 'cordis.patch.yml.bak-2000', 'cordis.patch.yml.bak-1000',
+  ])
+})
