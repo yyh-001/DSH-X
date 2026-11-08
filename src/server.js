@@ -226,8 +226,11 @@ let DSH_HOME_DIR = safeDshHome(loadSettingsSync().dshHome)
 const launchScope = new AsyncLocalStorage()
 const defaultHome = () => DSH_HOME_DIR || defaultDshHome()
 /**
- * 固定端口只认「还登记过、目录也还在」的环境。旧 DSH_HOME 被删掉/换盘后，
- * environmentPorts 里那条钉子会把端口永久占住（#90），这里直接把它当不存在。
+ * 固定端口只认「还登记着」的环境。旧 DSH_HOME 换盘/移除登记后，environmentPorts 里那条钉子
+ * 会把端口永久占住（#90），这里直接把它当不存在。
+ * 不看目录在不在：外接盘/网络盘上的环境开机自启时可能还没挂上，按「目录不存在」清掉会把用户
+ * 钉好的端口永久抹掉（启动时还会写回文件）；新建启动项钉端口时目录也可能还没建。
+ * 真正不要的环境由「移除用户目录」带走它的钉子（/api/dsh-homes/remove）。
  */
 function liveEnvironmentPorts(stored) {
   const environments = safeEnvironmentPorts(stored?.environmentPorts)
@@ -237,7 +240,7 @@ function liveEnvironmentPorts(stored) {
     ...safeLaunchPresets(stored?.launchPresets).map((entry) => entry.dshHome).filter(Boolean),
   ]
   return Object.fromEntries(Object.entries(environments).filter(([dir]) =>
-    existsSync(dir) && known.some((item) => fileManager.samePath(dir, item))))
+    known.some((item) => fileManager.samePath(dir, item))))
 }
 ENVIRONMENT_PORTS = liveEnvironmentPorts(loadSettingsSync())
 const profileKey = (profile) => `${homeDir()}\0${profile}`
