@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import { disableRowId, enableRowId, ensureBundleMounted, readPatchState } from '../src/plugins.js'
+import { bundleNameOf, disableRowId, enableRowId, ensureBundleMounted, listPlugins, readPatchState } from '../src/plugins.js'
 
 function patchFile(content) {
   const dir = mkdtempSync(join(tmpdir(), 'dsh-patch-'))
@@ -157,4 +157,27 @@ test('ensureBundleMounted：file:/git: 源和没有 bundles 字段的清单不�
   assert.equal(ensureBundleMounted(profile, 'file:C:/x/plugin').ok, false)
   assert.equal(ensureBundleMounted(profile, 'pkg@1.0').ok, false, '没有 bundles 字段的老清单不动')
   assert.deepEqual(JSON.parse(readFileSync(join(profile, 'package.json'), 'utf8')), { dependencies: {} })
+})
+
+test('bundleNameOf：scp 形态的 git 地址取不出包名（装完再按依赖对比），npm 名照常剥版本', () => {
+  assert.equal(bundleNameOf('git@github.com:me/plugin.git'), '')
+  assert.equal(bundleNameOf('ssh://git@example.com/me/plugin.git'), '')
+  assert.equal(bundleNameOf('git://example.com/me/plugin.git'), '')
+  assert.equal(bundleNameOf('@scope/pkg@1.2.3'), '@scope/pkg')
+  assert.equal(bundleNameOf('pkg@^1'), 'pkg')
+})
+
+test('listPlugins：清单没有 bundles 字段时插件按挂着算，不全部显示成关闭', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-nobundles-'))
+  const pkgDir = join(dir, 'node_modules', 'dsh-plugin-x')
+  mkdirSync(pkgDir, { recursive: true })
+  writeFileSync(join(pkgDir, 'package.json'), JSON.stringify({ name: 'dsh-plugin-x', version: '1.0.0' }))
+  writeFileSync(join(pkgDir, 'cordis.patch.yml'), '- insert:\n    - id: px01\n      name: x\n')
+  writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'p', dependencies: { 'dsh-plugin-x': '1.0.0' } }))
+  const plugin = listPlugins(dir).plugins.find((item) => item.name === 'dsh-plugin-x')
+  assert.ok(plugin.ids.length, '有加载行')
+  assert.equal(plugin.mounted, true)
+  assert.equal(plugin.enabled, true)
+  writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'p', dependencies: { 'dsh-plugin-x': '1.0.0' }, dsh: { profile: { bundles: [] } } }))
+  assert.equal(listPlugins(dir).plugins.find((item) => item.name === 'dsh-plugin-x').enabled, false, '有 bundles 数组但没挂上：照旧显示关闭')
 })
