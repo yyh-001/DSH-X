@@ -128,18 +128,21 @@ jobs:
           esac
           gh release create "$tag" "${args[@]}"
           # 预发布通道不看 /releases/latest，而是按通道在 release 列表里挑最新的 rc/alpha tag。
-          # 纯核心的预发布 tag 上没有安装包，把上一次外壳发版的 latest.yml 原样放一份，
+          # 纯核心的预发布 tag 上没有安装包，把上一次外壳发版的 latest.yml / latest-linux.yml 原样放一份，
           # electron-updater 读到的是旧版本号 → 正常判「已是最新」，不会报「找不到 latest.yml」。
+          # 两个文件各找各的：Linux 的 AppImage 通道读 latest-linux.yml，只补 Windows 那份 Linux 会照样报错。
           if [[ "$tag" == *-* ]] && [ "${{ steps.installers.outputs.shell_changed }}" = "0" ]; then
             mkdir -p "$RUNNER_TEMP/shell-yml"
-            for t in $(git tag --sort=-v:refname | head -20); do
-              [ "$t" = "$tag" ] && continue
-              if gh release view "$t" --json assets --jq '.assets[].name' 2>/dev/null | grep -qx latest.yml; then
-                gh release download "$t" --pattern latest.yml --dir "$RUNNER_TEMP/shell-yml" --clobber
-                gh release upload "$tag" "$RUNNER_TEMP/shell-yml/latest.yml" --clobber
-                echo "已把 $t 的 latest.yml 复制到 $tag（外壳版本没变，预发布通道照旧）"
-                break
-              fi
+            for yml in latest.yml latest-linux.yml; do
+              for t in $(git tag --sort=-v:refname | head -20); do
+                [ "$t" = "$tag" ] && continue
+                if gh release view "$t" --json assets --jq '.assets[].name' 2>/dev/null | grep -qx "$yml"; then
+                  gh release download "$t" --pattern "$yml" --dir "$RUNNER_TEMP/shell-yml" --clobber
+                  gh release upload "$tag" "$RUNNER_TEMP/shell-yml/$yml" --clobber
+                  echo "已把 $t 的 $yml 复制到 $tag（外壳版本没变，预发布通道照旧）"
+                  break
+                fi
+              done
             done
           fi
 
@@ -367,8 +370,10 @@ jobs:
 
   # 核心 npm 包：和安装包完全独立。纯核心发版时三个平台的 dist job 全跳过，这里照发 dsh-x-core；
   # 以前这一步挂在 mac arm64 job 里，跳过 mac 就等于核心发不出去。
+  # 等 Windows / Linux 的整套测试过了再发：首启和核心更新都从 npm 取最新核心，
+  # 测试没过的 tag 一旦发出去，所有新装用户会同时拿到它。这两个 job 纯核心发版时也照跑测试。
   core-package:
-    needs: prepare
+    needs: [prepare, windows, linux]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
