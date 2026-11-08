@@ -4676,9 +4676,15 @@ async function runProfileInstall(version, options = {}) {
   await mkdir(homeDir(), { recursive: true })
   await ensureProfileNpmrc(profile)
   // 这轮进度属于哪个 profile：恢复档弹窗据此把「正在重装依赖」接到真实进度上。
-  pluginProgressName = ''
-  pluginProgressProfile = profile
-  emitPluginProgress({ phase: 'resolve' })
+  // 调用方自带 onProgress（整合包安装）时进度归它，别再去插件页闪一下再清空；
+  // 收尾时还原调用方设过的名字/profile，不把别人正在显示的进度抹掉。
+  const ownsProgress = typeof onProgress !== 'function'
+  const previous = { name: pluginProgressName, profile: pluginProgressProfile }
+  if (ownsProgress) {
+    pluginProgressName = ''
+    pluginProgressProfile = profile
+    emitPluginProgress({ phase: 'resolve' })
+  }
   try {
     await run()
   } catch (error1) {
@@ -4691,10 +4697,12 @@ async function runProfileInstall(version, options = {}) {
     if (again) log(`先清理了 ${again} 个悬空的链接`)
     await run()
   } finally {
-    pluginProgressName = ''
-    pluginProgressProfile = ''
     invalidateStorageBreakdown()
-    emitPluginProgress(null)
+    if (ownsProgress) {
+      pluginProgressName = previous.name
+      pluginProgressProfile = previous.profile
+      emitPluginProgress(null)
+    }
   }
 }
 
