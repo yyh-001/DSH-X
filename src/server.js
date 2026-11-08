@@ -5647,8 +5647,15 @@ export async function checkWebPage(origin, token) {
  * 启动 CPU 账本：正常启动时由 perf/plugin-profile.mjs 在启动窗口内采样写入，这里只读。
  * 记录不存在时返回 missing，页面据此显示「重启一次后再看」。
  */
+/** 和 perf/plugin-profile.mjs 的 reportFileName 同一套规则（那边被注入 dsh，不从这里 import）。 */
+function pluginProfileFile(version, profile) {
+  const name = `${version}@${profile}`.replace(/[^0-9A-Za-z@._-]/gu, (char) =>
+    [...Buffer.from(char, 'utf8')].map((byte) => `%${byte.toString(16).toUpperCase().padStart(2, '0')}`).join(''))
+  return join(APP_DIR, 'plugin-profile', `${name}.json`)
+}
+
 async function pluginProfileReport(version, profile) {
-  const file = join(APP_DIR, 'plugin-profile', `${version}@${profile}.json`)
+  const file = pluginProfileFile(version, profile)
   try {
     const report = JSON.parse(await readFile(file, 'utf8'))
     return { ...report, file }

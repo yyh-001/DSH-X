@@ -84,3 +84,45 @@ test('空剖析不报错', () => {
   assert.deepEqual(report.packages, [])
   assert.equal(report.nativeUnattributedMs, 0)
 })
+
+test('pnpm 隔离布局：按最里层的 node_modules/<包> 归属，不全归成 .pnpm', () => {
+  const pnpm = (name) => `file:///profile/node_modules/.pnpm/${name.replace('/', '+')}@1.0.0/node_modules/${name}/index.js`
+  const cpuProfile = {
+    nodes: [frame(1, '(root)', '', [2, 3]), frame(2, 'apply', pnpm('demo-plugin')), frame(3, 'run', pnpm('@scope/dep'))],
+    samples: [2, 3],
+    timeDeltas: [3000, 2000],
+  }
+  const timing = { resolveCalls: [{ parent: pnpm('demo-plugin'), specifier: '@scope/dep', url: pnpm('@scope/dep'), us: 1000 }], loadCalls: [] }
+  const report = summarize(cpuProfile, null, timing, ['demo-plugin'])
+  assert.ok(!report.packages.some((row) => row.name === '.pnpm'), '没有 .pnpm 这一行')
+  assert.equal(report.plugins[0].runMs, 5, '插件自己 3ms + 只有它用的依赖 2ms')
+})
+
+test('宿主也加载的框架包（@deepseek-ai/*、dsh 自身）不摊给插件', () => {
+  const url = (name) => `file:///profile/node_modules/${name}/index.js`
+  const cpuProfile = {
+    nodes: [frame(1, '(root)', '', [2, 3, 4]), frame(2, 'apply', url('demo-plugin')), frame(3, 'emit', url('@deepseek-ai/cordis')), frame(4, 'main', 'file:///opt/dsh/dist/main.js')],
+    samples: [2, 3, 4],
+    timeDeltas: [1000, 50000, 7000],
+  }
+  const timing = {
+    resolveCalls: [
+      { parent: 'file:///opt/dsh/dist/main.js', specifier: '@deepseek-ai/cordis', url: url('@deepseek-ai/cordis'), us: 100 },
+      { parent: url('@deepseek-ai/cordis'), specifier: 'demo-plugin', url: url('demo-plugin'), us: 100 },
+      { parent: url('demo-plugin'), specifier: '@deepseek-ai/cordis', url: url('@deepseek-ai/cordis'), us: 100 },
+      { parent: url('demo-plugin'), specifier: 'x', url: 'file:///elsewhere/x.js', us: 100 },
+    ],
+    loadCalls: [],
+  }
+  const plugin = summarize(cpuProfile, null, timing, ['demo-plugin']).plugins[0]
+  assert.equal(plugin.runMs, 1, 'cordis 的 50ms 和 dsh 自身的 7ms 是框架开销，不算插件的')
+})
+
+test('报告文件名：ASCII 名字不变，中文按 UTF-8 转义，不再互相撞名', async () => {
+  const { reportFileName } = await import('../src/perf/plugin-profile.mjs')
+  assert.equal(reportFileName('0.2.1@web'), '0.2.1@web')
+  assert.equal(reportFileName('0.2.1@工作'), '0.2.1@%E5%B7%A5%E4%BD%9C')
+  assert.notEqual(reportFileName('0.2.1@工作'), reportFileName('0.2.1@学习'))
+  const server = (await import('node:fs')).readFileSync(new URL('../src/server.js', import.meta.url), 'utf8')
+  assert.match(server, /function pluginProfileFile[\s\S]*?\[\^0-9A-Za-z@\._-\]/, '管理页读报告用同一套规则')
+})
