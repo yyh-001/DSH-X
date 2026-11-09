@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import { enableRowId, ensureBundleMounted, readPatchState } from '../src/plugins.js'
+import { disableRowId, enableRowId, ensureBundleMounted, readPatchState } from '../src/plugins.js'
 
 function patchFile(content) {
   const dir = mkdtempSync(join(tmpdir(), 'dsh-patch-'))
@@ -67,6 +67,49 @@ test('本来就没禁用的行：幂等，不动文件', () => {
   const { profile, file } = patchFile(content)
   assert.equal(enableRowId(profile, 'my-plugin').changed, false)
   assert.equal(readFileSync(file, 'utf8'), content)
+})
+
+test('同一个 id 有两块（config 覆盖 + disabled）：启用只删后面那块', () => {
+  // dsh 的配置面板给插件写 config 覆盖块，启动器的开关在后面追加 disabled 块；
+  // 两块同 id 时旧实现只看第一块（没有 disabled），于是永远「启用（无变化）」。
+  const content = [
+    '- id: ui-skin-claude-style',
+    '  name: dsh-claude-style',
+    '  config:',
+    '    brandInk: original',
+    '- id: ui-skin-claude-style',
+    '  disabled: true',
+    '',
+  ].join('\n')
+  const { profile, file } = patchFile(content)
+  assert.equal(enableRowId(profile, 'ui-skin-claude-style').changed, true)
+  const after = readFileSync(file, 'utf8')
+  assert.ok(!after.includes('disabled'), `disabled 块应该删掉：${JSON.stringify(after)}`)
+  assert.ok(after.includes('brandInk: original'), `config 覆盖块要留着：${JSON.stringify(after)}`)
+  assert.deepEqual(readPatchState(file).disables, [])
+})
+
+test('同一个 id 有两块：disabled 块排在 config 块前面也删得掉', () => {
+  const content = '- id: skin\n  disabled: true\n- id: skin\n  config:\n    a: 1\n'
+  const { profile, file } = patchFile(content)
+  assert.equal(enableRowId(profile, 'skin').changed, true)
+  const after = readFileSync(file, 'utf8')
+  assert.ok(!after.includes('disabled'), `disabled 块应该删掉：${JSON.stringify(after)}`)
+  assert.ok(after.includes('    a: 1'), `config 块要留着：${JSON.stringify(after)}`)
+})
+
+test('同一个 id 有两块：关 → 开 → 关 的往返都能生效', () => {
+  const { profile, file } = patchFile('- id: skin\n  name: pkg-skin\n  config:\n    a: 1\n')
+  assert.equal(disableRowId(profile, 'skin').changed, true)
+  assert.deepEqual(readPatchState(file).disables, ['skin'])
+  assert.equal(disableRowId(profile, 'skin').changed, false, '已经禁用时再关一次是空操作')
+  assert.equal(enableRowId(profile, 'skin').changed, true)
+  assert.deepEqual(readPatchState(file).disables, [])
+  assert.equal(enableRowId(profile, 'skin').changed, false, '已经启用时再开一次是空操作')
+  assert.equal(disableRowId(profile, 'skin').changed, true)
+  assert.deepEqual(readPatchState(file).disables, ['skin'])
+  const after = readFileSync(file, 'utf8')
+  assert.equal(after.split('- id: skin').length - 1, 2, `只应有 config 与 disabled 两块：${JSON.stringify(after)}`)
 })
 
 test('ensureBundleMounted：补写挂载清单，剥掉版本号，重复挂是空操作', () => {

@@ -247,25 +247,35 @@ export function appendRowBlock(text, rowId, disabled) {
 /**
  * 删掉某一行里的 `disabled: <值>`（键在行里的位置不限，别的覆盖键留着；整行只剩它就整行删掉）。
  * 位置不限这条是必要的：#9 里就有人遇到 `disabled` 不在第二行的补丁行。
+ *
+ * 同一个 id 在补丁层里可以出现多块——dsh 自己的配置面板就是这么写的：一块带 `config`
+ * 覆盖皮肤参数，另一块只有 `disabled: true`（关掉它）。所以这里必须把整份文件扫完。
+ * 早先找到第一块就 return，第一块是 config 块时根本看不到后面那块 disabled，于是
+ * 「禁用 → 启用」永远返回 changed: false，插件再也开不回来（2026-11 的 claude 皮肤
+ * 就是这么卡死的，卸载重装也没用：补丁层不归 pnpm 管）。
  */
 function removeRowBlock(text, rowId, disabled = true) {
   const want = disabled ? 'true' : 'false'
   const idRe = new RegExp(`^- id:\\s*['"]?${escapeRegExp(rowId)}['"]?\\s*$`)
   const valueRe = new RegExp(`^ {2}disabled:\\s*${want}\\s*$`)
   const lines = String(text ?? '').split('\n')
+  let changed = false
   for (let index = 0; index < lines.length; index += 1) {
     if (!idRe.test(lines[index])) continue
     let rowEnd = index + 1
     while (rowEnd < lines.length && !/^- /.test(lines[rowEnd])) rowEnd += 1
     const row = lines.slice(index, rowEnd)
     const at = row.findIndex((line, pos) => pos > 0 && valueRe.test(line))
-    if (at < 0) return text
+    if (at < 0) continue
     const kept = row.filter((_, pos) => pos !== at)
     const stillHasKeys = kept.slice(1).some((line) => line.trim() !== '')
-    lines.splice(index, rowEnd - index, ...(stillHasKeys ? kept : []))
-    return lines.join('\n')
+    const replacement = stillHasKeys ? kept : []
+    lines.splice(index, rowEnd - index, ...replacement)
+    changed = true
+    // 接着从替换后的位置往后扫：同一 id 可能还有一块要处理
+    index += replacement.length - 1
   }
-  return text
+  return changed ? lines.join('\n') : text
 }
 
 const removeDisableBlock = (text, rowId) => removeRowBlock(text, rowId, true)
