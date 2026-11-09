@@ -11,6 +11,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import vm from 'node:vm'
+import { systemLang } from '../src/settings.js'
 import { packumentOf, startChannelServer } from './update-channel-fixture.mjs'
 
 const env = await startChannelServer({ prefix: 'dsh-booting-', packument: packumentOf({ latest: '1.0.0' }, ['1.0.0']) })
@@ -102,7 +103,7 @@ test('/booting：服务端渲染页面，语言与主题跟管理页一致，且
   assert.match(String(response.headers.get('content-type')), /text\/html/)
   assert.equal(response.headers.get('cache-control'), 'no-store', '升级后第一下就得是新页面')
   assert.doesNotMatch(html, /__APP_LANG__|__APP_THEME__/, '占位符要被替换掉')
-  assert.match(html, /data-lang="zh"/)
+  assert.match(html, new RegExp(`data-lang="${systemLang()}"`), '没设过语言时跟随系统语言')
   // 实时进度靠这几处：轮询状态、读安装进度、就绪后跳进去
   assert.match(html, /fetch\('\/api\/state'/, '页面自己轮询 /api/state')
   assert.match(html, /location\.replace\(url\)/, '就绪后跳进 dsh')

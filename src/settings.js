@@ -369,7 +369,8 @@ export const DEFAULTS = {
   wsl: { ...DEFAULT_WSL },
   // WSL 固定端口：按发行版分开，键是发行版名，值是 版本@profile → 端口。
   wslPorts: {},
-  // 界面语言：zh / en（安装时选的语言写进安装目录的 lang.txt，启动器读一次落到这里）
+  // 界面语言：zh / en（settings.json 为准；旧安装器的 lang.txt 只提供首次默认值；
+  // 两者都没有时跟随系统语言，非中文环境回退英文）
   lang: '',
   theme: 'system',
   // 上次新建启动项停在哪个隔离方式档：下次打开「添加启动项」直接落在这里，不用每次重选
@@ -689,6 +690,16 @@ export function resolveProfile() {
 export function safeLang(value) {
   const lang = String(value ?? '').trim().toLowerCase()
   return lang === 'en' ? 'en' : lang === 'zh' ? 'zh' : ''
+}
+
+/**
+ * 系统界面语言：中文环境用 zh，其余（含 C / POSIX / 空值）一律 en。
+ * AppImage / deb 没有安装器写 lang.txt，换了 electron-builder 之后的 Windows /
+ * macOS 也不再写，所以首次启动的默认语言靠这个决定。locale 默认取 ICU 解析出的
+ * 系统 locale（Windows 看显示语言，Linux / macOS 看 LANG / LC_*）。
+ */
+export function systemLang(locale = Intl.DateTimeFormat().resolvedOptions().locale) {
+  return /^zh(?:[-_]|$)/i.test(String(locale ?? '')) ? 'zh' : 'en'
 }
 
 /** 页面外观：跟随系统、浅色或深色；历史脏值回到跟随系统。 */

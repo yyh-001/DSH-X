@@ -111,6 +111,7 @@ import {
   safeLaunchIsolation,
   safeKeepVersions,
   safeLang,
+  systemLang,
   safeOpenMode,
   safeSyncSettings,
   safeTheme,
@@ -210,9 +211,10 @@ let ENVIRONMENT_PORTS = {}
 // WSL 的固定端口单独一张表：按发行版分开，键仍然是 版本@profile。
 let WSL_PORTS = safeWslPorts(loadSettingsSync().wslPorts)
 let WSL_SETTINGS = safeWslSettings(loadSettingsSync().wsl)
-// 界面语言（zh / en）：settings.json 为准；lang.txt 只为尚未选择语言的用户提供首次默认值。
+// 界面语言（zh / en）：settings.json 为准；lang.txt（旧安装器写的）为首次默认值；
+// 两者都没有时跟随系统语言，非中文环境回退英文。
 const INSTALL_LANG = join(ROOT, 'lang.txt')
-let LANG = safeLang(loadSettingsSync().lang) || installLang() || 'zh'
+let LANG = safeLang(loadSettingsSync().lang) || installLang() || systemLang()
 let THEME = safeTheme(loadSettingsSync().theme)
 let PANEL_TRANSPARENCY = safePanelTransparency(loadSettingsSync().panelTransparency)
 let REDUCE_MOTION = loadSettingsSync().reduceMotion === true
@@ -8496,11 +8498,12 @@ export async function startServer() {
     await saveSettings({ environmentPorts: ENVIRONMENT_PORTS }).catch(() => {})
     pushLog('已清理旧环境留下的固定端口记录')
   }
-  // 用户在设置页的选择要跨重启与升级保留，安装语言只初始化缺失的设置。
+  // 用户在设置页的选择要跨重启与升级保留，安装语言只初始化缺失的设置；
+  // 两处都没有时跟随系统语言（不会写回设置，用户切系统语言后下次启动会跟着变）。
   const storedLang = safeLang(stored.lang)
   const fromInstall = storedLang ? '' : installLang()
   if (fromInstall) await saveSettings({ lang: fromInstall })
-  LANG = storedLang || fromInstall || 'zh'
+  LANG = storedLang || fromInstall || systemLang()
   THEME = safeTheme(stored.theme)
   PANEL_TRANSPARENCY = safePanelTransparency(stored.panelTransparency)
   REDUCE_MOTION = stored.reduceMotion === true

@@ -31,6 +31,7 @@ process.env.PORT = String(await new Promise((resolve) => {
   })
 }))
 const server = await import(pathToFileURL(join(install, 'server.js')))
+const { systemLang } = await import(pathToFileURL(join(install, 'settings.js')))
 let origin
 
 test.after(async () => {
@@ -70,13 +71,23 @@ test('首次启动采用安装语言；设置页更改语言后，重启或升�
   }
 })
 
-test('用户语言未设置且安装语言缺失或无效时，默认中文', async () => {
+test('系统语言只有中文环境选 zh，其余（含 C / POSIX / 空值）回退 en', () => {
+  for (const locale of ['zh', 'zh-CN', 'zh_CN.UTF-8', 'zh-Hant-TW']) {
+    assert.equal(systemLang(locale), 'zh', locale)
+  }
+  for (const locale of ['en-US', 'en_GB.UTF-8', 'ja-JP', 'C', 'C.UTF-8', 'POSIX', '', null]) {
+    assert.equal(systemLang(locale), 'en', String(locale))
+  }
+})
+
+test('用户语言未设置且安装语言缺失或无效时，跟随系统语言', async () => {
+  const expected = systemLang()
   for (const installed of [null, 'invalid']) {
     await server.stopAll()
     writeFileSync(settingsFile, JSON.stringify({ ...initial, lang: '' }))
     if (installed === null) rmSync(languageFile, { force: true })
     else writeFileSync(languageFile, installed)
     origin = await server.startServer()
-    await checkLanguage('zh')
+    await checkLanguage(expected)
   }
 })
