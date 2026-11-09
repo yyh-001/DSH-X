@@ -11,6 +11,7 @@ import { corePackageName, channelOf, coreRegistries, fetchCoreMetadata, installC
 import { createUpdater } from './updater.mjs'
 import { readPrefs } from './prefs.mjs'
 import { coreSetupPage, coreSetupPaintScript, dataUrl, errorPage, idlePage, resolveDark } from './pages.mjs'
+import { isEnvironmentStartupError } from './startup-error.mjs'
 import { clickTarget, dialogOptions, notificationDecision, notifyThrottled } from './desktop.mjs'
 import {
   LAUNCH_ACTIONS,
@@ -203,16 +204,24 @@ function recoverCore(coreDir, { pendingOnly = false } = {}) {
   if (coreDir !== ACTIVE_CORE) return false
   const pending = join(APP_DIR, 'core', 'pending')
   if (pendingOnly && !existsSync(pending)) return false
+  let version = ''
+  try { version = String(JSON.parse(readFileSync(pending, 'utf8')).version || '') } catch { /* 没有 pending 就不记 */ }
+  // 先删核心再记坏版本：删不掉说明是权限/文件占用之类的环境问题（不是核心本身），
+  // 这时候记进黑名单会永久跳过一个有效版本，还会在「下载 → 删不掉 → 重启」之间循环。
+  try {
+    rmSync(ACTIVE_CORE, { recursive: true, force: true })
+  } catch {
+    console.log('核心删不掉（权限或文件占用），不按坏核心处理')
+    return false
+  }
   // 记下「这个版本起不来」：下次挑核心时跳过它，否则会下载 → 起不来 → 回退 → 再下载地循环。
   // 记成列表而不是只记最后一个：X 坏了退到 W、W 也坏了时，只记 W 会让下次又挑回 X，两个版本来回转。
-  try {
-    const version = String(JSON.parse(readFileSync(pending, 'utf8')).version || '')
-    if (version) {
+  if (version) {
+    try {
       const failed = [...new Set([...failedCoreVersions(), version])].slice(-20)
       writeFileSync(FAILED_CORE_MARK, JSON.stringify({ version, failed, at: Date.now() }))
-    }
-  } catch { /* 没有 pending 就不记 */ }
-  try { rmSync(ACTIVE_CORE, { recursive: true, force: true }) } catch { /* ignore */ }
+    } catch { /* 写不进去只是少了跳过坏版本的保护 */ }
+  }
   try { rmSync(pending, { force: true }) } catch { /* ignore */ }
   let restored = false
   try {
@@ -683,6 +692,12 @@ async function start() {
     if (error?.code === 'EALREADY') {
       await fetch(`http://127.0.0.1:${error.port}/api/wake`, { method: 'POST', body: '{}', signal: AbortSignal.timeout(TRAY_REQUEST_TIMEOUT_MS) }).catch(() => {})
       app.exit(0)
+      return
+    }
+    // 目录不可写、磁盘满、权限不足这类环境问题不是核心坏：走 recoverCore 会把刚装好的
+    // 有效核心删掉并永久拉黑，用户把目录修好也回不来。按普通启动失败报，让用户修环境。
+    if (isEnvironmentStartupError(error, coreDir)) {
+      showStartupError('dsh 服务启动失败', '管理页没能起来。更像是目录、权限或磁盘的问题，修好后重新打开 DSH-X。', error?.stack || String(error))
       return
     }
     // 刚换上的核心起不来才回退（pending 标记是核心更新写入的）；老 current 起不来按普通错误报
