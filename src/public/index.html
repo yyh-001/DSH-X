@@ -4549,9 +4549,42 @@
         launchCopyNameAuto[launchIsolation] = ''
         return
       }
-      const auto = suggestCopyProfile(copy.profile)
+      const auto = suggestCopyProfile(copy.profile, copyTargetExisting() ?? state.profiles)
       if (!el.value.trim() || el.value === launchCopyNameAuto[launchIsolation]) el.value = auto
       launchCopyNameAuto[launchIsolation] = auto
+    }
+
+    /**
+     * 复制目标目录里已有的 Profile。会话隔离选了别的目录时不能只看全局目录：
+     * 全局目录里没有 `web-copy`，目标目录里可能已经有一份，预填出来的名字保存时才报错。
+     * 目录列表还没拉回来时返回 null（调用方先用全局列表兜底），拉回来后
+     * refreshCopyTargetProfiles 会再刷一次建议名。选「自动新建」时新目录里不会有同名，返回空列表。
+     */
+    function copyTargetExisting() {
+      if (launchIsolation !== 'home') return state.profiles
+      const picked = String(launchHomeCustomEl?.value || '').trim()
+      if (!picked) return []
+      const known = Object.keys(state.profilesByHome || {}).find((home) => sameHomePath(home, picked))
+      return known ? state.profilesByHome[known] : null
+    }
+
+    /** 目标目录换了：把它的 Profile 列表拉回来，复制建议名和说明行才会按目标目录顺延。 */
+    async function refreshCopyTargetProfiles() {
+      if (launchIsolation !== 'home') return
+      const home = String(launchHomeCustomEl?.value || '').trim()
+      if (!home) {
+        fillCopyProfileName()
+        paintLaunchHint()
+        return
+      }
+      try {
+        const data = await getJson(`/api/launch-home/profiles?home=${encodeURIComponent(home)}`)
+        if (String(launchHomeCustomEl?.value || '').trim() !== home) return
+        const real = data.home || home
+        state.profilesByHome = { ...(state.profilesByHome || {}), [real]: Array.isArray(data.profiles) ? data.profiles : [] }
+        fillCopyProfileName()
+        paintLaunchHint()
+      } catch { /* 目录暂时读不到：保存时服务端还会按目标目录再拦一次 */ }
     }
 
     /** 引导模式代填的启动项名：用户自己改过就不再覆盖，名字输入改了也要跟着走。 */
@@ -4634,7 +4667,7 @@
         // 说清复制的是 Profile，不是整个环境：技能、Prompt 和会话都不跟过来，别让人以为搬完就完工
         hint = t('把「{profile}」复制成新的 Profile「{name}」：插件与配置跟过来，技能、Prompt 管理和会话不跟。', {
           profile: copy.profile,
-          name: typedName || suggestCopyProfile(copy.profile) || t('（待定）'),
+          name: typedName || suggestCopyProfile(copy.profile, copyTargetExisting() ?? state.profiles) || t('（待定）'),
         })
       } else if (copying) {
         // 停在复制那档还没选来源：说清下一步，别让人以为直接保存就复制了
@@ -4723,10 +4756,14 @@
 
     // 选「管理目录…」：打开目录管理弹窗，选完加完回来再重画（changePluginHomeList 里会叫 paintLaunchHomeCustom）
     launchHomeCustomEl.onchange = () => {
-      if (launchHomeCustomEl.value !== PLUGIN_HOME_MANAGE) return
-      launchHomeCustomEl.value = ''
-      paintLaunchHomeCustom()
-      openPluginHomesDialog()
+      if (launchHomeCustomEl.value === PLUGIN_HOME_MANAGE) {
+        launchHomeCustomEl.value = ''
+        paintLaunchHomeCustom()
+        openPluginHomesDialog()
+        return
+      }
+      // 换了目标目录：复制建议名要按这个目录里已有的 Profile 重算（见 refreshCopyTargetProfiles）
+      void refreshCopyTargetProfiles()
     }
 
     // ---- 选 Profile：三栏选择窗（用户目录 / Profile / 插件） ----
@@ -4766,7 +4803,8 @@
     function defaultCopySource() {
       const web = (Array.isArray(state.webProfiles) && state.webProfiles.length ? state.webProfiles : (state.profiles || [])).map(String)
       const profile = web.includes('web') ? 'web' : (web[0] || '')
-      return profile ? { home: '', profile } : null
+      // 来源目录写成真实路径：留空会被服务端当成「当前目标目录」，复制到别的目录时就变成复制目标自己
+      return profile ? { home: state.dshHome || '', profile } : null
     }
 
     /** 复制来源那行按钮：选过就是「目录 › Profile」，没选过是占位文案。 */
@@ -5038,7 +5076,9 @@
     /** 「用它」：copy 档写回复制来源；form 档把 home + Profile 写回启动项表单。 */
     function confirmProfilePick() {
       if (profilePickConfirmEl.disabled) return
-      const choice = { home: pickerHome, profile: pickerProfile }
+      // 复制档的来源目录不能留空：服务端把空串解释成「当前目标目录」，复制到别的目录时会复制到目标自己。
+      // 全局目录这一项在列表里本来就是默认目录，这里显式写成它的真实路径。
+      const choice = { home: pickerMode === 'form' ? pickerHome : (pickerHome || state.dshHome || ''), profile: pickerProfile }
       closeProfilePicker()
       if (pickerMode === 'form') {
         void applyPickerToLaunchForm(choice)

@@ -192,6 +192,7 @@ function isolationHarness() {
       functionSource('guidedProfileNameEl'),
       functionSource('selectedCopy'),
       functionSource('suggestCopyProfile'),
+      functionSource('copyTargetExisting'),
       functionSource('fillCopyProfileName'),
       functionSource('fillGuidedLaunchName'),
       functionSource('setLaunchIsolation'),
@@ -524,7 +525,7 @@ test('选 Profile 是三栏选择窗：目录 / Profile / 插件，两档用途�
   // 默认来源：还没有来源时就是全局目录里的 web
   const fallback = section('    function defaultCopySource() {', '    /** 复制来源那行按钮')
   assert.match(fallback, /web\.includes\('web'\) \? 'web' : \(web\[0\] \|\| ''\)/, '有 web 就默认 web，否则挑第一份')
-  assert.match(fallback, /return profile \? \{ home: '', profile \} : null/, '空 home = 全局目录')
+  assert.match(fallback, /return profile \? \{ home: state\.dshHome \|\| '', profile \} : null/, '默认来源写真实全局目录：空串会被服务端当成目标目录')
 })
 
 test('两档 tab 的 vm：切档只翻来源面板，复制档把目标名填成「来源-copy」，切走的值留着', () => {
@@ -553,6 +554,7 @@ test('两档 tab 的 vm：切档只翻来源面板，复制档把目标名填成
     [
       functionSource('guidedProfileNameEl'),
       functionSource('suggestCopyProfile'),
+      functionSource('copyTargetExisting'),
       functionSource('fillCopyProfileName'),
       functionSource('fillGuidedLaunchName'),
       functionSource('paintLaunchSource'),
@@ -720,4 +722,50 @@ test('跨目录复制、名字留空：建议名按目标目录里已有的 Prof
   }
   const target = await h.context.prepareGuidedLaunch()
   assert.equal(target.profile, 'ios-dev-copy-2', '目标目录里已经有 ios-dev-copy')
+})
+
+/** 名字预填那一小段：只装复制建议名相关的函数，元素都是值对象。 */
+function copyNameHarness({ target = '', targetProfiles = null, globalProfiles = ['web'], copyProfile = 'web', copyHome = 'C:\\global' } = {}) {
+  const context = vm.createContext({
+    t: (text) => text,
+    state: { dshHome: 'C:\\global', profiles: globalProfiles, profilesByHome: {} },
+    launchHomeCustomEl: { value: target },
+    launchHomeProfileEl: { value: '' },
+    launchProfileCustomEl: { value: '' },
+    launchIsolation: 'home',
+    launchSourceMode: 'copy',
+    launchCopySource: { home: copyHome, profile: copyProfile },
+    launchCopyNameAuto: {},
+  })
+  if (targetProfiles) context.state.profilesByHome = { [target]: targetProfiles }
+  vm.runInContext(
+    `${pathHelpers}\n${functionSource('suggestCopyProfile')}\n${functionSource('guidedProfileNameEl')}
+${functionSource('selectedCopy')}\n${functionSource('copyTargetExisting')}\n${functionSource('fillCopyProfileName')}`,
+    context,
+  )
+  return context
+}
+
+test('复制预填名也按目标目录算：目标里已有 web-copy 时预填 web-copy-2，不等保存才报错', () => {
+  const known = copyNameHarness({ target: 'D:\\homes\\iso', targetProfiles: ['web', 'web-copy'] })
+  known.fillCopyProfileName()
+  assert.equal(known.launchHomeProfileEl.value, 'web-copy-2', '全局目录没有 web-copy，但目标目录里有')
+  // 目标列表刷新后再填，还会继续顺延（refreshCopyTargetProfiles 拉回列表后走这里）
+  known.state.profilesByHome['D:\\homes\\iso'] = ['web', 'web-copy', 'web-copy-2']
+  known.fillCopyProfileName()
+  assert.equal(known.launchHomeProfileEl.value, 'web-copy-3')
+  // 列表还没拉回来：先用全局目录兜底，不能报错也不能清空
+  const unknown = copyNameHarness({ target: 'D:\\homes\\other' })
+  unknown.fillCopyProfileName()
+  assert.equal(unknown.launchHomeProfileEl.value, 'web-copy')
+  // 手改过的名字不能被自动刷新覆盖
+  const manual = copyNameHarness({ target: 'D:\\homes\\iso', targetProfiles: ['web', 'web-copy'] })
+  manual.launchHomeProfileEl.value = 'my-profile'
+  manual.fillCopyProfileName()
+  assert.equal(manual.launchHomeProfileEl.value, 'my-profile')
+})
+
+test('复制来源的目录不能留空（留空会被服务端当成目标目录）', () => {
+  assert.match(page, /return profile \? \{ home: state\.dshHome \|\| '', profile \} : null/, '默认来源写成真实路径')
+  assert.match(page, /pickerMode === 'form' \? pickerHome : \(pickerHome \|\| state\.dshHome \|\| ''\)/, '选择窗确认时把默认目录写实')
 })
