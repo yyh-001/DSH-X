@@ -23,8 +23,16 @@ const PROFILE = process.env.DSH_PROFILE || ''
 const [REPORT_VERSION, REPORT_PROFILE] = NAME.includes('@')
   ? [NAME.slice(0, NAME.indexOf('@')), NAME.slice(NAME.indexOf('@') + 1)]
   : [VERSION, PROFILE]
-/** 落盘文件名只留安全字符，报告内容仍用原始版本/profile。 */
-const REPORT_NAME = (NAME || `${VERSION}@${PROFILE}`).replace(/[^0-9A-Za-z@._-]/g, '_')
+/**
+ * 落盘文件名只留安全字符，报告内容仍用原始版本/profile。其余字符按 UTF-8 转成 %XX：
+ * 以前一律换成 `_`，中文 profile 名读的时候对不上（管理页拿原名找），等长的两个名字还会撞到同一个文件。
+ * 规则要和 server.js 的 pluginProfileFile 一致；纯 ASCII 的名字结果和以前相同。
+ */
+export function reportFileName(name) {
+  return String(name).replace(/[^0-9A-Za-z@._-]/gu, (char) =>
+    [...Buffer.from(char, 'utf8')].map((byte) => `%${byte.toString(16).toUpperCase().padStart(2, '0')}`).join(''))
+}
+const REPORT_NAME = reportFileName(NAME || `${VERSION}@${PROFILE}`)
 /** CPU 采样间隔（微秒）：1ms，开销小到启动时间上看不出来。 */
 const CPU_INTERVAL_US = 1000
 /** 最后一个 entry 稳定后再等这么久才收尾：给异步 apply 留出完成时间。 */
@@ -85,7 +93,12 @@ function stopModuleTiming() {
 function packageOf(url, names) {
   const normalized = String(url || '').replace(/\\/g, '/')
   if (!normalized) return '(原生/GC)'
-  const matched = /node_modules\/(@[^/]+\/[^/]+|[^/]+)\//.exec(normalized)
+  // 取最后一段 node_modules/<包>/：pnpm 隔离布局是 `node_modules/.pnpm/x@1/node_modules/x/...`，
+  // 只看第一段会把所有包都归成 `.pnpm`、插件全是 0；嵌套依赖也是最里面那层才是文件的真正归属。
+  let matched = null
+  for (const match of normalized.matchAll(/node_modules\/(@[^/]+\/[^/]+|[^/]+)\//g)) {
+    if (match[1] !== '.pnpm') matched = match
+  }
   if (matched) return matched[1]
   // 链接安装的插件不在 node_modules 下：用 loader 报上来的包名对路径
   for (const name of names) {
@@ -182,7 +195,22 @@ export function summarize(cpuProfile, heapProfile, timing = { resolveCalls, load
     moduleRow(pkg).loadUs += call.us
   }
 
+  // 宿主（dsh 自己：官方 @deepseek-ai/* 包与归不了包的 dsh 源码）也会加载的包算框架开销，
+  // 不摊给插件：比如 cordis 每个插件都 import，但它本来就是 dsh 在驱动，卸掉插件它照样在。
+  // 插件只记「因为装了它才多出来」的那部分。宿主的遍历不往插件里走（loader 会 import 每个插件入口）。
+  const PSEUDO = new Set(['(其他)', '(启动器钩子)', '(Node 内部)', '(原生/GC)'])
+  const hostReach = new Set()
+  const hostQueue = [...moduleEdges.keys()].filter((pkg) => !names.has(pkg) && (/^@deepseek-ai\//.test(pkg) || pkg === '(其他)'))
+  for (const root of hostQueue) hostReach.add(root)
+  while (hostQueue.length) {
+    for (const next of moduleEdges.get(hostQueue.shift()) || []) {
+      if (hostReach.has(next) || names.has(next)) continue
+      hostReach.add(next)
+      hostQueue.push(next)
+    }
+  }
   // 每个包从哪些插件可达；共用依赖按引用它的插件数均摊，和空间构成的口径一致。
+  // 别的插件、宿主也用的包、伪分类都不往下走：它们的开销不该算到这个插件头上。
   const moduleOwners = new Map()
   for (const plugin of names) {
     const seen = new Set([plugin])
@@ -190,7 +218,7 @@ export function summarize(cpuProfile, heapProfile, timing = { resolveCalls, load
     while (queue.length) {
       const pkg = queue.shift()
       for (const next of moduleEdges.get(pkg) || []) {
-        if (seen.has(next)) continue
+        if (seen.has(next) || names.has(next) || hostReach.has(next) || PSEUDO.has(next)) continue
         seen.add(next)
         queue.push(next)
       }
@@ -270,13 +298,20 @@ async function stop() {
   if (timer !== null) { clearTimeout(timer); timer = null }
   if (cap !== null) { clearTimeout(cap); cap = null }
   stopModuleTiming()
-  if (!session) return
   try {
-    const cpu = await session.post('Profiler.stop')
-    // 堆分配采样已撤：账本只看 CPU；内存用启动结算时读一次 RSS。
-    writeReport(summarize(cpu.profile, null, { resolveCalls, loadCalls }))
-  } catch { /* 采样失败不能影响运行 */ }
-  try { session.disconnect() } catch { /* ignore */ }
+    if (!session) return
+    try {
+      const cpu = await session.post('Profiler.stop')
+      // 堆分配采样已撤：账本只看 CPU；内存用启动结算时读一次 RSS。
+      writeReport(summarize(cpu.profile, null, { resolveCalls, loadCalls }))
+    } catch { /* 采样失败不能影响运行 */ }
+    try { session.disconnect() } catch { /* ignore */ }
+  } finally {
+    // 报告写完这些记录就没用了；不清的话最多 2×10 万条 URL 会在 dsh 进程里留一整个会话
+    resolveCalls.length = 0
+    loadCalls.length = 0
+    entries.length = 0
+  }
 }
 
 function schedule() {
@@ -309,11 +344,13 @@ async function start() {
     await session.post('Profiler.setSamplingInterval', { interval: CPU_INTERVAL_US })
     await session.post('Profiler.start')
     startedAt = performance.now()
-    cap = setTimeout(() => { void stop() }, MAX_MS)
-    cap.unref?.()
   } catch {
     session = null
   }
+  // 兜底放在 try 外：采样器起不来、loader 锚点又没匹配上时，没人会调 stop，
+  // 模块钩子会在 dsh 里挂一辈子。到点无论如何收掉。
+  cap = setTimeout(() => { void stop() }, MAX_MS)
+  cap.unref?.()
 }
 
 export function installPluginProfile() {

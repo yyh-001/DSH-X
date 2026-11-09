@@ -51,6 +51,21 @@ test('挑核心：跳过起不来的版本；没有兼容版本时返回 null', 
   assert.equal(pickCoreRelease(metadata, { electron: '99.0.0', channel: 'latest' }), null)
 })
 
+test('挑核心：dist-tag 指回旧版就不装更新的版本，deprecated 的版本跳过', () => {
+  const entry = (v) => ({ dist: { tarball: `https://example.test/${v}.tgz` }, dshX: { electron: '44.7.0' } })
+  const pulled = {
+    'dist-tags': { latest: '0.1.28', rc: '0.1.29-rc.1' },
+    versions: { '0.1.28': entry('0.1.28'), '0.1.29': entry('0.1.29'), '0.1.29-rc.1': entry('0.1.29-rc.1'), '0.1.29-rc.2': entry('0.1.29-rc.2') },
+  }
+  assert.equal(pickCoreRelease(pulled, { electron: '44.7.0', channel: 'latest' }).version, '0.1.28', 'latest 被指回 0.1.28，0.1.29 不该再被首启装上')
+  assert.equal(pickCoreRelease(pulled, { electron: '44.7.0', channel: 'rc' }).version, '0.1.29-rc.1', 'rc 按自己的 tag 封顶')
+  const deprecated = {
+    'dist-tags': { latest: '0.1.29' },
+    versions: { '0.1.28': entry('0.1.28'), '0.1.29': { ...entry('0.1.29'), deprecated: 'broken' } },
+  }
+  assert.equal(pickCoreRelease(deprecated, { electron: '44.7.0', channel: 'latest' }).version, '0.1.28')
+})
+
 test('核心包没声明 dshX.electron 时按兼容处理', () => {
   const picked = pickCoreRelease({
     versions: {

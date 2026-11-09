@@ -4511,8 +4511,10 @@
      * 复制档的默认目标名：`来源-copy`。撞上已有 Profile 或保留名（desktop / node_modules）
      * 就往后顺延，免得「以 desktop 为模板」这种最常用的复制被保留名检查挡下来。
      */
-    function suggestCopyProfile(seed = '') {
-      const taken = new Set((Array.isArray(state.profiles) ? state.profiles : []).map((name) => String(name).toLowerCase()))
+    function suggestCopyProfile(seed = '', existing = state.profiles) {
+      // existing 是「要复制进去的那个目录」里已有的 Profile；会话隔离档复制到别的目录时要传那个目录的列表，
+      // 只看全局目录会挑出一个目标目录里已经存在的名字，保存时变成「复用」而不是复制。
+      const taken = new Set((Array.isArray(existing) ? existing : []).map((name) => String(name).toLowerCase()))
       const reserved = (name) => !name || taken.has(name) || name === 'node_modules' || name === 'desktop'
       // 留出 `-copy-99` 的位置，别让顺延后的名字超过 safeProfile 的 32 字符上限
       const base = String(seed || '').trim().toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^[-.]+|[-.]+$/g, '').slice(0, 24).replace(/[-.]+$/, '')
@@ -5224,10 +5226,18 @@
       // 名字输入两档都读：复制档预填「来源-copy」并允许改（见 fillCopyProfileName），
       // 留空就按当前档给个建议值。名字是 dsh 的目录名，保留名必须当场拦下来并点名。
       const typed = String(guidedProfileNameEl()?.value || '').trim()
-      if (typed && (RESERVED_PROFILE_NAMES.has(typed.toLowerCase()))) {
-        throw new Error(t('「{name}」是系统保留名称，换个 Profile 名称（例如 {name}-copy）。', { name: typed }))
+      // 保留名只挡「会新建 Profile」的情况：复制总是新建；只是挑一个名字用时，模板名（web 等）由 dsh 自动初始化、
+      // 已有的 desktop 可以直接用（启动入口另有绕法），都是正常的复用。node_modules 怎样都不行。
+      const assertUsableName = (name, existing) => {
+        if (!name) return
+        const lower = name.toLowerCase()
+        const creates = Boolean(copy) || (lower === 'desktop' && !(existing || []).includes(name))
+        if (lower === 'node_modules' || (creates && RESERVED_PROFILE_NAMES.has(lower))) {
+          throw new Error(t('「{name}」是系统保留名称，换个 Profile 名称（例如 {name}-copy）。', { name }))
+        }
       }
       if (launchIsolation === 'profile') {
+        assertUsableName(typed, state.profiles)
         const name = typed || (copy ? suggestCopyProfile(copy.profile) : '') || suggestIsolatedProfile()
         const web = Array.isArray(state.webProfiles) ? state.webProfiles : []
         if (typed && (state.profiles || []).includes(typed) && !web.includes(typed)) throw new Error(t('这个 Profile 不能启动网页，换一个名称'))
@@ -5256,6 +5266,7 @@
       const web = Array.isArray(data.webProfiles) ? data.webProfiles : []
       // 名字输入两档都读：已存在但不起网页的先拦下；不存在就交给服务端 ensureProfile 建
       const typedProfile = typed
+      assertUsableName(typedProfile, profiles)
       if (typedProfile && profiles.includes(typedProfile) && !web.includes(typedProfile)) {
         throw new Error(t('这个 Profile 不能启动网页，换一个名称'))
       }
@@ -5266,12 +5277,14 @@
         throw new Error(t('这个目录里已经有「{profile}」，换个名字再复制。', { profile: typedProfile }))
       }
       // listProfiles 总会带上 web，所以新目录也能直接用模板 profile 启动（dsh 会自动初始化）。
-      const profile = typedProfile || (copy ? suggestCopyProfile(copy.profile) : '') || (profiles.includes('web') ? 'web' : (profiles[0] || 'web'))
+      const suggested = copy ? suggestCopyProfile(copy.profile, profiles) : ''
+      if (copy && !typedProfile && !suggested) throw new Error(t('这个目录里已经有「{profile}」，换个名字再复制。', { profile: `${copy.profile}-copy` }))
+      const profile = typedProfile || suggested || (profiles.includes('web') ? 'web' : (profiles[0] || 'web'))
       const known = [...(state.dshHomes || []), ...launchEntries().map((entry) => entry.dshHome).filter(Boolean)]
       if (!known.some((item) => sameHomePath(item, realHome))) await post('/api/dsh-homes/add', { home: realHome })
       launchProfile = profile
       const tail = (path) => String(path).replace(/[\\/]+$/, '').split(/[\\/]/).pop() || 'dsh'
-      const name = (typedProfile || (copy ? suggestCopyProfile(copy.profile) : '') || tail(realHome)).slice(0, 32)
+      const name = (typedProfile || suggested || tail(realHome)).slice(0, 32)
       return {
         name, profile, dshHome: realHome,
         ...(copy ? { copyFrom: copy } : {}),
@@ -5748,7 +5761,8 @@
       const profile = entry.profile || 'web'
       const key = `${entry.id}\0${version}\0${profile}`
       launchLogStorageKey = key
-      launchLogSpaceEl.hidden = false
+      // 面板显不显示只由页签决定（paintLaunchLogTabs）：这里直接取消 hidden，
+      // 「正在计算占用…」会叠在原始日志页签下面，而且没有对应的页签按钮
       launchLogSpaceMetaEl.textContent = t('正在计算占用…')
       launchLogSpaceBodyEl.innerHTML = ''
       try {
@@ -8889,7 +8903,9 @@
       } catch (error) {
         pluginAddErrorEl.textContent = error.message
         pluginAddErrorEl.hidden = false
-        pluginAddSpecEl.focus()
+        // 装的过程中弹窗可能已经被关掉：错误只写进隐藏的弹窗等于没报，改用通知
+        if (pluginAddDialogEl.hidden || pluginAddDialogEl.dataset.dialogClosing) notify(error.message, t('添加插件'))
+        else pluginAddSpecEl.focus()
       } finally {
         pluginAdding = false
         pluginAddGoEl.disabled = false
@@ -9600,7 +9616,8 @@
         if (install?.ok === false) {
           notify(t('配置已回退，但依赖重装失败：{error}。可以再回退一次重试。', { error: install.error }), t('回退完成'))
         } else {
-          notify(install?.skipped ? t('已回退。重启这个 Profile 的实例后生效。') : t('已回退并重装依赖。重启这个 Profile 的实例后生效。'), t('回退完成'))
+          // 只有服务端明确说装过（ok 且没跳过）才说「重装依赖」；没回来结果也按没装算
+          notify(install?.ok === true && !install.skipped ? t('已回退并重装依赖。重启这个 Profile 的实例后生效。') : t('已回退。重启这个 Profile 的实例后生效。'), t('回退完成'))
         }
         await loadProfileBackups()
         await loadPlugins({ checkUpdates: false })

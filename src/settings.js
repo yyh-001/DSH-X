@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, lstatSync, readFileSync } from 'node:fs'
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
@@ -61,13 +61,18 @@ export async function ensureWritableDir(dir) {
  * 注意只返回**不存在**的路径：挡路的可能是个同名文件，删它就等于删用户的东西。
  */
 function firstMissingAncestor(dir) {
+  // 用 lstat 判断「这个位置有没有东西」：existsSync 会跟随链接，悬空的符号链接被当成不存在，
+  // 返回它自己的路径后 removeCreated 会把用户的链接删掉。
+  const present = (path) => {
+    try { lstatSync(path); return true } catch { return false }
+  }
   const target = resolve(dir)
-  if (existsSync(target)) return ''
+  if (present(target)) return ''
   let current = target
   for (let guard = 0; guard < 512; guard += 1) {
     const parent = dirname(current)
     if (parent === current) return ''
-    if (existsSync(parent)) return current
+    if (present(parent)) return current
     current = parent
   }
   return ''

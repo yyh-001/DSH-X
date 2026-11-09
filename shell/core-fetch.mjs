@@ -154,8 +154,19 @@ export function resolveLatest(metadata) {
 export function pickCoreRelease(metadata, { electron = '', channel = 'latest', skip = [] } = {}) {
   const versions = metadata?.versions || {}
   const skipped = new Set(skip.filter(Boolean))
+  // dist-tag 是发布方「撤回」坏版本的开关：把 latest（或 rc）指回旧版后，首启也不能再装到比它新的版本。
+  // 正式版按 latest 封顶，预发布按它自己通道的 tag 封顶；tag 不存在或指向不存在的版本（自建源）就不封顶。
+  const tags = metadata?.['dist-tags'] || {}
+  const ceilingOf = (version) => {
+    const pre = /-([0-9A-Za-z]+)/.exec(version)?.[1] || ''
+    const tag = String(tags[pre || 'latest'] || '')
+    return versions[tag] ? tag : ''
+  }
   const candidates = Object.keys(versions).filter((version) => {
     if (skipped.has(version)) return false
+    if (versions[version]?.deprecated) return false
+    const ceiling = ceilingOf(version)
+    if (ceiling && compareVersions(version, ceiling) > 0) return false
     if (!acceptsChannel(version, channel)) return false
     const declared = String(versions[version]?.dshX?.electron || '')
     return !electron || !declared || declared === String(electron)

@@ -226,8 +226,11 @@ let DSH_HOME_DIR = safeDshHome(loadSettingsSync().dshHome)
 const launchScope = new AsyncLocalStorage()
 const defaultHome = () => DSH_HOME_DIR || defaultDshHome()
 /**
- * 固定端口只认「还登记过、目录也还在」的环境。旧 DSH_HOME 被删掉/换盘后，
- * environmentPorts 里那条钉子会把端口永久占住（#90），这里直接把它当不存在。
+ * 固定端口只认「还登记着」的环境。旧 DSH_HOME 换盘/移除登记后，environmentPorts 里那条钉子
+ * 会把端口永久占住（#90），这里直接把它当不存在。
+ * 不看目录在不在：外接盘/网络盘上的环境开机自启时可能还没挂上，按「目录不存在」清掉会把用户
+ * 钉好的端口永久抹掉（启动时还会写回文件）；新建启动项钉端口时目录也可能还没建。
+ * 真正不要的环境由「移除用户目录」带走它的钉子（/api/dsh-homes/remove）。
  */
 function liveEnvironmentPorts(stored) {
   const environments = safeEnvironmentPorts(stored?.environmentPorts)
@@ -237,7 +240,7 @@ function liveEnvironmentPorts(stored) {
     ...safeLaunchPresets(stored?.launchPresets).map((entry) => entry.dshHome).filter(Boolean),
   ]
   return Object.fromEntries(Object.entries(environments).filter(([dir]) =>
-    existsSync(dir) && known.some((item) => fileManager.samePath(dir, item))))
+    known.some((item) => fileManager.samePath(dir, item))))
 }
 ENVIRONMENT_PORTS = liveEnvironmentPorts(loadSettingsSync())
 const profileKey = (profile) => `${homeDir()}\0${profile}`
@@ -603,43 +606,57 @@ function scanInstalled() {
 }
 
 /** 小并发跑异步任务，避免一次 stat 几万个文件把句柄打满。 */
-async function mapLimit(items, limit, task) {
-  let index = 0
-  const workers = Array.from({ length: Math.min(limit, items.length || 1) }, async () => {
-    while (index < items.length) {
-      const item = items[index]
-      index += 1
-      await task(item)
-    }
-  })
-  await Promise.all(workers)
+/**
+ * 磁盘占用统计。三件事让它便宜：
+ * 1. 每棵树只走一遍：包大小、依赖图、node_modules 总量在同一次遍历里得出（以前同一份 node_modules 要走 3–4 遍）；
+ * 2. 全局限流：所有统计共用 FS_SLOTS 个文件系统操作名额，不会把 libuv 线程池占满、拖慢管理页的其它请求；
+ * 3. 指纹缓存：node_modules 只在安装后才变。先 stat 几个安装器每次都会改的文件（锁文件、pnpm 的
+ *    .modules.yaml、目录本身），对得上就直接用上次的结果，对不上才重走——相当于「先问版本号再决定要不要重算」。
+ *    结果落盘（size-cache.json），管理器重启后照样命中。同一时刻对同一棵树的请求共用一次遍历。
+ * profile 里 node_modules 以外的部分（补丁层、清单）很小，每次现算。
+ */
+const FS_SLOTS = 16
+let fsActive = 0
+const fsWaiters = []
+async function withFsSlot(task) {
+  // 名额直接交接给排队的人（不先减再加），否则新来的会趁空插队，实际并发超过上限
+  if (fsActive < FS_SLOTS) fsActive += 1
+  else await new Promise((resolve) => fsWaiters.push(resolve))
+  try {
+    return await task()
+  } finally {
+    const next = fsWaiters.shift()
+    if (next) next()
+    else fsActive -= 1
+  }
 }
 
 /**
  * 目录的逻辑占用。符号链接跳过：pnpm 的 node_modules 里大量是链接，顺着走会把共享 store
- * 里的同一份包重复算进每个版本。
+ * 里的同一份包重复算进每个版本。`skip` 是顶层要跳过的子目录名（单独统计的 node_modules）。
  */
-async function directoryBytes(dir) {
-  let entries
-  try { entries = await readdir(dir, { withFileTypes: true }) } catch { return 0 }
-  const files = []
-  const dirs = []
-  for (const entry of entries) {
-    if (entry.isSymbolicLink()) continue
-    if (entry.isDirectory()) dirs.push(entry.name)
-    else if (entry.isFile()) files.push(entry.name)
+async function directoryBytes(root, { skip = [] } = {}) {
+  const skipped = new Set(skip)
+  let total = 0
+  const walk = async (dir, top) => {
+    let entries
+    try { entries = await withFsSlot(() => readdir(dir, { withFileTypes: true })) } catch { return }
+    const tasks = []
+    for (const entry of entries) {
+      if (entry.isSymbolicLink()) continue
+      const path = join(dir, entry.name)
+      if (entry.isDirectory()) {
+        if (!(top && skipped.has(entry.name))) tasks.push(walk(path, false))
+      } else if (entry.isFile()) {
+        // 先拿到结果再累加：写成 `total += await ...` 会先读旧的 total，并发时互相覆盖
+        tasks.push(withFsSlot(() => stat(path)).then((info) => { total += info.size }, () => { /* 文件刚好被删 */ }))
+      }
+    }
+    await Promise.all(tasks)
   }
-  // 并发累加不能写 `total += await ...`：两个 worker 会读到同一个旧值，后写的把先写的覆盖掉
-  const sizes = []
-  await mapLimit(files, 32, async (name) => {
-    try { sizes.push((await stat(join(dir, name))).size) } catch { /* 文件刚好被删 */ }
-  })
-  await mapLimit(dirs, 8, async (name) => { sizes.push(await directoryBytes(join(dir, name))) })
-  return sizes.reduce((total, bytes) => total + bytes, 0)
+  await walk(root, true)
+  return total
 }
-
-const VERSION_SIZE_TTL_MS = 5 * 60_000
-let versionSizesCache = { at: 0, data: null }
 
 /** .pnpm 目录名 → 包名：`pkg@1.2.3`、`@scope+pkg@1.2.3(peer@x)`。 */
 function pnpmPackageName(entry) {
@@ -648,99 +665,155 @@ function pnpmPackageName(entry) {
   return (at > 0 ? raw.slice(0, at) : raw).replace(/\+/g, '/')
 }
 
-/** 一个 node_modules 里各包的大小；pnpm 的 .pnpm 虚拟目录按包名合并，符号链接跳过。 */
-async function packageSizesIn(nodeModules) {
+/**
+ * 一个 node_modules 走一遍：各包大小（pnpm 的 .pnpm 虚拟目录按包名合并）、包名 → 声明的依赖、总字节数。
+ * 目录名和 package.json 的 name 不一定一样（平台二进制 wrapper 常见），按真实包名归并，
+ * 这样依赖图（按 name 建）和大小才对得上。
+ */
+async function scanNodeModules(nodeModules) {
   const sizes = new Map()
-  // 目录名和 package.json 的 name 不一定一样（平台二进制 wrapper 常见），按真实包名归并，
-  // 这样依赖图（按 package.json 的 name 建）和大小才能对上。
-  const nameOf = (dir, fallback) => {
-    try { return JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')).name || fallback } catch { return fallback }
+  const graph = new Map()
+  let bytes = 0
+  const manifestOf = async (dir) => {
+    try { return JSON.parse(await withFsSlot(() => readFile(join(dir, 'package.json'), 'utf8'))) } catch { return null }
   }
-  const add = async (dir, fallback) => {
-    const name = nameOf(dir, fallback)
-    sizes.set(name, (sizes.get(name) || 0) + await directoryBytes(dir))
+  const addGraph = (pkg) => {
+    if (!pkg?.name) return
+    graph.set(pkg.name, [...new Set([
+      ...(pkg.dependencies ? Object.keys(pkg.dependencies) : []),
+      ...(pkg.optionalDependencies ? Object.keys(pkg.optionalDependencies) : []),
+    ])])
   }
-  const entries = await readdir(nodeModules, { withFileTypes: true }).catch(() => [])
-  for (const entry of entries) {
-    if (entry.isSymbolicLink()) continue
-    if (entry.name === '.pnpm') {
-      const virtual = await readdir(join(nodeModules, '.pnpm'), { withFileTypes: true }).catch(() => [])
-      for (const item of virtual) {
-        if (item.isSymbolicLink() || !item.isDirectory()) continue
-        const name = pnpmPackageName(item.name)
-        if (!name) continue
-        sizes.set(name, (sizes.get(name) || 0) + await directoryBytes(join(nodeModules, '.pnpm', item.name)))
-      }
-      continue
+  const addSize = (name, size) => {
+    sizes.set(name, (sizes.get(name) || 0) + size)
+    bytes += size
+  }
+  const children = async (dir) => (await withFsSlot(() => readdir(dir, { withFileTypes: true })).catch(() => []))
+    .filter((entry) => !entry.isSymbolicLink())
+  const hoisted = async (dir, fallback) => {
+    const [pkg, size] = await Promise.all([manifestOf(dir), directoryBytes(dir)])
+    addSize(pkg?.name || fallback, size)
+    addGraph(pkg)
+  }
+  // pnpm 隔离布局：.pnpm/<pkg>@<ver>/ 整个目录算这个包；依赖图读里面 node_modules/<pkg>/package.json
+  const virtual = async (dir, entry) => {
+    const name = pnpmPackageName(entry)
+    const [size, inner] = await Promise.all([directoryBytes(dir), children(join(dir, 'node_modules'))])
+    if (name) addSize(name, size)
+    else bytes += size
+    const manifests = []
+    for (const sub of inner) {
+      if (!sub.isDirectory()) continue
+      const subDir = join(dir, 'node_modules', sub.name)
+      if (sub.name.startsWith('@')) {
+        for (const child of await children(subDir)) if (child.isDirectory()) manifests.push(manifestOf(join(subDir, child.name)))
+      } else manifests.push(manifestOf(subDir))
     }
-    if (entry.name.startsWith('.') || !entry.isDirectory()) continue
-    if (entry.name.startsWith('@')) {
-      const scoped = await readdir(join(nodeModules, entry.name), { withFileTypes: true }).catch(() => [])
-      for (const sub of scoped) {
-        if (sub.isSymbolicLink() || !sub.isDirectory()) continue
-        await add(join(nodeModules, entry.name, sub.name), `${entry.name}/${sub.name}`)
-      }
-      continue
-    }
-    await add(join(nodeModules, entry.name), entry.name)
+    for (const pkg of await Promise.all(manifests)) addGraph(pkg)
   }
-  return sizes
+  const jobs = []
+  for (const entry of await children(nodeModules)) {
+    const path = join(nodeModules, entry.name)
+    if (entry.isFile()) {
+      jobs.push(withFsSlot(() => stat(path)).then((info) => { bytes += info.size }, () => {}))
+    } else if (!entry.isDirectory()) {
+      continue
+    } else if (entry.name === '.pnpm') {
+      for (const item of await children(path)) {
+        const itemPath = join(path, item.name)
+        if (item.isDirectory()) jobs.push(virtual(itemPath, item.name))
+        else if (item.isFile()) jobs.push(withFsSlot(() => stat(itemPath)).then((info) => { bytes += info.size }, () => {}))
+      }
+    } else if (entry.name.startsWith('.')) {
+      // .bin、.cache 之类：算进总量，不归到任何包
+      jobs.push(directoryBytes(path).then((size) => { bytes += size }))
+    } else if (entry.name.startsWith('@')) {
+      for (const sub of await children(path)) {
+        if (sub.isDirectory()) jobs.push(hoisted(join(path, sub.name), `${entry.name}/${sub.name}`))
+      }
+    } else {
+      jobs.push(hoisted(path, entry.name))
+    }
+  }
+  await Promise.all(jobs)
+  return { bytes, sizes, graph }
 }
 
-const STORAGE_BREAKDOWN_TTL_MS = 5 * 60_000
-const storageBreakdownCache = new Map()
+/** 安装器每次装/删都会改的几个位置；全对得上就说明 node_modules 没变过。 */
+const SIZE_PROBES = [
+  'package.json', 'pnpm-lock.yaml', 'package-lock.json',
+  'node_modules', 'node_modules/.modules.yaml', 'node_modules/.package-lock.json',
+  'node_modules/.pnpm', 'node_modules/.pnpm/lock.yaml',
+]
+async function sizeFingerprint(root) {
+  const parts = await Promise.all(SIZE_PROBES.map((name) =>
+    withFsSlot(() => stat(join(root, name))).then((info) => `${Math.round(info.mtimeMs)}:${info.size}`, () => '-')))
+  return parts.join('|')
+}
 
-/** 包名 → 它声明的依赖名。用来把传递依赖归到引用它的插件头上。 */
-async function packageGraph(nodeModules) {
-  const graph = new Map()
-  const add = async (dir) => {
+const SIZE_CACHE_FILE = join(APP_DIR, 'size-cache.json')
+const SIZE_CACHE_MAX = 40
+let sizeCache = null
+const sizeScans = new Map()
+let sizeCacheWrite = null
+
+function loadSizeCache() {
+  if (sizeCache) return sizeCache
+  sizeCache = new Map()
+  try {
+    const parsed = JSON.parse(readFileSync(SIZE_CACHE_FILE, 'utf8'))
+    if (parsed?.v === 1 && parsed.entries && typeof parsed.entries === 'object') {
+      for (const [dir, entry] of Object.entries(parsed.entries)) {
+        if (typeof entry?.fp !== 'string' || !Array.isArray(entry.sizes) || !Array.isArray(entry.graph)) continue
+        sizeCache.set(dir, { fp: entry.fp, at: Number(entry.at) || 0, bytes: Number(entry.bytes) || 0, sizes: new Map(entry.sizes), graph: new Map(entry.graph) })
+      }
+    }
+  } catch { /* 没有或坏了：重新统计一遍就有了 */ }
+  return sizeCache
+}
+
+/** 缓存只是加速：写不进去不影响结果。合并成一次写，免得同时开几个弹窗时反复落盘。 */
+function scheduleSizeCacheWrite() {
+  if (sizeCacheWrite) return
+  sizeCacheWrite = setTimeout(async () => {
+    sizeCacheWrite = null
+    const kept = [...loadSizeCache().entries()].sort((a, b) => b[1].at - a[1].at).slice(0, SIZE_CACHE_MAX)
+    const entries = Object.fromEntries(kept.map(([dir, entry]) => [dir, { fp: entry.fp, at: entry.at, bytes: entry.bytes, sizes: [...entry.sizes], graph: [...entry.graph] }]))
+    const temp = `${SIZE_CACHE_FILE}.${process.pid}.tmp`
     try {
-      const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'))
-      if (!pkg?.name) return
-      const deps = new Set([
-        ...(pkg.dependencies ? Object.keys(pkg.dependencies) : []),
-        ...(pkg.optionalDependencies ? Object.keys(pkg.optionalDependencies) : []),
-      ])
-      graph.set(pkg.name, deps)
-    } catch { /* 没有 package.json 的残缺目录 */ }
+      await mkdir(dirname(SIZE_CACHE_FILE), { recursive: true })
+      await writeFile(temp, JSON.stringify({ v: 1, entries }))
+      renameSync(temp, SIZE_CACHE_FILE)
+    } catch { try { rmSync(temp, { force: true }) } catch { /* ignore */ } }
+  }, 500)
+  sizeCacheWrite.unref?.()
+}
+
+/** 某个目录下 node_modules 的统计结果：指纹没变用缓存，变了（或没算过）走一遍；并发请求共用一次遍历。 */
+async function nodeModulesStats(root) {
+  const nodeModules = join(root, 'node_modules')
+  const fp = await sizeFingerprint(root)
+  const hit = loadSizeCache().get(nodeModules)
+  if (hit && hit.fp === fp) return hit
+  const key = `${nodeModules}\0${fp}`
+  if (!sizeScans.has(key)) {
+    sizeScans.set(key, scanNodeModules(nodeModules).then((result) => {
+      const entry = { fp, at: Date.now(), ...result }
+      loadSizeCache().set(nodeModules, entry)
+      scheduleSizeCacheWrite()
+      return entry
+    }).finally(() => sizeScans.delete(key)))
   }
-  const entries = await readdir(nodeModules, { withFileTypes: true }).catch(() => [])
-  for (const entry of entries) {
-    if (entry.isSymbolicLink() || !entry.isDirectory() || entry.name.startsWith('.')) continue
-    if (entry.name.startsWith('@')) {
-      const scoped = await readdir(join(nodeModules, entry.name), { withFileTypes: true }).catch(() => [])
-      for (const sub of scoped) {
-        if (sub.isSymbolicLink() || !sub.isDirectory()) continue
-        await add(join(nodeModules, entry.name, sub.name))
-      }
-      continue
-    }
-    await add(join(nodeModules, entry.name))
-  }
-  // pnpm 隔离布局：.pnpm/<pkg>@<ver>/node_modules/<pkg>
-  const virtual = await readdir(join(nodeModules, '.pnpm'), { withFileTypes: true }).catch(() => [])
-  for (const item of virtual) {
-    if (item.isSymbolicLink() || !item.isDirectory()) continue
-    const inner = await readdir(join(nodeModules, '.pnpm', item.name, 'node_modules'), { withFileTypes: true }).catch(() => [])
-    for (const sub of inner) {
-      if (sub.isSymbolicLink() || !sub.isDirectory()) continue
-      if (sub.name.startsWith('@')) {
-        const scoped = await readdir(join(nodeModules, '.pnpm', item.name, 'node_modules', sub.name), { withFileTypes: true }).catch(() => [])
-        for (const child of scoped) {
-          if (child.isSymbolicLink() || !child.isDirectory()) continue
-          await add(join(nodeModules, '.pnpm', item.name, 'node_modules', sub.name, child.name))
-        }
-        continue
-      }
-      await add(join(nodeModules, '.pnpm', item.name, 'node_modules', sub.name))
-    }
-  }
-  return graph
+  return sizeScans.get(key)
+}
+
+/** 改了 node_modules 却不一定动锁文件的操作（依赖去重会把重复包换成链接）结束后调一下，下次重新统计。 */
+function forgetNodeModulesStats(root) {
+  if (loadSizeCache().delete(join(root, 'node_modules'))) scheduleSizeCacheWrite()
 }
 
 /** 每个直接插件能到达哪些包；共用包按引用它的插件数量均摊。 */
-async function attributePlugins(nodeModules, direct, sizes) {
-  const graph = await packageGraph(nodeModules)
+function attributePlugins(graph, direct, sizes) {
   const parents = new Map()
   for (const start of direct) {
     const seen = new Set([start])
@@ -783,22 +856,18 @@ async function attributePlugins(nodeModules, direct, sizes) {
  * 插件只算 profile 的直接依赖；pnpm 共享 store 不在这些目录里，不重复计入。
  */
 async function storageBreakdown(version, profile) {
-  const key = `${homeDir()}\0${version}\0${profile}`
-  const cached = storageBreakdownCache.get(key)
-  if (cached && Date.now() - cached.at < STORAGE_BREAKDOWN_TTL_MS) return cached.data
   const versionPath = versionDir(version)
   const profilePath = join(homeDir(), 'profiles', safeProfile(profile))
-  const profileNodeModules = join(profilePath, 'node_modules')
-  const [versionBytes, profileBytes, profileNodeModulesBytes, versionPackages, profilePackages] = await Promise.all([
-    directoryBytes(versionPath),
-    directoryBytes(profilePath),
-    directoryBytes(profileNodeModules),
-    packageSizesIn(join(versionPath, 'node_modules')),
-    packageSizesIn(profileNodeModules),
+  const [versionModules, versionRest, profileModules, dataBytes] = await Promise.all([
+    nodeModulesStats(versionPath),
+    directoryBytes(versionPath, { skip: ['node_modules'] }),
+    nodeModulesStats(profilePath),
+    directoryBytes(profilePath, { skip: ['node_modules'] }),
   ])
-  const sum = (map) => [...map.values()].reduce((totalBytes, bytes) => totalBytes + bytes, 0)
+  const versionPackages = versionModules.sizes
+  const profilePackages = profileModules.sizes
   const direct = new Set(Object.keys(profileDependencies(profilePath)))
-  const { plugins, depsBytes: pluginDepsBytes } = await attributePlugins(profileNodeModules, [...direct], profilePackages)
+  const { plugins, depsBytes: pluginDepsBytes } = attributePlugins(profileModules.graph, [...direct], profilePackages)
   let pluginOwnBytes = 0
   for (const name of direct) pluginOwnBytes += profilePackages.get(name) || 0
   let runtimeBytes = 0
@@ -807,8 +876,7 @@ async function storageBreakdown(version, profile) {
     if (name.startsWith('@deepseek-ai/')) runtimeBytes += bytes
     else runtimeDepsBytes += bytes
   }
-  const dataBytes = Math.max(0, profileBytes - profileNodeModulesBytes)
-  const total = versionBytes + profileBytes
+  const total = versionModules.bytes + versionRest + profileModules.bytes + dataBytes
   // 到不了的 profile 包（残留/未声明）和版本目录非 node_modules 的部分都算「未归类」
   const restBytes = Math.max(0, total - pluginOwnBytes - pluginDepsBytes - runtimeBytes - runtimeDepsBytes - dataBytes)
   const segments = [
@@ -828,24 +896,20 @@ async function storageBreakdown(version, profile) {
     combined.set(name, item)
   }
   const items = [...combined.values()].sort((left, right) => right.bytes - left.bytes).slice(0, 5)
-  const data = { version, profile, total, segments, plugins, items }
-  storageBreakdownCache.set(key, { at: Date.now(), data })
-  return data
-}
-
-function invalidateStorageBreakdown() {
-  storageBreakdownCache.clear()
+  return { version, profile, total, segments, plugins, items }
 }
 
 /** 已装版本各自占多少（只算 DATA/versions 下受管版本；系统全局装的不归启动器管）。 */
 async function versionSizes() {
-  if (versionSizesCache.data && Date.now() - versionSizesCache.at < VERSION_SIZE_TTL_MS) return versionSizesCache.data
   const versions = scanInstalled().filter(isManaged)
-  const sizes = {}
-  for (const version of versions) sizes[version] = await directoryBytes(versionDir(version))
-  const total = Object.values(sizes).reduce((sum, bytes) => sum + bytes, 0)
-  versionSizesCache = { at: Date.now(), data: { versions: sizes, total } }
-  return versionSizesCache.data
+  const entries = await Promise.all(versions.map(async (version) => {
+    const dir = versionDir(version)
+    const [modules, rest] = await Promise.all([nodeModulesStats(dir), directoryBytes(dir, { skip: ['node_modules'] })])
+    return [version, modules.bytes + rest]
+  }))
+  const sizes = Object.fromEntries(entries)
+  const total = entries.reduce((sum, [, bytes]) => sum + bytes, 0)
+  return { versions: sizes, total }
 }
 
 function listedVersions(config) {
@@ -928,8 +992,6 @@ async function pruneVersions(config) {
     }
   }
   if (removed.length) {
-    versionSizesCache.at = 0
-    invalidateStorageBreakdown()
     config.versions = listedVersions(config)
     await saveConfig(config)
     for (const version of removed) await dropInstancePorts(version)
@@ -3065,7 +3127,8 @@ async function reinstallAfterRollback(profile) {
   try {
     manifest = JSON.parse(readFileSync(join(profileDirOf(profile), 'package.json'), 'utf8'))
   } catch {
-    return null
+    // 还原后没有（或读不了）清单：没东西可装。明确回 skipped，页面才不会说「已重装依赖」
+    return { ok: true, skipped: true }
   }
   const dependencies = manifest?.dependencies
   // 没有直接依赖就没什么可装的（官方 bundle 由 dsh 自己带），别白起一次 pnpm。
@@ -4428,7 +4491,6 @@ async function addPlugin(version, spec, { profile = PROFILE_NAME } = {}) {
     pluginBusy = false
     pluginProgressName = ''
     pluginProgressProfile = ''
-    invalidateStorageBreakdown()
     emitPluginProgress(null)
   }
 }
@@ -4471,7 +4533,6 @@ async function removePlugin(version, name, { profile = PROFILE_NAME } = {}) {
     pluginBusy = false
     pluginProgressName = ''
     pluginProgressProfile = ''
-    invalidateStorageBreakdown()
     emitPluginProgress(null)
   }
 }
@@ -4673,9 +4734,15 @@ async function runProfileInstall(version, options = {}) {
   await mkdir(homeDir(), { recursive: true })
   await ensureProfileNpmrc(profile)
   // 这轮进度属于哪个 profile：恢复档弹窗据此把「正在重装依赖」接到真实进度上。
-  pluginProgressName = ''
-  pluginProgressProfile = profile
-  emitPluginProgress({ phase: 'resolve' })
+  // 调用方自带 onProgress（整合包安装）时进度归它，别再去插件页闪一下再清空；
+  // 收尾时还原调用方设过的名字/profile，不把别人正在显示的进度抹掉。
+  const ownsProgress = typeof onProgress !== 'function'
+  const previous = { name: pluginProgressName, profile: pluginProgressProfile }
+  if (ownsProgress) {
+    pluginProgressName = ''
+    pluginProgressProfile = profile
+    emitPluginProgress({ phase: 'resolve' })
+  }
   try {
     await run()
   } catch (error1) {
@@ -4688,10 +4755,11 @@ async function runProfileInstall(version, options = {}) {
     if (again) log(`先清理了 ${again} 个悬空的链接`)
     await run()
   } finally {
-    pluginProgressName = ''
-    pluginProgressProfile = ''
-    invalidateStorageBreakdown()
-    emitPluginProgress(null)
+    if (ownsProgress) {
+      pluginProgressName = previous.name
+      pluginProgressProfile = previous.profile
+      emitPluginProgress(null)
+    }
   }
 }
 
@@ -5644,8 +5712,15 @@ export async function checkWebPage(origin, token) {
  * 启动 CPU 账本：正常启动时由 perf/plugin-profile.mjs 在启动窗口内采样写入，这里只读。
  * 记录不存在时返回 missing，页面据此显示「重启一次后再看」。
  */
+/** 和 perf/plugin-profile.mjs 的 reportFileName 同一套规则（那边被注入 dsh，不从这里 import）。 */
+function pluginProfileFile(version, profile) {
+  const name = `${version}@${profile}`.replace(/[^0-9A-Za-z@._-]/gu, (char) =>
+    [...Buffer.from(char, 'utf8')].map((byte) => `%${byte.toString(16).toUpperCase().padStart(2, '0')}`).join(''))
+  return join(APP_DIR, 'plugin-profile', `${name}.json`)
+}
+
 async function pluginProfileReport(version, profile) {
-  const file = join(APP_DIR, 'plugin-profile', `${version}@${profile}.json`)
+  const file = pluginProfileFile(version, profile)
   try {
     const report = JSON.parse(await readFile(file, 'utf8'))
     return { ...report, file }
@@ -7457,15 +7532,12 @@ async function handleApi(req, res, url) {
   }
   if (req.method === 'POST' && url.pathname === '/api/install') {
     await install(body.version)
-    versionSizesCache.at = 0
-    invalidateStorageBreakdown()
     send(res, 200, { ok: true })
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/versions/optimize') {
     const result = await optimizeVersion(body.version)
-    versionSizesCache.at = 0
-    invalidateStorageBreakdown()
+    forgetNodeModulesStats(versionDir(safeVersion(body.version)))
     send(res, 200, result)
     return
   }
@@ -7597,8 +7669,6 @@ async function handleApi(req, res, url) {
   }
   if (req.method === 'POST' && url.pathname === '/api/uninstall') {
     await uninstall(body.version)
-    versionSizesCache.at = 0
-    invalidateStorageBreakdown()
     send(res, 200, { ok: true })
     return
   }
@@ -7751,7 +7821,6 @@ async function handleApi(req, res, url) {
       }
     } finally {
       pluginBusy = false
-      invalidateStorageBreakdown()
     }
     pushLog(`桌面增强：${profile} 卸载完成，成功 ${removed.length} 个${failed.length ? `，失败 ${failed.length} 个` : ''}（重启 dsh 后生效）`)
     send(res, 200, { ok: failed.length === 0, removed, failed, desktopEnhance: desktopEnhanceSummary(profile), ...listPlugins(profileDirOf(profile)), profile })

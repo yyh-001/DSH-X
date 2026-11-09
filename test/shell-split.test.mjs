@@ -54,6 +54,9 @@ test('外壳第一次启动从 npm 取核心，挑和当前 Electron 兼容的�
   assert.match(main, /await setupCore\(\)/, 'current 缺失时先下载核心再启动')
   assert.match(main, /pickCoreRelease\(metadata, \{[\s\S]*?electron: process\.versions\.electron/, '挑兼容版本，不盲拿 dist-tag 头部')
   assert.match(main, /previous: PREVIOUS_CORE/, '换核心前把旧的留一份，起不来能回滚')
+  assert.match(main, /async function setupCore\(\)[\s\S]*?writeFileSync\(join\(APP_DIR, 'core', 'pending'\)[\s\S]*?return ACTIVE_CORE/,
+    '首启装好的核心也写 pending：起不来时 recoverCore 才能记下坏版本，不会下载同一版死循环')
+  assert.match(main, /skip: failedCoreVersions\(\)/, '起不来的版本按列表跳过，两个坏版本不会来回转')
   assert.doesNotMatch(main, /resources\/core/, '安装包里不再有基线核心')
   const fetchCore = read('shell/core-fetch.mjs')
   assert.match(fetchCore, /registry\.npmmirror\.com[\s\S]*?registry\.npmjs\.org/, '镜像优先，失败退回官方')

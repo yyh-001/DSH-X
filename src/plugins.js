@@ -172,13 +172,15 @@ export function listPlugins(profileDir) {
   // 0.2.x 起层栈只挂载 dsh.profile.bundles 里的包：包还在依赖里、但被「安全启动」
   // 摘出了清单时，它其实不会被加载，列表里必须显示成关闭（打开开关会重新挂回去，
   // 见 setPluginEnabled）。客户端插件没有加载行，不参与挂载判断。
-  const bundles = Array.isArray(manifest?.dsh?.profile?.bundles) ? manifest.dsh.profile.bundles : []
+  // 清单里根本没有 bundles 数组（0.1.x / 自定义清单）时没有「挂载」这层语义，按挂着算：
+  // 否则全部插件显示成关闭，而 ensureBundleMounted 对这种清单又故意不动，开关永远打不开。
+  const bundles = Array.isArray(manifest?.dsh?.profile?.bundles) ? manifest.dsh.profile.bundles : null
   const plugins = deps.map((name) => {
     const ids = packageRowIds(profileDir, name)
     const official = PROTECTED_PACKAGE_RE.test(name)
     const marketOwned = ids.length > 0 && ids.every((id) => MARKET_ROW_RE.test(id))
     const disabled = ids.some((id) => state.disables.includes(id))
-    const mounted = !ids.length || bundles.includes(name)
+    const mounted = !ids.length || !bundles || bundles.includes(name)
     let toggleable = true
     let reason = ''
     if (!ids.length) {
@@ -410,7 +412,9 @@ export function setPluginEnabled(profileDir, packageName, enabled) {
 /** 从安装 spec（`pkg@1.2`、`@scope/pkg@1.2`、file:/git: 源）里取出纯包名；本地/远端源取不出，返回空串。 */
 export function bundleNameOf(spec) {
   const value = String(spec ?? '')
-  if (/^(?:file:|git\+|github:|https?:)/.test(value)) return ''
+  // 本地 / 远端源取不出包名，要装完对比依赖才知道。scp 形态的 `git@host:user/repo.git` 也算：
+  // 不排除的话下面的正则会把它当成包名 `git` + 版本 `host:...`，插件装上了却永远挂不上去。
+  if (/^(?:file:|link:|git\+|git:|ssh:|github:|gitlab:|bitbucket:|https?:|git@)/.test(value) || value.includes('://')) return ''
   // 带 scope 的包名里那个 `@` 是名字的一部分（`@scope/pkg`），版本号才是名字之后那个 `@`。
   // 按 `@` 直接 split 会把 `@scope/pkg@1.2` 切成 `scope/pkg` + `1.2`，拼回来的
   // `@scope/pkg/1.2` 是个不存在的包名：dsh 解析不到 bundle，插件会一直起不来。

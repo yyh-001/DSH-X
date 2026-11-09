@@ -203,8 +203,15 @@ function recoverCore(coreDir, { pendingOnly = false } = {}) {
   if (coreDir !== ACTIVE_CORE) return false
   const pending = join(APP_DIR, 'core', 'pending')
   if (pendingOnly && !existsSync(pending)) return false
-  // 记下「这个版本起不来」：下次挑核心时跳过它，否则会下载 → 起不来 → 回退 → 再下载地循环
-  try { writeFileSync(FAILED_CORE_MARK, readFileSync(pending)) } catch { /* 没有 pending 就不记 */ }
+  // 记下「这个版本起不来」：下次挑核心时跳过它，否则会下载 → 起不来 → 回退 → 再下载地循环。
+  // 记成列表而不是只记最后一个：X 坏了退到 W、W 也坏了时，只记 W 会让下次又挑回 X，两个版本来回转。
+  try {
+    const version = String(JSON.parse(readFileSync(pending, 'utf8')).version || '')
+    if (version) {
+      const failed = [...new Set([...failedCoreVersions(), version])].slice(-20)
+      writeFileSync(FAILED_CORE_MARK, JSON.stringify({ version, failed, at: Date.now() }))
+    }
+  } catch { /* 没有 pending 就不记 */ }
   try { rmSync(ACTIVE_CORE, { recursive: true, force: true }) } catch { /* ignore */ }
   try { rmSync(pending, { force: true }) } catch { /* ignore */ }
   let restored = false
@@ -494,7 +501,7 @@ async function chooseCoreRelease(fetchImpl) {
       const release = pickCoreRelease(metadata, {
         electron: process.versions.electron,
         channel: channelOf(VERSION),
-        skip: [failedCoreVersion()].filter(Boolean),
+        skip: failedCoreVersions(),
       })
       if (release) return { release, registry }
       last = new Error(`npm 上没有和当前外壳（Electron ${process.versions.electron}）兼容的核心版本`)
@@ -505,9 +512,13 @@ async function chooseCoreRelease(fetchImpl) {
   throw last || new Error('没有可用的核心下载源')
 }
 
-/** 起不来的核心版本（recoverCore 写）；挑版本时跳过它，免得下载 → 回退 → 再下载。 */
-function failedCoreVersion() {
-  try { return String(JSON.parse(readFileSync(FAILED_CORE_MARK, 'utf8')).version || '') } catch { return '' }
+/** 起不来的核心版本（recoverCore 写）；挑版本时跳过它们，免得下载 → 回退 → 再下载。旧格式只有 version 一项。 */
+function failedCoreVersions() {
+  try {
+    const mark = JSON.parse(readFileSync(FAILED_CORE_MARK, 'utf8'))
+    const list = Array.isArray(mark?.failed) ? mark.failed : [mark?.version]
+    return list.map((item) => String(item || '')).filter(Boolean)
+  } catch { return [] }
 }
 
 /**
@@ -553,6 +564,9 @@ async function setupCore() {
       paint({ phase: 'connect' })
       await install({ ...release, tarball })
     }
+    // 和核心更新（server.js 的 app-apply）写同一个「待验证」标记：首启下载的核心起不来时，
+    // recoverCore 才知道是哪个版本坏了并跳过它；不写的话会下载 → 起不来 → 删掉 → 再下载同一版地死循环。
+    try { writeFileSync(join(APP_DIR, 'core', 'pending'), JSON.stringify({ version: release.version, at: Date.now() })) } catch { /* 写不进去只是少了回退保护 */ }
     console.log(`核心已就绪：${ACTIVE_CORE}（${release.version}，${registryHost(currentRegistry)}）`)
     // 网快时 12 MB 一秒就下完，窗口一闪而过；至少留 1.2 秒把进度和结果展示完
     const remain = 1_200 - (Date.now() - shownAt)

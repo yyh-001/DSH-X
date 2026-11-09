@@ -89,33 +89,62 @@ export function listPatchBackups(profileDir) {
   } catch {
     return []
   }
+  // 按「时间戳，再按撞名序号」排：只看最后一个 `-` 后面的数字会把 `.bak-<ts>-1` 当成 1，排到最旧去
+  const order = (name) => {
+    const match = /\.bak-(\d+)(?:-(\d+))?$/.exec(name)
+    return match ? [Number(match[1]), Number(match[2] || 0)] : [0, 0]
+  }
   return names
     .filter((name) => BACKUP_NAME_RE.test(name))
-    .sort((a, b) => Number(b.slice(b.lastIndexOf('-') + 1)) - Number(a.slice(a.lastIndexOf('-') + 1)) || b.localeCompare(a))
+    .sort((a, b) => {
+      const [left, right] = [order(a), order(b)]
+      return right[0] - left[0] || right[1] - left[1] || b.localeCompare(a)
+    })
     .map((name) => {
       const path = join(profileDir, name)
       let dropped = null
       let at = null
+      let settled = false
       try {
         const parsed = JSON.parse(readFileSync(sidecarOf(path), 'utf8'))
         if (Array.isArray(parsed?.dropped)) {
           dropped = parsed.dropped
           if (Number.isFinite(parsed.at)) at = parsed.at
+          settled = parsed.settled === true
         }
       } catch { /* 没侧车或坏了：只知道有这份备份 */ }
-      return { name, path, dropped, at }
+      return { name, path, dropped, at, settled }
     })
 }
 
 /**
- * 最近一次「安全启动」留下的备份：只有那次会写侧车，普通改名（还原前挪开的现役补丁）
- * 没有。管理器重启后据此恢复「可还原」提示，不必依赖内存里的 lastRecovery。
+ * 还没处理的「安全启动」：只有安全启动会写侧车，普通改名（还原前挪开的现役补丁）没有；
+ * 还原过一次就把这一串都标成 settled，之后不再冒出来。管理器重启后据此恢复「可还原」提示（#88）。
+ *
+ * 连着安全启动了几次（中间 dsh 可能重建了补丁层）时，用户真正的配置在最早那份里，
+ * 后面几份摘掉的 bundle 列表往往是空的——所以指向最早那份，并把这一串摘掉的 bundle 合起来。
  */
 export function latestRecovery(profileDir) {
+  const pending = []
   for (const item of listPatchBackups(profileDir)) {
-    if (Array.isArray(item.dropped)) return { backup: item.path, dropped: item.dropped, at: item.at }
+    if (!Array.isArray(item.dropped)) continue
+    if (item.settled) break
+    pending.push(item)
   }
-  return null
+  if (!pending.length) return null
+  const oldest = pending[pending.length - 1]
+  const dropped = [...new Set(pending.flatMap((item) => item.dropped))]
+  return { backup: oldest.path, dropped, at: pending[0].at ?? oldest.at }
+}
+
+/** 把还没处理的安全启动侧车都标成 settled：还原了其中一份，这一串就都算处理过了。 */
+function settlePendingRecoveries(profileDir) {
+  for (const item of listPatchBackups(profileDir)) {
+    if (!Array.isArray(item.dropped) || item.settled) continue
+    try {
+      writeFileSync(sidecarOf(item.path), `${JSON.stringify({ at: item.at, dropped: item.dropped, settled: true }, null, 2)}\n`)
+    } catch { /* 标不上只是提示会多出现一次 */ }
+  }
 }
 
 /**
@@ -175,13 +204,19 @@ export function restoreProfileBackup(profileDir, backupPath) {
       movedAside = nextBackupPath(patchPath)
       renameSync(patchPath, movedAside)
     }
+    // 还原的是这一串安全启动里的一份时，后面几次摘掉的 bundle 也一起放回（它们同样是用户装的）
+    const chain = latestRecovery(profileDir)
+    const chained = chain && listPatchBackups(profileDir).some((item) => item.name === name && Array.isArray(item.dropped) && !item.settled)
+      ? chain.dropped
+      : []
     renameSync(target, patchPath)
     let restoredBundles = []
     const sidecar = sidecarOf(target)
     if (existsSync(sidecar)) {
       try {
-        const { dropped } = JSON.parse(readFileSync(sidecar, 'utf8'))
-        if (Array.isArray(dropped) && dropped.length) {
+        const own = JSON.parse(readFileSync(sidecar, 'utf8')).dropped
+        const dropped = [...new Set([...(Array.isArray(own) ? own : []), ...chained])]
+        if (dropped.length) {
           const manifestPath = join(profileDir, 'package.json')
           const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
           const profile = manifest?.dsh?.profile
@@ -195,6 +230,7 @@ export function restoreProfileBackup(profileDir, backupPath) {
       } catch { /* 侧车或清单坏了：补丁层已经还原，bundle 列表手工改 */ }
       try { unlinkSync(sidecar) } catch { /* 已经不在 */ }
     }
+    settlePendingRecoveries(profileDir)
     return { restored: name, movedAside, restoredBundles }
   })
 }

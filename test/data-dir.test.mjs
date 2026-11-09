@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { join, sep } from 'node:path'
 import test from 'node:test'
@@ -61,6 +61,18 @@ test('建目录失败时回滚这次新建的上层目录，已存在的路径�
     assert.equal(await ensureWritableDir(fresh), fresh)
     assert.ok(existsSync(fresh))
     assert.equal(existsSync(join(fresh, '.dsh-write-probe')), false, '探针文件用完就删')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('建目录失败时不删用户的悬空符号链接', { skip: process.platform === 'win32' && '建符号链接要管理员权限' }, async () => {
+  const root = mkdtempSync(join(tmpdir(), 'dsh-dangling-'))
+  try {
+    const link = join(root, 'link')
+    symlinkSync(join(root, 'missing-target'), link)
+    await assert.rejects(ensureWritableDir(join(link, 'sub')))
+    assert.ok(lstatSync(link).isSymbolicLink(), '悬空链接是用户的东西，失败回滚不能删它')
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
