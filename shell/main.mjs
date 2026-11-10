@@ -964,8 +964,9 @@ function createDshWindow() {
     show: false,
     ...(IS_WINDOWS ? { icon: ICON_FILE } : {}),
     // 本地那张「没在跑」的页要 window.ipc；远端 dsh 页面的预加载只暴露 postMessage，
-    // 而 handleIdleMessage 只认 launch / manager 两个词，dsh 页面发什么都没有效果
-    webPreferences: managerPreferences(),
+    // 而 handleIdleMessage 只认 launch / manager 两个词，dsh 页面发什么都没有效果。
+    // --dsh-host-paths 只给这个窗口装 __DSH_HOST_PATHS__（拖拽文件取真实路径），管理页不装。
+    webPreferences: { ...managerPreferences(), additionalArguments: ['--dsh-host-paths'] },
   })
   dshWindow.page = null
   dshWindow.instanceId = null
