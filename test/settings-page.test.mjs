@@ -244,3 +244,13 @@ test('浏览器安全与数据放进常规：证书开关走统一保存链路�
     assert.ok(dict[key], `「${key}」有英文`)
   }
 })
+
+test('界面语言有「系统默认」选项并默认选中', () => {
+  assert.match(
+    html,
+    /<select id="uiLang">\s*<option value="system" data-i18n="系统默认">系统默认<\/option>\s*<option value="zh">中文<\/option>\s*<option value="en">English<\/option>\s*<\/select>/,
+    '系统默认排第一（默认选项），后面才是中文 / English',
+  )
+  assert.match(html, /"系统默认": "System default",/, '英文界面有翻译')
+  assert.match(html, /uiLangEl\.value = pref === 'zh' \|\| pref === 'en' \? pref : 'system'/, '回显时按偏好落位，缺省落在系统默认')
+})

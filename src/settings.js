@@ -374,8 +374,8 @@ export const DEFAULTS = {
   wsl: { ...DEFAULT_WSL },
   // WSL 固定端口：按发行版分开，键是发行版名，值是 版本@profile → 端口。
   wslPorts: {},
-  // 界面语言：zh / en（settings.json 为准；旧安装器的 lang.txt 只提供首次默认值；
-  // 两者都没有时跟随系统语言，非中文环境回退英文）
+  // 界面语言：system（跟随系统，默认）/ zh / en（settings.json 为准；旧安装器的 lang.txt
+  // 只提供首次默认值；没选过时跟随系统语言，非中文环境回退英文）
   lang: '',
   theme: 'system',
   // 上次新建启动项停在哪个隔离方式档：下次打开「添加启动项」直接落在这里，不用每次重选
@@ -691,10 +691,15 @@ export function resolveProfile() {
   }
 }
 
-/** 界面语言：只认 zh / en，其余当没设。 */
+/** 界面语言偏好：只认 system / zh / en，其余当没设。 */
 export function safeLang(value) {
   const lang = String(value ?? '').trim().toLowerCase()
-  return lang === 'en' ? 'en' : lang === 'zh' ? 'zh' : ''
+  return lang === 'en' ? 'en' : lang === 'zh' ? 'zh' : lang === 'system' ? 'system' : ''
+}
+
+/** 设置页下拉的回显值：没选过（旧设置的空值）按「系统默认」显示。 */
+export function safeLangPref(value) {
+  return safeLang(value) || 'system'
 }
 
 /**

@@ -260,6 +260,7 @@
                   </div>
                   <div class="set-control">
                     <select id="uiLang">
+                      <option value="system" data-i18n="系统默认">系统默认</option>
                       <option value="zh">中文</option>
                       <option value="en">English</option>
                     </select>
@@ -1548,6 +1549,7 @@
   "重启": "Restart",
   "额外启动参数": "Extra startup arguments",
   "界面语言": "Interface language",
+  "系统默认": "System default",
   "没有可开关的加载行（客户端插件，由插件市场管理）": "No toggleable loader row (client plugin, managed by the marketplace)",
   "官方组件，不提供开关": "Official component, no toggle",
   "市场自管行，不提供开关": "Marketplace-managed row, no toggle",
@@ -8337,7 +8339,10 @@
 
     function fillSettings(data) {
       if ('args' in data) argsEl.value = String(data.args ?? '')
-      if ('lang' in data) uiLangEl.value = data.lang === 'en' ? 'en' : 'zh'
+      if ('lang' in data || 'langPref' in data) {
+        const pref = 'langPref' in data ? data.langPref : data.lang
+        uiLangEl.value = pref === 'zh' || pref === 'en' ? pref : 'system'
+      }
       if ('theme' in data) {
         savedTheme = data.theme === 'light' || data.theme === 'dark' ? data.theme : 'system'
         if (!pendingSettings.has('theme')) {

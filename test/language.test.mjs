@@ -91,3 +91,34 @@ test('用户语言未设置且安装语言缺失或无效时，跟随系统语�
     await checkLanguage(expected)
   }
 })
+
+test('界面语言默认是「系统默认」，显式选择后跟随系统语言并写进设置', async () => {
+  await server.stopAll()
+  writeFileSync(settingsFile, JSON.stringify(initial))
+  rmSync(languageFile, { force: true })
+  origin = await server.startServer()
+  const expected = systemLang()
+
+  // 没选过语言：下拉框回显「系统默认」，实际语言跟随系统
+  let data = await (await fetch(`${origin}/api/settings`)).json()
+  assert.equal(data.langPref, 'system', '默认选项是系统默认')
+  assert.equal(data.lang, expected, '没选过语言时按系统语言显示')
+
+  const response = await fetch(`${origin}/api/settings`, {
+    method: 'POST', headers: { origin, 'content-type': 'application/json' },
+    body: JSON.stringify({ lang: 'system' }),
+  })
+  assert.equal(response.status, 200)
+  data = await response.json()
+  assert.equal(data.langPref, 'system')
+  assert.equal(data.lang, expected)
+  assert.equal(saved().lang, 'system', '显式选「系统默认」要写进设置，不能当成没设')
+
+  // 重启后仍是系统默认，不会被旧安装器的 lang.txt 改写
+  await server.stopAll()
+  writeFileSync(languageFile, expected === 'en' ? 'zh' : 'en')
+  origin = await server.startServer()
+  data = await (await fetch(`${origin}/api/settings`)).json()
+  assert.equal(data.langPref, 'system', '重启后仍回显系统默认')
+  assert.equal(data.lang, expected, '系统默认始终跟随系统语言，而不是 lang.txt')
+})
