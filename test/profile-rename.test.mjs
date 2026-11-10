@@ -124,7 +124,7 @@ server.listen(0, '127.0.0.1', () => console.log('dsh web: http://127.0.0.1:' + s
     await api('/api/stop', {})
   })
 
-  await t.test('独立目录改名不影响全局；禁止覆盖已有环境、系统保留名和越界路径', async () => {
+  await t.test('独立目录改名不影响全局；禁止覆盖已有 Profile、系统保留名和越界路径', async () => {
     const result = await api('/api/profiles/rename', { profile: 'web', name: 'private-work' }, other)
     assert.equal(result.home, other)
     assert.equal(settings().profile, 'work')
@@ -132,7 +132,8 @@ server.listen(0, '127.0.0.1', () => console.log('dsh web: http://127.0.0.1:' + s
     assert.deepEqual(settings().environmentPorts[other], { '1.0.0@private-work': 34567 })
     makeProfile(other, 'occupied')
     for (const name of ['occupied', 'OCCUPIED', '../escape', 'desktop', 'node_modules', '.hidden', 'web']) await assert.rejects(api('/api/profiles/rename', { profile: 'private-work', name }, other), /已存在|保留名称|profile 名/)
-    await assert.rejects(api('/api/profiles/rename', { profile: 'desktop', name: 'custom' }, other), /系统环境/)
+    // 「环境」现在专指 DSH 版本 + 插件的那个对象，说 dsh profile 的报错改叫 Profile
+    await assert.rejects(api('/api/profiles/rename', { profile: 'desktop', name: 'custom' }, other), /系统 Profile 不能重命名/)
   })
 
   await t.test('清单损坏导致中途失败时，还原目录名与依赖链接，启动配置不改动', async () => {

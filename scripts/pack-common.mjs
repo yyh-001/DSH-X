@@ -53,6 +53,7 @@ const APP_FILES = [
   'desktop-plugins.js',
   'recovery.js',
   'packs.js',
+  'environments.js', 'environment-pack.js', 'environment-upstream.js',
   'pack-market.js',
   'zip.js',
   'mcp.js',

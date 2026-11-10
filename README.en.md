@@ -4,7 +4,7 @@
 
 <p align="center">
   A third-party desktop launcher for <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a> —<br />
-  launch entries and multiple instances, version, plugin, modpack, MCP and skill management.
+  launch entries and multiple instances, version, plugin, environment, MCP and skill management.
 </p>
 
 <p align="center">
@@ -39,8 +39,8 @@
 
 - 🚀 **Launch entries and multiple instances** — choose a home directory, profile, version and port per entry; start entries concurrently and add entries while DSH is running.
 - 📦 **Version management** — a dedicated manager for detecting new releases, manually installing, removing, checking disk usage and assigning versions to launch entries.
-- 🧩 **Plugins and packs** — install, uninstall, toggle and update plugins by environment (npm package names, local paths or Git URLs) and configure default indexes for the official custom plugin market; browse, search and sort the masonry-style community market, or import and export packs.
-- 🖥️ **Desktop enhancements** — tick it when adding a launch item to install three first-party plugins (native notifications, context menu, sidebar browser) into that environment; add missing ones later by editing the launch item, then toggle or update them individually on the Plugins page.
+- 🧩 **Plugins and environments** — environments lock a DSH version and plugin versions, and can be imported, exported and updated from an upstream; plugins are toggled per profile, with configurable default indexes for the official custom plugin market.
+- 🖥️ **Desktop enhancements** — tick it when adding a launch item to install three first-party plugins (native notifications, context menu, sidebar browser) into the environment that launch item uses; add missing ones later by editing the launch item, then toggle or update them individually on the Plugins page.
 - 🛠️ **MCP and skills** — configure MCP servers and import, manage and toggle skills.
 - 🪟 **Opening modes** — tabs inside DSH-X, a system browser tab, a standalone browser window or a desktop window.
 - 🎨 **Appearance** — light / dark themes, transparency, opening and launch-entry animations, and separate background and Big Fish switches.
@@ -100,27 +100,27 @@ sha256sum DSH-X-<version>-x86_64.AppImage                # Linux
 
 ## Usage
 
-- Add or edit a launch entry on the home page, select its environment and version, then start it. Open **Version management** from the launch-entry editor to manually install or remove versions.
+- Add or edit a launch entry on the home page, select its environment and profile, then start it. Open **Version management** from the launch-entry editor to manually install or remove versions.
 - Settings → General → **How dsh opens** offers internal tabs, a browser or a separate window. Internal tabs require the installed desktop app.
 - The manager defaults to port `3780` and tries the next port if occupied.
 - To reach dsh from another device: Settings → Advanced → **Web binding** → LAN, applied on the next start.
 
 ### Adding a launch entry
 
-Pick an **isolation mode** first; it decides how far the new environment is from the existing ones:
+Pick an **isolation mode** first; it decides how far the new profile is from the existing ones:
 
 | Isolation | Created in | Shared |
 | --- | --- | --- |
 | Plugin isolation (default) | A new profile inside the global dsh directory | Sessions, memories, skills; plugins and config separate |
 | Session isolation | A new user directory under `homes/<name>` in the data directory | Nothing: sessions, skills and plugins are all separate |
-| Custom | A user directory + profile + port of your choice | Whatever that environment already has |
+| Custom | A user directory + profile + port of your choice | Whatever that directory and profile already have |
 
 In the first two modes, then pick where the **profile** comes from:
 
 - **New profile**: leave the name empty to have one generated (collisions get a suffix), or type your own.
 - **Copy an existing profile**: choose the source (directory on the left, profile in the middle); the new name defaults to `source-copy` and can be changed.
 
-What gets copied is the **profile**, not the whole environment: `package.json`, `cordis.patch.yml`, plugin switches and MCP settings come along,
+What gets copied is the **profile**, not the whole user directory: `package.json`, `cordis.patch.yml`, plugin switches and MCP settings come along,
 dependencies are reinstalled from their version ranges (not copied from `node_modules`), and the user-level `skills`, Prompt settings, per-plugin data directories and session history are not.
 Local `file:` / `link:` / `portal:` dependencies are rewritten for the new location; paths pointing outside the source directory are left as-is, so that workspace must still exist.
 
@@ -144,10 +144,10 @@ The launch log dialog has three tabs, shown only when data was collected: **Raw 
 <details>
 <summary>Management pages · Dark theme (expand to view)</summary>
 
-**Environments**
+**Profiles**
 
 <p align="center">
-  <img src="docs/screenshots/screenshot-profiles-dark-en.jpg" alt="DSH-X v0.1.16 dark environments" width="820" />
+  <img src="docs/screenshots/screenshot-profiles-dark-en.jpg" alt="DSH-X v0.1.16 dark profiles" width="820" />
 </p>
 
 **Plugin management**
@@ -156,10 +156,10 @@ The launch log dialog has three tabs, shown only when data was collected: **Raw 
   <img src="docs/screenshots/screenshot-plugins-dark-en.jpg" alt="DSH-X v0.1.16 dark plugin management" width="820" />
 </p>
 
-**Modpack market**
+**Environment market**
 
 <p align="center">
-  <img src="docs/screenshots/screenshot-market-dark-en.jpg" alt="DSH-X v0.1.16 dark modpack market" width="820" />
+  <img src="docs/screenshots/screenshot-market-dark-en.jpg" alt="DSH-X v0.1.16 dark environment market" width="820" />
 </p>
 
 **General settings**
@@ -179,22 +179,22 @@ The launch log dialog has three tabs, shown only when data was collected: **Raw 
   <img src="docs/screenshots/screenshot-home-en.jpg" alt="DSH-X launch entries" width="820" />
 </p>
 
-**Environments**
+**Profiles**
 
 <p align="center">
-  <img src="docs/screenshots/screenshot-profiles-en.jpg" alt="DSH-X environments" width="820" />
+  <img src="docs/screenshots/screenshot-profiles-en.jpg" alt="DSH-X profiles" width="820" />
 </p>
 
 **Plugin management**
 
 <p align="center">
-  <img src="docs/screenshots/screenshot-plugins-en.jpg" alt="DSH-X plugins by environment" width="820" />
+  <img src="docs/screenshots/screenshot-plugins-en.jpg" alt="DSH-X plugins by profile" width="820" />
 </p>
 
-**Modpack market**
+**Environment market**
 
 <p align="center">
-  <img src="docs/screenshots/screenshot-market-en.jpg" alt="DSH-X modpack market" width="820" />
+  <img src="docs/screenshots/screenshot-market-en.jpg" alt="DSH-X environment market" width="820" />
 </p>
 
 **General settings**
@@ -211,18 +211,18 @@ The launch log dialog has three tabs, shown only when data was collected: **Raw 
   <img src="docs/screenshots/screenshot-tabs.png" alt="DSH-X v0.1.16 with multiple tabs" width="820" />
 </p>
 
-## Modpacks
+## Environments
 
-Packs install a group of plugins and configuration into a selected environment (profile). The Plugins page lists environments, identifies installed packs and lets you toggle individual plugins. Packs use the [DSH-PackForge](https://github.com/DSH-PackForge/DSH-PackForge) `.dspack` format (manifest v5, older versions accepted).
+An environment is one DSH version plus a versioned plugin list; a profile keeps only configuration and data. A launch entry picks one environment and one profile. Before launch the environment's plugins are written into the profile, and dependencies are installed only when the list changed. The format is the [DSH-PackForge](https://github.com/DSH-PackForge/DSH-PackForge) `.dspack` (manifest v5).
 
-- **Import** — the community market, a local file, a direct link or GitHub `owner/repo`. The selected environment is the default target; change it before confirming if needed.
-- **Install** — review plugins and file changes before confirming; overwritten files are backed up and failed installs roll back.
-- **Export** — package the current environment's dependencies, patch layer and configuration as a `.dspack`, without `node_modules` or credentials.
+- **Import** — the community market, a local file or folder, a direct link or GitHub `owner/repo`; a missing DSH version is installed automatically. Configuration inside a pack is skipped by default and can be imported into a chosen profile.
+- **Export** — the exact DSH version plus pinned plugins (npm versions, github commits, local plugins as bundled files), without configuration or credentials; as one file or as a folder you can commit as is.
+- **Follow an upstream** — environments from a GitHub repository announce new releases; updating keeps your local changes, and the previous version can be restored.
 
-There are two pack recipes:
+There are two recipes, listed as built-in environments on the Environments page:
 
 - [Recommended pack](src/packs/dsh-x-recommended/manifest.json) — configuration, memory, sync and Big Fish decoration plugins, all installed from npm (sync via the optional `dsh-x-sync` plugin).
-- [Desktop workbench](src/packs/dsh-x-workbench/README.md) — brings dsh-tauri desktop's sidebar workbench, worktrees, scheduler, archive and notifications to plain dsh, plus ZCode's `agent-browser` and `electron` skills.
+- [Desktop workbench](src/packs/dsh-x-workbench/README.md) — brings dsh-tauri desktop's sidebar workbench, worktrees, scheduler, archive and notifications to plain dsh; ZCode's `agent-browser` and `electron` skills can be written into a profile at import.
 
 Run `node scripts/make-pack.mjs` to build a `.dspack`, then import it as a local file.
 

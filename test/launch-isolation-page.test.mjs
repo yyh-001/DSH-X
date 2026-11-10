@@ -45,15 +45,17 @@ const EN_REQUIRED = [
   '将自动新建 Profile「{name}」：沿用全局 dsh 目录，会话与记忆共享，插件与配置独立。',
   '将自动新建独立目录：会话、记忆、插件与配置全部独立。',
   '数据目录还没就绪，稍后再试',
-  '版本、端口和启动环境都在这里手动选；点「启动环境」换目录或 Profile，左栏「+」加目录。',
+  // 选目录和 Profile 的那个按钮叫「目录与 Profile」（「环境」留给 DSH 版本 + 插件清单）
+  '版本、端口、目录和 Profile 都在这里手动选；点「目录与 Profile」换目录或 Profile，左栏「+」加目录。',
   '新建 Profile', '自定义目录', '自动新建（{path}）',
   'Profile 名称，留空用 web',
   '这个 Profile 不能启动网页，换一个名称',
   '编辑 Profile…',
-  'Profile「{profile}」还没初始化：先用它启动一次，dsh 会建好这个环境，之后就能在这里编辑。',
+  // 「环境」现在专指 DSH 版本 + 插件的那个对象；说 dsh profile 的地方一律叫 Profile
+  'Profile「{profile}」还没初始化：先用它启动一次，dsh 会把它建好，之后就能在这里编辑。',
   // 复制档：说清复制范围 + 目标名的几条错误
   '把「{profile}」复制成新的 Profile「{name}」：插件与配置跟过来，技能、Prompt 管理和会话不跟。',
-  '先选一份要复制的 Profile：左边挑用户目录，右边挑 Profile；复制出来的环境从空白会话开始。',
+  '先选一份要复制的 Profile：左边挑用户目录，右边挑 Profile；复制出来的 Profile 从空白会话开始。',
   '「{name}」是系统保留名称，换个 Profile 名称（例如 {name}-copy）。',
   '目标名字不能和来源「{profile}」一样，换一个 Profile 名称。',
   '全局目录里已经有「{name}」，换个名字再复制。',
@@ -503,7 +505,9 @@ test('选 Profile 是三栏选择窗：目录 / Profile / 插件，两档用途�
   // 两档用途：标题不同，确认后写到不同地方
   const open = section('    async function openProfilePicker(mode = ', '    function closeProfilePicker() {')
   assert.match(open, /pickerMode = mode === 'form' \? 'form' : 'copy'/)
-  assert.match(open, /setPickerHeading\('选择启动环境'/, 'form 档：给自定义档挑')
+  // 「环境」专指 DSH 版本 + 插件清单；这个窗挑的是目录和 Profile
+  assert.match(open, /setPickerHeading\('选择目录与 Profile'/, 'form 档：给自定义档挑')
+  assert.doesNotMatch(page, /选择启动环境|'启动环境'/, '旧叫法「启动环境」不再出现')
   assert.match(open, /setPickerHeading\('选择要复制的 Profile'/, 'copy 档：挑复制来源')
   const confirm = section('    function confirmProfilePick() {', '    /**\n     * form 档的写回')
   assert.match(confirm, /if \(wsl\) applyWslPickerToLaunchForm\(wsl, pickerProfile\)[\s\S]{0,40}?applyPickerToLaunchForm\(choice\)/, 'form 档写回启动项表单（WSL 目录走 WSL 分支）')

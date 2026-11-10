@@ -112,9 +112,14 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-settings"/></svg>
             <span data-i18n="常规">常规</span>
           </button>
+          <!-- 环境 = DSH 版本 + 插件清单；下面那页是 Profile（配置与数据）。两者在启动项里组合。 -->
+          <button type="button" class="nav-item" data-pane="environments">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-package"/></svg>
+            <span data-i18n="环境">环境</span>
+          </button>
           <button type="button" class="nav-item" data-pane="plugins">
             <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-box"/></svg>
-            <span data-i18n="环境">环境</span>
+            <span data-i18n="Profile">Profile</span>
           </button>
           <button type="button" class="nav-item" data-pane="settings" data-category="appearance">
             <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-sun"/></svg>
@@ -160,7 +165,7 @@
           <div class="pane-inner" id="pluginPanel">
             <div class="pane-top plugin-overview-top">
               <div>
-                <h1 class="pane-title" data-i18n="环境">环境</h1>
+                <h1 class="pane-title" data-i18n="Profile">Profile</h1>
               </div>
               <div class="plugin-home-bar">
                 <select id="pluginHome" aria-label="dsh 用户目录" data-i18n-aria-label="dsh 用户目录"></select>
@@ -174,7 +179,7 @@
             <!-- 点开一张整合包卡片后进这里：左上返回图标，右上全部操作，下面直接是插件行 -->
             <div id="packView" hidden>
               <div class="pack-detail-top">
-                <button class="ghost icon-btn pack-back" id="packBack" type="button" title="返回环境列表" aria-label="返回环境列表"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-arrow-left"/></svg></button>
+                <button class="ghost icon-btn pack-back" id="packBack" type="button" title="返回 Profile 列表" aria-label="返回 Profile 列表" data-i18n-title="返回 Profile 列表" data-i18n-aria-label="返回 Profile 列表"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-arrow-left"/></svg></button>
                 <div class="pack-detail-heading">
                   <span class="pack-detail-name" id="packDetailName"></span>
                   <span class="pack-detail-sub" id="packDetailSub"></span>
@@ -184,6 +189,62 @@
               <div class="plugin-list" id="packPluginList"></div>
             </div>
             <!-- 插件装/升级可能几十秒，光一句「正在更新…」看不出在动 -->
+          </div>
+        </section>
+        <!-- 环境页：改的是清单（environment.json），不碰任何 profile 目录；下次用它启动时才写进 Profile 并装依赖。 -->
+        <section class="pane" id="pane-environments">
+          <div class="pane-inner" id="environmentPanel">
+            <div class="pane-top">
+              <div>
+                <h1 class="pane-title" data-i18n="环境">环境</h1>
+                <p class="pane-sub" data-i18n="环境 = DSH 版本 + 插件清单。启动项选一个环境和一个 Profile，改动在下次启动时写进 Profile。">环境 = DSH 版本 + 插件清单。启动项选一个环境和一个 Profile，改动在下次启动时写进 Profile。</p>
+              </div>
+              <form class="environment-form" id="environmentCreateForm">
+                <input id="environmentNewName" type="text" autocomplete="off" aria-label="新环境名称" data-i18n-aria-label="新环境名称" data-placeholder-i18n="新环境名称" />
+                <button class="ghost" id="environmentCreate" type="submit" data-i18n="新建环境">新建环境</button>
+                <button class="ghost" id="environmentImport" type="button" data-i18n="导入…">导入…</button>
+                <button class="ghost" id="environmentCheckUpdates" type="button" data-i18n="检查更新">检查更新</button>
+              </form>
+            </div>
+            <div id="environmentOverview">
+              <div class="pack-grid" id="environmentGrid"></div>
+              <p class="hint" id="environmentHint" role="status" aria-live="polite"></p>
+            </div>
+            <div id="environmentView" hidden>
+              <div class="pack-detail-top">
+                <button class="ghost icon-btn pack-back" id="environmentBack" type="button" title="返回环境列表" aria-label="返回环境列表" data-i18n-title="返回环境列表" data-i18n-aria-label="返回环境列表"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-arrow-left"/></svg></button>
+                <div class="pack-detail-heading">
+                  <span class="pack-detail-name" id="environmentDetailName"></span>
+                  <span class="pack-detail-sub" id="environmentDetailSub"></span>
+                </div>
+                <div class="pack-detail-actions">
+                  <button class="ghost" id="environmentUpgrade" type="button" data-i18n="全部升级">全部升级</button>
+                  <button class="ghost" id="environmentExport" type="button" data-i18n="导出…">导出…</button>
+                  <button class="ghost" id="environmentDuplicate" type="button" data-i18n="复制环境">复制环境</button>
+                  <button class="ghost danger" id="environmentDelete" type="button" data-i18n="删除环境">删除环境</button>
+                </div>
+              </div>
+              <div class="environment-form" id="environmentUpstream" hidden>
+                <span class="hint" id="environmentUpstreamText" role="status" aria-live="polite"></span>
+                <button class="primary" id="environmentApplyUpdate" type="button" data-i18n="更新…">更新…</button>
+              </div>
+              <div class="environment-form" id="environmentHistoryRow" hidden>
+                <select id="environmentHistory" aria-label="之前的版本" data-i18n-aria-label="之前的版本"></select>
+                <button class="ghost" id="environmentRestore" type="button" data-i18n="切回这一份">切回这一份</button>
+              </div>
+              <form class="environment-form" id="environmentEditForm">
+                <input id="environmentName" type="text" autocomplete="off" required aria-label="环境名称" data-i18n-aria-label="环境名称" />
+                <select id="environmentVersion" aria-label="DSH 版本" data-i18n-aria-label="DSH 版本"></select>
+                <select id="environmentChannel" aria-label="版本类型" data-i18n-aria-label="版本类型"></select>
+                <button class="ghost" id="environmentSave" type="submit" data-i18n="保存">保存</button>
+              </form>
+              <form class="environment-form" id="environmentAddForm">
+                <input id="environmentSpec" type="text" autocomplete="off" spellcheck="false" aria-label="插件" data-i18n-aria-label="插件" data-placeholder-i18n="插件名，可带版本：dsh-x-memory@0.1.1" />
+                <button class="ghost" id="environmentAdd" type="submit" data-i18n="加入插件">加入插件</button>
+              </form>
+              <div class="plugin-list" id="environmentPluginList"></div>
+              <p class="hint" id="environmentUsage"></p>
+            </div>
           </div>
         </section>
         <section class="pane fill" id="pane-mcp">
@@ -536,8 +597,8 @@
               <div class="set-group">
                 <div class="set-row">
                   <div class="set-text">
-                    <span class="set-name" data-i18n="让 AI 给环境做体检">让 AI 给环境做体检</span>
-                    <span class="set-desc" data-i18n="复制自检指令，发给 AI 检查环境。">复制自检指令，发给 AI 检查环境。</span>
+                    <span class="set-name" data-i18n="让 AI 给 DSH-X 做体检">让 AI 给 DSH-X 做体检</span>
+                    <span class="set-desc" data-i18n="复制自检指令，发给 AI 检查 DSH-X。">复制自检指令，发给 AI 检查 DSH-X。</span>
                   </div>
                   <div class="set-control">
                     <button class="ghost" id="copySelfcheckPrompt" type="button" data-i18n="复制自检请求">复制自检请求</button>
@@ -624,14 +685,14 @@
   <div class="ask" id="packImportDialog" hidden>
     <div class="ask-card market-browser" id="packMarketCard" role="dialog" aria-modal="true" aria-labelledby="packImportTitle" tabindex="-1" data-dialog-size="large">
       <div class="dialog-heading">
-        <h2 class="ask-title" id="packImportTitle" data-i18n="整合包市场">整合包市场</h2>
+        <h2 class="ask-title" id="packImportTitle" data-i18n="导入环境">导入环境</h2>
         <button type="button" class="ghost icon-btn dialog-close" id="packImportClose" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button>
       </div>
       <div class="market-toolbar">
-        <div class="market-search"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-search"/></svg><input id="marketSearch" type="search" autocomplete="off" data-placeholder-i18n="搜索名称、作者或功能" aria-label="搜索整合包" /></div>
-        <select id="marketSort" aria-label="整合包排序"><option value="updated" data-i18n="最近更新">最近更新</option><option value="stars" data-i18n="Star 最多">Star 最多</option><option value="name" data-i18n="按名称">按名称</option></select>
+        <div class="market-search"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-search"/></svg><input id="marketSearch" type="search" autocomplete="off" data-placeholder-i18n="搜索名称、作者或功能" aria-label="搜索环境" data-i18n-aria-label="搜索环境" /></div>
+        <select id="marketSort" aria-label="环境排序" data-i18n-aria-label="环境排序"><option value="updated" data-i18n="最近更新">最近更新</option><option value="stars" data-i18n="Star 最多">Star 最多</option><option value="name" data-i18n="按名称">按名称</option></select>
       </div>
-      <div class="sr-only" id="packMarketTitle" data-i18n="社区整合包">社区整合包</div>
+      <div class="sr-only" id="packMarketTitle" data-i18n="社区环境">社区环境</div>
       <div class="market-grid" id="packMarket"></div>
       <details class="pack-import-source">
         <summary data-i18n="从文件或链接导入">从文件或链接导入</summary>
@@ -645,15 +706,15 @@
   </div>
   <div class="ask" id="packDetailDialog" hidden>
     <div class="ask-card market-detail-card" role="dialog" aria-modal="true" aria-labelledby="marketDetailTitle" data-dialog-size="medium">
-      <div class="dialog-heading"><h2 class="ask-title" id="marketDetailTitle" data-i18n="整合包详情">整合包详情</h2><button class="ghost icon-btn dialog-close" id="packDetailClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
+      <div class="dialog-heading"><h2 class="ask-title" id="marketDetailTitle" data-i18n="环境详情">环境详情</h2><button class="ghost icon-btn dialog-close" id="packDetailClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
       <div class="market-detail" id="packMarketDetail"></div>
       <div class="market-detail-actions" id="packMarketActions"></div>
     </div>
   </div>
   <div class="ask" id="packInstallDialog" hidden>
     <div class="ask-card pack-confirm-card" role="dialog" aria-modal="true" aria-labelledby="packInstallTitle" data-dialog-size="medium">
-      <div class="dialog-heading"><div><h2 class="ask-title" id="packInstallTitle" data-i18n="确认安装">确认安装</h2><p class="dialog-subtitle" data-i18n="选择安装环境，确认后开始安装。">选择安装环境，确认后开始安装。</p></div><button class="ghost icon-btn dialog-close" id="packInstallClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
-      <div class="pack-preparing" id="packPreparing" hidden><span class="spin" aria-hidden="true"></span><span data-i18n="正在读取安装信息…">正在读取安装信息…</span></div>
+      <div class="dialog-heading"><div><h2 class="ask-title" id="packInstallTitle" data-i18n="确认导入">确认导入</h2><p class="dialog-subtitle" data-i18n="看清要用的 DSH 版本和插件，确认后导入成一个环境。">看清要用的 DSH 版本和插件，确认后导入成一个环境。</p></div><button class="ghost icon-btn dialog-close" id="packInstallClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
+      <div class="pack-preparing" id="packPreparing" hidden><span class="spin" aria-hidden="true"></span><span data-i18n="正在读取环境文件…">正在读取环境文件…</span></div>
       <div class="pack-detail" id="packInspect" hidden></div>
       <div class="pack-install-footer">
         <div class="progress" id="packProgress" hidden><div class="progress-bar" id="packProgressBar"></div></div>
@@ -663,15 +724,22 @@
     </div>
   </div>
   <div class="ask" id="packExportDialog" hidden>
-    <div class="ask-card" role="dialog" aria-modal="true" aria-labelledby="packExportTitle" data-dialog-size="small">
-      <h2 class="ask-title" id="packExportTitle" data-i18n="导出整合包">导出整合包</h2>
+    <div class="ask-card" role="dialog" aria-modal="true" aria-labelledby="packExportTitle" data-dialog-size="medium">
+      <h2 class="ask-title" id="packExportTitle" data-i18n="导出环境">导出环境</h2>
       <div class="dialog-body">
-      <p class="ask-note" data-i18n="把这份 profile 现在装着的东西打成一个 .dspack：钉版依赖、补丁层与 profile 根下的配置文件，不含 node_modules、会话与凭据。">把这份 profile 现在装着的东西打成一个 .dspack：钉版依赖、补丁层与 profile 根下的配置文件，不含 node_modules、会话与凭据。</p>
+      <p class="ask-note" data-i18n="导出 DSH 的精确版本和插件清单：npm 插件钉到精确版本，github 插件钉到提交，本地插件打成离线文件。不带配置、会话和凭据。">导出 DSH 的精确版本和插件清单：npm 插件钉到精确版本，github 插件钉到提交，本地插件打成离线文件。不带配置、会话和凭据。</p>
       <div class="mcp-form">
         <label class="mcp-field"><span data-i18n="名称">名称</span><input id="packExportName" type="text" autocomplete="off" spellcheck="false" /></label>
-        <label class="mcp-field"><span data-i18n="版本">版本</span><input id="packExportVersion" type="text" value="1.0.0" autocomplete="off" spellcheck="false" /></label>
+        <label class="mcp-field"><span data-i18n="版本">版本</span><input id="packExportVersion" type="text" autocomplete="off" spellcheck="false" /></label>
+        <label class="mcp-field"><span data-i18n="说明">说明</span><input id="packExportDescription" type="text" autocomplete="off" /></label>
+        <label class="mcp-field"><span data-i18n="GitHub 仓库">GitHub 仓库</span><input id="packExportRepo" type="text" autocomplete="off" spellcheck="false" data-placeholder-i18n="owner/repo（可选，填了别人能跟随更新）" /></label>
       </div>
-      <label class="pack-check"><input type="checkbox" id="packExportHome" /><span data-i18n="带上技能与预设">带上技能与预设</span></label>
+      <div class="pack-export-target" role="radiogroup" aria-label="导出方式" data-i18n-aria-label="导出方式">
+        <label class="pack-check"><input type="radio" name="packExportTarget" value="file" checked /><span data-i18n="单个 .dspack 文件">单个 .dspack 文件</span></label>
+        <label class="pack-check"><input type="radio" name="packExportTarget" value="dir" /><span data-i18n="仓库目录（直接提交到 GitHub）">仓库目录（直接提交到 GitHub）</span></label>
+        <label class="pack-check" id="packExportWorkflowRow" hidden><input type="checkbox" id="packExportWorkflow" /><span data-i18n="附带推 tag 自动发布的 GitHub Actions 模板">附带推 tag 自动发布的 GitHub Actions 模板</span></label>
+      </div>
+      <div class="pack-export-offline" id="packExportOffline" hidden></div>
       <p class="hint" id="packExportHint"></p>
       </div>
       <div class="ask-actions">
@@ -694,13 +762,26 @@
       <div class="profile-dialog-actions"><button class="ghost" id="pluginAddCancel" type="button" data-i18n="取消">取消</button><button class="primary" id="pluginAddGo" type="submit"><span class="spin" aria-hidden="true"></span><span data-i18n="安装">安装</span></button></div>
     </form>
   </div>
+  <div class="ask" id="environmentUpdateDialog" hidden>
+    <div class="ask-card" role="dialog" aria-modal="true" aria-labelledby="environmentUpdateTitle" data-dialog-size="medium">
+      <h2 class="ask-title" id="environmentUpdateTitle" data-i18n="更新环境">更新环境</h2>
+      <div class="dialog-body">
+        <div id="environmentUpdateBody"></div>
+        <p class="hint" id="environmentUpdateHint" role="status" aria-live="polite"></p>
+      </div>
+      <div class="ask-actions">
+        <button type="button" class="ghost" id="environmentUpdateCancel" data-i18n="取消">取消</button>
+        <button type="button" class="primary" id="environmentUpdateGo" data-i18n="更新">更新</button>
+      </div>
+    </div>
+  </div>
   <div class="ask" id="launchDialog" hidden>
     <form class="ask-card" id="launchForm" role="dialog" aria-modal="true" aria-labelledby="launchDialogTitle" data-dialog-size="medium">
       <div class="dialog-heading launch-dialog-heading"><h2 class="ask-title" id="launchDialogTitle" data-i18n="编辑启动项">编辑启动项</h2><button class="ghost icon-btn dialog-close" id="launchDialogClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
       <div class="launch-modal-fields">
         <!-- 启动位置放最上面：新建时先定跑在本机还是 WSL，再填对应那一侧的字段；编辑老启动项时
              退化成静态标签（类型保存后不再变），避免在一个已存在的条目里切后端。 -->
-        <!-- WSL 不再是单独的「启动位置」选项：在「启动环境」的三栏选择窗里挑一个 WSL 发行版
+        <!-- WSL 不再是单独的「启动位置」选项：在「目录与 Profile」的三栏选择窗里挑一个 WSL 发行版
              （目录列表里和本机目录并排）即可。这里只保留保存用的隐藏真相源和 WSL 专属字段。 -->
         <div class="launch-wsl-extra" id="launchWslLocationFields" hidden>
           <select id="launchWslDistro" hidden></select>
@@ -761,9 +842,16 @@
         <div class="launch-custom-fields" id="launchCustomFields">
           <div class="home-field launch-identity-field" id="launchIdentityField">
             <label for="launchName" data-i18n="名称">名称</label>
-            <div class="launch-name-row"><button class="launch-icon-trigger" id="launchIconTrigger" type="button" title="修改图标" aria-label="修改图标" data-i18n-title="修改图标" data-i18n-aria-label="修改图标" aria-expanded="false" aria-controls="launchIconPopover"></button><input id="launchName" type="text" required maxlength="32" autocomplete="off" data-placeholder-i18n="例如：我的工作环境" /></div>
+            <div class="launch-name-row"><button class="launch-icon-trigger" id="launchIconTrigger" type="button" title="修改图标" aria-label="修改图标" data-i18n-title="修改图标" data-i18n-aria-label="修改图标" aria-expanded="false" aria-controls="launchIconPopover"></button><input id="launchName" type="text" required maxlength="32" autocomplete="off" data-placeholder-i18n="例如：工作" /></div>
             <div class="launch-icon-popover" id="launchIconPopover" hidden><div class="launch-icon-picker" id="launchIconPicker" role="group" aria-label="启动项图标"></div><div class="launch-icon-upload"><button class="ghost icon-btn" id="launchIconUpload" type="button" title="选择图片" aria-label="选择图片" data-i18n-title="选择图片" data-i18n-aria-label="选择图片"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-image"/></svg></button><button class="ghost icon-btn" id="launchIconReset" type="button" title="恢复默认" aria-label="恢复默认" data-i18n-title="恢复默认" data-i18n-aria-label="恢复默认"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-rotate-ccw"/></svg></button></div></div>
             <input id="launchIconFile" type="file" accept="image/png,image/jpeg,image/webp" hidden /><span class="hint launch-icon-error" id="launchIconHint"></span>
+          </div>
+          <!-- 启动项 = 环境 × Profile：环境定 DSH 版本和插件，选项由 environments-page.js 填。
+               留空 = 按 Profile 现有的插件自动生成一个环境（老启动项迁移也是这么来的）。 -->
+          <div class="home-field" id="launchEnvironmentField">
+            <label for="launchEnvironment" data-i18n="用哪个环境">用哪个环境</label>
+            <select id="launchEnvironment"><option value="" data-i18n="自动：按 Profile 的插件匹配或新建">自动：按 Profile 的插件匹配或新建</option></select>
+            <p class="hint" id="launchEnvironmentHint"></p>
           </div>
           <!-- 本机版本整组（下拉、版本类型、管理按钮、渠道提示）在 WSL 下一起藏掉，避免残留的版本类型说明串到 WSL 版本下面。 -->
           <div class="home-pickers" id="launchLocalVersionGroup">
@@ -812,7 +900,7 @@
             <div class="home-field" id="launchEnvField">
               <!-- 用户目录 + Profile 都交给三栏选择窗（同「从已有 Profile 复制」那一份）：一行触发器显示
                    「目录 › Profile」。底下两个下拉仍留着当唯一真相源（回填、保存、恢复都读它们），只是藏起来。 -->
-              <label for="launchEnvPick" data-i18n="启动环境">启动环境</label>
+              <label for="launchEnvPick" data-i18n="目录与 Profile">目录与 Profile</label>
               <div class="select">
                 <button type="button" class="select-trigger" id="launchEnvPick" aria-haspopup="dialog" aria-expanded="false">
                   <span class="select-value" id="launchEnvPickValue"></span>
@@ -849,7 +937,7 @@
             <span class="launch-enhance-label">
               <label for="launchDesktopEnhance" data-i18n="桌面增强">桌面增强</label>
               <span class="launch-enhance-help" id="launchDesktopEnhanceHelp" tabindex="0" role="note" aria-label="桌面增强说明" aria-describedby="launchDesktopEnhanceTip">?</span>
-              <span class="launch-enhance-tip" id="launchDesktopEnhanceTip" role="tooltip" data-i18n="保存时把三个官方插件（原生通知、右键菜单、侧栏浏览器）装进这个环境；下次启动时加载，正在运行的环境重启后生效。">保存时把三个官方插件（原生通知、右键菜单、侧栏浏览器）装进这个环境；下次启动时加载，正在运行的环境重启后生效。</span>
+              <span class="launch-enhance-tip" id="launchDesktopEnhanceTip" role="tooltip" data-i18n="保存时把三个官方插件（原生通知、右键菜单、侧栏浏览器）装进这个启动项的 Profile，记进它用的环境；下次启动时加载，正在运行的实例重启后生效。">保存时把三个官方插件（原生通知、右键菜单、侧栏浏览器）装进这个启动项的 Profile，记进它用的环境；下次启动时加载，正在运行的实例重启后生效。</span>
             </span>
             <input id="launchDesktopEnhance" type="checkbox" aria-describedby="launchDesktopEnhanceTip" />
           </div>
@@ -865,7 +953,7 @@
         </div>
         <p class="hint" id="recoveryHint" hidden></p>
       <div class="launch-save-actions">
-        <button class="ghost launch-repair" id="launchRecover" type="button" title="修复环境" aria-label="修复环境"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-wrench"/></svg></button>
+        <button class="ghost launch-repair" id="launchRecover" type="button" title="修复 Profile" aria-label="修复 Profile"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-wrench"/></svg></button>
         <button class="ghost launch-delete" id="launchDelete" type="button" hidden title="删除启动项" aria-label="删除启动项" data-i18n-title="删除启动项" data-i18n-aria-label="删除启动项"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-trash-2"/></svg></button>
         <span class="launch-save-spacer"></span>
         <button class="primary" id="launchSave" type="submit" title="保存" aria-label="保存" data-i18n-title="保存" data-i18n-aria-label="保存"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-save"/></svg></button>
@@ -894,7 +982,7 @@
         </div>
         <div class="profile-pick-col profile-pick-col--detail">
           <div class="profile-pick-head">
-            <span class="profile-pick-caption" id="profilePickDetailCaption" data-i18n="这份环境里有什么">这份环境里有什么</span>
+            <span class="profile-pick-caption" id="profilePickDetailCaption" data-i18n="这个 Profile 里有什么">这个 Profile 里有什么</span>
             <span class="profile-pick-tools"><span class="profile-pick-meta" id="profilePickMeta"></span><button class="icon-btn profile-pick-tool" id="profilePickPluginAdd" type="button" title="添加插件" aria-label="添加插件" data-i18n-title="添加插件" data-i18n-aria-label="添加插件" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-plus"/></svg></button></span>
           </div>
           <div class="profile-pick-list profile-detail-list" id="profilePickDetails" role="region" aria-label="Profile 详情" data-i18n-aria-label="Profile 详情"></div>
@@ -1136,10 +1224,9 @@
   "WSL 项目目录（选填）": "WSL project directory (optional)",
   "例如 /root/projects/demo；留空就在用户目录里跑": "e.g. /root/projects/demo; leave blank to run in your home directory",
   "默认发行版": "Default distro",
-  "选择 WSL 启动环境": "Choose a WSL environment",
   "左边挑发行版，中间挑 Profile，右边是它在 WSL 里的 dsh 信息。": "Pick a distro on the left and a profile in the middle; the right column shows its dsh info.",
   "dsh 信息": "dsh info",
-  "选择启动环境": "Choose a launch environment",
+  "选择目录与 Profile": "Choose a directory and profile",
   "左边挑本机目录或 WSL 发行版，中间挑 Profile，右边是它的插件或 dsh 信息。": "Pick a local directory or a WSL distro on the left and a profile in the middle; the right column shows its plugins or dsh info.",
   "WSL · {distro}": "WSL · {distro}",
   "本机目录，或 WSL 发行版里的目录。": "A local directory, or one inside a WSL distro.",
@@ -1205,8 +1292,6 @@
   "确认删除「{profile}」整个目录？这一步撤不回来。": "Really delete the whole \"{profile}\" folder? This cannot be undone.",
   "profile「{profile}」已删除。": "Profile \"{profile}\" deleted.",
   "删除失败": "Delete failed",
-  "导出的是 profile「{profile}」现在的样子。": "Exports profile \"{profile}\" as it is now.",
-  "装整合包": "Install modpack",
   "我的环境": "My environments",
   "我的环境（{n}）": "My environments ({n})",
   "查看环境 {name} 的插件": "View plugins in {name}",
@@ -1227,21 +1312,17 @@
   "管理这个环境中可开关的插件": "Controls the plugins that support toggling in this environment",
   "切换到这个环境后生效": "Takes effect after switching to this environment",
   "更多操作": "More actions",
-  "查看安装详情": "View installation details",
   "{deps} 个依赖 · {files} 个文件需要写入": "{deps} dependencies · {files} files to write",
   "导出 profile": "Export profile",
   "返回插件": "Back to plugins",
   "这份 profile 里的插件": "Plugins in this profile",
   "从来源（本地文件 / 链接 / owner/repo）或下面的社区市场里挑一个；检查之后才动文件。": "Pick one from a source (local file / link / owner/repo) or from the community market below. Nothing is written until you confirm after the check.",
-  "导出整合包": "Export modpack",
-  "把这份 profile 现在装着的东西打成一个 .dspack：钉版依赖、补丁层与 profile 根下的配置文件，不含 node_modules、会话与凭据。": "Pack what this profile has right now into a .dspack: pinned dependencies, the patch layer and config files at the profile root — no node_modules, sessions or credentials.",
   "启用": "enabled",
   "{n} 个插件": "{n} plugins",
   "正在{act}整合包 {name}…": "{act} modpack {name}…",
   "整合包 {name} 已{state}{failed}": "Modpack {name} is now {state}{failed}",
   "（{n} 个插件不支持开关）": " ({n} plugins cannot be toggled)",
   "整合包（{n}）": "Modpacks ({n})",
-  "更新 {n} 个": "Update {n}",
   "一次装好一批插件和它们的配置": "Install a batch of plugins and their config in one go",
   "还没装过整合包：从文件、链接或市场里挑一个": "No modpacks yet — pick one from a file, a link or the market",
   "这个包里的插件没有可开关的加载行（客户端插件由插件市场管理）": "The plugins in this pack have no toggleable loader rows (client plugins are managed by the plugin market)",
@@ -1249,8 +1330,6 @@
   "正在更新整合包 {name}…": "Updating modpack {name}…",
   "整合包 {name} 更新完成：{n} 个升级{failed}": "Modpack {name} updated: {n} upgraded{failed}",
   "，{n} 个失败": ", {n} failed",
-  "有插件没更新成功": "Some plugins did not update",
-  "整合包更新失败": "Modpack update failed",
   "切到 profile「{profile}」并重启 dsh？现在跑着的会话会断。": "Switch to profile \"{profile}\" and restart dsh? The running session will end.",
   "导出的是 profile「{profile}」现在的样子（这个整合包装在那份 profile 上）。": "Exports profile \"{profile}\" as it is now (that is where this modpack lives).",
   "导出的是当前 profile「{profile}」现在的样子。": "Exports the current profile \"{profile}\" as it is now.",
@@ -1260,22 +1339,15 @@
   "装一个整合包": "Install a modpack",
   "选文件…": "Choose file…",
   "认生态里的 .dspack 整合包（PackForge 的 manifest）：本地文件、直链，或 GitHub 的 owner/repo（取它最新 Release 里的包）。": "Works with ecosystem .dspack modpacks (PackForge manifests): a local file, a direct link, or a GitHub owner/repo (it takes the .dspack from the latest release).",
-  "社区整合包": "Community modpacks",
-  "撤销最近安装": "Undo latest installation",
   "最近安装：{name} v{version}": "Latest install: {name} v{version}",
   "其他插件": "Other plugins",
   "同时包含于：{names}": "Also included in: {names}",
   "包含 {n} 个插件": "Contains {n} plugins",
-  "整机快照会安装包内声明的环境，详见安装详情。": "This snapshot installs its declared profiles. See installation details.",
-  "将创建这个环境，安装后可在列表中管理。": "This profile will be created and added to the list.",
-  "撤销 {name} 在环境「{profile}」的安装？配置文件将还原到这次安装前，安装后对这些文件的修改也会撤销。": "Undo installation of {name} in profile “{profile}”? Config files will return to their state before installation, including undoing later edits to those files.",
-  "已撤销 {name} 的安装，重启环境后生效。": "Installation of {name} undone. Restart the profile to apply.",
   "内置整合包": "Built-in modpack",
   "装进 {profile} 环境": "Installs into the {profile} environment",
   "随安装包发，不用联网": "Ships with the installer; no network needed",
   "把当前 profile 打包成整合包": "Pack the current profile into a modpack",
   "带上插件清单、补丁层与 profile 根下的配置文件（不含 node_modules、会话与凭据）。别人装这个包，就能得到同样的插件环境。": "Includes the plugin manifest, patch layer and config files at the profile root — never node_modules, sessions or credentials. Anyone installing the pack gets the same plugin setup.",
-  "带上技能与预设": "Include skills & presets",
   "导出…": "Export…",
   "当前 profile：{profile} · 已装 {n} 个整合包": "Current profile: {profile} · {n} modpack(s) installed",
   "还没装过整合包。从下面挑一个，或者贴一个 .dspack 链接。": "No modpacks installed yet. Pick one below, or paste a .dspack link.",
@@ -1285,22 +1357,11 @@
   "市场没读到：{error}": "Could not read the market: {error}",
   "不影响使用——把 .dspack 的链接或 owner/repo 贴在上面照样能装；直连 GitHub 不通时，把设置页的「更新下载源」改成「国内加速」。": "Everything else still works — paste a .dspack link or an owner/repo above. If GitHub is unreachable directly, switch \"Update download source\" to the mirror in Settings.",
   "市场里现在没有条目。": "The market has no entries right now.",
-  "作者 {author}": "by {author}",
-  "{n} 层": "{n} layers",
   "{n} 个依赖": "{n} dependencies",
-  "{name}（dsh 自带）": "{name} (ships with dsh)",
   "需要 dsh {version}": "dsh {version} required",
-  "整机快照形态": "whole-home snapshot",
   "{kb} KB": "{kb} KB",
   "问题（先解决这些）": "Problems (fix these first)",
-  "会怎么装": "What will happen",
   "要注意": "Things to know",
-  "层栈（dsh 按顺序加载）": "Layers (loaded in this order)",
-  "依赖": "Dependencies",
-  "要写的文件": "Files to write",
-  "覆盖文件": "Files it overrides",
-  "用户级文件": "User-level files",
-  "包里没装的内容": "Content that will not be installed",
   "装进 profile": "Target profile",
   "新建一个 profile，和现有环境互不影响": "a new profile, your current one stays untouched",
   "这个 profile 已存在，依赖与层栈会并进去": "this profile exists — dependencies and layers are merged in",
@@ -1309,23 +1370,17 @@
   "共 {size}": "{size} total",
   "正在计算占用…": "Calculating disk usage…",
   "不看这个了": "Dismiss",
-  "正在读社区整合包列表…": "Reading the community modpack list…",
-  "市场里现在有 {n} 个整合包。": "The market has {n} modpack(s) right now.",
   "正在下载并检查…": "Downloading and checking…",
   "检查完了：{name} {version}。确认没问题就点安装。": "Checked: {name} {version}. Read it over, then hit Install.",
   "这个包有问题，先看上面的原因。": "This pack has problems — see the reasons above.",
-  "整合包检查失败": "Modpack check failed",
   "现在切过去并重启": "Switch and restart now",
-  "整合包安装失败": "Modpack install failed",
   "卸载 {name}（profile「{profile}」）？安装时覆盖的文件会还原。": "Remove {name} from profile \"{profile}\"? Files it overwrote are restored.",
   "这个 profile 是整合包装的。要不要连整个 profile 目录一起删掉？里面的插件和配置会一起没。": "This profile was created by the modpack. Delete the whole profile folder too? Its plugins and config go with it.",
   "{name} 已卸载。": "{name} removed.",
-  "整合包卸载失败": "Modpack removal failed",
   "正在切到 profile「{profile}」…": "Switching to profile \"{profile}\"…",
   "已切到 profile「{profile}」，正在重启 dsh…": "Switched to profile \"{profile}\", restarting dsh…",
   "已切到 profile「{profile}」，dsh 正在重启。": "Switched to profile \"{profile}\"; dsh is restarting.",
   "选择保存位置…": "Choosing where to save…",
-  "已导出 {n} 层、{deps} 个依赖：": "Exported {n} layers and {deps} dependencies:",
   "在文件夹里显示": "Show in folder",
   "导出失败": "Export failed",
   "正在下载整合包 {pct}%": "Downloading the modpack: {pct}%",
@@ -1336,12 +1391,6 @@
   "正在装依赖 {done}/{total}…": "Installing dependencies {done}/{total}…",
   "正在装依赖…": "Installing dependencies…",
   "装好了。": "Done.",
-  "先给一个整合包：本地文件、链接，或者 owner/repo": "Give me a modpack first: a local file, a link, or owner/repo",
-  "会新建 profile「{profile}」：dsh 的会话与记忆照旧，插件的运行环境是独立的。": "Creates a new profile \"{profile}\": your sessions and memory stay as they are, only the plugin environment is separate.",
-  "profile「{profile}」已存在：包里的依赖与层栈并进去，被覆盖的文件先备份。": "Profile \"{profile}\" already exists: the pack's dependencies and layers are merged in, and every file it overwrites is backed up first.",
-  "新增层栈：{bundles}": "New layers: {bundles}",
-  "会改掉 {count} 个已有依赖的版本：{sample}{more}": "Changes the version of {count} existing dependencies: {sample}{more}",
-  " 等": " …",
   "保存": "Save",
   "关闭": "Close",
   "关闭页面": "Close page",
@@ -1401,8 +1450,8 @@
   "目录名称应为 1 到 64 个字符": "Directory names must contain 1 to 64 characters.",
   "只支持重命名已登记的用户目录": "Only registered user directories can be renamed.",
   "重命名 Profile": "Rename profile",
-  "重命名后，对应启动项会自动使用新名称。请先停止此环境的全部实例。": "Launch entries will use the new name. Stop all instances of this environment first.",
-  "系统环境不能重命名": "System environments cannot be renamed.",
+  "重命名后，对应启动项会自动使用新名称。请先停止这个 Profile 的全部实例。": "Launch entries will use the new name. Stop all instances of this profile first.",
+  "系统 Profile 不能重命名": "System profiles cannot be renamed.",
   "只能重命名已初始化的 Profile 目录": "Only initialized profile directories can be renamed.",
   "移除仅从列表中移除，保留目录里的数据。": "Removing a directory from the list keeps its data intact.",
   "请选择用户目录": "Choose a dsh home directory",
@@ -1452,7 +1501,6 @@
   "检测会真的起进程或连端点，可能需要几秒。": "Probing really starts the process or calls the endpoint; it can take a few seconds.",
   "技能": "Skills",
   "技能详情": "Skill details",
-  "请先停止正在运行的 DSH，再安装整合包": "Stop the running DSH before installing modpacks.",
   "下次安装后清理，运行中的版本额外保留。": "Clean up after the next install; running versions are also kept.",
   "owner/repo 或 GitHub 技能链接": "owner/repo or GitHub skill URL",
   "导入包含 SKILL.md 的文件夹或 ZIP": "Import a folder or ZIP containing SKILL.md",
@@ -1602,7 +1650,7 @@
   "右键菜单": "Context menu",
   "浏览器": "Browser",
   "桌面增强": "Desktop enhancements",
-  "保存时把三个官方插件（原生通知、右键菜单、侧栏浏览器）装进这个环境；下次启动时加载，正在运行的环境重启后生效。": "Installs the three official plugins (native notifications, context menu, sidebar browser) into this environment when you save; they load on the next start, and a running environment picks them up after a restart.",
+  "保存时把三个官方插件（原生通知、右键菜单、侧栏浏览器）装进这个启动项的 Profile，记进它用的环境；下次启动时加载，正在运行的实例重启后生效。": "Installs the three official plugins (native notifications, context menu, sidebar browser) into this launch item's profile when you save, and records them in the environment it uses; they load on the next start, and a running instance picks them up after a restart.",
   "正在保存并安装桌面增强…": "Saving and installing desktop enhancements…",
   "启动项已保存，但桌面增强有 {n} 个没装上：{error}": "Launch item saved, but {n} desktop enhancement plugin(s) failed: {error}",
   "操作失败：{error}": "Action failed: {error}",
@@ -1691,7 +1739,7 @@
   "最占空间的 5 项": "Top 5 by size",
   "各插件占用（含它带进来的依赖）": "Disk usage by plugin (including its dependencies)",
   "其余 {n} 个插件合计 {size}": "Other {n} plugins: {size} total",
-  "插件按它引用到的依赖计入（共用依赖按引用它的插件均摊）；合计是版本目录 + 这个环境目录的逻辑大小，pnpm 共享 store 不重复计入。": "Plugins are counted with the dependencies they pull in (shared dependencies are split across the plugins that use them); the total is the logical size of the version directory plus this environment directory, and the shared pnpm store is not counted twice.",
+  "插件按它引用到的依赖计入（共用依赖按引用它的插件均摊）；合计是版本目录 + 这个 Profile 目录的逻辑大小，pnpm 共享 store 不重复计入。": "Plugins are counted with the dependencies they pull in (shared dependencies are split across the plugins that use them); the total is the logical size of the version directory plus this environment directory, and the shared pnpm store is not counted twice.",
   "窗口 {window} · CPU {cpu}": "Window {window} · CPU {cpu}",
   "最耗时的 5 项": "Top 5 by time",
   "最耗时的 5 项（不含 Node 内部）": "Top 5 by time (excluding Node internals)",
@@ -1856,7 +1904,7 @@
   "已保存。版本目录已改为 {dir}（立即生效）；已安装的版本不会自动迁移，需要就手动复制过去。": "Saved. The version directory is now {dir} (effective immediately); installed versions are not moved automatically.",
   "当前 {live}；重启后尝试切换到 {port}。": "Currently on {live}; will try {port} after a restart.",
   "仅用于新安装的版本，已有版本不迁移。": "Used for new installations only. Existing versions stay in place.",
-  "启动时自动禁用了：{names}（环境页可恢复）": "Disabled at start: {names} (restore them on the Environments page)",
+  "启动时自动禁用了：{names}（Profile 页可恢复）": "Disabled at start: {names} (restore them on the Profiles page)",
   "⚠ 页面自检：{failed}/{total} 个插件包加载失败": "⚠ Page self-check: {failed}/{total} client plugin bundles failed to load",
   "启动失败": "Start failed",
   "{label} 启动失败": "{label} failed to start",
@@ -1926,7 +1974,6 @@
   "复制错误信息": "Copy",
   "已复制": "Copied",
   "复制日志": "Copy log",
-  "整合包卸载": "Modpack uninstall",
   "{name} 已{state}{changed}。": "{name} {state}.{changed}",
   "正在{act} {name}…": "{act} {name}…",
   "安装没能开始：{message}": "The install did not start: {message}",
@@ -1983,7 +2030,7 @@
   "复制失败，请手动复制提示词。": "Copy failed. Please copy the prompt manually.",
   "已安装 {version}；要求 {requirements}": "Installed {version}; requires {requirements}",
   "请让以下插件兼容 dsh {version}。检查源码和 API，修复兼容性并运行测试；不要只放宽版本要求或绕过检查。": "Make the following plugins compatible with dsh {version}. Inspect their source and APIs, fix compatibility, and run tests; do not merely loosen version requirements or bypass checks.",
-  "目标环境：{home}；Profile：{profile}": "Target home: {home}; Profile: {profile}",
+  "目标目录：{home}；Profile：{profile}": "Target home: {home}; Profile: {profile}",
   "仅检查插件声明的版本要求，不保证运行时行为。": "Checks declared plugin version requirements only; runtime behavior is not guaranteed.",
   "请先安装一个 DSH 版本以提供兼容性检查。": "Install a DSH version first to provide compatibility checking.",
   "打开启动器时启动": "Start when the launcher opens",
@@ -2014,17 +2061,17 @@
   "Profile 名称": "Profile name",
   "创建": "Create",
   "复制": "Duplicate",
-  "创建独立环境，之后可以安装整合包或插件。名称只支持字母、数字、点、下划线和连字符。": "Create an independent environment, then add packs or plugins. Use letters, numbers, dots, underscores or hyphens in the name.",
+  "新建一个 Profile：它放配置和数据，插件跟着启动项选的环境走。名称只支持字母、数字、点、下划线和连字符。": "Create a profile. It holds configuration and data; plugins come from the environment a launch entry picks. Use letters, numbers, dots, underscores or hyphens in the name.",
   "复制「{profile}」的插件与配置，依赖会重新安装，可能需要一些时间。技能与 Prompt 设置不随之复制。": "Duplicate plugins and settings from {profile}. Dependencies will be reinstalled and may take a little while. Skills and Prompt settings are not copied.",
   "删除「{profile}」？其中的 {n} 个插件、配置和对应启动项会一并移除，会话与记忆保留。此操作无法撤销。": "Delete {profile}? Its {n} plugins, settings and launch entries will be removed. Sessions and memories will remain. This cannot be undone.",
   "删除 WSL「{distro}」里的 Profile「{profile}」？其中的插件和配置会一并移除，会话与记忆保留。此操作无法撤销。": "Delete profile {profile} inside WSL {distro}? Its plugins and settings will be removed. Sessions and memories will remain. This cannot be undone.",
-  "系统环境不能删除": "System profiles cannot be deleted",
+  "系统 Profile 不能删除": "System profiles cannot be deleted",
   "这个 Profile 尚未初始化": "This profile has not been initialized",
-  "请先启动一次这个环境，再管理插件。": "Start this environment once before managing its plugins.",
+  "请先用这个 Profile 启动一次，再管理插件。": "Launch this profile once before managing its plugins.",
   "正在加载插件…": "Loading plugins…",
   "部分启用": "Partly enabled",
   "完成": "Done",
-  "修复环境": "Repair environment",
+  "修复 Profile": "Repair profile",
   "安装最新版 {version}": "Install latest version {version}",
   "重新安装最新版 {version}": "Reinstall latest version {version}",
   "最新版已安装": "Latest version is installed",
@@ -2043,15 +2090,12 @@
   "输入插件的 npm 包名、GitHub 地址或本地路径。": "Enter the plugin's npm package name, GitHub address or local path.",
   "包名或地址": "Package name or address",
   "例如 dsh-xxx、@作者/插件名、github:owner/repo，或本机目录。": "For example dsh-xxx, @author/plugin, github:owner/repo, or a local folder.",
-  "装进环境「{profile}」": "Install into \"{profile}\"",
+  "装进 Profile「{profile}」": "Install into \"{profile}\"",
   "请填写插件包名或地址": "Enter a package name or address",
   "已装好 {spec}，重启 dsh 后生效。": "Installed {spec}; restart dsh to apply.",
-  "更新 {name} 的 {n} 个插件": "Update {n} plugins in {name}",
   "启用 {name}": "Enable {name}",
   "禁用 {name}": "Disable {name}",
   "请先卸载此后安装的整合包": "Uninstall packs installed after this one first",
-  "导出当前环境": "Export this environment",
-  "导入当前环境": "Import into this environment",
   "自动选择版本": "Version selected automatically",
   "首次启动会自动安装": "Installs automatically on first start",
   "高级选项": "Advanced options",
@@ -2065,7 +2109,7 @@
   "一键启动": "Start",
   "自定义启动": "Custom launch",
   "启动项名称": "Launch name",
-  "例如：我的工作环境": "For example: Work",
+  "例如：工作": "For example: Work",
   "保存启动项": "Save launch",
   "取消编辑": "Cancel edit",
   "已保存的启动项": "Saved launches",
@@ -2098,22 +2142,20 @@
   "重启启动器后改回启动器自带的 Node。": "Restart the launcher to switch back to the bundled Node.",
   "它低于 dsh 要求的 {version}，可能起不来。": "It is below the {version} required by dsh and may fail to start.",
   "已保存。重启启动器后生效。": "Saved. Takes effect after restarting the launcher.",
-  "修复环境": "Repair environment",
-  "正在修复环境…": "Repairing environment…",
-  "已修复环境 {profile}：补丁层已备份，停用第三方插件 {count} 个，重启后生效。": "Environment {profile} repaired: the patch layer is backed up and {count} third-party plugins are disabled. Restart to apply.",
-  "环境 {profile} 有一份配置备份，可还原。": "Environment {profile} has a configuration backup that can be restored.",
-  "启动 / 重启此环境": "Start / restart this environment",
-  "已还原环境 {profile} 的配置；重启后生效。": "Configuration for {profile} restored. Restart to apply.",
-  "修复环境 {profile}：把补丁层（自定义 provider、主题等）备份后移出启动路径，并停用第三方插件；重启后生效。继续？": "Repair {profile}: move the patch layer (custom providers, themes, etc.) out of the startup path after backing it up, and disable third-party plugins. Takes effect after restart. Continue?",
-  "配置已修复，可启动或重启此环境。": "Configuration repaired. Start or restart this environment to apply.",
+  "正在修复 Profile…": "Repairing profile…",
+  "已修复 Profile {profile}：补丁层已备份，停用第三方插件 {count} 个，重启后生效。": "Profile {profile} repaired: the patch layer is backed up and {count} third-party plugins are disabled. Restart to apply.",
+  "Profile {profile} 有一份配置备份，可还原。": "Profile {profile} has a configuration backup that can be restored.",
+  "启动 / 重启这个 Profile": "Start / restart this profile",
+  "修复 Profile {profile}：把补丁层（自定义 provider、主题等）备份后移出启动路径，并停用第三方插件；重启后生效。继续？": "Repair {profile}: move the patch layer (custom providers, themes, etc.) out of the startup path after backing it up, and disable third-party plugins. Takes effect after restart. Continue?",
+  "配置已修复，可启动或重启这个 Profile。": "Configuration repaired. Start or restart this profile to apply.",
   "还原配置": "Restore configuration",
   "安全启动移出了配置层": "Safe start moved the configuration layer aside",
   "安全启动移出了配置层（停用第三方插件 {count} 个）": "Safe start moved the configuration layer aside ({count} third-party plugins disabled)",
   "环境 {profile} 已启动。": "Environment {profile} started.",
   "启动参数、修复、端口、网络与目录。": "Launch arguments, recovery, ports, network and directories.",
   "AI 自检": "AI self-check",
-  "让 AI 给环境做体检": "Let AI check the setup",
-  "复制自检指令，发给 AI 检查环境。": "Copy a self-check request and send it to your AI.",
+  "让 AI 给 DSH-X 做体检": "Let AI check the setup",
+  "复制自检指令，发给 AI 检查 DSH-X。": "Copy a self-check request and send it to your AI.",
   "复制自检请求": "Copy self-check request",
   "复制失败：{error}": "Copy failed: {error}",
   "请帮我自检本机 DSH-X（DeepSeek Harness 启动器）环境：先只读检查，不要改文件、不要重启 dsh。": "Please self-check the DSH-X (DeepSeek Harness launcher) setup on this machine. Start with read-only checks: do not change files or restart dsh.",
@@ -2130,7 +2172,6 @@
   "继续": "Continue",
   "返回列表": "Back to list",
   "暂无说明": "No description",
-  "正在准备安装…": "Preparing installation…",
   "搜索插件": "Search plugins",
   "没有匹配的插件": "No matching plugins",
   "暂无插件": "No plugins yet",
@@ -2139,26 +2180,17 @@
   "从社区市场、文件或链接安装": "Install from the community market, a file or a link",
   "文件路径、下载链接或 owner/repo": "File path, download URL or owner/repo",
   "继续": "Continue",
-  "{n} 个整合包": "{n} packs",
-  "整合包市场": "Modpack market",
   "为你的环境添加插件与功能": "Add plugins and features to your environment",
   "搜索名称、作者或功能": "Search names, authors or features",
   "最近更新": "Recently updated",
   "Star 最多": "Most stars",
   "按名称": "Name",
   "每页": "Per page",
-  "整合包详情": "Modpack details",
-  "确认安装": "Confirm installation",
-  "选择安装环境，确认后开始安装。": "Choose an environment, then confirm to install.",
-  "正在读取安装信息…": "Reading installation information…",
-  "没有匹配的整合包": "No matching modpacks",
   "组件": "Components",
   "部分 Star 暂不可用，可按更新时间浏览。": "Some star counts are unavailable. You can still sort by update date.",
   "Star 暂不可用，可按更新时间浏览。": "Star counts are unavailable. You can still sort by update date.",
   "将添加 {n} 个插件": "Add {n} plugins",
-  "安装环境": "Install into",
   "新建独立环境，现有启动项不变。": "Create a separate environment. Existing launch entries stay unchanged.",
-  "合并到已有环境，同名文件会先备份。": "Merge into the existing environment. Replaced files are backed up first.",
   "版本类型": "Version type",
   "正式版": "Official",
   "自动最新版本和更新提醒只用正式版。": "Latest version (auto) and update notifications use Official releases only.",
@@ -2183,18 +2215,18 @@
   "选择要复制的 Profile": "Choose a profile to copy",
   "左边挑用户目录，右边挑 Profile；复制的是它现在装着的插件与配置。": "Pick a user directory on the left and a profile on the right; its plugins and config are copied.",
   "选择 Profile": "Choose a profile",
-  "启动环境": "Launch environment",
-  "选择一个环境…": "Choose an environment…",
+  "目录与 Profile": "Directory and profile",
+  "选择目录与 Profile…": "Choose a directory and profile…",
   "左边挑用户目录，中间挑 Profile，右边是它装着的插件。": "Pick a user directory on the left, a profile in the middle, and see what it ships on the right.",
   "左边挑用户目录，中间挑 Profile；复制的是它现在装着的插件与配置。": "Pick a user directory on the left and a profile in the middle; its current plugins and config are copied.",
-  "这份环境里有什么": "What this environment has",
+  "这个 Profile 里有什么": "What this profile has",
   "Profile 详情": "Profile details",
   "复制选中的 Profile": "Copy the selected profile",
   "还没初始化": "Not initialized",
   "不能起网页": "Cannot start the web UI",
   "先挑一个 Profile": "Pick a profile first",
-  "还没初始化：先用它启动一次，dsh 会建好这个环境。": "Not initialized yet: launch it once and dsh will create this environment.",
-  "这个环境里还没装插件": "No plugins installed in this environment yet",
+  "还没初始化：先用它启动一次，dsh 会建好这个 Profile。": "Not initialized yet: launch it once and dsh will create this profile.",
+  "这个 Profile 里还没装插件": "No plugins installed in this profile yet",
   "{n} 个插件 · {on} 个开着": "{n} plugins · {on} enabled",
   "已关闭": "Off",
   "移除「{home}」？只从列表里移除，目录里的数据都还在。": "Remove「{home}」? This only drops it from the list; the data in that directory stays.",
@@ -2211,16 +2243,155 @@
   "不能起网页，复制过去也起不来": "Cannot start the web UI, so a copy would not either",
   "这个目录里的 Profile 都不能起网页，换一个目录试试。": "No profile in this directory can start the web UI. Try another directory.",
   "先选一份要复制的 Profile": "Choose a profile to copy first",
-  "先选一份要复制的 Profile：左边挑用户目录，右边挑 Profile；复制出来的环境从空白会话开始。": "Choose a profile to copy: pick a user directory on the left, then a profile on the right. The copy starts with empty sessions.",
+  "先选一份要复制的 Profile：左边挑用户目录，右边挑 Profile；复制出来的 Profile 从空白会话开始。": "Choose a profile to copy: pick a user directory on the left, then a profile on the right. The copy starts with empty sessions.",
   "默认目录": "Default directory",
   "数据目录还没就绪，稍后再试": "The data directory is not ready yet. Try again later.",
   "数据目录": "data directory",
   "自定义目录": "Custom directory",
   "Profile 名称，留空用 web": "Profile name, web when empty",
   "这个 Profile 不能启动网页，换一个名称": "This Profile cannot start the web app. Choose another name.",
-  "版本、端口和启动环境都在这里手动选；点「启动环境」换目录或 Profile，左栏「+」加目录。": "Set version, port and the launch environment here; use Launch environment to switch directory or profile, and + in the left column to add a directory.",
+  "版本、端口、目录和 Profile 都在这里手动选；点「目录与 Profile」换目录或 Profile，左栏「+」加目录。": "Set version, port, directory and profile here; use Directory and profile to switch them, and + in the left column to add a directory.",
   "编辑 Profile…": "Edit profile…",
-  "Profile「{profile}」还没初始化：先用它启动一次，dsh 会建好这个环境，之后就能在这里编辑。": "Profile「{profile}」 is not initialized yet. Launch it once and dsh will create the environment; then you can edit it here.",
+  "Profile「{profile}」还没初始化：先用它启动一次，dsh 会把它建好，之后就能在这里编辑。": "Profile「{profile}」 is not initialized yet. Launch it once and dsh will create it; then you can edit it here.",
+  "环境 = DSH 版本 + 插件清单。启动项选一个环境和一个 Profile，改动在下次启动时写进 Profile。": "An environment is a DSH version plus a plugin list. A launch entry picks one environment and one profile; changes are written into the profile on the next launch.",
+  "新环境名称": "New environment name",
+  "新建环境": "New environment",
+  "全部升级": "Upgrade all",
+  "复制环境": "Duplicate",
+  "删除环境": "Delete environment",
+  "环境名称": "Environment name",
+  "DSH 版本": "DSH version",
+  "插件名，可带版本：dsh-x-memory@0.1.1": "Plugin name, optionally with a version: dsh-x-memory@0.1.1",
+  "加入插件": "Add plugin",
+  "自动：按 Profile 的插件匹配或新建": "Automatic: match or create from the profile's plugins",
+  "自动（{channel}）": "Automatic ({channel})",
+  "跟随 {repo}": "Follows {repo}",
+  "来源：{source}": "Source: {source}",
+  "本地改动 {count}": "{count} local changes",
+  "{count} 个启动项在用": "Used by {count} launch entries",
+  "DSH {version} · {count} 个插件": "DSH {version} · {count} plugins",
+  "官方组件": "Official component",
+  "本地路径": "Local path",
+  "离线文件": "Bundled file",
+  "本地改动": "Local change",
+  "不挂载": "Not mounted",
+  "移除": "Remove",
+  "这个环境还没有插件。": "This environment has no plugins yet.",
+  "在用的启动项：{names}": "Used by: {names}.",
+  "还没有启动项用这个环境。": "No launch entry uses this environment yet.",
+  "跟随上游 {repo}：这里的改动记成本地改动，上游更新后会重放。": "Follows {repo}: changes here are kept as local changes and replayed after upstream updates.",
+  "改动在下次用这个环境启动时写进 Profile。": "Changes are written into the profile the next time it launches with this environment.",
+  "还有启动项在用，先给它们换一个环境": "Launch entries still use it. Move them to another environment first.",
+  "都已经是最新版本": "Everything is up to date",
+  "升级结果": "Upgrade results",
+  "{name} 副本": "{name} copy",
+  "删除环境「{name}」？Profile 和里面已经装好的插件不受影响。": "Delete environment “{name}”? Profiles and the plugins already installed in them are not affected.",
+  "DSH {version} · {count} 个插件。版本跟着环境走，在这里改版本就是改这个环境。": "DSH {version} · {count} plugins. The version belongs to the environment: changing it here changes the environment.",
+  "保存时按这个 Profile 现有的插件找到或生成一个环境。": "On save, an environment is matched or created from this profile's current plugins.",
+  "返回 Profile 列表": "Back to profiles",
+  "更新…": "Update…",
+  "之前的版本": "Earlier versions",
+  "切回这一份": "Switch back to this one",
+  "更新环境": "Update environment",
+  "有新版本 {version}": "New version {version}",
+  "正在检查上游 {repo}…": "Checking upstream {repo}…",
+  "检查上游 {repo} 失败：{error}": "Could not check upstream {repo}: {error}",
+  "上游 {repo} 有新版本 {version}（现在是 {current}）": "Upstream {repo} has a new version {version} (currently {current})",
+  "未知": "unknown",
+  "已是上游 {repo} 的最新版本 {current}": "Up to date with upstream {repo} ({current})",
+  "跟随上游 {repo}": "Following upstream {repo}",
+  "{time} 之前的那份": "The one before {time}",
+  "检查更新失败": "Update check failed",
+  "上游换成 DSH {version}，这里本地钉了 {local}，照用本地的": "Upstream moved to DSH {version}; your local pin {local} is kept",
+  "更新时先安装 DSH {version}": "DSH {version} will be installed first",
+  "新增 {name} {spec}": "Add {name} {spec}",
+  "移除 {name}": "Remove {name}",
+  "插件清单没有变化": "The plugin list does not change",
+  "{name}：你删掉了它，上游这次换成了 {to}，照样删着": "{name}: you removed it and upstream changed it to {to}; it stays removed",
+  "{name}：上游换成了 {to}，你本地钉的 {local} 照留": "{name}: upstream changed it to {to}; your local {local} is kept",
+  "{name}：上游这次删掉了它，你本地钉的 {local} 照留": "{name}: upstream removed it; your local {local} is kept",
+  "开始加载 {name}": "Start loading {name}",
+  "不再加载 {name}": "Stop loading {name}",
+  "还有一个操作没做完，等它结束再更新": "Another action is still running. Update after it finishes",
+  "上游换了 DSH 版本，这些本地插件没经过上游作者验证：勾着的照留，不勾的回到上游那份": "Upstream changed the DSH version and the upstream author has not tested these local plugins with it. Checked ones are kept; unchecked ones go back to the upstream version",
+  "会改掉": "Changes",
+  "和你的本地改动撞了": "Overlaps with your local changes",
+  "这些本地改动和新上游一样，会去掉": "These local changes now match upstream and will be dropped",
+  "新版本带了 {n} 个离线文件：它们是可执行代码，确认是信得过的作者再更新": "The new version carries {n} bundled files. They are executable code: update only if you trust the author",
+  "现在这份会先存起来，更新后不满意可以在这里切回去。": "The current version is saved first, so you can switch back here after updating.",
+  "正在下载上游的新版本…": "Downloading the new upstream version…",
+  "正在安装 DSH {version}，装好后更新…": "Installing DSH {version}, then updating…",
+  "环境「{name}」已更新到 {version}，下次用它启动时写进 Profile。": "Environment “{name}” updated to {version}. It is written into the Profile at the next launch.",
+  "切回 {time} 之前的那份清单？现在这份会先存起来，之后还能切回来。": "Switch back to the version from before {time}? The current one is saved first, so you can switch again later.",
+  "切回之前的版本": "Switch back",
+  "DSH {from} → {to}": "DSH {from} → {to}",
+  "{name} {from} → {to}": "{name} {from} → {to}",
+  "{name}：{from} → {to}": "{name}: {from} → {to}",
+  "已导入": "Imported",
+  "撤销": "Undo",
+  "导入过的配置": "Imported configuration",
+  "本地插件打成离线文件带上（不勾的不进环境文件）": "Bundle local plugins as offline files (unchecked ones are left out of the file)",
+  "这个环境跟着最新版本走：导出时写成现在会用的那个精确版本。": "This environment follows the latest version: the export records the exact version it would use right now.",
+  "{n} 个环境": "{n} environments",
+  "没有匹配的环境": "No matching environments",
+  "包里要求 {range}": "pack asks for {range}",
+  "跟随 {repo} 的 release：有新版本时环境页会提示": "Follows releases of {repo}: the Environments page tells you when a new one is out",
+  "不跟随上游：之后不会提示更新": "Not following an upstream: no update notices",
+  "补丁层（插件开关、插件配置、MCP）": "Patch layer (plugin switches, plugin settings, MCP)",
+  "用户级文件 {path}": "User file {path}",
+  "导入时先安装 DSH {version}": "DSH {version} will be installed first",
+  "这个环境带了 {n} 个离线文件：它们是可执行代码，来源不像 npm 那样可查，确认是信得过的作者再导入": "This environment carries {n} offline files. They are executable code and harder to trace than npm packages: only import them from an author you trust",
+  "把包里的配置导进 Profile": "Import the pack's configuration into a profile",
+  "导入配置的 Profile": "Profile to import the configuration into",
+  "默认不导：配置属于 Profile。导入前会备份，之后可以在 Profile 页撤销。": "Off by default: configuration belongs to a profile. It is backed up first and can be undone on the Profiles page.",
+  "查看详情": "Details",
+  "挂载顺序（dsh 按顺序加载）": "Bundle order (dsh loads them in this order)",
+  "包里的配置": "Configuration in the pack",
+  "导入": "Import",
+  "正在读社区环境列表…": "Loading community environments…",
+  "市场里现在有 {n} 个环境。": "The market has {n} environments.",
+  "正在读取环境文件…": "Reading the environment file…",
+  "读取环境文件失败": "Could not read the environment file",
+  "正在导入…": "Importing…",
+  "正在安装 DSH {version}，装好后导入…": "Installing DSH {version}, then importing…",
+  "环境已导入，配置没能写进 Profile": "Environment imported, but the configuration could not be written to the profile",
+  "导入失败": "Import failed",
+  "撤销 {name} 写进 Profile「{profile}」的配置？配置文件将还原到导入前，导入后对这些文件的修改也会撤销。": "Undo the configuration {name} wrote to profile “{profile}”? The files go back to how they were before the import, including any later edits to them.",
+  "撤销配置导入": "Undo configuration import",
+  "已撤销 {name} 的配置导入，重启这个 Profile 的实例后生效。": "Undid the configuration import of {name}. Restart this profile's instances to apply it.",
+  "撤销 {name} 在 Profile「{profile}」的整包安装？package.json 和配置文件将还原到安装前，安装后对这些文件的修改也会撤销。": "Undo the full-pack install of {name} in profile “{profile}”? package.json and the configuration files go back to how they were before the install, including any later edits to them.",
+  "撤销整包安装": "Undo full-pack install",
+  "已撤销 {name} 的整包安装，重启这个 Profile 的实例后生效。": "Undid the full-pack install of {name}. Restart this profile's instances to apply it.",
+  "撤销失败": "Undo failed",
+  "已导出：DSH {version}、{n} 个插件{offline}": "Exported: DSH {version}, {n} plugins{offline}",
+  "、{n} 个离线文件": ", {n} offline files",
+  "先给一个环境文件：本地文件、链接，或者 owner/repo": "Give an environment file first: a local file, a link, or owner/repo",
+  "导入…": "Import…",
+  "导入环境": "Import environment",
+  "社区环境": "Community environments",
+  "环境详情": "Environment details",
+  "确认导入": "Confirm import",
+  "看清要用的 DSH 版本和插件，确认后导入成一个环境。": "Check the DSH version and plugins, then import them as an environment.",
+  "导出环境": "Export environment",
+  "导出 DSH 的精确版本和插件清单：npm 插件钉到精确版本，github 插件钉到提交，本地插件打成离线文件。不带配置、会话和凭据。": "Exports the exact DSH version and plugin list: npm plugins pinned to exact versions, github plugins to commits, local plugins as offline files. No configuration, sessions or credentials.",
+  "说明": "Description",
+  "GitHub 仓库": "GitHub repository",
+  "owner/repo（可选，填了别人能跟随更新）": "owner/repo (optional; lets others follow updates)",
+  "导出方式": "Export as",
+  "单个 .dspack 文件": "A single .dspack file",
+  "仓库目录（直接提交到 GitHub）": "A repository folder (commit it to GitHub as is)",
+  "附带推 tag 自动发布的 GitHub Actions 模板": "Add a GitHub Actions template that publishes a release on tag push",
+  "导入内置环境 {name}": "Import built-in environment {name}",
+  "随启动器发的环境配方": "Environment recipe shipped with the launcher",
+  "内置 · 点开导入": "Built-in · open to import",
+  "还没有环境。新建、导入一个，或者先保存一个启动项，启动器会按它的 Profile 自动生成。": "No environments yet. Create or import one, or save a launch entry and the launcher derives one from its profile.",
+  "现在写在 Profile：{names}": "Currently written to profiles: {names}",
+  "DSH {version} · {count} 个插件。换环境时版本跟着这个环境；要改版本，先保存，再改。": "DSH {version} · {count} plugins. Switching environments takes this environment's version; to change the version, save first, then change it.",
+  "读取中…": "Loading…",
+  "用哪个环境": "Environment",
+  "选择仓库目录…": "Choosing the repository folder…",
+  "环境排序": "Sort environments",
+  "搜索环境": "Search environments",
 }
 
     function t(zh, vars) {
@@ -2237,6 +2408,9 @@
         el.textContent = t(el.dataset.i18n) || el.dataset.i18n
       }
       for (const el of document.querySelectorAll('[data-placeholder-i18n]')) el.placeholder = t(el.dataset.placeholderI18n)
+      // 只有图标的按钮、只有 aria 名字的控件：标记早就写在静态结构里，这里才真正翻
+      for (const el of document.querySelectorAll('[data-i18n-title]')) el.title = t(el.dataset.i18nTitle)
+      for (const el of document.querySelectorAll('[data-i18n-aria-label]')) el.setAttribute('aria-label', t(el.dataset.i18nAriaLabel))
       for (const id of ['launchManageVersions', 'update', 'remove', 'launchRecover', 'mcpAdd', 'mcpProbe', 'mcpRefresh', 'versionManageCheck']) {
         const el = document.getElementById(id)
         if (!el.dataset.titleI18n) el.dataset.titleI18n = el.title
@@ -2272,7 +2446,7 @@
     const versionPanelEl = document.getElementById('versionPanel')
     const launchProfileEl = document.getElementById('launchProfile')
     const launchDshHomeEl = document.getElementById('launchDshHome')
-    // WSL 启动项：不再单独切换运行位置，发行版/目录由「启动环境」选择窗给出；这里是隐藏真相源
+    // WSL 启动项：不再单独切换运行位置，发行版/目录由「目录与 Profile」选择窗给出；这里是隐藏真相源
     const pickLaunchWslWorkdirEl = document.getElementById('pickLaunchWslWorkdir')
     const launchWslLocationFieldsEl = document.getElementById('launchWslLocationFields')
     const launchWslWorkdirFieldEl = document.getElementById('launchWslWorkdirField')
@@ -2282,7 +2456,7 @@
     const launchWslWorkdirEl = document.getElementById('launchWslWorkdir')
     const launchWslHintEl = document.getElementById('launchWslHint')
     const launchWslProfileEl = document.getElementById('launchWslProfile')
-    // 本机「启动环境」整组（隐藏的 dshHome + profile 两个下拉）：WSL 下整组藏掉
+    // 本机「目录与 Profile」整组（隐藏的 dshHome + profile 两个下拉）：WSL 下整组藏掉
     const launchEnvFieldEl = document.getElementById('launchEnvField')
     const launchPortEl = document.getElementById('launchPort')
     const launchAutoLaunchEl = document.getElementById('launchAutoLaunch')
@@ -3833,7 +4007,8 @@
       const launchId = scopedLaunchId(path, options.launchId)
       if (launchId) return { 'x-dsh-launch-id': launchId }
       // 设置页只限定插件、整合包和 Profile；其它设置仍保留自己的全局作用域。
-      const home = options.home ?? (options.launchId === undefined && /^\/api\/(plugins|packs|profiles|profile-backups|recover)(?:\/|\?|$)/.test(path) ? pluginHome : '')
+      // 环境导入里「配置导进哪个 Profile」也跟着 Profile 页选的目录走（环境本身不分目录）
+      const home = options.home ?? (options.launchId === undefined && /^\/api\/(plugins|packs|profiles|profile-backups|recover|environments\/import)(?:\/|\?|$)/.test(path) ? pluginHome : '')
       return home ? { 'x-dsh-home': encodeURIComponent(home) } : {}
     }
     const post = (path, body = {}, options = {}) => fetch(path, {
@@ -4269,7 +4444,7 @@
       const known = (packState.packs || []).some((item) => item.profile === profile)
       if (!known) {
         // 没初始化过的 Profile 在环境页不占卡片（dsh 启动时才会建目录），先告诉人怎么让它出现
-        notify(t('Profile「{profile}」还没初始化：先用它启动一次，dsh 会建好这个环境，之后就能在这里编辑。', { profile }))
+        notify(t('Profile「{profile}」还没初始化：先用它启动一次，dsh 会把它建好，之后就能在这里编辑。', { profile }))
         return
       }
       openPack(profile)
@@ -4384,10 +4559,12 @@
       launchBackend = backend === 'wsl' ? 'wsl' : 'local'
       const wsl = launchBackend === 'wsl'
       const creating = !editingLaunchId
-      // WSL 的隐藏真相源和项目目录跟着后端切；「启动环境」触发器两边共用，不藏。
+      // WSL 的隐藏真相源和项目目录跟着后端切；「目录与 Profile」触发器两边共用，不藏。
       launchWslLocationFieldsEl.hidden = !wsl
       launchWslWorkdirFieldEl.hidden = !wsl
       if (typeof launchLocalVersionGroupEl !== 'undefined' && launchLocalVersionGroupEl) launchLocalVersionGroupEl.hidden = wsl
+      // WSL 启动项不接环境（Profile 目录在 WSL 里，启动器写不进去），环境下拉一起藏
+      document.getElementById('launchEnvironmentField').hidden = wsl
       document.getElementById('launchVersionField').hidden = wsl
       launchChannelFieldEl.hidden = wsl
       document.getElementById('launchManageVersions').hidden = wsl
@@ -4731,13 +4908,13 @@
         })
       } else if (copying) {
         // 停在复制那档还没选来源：说清下一步，别让人以为直接保存就复制了
-        hint = t('先选一份要复制的 Profile：左边挑用户目录，右边挑 Profile；复制出来的环境从空白会话开始。')
+        hint = t('先选一份要复制的 Profile：左边挑用户目录，右边挑 Profile；复制出来的 Profile 从空白会话开始。')
       } else if (launchIsolation === 'profile') {
         hint = t('将自动新建 Profile「{name}」：沿用全局 dsh 目录，会话与记忆共享，插件与配置独立。', { name: typedName || suggestIsolatedProfile() })
       } else if (launchIsolation === 'home') {
         hint = t('将自动新建独立目录：会话、记忆、插件与配置全部独立。')
       } else {
-        hint = t('版本、端口和启动环境都在这里手动选；点「启动环境」换目录或 Profile，左栏「+」加目录。')
+        hint = t('版本、端口、目录和 Profile 都在这里手动选；点「目录与 Profile」换目录或 Profile，左栏「+」加目录。')
       }
       if (launchIsolationHintEl.textContent === hint) return
       launchIsolationHintEl.textContent = hint
@@ -4917,10 +5094,10 @@
       const home = wsl ? launchWslHomeEl.value.trim() : launchDshHomeEl.value.trim()
       const path = wsl ? (home || '~/.dsh') : (home || state.dshHome || '~/.dsh')
       const label = wsl ? `WSL · ${launchWslDistroEl.value || t('选择一个发行版…')}` : copyHomeName(home)
-      const text = profile ? t('{home} › {profile}', { home: label, profile }) : t('选择一个环境…')
+      const text = profile ? t('{home} › {profile}', { home: label, profile }) : t('选择目录与 Profile…')
       launchEnvPickEl.classList.toggle('is-placeholder', !profile)
       launchEnvPickValueEl.textContent = text
-      launchEnvPickEl.title = profile ? t('{home} › {profile}（{path}）', { home: label, profile, path }) : t('选择一个环境…')
+      launchEnvPickEl.title = profile ? t('{home} › {profile}（{path}）', { home: label, profile, path }) : t('选择目录与 Profile…')
       launchEnvPickEl.setAttribute('aria-label', text)
     }
 
@@ -4938,7 +5115,7 @@
         const name = copyHomeName(home)
         rows.push({ home, name, path: named && name !== home ? home : '' })
       }
-      // WSL 发行版就是另一类「用户目录」：只在挑启动环境时出现，左边和本机目录并排。
+      // WSL 发行版就是另一类「用户目录」：只在挑目录与 Profile 时出现，左边和本机目录并排。
       if (pickerMode === 'form' && state.wsl?.available !== false) {
         const pickedWsl = parseWslHomeKey(pickerHome)
         for (const distro of (state.wsl?.distros || [])) {
@@ -5136,14 +5313,14 @@
         }
         const plugins = Array.isArray(info.plugins) ? info.plugins : []
         profilePickMetaEl.textContent = [version, t('{n} 个插件', { n: plugins.length })].filter(Boolean).join(' · ')
-        if (!plugins.length) return render(`<p class="profile-pick-note">${escapeHtml(t('这个环境里还没装插件'))}</p>`)
+        if (!plugins.length) return render(`<p class="profile-pick-note">${escapeHtml(t('这个 Profile 里还没装插件'))}</p>`)
         return render(plugins.map((item) => `<div class="profile-detail-row${item.mounted === false ? ' is-off' : ''}"><span class="profile-detail-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span><span class="profile-detail-version">${escapeHtml(item.version || '')}</span>${item.mounted === false ? `<span class="profile-detail-badge">${escapeHtml(t('已关闭'))}</span>` : ''}</div>`).join(''))
       }
-      if (!row.pack) return render(`<p class="profile-pick-note">${escapeHtml(t('还没初始化：先用它启动一次，dsh 会建好这个环境。'))}</p>`)
+      if (!row.pack) return render(`<p class="profile-pick-note">${escapeHtml(t('还没初始化：先用它启动一次，dsh 会建好这个 Profile。'))}</p>`)
       const plugins = Array.isArray(row.pack.plugins) ? row.pack.plugins : []
       const on = plugins.filter((item) => item.enabled).length
       profilePickMetaEl.textContent = t('{n} 个插件 · {on} 个开着', { n: plugins.length, on })
-      if (!plugins.length) return render(`<p class="profile-pick-note">${escapeHtml(t('这个环境里还没装插件'))}</p>`)
+      if (!plugins.length) return render(`<p class="profile-pick-note">${escapeHtml(t('这个 Profile 里还没装插件'))}</p>`)
       const busy = pickerBusy || Boolean(pickerPluginRemoving)
       render(plugins.map((item) => {
         // 官方组件跟着 dsh 走，不给卸载入口（和插件页同一条保护线）
@@ -5287,7 +5464,7 @@
           ? wslHomeKeyOf(launchWslDistroEl.value, launchWslHomeEl.value)
           : launchDshHomeEl.value.trim()
         pickerProfile = launchProfile || ''
-        setPickerHeading('选择启动环境', '左边挑本机目录或 WSL 发行版，中间挑 Profile，右边是它的插件或 dsh 信息。')
+        setPickerHeading('选择目录与 Profile', '左边挑本机目录或 WSL 发行版，中间挑 Profile，右边是它的插件或 dsh 信息。')
       } else {
         pickerHome = launchCopySource?.home || ''
         pickerProfile = launchCopySource?.profile || ''
@@ -6222,7 +6399,7 @@
         ${restPlugins.length ? `<p class="hint launch-log-note">${escapeHtml(t('其余 {n} 个插件合计 {size}', { n: restPlugins.length, size: formatBytes(restPlugins.reduce((sum, plugin) => sum + Number(plugin.bytes || 0), 0)) }))}</p>` : ''}` : ''}
         <div class="launch-log-subhead">${escapeHtml(t('最占空间的 5 项'))}</div>
         <div class="launch-log-bars">${items.map((item) => `<div class="launch-log-bar-row${item.plugin ? ' is-plugin' : ''}"><span class="name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span><span class="track"><span class="fill" style="width:${Math.max(2, (Number(item.bytes) || 0) / max * 100).toFixed(1)}%"></span></span><span class="value">${escapeHtml(formatBytes(item.bytes))}</span></div>`).join('')}</div>
-        <p class="hint launch-log-note">${escapeHtml(t('插件按它引用到的依赖计入（共用依赖按引用它的插件均摊）；合计是版本目录 + 这个环境目录的逻辑大小，pnpm 共享 store 不重复计入。'))}</p>`
+        <p class="hint launch-log-note">${escapeHtml(t('插件按它引用到的依赖计入（共用依赖按引用它的插件均摊）；合计是版本目录 + 这个 Profile 目录的逻辑大小，pnpm 共享 store 不重复计入。'))}</p>`
       launchLogSpaceBodyEl.hidden = false
       showLaunchLogEmpty(launchLogSpaceEmptyEl, '')
     }
@@ -6984,7 +7161,7 @@
     function compatibilityTarget() {
       // Staging 的启动项已经没有 workdir 字段，目录只来自「dsh 用户目录」这一栏。
       const home = launchDshHomeEl.value.trim() || state.dshHome
-      // 自动版本也必须按草稿目录解析；全局目录正在运行的旧版不代表此环境会启动的版本。
+      // 自动版本也必须按草稿目录解析；全局目录正在运行的旧版不代表这个启动项会启动的版本。
       const version = versionValue === 'auto' ? recommendedVersion(launchProfile, home, draftLaunchChannel()) : selected()
       return { version, profile: launchProfile, home }
     }
@@ -7019,7 +7196,7 @@
 
     function buildCompatibilityPrompt(result, target) {
       return [t('请让以下插件兼容 dsh {version}。检查源码和 API，修复兼容性并运行测试；不要只放宽版本要求或绕过检查。', { version: target.version }),
-        t('目标环境：{home}；Profile：{profile}', target),
+        t('目标目录：{home}；Profile：{profile}', target),
         ...result.incompatible.map(plugin => '- ' + formatCompatibilityPlugin(plugin))].join('\n')
     }
 
@@ -7163,7 +7340,21 @@
       if (!launchBackendIsWsl() && entry?.dshHome) void refreshLaunchHomeProfiles()
       render()
       if (!launchBackendIsWsl()) void loadRecovery(launchProfile)
+      // 环境下拉在 environments-page.js 里填（它挂上这个钩子；钩子不在时就是没有环境页）
+      globalThis.onLaunchEditorOpen?.(entry || null)
       launchNameEl.focus()
+    }
+
+    /**
+     * 编辑框里换了环境：版本选择换成那个环境的版本（服务端换环境时也按环境的版本存，页面上看到的
+     * 和存下来的才一致）。给 environments-page.js 用，它不直接改这里的 picked / versionValue。
+     */
+    function setLaunchVersion(version, channel) {
+      picked = version
+      versionValue = version
+      launchUpdateChannelEl.value = String(Math.max(0, UPDATE_CHANNELS.indexOf(channel)))
+      paintLaunchChannel()
+      render()
     }
 
     async function closeLaunchEditor() {
@@ -7234,6 +7425,9 @@
         const data = await post('/api/launch-presets', {
           id: editingLaunchId || undefined, name: guided ? target.name : launchNameEl.value, icon: launchIcon,
           version: versionValue || 'auto',
+          // 环境下拉（由 environments-page.js 填）：换了环境，服务端就用那个环境的版本；
+          // 引导档不带这个字段，按新建的 Profile 自动生成环境。经表单取值，不多引一个全局。
+          ...(!guided && launchFormEl.elements?.launchEnvironment ? { environment: launchFormEl.elements.launchEnvironment.value } : {}),
           profile: guided ? target.profile : launchProfile,
           port: launchPortEl.value.trim(),
           dshHome: guided ? target.dshHome : launchDshHomeEl.value.trim(),
@@ -7336,7 +7530,7 @@
         hintEl.append(document.createTextNode(hintEl.textContent ? ' · ' : ''), historyButton)
       }
       const fixed = stateAutoFix()
-      if (!hintEl.textContent && fixed) hintEl.textContent = t('启动时自动禁用了：{names}（环境页可恢复）', { names: fixed })
+      if (!hintEl.textContent && fixed) hintEl.textContent = t('启动时自动禁用了：{names}（Profile 页可恢复）', { names: fixed })
       if (!hintEl.textContent && state.health?.failed?.length) hintEl.textContent = t('⚠ 页面自检：{failed}/{total} 个插件包加载失败', { failed: state.health.failed.length, total: state.health.total })
       // 「安全启动」把整个补丁层改名挪走了（自定义 provider / 主题 / 沙箱都在里面）。还原入口
       // 必须出现在首页提示行上，不能只藏在启动项弹窗底部：dsh 会重新生成一份最小补丁层，
@@ -9342,7 +9536,7 @@
       pluginAddTarget = next
       pluginAddSpecEl.value = ''
       pluginAddErrorEl.hidden = true
-      pluginAddTargetEl.textContent = t('装进环境「{profile}」', { profile: next.profile })
+      pluginAddTargetEl.textContent = t('装进 Profile「{profile}」', { profile: next.profile })
       pluginAddGoEl.disabled = false
       pluginAddGoEl.classList.remove('loading')
       paintProgress(pluginAddProgressEl, pluginAddProgressBarEl, null, false)
@@ -9439,7 +9633,6 @@
     let pluginUpdates = {}
     let pluginUpdating = ''
     let pluginUpdatingProfile = ''
-    let pluginUpdatingGroup = ''
     // 卸载一个插件时用它记名字：行里的进度条要知道自己显示「卸载」还是「更新」；
     // pluginAdding 只负责锁住添加弹窗的重复提交。
     let pluginRemoving = ''
@@ -9594,11 +9787,11 @@
       }
       recoveryHintEl.hidden = false
       recoveryHintEl.innerHTML = escapeHtml(last
-        ? t('已修复环境 {profile}：补丁层已备份，停用第三方插件 {count} 个，重启后生效。', { profile, count: last.dropped?.length || 0 })
-        : t('环境 {profile} 有一份配置备份，可还原。', { profile }))
+        ? t('已修复 Profile {profile}：补丁层已备份，停用第三方插件 {count} 个，重启后生效。', { profile, count: last.dropped?.length || 0 })
+        : t('Profile {profile} 有一份配置备份，可还原。', { profile }))
         + (last?.warning ? ` ${escapeHtml(last.warning)}` : '')
         + (backup ? ` <button class="link-button" type="button" id="recoverUndo" ${packBusy ? 'disabled' : ''}>${escapeHtml(t('还原'))}</button>` : '')
-        + (installedList().length ? ` <button class="link-button" type="button" id="recoverRestart" ${packBusy ? 'disabled' : ''}>${escapeHtml(t('启动 / 重启此环境'))}</button>` : '')
+        + (installedList().length ? ` <button class="link-button" type="button" id="recoverRestart" ${packBusy ? 'disabled' : ''}>${escapeHtml(t('启动 / 重启这个 Profile'))}</button>` : '')
       document.getElementById('recoverUndo')?.addEventListener('click', () => restoreRecovery(profile, backup))
       document.getElementById('recoverRestart')?.addEventListener('click', () => restartEnvironment(profile))
     }
@@ -9622,11 +9815,11 @@
     async function repairEnvironment(profile) {
       const options = recoveryOptions()
       if (packBusy || !options) return
-      if (!(await appConfirm(t('修复环境 {profile}：把补丁层（自定义 provider、主题等）备份后移出启动路径，并停用第三方插件；重启后生效。继续？', { profile }), { title: t('修复环境') }))) return
+      if (!(await appConfirm(t('修复 Profile {profile}：把补丁层（自定义 provider、主题等）备份后移出启动路径，并停用第三方插件；重启后生效。继续？', { profile }), { title: t('修复 Profile') }))) return
       packBusy = true
       renderPackView()
       recoveryHintEl.hidden = false
-      recoveryHintEl.textContent = t('正在修复环境…')
+      recoveryHintEl.textContent = t('正在修复 Profile…')
       try {
         const data = await post('/api/recover', { profile }, options)
         await loadPlugins()
@@ -9634,8 +9827,8 @@
         // 首页提示行也要立刻出现「还原配置」入口，别等下一次状态推送
         render()
         await loadRecovery(profile)
-        notify(t('配置已修复，可启动或重启此环境。'), t('修复环境'))
-      } catch (error) { notify(error.message, t('修复环境')) }
+        notify(t('配置已修复，可启动或重启这个 Profile。'), t('修复 Profile'))
+      } catch (error) { notify(error.message, t('修复 Profile')) }
       finally { packBusy = false; renderPackView() }
     }
 
@@ -9771,14 +9964,12 @@
       }
     }
 
-    // 更新入口全在环境详情里：检查更新 / 更新 N 个（卡片上的按钮走 /api/packs/update）
-
     // 翻译涉及后面声明的弹窗，统一在脚本末尾调用，避免未初始化的元素引用。
 
-    // ---- 整合包：一批插件 + 一套配置一次装进一个 profile ----
-    // 整合包在这个页面里的两层：上面是卡片（一个包一张），点开一张进「这个包里的插件」。
-    // 装包走弹窗（来源 + 市场 → 检查 → 安装），检查过的包在服务端有一份 token，安装时不用再下一次；
-    // 进度走 SSE 的 kind === 'pack' 事件。
+    // ---- Profile 视图 + 环境的导入 / 导出弹窗 ----
+    // Profile 视图两层：上面是卡片（一个 profile 一张），点开一张进「这个 profile 里的插件」。
+    // 导入走弹窗（来源 + 市场 → 检查 → 导入成环境），检查过的包在服务端有一份 token，确认时不用再下一次；
+    // 进度走 SSE 的 kind === 'pack' 事件。跟随上游的检查 / 更新在环境详情里（environments-page.js）。
     const packGridEl = document.getElementById('packGrid')
     const pluginOverviewEl = document.getElementById('pluginOverview')
     const packViewEl = document.getElementById('packView')
@@ -9795,13 +9986,25 @@
     let marketStatsRevision = 0
     const packImportCloseEl = document.getElementById('packImportClose')
     const packExportDialog = document.getElementById('packExportDialog')
-    const packExportProfileEl = document.getElementById('packExportProfile')
     const packExportGoEl = document.getElementById('packExportGo')
     const packExportCancelEl = document.getElementById('packExportCancel')
     const packExportNameEl = document.getElementById('packExportName')
     const packExportVersionEl = document.getElementById('packExportVersion')
-    const packExportHomeEl = document.getElementById('packExportHome')
+    const packExportDescriptionEl = document.getElementById('packExportDescription')
+    const packExportRepoEl = document.getElementById('packExportRepo')
+    const packExportWorkflowEl = document.getElementById('packExportWorkflow')
+    const packExportOfflineEl = document.getElementById('packExportOffline')
     const packExportHintEl = document.getElementById('packExportHint')
+    // 环境页（environments-page.js）和这里共用的环境列表：市场卡片要知道哪些已经导入过；
+    // 导入完要跳到环境页并打开新环境（pendingOpen 由环境页取数据后消费，reload 由环境页挂上）；
+    // defaults 是服务端给的默认值（导出版本号的占位）
+    const environmentState = { list: [], pendingOpen: '', defaults: {}, reload: null }
+    // 和服务端 ENVIRONMENT.AUTO_VERSION 同义：跟着版本类型里的最新已装版本走
+    const AUTO_VERSION = 'auto'
+    let exportingEnvironment = null
+    // 每次打开导出框加一：晚到的导出结果不能画进后来那次打开的导出框
+    let exportRevision = 0
+    let packConfigWanted = false
     const packInspectEl = document.getElementById('packInspect')
     const packMarketEl = document.getElementById('packMarket')
     const packMarketDetailEl = document.getElementById('packMarketDetail')
@@ -9813,6 +10016,7 @@
     const packHintEl = document.getElementById('packHint')
     let packState = { packs: [], profile: '', profiles: [], busy: false }
     let packInspection = null
+    // 导入时「配置导进哪个 Profile」的选择（只在包里有配置、用户勾了时才用）
     let packTargetProfile = ''
     let packInspectRequest = 0
     let packInspectAbort = null
@@ -9925,9 +10129,9 @@
       else profileNameEl.pattern = '[A-Za-z0-9][A-Za-z0-9._-]{0,31}'
       document.getElementById('profileDialogNote').textContent = homeName
         ? t('只修改显示名称，目录路径与数据保持不变。')
-        : renaming ? t('重命名后，对应启动项会自动使用新名称。请先停止此环境的全部实例。') : source
+        : renaming ? t('重命名后，对应启动项会自动使用新名称。请先停止这个 Profile 的全部实例。') : source
         ? t('复制「{profile}」的插件与配置，依赖会重新安装，可能需要一些时间。技能与 Prompt 设置不随之复制。', { profile: source })
-        : t('创建独立环境，之后可以安装整合包或插件。名称只支持字母、数字、点、下划线和连字符。')
+        : t('新建一个 Profile：它放配置和数据，插件跟着启动项选的环境走。名称只支持字母、数字、点、下划线和连字符。')
       let proposed = homeName ? pluginHomeName(source, source === state.dshHome ? t('全局目录') : pluginHomes().get(source) || t('用户目录')) : renaming ? source : source ? `${source.slice(0, 27)}-copy` : ''
       // 复制建议名要避开目标目录里已有的 Profile：选择窗里改的是它挑的那份，环境页里改的是当前那份
       const siblings = profileDialogFromPicker
@@ -10164,8 +10368,8 @@
         </button><details class="pack-more profile-menu"><summary title="${escapeHtml(t('更多操作'))}" aria-label="${escapeHtml(t('更多操作'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-ellipsis"/></svg></summary><div class="pack-more-actions">
           <button class="ghost" type="button" data-profile-backups="${escapeHtml(item.profile)}">${packMoreIcons.backup}${escapeHtml(t('备份与回退'))}</button>
           <button class="ghost" type="button" data-profile-copy="${escapeHtml(item.profile)}" ${packBusy || pluginUpdating || pluginRemoving || pluginAdding ? 'disabled' : ''}>${packMoreIcons.copy}${escapeHtml(t('复制 Profile'))}</button>
-          <button class="ghost" type="button" data-profile-rename="${escapeHtml(item.profile)}" ${!removable || packBusy || pluginUpdating || pluginRemoving || pluginAdding ? 'disabled' : ''} ${!removable ? `title="${escapeHtml(t('系统环境不能重命名'))}"` : ''}>${packMoreIcons.rename}${escapeHtml(t('重命名 Profile'))}</button>
-          <button class="ghost danger" type="button" data-profile-delete="${escapeHtml(item.profile)}" ${!removable || packBusy || pluginUpdating || pluginRemoving || pluginAdding ? 'disabled' : ''} ${!removable ? `title="${escapeHtml(t('系统环境不能删除'))}"` : ''}>${packMoreIcons.trash}${escapeHtml(t('删除 Profile'))}</button>
+          <button class="ghost" type="button" data-profile-rename="${escapeHtml(item.profile)}" ${!removable || packBusy || pluginUpdating || pluginRemoving || pluginAdding ? 'disabled' : ''} ${!removable ? `title="${escapeHtml(t('系统 Profile 不能重命名'))}"` : ''}>${packMoreIcons.rename}${escapeHtml(t('重命名 Profile'))}</button>
+          <button class="ghost danger" type="button" data-profile-delete="${escapeHtml(item.profile)}" ${!removable || packBusy || pluginUpdating || pluginRemoving || pluginAdding ? 'disabled' : ''} ${!removable ? `title="${escapeHtml(t('系统 Profile 不能删除'))}"` : ''}>${packMoreIcons.trash}${escapeHtml(t('删除 Profile'))}</button>
         </div></details></div>`
       }).join('')
       // 安装整合包的入口在环境详情里（装进这个环境），网格里不再放独立的加卡
@@ -10223,13 +10427,9 @@
       add: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-plus"/></svg>',
       rename: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-pencil"/></svg>',
       copy: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-copy"/></svg>',
-      install: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-package-plus"/></svg>',
       refresh: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-refresh-cw"/></svg>',
-      update: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-upload"/></svg>',
       enable: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-circle-check"/></svg>',
       disable: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-ban"/></svg>',
-      export: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-arrow-up-to-line"/></svg>',
-      import: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-arrow-down-to-line"/></svg>',
       trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-trash-2"/></svg>',
       backup: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-history"/></svg>',
     }
@@ -10292,26 +10492,19 @@
         packPluginListEl.classList.remove('is-grouped')
         packPluginListEl.innerHTML = pluginDialogLoading
           ? `<div class="plugin-empty-state"><span class="plugin-empty-spinner" aria-hidden="true"></span><p role="status">${escapeHtml(t('正在加载插件…'))}</p></div>`
-          : `<div class="plugin-empty-state"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-package"/></svg><strong>${escapeHtml(t('这个 Profile 尚未初始化'))}</strong><p>${escapeHtml(t('请先启动一次这个环境，再管理插件。'))}</p></div>`
+          : `<div class="plugin-empty-state"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-package"/></svg><strong>${escapeHtml(t('这个 Profile 尚未初始化'))}</strong><p>${escapeHtml(t('请先用这个 Profile 启动一次，再管理插件。'))}</p></div>`
         return
       }
-      const pending = item.profile === packState.profile
-        ? (item.plugins || []).filter((plugin) => pluginUpdates[plugin.name]?.hasUpdate).length
-        : 0
       const records = item.records || []
       // 桌面增强的合成记录（synthetic）不算「最近安装的整合包」，卸载按钮只对真实记录开放
       const latest = records.filter((record) => !record.synthetic).at(-1)
       // 顶部只剩一行：左上返回图标（在静态结构里），右上全部操作；批量启停收进「更多操作」
       packHeadEl.innerHTML = `
         <button class="ghost icon-btn pack-tool" type="button" data-plugin-add="1" title="${escapeHtml(t('添加插件'))}" aria-label="${escapeHtml(t('添加插件'))}" ${packBusy || pluginUpdating || pluginRemoving || pluginAdding ? 'disabled' : ''}>${packMoreIcons.add}</button>
-        <button class="ghost icon-btn pack-tool" type="button" data-pack-import="1" title="${escapeHtml(t('装整合包'))}" aria-label="${escapeHtml(t('装整合包'))}" ${packBusy || pluginUpdating || pluginRemoving ? 'disabled' : ''}>${packMoreIcons.install}</button>
         ${item.profile === packState.profile ? `<button class="ghost icon-btn pack-tool${pluginChecking ? ' is-checking' : ''}" type="button" data-pack-check-updates="1" title="${escapeHtml(t('检查更新'))}" aria-label="${escapeHtml(t('检查更新'))}" aria-busy="${pluginChecking}" ${pluginChecking || pluginUpdating || pluginRemoving || packBusy ? 'disabled' : ''}>${packMoreIcons.refresh}</button>` : ''}
-        ${pending || pluginUpdating === '*' ? `<button class="ghost icon-btn pack-tool pack-update${pluginUpdating === '*' ? ' loading' : ''}" type="button" data-pack-update="1" title="${escapeHtml(t('更新 {n} 个', { n: pending }))}" aria-label="${escapeHtml(t('更新 {n} 个', { n: pending }))}" aria-busy="${pluginUpdating === '*'}" ${pluginUpdating || pluginRemoving || packBusy ? 'disabled' : ''}><span class="spin" aria-hidden="true"></span>${packMoreIcons.update}<span class="pack-update-count" aria-hidden="true">${pending}</span></button>` : ''}
         <details class="pack-more">
           <summary title="${escapeHtml(t('更多操作'))}" aria-label="${escapeHtml(t('更多操作'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-ellipsis"/></svg></summary>
           <div class="pack-more-actions">
-            <button class="ghost" type="button" data-pack-import-here="1" ${packBusy || pluginUpdating || pluginRemoving ? 'disabled' : ''}>${packMoreIcons.import}${escapeHtml(t('导入当前环境'))}</button>
-            <button class="ghost" type="button" data-pack-export="1" ${packBusy || pluginUpdating || pluginRemoving ? 'disabled' : ''}>${packMoreIcons.export}${escapeHtml(t('导出当前环境'))}</button>
             <button class="ghost" type="button" data-profile-backups="1" ${packBusy || pluginUpdating || pluginRemoving || pluginAdding ? 'disabled' : ''}>${packMoreIcons.backup}${escapeHtml(t('备份与回退'))}</button>
             <button class="ghost" type="button" data-profile-copy="1" ${packBusy || pluginUpdating || pluginRemoving ? 'disabled' : ''}>${packMoreIcons.copy}${escapeHtml(t('复制 Profile'))}</button>
             ${item.removable ? `<button class="ghost" type="button" data-profile-rename="1" ${packBusy || pluginUpdating || pluginRemoving ? 'disabled' : ''}>${packMoreIcons.rename}${escapeHtml(t('重命名 Profile'))}</button>` : ''}
@@ -10320,7 +10513,6 @@
         </details>`
       const actions = packHeadEl
       actions.querySelector('[data-plugin-add]')?.addEventListener('click', () => openPluginAdd())
-      actions.querySelector('[data-pack-import]')?.addEventListener('click', () => openImportDialog())
       actions.querySelector('[data-pack-check-updates]')?.addEventListener('click', async () => {
         if (pluginChecking) return
         pluginChecking = true
@@ -10329,15 +10521,10 @@
         catch (error) { notify(error.message) }
         finally { pluginChecking = false; renderPackView() }
       })
-      actions.querySelector('[data-pack-import-here]')?.addEventListener('click', () => { actions.querySelector('.pack-more').open = false; void importIntoProfile(item.profile) })
-      actions.querySelector('[data-pack-export]')?.addEventListener('click', () => openExportDialog(item))
       actions.querySelector('[data-profile-backups]')?.addEventListener('click', () => { actions.querySelector('.pack-more').open = false; openProfileBackups(item.profile) })
       actions.querySelector('[data-pack-delete]')?.addEventListener('click', () => { void removeProfileDir(item) })
       actions.querySelector('[data-profile-copy]')?.addEventListener('click', () => { actions.querySelector('.pack-more').open = false; openProfileDialog(item.profile) })
       actions.querySelector('[data-profile-rename]')?.addEventListener('click', () => { actions.querySelector('.pack-more').open = false; openProfileDialog(item.profile, 'rename') })
-      actions.querySelector('[data-pack-update]')?.addEventListener('click', () => {
-        void updatePack(item)
-      })
 
       const groups = groupPackPlugins(item)
       // 开关或更新会重画插件列表，保留当前环境各组的展开状态。
@@ -10346,7 +10533,13 @@
       const grouped = groups.some((group) => group.key !== 'other')
       packPluginListEl.dataset.profile = item.profile
       packPluginListEl.classList.toggle('is-grouped', grouped)
-      packPluginListEl.innerHTML = groups.length
+      // 环境导入时只写进来的配置：没有插件、成不了组，单独列一行；撤销照样按安装顺序（备份是叠着的）
+      const configRecords = records.filter((record) => record.configOnly)
+      const configHtml = configRecords.length ? `<div class="plugin-config-records"><span class="pack-block-title">${escapeHtml(t('导入过的配置'))}</span>${configRecords.map((record) => `<div class="plugin-row">
+          <span class="plugin-main"><span class="plugin-head"><span class="plugin-name">${escapeHtml(record.displayName || record.name)}</span><span class="plugin-version">${escapeHtml(record.version ? `v${record.version}` : '')}</span></span></span>
+          <button class="ghost" type="button" data-config-undo="${escapeHtml(record.name)}" title="${escapeHtml(record === latest ? t('撤销配置导入') : t('请先卸载此后安装的整合包'))}" ${packBusy || pluginUpdating || record !== latest ? 'disabled' : ''}>${escapeHtml(t('撤销'))}</button>
+        </div>`).join('')}</div>` : ''
+      packPluginListEl.innerHTML = (groups.length
         ? groups.map((group) => {
           const rows = group.plugins.map(({ plugin, sharedPacks }) => pluginRowHtml(plugin, {
             profile: item.profile, updates: item.profile === packState.profile ? pluginUpdates : {}, sharedPacks,
@@ -10358,12 +10551,9 @@
           const switching = pluginGroupPending.has(pendingKey)
           const enabled = switching ? pluginGroupPending.get(pendingKey) : toggleable.some((plugin) => plugin.enabled)
           const mixed = !switching && enabled && !toggleable.every((plugin) => plugin.enabled)
-          const updates = item.profile === packState.profile ? members.filter((plugin) => pluginUpdates[plugin.name]?.hasUpdate).length : 0
           const record = records.find((one) => group.key === `pack:${one.name}`)
-          const updating = pluginUpdating === '*' && pluginUpdatingGroup === group.key
           const disabled = packBusy || pluginUpdating || pluginRemoving || pluginAdding || pluginTogglePending.size
           return `<div class="plugin-group-card"><div class="plugin-group-tools">
-            ${updates || updating ? `<button class="ghost icon-btn group-update${updating ? ' loading' : ''}" type="button" data-group-update="${escapeHtml(group.key)}" title="${escapeHtml(t('更新 {name} 的 {n} 个插件', { name: group.name, n: updates }))}" aria-label="${escapeHtml(t('更新 {name} 的 {n} 个插件', { name: group.name, n: updates }))}" ${disabled ? 'disabled' : ''}><span class="spin" aria-hidden="true"></span>${packMoreIcons.update}<span class="pack-update-count" aria-hidden="true">${updates}</span></button>` : ''}
             ${record && !record.synthetic ? `<button class="ghost icon-btn danger" type="button" data-group-remove="${escapeHtml(group.key)}" title="${escapeHtml(record === latest ? t('卸载 {name}', { name: group.name }) : t('请先卸载此后安装的整合包'))}" aria-label="${escapeHtml(t('卸载 {name}', { name: group.name }))}" ${disabled || record !== latest ? 'disabled' : ''}>${packMoreIcons.trash}</button>` : ''}
             <label class="toggle plugin-group-toggle" title="${escapeHtml([mixed ? t('部分启用') : '', t(enabled ? '禁用 {name}' : '启用 {name}', { name: group.name })].filter(Boolean).join(' · '))}"><input type="checkbox" data-group-toggle="${escapeHtml(group.key)}" aria-label="${escapeHtml(t(enabled ? '禁用 {name}' : '启用 {name}', { name: group.name }))}" ${enabled ? 'checked' : ''} ${switching ? 'class="is-switching" aria-busy="true"' : ''} ${disabled || !toggleable.length ? 'disabled' : ''}/></label>
           </div><details class="plugin-group" data-plugin-group="${escapeHtml(group.key)}" ${expanded.get(group.key) !== false ? 'open' : ''}>
@@ -10371,46 +10561,18 @@
             <div class="plugin-group-body">${rows}</div>
           </details></div>`
         }).join('')
-        : `<div class="plugin-empty">${escapeHtml(t('这份 profile 里没有已安装的插件。'))}</div>`
+        : `<div class="plugin-empty">${escapeHtml(t('这份 profile 里没有已安装的插件。'))}</div>`) + configHtml
       bindPluginRowEvents(packPluginListEl, item.profile)
+      packPluginListEl.querySelectorAll('[data-config-undo]').forEach((el) => {
+        el.onclick = () => { void removePack(configRecords.find((record) => record.name === el.dataset.configUndo)) }
+      })
       packPluginListEl.querySelectorAll('[data-group-toggle]').forEach((el) => {
         el.onchange = () => { void togglePluginGroup(item, groups.find((group) => group.key === el.dataset.groupToggle), el.checked, el) }
-      })
-      packPluginListEl.querySelectorAll('[data-group-update]').forEach((el) => {
-        el.onclick = () => { void updatePack(item, groups.find((group) => group.key === el.dataset.groupUpdate)) }
       })
       packPluginListEl.querySelectorAll('[data-group-remove]').forEach((el) => {
         el.onclick = () => { void removePack(records.find((record) => `pack:${record.name}` === el.dataset.groupRemove)) }
       })
       setPluginProgress(Boolean(pluginProgress))
-    }
-
-    /** 更新正在查看的 profile，不改各启动项的环境设置。 */
-    async function updatePack(item, group = null) {
-      if (packBusy || pluginUpdating || pluginRemoving || pluginAdding) return
-      packBusy = true
-      pluginUpdating = '*'
-      pluginUpdatingGroup = group?.key || ''
-      pluginUpdatingProfile = item.profile
-      pluginProgress = null
-      renderPackGrid()
-      renderPackView()
-      try {
-        const data = await post('/api/packs/update', { profile: item.profile, ...(group ? pluginGroupScope(group) : {}) })
-        applyPluginPayload(data)
-        if ((data.failed || []).length) notify(data.failed.join('\n'), t('有插件没更新成功'))
-        await refreshPluginUpdates({ force: true, quiet: true }).catch(() => {})
-      } catch (error) {
-        notify(error.message, t('整合包更新失败'))
-      } finally {
-        packBusy = false
-        pluginUpdating = ''
-        pluginUpdatingGroup = ''
-        pluginUpdatingProfile = ''
-        pluginProgress = null
-        renderPackGrid()
-        renderPackView()
-      }
     }
 
     /** 删除的是整个 Profile，与整合包按安装顺序撤销是两种操作。 */
@@ -10553,26 +10715,22 @@
       hidePackDialog(packImportDialog)
     }
 
-    /** 环境详情里的「导入当前环境」：挑一个 .dspack，直接进安装确认，目标默认是这份 profile。 */
-    async function importIntoProfile(profile) {
-      if (packBusy) return
-      try {
-        const data = await pickFilePath('选择整合包文件', [{ name: t('整合包'), extensions: ['dspack', 'zip'] }, { name: t('所有文件'), extensions: ['*'] }])
-        if (data.error) { notify(data.error); return }
-        if (!data.path) return
-        await inspectPack({ source: data.path, profile, direct: true })
-      } catch (error) {
-        notify(error.message)
-      }
-    }
-
-    function openExportDialog(item = null) {
-      const profile = item ? item.profile : (packState.profile || '')
-      // 装过整合包的用包名与版本打底，手动拼的从 profile 名与 1.0.0 起
-      packExportNameEl.value = item ? (item.packName || profile) : profile
-      packExportVersionEl.value = item?.packVersion || '1.0.0'
-      packExportHintEl.textContent = t('导出的是 profile「{profile}」现在的样子。', { profile })
-      packExportDialog.dataset.profile = profile
+    /** 导出一个环境：版本号和说明沿用上次导出填的，本地插件默认都打成离线文件带上。 */
+    function openExportDialog(env) {
+      exportingEnvironment = env
+      exportRevision += 1
+      packExportNameEl.value = env.name
+      // 留空就用服务端的默认版本号；占位提示同一个值
+      packExportVersionEl.value = env.packVersion || ''
+      packExportVersionEl.placeholder = environmentState.defaults.packVersion || ''
+      packExportDescriptionEl.value = env.description || ''
+      packExportRepoEl.value = env.source?.repo || ''
+      const local = env.plugins.filter((plugin) => plugin.local || plugin.offline)
+      packExportOfflineEl.hidden = !local.length
+      packExportOfflineEl.innerHTML = local.length
+        ? `<span class="pack-block-title">${escapeHtml(t('本地插件打成离线文件带上（不勾的不进环境文件）'))}</span>${local.map((plugin) => `<label class="pack-check"><input type="checkbox" data-offline="${escapeHtml(plugin.name)}" checked /><span>${escapeHtml(plugin.name)}</span></label>`).join('')}`
+        : ''
+      packExportHintEl.textContent = env.dshVersion === AUTO_VERSION ? t('这个环境跟着最新版本走：导出时写成现在会用的那个精确版本。') : ''
       showPackDialog(packExportDialog, packExportNameEl)
     }
 
@@ -10588,11 +10746,9 @@
     }
     function marketStars(entry) { return Number.isInteger(entry.stars) && entry.stars >= 0 ? String(entry.stars) : '—' }
     function marketPackInstalled(entry) {
-      // 安装状态按当前目标环境判断，不能因为装在别的 profile 就挡住这次安装。
-      const profile = openedPack?.profile || pluginProfile || packState.profile || state.profile || 'web'
-      const records = (packState.packs || []).find((item) => item.profile === profile)?.records || []
-      return records.some((record) => ((entry.id && record.source === entry.id) || (entry.name && record.name === entry.name))
-        && (!entry.version || record.version === entry.version))
+      // 同一个市场条目的同一个版本已经导入成环境：再导一次只会多出一个一样的环境。
+      // 比来源里记的包版本：环境自己的 packVersion 导出时会被改成作者填的版本
+      return environmentState.list.some((env) => env.source?.marketId === entry.id && (!entry.version || env.source.packVersion === entry.version))
     }
     function renderMarketDetail() {
       const entry = marketDetailIndex === null ? null : packMarket?.entries?.[marketDetailIndex]
@@ -10609,7 +10765,7 @@
         <p class="market-description">${escapeHtml(entry.description || t('暂无说明'))}</p>
         ${entry.dshVersion ? `<p class="hint">${escapeHtml(t('需要 dsh {version}', { version: entry.dshVersion }))}</p>` : ''}`
       // 详情可滚动，来源链接和安装入口始终留在卡片底部。
-      packMarketActionsEl.innerHTML = `${entry.repoUrl ? `<a class="ghost" href="${escapeHtml(entry.repoUrl)}" target="_blank" rel="noreferrer">GitHub</a>` : '<span></span>'}<button class="primary market-install" type="button" ${installed || packBusy || launcherRunning() ? 'disabled' : ''}>${escapeHtml(t(installed ? '已安装' : '安装'))}</button>`
+      packMarketActionsEl.innerHTML = `${entry.repoUrl ? `<a class="ghost" href="${escapeHtml(entry.repoUrl)}" target="_blank" rel="noreferrer">GitHub</a>` : '<span></span>'}<button class="primary market-install" type="button" ${installed || packBusy ? 'disabled' : ''}>${escapeHtml(t(installed ? '已导入' : '导入'))}</button>`
       packMarketActionsEl.querySelector('.market-install').onclick = () => inspectPack({ market: entry })
     }
     function openMarketDetail(index) {
@@ -10626,7 +10782,7 @@
         if (marketSortEl.value === 'name') return (a.entry.displayName || a.entry.name).localeCompare(b.entry.displayName || b.entry.name)
         return (marketDate(b.entry.updatedAt)).localeCompare(marketDate(a.entry.updatedAt)) || a.index - b.index
       })
-      document.getElementById('marketCount').textContent = t('{n} 个整合包', { n: list.length })
+      document.getElementById('marketCount').textContent = t('{n} 个环境', { n: list.length })
       if (!packMarket || packMarket.error || !list.length) {
         if (!packMarket) {
           // 首次读取市场：骨架卡占位，扫光见 launcher.css 的 skel-sweep
@@ -10635,7 +10791,7 @@
           window.launcherMarketLayout?.refresh(packMarketEl)
           return
         }
-        packMarketEl.innerHTML = `<div class="market-empty">${escapeHtml(packMarket.error ? t('市场没读到：{error}', { error: packMarket.error }) : t('没有匹配的整合包'))}</div>`
+        packMarketEl.innerHTML = `<div class="market-empty">${escapeHtml(packMarket.error ? t('市场没读到：{error}', { error: packMarket.error }) : t('没有匹配的环境'))}</div>`
         window.launcherMarketLayout?.refresh(packMarketEl)
         return
       }
@@ -10647,7 +10803,7 @@
           <span class="market-card-heading"><span class="market-card-icon">${marketCube}</span><span class="market-card-name">${escapeHtml(entry.displayName || entry.name)}</span></span>
           <span class="market-card-desc">${escapeHtml(entry.description || t('暂无说明'))}</span>
         </button>
-        <div class="market-card-footer"><span class="market-card-author">${escapeHtml(entry.author || entry.name)}<small>${escapeHtml(entry.version ? `v${entry.version}` : '')}</small></span><span class="market-stars" title="GitHub Star">${marketStar} ${marketStars(entry)}</span><button class="ghost market-install" type="button" data-market="${index}" ${installed || packBusy || launcherRunning() ? 'disabled' : ''}>${escapeHtml(t(installed ? '已安装' : '安装'))}</button></div>
+        <div class="market-card-footer"><span class="market-card-author">${escapeHtml(entry.author || entry.name)}<small>${escapeHtml(entry.version ? `v${entry.version}` : '')}</small></span><span class="market-stars" title="GitHub Star">${marketStar} ${marketStars(entry)}</span><button class="ghost market-install" type="button" data-market="${index}" ${installed || packBusy ? 'disabled' : ''}>${escapeHtml(t(installed ? '已导入' : '导入'))}</button></div>
       </article>`
       }).join('')
       window.launcherMarketLayout?.refresh(packMarketEl)
@@ -10683,24 +10839,7 @@
       </div>`
     }
 
-    /** 安装计划里的说明：服务端给的是结构化条目，措辞由这里的语言决定。 */
-    function packNoteText(note) {
-      if (typeof note === 'string') return t(note)
-      if (note.kind === 'create-profile') return t('会新建 profile「{profile}」：dsh 的会话与记忆照旧，插件的运行环境是独立的。', { profile: note.profile })
-      if (note.kind === 'existing-profile') return t('profile「{profile}」已存在：包里的依赖与层栈并进去，被覆盖的文件先备份。', { profile: note.profile })
-      if (note.kind === 'added-bundles') return t('新增层栈：{bundles}', { bundles: (note.bundles || []).join('、') })
-      if (note.kind === 'replaced-deps') {
-        const sample = (note.sample || []).map((item) => `${item.name} ${item.from} → ${item.to}`).join('、')
-        return t('会改掉 {count} 个已有依赖的版本：{sample}{more}', {
-          count: note.count,
-          sample,
-          more: note.count > (note.sample || []).length ? t(' 等') : '',
-        })
-      }
-      return ''
-    }
-
-    /** 检查结果：把「装什么、装到哪、会覆盖什么」摆出来，再让人点安装。 */
+    /** 导入预览：要建的环境、要用的 DSH、离线文件、可选的配置导入，确认后才动手。 */
     function renderPackInspect() {
       // 动态下拉复用全站控件；重画前销毁旧面板，避免残留到 body 和控件表里。
       const oldSelect = document.getElementById('packProfile')
@@ -10712,7 +10851,7 @@
       }
       document.getElementById('packInstallClose').disabled = packInstalling
       document.getElementById('packPreparing').hidden = Boolean(packInspection) || !packBusy
-      // 安装操作和进度留在固定页脚，技术清单再长也不会把按钮卷进滚动区。
+      // 导入按钮和进度留在固定页脚，清单再长也不会把按钮卷进滚动区。
       const actionsEl = document.getElementById('packInstallActions')
       actionsEl.hidden = !packInspection
       if (!packInspection) {
@@ -10722,57 +10861,60 @@
         return
       }
       const data = packInspection
-      const pack = data.pack
-      const targetProfile = packTargetProfile || data.target?.profile || ''
-      const plan = data.plan || {}
-      const deps = (pack.dependencies || []).map((item) => (item.installAs ? `${item.name} → ${item.installAs.name} ${item.installAs.spec}` : `${item.name} ${item.spec}`))
-      const bundleRows = (pack.bundles || []).map((item) => (item.dependency ? item.name : t('{name}（dsh 自带）', { name: item.name })))
-      const overrides = (pack.overrides || []).map((item) => item.path)
-      const home = (pack.home || []).map((item) => item.path)
+      const env = data.environment || {}
+      const plugins = (env.plugins || []).filter((plugin) => !plugin.official)
+      const dsh = env.dshVersion === AUTO_VERSION ? t('自动最新版本') : env.dshVersion
       const meta = [
-        pack.author ? t('作者 {author}', { author: pack.author }) : '',
-        pack.dshVersion ? t('需要 dsh {version}', { version: pack.dshVersion }) : '',
-        pack.type === 'dshhome' ? t('整机快照形态') : '',
+        env.dshVersion ? t('DSH {version}', { version: dsh }) : '',
+        env.dshWanted && env.dshWanted !== env.dshVersion ? t('包里要求 {range}', { range: env.dshWanted }) : '',
         data.bytes ? t('{kb} KB', { kb: Math.max(1, Math.round(data.bytes / 1024)) }) : '',
       ].filter(Boolean).join(' · ')
-      const creates = data.target?.createsProfile
-      const notes = (plan.notes || []).map(packNoteText).filter(Boolean)
+      const following = env.source?.following
+        ? t('跟随 {repo} 的 release：有新版本时环境页会提示', { repo: env.source.repo })
+        : t('不跟随上游：之后不会提示更新')
+      const offline = (env.offline || []).map((item) => `${item.name} · ${item.file} · ${t('{kb} KB', { kb: Math.max(1, Math.round(item.bytes / 1024)) })} · sha256 ${item.sha256.slice(0, 12)}…`)
+      const profileData = data.profileData || {}
+      const configRows = [profileData.patch ? t('补丁层（插件开关、插件配置、MCP）') : '', ...(profileData.overrides || []), ...(profileData.home || []).map((path) => t('用户级文件 {path}', { path }))].filter(Boolean)
+      const profiles = [...new Set([packTargetProfile, ...(data.profiles || [])])].filter(Boolean)
       const contentWasHidden = packInspectEl.hidden
       packInspectEl.hidden = false
       packInspectEl.innerHTML = `
         <div class="pack-title">
-          <span class="pack-name">${escapeHtml(pack.displayName || pack.name)}</span>
-          <span class="pack-meta">v${escapeHtml(pack.version)}${meta ? ` · ${escapeHtml(meta)}` : ''}</span>
+          <span class="pack-name">${escapeHtml(env.name || env.packId || '')}</span>
+          <span class="pack-meta">${env.packVersion ? `v${escapeHtml(env.packVersion)}` : ''}${meta ? ` · ${escapeHtml(meta)}` : ''}</span>
         </div>
-
-        <div class="pack-install-summary">${escapeHtml(t('包含 {n} 个插件', { n: deps.length }))}</div>
-        <div class="pack-target">
-          <label for="packProfileTrigger">${escapeHtml(t('安装环境'))}</label>
-          <select id="packProfile" aria-label="${escapeHtml(t('安装环境'))}" ${packBusy || pack.type === 'dshhome' ? 'disabled' : ''}>
-            ${[...new Set([targetProfile, ...(packState.profiles || [])])].filter(Boolean).map((name) => `<option value="${escapeHtml(name)}" ${name === targetProfile ? 'selected' : ''}>${escapeHtml(name)}</option>`).join('')}
+        <div class="pack-install-summary">${escapeHtml(t('包含 {n} 个插件', { n: plugins.length }))}${env.dshVersion && !env.dshInstalled ? ` · ${escapeHtml(t('导入时先安装 DSH {version}', { version: env.dshVersion }))}` : ''}</div>
+        <p class="hint">${escapeHtml(following)}</p>
+        ${packNotes(t('问题（先解决这些）'), data.errors || [], 'warn')}
+        ${packNotes(t('要注意'), data.warnings || [], 'warn')}
+        ${packNotes(t('这个环境带了 {n} 个离线文件：它们是可执行代码，来源不像 npm 那样可查，确认是信得过的作者再导入', { n: offline.length }), offline, 'warn')}
+        ${profileData.available ? `<div class="pack-target">
+          <label class="pack-check"><input type="checkbox" id="packConfigImport" ${packConfigWanted ? 'checked' : ''} ${packBusy ? 'disabled' : ''} /><span>${escapeHtml(t('把包里的配置导进 Profile'))}</span></label>
+          <select id="packProfile" aria-label="${escapeHtml(t('导入配置的 Profile'))}" ${packBusy || !packConfigWanted ? 'disabled' : ''}>
+            ${profiles.map((name) => `<option value="${escapeHtml(name)}" ${name === packTargetProfile ? 'selected' : ''}>${escapeHtml(name)}</option>`).join('')}
           </select>
-          <span class="pack-meta" id="packTargetNote">${escapeHtml(t(pack.type === 'dshhome' ? '整机快照会安装包内声明的环境，详见安装详情。' : creates ? '将创建这个环境，安装后可在列表中管理。' : '合并到已有环境，同名文件会先备份。'))}</span>
-        </div>
-        ${packNotes(t('问题（先解决这些）'), plan.errors || [], 'warn')}
-        ${packNotes(t('要注意'), plan.warnings || [], 'warn')}
+          <span class="pack-meta">${escapeHtml(t('默认不导：配置属于 Profile。导入前会备份，之后可以在 Profile 页撤销。'))}</span>
+        </div>` : ''}
         <details class="pack-advanced">
-          <summary>${escapeHtml(t('查看安装详情'))}</summary>
+          <summary>${escapeHtml(t('查看详情'))}</summary>
           <div class="pack-advanced-content">
-            ${packNotes(t('会怎么装'), notes)}
-            ${packRows(t('层栈（dsh 按顺序加载）'), bundleRows)}
-            ${packRows(t('依赖'), deps)}
-            ${packRows(t('要写的文件'), (plan.writes || []).map((write) => `${write.rel}${write.note ? `（${write.note}）` : ''}`))}
-            ${packRows(t('覆盖文件'), overrides)}
-            ${packRows(t('用户级文件'), home)}
-            ${packNotes(t('包里没装的内容'), [...(pack.skipped || []).map((item) => `${item.path}：${item.reason}`), ...(pack.warnings || [])])}
+            ${packRows(t('插件'), plugins.map((plugin) => `${plugin.name} ${plugin.spec}`))}
+            ${packRows(t('挂载顺序（dsh 按顺序加载）'), env.bundles || [])}
+            ${packRows(t('包里的配置'), configRows)}
           </div>
         </details>`
       actionsEl.innerHTML = `
-          <button class="primary${packInstalling ? ' loading' : ''}" type="button" id="packInstall" aria-busy="${packInstalling}" ${(data.ok && !packBusy && !launcherRunning()) ? '' : 'disabled'}>${packInstalling ? '<span class="spin" aria-hidden="true"></span>' : ''}<span class="pack-install-label">${escapeHtml(t('安装'))}</span></button>
+          <button class="primary${packInstalling ? ' loading' : ''}" type="button" id="packInstall" aria-busy="${packInstalling}" ${data.ok && !packBusy ? '' : 'disabled'}>${packInstalling ? '<span class="spin" aria-hidden="true"></span>' : ''}<span class="pack-install-label">${escapeHtml(t('导入'))}</span></button>
           <button class="ghost" type="button" id="packCancel" ${packInstalling ? 'disabled' : ''}>${escapeHtml(t('取消'))}</button>`
       const profileSelect = document.getElementById('packProfile')
-      createUiSelect(profileSelect)
-      profileSelect.addEventListener('change', () => { void inspectPack({ token: data.token, profile: profileSelect.value }) })
+      if (profileSelect) {
+        createUiSelect(profileSelect)
+        profileSelect.addEventListener('change', () => { packTargetProfile = profileSelect.value })
+        document.getElementById('packConfigImport').onchange = (event) => {
+          packConfigWanted = event.target.checked
+          renderPackInspect()
+        }
+      }
       const installEl = document.getElementById('packInstall')
       if (installEl) installEl.onclick = () => { void installPack() }
       document.getElementById('packCancel').onclick = closeInstallDialog
@@ -10783,7 +10925,7 @@
     }
 
     async function loadMarket({ quiet = false, force = false } = {}) {
-      if (!quiet) packMarketHintEl.textContent = t('正在读社区整合包列表…')
+      if (!quiet) packMarketHintEl.textContent = t('正在读社区环境列表…')
       try {
         packMarket = await getJson(`/api/packs/market${force ? '?refresh=1' : ''}`)
       } catch (error) {
@@ -10793,31 +10935,29 @@
       if (packMarket.ok) void loadMarketStats()
       if (!quiet) {
         packMarketHintEl.textContent = packMarket.ok
-          ? t('市场里现在有 {n} 个整合包。', { n: packMarket.entries.length })
+          ? t('市场里现在有 {n} 个环境。', { n: packMarket.entries.length })
           : t('市场没读到：{error}', { error: packMarket.error || '' })
       }
     }
 
     async function inspectPack(payload) {
       if (packBusy) return
-      const rechecking = Boolean(payload.token)
-      payload = { ...payload, profile: payload.profile || openedPack?.profile || pluginProfile || packState.profile || state.profile || 'web' }
-      packTargetProfile = payload.profile
+      // 配置默认不导（设计稿第 10 条）；目标 Profile 预选当前在用的那个
+      packConfigWanted = false
+      packTargetProfile = state.profile || 'web'
       const request = ++packInspectRequest
       const controller = new AbortController()
       packInspectAbort = controller
       packBusy = true
-      // 环境详情里的「导入当前环境」只走确认卡，不把整合包市场垫在下面。
-      if (!rechecking && !payload.direct) openImportDialog()
+      openImportDialog()
       // 保留详情作为返回目标；父层只留遮罩，屏幕上仍只显示当前卡片。
       showPackDialog(packInstallDialog, document.getElementById('packInstallClose'))
       renderPackMarket()
-      if (!rechecking) packInspection = null
-      else packInspection = { ...packInspection, ok: false, plan: {} }
+      packInspection = null
       renderPackInspect()
-      packHintEl.textContent = t('正在准备安装…')
+      packHintEl.textContent = t('正在读取环境文件…')
       try {
-        const data = await post('/api/packs/inspect', payload, { signal: controller.signal })
+        const data = await post('/api/environments/import/inspect', payload, { signal: controller.signal })
         if (request !== packInspectRequest) return
         packInspection = data
         renderPackInspect()
@@ -10826,9 +10966,9 @@
           : t('这个包有问题，先看上面的原因。')
       } catch (error) {
         if (request !== packInspectRequest) return
-        if (packInspection) packInspection = { ...packInspection, ok: false, plan: { errors: [error.message] } }
+        if (packInspection) packInspection = { ...packInspection, ok: false, errors: [error.message] }
         packHintEl.textContent = error.message
-        notify(error.message, t('整合包检查失败'))
+        notify(error.message, t('读取环境文件失败'))
       } finally {
         // 取消后可以立即重新打开；晚到的旧请求不能把新请求的 busy 状态清掉。
         if (request !== packInspectRequest) return
@@ -10837,61 +10977,73 @@
         // 详情卡里的「安装」要等 packBusy 复位后才画得成可用状态
         renderPackInspect()
         renderPackMarket()
-        if (rechecking && request === packInspectRequest && !packInstallDialog.hidden) document.getElementById('packProfileTrigger')?.focus()
       }
     }
 
+    /** 确认导入：（需要时）先装 DSH，再建环境；勾了配置就写进选的 Profile。完了跳到环境页打开它。 */
     async function installPack() {
-      if (launcherRunning()) { notify(t('请先停止正在运行的 DSH，再安装整合包')); return }
-      if (!packInspection?.ok || packBusy || packInspection.target?.profile !== packTargetProfile) return
-      // 必须先取安装环境再重画：renderPackInspect 会按检查结果重置输入框，晚一步就丢用户指定的 profile
-      const profile = String(document.getElementById('packProfile')?.value || '').trim()
+      if (!packInspection?.ok || packBusy) return
+      const profile = packConfigWanted ? packTargetProfile : ''
+      const env = packInspection.environment || {}
       packInstalling = true
       packBusy = true
       renderPackMarket()
       renderPackInspect()
-      packHintEl.textContent = t('正在安装…')
+      packHintEl.textContent = env.dshInstalled ? t('正在导入…') : t('正在安装 DSH {version}，装好后导入…', { version: env.dshVersion })
       try {
-        const data = await post('/api/packs/install', {
-          token: packInspection.token,
-          source: packInspection.source,
-          profile,
-        })
-        const installed = data.installed
+        const data = await post('/api/environments/import', { token: packInspection.token, ...(profile ? { profile } : {}) })
         packInspection = null
-        applyPluginPayload(data)
         renderPackInspect()
-        packHintEl.textContent = t('已安装')
+        packHintEl.textContent = ''
         await hidePackDialog(packInstallDialog)
         await closeMarketDetail()
-        openPack(installed.profile)
+        hidePackDialog(packImportDialog)
+        if (data.config?.error) notify(data.config.error, t('环境已导入，配置没能写进 Profile'))
+        environmentState.pendingOpen = data.environment.id
+        // 导入都是从环境页点进来的：已经在环境页时 showPane 不会再拉列表，直接让环境页重读
+        if (currentPane === 'environments') await environmentState.reload?.()
+        else await showPane('environments')
       } catch (error) {
         packHintEl.textContent = error.message
-        notify(error.message, t('整合包安装失败'))
+        notify(error.message, t('导入失败'))
       } finally {
         packInstalling = false
         packBusy = false
         renderPackMarket()
         renderPackInspect()
-        renderPackGrid()
-        renderPackView()
       }
     }
+
+    // 撤销的两种记录：导入环境时顺带写进 Profile 的配置；旧版整包安装留下的（连 package.json 一起还原）
+    const UNDO_TEXT = Object.freeze({
+      config: {
+        confirm: '撤销 {name} 写进 Profile「{profile}」的配置？配置文件将还原到导入前，导入后对这些文件的修改也会撤销。',
+        title: '撤销配置导入',
+        done: '已撤销 {name} 的配置导入，重启这个 Profile 的实例后生效。',
+      },
+      pack: {
+        confirm: '撤销 {name} 在 Profile「{profile}」的整包安装？package.json 和配置文件将还原到安装前，安装后对这些文件的修改也会撤销。',
+        title: '撤销整包安装',
+        done: '已撤销 {name} 的整包安装，重启这个 Profile 的实例后生效。',
+      },
+    })
 
     async function removePack(record) {
       if (packBusy) return
       const { name, profile } = record
+      const configOnly = record.configOnly === true
       const label = record.displayName || name
-      if (!(await appConfirm(t('撤销 {name} 在环境「{profile}」的安装？配置文件将还原到这次安装前，安装后对这些文件的修改也会撤销。', { name: label, profile }), { title: t('撤销最近安装') }))) return
+      const text = UNDO_TEXT[configOnly ? 'config' : 'pack']
+      if (!(await appConfirm(t(text.confirm, { name: label, profile }), { title: t(text.title) }))) return
       packBusy = true
       renderPackGrid()
       renderPackView()
       try {
-        const data = await post('/api/packs/uninstall', { name, profile, removeProfile: false })
+        const data = await post('/api/packs/uninstall', { name, profile, configOnly, removeProfile: false })
         applyPluginPayload(data)
-        notify(t('已撤销 {name} 的安装，重启环境后生效。', { name: label }), t('整合包卸载'))
+        notify(t(text.done, { name: label }))
       } catch (error) {
-        notify(error.message, t('整合包卸载失败'))
+        notify(error.message, t('撤销失败'))
       } finally {
         packBusy = false
         renderPackGrid()
@@ -10899,32 +11051,45 @@
       }
     }
 
-    async function exportProfile() {
-      if (packBusy) return
+    async function exportEnvironment() {
+      const env = exportingEnvironment
+      if (packBusy || !env) return
+      const revision = exportRevision
+      const target = packExportDialog.querySelector('input[name="packExportTarget"]:checked')?.value || 'file'
+      const exclude = [...packExportOfflineEl.querySelectorAll('input[data-offline]')].filter((input) => !input.checked).map((input) => input.dataset.offline)
       packBusy = true
-      const profile = packExportDialog.dataset.profile || packState.profile
-      packExportHintEl.textContent = t('选择保存位置…')
+      packExportGoEl.disabled = true
+      packExportHintEl.textContent = t(target === 'dir' ? '选择仓库目录…' : '选择保存位置…')
       try {
-        const data = await post('/api/packs/export', {
-          profile,
-          name: packExportNameEl.value.trim() || profile,
-          includeHome: packExportHomeEl.checked,
-          version: packExportVersionEl.value.trim() || '1.0.0',
+        const data = await post('/api/environments/export', {
+          id: env.id,
+          target,
+          name: packExportNameEl.value.trim() || env.name,
+          version: packExportVersionEl.value.trim(),
+          description: packExportDescriptionEl.value.trim(),
+          repo: packExportRepoEl.value.trim(),
+          exclude,
+          workflow: target === 'dir' && packExportWorkflowEl.checked,
         })
+        // 服务端把这次填的版本号和描述记回了环境：重取列表，下次打开导出框才是新值
+        if (!data.canceled) void environmentState.reload?.()
+        if (revision !== exportRevision) return
         if (data.canceled) {
           packExportHintEl.textContent = ''
           return
         }
-        packExportHintEl.innerHTML = `<span class="pack-path">${escapeHtml(t('已导出 {n} 层、{deps} 个依赖：', { n: data.bundles.length, deps: Object.keys(data.dependencies).length }))}<code>${escapeHtml(data.path)}</code><button class="ghost" type="button" id="packReveal">${escapeHtml(t('在文件夹里显示'))}</button></span>`
+        const summary = t('已导出：DSH {version}、{n} 个插件{offline}', { version: data.dshVersion, n: data.plugins, offline: data.offline.length ? t('、{n} 个离线文件', { n: data.offline.length }) : '' })
+        packExportHintEl.innerHTML = `<span class="pack-path">${escapeHtml(summary)} <code>${escapeHtml(data.path)}</code><button class="ghost" type="button" id="packReveal">${escapeHtml(t('在文件夹里显示'))}</button></span>${packNotes(t('要注意'), data.warnings || [], 'warn')}`
         const revealEl = document.getElementById('packReveal')
         if (revealEl) {
           revealEl.onclick = () => { void post('/api/packs/reveal', { path: data.path }).catch((error) => { notify(error.message) }) }
         }
       } catch (error) {
-        packExportHintEl.textContent = error.message
+        if (revision === exportRevision) packExportHintEl.textContent = error.message
         notify(error.message, t('导出失败'))
       } finally {
         packBusy = false
+        packExportGoEl.disabled = false
       }
     }
 
@@ -10961,7 +11126,7 @@
     packCheckEl.onclick = () => {
       const source = packSourceEl.value.trim()
       if (!source) {
-        packHintEl.textContent = t('先给一个整合包：本地文件、链接，或者 owner/repo')
+        packHintEl.textContent = t('先给一个环境文件：本地文件、链接，或者 owner/repo')
         packSourceEl.focus()
         return
       }
@@ -10990,8 +11155,11 @@
     packImportDialog.addEventListener('click', (event) => {
       if (event.target === packImportDialog) closeImportDialog()
     })
-    if (packExportProfileEl) packExportProfileEl.onclick = () => openExportDialog(null)
-    packExportGoEl.onclick = () => { void exportProfile() }
+    packExportGoEl.onclick = () => { void exportEnvironment() }
+    // 只有仓库目录模式才有发布工作流可附带
+    packExportDialog.querySelectorAll('input[name="packExportTarget"]').forEach((input) => {
+      input.onchange = () => { document.getElementById('packExportWorkflowRow').hidden = input.value !== 'dir' || !input.checked }
+    })
     packExportCancelEl.onclick = () => closeExportDialog()
     packExportDialog.addEventListener('click', (event) => {
       if (event.target === packExportDialog) closeExportDialog()
@@ -11493,6 +11661,8 @@
     applyLang()
     loadSettings()
   </script>
+  <!-- 环境页：用上面主脚本的全局（t / post / paneLoaders …），所以排在它后面、不加 defer -->
+  <script src="/environments-page.js"></script>
   <script src="/idle.js" defer></script>
   <script src="/mascot.js" defer></script>
   <script src="/water.js" defer></script>

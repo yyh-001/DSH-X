@@ -1,5 +1,7 @@
 /**
- * 整合包：把一批插件 + 一套配置一次装进一个 profile。
+ * 整合包：`.dspack` 的解析、检查，以及把包里的配置（补丁层、overrides、用户级文件）写进 profile。
+ * 包里的插件清单现在归「环境」管（environment-pack.js 负责导入导出成环境），这里的安装计划
+ * 只剩配置导入在用：写入前备份、失败回滚、能按记录撤销。
  *
  * 格式用的是生态里的既成事实标准 DSH-PackForge（`.dspack` = ZIP，根目录 `dspack.json`
  * 标记格式、`manifest.json` 描述组成，manifest v5），另外宽容地接受同一族的旧版本和
@@ -13,14 +15,23 @@
  * - 每次安装前备份被覆盖的文件，失败就回滚，卸载也靠这份备份还原。
  */
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
-import { basename, dirname, join, posix, relative, sep } from 'node:path'
+import { dirname, join, posix, relative, sep } from 'node:path'
 
-import { readZip, writeZip } from './zip.js'
+import { readZip } from './zip.js'
 
 export const PACK_SUFFIX = '.dspack'
 export const PACK_FORMAT = { format: 'dspack', version: 3 }
 /** 认得的清单版本：v5 是现行，旧的照字段尽力读，更新的直接拒（宁可说不认识）。 */
 export const MANIFEST_VERSIONS = [5, 4, 3, 2, 1]
+/** 包形态（manifest 的 type）。 */
+export const PACK_TYPES = Object.freeze({ PROFILE: 'profile', WHOLE_HOME: 'dshhome', COLLECTION: 'collection' })
+/**
+ * 环境文件在 v5 清单上加的可选字段（设计稿：只加可选字段、不升 manifestVersion）。
+ * 字段的含义归 environment-pack.js；放在这里是因为解析清单时要认得它们，不再当成「不处理的字段」报出来。
+ */
+export const MANIFEST_FIELDS = Object.freeze({ OFFLINE: 'offline', ENVIRONMENT: 'environment' })
+/** 包里放离线插件的目录：解析时认它（不当成「不属于整合包」报出来），里面的文件归 environment-pack.js 核对。 */
+export const OFFLINE_PACK_DIR = 'offline'
 /** 包体积上限：整合包只装清单与配置，几 MB 就够了，几十 MB 的多半是塞了别的东西。 */
 export const MAX_PACK_BYTES = 32 * 1024 * 1024
 export const MAX_PACK_ENTRIES = 4000
@@ -78,12 +89,16 @@ export function safeRelPath(name) {
   return posix.join(...segments)
 }
 
+/** 凭据、密钥这类不该离开本机的文件（导出环境时也拿它查本地插件打出来的 tarball）。 */
+export function isSensitiveFile(relPath) {
+  const value = String(relPath ?? '')
+  return BLOCKED_RE.some((pattern) => pattern.test(value))
+}
+
 /** 这个路径要不要跳过；返回原因，不用跳过就是空串。 */
 export function blockedReason(relPath) {
   const value = String(relPath ?? '')
-  for (const pattern of BLOCKED_RE) {
-    if (pattern.test(value)) return '敏感文件，整合包不带它走'
-  }
+  if (isSensitiveFile(value)) return '敏感文件，整合包不带它走'
   for (const [pattern, reason] of JUNK_RE) {
     if (pattern.test(value)) return reason
   }
@@ -127,7 +142,6 @@ export function slugName(value, fallback = 'pack') {
  */
 export function installSpecs(bundles, dependencies) {
   const warnings = []
-  const aliases = {}
   const byBasename = new Map()
   for (const name of bundles) {
     const base = String(name).split('/').pop().toLowerCase()
@@ -142,7 +156,6 @@ export function installSpecs(bundles, dependencies) {
       const base = repo.split('/').pop()
       const alias = byBasename.get(base.toLowerCase()) || base
       specs[alias] = `${host}:${repo}${ref ? `#${ref}` : ''}`
-      aliases[key] = { name: alias, spec: specs[alias] }
       continue
     }
     if (/^(?:git\+|https?:|file:|link:|workspace:|portal:)/.test(key)) {
@@ -153,7 +166,7 @@ export function installSpecs(bundles, dependencies) {
     }
     specs[key] = String(version)
   }
-  return { specs, aliases, warnings }
+  return { specs, warnings }
 }
 
 /**
@@ -186,9 +199,9 @@ export function parseManifest(input, { file = 'manifest.json' } = {}) {
   }
   const name = normalizeText(manifest.name)
   if (!name) errors.push(`${file} 里没有 name`)
-  const type = normalizeText(manifest.type) || 'profile'
-  if (type === 'collection') errors.push('整合包清单里的 collection 形态已被上游废弃，装不了')
-  else if (type !== 'profile' && type !== 'dshhome') errors.push(`不认识的整合包形态：${type}`)
+  const type = normalizeText(manifest.type) || PACK_TYPES.PROFILE
+  if (type === PACK_TYPES.COLLECTION) errors.push('整合包清单里的 collection 形态已被上游废弃，装不了')
+  else if (type !== PACK_TYPES.PROFILE && type !== PACK_TYPES.WHOLE_HOME) errors.push(`不认识的整合包形态：${type}`)
 
   const dependencies = {}
   if (manifest.dependencies !== undefined) {
@@ -217,7 +230,7 @@ export function parseManifest(input, { file = 'manifest.json' } = {}) {
       }
     }
   }
-  if (type === 'profile' && !bundles.length) {
+  if (type === PACK_TYPES.PROFILE && !bundles.length) {
     warnings.push('清单没写 bundles（层栈），装完的插件不会被 dsh 加载；以本地 package.json 快照为准')
   }
   const known = new Set([
@@ -225,6 +238,7 @@ export function parseManifest(input, { file = 'manifest.json' } = {}) {
     'icon', 'homepage', 'category', 'dshVersion', 'profileName', 'bundles', 'dependencies', 'patch',
     'files', 'presets', 'skills', 'instructions', 'defaultProfile', 'profiles', 'conflicts', 'overrides',
     'changelog', 'keywords', 'createdAt', 'updatedAt',
+    ...Object.values(MANIFEST_FIELDS),
   ])
   const extra = Object.keys(manifest).filter((key) => !known.has(key))
   if (extra.length) warnings.push(`清单里有本启动器不处理的字段：${extra.join('、')}（忽略）`)
@@ -293,6 +307,8 @@ function classify(entries) {
       else home.push({ path: inner, source: rel, size: data.length })
       continue
     }
+    // 环境文件带的离线插件（environment-pack.js 按清单里的 offline 字段核对 sha256 后才用）
+    if (rel.startsWith(`${OFFLINE_PACK_DIR}/`)) continue
     const profileMatch = /^profiles\/([^/]+)\/(.+)$/.exec(rel)
     if (profileMatch) {
       const [, profile, inner] = profileMatch
@@ -367,9 +383,8 @@ export function parsePackDir(dir) {
 function finishPack(parsed, parts, meta) {
   const errors = [...parsed.errors, ...parts.problems]
   const warnings = [...parsed.warnings]
-  if (!parts.snapshots.package) warnings.push('包里没有 package.json 快照，完全按清单里的依赖与层栈重建')
-  if (parts.snapshots.lock) warnings.push('包里有 pnpm-lock.yaml，安装时忽略它（本机 profile 里可能已有别的插件，旧锁文件会让安装硬失败）')
-  if (!parts.patchCandidates.length && !parsed.manifest?.patch) warnings.push('包里没有补丁层，装完只用默认配置')
+  // 环境只锁直接依赖（设计稿「不锁传递依赖」）：旧锁文件放进别的 profile 只会让安装硬失败
+  if (parts.snapshots.lock) warnings.push('包里有 pnpm-lock.yaml，导入时忽略它（环境只锁直接依赖）')
   const patch = parts.patchCandidates[0]
     ? { source: parts.patchCandidates[0].path, text: parts.patchCandidates[0].data.toString('utf8') }
     : (typeof parsed.manifest?.patch === 'string' && parsed.manifest.patch.trim()
@@ -379,7 +394,7 @@ function finishPack(parsed, parts, meta) {
     warnings.push(`包里有 ${parts.patchCandidates.length} 份补丁层，只用 ${parts.patchCandidates[0].path} 那份`)
   }
   const fields = parsed.fields || {}
-  const { specs, aliases, warnings: specWarnings } = installSpecs(fields.bundles, fields.dependencies)
+  const { specs, warnings: specWarnings } = installSpecs(fields.bundles, fields.dependencies)
   warnings.push(...specWarnings)
   return {
     ok: errors.length === 0,
@@ -388,7 +403,6 @@ function finishPack(parsed, parts, meta) {
     manifest: parsed.manifest,
     fields,
     installSpecs: specs,
-    installAliases: aliases,
     displayName: localized(parsed.manifest?.displayName, 'zh') || fields.name || '',
     description: localized(parsed.manifest?.description, 'zh'),
     author: normalizeText(parsed.manifest?.author),
@@ -405,55 +419,6 @@ function finishPack(parsed, parts, meta) {
   }
 }
 
-/** 整合包的组成清单：页面上的「装什么」就是它。 */
-export function packSummary(pack, { lang = 'zh' } = {}) {
-  const fields = pack.fields
-  const bundles = fields.bundles.slice()
-  const dependencies = Object.entries(fields.dependencies).map(([name, spec]) => {
-    const alias = pack.installAliases?.[name]
-    return {
-      name,
-      spec,
-      // 坐标型的依赖（github:owner/repo + 版本）会换成别名 + pnpm spec 再写进 profile
-      installAs: alias && alias.name !== name ? alias : null,
-      bundle: bundles.includes(name) || (alias ? bundles.includes(alias.name) : false),
-    }
-  })
-  const profileNames = pack.profiles.size ? [...pack.profiles.keys()] : []
-  return {
-    manifestVersion: Number(pack.manifest?.manifestVersion) || 0,
-    name: fields.name,
-    version: fields.version,
-    type: fields.type,
-    displayName: pack.displayName,
-    description: pack.description,
-    author: pack.author,
-    icon: pack.icon,
-    dshVersion: fields.dshVersion,
-    profileName: fields.profileName,
-    defaultProfile: normalizeText(pack.manifest?.defaultProfile),
-    bundles: bundles.map((name) => ({ name, dependency: Boolean(fields.dependencies[name]) })),
-    dependencies,
-    profiles: profileNames,
-    conflicts: fields.conflicts,
-    patch: pack.patch ? { source: pack.patch.source, lines: pack.patch.text.split(/\r?\n/).length } : null,
-    overrides: pack.overrides.map((item) => ({ path: item.path, size: item.size })),
-    home: pack.home.map((item) => ({ path: item.path, size: item.size })),
-    skipped: pack.skipped.map((item) => ({ path: item.path, reason: item.reason })),
-    snapshots: { package: Boolean(pack.snapshots.package), workspace: Boolean(pack.snapshots.workspace), lock: Boolean(pack.snapshots.lock) },
-    warnings: pack.warnings,
-    errors: pack.errors,
-    ok: pack.ok,
-    bytes: pack.bytes,
-    lang,
-  }
-}
-
-/** 目标 profile 名：清单里的 profileName > defaultProfile > 包名（都过一遍目录安全字符）。 */
-export function defaultProfileFor(pack) {
-  return slugName(pack.fields.profileName || pack.manifest?.defaultProfile || pack.fields.name)
-}
-
 /** profile 的 package.json 骨架（新建 profile 时用，和 dsh 模板同形）。 */
 export function profileSkeleton(profile) {
   return {
@@ -464,10 +429,8 @@ export function profileSkeleton(profile) {
   }
 }
 
-const WORKSPACE_TEMPLATE = 'packages:\n  - .\n\nnodeLinker: hoisted\nautoInstallPeers: false\n'
-
 /** 依赖写成 `bundled`（安装包自带的插件）的：这条路已撤，直接给一句人话，别让 pnpm 报 ETARGET。 */
-function bundledSpecErrors(dependencies, errors) {
+export function bundledSpecErrors(dependencies, errors) {
   for (const [name, spec] of Object.entries(dependencies || {})) {
     if (spec === 'bundled' || spec === `bundled:${name}`) {
       errors.push(`依赖 ${name} 写的是 bundled（安装包自带插件），DSH-X 不再随包发插件了；改成版本号（例如 ^1.0.0）从 npm 装`)
@@ -475,139 +438,37 @@ function bundledSpecErrors(dependencies, errors) {
   }
 }
 
-/**
- * 生成安装计划：要写哪些文件、内容是什么、会覆盖什么。
- *
- * 计划是纯函数产物（除了读现有 package.json），安装与回滚都照着它走——这样页面能先把
- * 「将发生什么」摆给用户看，也方便单测。
- */
-export function planInstall(pack, { home, profile, hostProfile = '' }) {
-  const notes = []
-  const warnings = pack.warnings.slice()
-  const errors = pack.errors.slice()
-  const fields = pack.fields
-  const profileDir = join(home, 'profiles', profile)
-  const existed = existsSync(join(profileDir, 'package.json'))
-  const writes = []
-  bundledSpecErrors(fields.dependencies, errors)
-
-  if (fields.type === 'dshhome') {
-    warnings.push('这是整机快照形态（dshhome）：只安装它声明的 profile 与允许的用户级文件，其余内容跳过')
-    const declared = pack.manifest?.profiles && typeof pack.manifest.profiles === 'object' && !Array.isArray(pack.manifest.profiles)
-      ? Object.entries(pack.manifest.profiles)
-      : []
-    const names = declared.length ? declared.map(([name]) => name) : [...pack.profiles.keys()]
-    if (!names.length) errors.push('dshhome 整合包里没有可安装的 profile')
-    const seen = new Set()
-    for (const name of names) {
-      const target = slugName(name)
-      if (seen.has(target)) continue
-      seen.add(target)
-      const spec = declared.length ? declared.find(([key]) => key === name)?.[1] : null
-      const bundles = Array.isArray(spec?.bundles) && spec.bundles.length ? spec.bundles.map(String) : []
-      const dependencies = spec?.dependencies && typeof spec.dependencies === 'object' ? spec.dependencies : {}
-      bundledSpecErrors(dependencies, errors)
-      if (!bundles.length && !Object.keys(dependencies).length) {
-        warnings.push(`dshhome 里的 profile ${name} 没有声明组成，跳过`)
-        continue
-      }
-      writes.push(...profileWrites({ home, profile: target, bundles, specs: installSpecs(bundles, dependencies).specs, patch: null, overrides: [], notes, warnings, hostProfile }))
-      // 该 profile 自己带的补丁层：包里的 profiles/<名字>/cordis.patch.yml
-      const own = pack.profiles.get(name)?.get('cordis.patch.yml')
-      if (own) {
-        writes.push({ rel: posix.join('profiles', target, 'cordis.patch.yml'), kind: 'patch', data: own, note: `profile ${target} 的补丁层` })
-      }
-    }
-  } else {
-    if (!profile) {
-      errors.push('没有目标 profile 名')
-      return { ok: false, errors, warnings, notes, writes, profile: '', profileDir, existed, createsProfile: false }
-    }
-    writes.push(...profileWrites({
-      home,
-      profile,
-      bundles: fields.bundles,
-      specs: pack.installSpecs || fields.dependencies,
-      patch: pack.patch,
-      overrides: pack.overrides,
-      notes,
-      warnings,
-      existed,
-      hostProfile,
-    }))
-  }
-
-  for (const item of pack.home) {
-    writes.push({ rel: item.path, kind: 'home', data: pack.files.get(`home/${item.path}`), note: '用户级文件' })
-  }
-  const createsProfile = !existed
-  notes.push({ kind: createsProfile ? 'create-profile' : 'existing-profile', profile })
-  return { ok: errors.length === 0, errors, warnings, notes, writes, profile, profileDir, existed, createsProfile }
+/** 用户级文件（包里的 home/，落在 DSH_HOME 根下，比如技能）。 */
+function homeWrites(pack) {
+  return pack.home.map((item) => ({ rel: item.path, kind: 'home', data: pack.files.get(`home/${item.path}`), note: '用户级文件' }))
 }
 
-/** 一个 profile 要写的那几样：清单、补丁层、overrides 文件。 */
-function profileWrites({ home, profile, bundles, specs, patch, overrides, notes, warnings, hostProfile = '' }) {
-  const relProfile = posix.join('profiles', profile)
-  const manifestPath = join(home, relProfile, 'package.json')
-  let manifest = {}
-  if (existsSync(manifestPath)) {
-    try {
-      manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
-    } catch (error) {
-      throw new Error(`profile「${profile}」的 package.json 读不动（${error.message}），先修好它再装整合包`)
-    }
-  } else {
-    manifest = profileSkeleton(profile)
-  }
-  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) manifest = profileSkeleton(profile)
-  const beforeDeps = { ...(manifest.dependencies && typeof manifest.dependencies === 'object' ? manifest.dependencies : {}) }
-  const beforeBundles = (() => {
-    const list = manifest?.dsh?.profile?.bundles
-    return Array.isArray(list) ? list.map(String) : []
-  })()
-  const nextBundles = beforeBundles.slice()
-  const addedBundles = []
-  for (const name of bundles) {
-    if (nextBundles.includes(name)) continue
-    nextBundles.push(name)
-    addedBundles.push(name)
-  }
-  const replaced = []
-  for (const [name, spec] of Object.entries(specs)) {
-    if (beforeDeps[name] !== undefined && beforeDeps[name] !== spec) replaced.push({ name, from: beforeDeps[name], to: spec })
-  }
-  const next = {
-    ...manifest,
-    name: manifest.name || `dsh-profile-${profile}`,
-    private: true,
-    dependencies: { ...beforeDeps, ...specs },
-    dsh: {
-      ...(manifest.dsh && typeof manifest.dsh === 'object' ? manifest.dsh : {}),
-      profile: {
-        ...(manifest?.dsh?.profile && typeof manifest.dsh.profile === 'object' ? manifest.dsh.profile : {}),
-        bundles: nextBundles,
-      },
-    },
-  }
-  const writes = [{ rel: posix.join(relProfile, 'package.json'), kind: 'manifest', data: `${JSON.stringify(next, null, 2)}\n`, note: `+${addedBundles.length} 层，${Object.keys(specs).length} 个依赖` }]
-  if (!existsSync(join(home, relProfile, 'pnpm-workspace.yaml'))) {
-    writes.push({ rel: posix.join(relProfile, 'pnpm-workspace.yaml'), kind: 'workspace', data: WORKSPACE_TEMPLATE, note: '新 profile 的工作区模板（不自动装 peer）' })
-  }
-  if (!existsSync(join(home, relProfile, 'cordis.yml'))) {
-    writes.push({ rel: posix.join(relProfile, 'cordis.yml'), kind: 'root', data: '# dsh profile root — an empty entry list. The tree is composed as patches:\n# each bundle in package.json\'s dsh.profile.bundles, then cordis.patch.yml.\n[]\n', note: '空条目根' })
-  }
+/** profile 目录里属于「配置」的那几样：补丁层、overrides 文件。 */
+function configWrites(relProfile, { patch, overrides }) {
+  const writes = []
   if (patch?.text) {
     writes.push({ rel: posix.join(relProfile, 'cordis.patch.yml'), kind: 'patch', data: patch.text, note: `补丁层（${patch.source}）`, overwrite: true })
   }
   for (const item of overrides) {
     writes.push({ rel: posix.join(relProfile, item.path), kind: 'override', source: `overrides/${item.path}`, note: '覆盖文件' })
   }
-  if (hostProfile && hostProfile === profile) {
-    warnings.push(`装的正是 dsh 当前在用的 profile「${profile}」：装完要重启 dsh 才生效`)
-  }
-  if (replaced.length) notes.push({ kind: 'replaced-deps', count: replaced.length, sample: replaced.slice(0, 6) })
-  if (addedBundles.length) notes.push({ kind: 'added-bundles', bundles: addedBundles })
   return writes
+}
+
+/**
+ * 只导配置的安装计划（环境导入时勾了「把包里的配置写进 Profile」）：补丁层、overrides、用户级文件，
+ * 不碰 package.json、pnpm-workspace.yaml、cordis.yml——插件清单归环境，启动前由启动器写；要是这里
+ * 也备份 package.json，撤销时会把环境后来写进去的清单还原成旧的。
+ * 要往 profile 目录里写东西时，profile 必须已经初始化过：只有一份补丁层的目录 dsh 不认。
+ */
+export function planConfigInstall(pack, { home, profile }) {
+  const errors = pack.errors.slice()
+  const warnings = pack.warnings.slice()
+  const profileDir = join(home, 'profiles', profile)
+  const writes = configWrites(posix.join('profiles', profile), { patch: pack.patch, overrides: pack.overrides })
+  if (writes.length && !existsSync(join(profileDir, 'package.json'))) errors.push(`Profile「${profile}」还没初始化：先用它启动一次，再把配置导进去`)
+  writes.push(...homeWrites(pack))
+  return { ok: errors.length === 0, errors, warnings, writes, profile, configOnly: true }
 }
 
 /** 备份目录名：时间戳 + 包名，一眼能看出是哪次安装留下的。 */
@@ -626,10 +487,8 @@ function copyInto(from, to) {
 }
 
 /**
- * 执行安装计划：备份 → 写文件 → 装依赖（由调用方注入）→ 失败回滚。
- *
- * `runInstall(profile)` 是 `dsh plugin install` 那条路（server.js 注入，带 junction 退路），
- * 回滚只撤文件，不动 node_modules——写坏的清单已经还原，用户重跑一次安装就好。
+ * 执行安装计划：备份 → 写文件 → 失败回滚。装依赖不在这里：配置导入不动插件清单，
+ * 插件由环境在启动前写进 profile、再装依赖。
  */
 export async function applyInstall(plan, {
   home,
@@ -637,7 +496,6 @@ export async function applyInstall(plan, {
   pack,
   source = '',
   now = new Date(),
-  runInstall,
   previousRecord = null,
   log = () => {},
 }) {
@@ -666,11 +524,6 @@ export async function applyInstall(plan, {
       records.push({ rel: write.rel, existed, kind: write.kind || '', note: write.note || '' })
       log(`${existed ? '覆盖' : '新建'} ${write.rel}${write.note ? `（${write.note}）` : ''}`)
     }
-    if (typeof runInstall === 'function') {
-      log(`安装依赖（dsh plugin install，profile ${plan.profile}）…`)
-      await runInstall(plan.profile)
-      log('依赖安装完成')
-    }
     const record = {
       id: `${pack.fields.name}@${pack.fields.version}`,
       name: pack.fields.name,
@@ -680,7 +533,10 @@ export async function applyInstall(plan, {
       profile: plan.profile,
       source,
       installedAt: now.toISOString(),
-      createdProfile: plan.createsProfile === true,
+      // 配置导入从不新建 profile；老启动器整包安装留下的记录里这一项才可能是 true（卸载时据此决定能不能删目录）
+      createdProfile: false,
+      // 只导了配置的记录（环境导入时写进 Profile 的那部分）：没有插件，迁移也不把它当整合包来源
+      ...(plan.configOnly ? { configOnly: true } : {}),
       backupDir,
       files: records,
       bundles: pack.fields.bundles,
@@ -759,161 +615,39 @@ export function writePackState(dataDir, state) {
   return file
 }
 
-/** 把一次安装记进清单（同一个包同一 profile 只留最新一条）。 */
+/**
+ * 两条记录是不是同一次安装：同名同 profile，而且同是（或同不是）只导配置的那种——
+ * 同一个包先整包装过、后来又只导配置，是两条记录，各自撤销。
+ */
+export function sameInstall(record, { name, profile, configOnly = false }) {
+  return record.name === name && record.profile === profile && Boolean(record.configOnly) === Boolean(configOnly)
+}
+
+/** 把一次安装记进清单（同一次安装只留最新一条）。 */
 export function rememberPack(dataDir, record) {
   const state = readPackState(dataDir)
-  const packs = state.packs.filter((item) => !(item.name === record.name && item.profile === record.profile))
+  const packs = state.packs.filter((item) => !sameInstall(item, record))
   packs.push(record)
   writePackState(dataDir, { packs })
   return packs
 }
 
-export function forgetPack(dataDir, name, profile) {
+export function forgetPack(dataDir, record) {
   const state = readPackState(dataDir)
-  const packs = state.packs.filter((item) => !(item.name === name && item.profile === profile))
+  const packs = state.packs.filter((item) => !sameInstall(item, record))
   writePackState(dataDir, { packs })
   return packs
 }
 
-// ---- 导出：把当前 profile 打包成 .dspack ----
+// ---- 导出环境时钉版（environment-pack 的导出用） ----
 
-/** 导出时的钉版：范围（^1.2.3）读 node_modules 里的实测版本，其它坐标原样带。 */
-function pinSpec(profileDir, name, spec) {
-  const value = String(spec ?? '').trim()
-  if (!value) return ''
-  if (!/^[\^~]|^\d/.test(value)) return value
+/** profile 里 node_modules 实装的版本（没装成或读不到返回空串）：导出环境时把范围 / tag 钉成它。 */
+export function installedVersion(profileDir, name) {
   try {
     const manifest = JSON.parse(readFileSync(join(profileDir, 'node_modules', name, 'package.json'), 'utf8'))
-    const installed = String(manifest.version || '').trim()
-    if (installed) return installed
+    return String(manifest.version || '').trim()
   } catch {
-    // 没装成或读不到：原样带上，别编一个版本出来
-  }
-  return value
-}
-
-const EXPORT_BLOCKED = /(^|\/)(?:node_modules|\.git|sessions|attachments|storages|memory|data)(?:\/|$)/i
-
-function collectHomeFiles(home) {
-  const files = []
-  for (const prefix of ['skills', '.agent-presets', 'presets']) {
-    const root = join(home, prefix)
-    const walk = (dir, depth) => {
-      if (depth > 6) return
-      let items = []
-      try {
-        items = readdirSync(dir, { withFileTypes: true })
-      } catch {
-        return
-      }
-      for (const item of items) {
-        const full = join(dir, item.name)
-        const rel = relative(home, full).split(sep).join('/')
-        if (EXPORT_BLOCKED.test(rel) || blockedReason(rel)) continue
-        if (item.isDirectory()) { walk(full, depth + 1); continue }
-        if (!item.isFile()) continue
-        try {
-          if (statSync(full).size > 4 * 1024 * 1024) continue
-          files.push({ path: rel, data: readFileSync(full) })
-        } catch {
-          // 读不动的单个文件就跳过
-        }
-      }
-    }
-    walk(root, 0)
-  }
-  const agentsFile = join(home, 'AGENTS.md')
-  if (existsSync(agentsFile)) {
-    try {
-      files.push({ path: 'AGENTS.md', data: readFileSync(agentsFile) })
-    } catch { /* 读不到就算了 */ }
-  }
-  return files
-}
-
-/**
- * 把当前 profile 打包成 `.dspack`。
- *
- * 只带「组成」不带「数据」：清单（钉版依赖 + 层栈）、补丁层、以及作者额外放进 profile 根
- * 的文件（overrides/ 的语义就是文件级替换）。node_modules、会话、附件、凭据一律不进包。
- */
-export function exportPack({
-  profileDir,
-  home,
-  name,
-  version = '1.0.0',
-  displayName = '',
-  description = '',
-  author = '',
-  includeHome = false,
-  now = new Date(),
-}) {
-  const manifestFile = join(profileDir, 'package.json')
-  let manifest = {}
-  try {
-    manifest = JSON.parse(readFileSync(manifestFile, 'utf8'))
-  } catch {
-    throw new Error('这个 profile 里没有可读的 package.json，没有可导出的东西')
-  }
-  const dependencies = {}
-  for (const [dep, spec] of Object.entries(manifest?.dependencies ?? {})) {
-    const pinned = pinSpec(profileDir, dep, spec)
-    if (pinned) dependencies[dep] = pinned
-  }
-  const declared = Array.isArray(manifest?.dsh?.profile?.bundles) ? manifest.dsh.profile.bundles.map(String) : []
-  const bundles = declared.length ? declared : Object.keys(dependencies)
-  const profile = basename(profileDir)
-  const packName = slugName(name || profile)
-  const entries = [
-    { name: 'dspack.json', data: `${JSON.stringify(PACK_FORMAT, null, 2)}\n` },
-    {
-      name: 'manifest.json',
-      data: `${JSON.stringify({
-        manifestVersion: MANIFEST_VERSIONS[0],
-        type: 'profile',
-        name: packName,
-        version,
-        displayName: displayName || packName,
-        description: description || `从 DSH-X 导出：${profile} profile 的插件与配置`,
-        ...(author ? { author } : {}),
-        profileName: profile,
-        bundles,
-        dependencies,
-      }, null, 2)}\n`,
-    },
-  ]
-  const patchFile = join(profileDir, 'cordis.patch.yml')
-  if (existsSync(patchFile)) {
-    const text = readFileSync(patchFile, 'utf8')
-    if (text.replace(/^[ \t]*#.*$/gmu, '').trim() && text.replace(/^[ \t]*#.*$/gmu, '').trim() !== '[]') {
-      entries.push({ name: 'overrides/cordis.patch.yml', data: text })
-    }
-  }
-  const workspaceFile = join(profileDir, 'pnpm-workspace.yaml')
-  if (existsSync(workspaceFile)) entries.push({ name: 'pnpm-workspace.yaml', data: readFileSync(workspaceFile) })
-  entries.push({ name: 'package.json', data: `${JSON.stringify(manifest, null, 2)}\n` })
-  const skipped = []
-  for (const item of readdirSync(profileDir, { withFileTypes: true })) {
-    if (!item.isFile()) continue
-    if (['package.json', 'cordis.patch.yml', 'pnpm-workspace.yaml', 'cordis.yml', 'pnpm-lock.yaml', '.npmrc'].includes(item.name)) continue
-    if (blockedReason(item.name)) continue
-    const full = join(profileDir, item.name)
-    if (statSync(full).size > 2 * 1024 * 1024) { skipped.push(item.name); continue }
-    entries.push({ name: `overrides/${item.name}`, data: readFileSync(full) })
-  }
-  const homeFiles = includeHome ? collectHomeFiles(home) : []
-  for (const file of homeFiles) entries.push({ name: `home/${file.path}`, data: file.data })
-  const buffer = writeZip(entries, { date: now })
-  return {
-    buffer,
-    entries: entries.map((entry) => entry.name),
-    name: packName,
-    version,
-    profile,
-    dependencies,
-    bundles,
-    homeFiles: homeFiles.map((file) => file.path),
-    skipped,
+    return ''
   }
 }
 

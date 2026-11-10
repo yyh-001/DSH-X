@@ -80,8 +80,8 @@ test('目录的迟到响应不能覆盖另一次选择，目录检查后按新�
 
 test('自定义档的目录 + Profile 交给选择窗，底下的下拉只当真相源', () => {
   const field = section('id="launchEnvField"', 'id="launchPort"')
-  // 一行「启动环境」触发器：点开三栏选择窗，目录和 Profile 一起挑
-  assert.match(field, /<label for="launchEnvPick"[^>]*>启动环境<\/label>/)
+  // 一行「目录与 Profile」触发器：点开三栏选择窗，目录和 Profile 一起挑（「环境」留给 DSH 版本 + 插件清单）
+  assert.match(field, /<label for="launchEnvPick"[^>]*>目录与 Profile<\/label>/)
   assert.match(field, /id="launchEnvPick" aria-haspopup="dialog"/)
   assert.match(field, /id="launchEnvPickValue"/)
   assert.doesNotMatch(field, /launchPickHome|launchResetHome|readonly/)
@@ -90,7 +90,7 @@ test('自定义档的目录 + Profile 交给选择窗，底下的下拉只当真
   assert.match(field, /<select id="launchDshHome"[^>]*hidden><\/select>/)
   assert.match(field, /<select id="launchProfile" title="Profile" hidden><\/select>/)
   assert.ok(!page.includes('id="launchHomeSelectField"'), '目录下拉不再单独占一行')
-  // 项目目录已经下线：编辑弹窗里只剩这一处环境字段
+  // 项目目录已经下线：编辑弹窗里选目录的只剩这一处
   assert.doesNotMatch(page, /id="launchWorkdir"|id="launchProjectDir"/)
   // 原生 select 得接进自绘那套，否则点开的是系统菜单（藏起来的这两个也在其中）
   assert.match(page, /querySelectorAll\('#launchDshHome[^']*#launchProfile[^']*#pluginHome/)

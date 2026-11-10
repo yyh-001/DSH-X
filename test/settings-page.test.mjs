@@ -195,9 +195,13 @@ test('设置页有「复制自检请求」按钮：路径问技能清单，复�
   assert.match(html, /document\.execCommand\('copy'\)/, 'WebView 没有 Clipboard API 时退回选区复制')
   // 英文也要有，否则界面切成英文这里还是中文
   const dict = new vm.Script(`(${html.match(/const EN = (\{[\s\S]*?\n\})/)[1]})`).runInNewContext()
-  for (const key of ['复制自检请求', '让 AI 给环境做体检', '复制自检指令，发给 AI 检查环境。', '用 dsh-x-selfcheck 技能跑一次体检，命令：']) {
+  // 「环境」现在专指 DSH 版本 + 插件的那个对象；体检查的是整个 DSH-X，所以这一行改说 DSH-X
+  assert.match(html, /data-i18n="让 AI 给 DSH-X 做体检"/, '体检这一行的标题')
+  for (const key of ['复制自检请求', '让 AI 给 DSH-X 做体检', '复制自检指令，发给 AI 检查 DSH-X。', '用 dsh-x-selfcheck 技能跑一次体检，命令：']) {
     assert.ok(dict[key], `「${key.slice(0, 12)}…」有英文`)
   }
+  assert.equal(dict['让 AI 给 DSH-X 做体检'], 'Let AI check the setup')
+  assert.doesNotMatch(html, /让 AI 给环境做体检/, '旧说法撤掉')
 })
 
 test('外观跟着状态推送走：设置标签里换主题，管窗口的那一页不用刷新也能跟上', () => {

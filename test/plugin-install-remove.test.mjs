@@ -132,7 +132,8 @@ if (args[0] === 'plugin') {
     const before = commands().length
     const again = await api('/api/plugins/add', { spec: PLUGIN, profile: 'web' })
     assert.equal(again.status, 400)
-    assert.match(again.error, /已经在这个环境里/)
+    // 插件装在 Profile 里（「环境」专指 DSH 版本 + 插件清单那个对象）
+    assert.match(again.error, /已经在这个 Profile 里/)
     const official = await api('/api/plugins/add', { spec: `${OFFICIAL}@${VERSION}`, profile: 'web' })
     assert.equal(official.status, 400)
     assert.match(official.error, /官方组件/)
