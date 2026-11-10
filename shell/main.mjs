@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { BrowserTabs } from './tabs.mjs'
 import { BROWSER_IPC, DesktopBrowserGuests } from './browser-guests.mjs'
-import { createCoreRecovery } from './core-recovery.mjs'
+import { createCoreRecovery, isEnvironmentStartupError } from './core-recovery.mjs'
 import { corePackageName, channelOf, coreRegistries, fetchCoreMetadata, installCore, pickCoreRelease, tarballFor } from './core-fetch.mjs'
 import { createUpdater } from './updater.mjs'
 import { readPrefs } from './prefs.mjs'
@@ -642,6 +642,12 @@ async function start() {
     if (error?.code === 'EALREADY') {
       await fetch(`http://127.0.0.1:${error.port}/api/wake`, { method: 'POST', body: '{}', signal: AbortSignal.timeout(TRAY_REQUEST_TIMEOUT_MS) }).catch(() => {})
       app.exit(0)
+      return
+    }
+    // 目录不可写、磁盘满、权限不足这类环境问题不是核心坏：走 recoverCore 会把刚装好的
+    // 有效核心删掉并永久拉黑，用户把目录修好也回不来。按普通启动失败报，让用户修环境。
+    if (isEnvironmentStartupError(error, coreDir)) {
+      showStartupError('dsh 服务启动失败', '管理页没能起来。更像是目录、权限或磁盘的问题，修好后重新打开 DSH-X。', error?.stack || String(error))
       return
     }
     // 环境错误不代表核心坏了；保留 pending，修好目录/权限后仍可验证同一份核心。

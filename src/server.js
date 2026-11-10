@@ -605,7 +605,22 @@ function scanInstalled() {
   return found
 }
 
-/** 小并发跑异步任务，避免一次 stat 几万个文件把句柄打满。 */
+/**
+ * 小并发跑异步任务：只按上限启动，不一次把整份清单变成正在运行的 Promise。
+ * `withFsSlot` 限住的是「正在跑」的 fs 操作，管不到排队：大 node_modules 里几万个文件
+ * 如果都先变成 Promise 再排队，光是闭包和 async 上下文就能堆出上百 MB。
+ */
+async function mapLimit(items, limit, task) {
+  let index = 0
+  const workers = Array.from({ length: Math.min(limit, items.length || 1) }, async () => {
+    while (index < items.length) {
+      const item = items[index]
+      index += 1
+      await task(item)
+    }
+  })
+  await Promise.all(workers)
+}
 /**
  * 磁盘占用统计。三件事让它便宜：
  * 1. 每棵树只走一遍：包大小、依赖图、node_modules 总量在同一次遍历里得出（以前同一份 node_modules 要走 3–4 遍）；
@@ -641,18 +656,26 @@ async function directoryBytes(root, { skip = [] } = {}) {
   const walk = async (dir, top) => {
     let entries
     try { entries = await withFsSlot(() => readdir(dir, { withFileTypes: true })) } catch { return }
-    const tasks = []
+    // 只收集名字，不在这里启动：每层按上限取任务（目录 8 个、文件 32 个），
+    // 否则一个宽目录会瞬间生成几千个 wait 中的 Promise。
+    const files = []
+    const dirs = []
     for (const entry of entries) {
       if (entry.isSymbolicLink()) continue
-      const path = join(dir, entry.name)
       if (entry.isDirectory()) {
-        if (!(top && skipped.has(entry.name))) tasks.push(walk(path, false))
+        if (!(top && skipped.has(entry.name))) dirs.push(entry.name)
       } else if (entry.isFile()) {
-        // 先拿到结果再累加：写成 `total += await ...` 会先读旧的 total，并发时互相覆盖
-        tasks.push(withFsSlot(() => stat(path)).then((info) => { total += info.size }, () => { /* 文件刚好被删 */ }))
+        files.push(entry.name)
       }
     }
-    await Promise.all(tasks)
+    await mapLimit(files, 32, async (name) => {
+      // 先 await 拿到大小再累加：`total += (await ...).size` 会在 await 之前就读走 total，
+      // 并发任务各自读到同一个旧值，最后只留下一个文件的大小（这里是真踩过的坑）
+      let size = 0
+      try { size = (await withFsSlot(() => stat(join(dir, name)))).size } catch { /* 文件刚好被删 */ }
+      total += size
+    })
+    await mapLimit(dirs, 8, (name) => walk(join(dir, name), false))
   }
   await walk(root, true)
   return total
@@ -712,30 +735,33 @@ async function scanNodeModules(nodeModules) {
     for (const pkg of await Promise.all(manifests)) addGraph(pkg)
   }
   const jobs = []
+  // 队列里放的是「还没开始的函数」：一个 node_modules 几千个包，全部先变成 running 的
+  // Promise 会在主进程里堆出很大的峰值内存（见 mapLimit 的注释）。
+  const later = (job) => jobs.push(job)
   for (const entry of await children(nodeModules)) {
     const path = join(nodeModules, entry.name)
     if (entry.isFile()) {
-      jobs.push(withFsSlot(() => stat(path)).then((info) => { bytes += info.size }, () => {}))
+      later(() => withFsSlot(() => stat(path)).then((info) => { bytes += info.size }, () => {}))
     } else if (!entry.isDirectory()) {
       continue
     } else if (entry.name === '.pnpm') {
       for (const item of await children(path)) {
         const itemPath = join(path, item.name)
-        if (item.isDirectory()) jobs.push(virtual(itemPath, item.name))
-        else if (item.isFile()) jobs.push(withFsSlot(() => stat(itemPath)).then((info) => { bytes += info.size }, () => {}))
+        if (item.isDirectory()) later(() => virtual(itemPath, item.name))
+        else if (item.isFile()) later(() => withFsSlot(() => stat(itemPath)).then((info) => { bytes += info.size }, () => {}))
       }
     } else if (entry.name.startsWith('.')) {
       // .bin、.cache 之类：算进总量，不归到任何包
-      jobs.push(directoryBytes(path).then((size) => { bytes += size }))
+      later(() => directoryBytes(path).then((size) => { bytes += size }))
     } else if (entry.name.startsWith('@')) {
       for (const sub of await children(path)) {
-        if (sub.isDirectory()) jobs.push(hoisted(join(path, sub.name), `${entry.name}/${sub.name}`))
+        if (sub.isDirectory()) later(() => hoisted(join(path, sub.name), `${entry.name}/${sub.name}`))
       }
     } else {
-      jobs.push(hoisted(path, entry.name))
+      later(() => hoisted(path, entry.name))
     }
   }
-  await Promise.all(jobs)
+  await mapLimit(jobs, 8, (job) => job())
   return { bytes, sizes, graph }
 }
 
@@ -902,11 +928,14 @@ async function storageBreakdown(version, profile) {
 /** 已装版本各自占多少（只算 DATA/versions 下受管版本；系统全局装的不归启动器管）。 */
 async function versionSizes() {
   const versions = scanInstalled().filter(isManaged)
-  const entries = await Promise.all(versions.map(async (version) => {
+  const entries = []
+  // 版本各扫各的会把所有版本的 node_modules 同时铺开：一次只让 3 个版本进遍历，
+  // 其余排队（每个版本内部再按 mapLimit 限量）。
+  await mapLimit(versions, 3, async (version) => {
     const dir = versionDir(version)
     const [modules, rest] = await Promise.all([nodeModulesStats(dir), directoryBytes(dir, { skip: ['node_modules'] })])
-    return [version, modules.bytes + rest]
-  }))
+    entries.push([version, modules.bytes + rest])
+  })
   const sizes = Object.fromEntries(entries)
   const total = entries.reduce((sum, [, bytes]) => sum + bytes, 0)
   return { versions: sizes, total }
@@ -6090,18 +6119,31 @@ const autoFixForHome = () => lastAutoFix?.home === homeDir() ? lastAutoFix : nul
 let lastRecovery = null
 
 /**
- * 管理页的恢复档载荷：最近一次结果 + profile 里现存的补丁层备份。
- * 内存里的那条只在本次管理器进程里有效；重启后从补丁层备份的侧车推回来，
- * 否则「安全启动移走了配置」这个事实会跟着进程一起消失（#88）。
+ * 管理页的恢复档载荷：还没处理的安全启动 + profile 里现存的补丁层备份。
+ * 以磁盘上的侧车为准（重启后照样能推回来，见 #88）；内存记录只在没有侧车时兜底
+ * （补丁层本来就不存在、只摘了 bundle 的安全启动没有备份文件，也就没有侧车）。
  */
 function recoveryPayload(profile = PROFILE_NAME) {
   const dir = profileDirOf(profile)
   const backups = listPatchBackups(dir)
   const remembered = lastRecovery?.profile === profile && lastRecovery.home === homeDir() ? lastRecovery : null
-  const durable = remembered ? null : latestRecovery(dir)
-  const last = remembered || (durable
-    ? { at: durable.at, home: homeDir(), profile, backup: durable.backup, dropped: durable.dropped, warning: null }
-    : null)
+  // 磁盘上的侧车比内存记录更权威：连着安全启动两次时，latestRecovery 指向最早那份
+  // （用户真正的配置），内存里的 lastRecovery 只是最近一次。以前优先用内存记录，
+  // 页面会把第二份（dsh 重建后的空补丁）当还原目标，还原后整串被标 settled，
+  // 最早那份就再也回不去了。
+  const durable = latestRecovery(dir)
+  const last = durable
+    ? {
+      at: durable.at,
+      home: homeDir(),
+      profile,
+      backup: durable.backup,
+      dropped: durable.dropped,
+      // 提示文案跟着磁盘上那一串；内存记录只补充同一份备份上的 warning
+      warning: remembered?.backup === durable.backup ? remembered.warning ?? null : null,
+    }
+    // 没有侧车的安全启动（补丁层本来就不存在，只摘了 bundle）只能靠内存记录
+    : remembered
   return { profile, home: homeDir(), last, backups }
 }
 

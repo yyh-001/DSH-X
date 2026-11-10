@@ -41,16 +41,24 @@ export function createCoreRecovery({ appDir, relaunch, log = console.log }) {
     if (coreDir !== activeCore) return false
     if (pendingOnly && !existsSync(pending)) return false
     if (isEnvironmentStartupError(error, coreDir)) return false
+    let version = ''
+    try { version = String(JSON.parse(readFileSync(pending, 'utf8')).version || '') } catch { /* 没有 pending 就不记 */ }
+    // 先删核心再记坏版本：删不掉说明是权限/文件占用之类的环境问题（不是核心本身），
+    // 这时候记进黑名单会永久跳过一个有效版本，还会在「下载 → 删不掉 → 重启」之间循环。
+    try {
+      rmSync(activeCore, { recursive: true, force: true })
+    } catch {
+      log('核心删不掉（权限或文件占用），不按坏核心处理')
+      return false
+    }
     // 保留原来的坏核心保护：首次下载/更新留下的 pending 才能把版本加入黑名单。
     // 列表避免两个坏版本来回切换；旧格式只有 version 一项，读取时继续兼容。
-    try {
-      const version = String(JSON.parse(readFileSync(pending, 'utf8')).version || '')
-      if (version) {
+    if (version) {
+      try {
         const failed = [...new Set([...failedCoreVersions(), version])].slice(-20)
         writeFileSync(failedMark, JSON.stringify({ version, failed, at: Date.now() }))
-      }
-    } catch { /* 没有 pending 就不记 */ }
-    try { rmSync(activeCore, { recursive: true, force: true }) } catch { /* ignore */ }
+      } catch { /* 写不进去只是少了跳过坏版本的保护 */ }
+    }
     try { rmSync(pending, { force: true }) } catch { /* ignore */ }
     let restored = false
     try {

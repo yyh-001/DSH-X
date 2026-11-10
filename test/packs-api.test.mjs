@@ -68,6 +68,9 @@ async function startManager() {
     port,
     autoStart: false,
     seedMarket: false,
+    // 市场条目的 displayName 按界面语言选（localized）：固定中文，别让英文 CI runner 的系统语言
+    // 把断言里的「示例」变成「Demo」。
+    lang: 'zh',
     // 假索引的失败请求也留在本机，不能把 localhost 兜底成外网镜像而卡住离线测试。
     downloadSource: 'official',
   }, null, 2))

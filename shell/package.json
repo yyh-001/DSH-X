@@ -1,6 +1,6 @@
 {
   "name": "dsh-x",
-  "version": "0.1.26-rc.3",
+  "version": "0.1.26-rc.5",
   "private": true,
   "type": "module",
   "description": "DSH-X 的 Electron 外壳：窗口、托盘、内部标签页、自更新。",

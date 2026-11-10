@@ -157,7 +157,9 @@ for (const mode of ['ENOTDIR', 'EACCES']) {
         try { await core.startServer() } catch (caught) { error = caught }
         assert.equal(error?.code, mode)
         assert.equal(error?.syscall, 'mkdir')
-        assert.equal(error?.path, dataDir)
+        // Windows 的 libuv 报 ENOTDIR 时给的是被挡住的那一级（parent），POSIX 给完整 dataDir
+        const expectedPaths = mode === 'ENOTDIR' && process.platform === 'win32' ? [parent, dataDir] : [dataDir]
+        assert.ok(expectedPaths.includes(error?.path), 'error.path=' + error?.path)
         assert.equal(recovery.recoverCore(current, { pendingOnly: true, error }), false)
         assert.deepEqual(snapshot(), before)
         if (mode === 'ENOTDIR') rmSync(parent)
