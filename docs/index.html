@@ -263,8 +263,10 @@
       win: (as) => as.find((a) => /^DSH-Setup-\d.*\.exe$/.test(a.name)) || as.find((a) => a.name === "DSH-Setup.exe"),
       macArm: (as) => as.find((a) => /^DSH-X-.*-arm64\.dmg$/.test(a.name)),
       macX64: (as) => as.find((a) => /^DSH-X-.*-x64\.dmg$/.test(a.name)),
-      appImage: (as) => as.find((a) => /\.AppImage$/.test(a.name)),
-      deb: (as) => as.find((a) => /\.deb$/.test(a.name)),
+      // Linux 同一版有 x64 和 arm64 两份，按钮是给 x64 的：钉死 x86_64 / amd64，
+      // 只认后缀会按资产顺序随机拿到 arm64 包
+      appImage: (as) => as.find((a) => /-x86_64\.AppImage$/.test(a.name)),
+      deb: (as) => as.find((a) => /-amd64\.deb$/.test(a.name)),
     }
 
     let currentRelease = null
