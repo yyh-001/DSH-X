@@ -677,12 +677,10 @@ html.reduce-motion .launch-status.is-working::before { animation: none; }
 .launch-modal-fields { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 14px; margin: -2px; padding: 2px; flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; }
 #launchDialog .home-field > label { font-size: 12px; letter-spacing: 0; }
 /* 运行位置下面再挂 WSL 的发行版；与其它字段保持同一段间距。 */
-.launch-wsl-location { margin-top: 14px; }
 /* .home-pickers 自带 display:flex，会盖掉浏览器对 hidden 的默认 display:none；这里补一条，
    否则 WSL 模式整组藏起来时仍会占一行高度。 */
 .home-pickers[hidden] { display: none; }
 /* 空说明不占行：运行位置从 WSL 切回本机时，这里会清空，否则会在名称上方留下一条空白。 */
-#launchBackendHint:empty, #launchWslHint:empty { display: none; }
 #launchWslHint { margin-top: 6px; font-size: 11.5px; line-height: 1.6; }
 .toggle.launch-auto-launch { margin: 0; font-size: 12px; }
 /* 引导块里的自动启动开关：跟上面两档 tab 的面板拉开一点，别贴着输入框 */
@@ -736,10 +734,11 @@ html.reduce-motion .launch-enhance-tip { transition: none; }
 .launch-isolation-tab { flex: 1 1 0; position: relative; z-index: 1; padding: 8px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font-family: inherit; font-size: 13px; font-weight: 500; cursor: pointer; transition: color 160ms ease; }
 .launch-isolation-tab:hover { color: var(--text); }
 .launch-isolation-tab[aria-selected="true"] { color: var(--accent); font-weight: 600; }
-/* 运行位置只有本机 / WSL 两档，沿用同一套胶囊动效：浮块按两等分，当前项读 aria-checked。 */
-#launchBackendTabs::after { width: calc((100% - 10px) / 2); }
-#launchBackendTabs[data-active="wsl"]::after { transform: translateX(calc(100% + 2px)); }
-#launchBackendTabs .launch-isolation-tab[aria-checked="true"] { color: var(--accent); font-weight: 600; }
+.launch-tag { display: inline-flex; align-items: center; flex: 0 0 auto; height: 18px; padding: 0 7px; border-radius: 9px; background: var(--accent-soft); color: var(--accent); font-size: 10px; line-height: 1; font-weight: 600; letter-spacing: .02em; }
+/* 输入框 + 原生目录选择按钮：输入框吃掉剩余宽度，按钮跟控件同高。 */
+.control-row { display: flex; align-items: center; gap: 8px; }
+.control-row input { flex: 1 1 auto; min-width: 0; }
+.control-row .ghost { flex: 0 0 auto; height: var(--control-height); padding: 0 12px; }
 .launch-isolation-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .launch-custom-fields { display: grid; gap: 14px; }
 .launch-custom-fields[hidden] { display: none; }
@@ -776,6 +775,11 @@ html.reduce-motion .launch-enhance-tip { transition: none; }
 /* ---- 选 Profile：三栏选择窗（用户目录 / Profile / 插件） ---- */
 /* 跟资源管理器一个路子：左目录、中 Profile、右它装了什么，点两下就选定。每栏各自滚动，
    弹窗高度锁在视口里，短窗口下只有列表滚、标题和按钮不动。 */
+/* 「添加目录」：本机 / WSL 两选一，选 WSL 后下面展开发行版和用户目录 */
+.pick-home-kind { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pick-home-kind .ghost { height: 38px; }
+#pickHomeWslFields { display: grid; gap: 12px; margin-top: 12px; }
+#pickHomeWslFields[hidden] { display: none; }
 .profile-pick { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 200px 220px minmax(0, 1fr); gap: 14px; }
 .profile-pick-col { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 6px; min-width: 0; min-height: 0; }
 .profile-pick-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; }

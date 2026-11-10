@@ -205,6 +205,28 @@ function shellQuote(value) {
   return "'" + String(value == null ? '' : value).replace(/'/g, "'\\''") + "'"
 }
 
+/**
+ * 在 WSL 与 Windows 路径之间转换（目录选择器用）：wslpath -w / -a -u。
+ * direction='windows'：Linux → Windows（给原生文件夹对话框当初始目录）；
+ * direction='linux'：Windows → Linux（对话框选完存回页面）。
+ * `~` 在 wslpath 里不会展开，先交给远端 shell 用 $HOME 展开。
+ */
+export async function wslPath(distro, value, direction = 'linux', run = null) {
+  const text = String(value ?? '').trim()
+  if (!text) return ''
+  if (!distro) throw new Error('先选择一个 WSL 发行版')
+  const toWindows = direction === 'windows'
+  const script = toWindows
+    ? `p=${shellQuote(text)}; case "$p" in "~"|"~/"*) p="$HOME\${p#\\~}";; esac; wslpath -w "$p"`
+    : `wslpath -a -u ${shellQuote(text)}`
+  const exec = run || ((target, command) => runBashScript(target, command))
+  const result = await exec(distro, script, { timeoutMs: 10000 })
+  if (!result.ok) throw new Error(result.stderr.trim() || 'WSL 路径转换失败')
+  const converted = decodeWslOutput(result.stdout).split(/\r?\n/).map((line) => line.trim()).find(Boolean) || ''
+  if (!converted) throw new Error('WSL 路径转换失败')
+  return converted
+}
+
 /** 探测一个发行版：dsh 在不在、什么版本、有哪些 profile。 */
 export async function inspectWslDistro(distro, home, options = {}) {
   const wantedHome = home || DEFAULT_HOME
@@ -389,6 +411,40 @@ export async function stopWslInstance(options) {
   const command = 'script="$HOME/.dsh-x/bin/dsh-x-wsl.sh"; if [ -x "$script" ]; then exec "$script" stop ' + shellQuote(options.instanceId) + ' ' + shellQuote(String(options.port || '')) + '; fi'
   const result = await runBashScript(options.distro, command, { timeoutMs: 20000 })
   return { ok: result.ok, stderr: result.stderr, stdout: result.stdout }
+}
+
+/**
+ * 读一个 WSL Profile 里装了什么：package.json 的依赖 + dsh.profile.bundles。
+ * 目录选择窗的右栏要和本机一样列出插件，WSL 侧没有 /api/packs，只能把清单读回来。
+ */
+export async function readWslProfile(distro, home, profile, run = null) {
+  const name = String(profile || '').trim()
+  if (!distro) throw new Error('先选择一个 WSL 发行版')
+  if (!name) throw new Error('Profile 名称不能为空')
+  const script = [
+    'set -e',
+    `p=${shellQuote(name)}`,
+    `h=${shellQuote(String(home || '').trim() || '~/.dsh')}`,
+    'case "$h" in "~") h="$HOME" ;; "~/"*) h="$HOME/${h:2}" ;; esac',
+    'f="$h/profiles/$p/package.json"',
+    'if [ ! -f "$f" ]; then echo __DSHX_MISSING__; exit 0; fi',
+    'cat "$f"',
+  ].join(String.fromCharCode(10))
+  const exec = run || ((target, command) => runBashScript(target, command))
+  const result = await exec(distro, script, { timeoutMs: 10000 })
+  if (!result.ok) throw new Error(result.stderr.trim() || '读取 WSL Profile 失败')
+  const text = decodeWslOutput(result.stdout).trim()
+  if (!text || text === '__DSHX_MISSING__') return { ok: false, profile: name, error: '这个 Profile 还没初始化' }
+  let manifest = null
+  try { manifest = JSON.parse(text) } catch { return { ok: false, profile: name, error: 'Profile 的 package.json 读不出来' } }
+  const dependencies = manifest?.dependencies && typeof manifest.dependencies === 'object' ? manifest.dependencies : {}
+  const bundles = Array.isArray(manifest?.dsh?.profile?.bundles) ? manifest.dsh.profile.bundles : null
+  const plugins = Object.keys(dependencies).sort().map((plugin) => ({
+    name: plugin,
+    version: String(dependencies[plugin] || ''),
+    mounted: !bundles || bundles.includes(plugin),
+  }))
+  return { ok: true, profile: name, home: String(home || '').trim() || '~/.dsh', plugins, bundles: bundles || [] }
 }
 
 export { WSL_EXE, DEFAULT_HOME }

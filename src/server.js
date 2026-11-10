@@ -139,7 +139,7 @@ import {
   saveSettings,
   VERSION_RE,
 } from './settings.js'
-import { allocateWslPort, inspectWslDistro, invalidateWslCache, listWslDistros, parseWslHomeKey, resolveWslHome, startWslInstance, stopWslInstance, wslAvailable, wslHomeKey, wslPortAvailable } from './wsl.js'
+import { allocateWslPort, inspectWslDistro, invalidateWslCache, listWslDistros, parseWslHomeKey, resolveWslHome, readWslProfile, startWslInstance, stopWslInstance, wslAvailable, wslHomeKey, wslPath, wslPortAvailable } from './wsl.js'
 // 带代理的 fetch：Node 的全局 fetch 既不看系统代理也不看 HTTP_PROXY，外网请求都走 netFetch
 import { netFetch, proxyEnv, resetProxyCache, resolveProxy } from './proxy.js'
 import { APP_DIR, fileManager } from './filemanager.js'
@@ -521,6 +521,8 @@ const WSL_LOCAL_API_EXACT = new Set([
   '/api/pick-file',
   '/api/dsh-homes/open',
   '/api/dsh-homes/rename',
+  '/api/wsl/path',
+  '/api/wsl/profile',
 ])
 function isWslLocalApiRoute(pathname) {
   return WSL_LOCAL_API_EXACT.has(pathname)
@@ -7407,6 +7409,33 @@ async function handleApi(req, res, url) {
   }
 
   const body = req.method === 'POST' ? await readJson(req) : {}
+  if (req.method === 'GET' && url.pathname === '/api/wsl/profile') {
+    // 目录选择窗右栏：WSL 侧没有 /api/packs，读 Profile 的 package.json 回来看装了什么。
+    try {
+      const distro = String(url.searchParams.get('distro') || '').trim()
+      if (!distro || distro.length > 128 || /[\x00-\x1f]/.test(distro)) throw new Error('WSL 发行版名称不合法')
+      const home = safeWslPath(url.searchParams.get('home') || '', 'WSL 用户目录')
+      const profile = safeProfile(url.searchParams.get('profile') || '')
+      send(res, 200, await readWslProfile(distro, home, profile))
+    } catch (error) {
+      send(res, 400, { error: error instanceof Error ? error.message : String(error) })
+    }
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/wsl/path') {
+    // 原生文件夹对话框只认 Windows 路径：WSL 里选目录要先用 wslpath 往返转一次。
+    try {
+      const distro = String(body.distro || '').trim()
+      if (!distro || distro.length > 128 || /[\x00-\x1f]/.test(distro)) throw new Error('WSL 发行版名称不合法')
+      const value = String(body.path || '').trim()
+      if (value.length > 4096) throw new Error('路径太长')
+      const direction = body.direction === 'windows' ? 'windows' : 'linux'
+      send(res, 200, { path: await wslPath(distro, value, direction) })
+    } catch (error) {
+      send(res, 400, { error: error instanceof Error ? error.message : String(error) })
+    }
+    return
+  }
   // 插件桌面 API：插件在 dsh 子进程里用本机 HTTP 调这里，真正的 Notification / dialog /
   // clipboard 由外壳的 host.desktop 执行（见 shell/main.mjs）。GET 只回能力清单。
   if (url.pathname === '/api/desktop' || url.pathname.startsWith('/api/desktop/')) {

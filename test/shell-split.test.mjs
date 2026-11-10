@@ -16,6 +16,9 @@ test('外壳不依赖核心模块，核心目录在运行时解析', () => {
   assert.match(main, /DSH_CORE = '1'/, '加载核心前标成打包态')
   assert.match(main, /pathToFileURL\(join\(coreDir, 'server\.js'\)\)/, '动态 import 核心的 server.js')
   assert.match(main, /TRAY_ICON_FILE.*tray\.ico/s, 'Windows 托盘用带圆角的 tray.ico，不用方形 icon.png')
+  assert.match(main, /function trayImage\(\)[\s\S]*?if \(IS_WINDOWS\) return source/, 'Windows 托盘把多尺寸 ICO 原样交给 Electron，按 DPI 取帧')
+  assert.doesNotMatch(main, /createFromPath\(TRAY_ICON_FILE\)\.resize/, '托盘不再统一缩到 16px：ICO 的 20/24/32 帧会全丢，系统放大就糊')
+  assert.match(main, /scaleFactor: 2/, 'mac/Linux 补一档 2x，Retina 菜单栏不糊')
 })
 
 test('核心更新换的是用户目录 core/current，不再碰 resources/app', () => {

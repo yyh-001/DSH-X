@@ -496,10 +496,10 @@ test('选 Profile 是三栏选择窗：目录 / Profile / 插件，两档用途�
   // 两档用途：标题不同，确认后写到不同地方
   const open = section('    async function openProfilePicker(mode = ', '    function closeProfilePicker() {')
   assert.match(open, /pickerMode = mode === 'form' \? 'form' : 'copy'/)
-  assert.match(open, /setPickerHeading\('选择 Profile'/, 'form 档：给自定义档挑')
+  assert.match(open, /setPickerHeading\('选择启动环境'/, 'form 档：给自定义档挑')
   assert.match(open, /setPickerHeading\('选择要复制的 Profile'/, 'copy 档：挑复制来源')
   const confirm = section('    function confirmProfilePick() {', '    /**\n     * form 档的写回')
-  assert.match(confirm, /if \(pickerMode === 'form'\) \{\s*void applyPickerToLaunchForm\(choice\)/, 'form 档写回启动项表单')
+  assert.match(confirm, /if \(wsl\) applyWslPickerToLaunchForm\(wsl, pickerProfile\)[\s\S]{0,40}?applyPickerToLaunchForm\(choice\)/, 'form 档写回启动项表单（WSL 目录走 WSL 分支）')
   assert.match(confirm, /launchCopySource = choice/, 'copy 档写回复制来源')
   const apply = section('    async function applyPickerToLaunchForm(', '    /** 选择窗里干活时统一置忙')
   assert.match(apply, /paintLaunchHomes\(home\)/, '目录落到下拉上')

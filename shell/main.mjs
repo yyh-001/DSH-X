@@ -103,7 +103,7 @@ const TRAY_ACTION_TIMEOUT_MS = 120_000
  * 超时按「取消」处理（窗口还留着，用户还能继续用）。
  */
 const QUIT_CONFIRM_TIMEOUT_MS = 30_000
-/** 菜单栏 / 托盘图标按 18pt（macOS）或 16px（Windows 托盘）显示，给 2 倍图才不糊。 */
+/** 菜单栏图标按 18pt（macOS）显示；Linux 托盘用 16px 基图，再补一档 2x。 */
 const TRAY_ICON_POINTS = IS_MAC ? 18 : 16
 /** 图标目录：源码运行时在仓库的 src/assets；安装包由 pack.mjs 放到 resources/app/assets。 */
 const ASSET_DIR = existsSync(join(ROOT, 'src', 'assets')) ? join(ROOT, 'src', 'assets') : join(ROOT, 'assets')
@@ -1061,8 +1061,27 @@ function closeWindow(window) {
   else window.hide()
 }
 
+/**
+ * 托盘图标：Windows 直接把多尺寸 ICO 交给 Electron——它按 GetSystemMetrics(SM_CXSMICON)
+ * 从 ICO 里取当前 DPI 对应的那一帧（100% → 16、125% → 20、150% → 24、200% → 32）。
+ * 先 resize 成 16 会把这些帧全丢掉，系统再把 16 放大到 20/24，托盘就糊了。
+ * mac/Linux 用 tray.png 生成 1x + 2x 两档：Retina 菜单栏按 2x 取图，只给 1x 会被拉大。
+ */
+function trayImage() {
+  const source = nativeImage.createFromPath(TRAY_ICON_FILE)
+  if (IS_WINDOWS) return source
+  const image = source.resize({ width: TRAY_ICON_POINTS, height: TRAY_ICON_POINTS, quality: 'best' })
+  image.addRepresentation({
+    scaleFactor: 2,
+    width: TRAY_ICON_POINTS * 2,
+    height: TRAY_ICON_POINTS * 2,
+    buffer: source.resize({ width: TRAY_ICON_POINTS * 2, height: TRAY_ICON_POINTS * 2, quality: 'best' }).toPNG(),
+  })
+  return image
+}
+
 function createTray() {
-  const image = nativeImage.createFromPath(TRAY_ICON_FILE).resize({ width: TRAY_ICON_POINTS, height: TRAY_ICON_POINTS, quality: 'best' })
+  const image = trayImage()
   // Linux 缺 appindicator / 桌面环境没有托盘时 Tray 会抛：别让整个外壳起不来，
   // 记成没有托盘（关窗口就真退出，见 createMainWindow 的 close）
   try {

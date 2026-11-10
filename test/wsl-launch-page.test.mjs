@@ -11,34 +11,46 @@ const at = (needle) => {
   return index
 }
 
-test('编辑启动项按运行位置 → 名称 → 版本 → WSL 目录/Profile → 本机启动环境排列', () => {
-  const order = [
-    'id="launchBackendField"',
-    'id="launchIdentityField"',
-    'id="launchLocalVersionGroup"',
-    'id="launchWslHomeField"',
-    'id="launchWslProfileField"',
-    'id="launchWslWorkdirField"',
-    'id="launchEnvField"',
-    'id="launchPort"',
-  ]
-  const indexes = order.map(at)
-  assert.deepEqual(indexes, [...indexes].sort((a, b) => a - b), '字段顺序不能乱；WSL 和本机字段按同一位置成对出现')
+test('启动项只有一套表单：WSL 作为「目录」出现在三级选择窗里，不再有单独的 WSL 选项', () => {
+  assert.doesNotMatch(page, /id="launchBackendTabs"/)
+  assert.doesNotMatch(page, /id="launchWslEnvPick"/)
+  assert.doesNotMatch(page, /id="wslPickDialog"/)
+  assert.match(page, /id="launchWslDistro" hidden/)
+  assert.match(page, /id="launchWslProfile" hidden/)
+  assert.match(page, /id="launchWslHome" type="hidden"/)
+  assert.match(page, /id="launchWslWorkdirField" hidden/)
+  assert.match(page, /function parseWslHomeKey\(/)
+  assert.match(page, /pickerMode === 'form' && state\.wsl\?\.available !== false/)
+  assert.match(page, /name: t\('WSL · \{distro\}'/, '左栏把 WSL 发行版当目录行')
+  assert.match(page, /async function selectPickerHome\(home\)[\s\S]{0,400}?const wsl = parseWslHomeKey\(home\)/, '选中 WSL 目录走 /api/wsl 探测')
+  assert.match(page, /function applyWslPickerToLaunchForm\(\{ distro, home \}, profile\)/)
+  assert.match(page, /if \(wsl\) applyWslPickerToLaunchForm\(wsl, pickerProfile\)/)
 })
 
-test('WSL 发行版归在运行位置，切到 WSL 时藏掉本机版本整组', () => {
-  const start = at('id="launchWslLocationFields"')
-  const end = at('id="launchCustomFields"')
-  const location = page.slice(start, end)
-  assert.match(location, /id="launchWslDistro"/)
-  assert.match(location, /id="launchWslHint"/)
-  assert.doesNotMatch(location, /launchWslServiceMode/)
-  assert.doesNotMatch(page, /id="launchWslVersionField"/, '核心版不包含 WSL 版本管理，版本字段留到版本管理 PR')
-  assert.doesNotMatch(css, /launchWslVersionHint/, '核心版不留下 WSL 版本说明的样式')
-  assert.match(page, /launchLocalVersionGroupEl\.hidden = wsl/, '本机版本下拉、版本类型、管理按钮与渠道说明要整组隐藏')
-  assert.match(css, /\.home-pickers\[hidden\] \{ display: none; \}/, 'home-pickers 的 display:flex 不能盖掉 hidden')
-  assert.match(css, /\.launch-modal-fields \{[^}]*gap: 14px;/)
-  assert.match(css, /\.launch-wsl-location \{ margin-top: 14px; \}/)
+test('新增目录弹窗可以选 WSL：发行版 + 用户目录，添加后选中那个 WSL 目录', () => {
+  assert.match(page, /id="pickHomeAddDialog"/)
+  assert.match(page, /id="pickHomeAddLocal"[^>]*data-i18n="本机目录…"/)
+  assert.match(page, /id="pickHomeAddWsl"[^>]*data-i18n="WSL 目录…"/)
+  assert.match(page, /id="pickHomeWslDistro"/)
+  assert.match(page, /id="pickHomeWslHome"/)
+  assert.match(page, /function confirmPickHomeAdd\(\)[\s\S]{0,600}?pickerHome = wslHomeKeyOf\(distro, home\)/)
+  assert.match(page, /profilePickHomeAddEl\.onclick = \(\) => void openPickHomeAddDialog\(\)/)
+})
+
+test('WSL 字段和本机版本互斥：选 WSL 目录时藏掉版本组、露出项目目录', () => {
+  assert.match(page, /launchLocalVersionGroupEl\.hidden = wsl/, '本机版本整组隐藏')
+  assert.match(page, /launchWslWorkdirFieldEl\.hidden = !wsl/)
+  assert.match(page, /launchWslLocationFieldsEl\.hidden = !wsl/)
+  assert.match(page, /if \(launchBackendIsWsl\(\)\) setLaunchBackend\('local'\)/, '选择本机目录时切回本机')
+  assert.match(page, /launch-tag launch-tag-wsl/, '启动项卡片上有 WSL 标签')
+  assert.match(page, /post\('\/api\/wsl\/path'/, '目录选择要走 wslpath 转换接口')
+})
+
+test('常规设置里不再重复 WSL 默认值：发行版 / 用户目录都在启动项里选', () => {
+  assert.doesNotMatch(page, /id="wslDefaultDistro"/)
+  assert.doesNotMatch(page, /id="wslDefaultHome"/)
+  assert.doesNotMatch(page, /id="wslDshCommand"/)
+  assert.match(page, /WSL 的默认值不再单独占一块设置/)
 })
 
 test('WSL 发行版列表按需拉：切到 WSL 才请求 /api/wsl，不等状态推送', () => {
@@ -47,7 +59,7 @@ test('WSL 发行版列表按需拉：切到 WSL 才请求 /api/wsl，不等状�
   assert.ok(ensure >= 0, '页面里要有 ensureWslInfo')
   assert.match(page.slice(ensure, ensure + 1200), /getJson\('\/api\/wsl'\)/)
   const backend = page.indexOf('function setLaunchBackend')
-  const body = page.slice(backend, backend + 2200)
+  const body = page.slice(backend, backend + 3600)
   assert.match(body, /await ensureWslInfo\(\)/, '切到 WSL / 打开 WSL 启动项时要按需拉列表')
   assert.doesNotMatch(page, /wslInfoLoaded/, '发行版列表不做跨会话缓存，靠服务端 10 秒缓存控成本')
   assert.match(body, /state\.wsl\?\.error \|\| t\('没有检测到 WSL 发行版。'\)/, '一个发行版都没有时要说清楚，而不是「先选择一个」')
