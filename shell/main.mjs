@@ -1,17 +1,17 @@
 // 必须是第一个 import：它在核心（server.js）求值之前补好 PATH 和外壳标记（见 env.mjs）
 import './env.mjs'
 import { BrowserWindow, Menu, Notification, Tray, WebContentsView, app, clipboard, dialog, ipcMain, nativeImage, nativeTheme, net, powerSaveBlocker, screen, session, shell } from 'electron'
-import { existsSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { BrowserTabs } from './tabs.mjs'
 import { BROWSER_IPC, DesktopBrowserGuests } from './browser-guests.mjs'
+import { createCoreRecovery, isEnvironmentStartupError } from './core-recovery.mjs'
 import { corePackageName, channelOf, coreRegistries, fetchCoreMetadata, installCore, pickCoreRelease, tarballFor } from './core-fetch.mjs'
 import { createUpdater } from './updater.mjs'
 import { readPrefs } from './prefs.mjs'
 import { coreSetupPage, coreSetupPaintScript, dataUrl, errorPage, idlePage, resolveDark } from './pages.mjs'
-import { isEnvironmentStartupError } from './startup-error.mjs'
 import { clickTarget, dialogOptions, notificationDecision, notifyThrottled } from './desktop.mjs'
 import {
   LAUNCH_ACTIONS,
@@ -71,8 +71,7 @@ const APP_DIR = join(APP_DATA, 'DSH')
 const ACTIVE_CORE = join(APP_DIR, 'core', 'current')
 /** 上一份核心：新核心起不来时 recoverCore 会把它换回来，成功启动后删掉。 */
 const PREVIOUS_CORE = join(APP_DIR, 'core', 'previous')
-/** 起不来的核心版本（recoverCore 写）；下次启动挑核心时跳过它，避免下载 → 回退的死循环。 */
-const FAILED_CORE_MARK = join(APP_DIR, 'core', 'bootstrap.json')
+const { recoverCore, failedCoreVersions } = createCoreRecovery({ appDir: APP_DIR, relaunch: relaunchApp })
 /** 源码运行（npm run electron）用仓库自己的核心；安装版不带核心，靠 setupCore 从 npm 取。 */
 const SOURCE_CORE = existsSync(join(ROOT, 'src', 'server.js')) ? join(ROOT, 'src') : ''
 /** 和 preload.cjs 的 IPC_CHANNEL 一致。 */
@@ -193,46 +192,6 @@ function resolveCoreDir() {
     return ''
   }
   return ACTIVE_CORE
-}
-
-/**
- * 用户目录里的核心起不来：记下版本、删掉它，重启；有上一份就换回来，没有就下次启动重新下载。
- * pendingOnly 用于 startServer 失败：只有「刚换上、还没成功启动过」的核心才回退，
- * 已经正常用过的 current 因为别的原因起不来（比如端口/设置）不该被删。
- */
-function recoverCore(coreDir, { pendingOnly = false } = {}) {
-  if (coreDir !== ACTIVE_CORE) return false
-  const pending = join(APP_DIR, 'core', 'pending')
-  if (pendingOnly && !existsSync(pending)) return false
-  let version = ''
-  try { version = String(JSON.parse(readFileSync(pending, 'utf8')).version || '') } catch { /* 没有 pending 就不记 */ }
-  // 先删核心再记坏版本：删不掉说明是权限/文件占用之类的环境问题（不是核心本身），
-  // 这时候记进黑名单会永久跳过一个有效版本，还会在「下载 → 删不掉 → 重启」之间循环。
-  try {
-    rmSync(ACTIVE_CORE, { recursive: true, force: true })
-  } catch {
-    console.log('核心删不掉（权限或文件占用），不按坏核心处理')
-    return false
-  }
-  // 记下「这个版本起不来」：下次挑核心时跳过它，否则会下载 → 起不来 → 回退 → 再下载地循环。
-  // 记成列表而不是只记最后一个：X 坏了退到 W、W 也坏了时，只记 W 会让下次又挑回 X，两个版本来回转。
-  if (version) {
-    try {
-      const failed = [...new Set([...failedCoreVersions(), version])].slice(-20)
-      writeFileSync(FAILED_CORE_MARK, JSON.stringify({ version, failed, at: Date.now() }))
-    } catch { /* 写不进去只是少了跳过坏版本的保护 */ }
-  }
-  try { rmSync(pending, { force: true }) } catch { /* ignore */ }
-  let restored = false
-  try {
-    if (existsSync(PREVIOUS_CORE)) {
-      renameSync(PREVIOUS_CORE, ACTIVE_CORE)
-      restored = true
-    }
-  } catch { /* 换不回来就下次启动重新下载 */ }
-  console.log(restored ? '核心启动失败，回退到上一份核心' : '核心启动失败，下次启动重新下载')
-  relaunchApp()
-  return true
 }
 
 /** 重启外壳：AppImage 要重启 APPIMAGE 本身，process.execPath 是挂载目录里的临时二进制。 */
@@ -521,15 +480,6 @@ async function chooseCoreRelease(fetchImpl) {
   throw last || new Error('没有可用的核心下载源')
 }
 
-/** 起不来的核心版本（recoverCore 写）；挑版本时跳过它们，免得下载 → 回退 → 再下载。旧格式只有 version 一项。 */
-function failedCoreVersions() {
-  try {
-    const mark = JSON.parse(readFileSync(FAILED_CORE_MARK, 'utf8'))
-    const list = Array.isArray(mark?.failed) ? mark.failed : [mark?.version]
-    return list.map((item) => String(item || '')).filter(Boolean)
-  } catch { return [] }
-}
-
 /**
  * 从 npm 取一份和当前 Electron 兼容的核心装进 core/current；返回核心目录，失败返回空。
  * 通道跟着外壳版本走：正式版外壳取正式版核心，rc 外壳取 rc（没有 rc 时退回正式版）。
@@ -680,8 +630,8 @@ async function start() {
   try {
     core = await import(pathToFileURL(join(coreDir, 'server.js')).href)
   } catch (error) {
-    // 用户目录里的核心坏到加载不了：删掉、重启（有上一份就换回来，没有就重新下载）
-    if (recoverCore(coreDir)) return
+    // 核心自身坏到加载不了才恢复；权限/磁盘问题留下原件，修好环境后仍可重试。
+    if (recoverCore(coreDir, { error })) return
     showStartupError('启动器核心缺失', '找不到或加载不了核心文件。', `${coreDir}\n${error?.stack || String(error)}`)
     return
   }
@@ -700,8 +650,9 @@ async function start() {
       showStartupError('dsh 服务启动失败', '管理页没能起来。更像是目录、权限或磁盘的问题，修好后重新打开 DSH-X。', error?.stack || String(error))
       return
     }
-    // 刚换上的核心起不来才回退（pending 标记是核心更新写入的）；老 current 起不来按普通错误报
-    if (recoverCore(coreDir, { pendingOnly: true })) return
+    // 环境错误不代表核心坏了；保留 pending，修好目录/权限后仍可验证同一份核心。
+    // 其余错误只有刚换上的核心才回退，已经验收过的 current 按普通错误报。
+    if (recoverCore(coreDir, { pendingOnly: true, error })) return
     showStartupError('dsh 服务启动失败', '管理页没能起来。', error?.stack || String(error))
     return
   }
