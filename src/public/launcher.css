@@ -733,7 +733,10 @@ html.reduce-motion .launch-enhance-tip { transition: none; }
 /* 三档用胶囊分段切：前两档是「一键新建」（同一个目录换个 Profile / 整个换新目录），第三档是
     原来那张完整表单。胶囊跟技能来源切换同款——底槽一圈浅色、当前档用卡片色浮起来，切档只换
     浮起的那块，比下划线 tab 更像一个切换开关；字段区跟着显隐。 */
-.launch-isolation { display: grid; gap: 8px; }
+/* 单列网格必须写 minmax(0, 1fr)：默认的 auto 列会按内容（max-content）撑开，
+   目录下拉里的长路径能把整列顶出弹窗，被 .launch-modal-fields 的 overflow-x 裁掉，
+   省略号和右侧箭头一起消失。 */
+.launch-isolation { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .launch-isolation[hidden] { display: none; }
 .launch-isolation-title { color: var(--muted); font-size: 12px; font-weight: 500; }
 /* 三档用胶囊分段切：底槽固定在那一圈，当前档的浮块是底槽上的伪元素（data-active 决定滑到哪一档），
@@ -752,7 +755,7 @@ html.reduce-motion .launch-enhance-tip { transition: none; }
 .control-row input { flex: 1 1 auto; min-width: 0; }
 .control-row .ghost { flex: 0 0 auto; height: var(--control-height); padding: 0 12px; }
 .launch-isolation-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.launch-custom-fields { display: grid; gap: 14px; }
+.launch-custom-fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 .launch-custom-fields[hidden] { display: none; }
 /* 切到自定义时字段淡入落位；引导档不做入场，避免点新建就闪一下 */
 .launch-custom-fields:not([hidden]) { animation: launch-custom-in 180ms cubic-bezier(.22,.61,.36,1) both; }
@@ -764,7 +767,7 @@ html.reduce-motion .launch-enhance-tip { transition: none; }
 /* ---- 前两档下面的引导块：目标目录（只有会话隔离有）+ 两档 tab（自己起名 / 照抄一份） ---- */
 /* 以前是上下叠着的两条折叠横条，现在换成第二排胶囊：同一时间只露一块，不用滚也不用猜哪块开着。
    样式跟上面三档共用一套，只把浮块从等分三份改成等分两份（--pair）。 */
-.launch-guide { display: grid; gap: 8px; }
+.launch-guide { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .launch-guide[hidden] { display: none; }
 .launch-guide-dir[hidden] { display: none; }
 /* 目标目录下拉也是 createUiSelect 包出来的，而 .ui-select 默认只有 148px 宽（给设置页那种小行用），
@@ -775,7 +778,7 @@ html.reduce-motion .launch-enhance-tip { transition: none; }
 .launch-isolation-tabs--pair::after { width: calc((100% - 10px) / 2); }
 .launch-isolation-tabs--pair[data-active="copy"]::after { transform: translateX(calc(100% + 2px)); }
 /* 两档各自的面板：输入框 / 下拉一行一个，跟 tab 底槽同宽；切 tab 时淡入落位，切回来不闪 */
-.launch-source-panel { display: grid; gap: 8px; }
+.launch-source-panel { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .launch-source-panel[hidden] { display: none; }
 .launch-source-panel:not([hidden]) { animation: launch-source-in 160ms cubic-bezier(.22,.61,.36,1) both; }
 @keyframes launch-source-in { from { opacity: 0; transform: translateY(-2px); } }

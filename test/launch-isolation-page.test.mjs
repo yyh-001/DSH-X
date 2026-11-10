@@ -139,6 +139,7 @@ test('自定义档是可显隐的字段块：原来那张完整表单原样搬�
 test('切档时字段块靠 hidden 显隐，tab 是胶囊分段：底槽 + 当前档浮块滑动', () => {
   assert.match(css, /\.launch-isolation\[hidden\] \{ display: none; \}/)
   assert.match(css, /\.launch-custom-fields\[hidden\] \{ display: none; \}/)
+  assert.match(css, /\.launch-custom-fields \{ display: grid; grid-template-columns: minmax\(0, 1fr\); gap: 14px; \}/, '自定义档的目录下拉同样不能被长路径撑宽')
   // 胶囊分段：底槽浅色圆角，当前档浮块按 data-active 平移到对应三份之一
   assert.match(css, /\.launch-isolation-tabs \{ position: relative; display: flex; gap: 2px; padding: 4px; border-radius: 12px; background: var\(--accent-soft\); \}/)
   assert.match(css, /\.launch-isolation-tabs::after \{ content: ''; position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc\(\(100% - 12px\) \/ 3\);/, '浮块等分三份')
@@ -150,13 +151,15 @@ test('切档时字段块靠 hidden 显隐，tab 是胶囊分段：底槽 + 当�
   assert.match(css, /\.launch-isolation-tab:focus-visible \{ outline:/, '键盘焦点描边')
   assert.match(css, /html\.reduce-motion \.launch-isolation-tabs::after,/, '减少动态时浮块不滑动')
   // 引导块：第二排胶囊等分两份，浮块滑到「复制」那档；面板是网格，切 tab 淡入
-  assert.match(css, /\.launch-guide \{ display: grid; gap: 8px; \}/)
+  // 单列网格都锁 minmax(0, 1fr)：auto 列会被目录下拉里的长路径撑开，整列顶出弹窗
+  assert.match(css, /\.launch-isolation \{ display: grid; grid-template-columns: minmax\(0, 1fr\); gap: 8px; \}/, '隔离区不能被长路径撑宽')
+  assert.match(css, /\.launch-guide \{ display: grid; grid-template-columns: minmax\(0, 1fr\); gap: 8px; \}/, '引导区不能被长路径撑宽')
   assert.match(css, /\.launch-guide\[hidden\] \{ display: none; \}/)
   assert.match(css, /\.launch-guide-dir\[hidden\] \{ display: none; \}/)
   assert.match(css, /\.launch-guide \.ui-select \{ width: 100%; \}/, '目标目录下拉要占满（.ui-select 默认 148px 太窄）')
   assert.match(css, /\.launch-isolation-tabs--pair::after \{ width: calc\(\(100% - 10px\) \/ 2\); \}/, '浮块等分两份')
   assert.match(css, /\.launch-isolation-tabs--pair\[data-active="copy"\]::after \{ transform: translateX\(calc\(100% \+ 2px\)\); \}/)
-  assert.match(css, /\.launch-source-panel \{ display: grid; gap: 8px; \}/)
+  assert.match(css, /\.launch-source-panel \{ display: grid; grid-template-columns: minmax\(0, 1fr\); gap: 8px; \}/, '来源面板不能被长路径撑宽')
   assert.match(css, /\.launch-source-panel\[hidden\] \{ display: none; \}/)
   assert.match(css, /\.launch-source-panel:not\(\[hidden\]\) \{ animation: launch-source-in/, '切 tab 时面板淡入')
   // 目录改成下拉后，输入框那套行样式一并撤掉
