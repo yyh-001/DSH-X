@@ -77,14 +77,19 @@ export default {
     artifactName: 'DSH-X-${version}-${arch}.${ext}',
   },
   linux: {
+    // 不写 arch：electron-builder 按打包机的架构出包。CI 的 linux job 在 x64 与原生 arm64
+    // runner 上各跑一次，各出各的；写死 ['x64', 'arm64'] 会让每台机器都交叉打另一份，
+    // 两个 job 上传同名资产互相 clobber（mac dmg 踩过）。文件名靠 artifactName 里的 ${arch}
+    // 区分（x86_64 / amd64 vs arm64），更新清单 electron-builder 自己按架构命名：
+    // x64 是 latest-linux.yml，arm64 是 latest-linux-arm64.yml，electron-updater 也按 process.arch 去找。
     target: [
       // AppImage：单个文件、全发行版通用，也是 electron-updater 在 Linux 上唯一认的形态
       // （它靠 APPIMAGE 环境变量找到要替换的那个文件）。
-      { target: 'AppImage', arch: ['x64'] },
+      { target: 'AppImage' },
       // deb：给 Debian / Ubuntu 系一个装进系统、能从菜单启动、能被 apt 卸干净的包。
       // 代价是自更新断掉——deb 装出来的进程没有 APPIMAGE 变量，updater.mjs 那边会当不支持，
       // 用户得手动换包；核心那层（core/current）照旧走 npm，不受影响。
-      { target: 'deb', arch: ['x64'] },
+      { target: 'deb' },
     ],
     icon: join('src', 'assets', 'icon.png'),
     category: 'Development',

@@ -130,10 +130,11 @@ jobs:
           # 预发布通道不看 /releases/latest，而是按通道在 release 列表里挑最新的 rc/alpha tag。
           # 纯核心的预发布 tag 上没有安装包，把上一次外壳发版的 latest.yml / latest-linux.yml 原样放一份，
           # electron-updater 读到的是旧版本号 → 正常判「已是最新」，不会报「找不到 latest.yml」。
-          # 两个文件各找各的：Linux 的 AppImage 通道读 latest-linux.yml，只补 Windows 那份 Linux 会照样报错。
+          # 几个文件各找各的：Linux 的 AppImage 通道读 latest-linux.yml（arm64 读 latest-linux-arm64.yml），
+          # 只补 Windows 那份 Linux 会照样报错。还没出过 arm64 外壳的旧 tag 上没有那份，找不到就跳过。
           if [[ "$tag" == *-* ]] && [ "${{ steps.installers.outputs.shell_changed }}" = "0" ]; then
             mkdir -p "$RUNNER_TEMP/shell-yml"
-            for yml in latest.yml latest-linux.yml; do
+            for yml in latest.yml latest-linux.yml latest-linux-arm64.yml; do
               for t in $(git tag --sort=-v:refname | head -20); do
                 [ "$t" = "$tag" ] && continue
                 if gh release view "$t" --json assets --jq '.assets[].name' 2>/dev/null | grep -qx "$yml"; then
@@ -318,9 +319,20 @@ jobs:
 
   # Linux：AppImage（外壳自更新走 electron-updater 的 AppImage 通道）+ deb（装进系统菜单、
   # 能被 apt 卸干净，但没有外壳自更新——updater.mjs 拿不到 APPIMAGE 变量时会当不支持）
+  # x64 / arm64 各在原生 runner 上打包（electron-builder.config.mjs 的 linux 目标跟着打包机架构走），
+  # 不用 QEMU 交叉：Electron、fpm、AppImage 运行时都有 arm64 原生版本，模拟只会慢几倍。
+  # ubuntu-24.04-arm 是 GitHub 给公开仓库的免费 arm64 runner（私有仓库要换 larger runner）。
   linux:
     needs: prepare
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            arch: x64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
@@ -341,18 +353,20 @@ jobs:
             sleep 5
           done
 
-      - name: 打包（electron-builder：AppImage + deb + latest-linux.yml）
+      # 更新清单按架构分开：x64 是 latest-linux.yml，arm64 是 latest-linux-arm64.yml，
+      # 下面统一用 latest-linux*.yml 收；每台机器只出自己那份，两个 job 传的文件不重名。
+      - name: 打包（electron-builder：AppImage + deb + latest-linux*.yml）
         if: needs.prepare.outputs.shell_changed == '1'
         run: npm run dist
 
       - uses: actions/upload-artifact@v4
         if: needs.prepare.outputs.shell_changed == '1'
         with:
-          name: DSH-X-linux
+          name: DSH-X-linux-${{ matrix.arch }}
           path: |
             release/eb/DSH-X-*.AppImage
             release/eb/DSH-X-*.deb
-            release/eb/latest-linux.yml
+            release/eb/latest-linux*.yml
           if-no-files-found: error
 
       - name: 挂到同 tag 的 Release 上
@@ -362,8 +376,8 @@ jobs:
         run: |
           tag="${GITHUB_REF_NAME}"
           if gh release view "$tag" >/dev/null 2>&1; then
-            # latest-linux.yml 只描述 AppImage（electron-updater 的 Linux 通道），deb 不进它
-            gh release upload "$tag" release/eb/DSH-X-*.AppImage release/eb/DSH-X-*.deb release/eb/latest-linux.yml --clobber
+            # latest-linux*.yml 只描述 AppImage（electron-updater 的 Linux 通道），deb 不进它
+            gh release upload "$tag" release/eb/DSH-X-*.AppImage release/eb/DSH-X-*.deb release/eb/latest-linux*.yml --clobber
           else
             echo "还没有 $tag 的 Release，AppImage 和 deb 先留在 workflow artifacts 里"
           fi
