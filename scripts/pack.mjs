@@ -25,6 +25,7 @@ import {
   downloadNodeFile,
   run,
 } from './pack-common.mjs'
+import { nodeShimPosix, nodeShimWindows } from '../src/electron-bin.js'
 
 const IS_MAC = process.platform === 'darwin'
 const IS_WINDOWS = process.platform === 'win32'
@@ -60,17 +61,10 @@ async function copyNodeRuntime(nodeDir) {
   await copyNpmModules(modules, nodeDir)
   await copyPnpmModule(nodeDir, join(modules, 'npm', 'bin', 'npm-cli.js'))
 
-  // POSIX：DSH_ELECTRON_BIN 由外壳/CLI 设置；没有时依次试安装版的 Windows / mac / Linux 布局
+  // POSIX：DSH_ELECTRON_BIN 由外壳/CLI 设置；没有时读核心写的 electron-bin 标记，
+  // 再没有才依次试安装版的 Windows / mac / Linux 布局（见 src/electron-bin.js）
   const nodeShim = join(nodeDir, 'node')
-  await writeFile(nodeShim, [
-    '#!/bin/sh',
-    'if [ -n "$DSH_ELECTRON_BIN" ]; then ELECTRON_RUN_AS_NODE=1 exec "$DSH_ELECTRON_BIN" "$@"; fi',
-    'dir="$(cd "$(dirname "$0")" && pwd)"',
-    'if [ -x "$dir/../../../DSH.exe" ]; then ELECTRON_RUN_AS_NODE=1 exec "$dir/../../../DSH.exe" "$@"; fi',
-    'if [ -x "$dir/../../../MacOS/DSH" ]; then ELECTRON_RUN_AS_NODE=1 exec "$dir/../../../MacOS/DSH" "$@"; fi',
-    'ELECTRON_RUN_AS_NODE=1 exec "$dir/../../../DSH" "$@"',
-    '',
-  ].join('\n'))
+  await writeFile(nodeShim, nodeShimPosix())
   await chmod(nodeShim, 0o755)
   const shims = { npm: 'npm/bin/npm-cli.js', npx: 'npm/bin/npx-cli.js', pnpm: 'pnpm/bin/pnpm.cjs', pnpx: 'pnpm/bin/pnpx.cjs' }
   for (const [name, cli] of Object.entries(shims)) {
@@ -85,17 +79,7 @@ async function copyNodeRuntime(nodeDir) {
   }
 
   // Windows
-  await writeFile(join(nodeDir, 'node.cmd'), [
-    '@ECHO off',
-    'SETLOCAL',
-    'SET "ELECTRON_RUN_AS_NODE=1"',
-    'IF DEFINED DSH_ELECTRON_BIN (',
-    '  "%DSH_ELECTRON_BIN%" %*',
-    ') ELSE (',
-    '  "%~dp0..\\..\\..\\DSH.exe" %*',
-    ')',
-    '',
-  ].join('\r\n'))
+  await writeFile(join(nodeDir, 'node.cmd'), nodeShimWindows())
   await writeFile(join(nodeDir, 'pnpm.cmd'), [
     '@ECHO off',
     'SETLOCAL',

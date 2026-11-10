@@ -44,6 +44,7 @@ const APP_FILES = [
   'wsl-scripts.js',
   'proxy.js',
   'platform.js',
+  'electron-bin.js',
   'filemanager.js',
   'filemanager-base.js',
   'plugins.js',

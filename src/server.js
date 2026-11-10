@@ -146,11 +146,14 @@ import { APP_DIR, fileManager } from './filemanager.js'
 import { lanUrlOf, pickLanAddress, startLanProxy } from './lan-proxy.js'
 import { DESKTOP_API_VERSION, DESKTOP_CAPABILITIES, parseDesktopRequest } from './desktop.js'
 import { checkCoreUpdate, downloadCoreTarball, extractCoreTarball, stagingExists, stagingStats } from './core-npm.js'
+import { writeElectronBinMarker } from './electron-bin.js'
 import { IN_ELECTRON, IS_LINUX, IS_MAC, IS_WINDOWS, LAUNCHER_NAME, MAC_APP_NAME, NPM_MODE, PACKAGED, RUNTIME_NODE, RUNTIME_NODE_ENV } from './platform.js'
 
 const execFileAsync = promisify(execFile)
 
 const ROOT = dirname(fileURLToPath(import.meta.url))
+// dsh 页面和 agent 的插件操作会剥掉 DSH_* 变量，node/ 里的包装脚本只能靠这份标记找 Electron（#102）
+writeElectronBinMarker({ coreDir: ROOT, execPath: process.execPath, inElectron: IN_ELECTRON })
 let DATA = resolveDataDir()
 const PUBLIC = join(ROOT, 'public')
 let CONFIG = join(DATA, 'config.json')
