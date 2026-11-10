@@ -245,7 +245,7 @@ test('内置环境配方是环境页网格里的卡片：没导入过的才画�
     el: { grid, hint: { textContent: '' } },
     environments: [{ id: 'env-a', name: '甲', dshVersion: '1.0.0', plugins: [], usedBy: [] }],
     builtin: [
-      { name: 'dsh-x-recommended', displayName: '推荐环境', description: '开箱即用', imported: false },
+      { name: 'dsh-x-recommended', displayName: 'DSH-X 推荐实例', description: '开箱即用', imported: false },
       { name: 'dsh-x-workbench', displayName: '工作台', description: '', imported: true },
     ],
     versionText: (env) => env.dshVersion, thirdParty: (env) => env.plugins, tagsOf: () => [],
@@ -255,11 +255,20 @@ test('内置环境配方是环境页网格里的卡片：没导入过的才画�
   new vm.Script(envSlice('  function card(', '  function versionOptions(')).runInContext(context)
   context.renderGrid()
   assert.match(grid.innerHTML, /data-environment="env-a"/, '环境卡片照画')
+  // 中文界面把这个对象叫「实例」：卡片按钮的读屏名称跟着说实例（配置页那张卡说「查看配置…」）
+  assert.match(grid.innerHTML, /data-environment="env-a" aria-label="查看实例 甲 的插件"/)
+  assert.match(grid.innerHTML, /data-builtin="dsh-x-recommended" aria-label="导入内置实例 DSH-X 推荐实例"/)
+  assert.doesNotMatch(grid.innerHTML, /查看配置|查看环境|导入内置环境/)
   const recipes = grid.querySelectorAll('[data-builtin]')
   assert.deepEqual(recipes.map((button) => button.dataset.builtin), ['dsh-x-recommended'], '导入过的配方不再给卡片')
-  assert.match(grid.innerHTML, /推荐环境/)
+  assert.match(grid.innerHTML, /DSH-X 推荐实例/)
   recipes[0].onclick()
   assert.deepEqual(inspected, [{ builtin: 'dsh-x-recommended' }], '点配方卡片走导入预览（只读检查）')
+  assert.equal(context.el.hint.textContent, '', '有实例时不显示空列表提示')
+  context.environments = []
+  context.builtin = []
+  context.renderGrid()
+  assert.equal(context.el.hint.textContent, '还没有实例。新建、导入一个，或者先保存一个启动项，启动器会按它的配置自动生成。', '空列表提示说实例和配置')
 
   assert.match(html, /<div class="pack-grid" id="environmentGrid"><\/div>/, '网格在环境页里')
   const importDialog = slice('<div class="ask" id="packImportDialog"', '<div class="ask" id="packDetailDialog"')
@@ -463,6 +472,7 @@ test('导入成功跳到环境页打开新环境，真失败才弹「导入失�
   assert.equal(notices.length, 1)
   assert.equal(notices[0][0], 'Profile 正在用')
   assert.notEqual(notices[0][1], '导入失败', '环境已经导入了，标题不能说导入失败')
+  assert.equal(notices[0][1], '实例已导入，配置没能写进配置', '标题说清：实例导进来了，配置文件没写进那个配置')
   assert.equal(context.environmentState.pendingOpen, 'env-2')
   assert.equal(reloads, 1, '在环境页时直接重读环境列表')
   assert.deepEqual(panes, ['environments'], '已经在环境页就不再切一次')
@@ -565,23 +575,231 @@ test('环境与 Profile 相关的中文文案都有英文', () => {
   assert.deepEqual([...missing], [], '环境页 / Profile 页 / 导入导出相关没翻的中文')
 })
 
-// 「环境」在界面上只指新的环境对象（DSH 版本 + 插件清单）；上游早先拿「环境」说 Profile 的地方都改叫 Profile。
-// 两边合并时最容易被旧文案冲回来，这里逐条钉住
-test('「环境」只指 DSH 版本 + 插件清单：说 Profile 的旧叫法都换掉了，新叫法都有英文', () => {
+/**
+ * 界面上真正会显示的那部分源码：去掉 HTML 注释、JS 注释行和行尾注释（注释里讲历史时还会提旧叫法），
+ * 再去掉英文词典——没人用的旧键按约定原样留着，用到的键在标记和 t() 里还会再出现一次。
+ */
+function uiSource(text) {
+  return text
+    .replace(/const EN = \{[\s\S]*?\n\}/, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .split('\n')
+    .filter((line) => !/^\s*(?:\/\/|\/?\*)/.test(line))
+    .map((line) => line.replace(/\s\/\/\s.*$/, ''))
+    .join('\n')
+}
+const enDict = () => new vm.Script(`(${html.match(/const EN = (\{[\s\S]*?\n\})/)[1]})`).runInNewContext()
+
+// 中文界面的叫法：「实例」= 装好插件的 DSH（代码里仍叫 environment），「配置」= dsh profile；英文界面是 Instance / Profile。
+// 上游早先拿「环境」说 profile，这个分支又一度把新对象叫「环境」、把 profile 写成「Profile」；两边合并时最容易被旧文案冲回来，这里逐条钉住
+test('「实例」只指装好插件的 DSH、「配置」指 dsh profile：旧叫法都换掉了，新叫法都有英文', () => {
   const server = readFileSync(fileURLToPath(new URL('../src/server.js', import.meta.url)), 'utf8')
   for (const old of ['启动环境', '修复环境', '系统环境不能删除', '系统环境不能重命名', '装进环境「{profile}」', '创建独立环境']) {
     assert.ok(!html.includes(old) && !envPage.includes(old) && !server.includes(old), `旧叫法「${old}」不该再出现`)
   }
-  const dict = new vm.Script(`(${html.match(/const EN = (\{[\s\S]*?\n\})/)[1]})`).runInNewContext()
-  for (const text of ['目录与 Profile', '选择目录与 Profile', '修复 Profile', '装进 Profile「{profile}」']) {
-    assert.ok(html.includes(text), `页面里要用「${text}」`)
+  // 新对象一度叫「环境」、profile 一度叫「Profile」时的中文标签：只看界面上显示的文字
+  const shown = [['index.html', uiSource(html)], ['environments-page.js', uiSource(envPage)], ['server.js', uiSource(server)]]
+  for (const old of [
+    '新建环境', '复制环境', '删除环境', '导入环境', '导出环境', '更新环境', '环境名称', '新环境名称', '环境详情', '社区环境',
+    '搜索环境', '环境排序', '用哪个环境', '{n} 个环境', '[环境]', '这个环境已不存在',
+    '目录与 Profile', '选择目录与 Profile', '修复 Profile', '装进 Profile「{profile}」', '新建 Profile', '复制 Profile',
+    '重命名 Profile', '删除 Profile', 'Profile 名称', '选择 Profile', 'Profile 备份与回退', '这个 Profile 里有什么',
+    '返回 Profile 列表', '系统 Profile 不能删除', '系统 Profile 不能重命名', '已经在这个 Profile 里',
+  ]) {
+    for (const [where, text] of shown) assert.ok(!text.includes(old), `${where} 里不该再显示旧叫法「${old}」`)
+  }
+  const dict = enDict()
+  const page = uiSource(html) + uiSource(envPage)
+  for (const text of [
+    '新建实例', '复制实例', '删除实例', '导入实例', '导出实例', '更新实例', '实例名称', '新实例名称', '社区实例', '实例详情',
+    '搜索实例', '实例排序', '{n} 个实例', '用哪个实例', '返回实例列表',
+    '目录与配置', '选择目录与配置', '修复配置', '装进配置「{profile}」', '新建配置', '复制配置', '重命名配置', '删除配置',
+    '配置名称', '选择配置', '配置备份与回退', '这个配置里有什么', '返回配置列表', '系统配置不能删除', '系统配置不能重命名',
+  ]) {
+    assert.ok(page.includes(text), `页面里要用「${text}」`)
     assert.ok(dict[text], `「${text}」要有英文`)
   }
-  assert.ok(Object.keys(dict).some((key) => key.startsWith('新建一个 Profile：它放配置和数据，插件跟着启动项选的环境走。')), '新建 Profile 的说明讲清 Profile 和环境各管什么')
-  assert.ok(Object.keys(dict).some((key) => key.startsWith('系统 Profile 不能删除')) && Object.keys(dict).some((key) => key.startsWith('系统 Profile 不能重命名')), '系统 Profile 的保护提示改叫 Profile')
+  assert.ok(Object.keys(dict).some((key) => key.startsWith('新建一个配置：它放配置和数据，插件跟着启动项选的实例走。')), '新建配置的说明讲清配置和实例各管什么')
 })
 
-test('这次新加的文案有英文，返回按钮的提示可翻译，「修复 Profile」不再重复', () => {
+test('导航与页标题：新对象那页叫「实例」，dsh profile 那页叫「配置」；英文是 Instances / Profile', () => {
+  const dict = enDict()
+  const nav = slice('<aside class="settings-nav', '</aside>')
+  const navLabel = (pane) => new RegExp(`data-pane="${pane}">\\s*<svg[^>]*>[\\s\\S]*?</svg>\\s*<span data-i18n="([^"]+)">([^<]+)</span>`).exec(nav)?.slice(1)
+  assert.deepEqual(navLabel('environments'), ['实例', '实例'], '实例页的导航项')
+  assert.deepEqual(navLabel('plugins'), ['配置', '配置'], '配置页（dsh profile）的导航项')
+  const envPane = slice('<section class="pane" id="pane-environments">', '<section class="pane fill" id="pane-mcp">')
+  assert.match(envPane, /<h1 class="pane-title" data-i18n="实例">实例<\/h1>/, '实例页的标题')
+  const profilePane = slice('<section class="pane" id="pane-plugins">', '<section class="pane" id="pane-environments">')
+  assert.match(profilePane, /<h1 class="pane-title" data-i18n="配置">配置<\/h1>/, '配置页的标题')
+  assert.equal(dict['实例'], 'Instances')
+  assert.equal(dict['配置'], 'Profiles', '英文界面仍叫 Profile')
+})
+
+test('两张卡片网格的入口按钮：中文各说各的对象（查看实例 / 查看配置），英文同一句', () => {
+  const dict = enDict()
+  assert.match(envPage, /label: t\('查看实例 \{name\} 的插件', \{ name: env\.name \}\)/, '实例卡片按实例名')
+  assert.match(html, /aria-label="\$\{escapeHtml\(t\('查看配置 \{name\} 的插件', \{ name: item\.profile \}\)\)\}"/, '配置卡片按 profile 名')
+  assert.equal(dict['查看实例 {name} 的插件'], 'View plugins in {name}')
+  assert.equal(dict['查看配置 {name} 的插件'], 'View plugins in {name}')
+  assert.doesNotMatch(uiSource(html) + uiSource(envPage), /查看环境 \{name\} 的插件/, '旧标签不再用')
+})
+
+test('英文词典：实例那组译成 Instance，配置那组仍叫 Profile，都不再说 environment', () => {
+  const dict = enDict()
+  const exact = {
+    实例: 'Instances', 新建实例: 'New instance', 删除实例: 'Delete instance', 导入实例: 'Import instance',
+    导出实例: 'Export instance', 更新实例: 'Update instance', 社区实例: 'Community instances', '{n} 个实例': '{n} instances',
+  }
+  for (const [zh, en] of Object.entries(exact)) assert.equal(dict[zh], en, `「${zh}」的英文`)
+  for (const zh of [
+    '实例名称', '新实例名称', '实例详情', '搜索实例', '实例排序', '用哪个实例', '返回实例列表', '没有匹配的实例',
+    '正在读社区实例列表…', '导入内置实例 {name}', '随启动器发的实例配方', '还有启动项在用，先给它们换一个实例',
+    '删除实例「{name}」？配置和里面已经装好的插件不受影响。', '实例已导入，配置没能写进配置',
+  ]) {
+    assert.match(dict[zh] || '', /instance/i, `「${zh}」的英文要说 instance`)
+    assert.doesNotMatch(dict[zh], /environment/i, `「${zh}」的英文不再说 environment`)
+  }
+  for (const zh of [
+    '新建配置', '复制配置', '重命名配置', '删除配置', '配置名称', '选择配置', '修复配置', '配置备份与回退', '这个配置里有什么',
+    '返回配置列表', '系统配置不能删除', '系统配置不能重命名', '目录与配置', '选择目录与配置', '选择目录与配置…', '配置来源',
+    '从已有配置复制', '编辑配置…', '装进配置「{profile}」', '现在装在配置：{names}', 'WSL 里的配置', '这个配置还没初始化',
+  ]) {
+    assert.match(dict[zh] || '', /profile/i, `「${zh}」的英文仍叫 profile`)
+    assert.doesNotMatch(dict[zh], /environment|instance/i, `「${zh}」说的是 profile，不是实例`)
+  }
+})
+
+test('改写过的四句说明：讲清「实例 = 装好插件的 DSH」，改动下次启动生效；中英一一对上', () => {
+  const dict = enDict()
+  const envPane = slice('<section class="pane" id="pane-environments">', '<section class="pane fill" id="pane-mcp">')
+  const intro = '实例 = 装好插件的 DSH。启动项选一个实例和一个配置；在这里改的插件，下次启动时生效。'
+  assert.ok(envPane.includes(`<p class="pane-sub" data-i18n="${intro}">${intro}</p>`), '实例页标题下的说明')
+  const expected = {
+    [intro]: 'An instance is DSH with its plugins installed. A launch entry picks one instance and one profile; plugin changes made here apply at the next launch.',
+    '改动在下次用这个实例启动时生效。': 'Changes apply the next time something launches with this instance.',
+    '实例「{name}」已更新到 {version}，下次用它启动时生效。': 'Instance “{name}” updated to {version}. It applies at the next launch.',
+    '现在装在配置：{names}': 'Currently installed in profiles: {names}',
+  }
+  for (const [zh, en] of Object.entries(expected)) assert.equal(dict[zh], en, `「${zh}」的英文`)
+  assert.match(envPage, /t\('改动在下次用这个实例启动时生效。'\)/)
+  assert.match(envPage, /notify\(t\('实例「\{name\}」已更新到 \{version\}，下次用它启动时生效。'/, '跟随上游更新完的提示')
+  assert.match(envPage, /t\('现在装在配置：\{names\}', \{ names: written \}\)/)
+  // 旧说法（「DSH 版本 + 插件清单」「写进 Profile」）不再显示
+  for (const old of ['DSH 版本 + 插件清单。启动项选一个', '启动时写进 Profile', '现在写在 Profile']) {
+    assert.ok(!uiSource(html).includes(old) && !uiSource(envPage).includes(old), `旧说法「${old}」不再出现`)
+  }
+})
+
+// 导入用的 .dspack 现在叫「实例文件」：选文件、下载、解包这几步的文案都跟着改；旧版装进 Profile 的安装记录仍叫整合包
+test('导入实例文件：选文件对话框的标题和筛选名、下载与解包进度都说「实例文件」', async () => {
+  const dict = enDict()
+  const requests = []
+  const hint = { textContent: '' }
+  const context = vm.createContext({
+    packPickEl: { disabled: false }, packSourceEl: { value: '' }, packHintEl: hint,
+    pickPath: async (request) => { requests.push(request); return { canceled: true, path: '' } },
+    inspectPack() {}, post: async () => ({}),
+    t: (text, vars = {}) => text.replace(/\{(\w+)\}/g, (_, key) => String(vars[key] ?? '')),
+  })
+  new vm.Script(slice('    function pickFilePath(', '    /** WSL 路径')
+    + slice('    packPickEl.onclick = async () => {', '    packImportCloseEl.onclick')
+    + slice('    function describePackProgress(state) {', '    packCheckEl.onclick')).runInContext(context)
+  await context.packPickEl.onclick()
+  assert.equal(requests.length, 1)
+  assert.equal(requests[0].kind, 'open')
+  assert.equal(requests[0].title, '选择实例文件', '对话框标题')
+  // 数组是沙箱里造的（另一套 Array 原型），先搬回本 realm 再比
+  assert.deepEqual(Array.from(requests[0].filters, (filter) => filter.name), ['实例文件', '所有文件'], '筛选器名字')
+  assert.deepEqual([...requests[0].filters[0].extensions], ['dspack', 'zip'])
+  assert.equal(context.packPickEl.disabled, false, '选完把按钮放开')
+  // 英文界面：同一套调用拿到英文
+  context.t = (text) => dict[text] || text
+  await context.packPickEl.onclick()
+  assert.equal(requests[1].title, 'Choose an instance file')
+  assert.equal(requests[1].filters[0].name, 'Instance files')
+
+  context.t = (text, vars = {}) => text.replace(/\{(\w+)\}/g, (_, key) => String(vars[key] ?? ''))
+  assert.equal(context.describePackProgress({ phase: 'fetch', done: 1, total: 4 }), '正在下载实例文件 25%')
+  assert.equal(context.describePackProgress({ phase: 'fetch', done: 0, total: 0 }), '正在下载实例文件…')
+  assert.equal(context.describePackProgress({ phase: 'unpack' }), '正在解开实例文件…')
+  for (const [zh, en] of Object.entries({
+    '正在下载实例文件 {pct}%': 'Downloading the instance file: {pct}%',
+    '正在下载实例文件…': 'Downloading the instance file…',
+    '正在解开实例文件…': 'Unpacking the instance file…',
+  })) assert.equal(dict[zh], en, `「${zh}」的英文`)
+})
+
+test('说新对象的地方不再叫整合包；旧版留下的整包安装记录照旧叫整合包', () => {
+  const server = readFileSync(fileURLToPath(new URL('../src/server.js', import.meta.url)), 'utf8')
+  const dict = enDict()
+  // 旧键连同英文词条一起撤掉（页面和词典里都不该再有）
+  for (const old of ['选择整合包文件', '正在下载整合包 {pct}%', '正在下载整合包…', '正在解开整合包…', '用于版本、插件、整合包和启动器更新。']) {
+    assert.ok(!html.includes(old) && !envPage.includes(old), `旧文案「${old}」不该再出现`)
+    assert.equal(dict[old], undefined, `英文词典里不该再有「${old}」`)
+  }
+  assert.equal(dict['整合包'], undefined, '「整合包」不再当筛选器名字')
+  assert.doesNotMatch(uiSource(html), /t\('整合包'\)/)
+  // 服务端的原生对话框（Windows）和市场报错
+  assert.match(server, /'实例文件 \(\*\.dspack\)\|\*\.dspack\|/, '原生对话框的筛选器叫实例文件')
+  assert.match(server, /title: save \? '导出实例' : '选择实例文件'/, '原生对话框的标题')
+  assert.match(server, /throw new Error\(`读实例市场失败：/)
+  for (const old of ['整合包 (*.dspack)', '选择整合包文件', '读整合包市场失败']) assert.ok(!uiSource(server).includes(old), `服务端不该再说「${old}」`)
+  // 旧版启动器留下的「整包装进 Profile」记录：这些还叫整合包
+  for (const kept of ['整合包：{name}{version}', '请先卸载此后安装的整合包', '撤销整包安装']) {
+    assert.ok(uiSource(html).includes(kept), `旧安装记录的文案「${kept}」照旧`)
+    assert.ok(dict[kept], `「${kept}」有英文`)
+  }
+  assert.match(server, /pushLog\(`\[整合包\] \$\{line\}`\)/, '卸旧安装记录的日志前缀照旧是 [整合包]')
+})
+
+test('实例详情底下的用法行：列出在用的启动项、现在装在哪几个配置，末尾说改动下次启动生效', () => {
+  const plugins = { innerHTML: '', querySelectorAll: () => [] }
+  const el = Object.fromEntries(['overview', 'view', 'checkUpdates', 'detailName', 'detailSub', 'usage', 'upgrade', 'exportButton',
+    'duplicate', 'name', 'spec', 'channel', 'remove'].map((key) => [key, {}]))
+  Object.assign(el, { plugins, version: { value: '1.0.0' }, editForm: { dataset: { environment: 'env-a' } } })
+  const env = { id: 'env-a', name: '甲', dshVersion: '1.0.0', plugins: [], usedBy: [{ name: '工作' }], applied: [{ profile: 'web' }, { profile: 'work' }], following: false }
+  const context = vm.createContext({
+    el, busy: false, checking: false, AUTO_VERSION: 'auto', opened: () => env,
+    paintUpstream() {}, paintHistory() {}, syncUiSelect() {}, byId: () => ({}), pluginRow: () => '',
+    versionText: (item) => item.dshVersion, thirdParty: (item) => item.plugins,
+    t: (text, vars = {}) => text.replace(/\{(\w+)\}/g, (_, key) => String(vars[key] ?? '')), escapeHtml: (text) => String(text ?? ''),
+  })
+  new vm.Script(envSlice('  function renderView() {', '  function paint() {')).runInContext(context)
+  context.renderView()
+  assert.equal(el.usage.textContent, '在用的启动项：工作 现在装在配置：web、work 改动在下次用这个实例启动时生效。')
+  assert.equal(plugins.innerHTML, '<p class="hint">这个实例还没有插件。</p>')
+  assert.equal(el.remove.title, '还有启动项在用，先给它们换一个实例', '有启动项在用时删除按钮说清为什么灰着')
+
+  env.usedBy = []
+  env.applied = []
+  context.renderView()
+  assert.equal(el.usage.textContent, '还没有启动项用这个实例。 改动在下次用这个实例启动时生效。', '没装进任何配置时不写那一句')
+  assert.equal(el.remove.title, '')
+})
+
+test('配置页的卡片：按钮说「查看配置 {name} 的插件」，更多操作都叫「…配置」，系统配置的提示也叫配置', () => {
+  const grid = fakeContainer()
+  const context = vm.createContext({
+    paintPluginHomes() {}, packSourceTags: () => [], packTileHtml: () => '', packMetaLine: () => '',
+    packState: { packs: [{ profile: 'work', removable: true }, { profile: 'web', removable: false }] },
+    openedPack: null, packBusy: false, pluginUpdating: '', pluginRemoving: '', pluginAdding: false,
+    packMoreIcons: { backup: '', copy: '', rename: '', trash: '' }, packGridEl: grid,
+    document: { getElementById: () => ({}) },
+    t: (text, vars = {}) => text.replace(/\{(\w+)\}/g, (_, key) => String(vars[key] ?? '')), escapeHtml: (text) => String(text ?? ''),
+  })
+  new vm.Script(slice('    function renderPackGrid() {', '    function openPack(profile) {')).runInContext(context)
+  context.renderPackGrid()
+  assert.match(grid.innerHTML, /data-profile="work" aria-label="查看配置 work 的插件"/)
+  assert.match(grid.innerHTML, /data-profile="web" aria-label="查看配置 web 的插件"/)
+  assert.doesNotMatch(grid.innerHTML, /查看实例|查看环境/, '配置卡片不说实例')
+  for (const label of ['复制配置', '重命名配置', '删除配置']) assert.ok(grid.innerHTML.includes(`>${label}</button>`), `更多操作里有「${label}」`)
+  assert.match(grid.innerHTML, /data-profile-rename="web" disabled title="系统配置不能重命名"/)
+  assert.match(grid.innerHTML, /data-profile-delete="web" disabled title="系统配置不能删除"/)
+  assert.doesNotMatch(grid.innerHTML, /Profile|环境/, '卡片上的中文不再写 Profile / 环境')
+})
+
+test('这次新加的文案有英文，返回按钮的提示可翻译，「修复配置」不再重复', () => {
   const source = html.match(/const EN = (\{[\s\S]*?\n\})/)[1]
   const dict = new vm.Script(`(${source})`).runInNewContext()
   // 「复制来源目录 / 复制来源 Profile」那两个下拉已经换成两栏选择窗（见 launch-isolation-page），文案跟着撤了
@@ -592,11 +810,17 @@ test('这次新加的文案有英文，返回按钮的提示可翻译，「修�
   const back = html.match(/<button[^>]*id="packBack"[^>]*>/)?.[0] || ''
   const title = /data-i18n-title="([^"]+)"/.exec(back)?.[1]
   const label = /data-i18n-aria-label="([^"]+)"/.exec(back)?.[1]
-  assert.ok(title && label, '返回 Profile 列表的按钮：提示和无障碍名称都要能切英文')
+  assert.ok(title && label, '返回配置列表的按钮：提示和无障碍名称都要能切英文')
+  assert.equal(title, '返回配置列表')
+  assert.equal(label, '返回配置列表')
   assert.ok(dict[title] && dict[label], '两条都在英文词典里')
   // 对象字面量里重复的键后一个静默覆盖前一个，改了前面那条也不会生效
   const keys = [...source.matchAll(/^\s*"((?:[^"\\]|\\.)*)"\s*:/gm)].map((match) => match[1])
-  assert.equal(keys.filter((key) => key === '修复 Profile').length, 1, '「修复 Profile」只留一条')
+  assert.equal(keys.filter((key) => key === '修复配置').length, 1, '「修复配置」只留一条')
+  assert.equal(keys.filter((key) => key === '修复 Profile').length, 0, '旧键「修复 Profile」不再留着')
+  // 「删除 Profile」和「删除 profile」两条旧键改名后撞成同一个「删除配置」，只留一条
+  assert.equal(keys.filter((key) => key === '删除配置').length, 1, '「删除配置」只留一条')
+  assert.equal(dict['删除配置'], 'Delete profile')
 })
 
 test('Profile 详情：导入过的配置单列一行，只有最近一条真实记录、没在忙时才能撤销；点了按那条记录撤', () => {
@@ -653,7 +877,7 @@ test('Profile 详情：导入过的配置单列一行，只有最近一条真实
   assert.doesNotMatch(list.innerHTML, /导入过的配置|data-config-undo/, '没有配置记录就不画这一块')
 })
 
-test('撤销：先确认（点名包和 Profile，文案按记录种类分），取消不发请求；只导配置的记录带 configOnly: true，旧整包记录带 false', async () => {
+test('撤销：先确认（点名包和配置，文案按记录种类分），取消不发请求；只导配置的记录带 configOnly: true，旧整包记录带 false', async () => {
   const posts = []
   const asked = []
   const notices = []
@@ -675,11 +899,11 @@ test('撤销：先确认（点名包和 Profile，文案按记录种类分），
   await context.removePack(legacy)
   assert.deepEqual(posts, [], '取消就不撤（两种记录都一样）')
   assert.equal(asked.length, 2, '两种记录都要先确认')
-  // 只导配置：说的是「写进 Profile 的配置」
-  assert.ok(asked[0][0].startsWith('撤销 配置包 写进 Profile「work」的配置？'), asked[0][0])
+  // 只导配置：说的是「写进配置（dsh profile）的配置文件」
+  assert.ok(asked[0][0].startsWith('撤销 配置包 写进配置「work」的配置？'), asked[0][0])
   assert.equal(asked[0][1], '撤销配置导入')
   // 旧整包安装：说的是「整包安装」，package.json 也会还原
-  assert.ok(asked[1][0].startsWith('撤销 老整合包 在 Profile「work」的整包安装？package.json 和配置文件将还原到安装前'), asked[1][0])
+  assert.ok(asked[1][0].startsWith('撤销 老整合包 在配置「work」的整包安装？package.json 和配置文件将还原到安装前'), asked[1][0])
   assert.equal(asked[1][1], '撤销整包安装')
 
   approved = true
@@ -690,8 +914,8 @@ test('撤销：先确认（点名包和 Profile，文案按记录种类分），
     { path: '/api/packs/uninstall', body: { name: 'old', profile: 'work', configOnly: false, removeProfile: false } },
   ], '服务端按名字 + Profile + configOnly 认记录')
   assert.deepEqual(notices.map(([message]) => message), [
-    '已撤销 配置包 的配置导入，重启这个 Profile 的实例后生效。',
-    '已撤销 老整合包 的整包安装，重启这个 Profile 的实例后生效。',
+    '已撤销 配置包 的配置导入，重启这个配置的实例后生效。',
+    '已撤销 老整合包 的整包安装，重启这个配置的实例后生效。',
   ], '撤完的提示也按记录种类说')
   assert.equal(context.packBusy, false)
 })

@@ -108,6 +108,17 @@ test('内置环境：配方导入成一个环境，四件依赖钉成 npm 上的
   assert.ok(before.version, '有版本号')
   assert.equal(typeof before.description, 'string')
   assert.equal(before.imported, false, '还没导入过')
+  // 中文界面把它叫「实例」（装好插件的 DSH）：配方的名字和说明跟着改，name / packId 不变
+  assert.equal(before.displayName, 'DSH-X 推荐实例')
+  assert.ok(before.description.startsWith('DSH-X 的一整套开箱插件。'), before.description)
+  const recipes = (await manager.get('/api/environments')).data.builtin || []
+  const workbench = recipes.find((item) => item.name === 'dsh-x-workbench')
+  assert.ok(workbench, '桌面工作台配方也在列')
+  // 导入只建实例；两份技能要勾上「把包里的配置导进配置」才写进 ~/.dsh/skills，不再说会另建一个 profile
+  assert.match(workbench.description, /导入时勾上「把包里的配置导进配置」才写进 ~\/\.dsh\/skills/)
+  for (const recipe of recipes) {
+    assert.doesNotMatch(`${recipe.displayName} ${recipe.description}`, /整合包|环境|独立 ?profile/i, `${recipe.name} 的名字和说明不再说整合包 / 环境 / 独立 profile`)
+  }
   const envCount = (await manager.get('/api/environments')).data.environments.length
   const profileBytes = readFileSync(join(manager.profileDir, 'package.json'))
 
@@ -140,6 +151,7 @@ test('内置环境：配方导入成一个环境，四件依赖钉成 npm 上的
   assert.ok(existsSync(join(manager.appDir, 'envs', id, 'environment.json')), '环境清单落在启动器的设置目录里')
   const view = (await manager.get('/api/environments')).data.environments.find((item) => item.id === id)
   assert.ok(view, '导入的环境出现在列表里')
+  assert.equal(view.name, 'DSH-X 推荐实例', '导入的实例沿用配方的名字')
   assert.deepEqual(view.plugins.filter((plugin) => !plugin.official).map((plugin) => plugin.name).sort(), [...PACKAGES].sort())
   for (const name of PACKAGES) assert.ok(view.bundles.includes(name), `${name} 要挂载`)
   // 存下来的是检查时钉好的那一份精确版本

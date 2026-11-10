@@ -233,7 +233,7 @@ export function declaredOfflineFiles(manifestText) {
  */
 export function releaseWorkflow(packName) {
   const file = `${slugName(packName, ENVIRONMENT_PACK.FALLBACK_NAME)}.dspack`
-  return `# DSH-X 导出的环境仓库：推一个 v* 标签就发布一个 release，附件是 ${file}。
+  return `# DSH-X 导出的实例仓库：推一个 v* 标签就发布一个 release，附件是 ${file}。
 # 别人在 DSH-X 里填这个仓库（owner/repo）就能导入，并跟着之后的 release 更新。
 name: release-environment
 on:
@@ -326,7 +326,7 @@ function declaredPluginList(pack, warnings) {
   const raw = pack.installSpecs || pack.fields.dependencies || {}
   let list = normalizePluginList({ dependencies: raw, bundles: pack.fields.bundles }, { strict: false })
   const dropped = Object.keys(raw).filter((name) => !Object.hasOwn(list.dependencies, name))
-  for (const name of dropped) warnings.push(`依赖 ${name}（${raw[name]}）的写法认不出来，没有进环境`)
+  for (const name of dropped) warnings.push(`依赖 ${name}（${raw[name]}）的写法认不出来，没有进实例`)
   if (dropped.length) list = { ...list, bundles: list.bundles.filter((name) => !dropped.includes(name)) }
   if (!list.bundles.length && pack.snapshots?.package) {
     // 很老的包没写层栈，只带了 package.json 快照：按快照里的清单来
@@ -349,7 +349,7 @@ function withoutForeignPaths(list, warnings) {
   const dependencies = { ...list.dependencies }
   for (const [name, spec] of foreign) {
     delete dependencies[name]
-    warnings.push(`${name} 指向作者机器上的本地路径（${spec}），这里装不上，没有进环境`)
+    warnings.push(`${name} 指向作者机器上的本地路径（${spec}），这里装不上，没有进实例`)
   }
   return { dependencies, bundles: list.bundles.filter((name) => Object.hasOwn(dependencies, name) || !Object.hasOwn(list.dependencies, name)) }
 }
@@ -363,7 +363,7 @@ export function environmentFromPack(pack) {
   const fields = pack.fields
   const errors = [...pack.errors]
   const warnings = [...pack.warnings]
-  if (fields.type === PACK_TYPES.WHOLE_HOME) errors.push('这是整机快照形态（dshhome）的包：里面有好几份 Profile，环境只有一份插件清单，不能导入成环境')
+  if (fields.type === PACK_TYPES.WHOLE_HOME) errors.push('这是整机快照形态（dshhome）的包：里面有好几份配置，实例只有一份插件清单，不能导入成实例')
   bundledSpecErrors(fields.dependencies, errors)
   const list = withoutForeignPaths(declaredPluginList(pack, warnings), warnings)
   const { offline, errors: offlineErrors } = offlineFilesOf(pack.manifest, pack.files)

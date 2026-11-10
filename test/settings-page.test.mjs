@@ -162,11 +162,21 @@ test('内联脚本仍能解析', () => {
   for (const script of inlineScripts()) new vm.Script(script)
 })
 
-test('设置页用一个下载源选择统管插件、整合包和启动器更新', () => {
+test('设置页用一个下载源选择统管插件、实例文件和启动器更新', () => {
   assert.match(html, /<select id="downloadSource"><\/select>/, '统一下载源下拉选项由服务端给')
   assert.doesNotMatch(html, /<select id="updateSource"/, '不再单独暴露启动器更新源')
   assert.match(html, /queueSetting\('downloadSource'/, '统一下载源改动即保存')
-  assert.match(html, /用于版本、插件、整合包和启动器更新/, '提示明确说明统管范围')
+  // 提示行由 describeSource 按选中的源拼出来：前半句说统管范围（导入用的 .dspack 现在叫「实例文件」），后半句说这个源的代价
+  const start = html.indexOf('    const describeSource = ')
+  assert.ok(start >= 0, '提示行由 describeSource 拼')
+  const source = html.slice(start, html.indexOf('\n    const argsEl', start))
+  const context = vm.createContext({ t: (text) => text })
+  vm.runInContext(source.replace('const describeSource', 'globalThis.describeSource'), context)
+  assert.equal(context.describeSource('official'), '用于版本、插件、实例文件和启动器更新。官方源更新及时，国内直连可能较慢。', '提示明确说明统管范围')
+  assert.equal(context.describeSource('mirror'), '用于版本、插件、实例文件和启动器更新。镜像较快，新版本可能稍有延迟。')
+  const dict = new vm.Script(`(${html.match(/const EN = (\{[\s\S]*?\n\})/)[1]})`).runInNewContext()
+  assert.equal(dict['用于版本、插件、实例文件和启动器更新。'], 'Used for versions, plugins, instance files and launcher updates. ')
+  assert.doesNotMatch(html, /用于版本、插件、整合包和启动器更新/, '旧说法连同英文词条一起撤掉')
 })
 
 test('设置页有「打开 dsh 的方式」：两项可选、改动即保存', () => {

@@ -78,14 +78,14 @@ const nowIso = (now) => (now instanceof Date ? now : new Date()).toISOString()
 /** 环境 id 只收小写字母、数字、连字符：它会变成数据目录下的文件夹名，也会出现在启动项里。 */
 export function safeEnvironmentId(value) {
   const id = String(value ?? '').trim()
-  if (!ENVIRONMENT.ID_RE.test(id)) throw new Error('环境 id 不合法')
+  if (!ENVIRONMENT.ID_RE.test(id)) throw new Error('实例 id 不合法')
   return id
 }
 
 export function safeEnvironmentName(value) {
   const name = String(value ?? '').trim()
   if (!name || name.length > ENVIRONMENT.NAME_MAX || /[\x00-\x1f\x7f]/.test(name)) {
-    throw new Error(`环境名称请填 1-${ENVIRONMENT.NAME_MAX} 个字符`)
+    throw new Error(`实例名称请填 1-${ENVIRONMENT.NAME_MAX} 个字符`)
   }
   return name
 }
@@ -326,8 +326,8 @@ function normalizeAdoptedFrom(value) {
  * @throws 字段不合法时
  */
 export function normalizeEnvironment(raw, { defaultChannel = VERSION_CHANNELS[0] } = {}) {
-  if (!isObject(raw)) throw new Error('环境清单不是对象')
-  if (Number(raw.schema) > ENVIRONMENT.SCHEMA) throw new Error('这个环境是更新版本的启动器写的，这一版读不了')
+  if (!isObject(raw)) throw new Error('实例清单不是对象')
+  if (Number(raw.schema) > ENVIRONMENT.SCHEMA) throw new Error('这个实例是更新版本的启动器写的，这一版读不了')
   const extra = Object.fromEntries(Object.entries(raw).filter(([key]) => !ENVIRONMENT.FIELDS.includes(key)))
   const base = isObject(raw.base) ? raw.base : {}
   const description = typeof raw.description === 'string' ? raw.description.slice(0, ENVIRONMENT.DESCRIPTION_MAX) : ''
@@ -445,8 +445,8 @@ export function setEnvironmentPlugin(env, name, spec, { bundle = true, now } = {
 
 export function removeEnvironmentPlugin(env, name, { now } = {}) {
   const before = effectivePlugins(env)
-  if (!Object.hasOwn(before.dependencies, name) && !before.bundles.includes(name)) throw new Error(`环境里没有 ${name}`)
-  if (isOfficialPackage(name)) throw new Error(`${name} 是官方组件，跟着 DSH 版本走，不能从环境里移除`)
+  if (!Object.hasOwn(before.dependencies, name) && !before.bundles.includes(name)) throw new Error(`实例里没有 ${name}`)
+  if (isOfficialPackage(name)) throw new Error(`${name} 是官方组件，跟着 DSH 版本走，不能从实例里移除`)
   const dependencies = { ...before.dependencies }
   delete dependencies[name]
   return foldPluginChanges(env, before, { dependencies, bundles: before.bundles.filter((item) => item !== name) }, { now }).env
@@ -556,7 +556,7 @@ function uniqueName(candidates, taken) {
   for (let index = 2; index < ENVIRONMENT.NAME_ATTEMPTS; index += 1) {
     if (!taken.has(`${base} ${index}`)) return `${base} ${index}`
   }
-  throw new Error('环境名称冲突太多，无法自动取名')
+  throw new Error('实例名称冲突太多，无法自动取名')
 }
 
 /**
@@ -657,7 +657,7 @@ function adoptionId(ctx, home, profile, key) {
     const env = ctx.envs.get(id)
     if (!env || adoptedHere(env, home, profile, key)) return id
   }
-  throw new Error('收养用的环境 id 冲突太多，数据可能有问题')
+  throw new Error('收养用的实例 id 冲突太多，数据可能有问题')
 }
 
 /** 按「目录 + profile + 版本」生成（或拿回）一个环境；list 缺省时从 template 环境复制清单。 */
@@ -683,7 +683,7 @@ function adopt(ctx, { home, profile, version, channel, list }) {
   ctx.created.push(id)
   // 之前删掉过的收养环境又被需要了（有启动项要用它）：不再算「用户不要」
   ctx.next.dismissed = ctx.next.dismissed.filter((item) => item !== id)
-  ctx.log.push(`从 ${home} 的 profile「${profile}」生成环境「${env.name}」`)
+  ctx.log.push(`从 ${home} 的配置「${profile}」生成实例「${env.name}」`)
   return env
 }
 
@@ -727,11 +727,11 @@ function linkPresets(ctx, presets) {
       if (keysWanted(candidate.get(preset.id)).size === 1) {
         env = setEnvironmentVersion(env, preset.version, channel, { now: ctx.now })
         ctx.update(env)
-        ctx.log.push(`启动项「${preset.name}」的版本在旧版里改成了 ${preset.version}，环境「${env.name}」跟着改`)
+        ctx.log.push(`启动项「${preset.name}」的版本在旧版里改成了 ${preset.version}，实例「${env.name}」跟着改`)
       } else {
         const shared = env
         env = adopt(ctx, { home: home(preset), profile: preset.profile, version: preset.version, channel, list: effectiveList(shared) })
-        ctx.log.push(`启动项「${preset.name}」在旧版里改成了 ${preset.version}，环境「${shared.name}」还有别的启动项在用原版本，分出「${env.name}」`)
+        ctx.log.push(`启动项「${preset.name}」在旧版里改成了 ${preset.version}，实例「${shared.name}」还有别的启动项在用原版本，分出「${env.name}」`)
       }
     }
     if (!env) {
@@ -810,7 +810,7 @@ function recordPackSources(ctx, packs) {
     }
     const normalized = normalizeEnvironment(updated)
     ctx.update(normalized)
-    ctx.log.push(`环境「${env.name}」记下整合包来源：${normalized.source.label || normalized.source.kind}${normalized.source.following ? '' : '（认不出仓库或叠装过多个包，不跟随上游）'}`)
+    ctx.log.push(`实例「${env.name}」记下整合包来源：${normalized.source.label || normalized.source.kind}${normalized.source.following ? '' : '（认不出仓库或叠装过多个包，不跟随上游）'}`)
   }
 }
 
@@ -876,7 +876,7 @@ export class EnvironmentStore {
       const { env, error } = this.read(file)
       if (error && !reportedFiles.has(file)) {
         reportedFiles.add(file)
-        this.log(`环境清单 ${entry.name} 读不了：${error}`)
+        this.log(`实例清单 ${entry.name} 读不了：${error}`)
       }
       return env && env.id === entry.name ? [env] : []
     }).sort((a, b) => (a.createdAt === b.createdAt ? (a.id < b.id ? -1 : 1) : a.createdAt < b.createdAt ? -1 : 1))
@@ -909,7 +909,7 @@ export class EnvironmentStore {
     const clean = normalizeEnvironment(env, { defaultChannel: this.defaultChannel })
     const file = join(this.dir(clean.id), ENVIRONMENT.FILE)
     const existing = this.read(file)
-    if (existing.newer) throw new Error(`环境 ${clean.id} 是更新版本的启动器写的，这一版不改它`)
+    if (existing.newer) throw new Error(`实例 ${clean.id} 是更新版本的启动器写的，这一版不改它`)
     if (existing.error) keepUnreadable(file)
     writeJsonAtomic(file, clean)
     return clean

@@ -4,7 +4,7 @@
 
 <p align="center">
   A third-party desktop launcher for <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a> —<br />
-  launch entries and multiple instances, version, plugin, environment, MCP and skill management.
+  launch entries and multiple instances, version, plugin, instance, MCP and skill management.
 </p>
 
 <p align="center">
@@ -39,8 +39,8 @@
 
 - 🚀 **Launch entries and multiple instances** — choose a home directory, profile, version and port per entry; start entries concurrently and add entries while DSH is running.
 - 📦 **Version management** — a dedicated manager for detecting new releases, manually installing, removing, checking disk usage and assigning versions to launch entries.
-- 🧩 **Plugins and environments** — environments lock a DSH version and plugin versions, and can be imported, exported and updated from an upstream; plugins are toggled per profile, with configurable default indexes for the official custom plugin market.
-- 🖥️ **Desktop enhancements** — tick it when adding a launch item to install three first-party plugins (native notifications, context menu, sidebar browser) into the environment that launch item uses; add missing ones later by editing the launch item, then toggle or update them individually on the Plugins page.
+- 🧩 **Plugins and instances** — instances lock a DSH version and plugin versions, and can be imported, exported and updated from an upstream; plugins are toggled per profile, with configurable default indexes for the official custom plugin market.
+- 🖥️ **Desktop enhancements** — tick it when adding a launch item to install three first-party plugins (native notifications, context menu, sidebar browser) into the instance that launch item uses; add missing ones later by editing the launch item, then toggle or update them individually on the Plugins page.
 - 🛠️ **MCP and skills** — configure MCP servers and import, manage and toggle skills.
 - 🪟 **Opening modes** — tabs inside DSH-X, a system browser tab, a standalone browser window or a desktop window.
 - 🎨 **Appearance** — light / dark themes, transparency, opening and launch-entry animations, and separate background and Big Fish switches.
@@ -100,7 +100,7 @@ sha256sum DSH-X-<version>-x86_64.AppImage                # Linux
 
 ## Usage
 
-- Add or edit a launch entry on the home page, select its environment and profile, then start it. Open **Version management** from the launch-entry editor to manually install or remove versions.
+- Add or edit a launch entry on the home page, select its instance and profile, then start it. Open **Version management** from the launch-entry editor to manually install or remove versions.
 - Settings → General → **How dsh opens** offers internal tabs, a browser or a separate window. Internal tabs require the installed desktop app.
 - The manager defaults to port `3780` and tries the next port if occupied.
 - To reach dsh from another device: Settings → Advanced → **Web binding** → LAN, applied on the next start.
@@ -156,10 +156,10 @@ The launch log dialog has three tabs, shown only when data was collected: **Raw 
   <img src="docs/screenshots/screenshot-plugins-dark-en.jpg" alt="DSH-X v0.1.16 dark plugin management" width="820" />
 </p>
 
-**Environment market**
+**Instance market**
 
 <p align="center">
-  <img src="docs/screenshots/screenshot-market-dark-en.jpg" alt="DSH-X v0.1.16 dark environment market" width="820" />
+  <img src="docs/screenshots/screenshot-market-dark-en.jpg" alt="DSH-X v0.1.16 dark instance market" width="820" />
 </p>
 
 **General settings**
@@ -191,10 +191,10 @@ The launch log dialog has three tabs, shown only when data was collected: **Raw 
   <img src="docs/screenshots/screenshot-plugins-en.jpg" alt="DSH-X plugins by profile" width="820" />
 </p>
 
-**Environment market**
+**Instance market**
 
 <p align="center">
-  <img src="docs/screenshots/screenshot-market-en.jpg" alt="DSH-X environment market" width="820" />
+  <img src="docs/screenshots/screenshot-market-en.jpg" alt="DSH-X instance market" width="820" />
 </p>
 
 **General settings**
@@ -211,17 +211,17 @@ The launch log dialog has three tabs, shown only when data was collected: **Raw 
   <img src="docs/screenshots/screenshot-tabs.png" alt="DSH-X v0.1.16 with multiple tabs" width="820" />
 </p>
 
-## Environments
+## Instances
 
-An environment is one DSH version plus a versioned plugin list; a profile keeps only configuration and data. A launch entry picks one environment and one profile. Before launch the environment's plugins are written into the profile, and dependencies are installed only when the list changed. The format is the [DSH-PackForge](https://github.com/DSH-PackForge/DSH-PackForge) `.dspack` (manifest v5).
+An instance is DSH with its plugins installed: one DSH version plus version-pinned plugins. A profile keeps only settings and data. A launch entry picks one instance and one profile. Before launch the instance's plugins are installed into the profile, and dependencies are installed only when the plugin list changed. The format is the [DSH-PackForge](https://github.com/DSH-PackForge/DSH-PackForge) `.dspack` (manifest v5).
 
 - **Import** — the community market, a local file or folder, a direct link or GitHub `owner/repo`; a missing DSH version is installed automatically. Configuration inside a pack is skipped by default and can be imported into a chosen profile.
 - **Export** — the exact DSH version plus pinned plugins (npm versions, github commits, local plugins as bundled files), without configuration or credentials; as one file or as a folder you can commit as is.
-- **Follow an upstream** — environments from a GitHub repository announce new releases; updating keeps your local changes, and the previous version can be restored.
+- **Follow an upstream** — instances from a GitHub repository announce new releases; updating keeps your local changes, and the previous version can be restored.
 
-There are two recipes, listed as built-in environments on the Environments page:
+There are two recipes, listed as built-in instances on the Instances page:
 
-- [Recommended pack](src/packs/dsh-x-recommended/manifest.json) — configuration, memory, sync and Big Fish decoration plugins, all installed from npm (sync via the optional `dsh-x-sync` plugin).
+- [Recommended instance](src/packs/dsh-x-recommended/manifest.json) — configuration, memory, sync and Big Fish decoration plugins, all installed from npm (sync via the optional `dsh-x-sync` plugin).
 - [Desktop workbench](src/packs/dsh-x-workbench/README.md) — brings dsh-tauri desktop's sidebar workbench, worktrees, scheduler, archive and notifications to plain dsh; ZCode's `agent-browser` and `electron` skills can be written into a profile at import.
 
 Run `node scripts/make-pack.mjs` to build a `.dspack`, then import it as a local file.

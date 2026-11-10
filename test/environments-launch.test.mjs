@@ -114,6 +114,15 @@ test('启动前写清单：列表没变的第二次启动不再装依赖', async
   await stopEntry(entry)
 })
 
+// 中文日志里新对象叫「实例」、dsh profile 叫「配置」，前缀是 [实例]（不再是 [环境]）
+test('启动日志：套用实例时写 [实例] 前缀，点名实例和配置', async () => {
+  const logs = await (await fetch(env.origin + '/api/logs/export')).text()
+  assert.match(logs, /\[实例\] 把实例「写清单」的插件清单写进配置「wbl」，安装依赖…/, '写清单那一步')
+  assert.match(logs, /\[实例\] 配置「wbl」已换成实例「写清单」的插件清单/, '写完那一步')
+  assert.doesNotMatch(logs, /\[环境\]/, '旧前缀不再出现')
+  assert.doesNotMatch(logs, /写进 Profile|profile「wbl」/, 'dsh profile 在中文日志里叫配置')
+})
+
 test('启动前写清单：Profile 本来就和环境一致时，第一次启动也不装、不改写文件', async () => {
   const profile = 'already'
   seedProfile(env.home, profile, profileManifest(profile, { dependencies: { 'dsh-x-memory': '1.0.0' }, bundles: [BASE, WEB, 'dsh-x-memory'] }))
@@ -181,6 +190,7 @@ test('并发：同 Profile 在跑时，插件列表不同的环境被拒；列�
     const rejected = await startEntry(b)
     assert.equal(rejected.ok, false, `插件列表不同的环境不能和在跑的实例共用 Profile：HTTP ${rejected.status} ${JSON.stringify(rejected.data)}`)
     assert.equal(typeof rejected.data?.error, 'string', '要说明原因')
+    assert.match(rejected.data.error, /^配置「shared」正在被插件清单不同的实例使用（1\.0\.0）/, '报错把 dsh profile 叫配置')
     assert.ok(readFileSync(profileManifestPath(env.home, profile)).equals(bytes), '被拒时不能动正在用的 Profile 清单')
     assert.deepEqual((await live(env.home, profile)).map((item) => item.version), ['1.0.0'], '被拒的那个没有起来')
 
@@ -220,6 +230,8 @@ test('停止后：运行期间在 dsh 里装 / 卸的插件并进当时应用的
   assert.deepEqual(depsOf(view), expected)
   assert.ok(view.bundles.includes('dsh-x-added'), '新装的插件也进 bundles')
   assert.ok(!view.bundles.includes('dsh-x-drop'), '卸掉的插件从 bundles 去掉')
+  const logs = await (await fetch(env.origin + '/api/logs/export')).text()
+  assert.match(logs, /\[实例\] 配置「fold」里的插件改动记进实例「并回」：新增 1，换版本 0，删除 1/, '并回的日志说实例和配置')
 
   const installs = installCalls(env.home, profile).length
   await mustStart(entry)

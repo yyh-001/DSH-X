@@ -648,6 +648,17 @@ test('R7 市场条目没有 GitHub 仓库：不跟随，但 marketId 照记', as
   assert.equal(view.packVersion, '1.0.1')
 })
 
+// 市场里列的是实例（装好插件的 DSH），读不到时的报错也这么说；读不到不算页面出错，照旧回 ok: false + 空列表
+test('市场读不到：报错说「读实例市场失败」，不再说整合包', async (t) => {
+  process.env.DSH_PACK_MARKET = `${site.url}/no-such-market/index.json`
+  t.after(() => { delete process.env.DSH_PACK_MARKET })
+  const market = await env.getJson('/api/packs/market?refresh=1')
+  assert.equal(market.ok, false, JSON.stringify(market))
+  assert.deepEqual(market.entries, [])
+  assert.match(String(market.error), /^读实例市场失败：/)
+  assert.doesNotMatch(String(market.error), /整合包|环境/)
+})
+
 // ================================================================ 第二轮需求（代码评审之后）
 
 /** 视图（检查预览或列表）里的依赖表：有 spec 的插件行。 */

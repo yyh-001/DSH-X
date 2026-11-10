@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a> 的第三方桌面启动器 ——<br />
-  启动项与多实例，版本、插件、环境、MCP 和技能管理。
+  启动项与多实例，版本、插件、实例、MCP 和技能管理。
 </p>
 
 <p align="center">
@@ -37,14 +37,14 @@
 
 ## 功能
 
-- 🚀 **启动项与多实例** — 按项选择用户目录、profile、版本和端口；支持并行启动，运行中也可添加启动项。
+- 🚀 **启动项与多实例** — 按项选择用户目录、配置、版本和端口；支持并行启动，运行中也可添加启动项。
 - 📦 **版本管理** — 独立管理已安装版本，支持检测新版本、手动安装、卸载、查看磁盘占用和为启动项指定版本。
-- 🧩 **插件与环境** — 环境锁定 DSH 版本和插件版本，可导入、导出并跟随上游更新；插件按 Profile 开关，可配置官方自定义插件市场的默认索引源。
-- 🖥️ **桌面增强** — 新建启动项时勾一下，把原生通知、右键菜单、侧栏浏览器三个首方插件装进这个启动项用的环境；编辑启动项时还能补装，装完可在插件页单独开关和更新。
+- 🧩 **插件与实例** — 实例锁定 DSH 版本和插件版本，可导入、导出并跟随上游更新；插件按配置开关，可配置官方自定义插件市场的默认索引源。
+- 🖥️ **桌面增强** — 新建启动项时勾一下，把原生通知、右键菜单、侧栏浏览器三个首方插件装进这个启动项用的实例；编辑启动项时还能补装，装完可在插件页单独开关和更新。
 - 🛠️ **MCP 与技能** — 配置 MCP 服务器，导入、管理和开关技能。
 - 🪟 **多种打开方式** — DSH-X 内部标签页、系统浏览器标签页、浏览器独立窗口或桌面窗口。
 - 🎨 **外观** — 浅色 / 深色主题、透明度、开场与启动项动效，以及独立的背景和大肥鱼开关。
-- 🔄 **更新与恢复** — 自更新、故障恢复、Profile 备份与回退，可设置保留数量的旧版本清理；启动项当前与上一次使用的版本额外保留。
+- 🔄 **更新与恢复** — 自更新、故障恢复、配置备份与回退，可设置保留数量的旧版本清理；启动项当前与上一次使用的版本额外保留。
 - 🔍 **启动排查** — 启动项日志分「原始日志 / 耗时构成 / 空间构成」三个页签，原始日志页带插件诊断：按插件归并启动耗时和依赖，单列原生 / GC 明细，空间占用拆到插件本体、依赖、运行时与配置数据；有插件报错时日志图标点红。
 - ⚙️ **桌面系统开关** — 硬件加速、自动下载更新（安装手动确认）、任务通知与提示音、关窗口隐藏到托盘、防休眠。
 - 💻 **Windows / macOS / Linux** — 三个平台的安装包，支持托盘 / 菜单栏常驻和开机自启，自带 npm / pnpm 包装。
@@ -100,27 +100,27 @@ sha256sum DSH-X-<版本>-x86_64.AppImage                # Linux
 
 ## 使用
 
-- 在主页添加或编辑启动项，选择环境与 Profile 后启动；编辑启动项时可打开 **版本管理**，手动安装或卸载版本。
+- 在主页添加或编辑启动项，选择实例与配置后启动；编辑启动项时可打开 **版本管理**，手动安装或卸载版本。
 - 设置 → 常规 → **打开 dsh 的方式**，可选 DSH-X 内部标签页、浏览器或独立窗口。内部标签页需要使用安装后的桌面端。
 - 管理页默认端口为 `3780`，被占用时会顺延。
 - 手机或其他电脑访问 dsh：设置 → 高级设置 → **Web 绑定**选「局域网」，下次启动生效。
 
 ### 添加启动项
 
-新建启动项先选 **隔离方式**，它决定新 Profile 跟现有的隔多远：
+新建启动项先选 **隔离方式**，它决定新配置跟现有的隔多远：
 
 | 隔离方式 | 建在哪 | 共享什么 |
 | --- | --- | --- |
-| 插件隔离（默认） | 全局 dsh 目录里新建一个 Profile | 会话、记忆、技能；插件与配置独立 |
+| 插件隔离（默认） | 全局 dsh 目录里新建一个配置 | 会话、记忆、技能；插件与配置独立 |
 | 会话隔离 | 数据目录 `homes/<名字>` 下的新用户目录 | 什么都不共享：会话、技能、插件全部独立 |
-| 自定义 | 手动指定用户目录 + Profile + 端口 | 由你挑的用户目录和 Profile 决定 |
+| 自定义 | 手动指定用户目录 + 配置 + 端口 | 由你挑的用户目录和配置决定 |
 
-前两档再选 **Profile 从哪来**：
+前两档再选 **配置从哪来**：
 
-- **新建 Profile**：名字留空就自动取（撞名会顺延），也可以自己填。
-- **从已有 Profile 复制**：先选来源（左栏用户目录、中栏 Profile），新名字预填 `来源-copy`，可以改。
+- **新建配置**：名字留空就自动取（撞名会顺延），也可以自己填。
+- **从已有配置复制**：先选来源（左栏用户目录、中栏配置），新名字预填 `来源-copy`，可以改。
 
-复制的是 **Profile**，不是整个用户目录：`package.json`、`cordis.patch.yml`、插件开关与 MCP 等配置会带过去，
+复制的是 **配置**，不是整个用户目录：`package.json`、`cordis.patch.yml`、插件开关与 MCP 等配置会带过去，
 依赖按版本范围重新安装（不是原样复制 `node_modules`），用户目录下的 `skills`、Prompt 管理、各插件自己的数据目录和会话历史都不跟过来。
 `file:` / `link:` / `portal:` 这类本地依赖会按新位置改写；指向来源目录外面的路径保持原样，所以那份工作区得还在。
 
@@ -128,10 +128,10 @@ sha256sum DSH-X-<版本>-x86_64.AppImage                # Linux
 
 启动项的日志弹窗有三个页签，只有采到数据时才出现：**原始日志**常驻，**耗时构成**把启动耗时按插件归并（共用依赖均摊给引用它的插件），**空间构成**把磁盘占用拆成插件本体、插件依赖、运行时、运行时依赖和配置与数据。原始日志页顶部还会显示**插件诊断**：哪个插件不兼容、哪一步失败，以及可以执行的修复方案。有插件报错时，启动项上的日志图标会点红。
 
-### 插件与 Profile
+### 插件与配置
 
 - 插件页右上角的 **+** 可以直接添加插件：npm 包名、本地绝对路径或 Git 地址；添加和卸载会同步 bundle 层栈与依赖。
-- 首页插件弹窗的「更多操作」里有 **Profile 备份与回退**：每次启动前自动存一份配置层快照，也可以手动「立即备份」；回退会按还原后的清单重装依赖，并需要重启这个 Profile 的实例才生效。
+- 首页插件弹窗的「更多操作」里有 **配置备份与回退**：每次启动前自动存一份配置层快照，也可以手动「立即备份」；回退会按还原后的清单重装依赖，并需要重启这个配置的实例才生效。
 
 ## 界面预览
 
@@ -144,10 +144,10 @@ sha256sum DSH-X-<版本>-x86_64.AppImage                # Linux
 <details>
 <summary>管理页面 · 深色主题（展开查看）</summary>
 
-**Profile 列表**
+**配置列表**
 
 <p align="center">
-  <img src="docs/screenshots/screenshot-profiles-dark.jpg" alt="DSH-X v0.1.16 深色 Profile 列表" width="820" />
+  <img src="docs/screenshots/screenshot-profiles-dark.jpg" alt="DSH-X v0.1.16 深色配置列表" width="820" />
 </p>
 
 **插件管理**
@@ -156,10 +156,10 @@ sha256sum DSH-X-<版本>-x86_64.AppImage                # Linux
   <img src="docs/screenshots/screenshot-plugins-dark.jpg" alt="DSH-X v0.1.16 深色插件管理" width="820" />
 </p>
 
-**环境市场**
+**实例市场**
 
 <p align="center">
-  <img src="docs/screenshots/screenshot-market-dark.jpg" alt="DSH-X v0.1.16 深色环境市场" width="820" />
+  <img src="docs/screenshots/screenshot-market-dark.jpg" alt="DSH-X v0.1.16 深色实例市场" width="820" />
 </p>
 
 **常规设置**
@@ -179,22 +179,22 @@ sha256sum DSH-X-<版本>-x86_64.AppImage                # Linux
   <img src="docs/screenshots/screenshot-home.jpg" alt="DSH-X 启动项主页" width="820" />
 </p>
 
-**Profile 列表**
+**配置列表**
 
 <p align="center">
-  <img src="docs/screenshots/screenshot-profiles.jpg" alt="DSH-X Profile 列表" width="820" />
+  <img src="docs/screenshots/screenshot-profiles.jpg" alt="DSH-X 配置列表" width="820" />
 </p>
 
 **插件管理**
 
 <p align="center">
-  <img src="docs/screenshots/screenshot-plugins.jpg" alt="DSH-X 按 Profile 管理插件" width="820" />
+  <img src="docs/screenshots/screenshot-plugins.jpg" alt="DSH-X 按配置管理插件" width="820" />
 </p>
 
-**环境市场**
+**实例市场**
 
 <p align="center">
-  <img src="docs/screenshots/screenshot-market.jpg" alt="DSH-X 环境市场" width="820" />
+  <img src="docs/screenshots/screenshot-market.jpg" alt="DSH-X 实例市场" width="820" />
 </p>
 
 **常规设置**
@@ -211,24 +211,24 @@ sha256sum DSH-X-<版本>-x86_64.AppImage                # Linux
   <img src="docs/screenshots/screenshot-tabs.png" alt="DSH-X v0.1.16 多标签页界面" width="820" />
 </p>
 
-## 环境
+## 实例
 
-环境 = 一个 DSH 版本 + 一份带版本的插件清单；Profile 只放配置和数据。启动项选一个环境和一个 Profile，启动前把环境的插件写进 Profile，清单变了才装依赖。格式沿用 [DSH-PackForge](https://github.com/DSH-PackForge/DSH-PackForge) 的 `.dspack`（manifest v5）。
+实例 = 装好插件的 DSH：一个 DSH 版本加上钉住版本的插件。配置就是 dsh 的 profile，只放设置和数据。启动项选一个实例和一个配置，启动前把实例的插件装进配置，插件清单变了才装依赖。格式沿用 [DSH-PackForge](https://github.com/DSH-PackForge/DSH-PackForge) 的 `.dspack`（manifest v5）。
 
-- **导入** — 社区市场、本地文件、目录、直链或 GitHub `owner/repo`；缺的 DSH 版本自动装。包里的配置默认不导，可勾选导进某个 Profile。
+- **导入** — 社区市场、本地文件、目录、直链或 GitHub `owner/repo`；缺的 DSH 版本自动装。包里的配置默认不导，可勾选导进某个配置。
 - **导出** — DSH 精确版本 + 钉好的插件（npm 钉版本、github 钉提交、本地插件打成离线文件），不带配置和凭据；单个文件或可直接提交的仓库目录。
-- **跟随上游** — 来自 GitHub 仓库的环境会提示新 release；更新时本地改动照留，旧版本可以切回。
+- **跟随上游** — 来自 GitHub 仓库的实例会提示新 release；更新时本地改动照留，旧版本可以切回。
 
-仓库中有两套配方，在环境页列为内置环境：
+仓库中有两套配方，在实例页列为内置实例：
 
-- [推荐整合包](src/packs/dsh-x-recommended/manifest.json) — 配置管理、记忆、同步和大肥鱼装饰插件，均从 npm 安装（同步由可选插件 `dsh-x-sync` 提供）。
-- [桌面工作台](src/packs/dsh-x-workbench/README.md) — 把 dsh-tauri 桌面版的侧栏工作台、工作树、定时任务、归档和通知在纯 dsh 生态里凑齐，ZCode 的 `agent-browser` 与 `electron` 技能可在导入时选择写进 Profile。
+- [推荐实例](src/packs/dsh-x-recommended/manifest.json) — 配置管理、记忆、同步和大肥鱼装饰插件，均从 npm 安装（同步由可选插件 `dsh-x-sync` 提供）。
+- [桌面工作台](src/packs/dsh-x-workbench/README.md) — 把 dsh-tauri 桌面版的侧栏工作台、工作树、定时任务、归档和通知在纯 dsh 生态里凑齐，ZCode 的 `agent-browser` 与 `electron` 技能可在导入时选择写进配置。
 
 运行 `node scripts/make-pack.mjs` 可生成 `.dspack`，再作为本地文件导入。
 
 ## 桌面增强
 
-「添加启动项」里勾上「安装桌面增强」，保存时把三个首方插件装进这个启动项对应的 profile（从 npm 装，不随安装包发；装完在插件页单独开关和更新）。编辑启动项时还能看到装了几个、补装缺的；取消勾选不会卸载。
+「添加启动项」里勾上「安装桌面增强」，保存时把三个首方插件装进这个启动项对应的配置（从 npm 装，不随安装包发；装完在插件页单独开关和更新）。编辑启动项时还能看到装了几个、补装缺的；取消勾选不会卸载。
 
 - [原生通知](https://www.npmjs.com/package/dsh-x-desktop-notify) — 一轮结束、等你确认时发系统通知，并把桌面能力借给其它插件
 - [右键菜单](https://www.npmjs.com/package/dsh-x-context-menu) — 会话、工作区、选中文字、链接和输入框的右键菜单，纯网页插件、不依赖桌面外壳

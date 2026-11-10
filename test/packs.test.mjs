@@ -256,12 +256,12 @@ test('依赖坐标：协议型键原样交给 pnpm 并说明', () => {
 // ---- 解析时的提示 ----
 
 test('解析：锁文件只提示一句「导入时忽略」；缺 package.json 快照、缺补丁层都不再报', () => {
-  // 环境只锁直接依赖：插件清单在清单的 dependencies 里，包里有没有 package.json 快照、补丁层都无所谓
+  // 实例只锁直接依赖：插件清单在清单的 dependencies 里，包里有没有 package.json 快照、补丁层都无所谓
   const bare = parsePackArchive(makePack({ packageJson: false }))
   assert.equal(bare.ok, true)
   assert.deepEqual(bare.warnings, [], '没快照、没补丁层的干净包一条警告都不该有')
   const locked = parsePackArchive(makePack({ entries: [{ name: 'pnpm-lock.yaml', data: 'lockfileVersion: 9.0\n' }] }))
-  assert.deepEqual(locked.warnings, ['包里有 pnpm-lock.yaml，导入时忽略它（环境只锁直接依赖）'])
+  assert.deepEqual(locked.warnings, ['包里有 pnpm-lock.yaml，导入时忽略它（实例只锁直接依赖）'])
 })
 
 test('解析：环境文件在清单上加的 offline / environment 字段认得，不当「不处理的字段」', () => {
@@ -330,12 +330,12 @@ test('配置导入计划：只写补丁层、overrides、home 文件，不碰 pa
   assert.deepEqual(Object.keys(plan).sort(), ['configOnly', 'errors', 'ok', 'profile', 'warnings', 'writes'])
 })
 
-test('配置导入计划：Profile 还没初始化（没有 package.json）就不往它目录里写', () => {
+test('配置导入计划：配置（dsh profile）还没初始化（没有 package.json）就不往它目录里写', () => {
   const home = tempDir()
   const pack = parsePackArchive(makePack({ entries: [{ name: 'overrides/cordis.patch.yml', data: '- id: x\n' }] }))
   const missing = planConfigInstall(pack, { home, profile: 'fresh' })
   assert.equal(missing.ok, false)
-  assert.match(missing.errors.join(), /Profile「fresh」还没初始化/)
+  assert.match(missing.errors.join(), /配置「fresh」还没初始化：先用它启动一次/)
   // 目录在、只有一份补丁层也不算：dsh 不认没有 package.json 的 profile
   mkdirSync(join(home, 'profiles', 'half'), { recursive: true })
   writeFileSync(join(home, 'profiles', 'half', 'cordis.patch.yml'), '[]\n')

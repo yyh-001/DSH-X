@@ -132,8 +132,9 @@ if (args[0] === 'plugin') {
     const before = commands().length
     const again = await api('/api/plugins/add', { spec: PLUGIN, profile: 'web' })
     assert.equal(again.status, 400)
-    // 插件装在 Profile 里（「环境」专指 DSH 版本 + 插件清单那个对象）
-    assert.match(again.error, /已经在这个 Profile 里/)
+    // 插件装在配置（dsh profile）里；「实例」专指装好插件的 DSH 那个对象
+    assert.match(again.error, /已经在这个配置里/)
+    assert.doesNotMatch(again.error, /Profile|环境/)
     const official = await api('/api/plugins/add', { spec: `${OFFICIAL}@${VERSION}`, profile: 'web' })
     assert.equal(official.status, 400)
     assert.match(official.error, /官方组件/)
@@ -159,7 +160,7 @@ if (args[0] === 'plugin') {
     const before = commands().length
     const missing = await api('/api/plugins/remove', { name: PLUGIN, profile: 'web' })
     assert.equal(missing.status, 400)
-    assert.match(missing.error, /没有装/)
+    assert.match(missing.error, /这个配置里没有装/)
     const official = await api('/api/plugins/remove', { name: OFFICIAL, profile: 'web' })
     assert.equal(official.status, 400)
     assert.match(official.error, /官方组件/)

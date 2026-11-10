@@ -1607,7 +1607,7 @@ export function notifyShutdown() {
 function revokeIdleInstanceLinks(matches = () => true) {
   for (const [key, link] of instanceLinks) {
     if (instances.has(key) || !matches(link)) continue
-    if (link.pending().length) throw new Error('仍有重启中的实例，请先停止这个 Profile 的实例')
+    if (link.pending().length) throw new Error('仍有重启中的实例，请先停止这个配置的实例')
     link.revoke()
   }
 }
@@ -1676,9 +1676,9 @@ async function withIdleProfileIn(home, profile, operation) {
 function profileBusyReason(home, name) {
   const key = `${home}\0${name}`
   if (startingProfiles.has(key) || instanceList().some((proc) => proc.profile === name && fileManager.samePath(proc.home, home))) {
-    return `profile「${name}」仍有实例在运行或启动，请先停止这个 Profile 的全部实例`
+    return `配置「${name}」仍有实例在运行或启动，请先停止这个配置的全部实例`
   }
-  if (maintainingProfiles.has(key) || pluginBusy || syncRunning) return '正在修改这个 Profile，等操作结束再试'
+  if (maintainingProfiles.has(key) || pluginBusy || syncRunning) return '正在修改这个配置，等操作结束再试'
   return ''
 }
 
@@ -1690,7 +1690,7 @@ async function withIdleProfile(profile, operation) {
 /** rm 会连 lock 一起删除；进程内的占用标记补上这段窗口，避免热加载写回已删目录。 */
 async function editProfile(profile, operation) {
   const name = safeProfile(profile)
-  if (maintainingProfiles.has(profileKey(name))) throw new Error(`profile「${name}」正在修改，稍后再试`)
+  if (maintainingProfiles.has(profileKey(name))) throw new Error(`配置「${name}」正在修改，稍后再试`)
   return withProfileLock(profileDirOf(name), operation)
 }
 
@@ -1793,7 +1793,7 @@ const diagnosticRepairs = new DiagnosticRepairs({
       throw new Error('目标正在启动或修改，稍后重新预览。')
     }
     if (instanceList().some(proc => proc.home === target.home && proc.profile === target.profile && (proc.version !== target.version || proc.status === 'stopping'))) {
-      throw new Error('同一 profile 有其他实例使用，禁止修复共享目录。')
+      throw new Error('同一配置有其他实例使用，禁止修复共享目录。')
     }
   },
   async exclusive(target, operation) {
@@ -2100,7 +2100,7 @@ async function setInstancePortNow(version, profile, port) {
     return { key, port: 0, busy: false }
   }
   const value = safePort(text)
-  if (!wsl && !bootsWebApp(prof)) throw new Error(`profile ${prof} 不起 web 应用，端口对它没用`)
+  if (!wsl && !bootsWebApp(prof)) throw new Error(`配置 ${prof} 不起 web 应用，端口对它没用`)
   let configured = 0
   try { configured = safePort(loadSettingsSync().port) } catch { configured = DEFAULT_PORT }
   if (value === PORT || value === configured) {
@@ -2340,7 +2340,7 @@ async function saveLaunchPresetNow(body) {
   // 这个 Profile 已有的环境接上或新建（见 adoptNow）。
   const requestedEnvironment = body.environment === undefined ? undefined : String(body.environment ?? '')
   const chosenEnvironment = requestedEnvironment ? environmentStore().get(safeEnvironmentId(requestedEnvironment)) : null
-  if (requestedEnvironment && !chosenEnvironment) throw new Error('这个环境已不存在，请刷新后重新选择')
+  if (requestedEnvironment && !chosenEnvironment) throw new Error('这个实例已不存在，请刷新后重新选择')
   const backend = body.backend === 'wsl' ? 'wsl' : 'local'
   let dshHome = ''
   let wslDistro = ''
@@ -2358,7 +2358,7 @@ async function saveLaunchPresetNow(body) {
     home = wslHomeKey(wslDistro, wslHome)
     wslInfo = await inspectWslDistro(wslDistro, wslHome, { force: true, dshCommand: WSL_SETTINGS.dshCommand || 'dsh' })
     if (!wslInfo.ok) throw new Error(wslInfo.error || `WSL 里的 dsh 不可用（${wslDistro}）`)
-    if (!wslInfo.profiles.includes(profile) && !TEMPLATE_PROFILES.includes(profile)) throw new Error(`WSL 里没有 profile ${profile}，先在 WSL 里用 dsh 建一次`)
+    if (!wslInfo.profiles.includes(profile) && !TEMPLATE_PROFILES.includes(profile)) throw new Error(`WSL 里没有配置 ${profile}，先在 WSL 里用 dsh 建一次`)
   } else {
     // 数据目录只用 dsh 用户目录；旧的「项目目录」字段不再读取，历史启动项按已保存的 dshHome 走。
     dshHome = safeDshHome(body.dshHome)
@@ -2379,7 +2379,7 @@ async function saveLaunchPresetNow(body) {
     } else if (body.ensureProfile === true && missing()) {
       await launchScope.run({ home }, () => createProfile(profile))
     }
-    if (missing()) throw new Error(`profile ${profile} 不存在`)
+    if (missing()) throw new Error(`配置 ${profile} 不存在`)
   }
   const portText = String(body.port ?? '').trim()
   const port = portText && portText !== '0' ? safePort(portText) : 0
@@ -2427,10 +2427,10 @@ async function saveLaunchPresetNow(body) {
       && (item.wslDistro || WSL_SETTINGS.defaultDistro) === wslDistro && (item.wslHome || '') === (wslHome || '') && item.version === version)
     : Boolean(conflictingEntry(presets, { id, profile, version, updateChannel, dshHome }, config))
   if (tripleChanged && duplicate) {
-    throw new Error('这个目录中的版本与 profile 已有启动项，编辑现有的即可')
+    throw new Error('这个目录中的版本与配置已有启动项，编辑现有的即可')
   }
   if (port) {
-    if (backend !== 'wsl' && !launchScope.run({ home }, () => bootsWebApp(profile))) throw new Error(`profile ${profile} 不起 web 应用，端口对它没用`)
+    if (backend !== 'wsl' && !launchScope.run({ home }, () => bootsWebApp(profile))) throw new Error(`配置 ${profile} 不起 web 应用，端口对它没用`)
     if (port === PORT || port === safePort(stored.port)) throw new Error(`端口 ${port} 是管理页自己在用的，换一个`)
     if (presets.some((item) => item.id !== id && item.port === port)) throw new Error(`端口 ${port} 已被其他启动项使用，换一个`)
   }
@@ -2450,7 +2450,7 @@ async function saveLaunchPresetNow(body) {
     // 环境在队列里现读：排队等的这段时间里环境页可能刚加了插件、收集刚折进改动，用排队前读的
     // 那份去存会把它们冲掉
     let bound = environmentId ? store.get(environmentId) : null
-    if (environmentId && !bound) throw new Error('这个环境已不存在，请刷新后重新选择')
+    if (environmentId && !bound) throw new Error('这个实例已不存在，请刷新后重新选择')
     let changedVersion = false
     if (bound && !switching && versionKey(version, updateChannel) !== environmentVersionKey(bound)) {
       bound = setEnvironmentVersion(bound, version, updateChannel)
@@ -2505,7 +2505,7 @@ function assertEntriesApart(before, after, config) {
     const old = previous.get(entry.id)
     if (old && versionKey(old.version, safeUpdateChannel(old.updateChannel)) === versionKey(entry.version, safeUpdateChannel(entry.updateChannel))) continue
     const other = conflictingEntry(after, entry, config)
-    if (other) throw new Error(`改了版本之后，启动项「${entry.name}」和「${other.name}」会指向同一个实例：先给其中一个换 Profile 或环境`)
+    if (other) throw new Error(`改了版本之后，启动项「${entry.name}」和「${other.name}」会指向同一个实例：先给其中一个换配置或实例`)
   }
 }
 
@@ -2685,7 +2685,7 @@ function collectChangesNow(store, state, home, profile) {
   if (folded.changed) {
     store.save(folded.env)
     const { added, changed, removed } = folded.diff
-    pushLog(`[环境] profile「${profile}」里的插件改动记进环境「${env.name}」：新增 ${Object.keys(added).length}，换版本 ${Object.keys(changed).length}，删除 ${removed.length}${isFollowing(env) ? '（本地增量）' : ''}`)
+    pushLog(`[实例] 配置「${profile}」里的插件改动记进实例「${env.name}」：新增 ${Object.keys(added).length}，换版本 ${Object.keys(changed).length}，删除 ${removed.length}${isFollowing(env) ? '（本地增量）' : ''}`)
   }
   state.applied[key] = { environment: env.id, list }
   return true
@@ -2708,7 +2708,7 @@ function collectAllNow(store) {
     try {
       changed = collectChangesNow(store, state, home, profile) || changed
     } catch (error) {
-      pushLog(`[环境] 读取 profile「${profile}」的插件改动失败：${errorText(error)}`)
+      pushLog(`[实例] 读取配置「${profile}」的插件改动失败：${errorText(error)}`)
     }
   }
   if (changed) store.writeState(state)
@@ -2771,12 +2771,12 @@ function preserveUnrecordedProfile(home, profile, target) {
       const plan = planAdoption({ presets: [], profiles: [{ home, profile, list }], environments: store.list(), state, defaultHome: defaultHome(), defaultChannel: DEFAULT_UPDATE_CHANNEL })
       for (const env of plan.environments) store.save(env)
       Object.assign(state, plan.state)
-      for (const line of plan.log) pushLog(`[环境] ${line}`)
+      for (const line of plan.log) pushLog(`[实例] ${line}`)
     }
     // 这次启动马上要写另一个环境进去，「写的是哪个」由套用之后再记
     delete state.applied[key]
     store.writeState(state)
-    pushLog(`[环境] profile「${profile}」里有不在环境里的插件（${extra.join('、')}），覆盖前已收进环境`)
+    pushLog(`[实例] 配置「${profile}」里有不在实例里的插件（${extra.join('、')}），覆盖前已收进实例`)
   })
 }
 
@@ -2803,7 +2803,7 @@ function restoreRecordedOrder(home, profile) {
 async function waitStoppingInstances(home, profile) {
   for (const proc of instanceList().filter((item) => item.profile === profile && fileManager.samePath(item.home, home) && item.status === 'stopping')) {
     if (!(await waitExit(proc.child, STOP_EXIT_TIMEOUT_MS + STOP_KILL_GRACE_MS))) {
-      throw new Error(`profile「${profile}」上的 ${proc.version} 正在停止且尚未退出，请稍后再启动`)
+      throw new Error(`配置「${profile}」上的 ${proc.version} 正在停止且尚未退出，请稍后再启动`)
     }
   }
 }
@@ -2851,11 +2851,11 @@ function adoptNow(store, settings, presets, { scanAll = false } = {}) {
     try {
       store.save(env)
     } catch (error) {
-      pushLog(`[环境] 保存环境「${env.name}」失败：${errorText(error)}`)
+      pushLog(`[实例] 保存实例「${env.name}」失败：${errorText(error)}`)
     }
   }
   store.writeState(plan.state)
-  for (const line of plan.log) pushLog(`[环境] ${line}`)
+  for (const line of plan.log) pushLog(`[实例] ${line}`)
   const envs = new Map(store.list().map((env) => [env.id, env]))
   const bound = plan.presets.map((entry) => {
     if (!entry.environment || envs.has(entry.environment)) return entry
@@ -2878,7 +2878,7 @@ async function migrateLegacyData() {
     collectAllNow(store)
     const next = adoptNow(store, settings, presets, { scanAll: true })
     if (presetsEqual(next, presets)) return
-    if (await backupSettingsOnce(ENVIRONMENT.SETTINGS_BACKUP_SUFFIX)) pushLog(`[环境] 迁移前已备份 settings.json（${ENVIRONMENT.SETTINGS_BACKUP_SUFFIX}）`)
+    if (await backupSettingsOnce(ENVIRONMENT.SETTINGS_BACKUP_SUFFIX)) pushLog(`[实例] 迁移前已备份 settings.json（${ENVIRONMENT.SETTINGS_BACKUP_SUFFIX}）`)
     await saveSettings({ launchPresets: next })
   }))
 }
@@ -2897,18 +2897,18 @@ async function applyLaunchEnvironment(version, profile) {
   const home = homeDir()
   if (!readProfileManifest(home, profile)) {
     // 模板 profile 首次启动前还没有目录：让 dsh 按模板建好，起来以后把建好的清单记成起点。
-    pushLog(`[环境] profile「${profile}」还没初始化，这次先由 dsh 按模板建好，下次启动再套用环境`)
+    pushLog(`[实例] 配置「${profile}」还没初始化，这次先由 dsh 按模板建好，下次启动再套用实例`)
     return { baseline: preset.environment }
   }
   if (inRecovery(home, profile)) {
     // 安全启动就是为了摘掉第三方插件把 dsh 救起来，这时再把环境写回去等于白救
-    pushLog(`[环境] profile「${profile}」处在安全启动状态，这次不套用环境；还原补丁层后恢复`)
+    pushLog(`[实例] 配置「${profile}」处在安全启动状态，这次不套用实例；还原补丁层后恢复`)
     return undefined
   }
   await waitStoppingInstances(home, profile)
   await collectProfileChanges(home, profile)
   const env = environmentStore().get(preset.environment)
-  if (!env) throw new Error(`启动项「${preset.name}」用的环境已不存在，请编辑启动项重新选择环境`)
+  if (!env) throw new Error(`启动项「${preset.name}」用的实例已不存在，请编辑启动项重新选择实例`)
   await preserveUnrecordedProfile(home, profile, effectiveList(env))
   const current = readProfileManifest(home, profile)
   const list = profilePluginList(current.manifest, dirname(current.file))
@@ -2917,7 +2917,7 @@ async function applyLaunchEnvironment(version, profile) {
   // 还在停的上面已经等它们退出了；剩下的才是真在用这个目录的
   const sharing = instanceList().filter((proc) => proc.profile === profile && fileManager.samePath(proc.home, home) && proc.status !== 'stopping')
   if (sharing.length && !same) {
-    throw new Error(`profile「${profile}」正在被插件清单不同的实例使用（${sharing.map((proc) => proc.version).join('、')}）。同一个 Profile 同时只能跑插件清单相同的环境：先停掉它，或给这个启动项换一个 Profile`)
+    throw new Error(`配置「${profile}」正在被插件清单不同的实例使用（${sharing.map((proc) => proc.version).join('、')}）。同一个配置同时只能跑插件清单相同的实例：先停掉它，或给这个启动项换一个配置`)
   }
   if (same) {
     // 已经有实例在这个目录上跑：目录继续记在它那个环境名下，之后在 dsh 里装的插件才不会记错环境
@@ -2929,8 +2929,8 @@ async function applyLaunchEnvironment(version, profile) {
   const key = profileKey(profile)
   if (pluginBusy || syncRunning || maintainingProfiles.has(key)) throw new Error('正在修改插件，等操作结束再启动')
   // 「回到这次启动前」的快照要拍换环境之前的样子（startWithRepair 里那次拍的已经是换过的了）
-  await snapshotProfileConfig(profile).catch((error) => pushLog(`[备份] Profile ${profile} 快照失败：${errorText(error)}`))
-  pushLog(`[环境] 把环境「${env.name}」的插件清单写进 profile「${profile}」，安装依赖…`)
+  await snapshotProfileConfig(profile).catch((error) => pushLog(`[备份] 配置 ${profile} 快照失败：${errorText(error)}`))
+  pushLog(`[实例] 把实例「${env.name}」的插件清单写进配置「${profile}」，安装依赖…`)
   pluginBusy = true
   maintainingProfiles.add(key)
   try {
@@ -2945,7 +2945,7 @@ async function applyLaunchEnvironment(version, profile) {
         if (lockText) await writeFile(lockFile, lockText)
         else await rm(lockFile, { force: true })
         const restored = await runProfileInstall(version, { profile }).then(() => true, () => false)
-        throw new Error(`套用环境「${env.name}」失败，已恢复 profile「${profile}」原来的插件清单${restored ? '' : '（依赖没能装回原样，可能要在插件页重新安装依赖）'}：${errorText(error)}`)
+        throw new Error(`套用实例「${env.name}」失败，已恢复配置「${profile}」原来的插件清单${restored ? '' : '（依赖没能装回原样，可能要在插件页重新安装依赖）'}：${errorText(error)}`)
       }
     })
     // 记录要在清掉「正在改」标记之前写好：排在后面的收集看到的必须是新记录，不然会把新环境的
@@ -2957,13 +2957,13 @@ async function applyLaunchEnvironment(version, profile) {
     emitPluginProgress(null)
   }
   pluginUpdateCache.at = 0
-  pushLog(`[环境] profile「${profile}」已换成环境「${env.name}」的插件清单`)
+  pushLog(`[实例] 配置「${profile}」已换成实例「${env.name}」的插件清单`)
   return undefined
 }
 
 /** 环境页的数据：生效的插件清单 + 哪些启动项在用 + 当前写在哪些 profile 目录里。 */
 async function environmentsPayload() {
-  await collectAllProfileChanges().catch((error) => pushLog(`[环境] 收集插件改动失败：${errorText(error)}`))
+  await collectAllProfileChanges().catch((error) => pushLog(`[实例] 收集插件改动失败：${errorText(error)}`))
   const store = environmentStore()
   const state = store.readState()
   const presets = safeLaunchPresets(loadSettingsSync().launchPresets)
@@ -3023,7 +3023,7 @@ async function environmentsPayload() {
 
 function requireEnvironment(store, id) {
   const env = store.get(safeEnvironmentId(id))
-  if (!env) throw new Error('这个环境已不存在，请刷新后重试')
+  if (!env) throw new Error('这个实例已不存在，请刷新后重试')
   return env
 }
 
@@ -3074,7 +3074,7 @@ function createEnvironmentNow(body) {
         defaultChannel: DEFAULT_UPDATE_CHANNEL,
       })
     const saved = store.save(env)
-    pushLog(`[环境] 已创建环境「${saved.name}」`)
+    pushLog(`[实例] 已创建实例「${saved.name}」`)
     return { ok: true, environment: saved }
   })
 }
@@ -3104,7 +3104,7 @@ function removeEnvironmentNow(id) {
     const store = environmentStore()
     const env = requireEnvironment(store, id)
     const users = safeLaunchPresets(loadSettingsSync().launchPresets).filter((entry) => entry.environment === env.id)
-    if (users.length) throw new Error(`还有启动项在用这个环境：${users.map((entry) => entry.name).join('、')}，先给它们换一个环境`)
+    if (users.length) throw new Error(`还有启动项在用这个实例：${users.map((entry) => entry.name).join('、')}，先给它们换一个实例`)
     const state = store.readState()
     for (const [key, record] of Object.entries(state.applied)) if (record.environment === env.id) delete state.applied[key]
     for (const [key, link] of Object.entries(state.links)) if (link.environment === env.id) delete state.links[key]
@@ -3112,7 +3112,7 @@ function removeEnvironmentNow(id) {
     if (env.id.startsWith(ENVIRONMENT.ADOPTED_PREFIX) && !state.dismissed.includes(env.id)) state.dismissed.push(env.id)
     store.writeState(state)
     store.remove(env.id)
-    pushLog(`[环境] 已删除环境「${env.name}」（profile 目录里的插件不动，下次换环境启动时才会替换）`)
+    pushLog(`[实例] 已删除实例「${env.name}」（配置目录里的插件不动，下次换实例启动时才会替换）`)
     return { ok: true }
   }))
 }
@@ -3133,7 +3133,7 @@ async function resolvePluginSpec(input) {
   const name = safePluginName(rawName)
   // 环境会写进好几个 profile 目录，相对路径在每个目录里指的都不是同一处
   const local = localSpecPath(spec)
-  if (local && !isAbsolute(local.path)) throw new Error('本地插件请写绝对路径（环境会写进不同的 Profile 目录，相对路径在每个目录里指的地方都不一样）')
+  if (local && !isAbsolute(local.path)) throw new Error('本地插件请写绝对路径（实例会写进不同的配置目录，相对路径在每个目录里指的地方都不一样）')
   // 只有 npm 范围 / tag 要查 registry；精确版本、github、本地路径、别名这些原样记（分类和导出共用一份）
   if (spec && exportKind(spec).kind !== EXPORT_KIND.NPM) return { name, spec }
   return { name, spec: await publishedVersionFor(name, spec) }
@@ -3165,7 +3165,7 @@ async function addEnvironmentPluginNow(id, input) {
     const store = environmentStore()
     const env = requireEnvironment(store, id)
     const saved = store.save(setEnvironmentPlugin(env, name, spec))
-    pushLog(`[环境] 环境「${env.name}」加入 ${name}@${spec}（下次用它启动时安装）`)
+    pushLog(`[实例] 实例「${env.name}」加入 ${name}@${spec}（下次用它启动时安装）`)
     return { ok: true, environment: saved, plugin: { name, spec } }
   })
 }
@@ -3175,7 +3175,7 @@ function removeEnvironmentPluginNow(id, name) {
     const store = environmentStore()
     const env = requireEnvironment(store, id)
     const saved = store.save(removeEnvironmentPlugin(env, safePluginName(name)))
-    pushLog(`[环境] 环境「${env.name}」移除 ${name}（下次用它启动时生效）`)
+    pushLog(`[实例] 实例「${env.name}」移除 ${name}（下次用它启动时生效）`)
     return { ok: true, environment: saved }
   })
 }
@@ -3187,7 +3187,7 @@ function removeEnvironmentPluginNow(id, name) {
 async function upgradeEnvironmentPluginsNow(id, only = '') {
   const current = effectivePlugins(requireEnvironment(environmentStore(), id)).dependencies
   const names = Object.keys(current).filter((name) => (!only || name === only) && !isOfficialPackage(name) && isExactVersion(current[name]))
-  if (only && !names.length) throw new Error(`${only} 不是环境里可以升级的 npm 插件`)
+  if (only && !names.length) throw new Error(`${only} 不是实例里可以升级的 npm 插件`)
   const found = []
   const failed = []
   for (const name of names) {
@@ -3207,7 +3207,7 @@ async function upgradeEnvironmentPluginsNow(id, only = '') {
     // bundle: false = 挂载状态保持原样（只进依赖表的插件升级后也不会被顺手挂上）
     for (const item of upgraded) env = setEnvironmentPlugin(env, item.name, item.to, { bundle: false })
     const saved = upgraded.length ? store.save(env) : env
-    if (upgraded.length) pushLog(`[环境] 环境「${env.name}」升级 ${upgraded.map((item) => `${item.name} ${item.from} → ${item.to}`).join('、')}`)
+    if (upgraded.length) pushLog(`[实例] 实例「${env.name}」升级 ${upgraded.map((item) => `${item.name} ${item.from} → ${item.to}`).join('、')}`)
     return { ok: true, environment: saved, upgraded, failed }
   })
 }
@@ -3302,7 +3302,7 @@ function environmentImportSource(body) {
   if (body.market) return marketPackSource(body.market)
   if (body.builtin) {
     const recipe = builtinRecipes().find((item) => item.name === String(body.builtin))
-    if (!recipe) throw new Error('没有这个内置环境')
+    if (!recipe) throw new Error('没有这个内置实例')
     return { kind: ENVIRONMENT.SOURCE_KIND.BUILTIN, path: recipe.path, value: `内置：${recipe.displayName}` }
   }
   return String(body.source || '')
@@ -3362,7 +3362,7 @@ function dshInstalled(version) {
 /** 环境要用的 DSH 本机没有就先装上（几百 MB，要联网：别在环境的写队列里调）。 */
 async function ensureEnvironmentDsh(version, label) {
   if (dshInstalled(version)) return
-  pushLog(`[环境] ${label}要 DSH ${version}，本机没有，先装上`)
+  pushLog(`[实例] ${label}要 DSH ${version}，本机没有，先装上`)
   await install(version)
 }
 
@@ -3424,7 +3424,7 @@ async function environmentImportPreview(pack, origin, { fallbackRepo = '' } = {}
   let dsh = null
   try {
     dsh = await importDshVersion(imported.dshVersion)
-    if (!dsh.wanted) warnings.push('包里没写 DSH 版本：先跟随最新版本，导入后可以在环境页钉一个版本')
+    if (!dsh.wanted) warnings.push('包里没写 DSH 版本：先跟随最新版本，导入后可以在实例页钉一个版本')
   } catch (error) {
     errors.push(errorText(error))
   }
@@ -3508,7 +3508,7 @@ function environmentImportPayload(token, opened, preview) {
 async function inspectEnvironmentImport(body) {
   const label = body.market ? String(body.market.displayName || body.market.name || '') : String(body.source || body.builtin || '')
   const { opened, preview } = await inspectEnvironmentPack(environmentImportSource(body), { label, kind: ENVIRONMENT_INSPECT.IMPORT })
-  pushLog(`[环境] 检查环境文件：${preview.imported.name} ${preview.imported.packVersion || ''}（${Object.keys(preview.list.dependencies).length} 个依赖、${preview.imported.offline.length} 个离线文件）${preview.errors.length ? '，有问题' : ''}`)
+  pushLog(`[实例] 检查实例文件：${preview.imported.name} ${preview.imported.packVersion || ''}（${Object.keys(preview.list.dependencies).length} 个依赖、${preview.imported.offline.length} 个离线文件）${preview.errors.length ? '，有问题' : ''}`)
   return environmentImportPayload(opened.token, opened, preview)
 }
 
@@ -3575,13 +3575,13 @@ function importProfileConfig(pack, profile, source) {
  */
 async function importEnvironmentNow(body) {
   return withClaimedInspect(String(body.token || ''), ENVIRONMENT_INSPECT.IMPORT, {
-    stale: '这次检查已经过期，重新选择环境文件再试',
-    changed: '环境文件在检查之后变了，重新检查一次再导入',
+    stale: '这次检查已经过期，重新选择实例文件再试',
+    changed: '实例文件在检查之后变了，重新检查一次再导入',
   }, async ({ cached, pack, preview }) => {
     const { imported } = preview
     const configProfile = body.profile ? safeProfile(String(body.profile)) : ''
     if (configProfile) {
-      if (!hasProfileData(imported.profileData)) throw new Error('这个包里没有能导进 Profile 的配置')
+      if (!hasProfileData(imported.profileData)) throw new Error('这个包里没有能导进配置的配置')
       // 先判掉，别装完几百 MB 的 DSH 才发现 Profile 正被占着
       const busy = profileBusyReason(homeDir(), configProfile)
       if (busy) throw new Error(busy)
@@ -3589,15 +3589,15 @@ async function importEnvironmentNow(body) {
     const name = safeEnvironmentName(String(body.name || imported.name || ENVIRONMENT_PACK.FALLBACK_NAME).trim().slice(0, ENVIRONMENT.NAME_MAX))
     await ensureEnvironmentDsh(preview.dsh.version, `「${name}」`)
     const environment = await withEnvironmentWrite(() => saveImportedEnvironment(name, preview))
-    pushLog(`[环境] 已导入环境「${environment.name}」（DSH ${preview.dsh.version}，${Object.keys(environment.base.dependencies).length} 个依赖${imported.offline.length ? `，${imported.offline.length} 个离线文件` : ''}${environment.source?.following ? `，跟随 ${environment.source.repo}` : ''}）`)
+    pushLog(`[实例] 已导入实例「${environment.name}」（DSH ${preview.dsh.version}，${Object.keys(environment.base.dependencies).length} 个依赖${imported.offline.length ? `，${imported.offline.length} 个离线文件` : ''}${environment.source?.following ? `，跟随 ${environment.source.repo}` : ''}）`)
     let config = null
     if (configProfile) {
       try {
         config = await importProfileConfig(pack, configProfile, cached.source)
-        pushLog(`[环境] 包里的配置已写进 profile「${configProfile}」（${config.files} 个文件，可以在 Profile 页撤销）`)
+        pushLog(`[实例] 包里的配置已写进配置「${configProfile}」（${config.files} 个文件，可以在配置页撤销）`)
       } catch (error) {
         config = { profile: configProfile, error: errorText(error) }
-        pushLog(`[环境] 配置写进 profile「${configProfile}」失败：${config.error}`)
+        pushLog(`[实例] 配置写进配置「${configProfile}」失败：${config.error}`)
       }
     }
     return { ok: true, environment, config }
@@ -3619,7 +3619,7 @@ async function frozenDshVersion(list, reference) {
   if (list.dshVersion !== ENVIRONMENT.AUTO_VERSION) return list.dshVersion
   const entry = { version: ENVIRONMENT.AUTO_VERSION, updateChannel: list.updateChannel, profile: reference?.profile || '' }
   const version = resolvePresetVersion(entry, reference?.home || homeDir(), await loadConfig())
-  if (!version) throw new Error('这个环境跟着最新版本走，但本机还没装这一类的 DSH：先装一个版本，或在环境里钉一个版本再导出')
+  if (!version) throw new Error('这个实例跟着最新版本走，但本机还没装这一类的 DSH：先装一个版本，或在实例里钉一个版本再导出')
   return version
 }
 
@@ -3691,12 +3691,12 @@ async function exportDependency(ctx, name, spec) {
     return pinned || spec
   }
   if (ctx.exclude.has(name)) {
-    warnings.push(`${name} 是本地插件，这次没带离线文件，导出的环境里没有它`)
+    warnings.push(`${name} 是本地插件，这次没带离线文件，导出的实例里没有它`)
     return null
   }
   const local = localExportPath(path, reference)
   if (!existsSync(local)) {
-    warnings.push(`${name} 指向的 ${local} 已经不在了，导出的环境里没有它`)
+    warnings.push(`${name} 指向的 ${local} 已经不在了，导出的实例里没有它`)
     return null
   }
   const item = await offlineFileFor(ctx, name, kind, local)
@@ -3713,7 +3713,7 @@ function repositoryManifest(dir) {
   const manifestText = readTextOrEmpty(join(dir, ENVIRONMENT_PACK.MANIFEST_FILE))
   if (!manifestText && !existsSync(join(dir, ENVIRONMENT_PACK.MANIFEST_FILE))) return ''
   if (!isEnvironmentRepository(readTextOrEmpty(join(dir, ENVIRONMENT_PACK.MARKER_FILE)), manifestText)) {
-    throw new Error(`这个文件夹里已经有别的 ${ENVIRONMENT_PACK.MANIFEST_FILE}，不是之前导出的环境仓库：换一个空文件夹，或者选之前导出过的那个`)
+    throw new Error(`这个文件夹里已经有别的 ${ENVIRONMENT_PACK.MANIFEST_FILE}，不是之前导出的实例仓库：换一个空文件夹，或者选之前导出过的那个`)
   }
   return manifestText
 }
@@ -3772,7 +3772,7 @@ async function exportEnvironmentNow(body) {
   const warnings = []
   const dshVersion = await frozenDshVersion(list, reference)
   if (reference && existsSync(join(reference.dir, ENVIRONMENT_PACK.MARKET_PLUGIN_DIR))) {
-    warnings.push('dsh 里的插件市场插件自己装的插件不在 package.json 里，没有进这个环境文件')
+    warnings.push('dsh 里的插件市场插件自己装的插件不在 package.json 里，没有进这个实例文件')
   }
   const ctx = {
     env, reference, warnings,
@@ -3803,7 +3803,7 @@ async function exportEnvironmentNow(body) {
   if (target === ENVIRONMENT_PACK.TARGET_FILE) {
     const buffer = writeZip(entries)
     // 超过导入上限的文件这个启动器自己都导不回来（parsePackArchive 拒收），别写出去
-    if (buffer.length > MAX_PACK_BYTES) throw new Error(`导出的环境文件有 ${megabytes(buffer.length)} MB，超过导入上限 ${megabytes(MAX_PACK_BYTES)} MB：少带几个离线文件再试`)
+    if (buffer.length > MAX_PACK_BYTES) throw new Error(`导出的实例文件有 ${megabytes(buffer.length)} MB，超过导入上限 ${megabytes(MAX_PACK_BYTES)} MB：少带几个离线文件再试`)
     await writeFile(destination, buffer)
     bytes = buffer.length
   } else {
@@ -3817,7 +3817,7 @@ async function exportEnvironmentNow(body) {
     const latest = store.get(env.id)
     if (latest) store.save({ ...latest, packVersion: version, description })
   })
-  pushLog(`[环境] 已导出环境「${env.name}」→ ${destination}（DSH ${dshVersion}，${Object.keys(dependencies).length} 个依赖${ctx.offline.length ? `，${ctx.offline.length} 个离线文件` : ''}${warnings.length ? `，${warnings.length} 条提醒` : ''}）`)
+  pushLog(`[实例] 已导出实例「${env.name}」→ ${destination}（DSH ${dshVersion}，${Object.keys(dependencies).length} 个依赖${ctx.offline.length ? `，${ctx.offline.length} 个离线文件` : ''}${warnings.length ? `，${warnings.length} 条提醒` : ''}）`)
   return {
     ok: true,
     target,
@@ -3942,7 +3942,7 @@ function upstreamFrom(preview, filesDir) {
 function assertSameUpstream(env, installed) {
   const now = installedUpstream(env)
   if (now.release !== installed.release || now.version !== installed.version) {
-    throw new Error('这个环境在检查之后换过上游版本，重新检查一次再更新')
+    throw new Error('这个实例在检查之后换过上游版本，重新检查一次再更新')
   }
 }
 
@@ -3953,7 +3953,7 @@ function assertSameUpstream(env, installed) {
 async function inspectEnvironmentUpdate(body) {
   const store = environmentStore()
   const env = requireEnvironment(store, body.id)
-  if (!isFollowing(env)) throw new Error('这个环境不跟随上游')
+  if (!isFollowing(env)) throw new Error('这个实例不跟随上游')
   const { installed, candidate, entry, release } = await latestUpstream(env, { market: await marketOrNull() })
   if (!isNewerUpstream(candidate, installed)) throw new Error('上游没有比现在更新的版本')
   // GitHub 那条直接用检查时拿到的 release（里面就有资产列表），不再多问一次接口
@@ -3991,7 +3991,7 @@ async function applyEnvironmentUpdateNow(body) {
   const discard = Array.isArray(body.discard) ? body.discard.map(String) : []
   const result = await withClaimedInspect(String(body.token || ''), ENVIRONMENT_INSPECT.UPDATE, {
     stale: '这次检查已经过期，重新检查更新再试',
-    changed: '上游的环境文件在检查之后变了，重新检查一次再更新',
+    changed: '上游的实例文件在检查之后变了，重新检查一次再更新',
   }, async ({ cached, preview }) => {
     const store = environmentStore()
     const current = requireEnvironment(store, cached.environment)
@@ -4001,7 +4001,7 @@ async function applyEnvironmentUpdateNow(body) {
     return withLaunchPresetWrite(() => withEnvironmentWrite(async () => {
       // 进队列现读：检查之后环境页上又改过的本地改动，一样跟着重放
       const env = requireEnvironment(store, cached.environment)
-      if (!isFollowing(env)) throw new Error('这个环境已经不跟随上游了')
+      if (!isFollowing(env)) throw new Error('这个实例已经不跟随上游了')
       assertSameUpstream(env, cached.installed)
       const filesDir = store.filesDir(env.id)
       writeOfflineFiles(filesDir, preview.imported.offline)
@@ -4012,7 +4012,7 @@ async function applyEnvironmentUpdateNow(body) {
       return { environment: store.save(next), archived, report: upstreamUpdateReport(env, next) }
     }))
   })
-  pushLog(`[环境] 环境「${result.environment.name}」已更新到上游 ${result.environment.source?.release || result.environment.packVersion || ''}（旧清单存为 ${result.archived}）`)
+  pushLog(`[实例] 实例「${result.environment.name}」已更新到上游 ${result.environment.source?.release || result.environment.packVersion || ''}（旧清单存为 ${result.archived}）`)
   await emitState()
   return { ok: true, ...result }
 }
@@ -4040,7 +4040,7 @@ async function restoreEnvironmentNow(body) {
     const saved = store.archive(env)
     if (environmentVersionKey(restored) !== environmentVersionKey(env)) await syncPresetVersions(store, restored)
     const environment = store.save(restored)
-    pushLog(`[环境] 环境「${env.name}」切回 ${name}（现在这份存为 ${saved}）`)
+    pushLog(`[实例] 实例「${env.name}」切回 ${name}（现在这份存为 ${saved}）`)
     await emitState()
     return { ok: true, environment }
   }))
@@ -4228,7 +4228,7 @@ async function saveManagerSettings(body) {
   HIDE_BACKGROUND = stored.hideBackground === true
   HIDE_BIG_FISH = stored.hideBigFish === true
   if (stored.profile && stored.profile !== PROFILE_NAME) {
-    pushLog(`启动 profile 改为 ${stored.profile}`)
+    pushLog(`启动配置改为 ${stored.profile}`)
     PROFILE_NAME = stored.profile
   }
   await emitState()
@@ -4403,13 +4403,13 @@ async function preferredPnpmDir(profile) {
   const picked = await pickPnpmDir(candidates, wanted)
   if (picked) {
     // 只有「跟老规矩不一样」时才值得记一笔：系统那份仍然优先，改用它自己那份才是新行为
-    if (picked !== system) pushLog(`[插件] 这个 profile 记的是 store ${wanted}，系统那份 pnpm 对不上，改用 ${picked} 里的`)
+    if (picked !== system) pushLog(`[插件] 这个配置记的是 store ${wanted}，系统那份 pnpm 对不上，改用 ${picked} 里的`)
     return picked
   }
   if (!wanted || !candidates.length) return ''
   const have = []
   for (const dir of candidates) have.push((await pnpmStoreVersion(dir)) || '?')
-  pushLog(`[插件] 这个 profile 记的是 store ${wanted}，机器上的 pnpm 是 ${have.join(' / ')}；若 pnpm 报 ERR_PNPM_UNEXPECTED_STORE 就是这个原因`)
+  pushLog(`[插件] 这个配置记的是 store ${wanted}，机器上的 pnpm 是 ${have.join(' / ')}；若 pnpm 报 ERR_PNPM_UNEXPECTED_STORE 就是这个原因`)
   return ''
 }
 
@@ -4772,8 +4772,8 @@ async function restoreProfileConfig(profile, id) {
   const source = join(root, String(id))
   const manifest = readBackupManifest(source)
   if (!manifest) throw new Error('找不到这份备份')
-  if (!manifest.files.some((file) => file.name === 'package.json')) throw new Error('这份备份里没有 package.json，回退会让 Profile 起不来')
-  if (instanceList().some((proc) => proc.profile === name && ['starting', 'running', 'stopping'].includes(proc.status))) throw new Error('请先停止这个 Profile 的实例再回退')
+  if (!manifest.files.some((file) => file.name === 'package.json')) throw new Error('这份备份里没有 package.json，回退会让配置起不来')
+  if (instanceList().some((proc) => proc.profile === name && ['starting', 'running', 'stopping'].includes(proc.status))) throw new Error('请先停止这个配置的实例再回退')
   const dir = profileDirOf(name)
   const saved = await snapshotProfileConfig(name, { force: true })
   for (const file of PROFILE_BACKUP_FILES) {
@@ -4782,7 +4782,7 @@ async function restoreProfileConfig(profile, id) {
     if (included) await writeFile(target, readFileSync(join(source, file)))
     else if (existsSync(target)) await rm(target, { force: true })
   }
-  pushLog(`[备份] Profile ${name} 回退到 ${id}${saved ? `（回退前已存一份 ${saved.id}）` : ''}`)
+  pushLog(`[备份] 配置 ${name} 回退到 ${id}${saved ? `（回退前已存一份 ${saved.id}）` : ''}`)
   return { ok: true, restored: String(id), backup: saved }
 }
 
@@ -4814,11 +4814,11 @@ async function reinstallAfterRollback(profile) {
   pluginBusy = true
   try {
     await runProfileInstall(version, { profile })
-    pushLog(`[备份] Profile ${profile} 回退后已重装依赖`)
+    pushLog(`[备份] 配置 ${profile} 回退后已重装依赖`)
     return { ok: true }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    pushLog(`[备份] Profile ${profile} 回退后重装依赖失败：${message}`)
+    pushLog(`[备份] 配置 ${profile} 回退后重装依赖失败：${message}`)
     return { ok: false, error: message }
   } finally {
     pluginBusy = false
@@ -4955,7 +4955,7 @@ async function runSyncJob(mode, options = {}) {
       try {
         const version = await pluginCommandVersion()
         emitSync({ phase: 'install', mode, label: '重装插件依赖', at: Date.now() })
-        pushLog('[同步] 插件清单有变化，重装 profile 依赖…')
+        pushLog('[同步] 插件清单有变化，重装配置依赖…')
         pluginBusy = true
         await runProfileInstall(version)
         summary.installed = true
@@ -5316,7 +5316,7 @@ export function ensureProfileAlias(profile, root = join(homeDir(), 'profiles')) 
     symlinkSync(target, path, fileManager.directoryLinkType)
     return name
   } catch (error) {
-    pushLog(`[插件] 建 ${name} 别名失败（${error instanceof Error ? error.message : error}）：这个保留名 profile 的插件操作仍会被 dsh 拒掉`)
+    pushLog(`[插件] 建 ${name} 别名失败（${error instanceof Error ? error.message : error}）：这个保留名配置的插件操作仍会被 dsh 拒掉`)
     return ''
   }
 }
@@ -5922,7 +5922,7 @@ export function describePluginFailure(output, label, code) {
       const peers = JSON.parse(incompatible[3])
       required = [...new Set(Object.entries(peers).filter(([name]) => name.startsWith('@deepseek-ai/')).map(([, spec]) => String(spec)))]
     } catch { /* 声明格式变化时仍显示拒绝原因，不退回只有退出码。 */ }
-    return `${incompatible[1]} 与当前使用的 DSH ${incompatible[2]} 不兼容。\n${required.length ? `插件要求的 DSH 组件版本：${required.join('、')}。\n` : ''}请先在版本管理中安装兼容的 DSH；如果此 Profile 正在运行旧版，请停止旧版后再更新插件。`
+    return `${incompatible[1]} 与当前使用的 DSH ${incompatible[2]} 不兼容。\n${required.length ? `插件要求的 DSH 组件版本：${required.join('、')}。\n` : ''}请先在版本管理中安装兼容的 DSH；如果此配置正在运行旧版，请停止旧版后再更新插件。`
   }
   const npmReason = describeNpmFailure(text)
   const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
@@ -5950,7 +5950,7 @@ async function runPluginCommand(ver, args, label, options = {}) {
   const cliProfile = !options.lockedDiagnosticTarget && CLI_BLOCKED_PROFILES.has(profile.toLowerCase()) ? ensureProfileAlias(profile) : ''
   // 先按这份 profile 记的 store 挑 pnpm（#12）：挑得出来就用它，挑不出来按老规矩「系统优先」
   const pnpmDir = await preferredPnpmDir(profile).catch(() => '')
-  pushLog(`插件命令使用 DSH ${ver} · profile ${profile}`)
+  pushLog(`插件命令使用 DSH ${ver} · 配置 ${profile}`)
   return new Promise((resolve, reject) => {
     const target = options.lockedDiagnosticTarget
     if (target && (homeDir() !== target.home || target.profile !== profile || target.version !== ver || binPath(ver) !== target.harnessEntry || args.length !== 2 || args[0] !== 'remove')) {
@@ -6112,7 +6112,7 @@ async function addPlugin(version, spec, { profile = PROFILE_NAME } = {}) {
   const before = new Set(Object.keys(profileDependencies(dir)))
   const broken = pruneDanglingLinks(join(dir, 'node_modules'))
   if (broken) pushLog(`先清理了 ${broken} 个悬空的链接（断链会让安装报 unknown error）`)
-  pushLog(`安装插件 ${pkg} 到 ${profile} profile`)
+  pushLog(`安装插件 ${pkg} 到配置 ${profile}`)
   try {
     try {
       await runPluginCommand(ver, ['add', '-w', pkg], `dsh plugin add ${pkg}`, { profile })
@@ -6157,7 +6157,7 @@ async function addPlugin(version, spec, { profile = PROFILE_NAME } = {}) {
       else if (!mounted.ok) pushLog(`挂载 ${pkg} 没做成：${mounted.reason}`)
     }
     if (!guessed && !targets.length) pushLog(`无法从 ${pkg} 判断包名，未自动挂载；插件没生效时请在 dsh 里手动启用`)
-    pushLog(`${pkg} 已在 ${profile} profile`)
+    pushLog(`${pkg} 已在配置 ${profile} 里`)
   } finally {
     pluginBusy = false
     pluginProgressName = ''
@@ -6307,7 +6307,7 @@ async function pluginCommandVersion(profile = PROFILE_NAME) {
   if (live?.version) return available(live.version)
   const versions = [...new Set(presets.map((entry) => resolvePresetVersion(entry, homeDir(), config)))]
   // 同一个目录/Profile 可以绑定多个内核，不能靠启动项排列顺序猜用户要更新哪一套。
-  if (versions.length > 1) throw new Error(`profile「${profile}」对应多个内核版本，请从要使用的启动项进入插件管理后再更新`)
+  if (versions.length > 1) throw new Error(`配置「${profile}」对应多个内核版本，请从要使用的启动项进入插件管理后再更新`)
   // 绑定的通道没有可用内核时照样报错；空串不能掉进未绑定 Profile 的兜底，绕到其他通道执行。
   if (presets.length) return available(versions[0])
   // 这个 Profile 没有启动项，也就没人选过版本类型：所有类别都算（Alpha 全收），跟以前一样取最高已装。
@@ -6355,7 +6355,7 @@ async function checkPluginUpdates({ force = false, profile = PROFILE_NAME } = {}
 async function updatePlugin(name, { latest = '', profile = PROFILE_NAME } = {}) {
   profile = safeProfile(profile)
   const plugin = listPlugins(profileDirOf(profile)).plugins.find((item) => item.name === name)
-  if (!plugin) throw new Error(`这个 profile 里没有 ${name}`)
+  if (!plugin) throw new Error(`这个配置里没有 ${name}`)
   if (plugin.official) throw new Error(`${name} 是官方组件，版本跟着 dsh 走，不单独更新`)
   const target = latest || (await checkPluginUpdates({ force: true, profile })).plugins[name]?.latest
   if (!target) throw new Error(`查不到 ${name} 的最新版本`)
@@ -6445,19 +6445,19 @@ async function repairProfileDeps(version, error, profile = PROFILE_NAME) {
   const bundles = parseUnresolvedBundles(`${failure?.message || ''}\n${(failure?.tail || []).join('\n')}`)
   if (!bundles.length) return false
   if (pluginBusy) {
-    pushLog(`[兼容] profile 里解析不到 ${bundles.join('、')}，但正在装插件，跳过依赖重建`)
+    pushLog(`[兼容] 配置里解析不到 ${bundles.join('、')}，但正在装插件，跳过依赖重建`)
     return false
   }
   const broken = pruneDanglingLinks(join(profileDirOf(profile), 'node_modules'))
   if (broken) pushLog(`[兼容] 先清理了 ${broken} 个悬空的链接`)
-  pushLog(`[兼容] profile ${profile} 里解析不到 ${bundles.join('、')}，重建 profile 依赖（dsh plugin install）…`)
+  pushLog(`[兼容] 配置 ${profile} 里解析不到 ${bundles.join('、')}，重建配置依赖（dsh plugin install）…`)
   pluginBusy = true
   try {
     await runProfileInstall(version, { profile })
-    pushLog('[兼容] profile 依赖已重建，重试启动…')
+    pushLog('[兼容] 配置依赖已重建，重试启动…')
     return true
   } catch (error2) {
-    pushLog(`[兼容] 重建 profile 依赖失败：${error2 instanceof Error ? error2.message : error2}`)
+    pushLog(`[兼容] 重建配置依赖失败：${error2 instanceof Error ? error2.message : error2}`)
     return false
   } finally {
     pluginBusy = false
@@ -6598,7 +6598,7 @@ function packPluginSelection(profile, plugins, selector) {
   }
   if (selector?.pack) {
     const record = installed.find((item) => item.name === String(selector.pack))
-    if (!record) throw new Error(`profile「${profile}」没有「${selector.pack}」这条整合包记录`)
+    if (!record) throw new Error(`配置「${profile}」没有「${selector.pack}」这条整合包记录`)
     const declared = new Set([...((record.bundles || []).map(String)), ...Object.keys(record.dependencies || {}), ...Object.keys(record.specs || {})])
     return { names: [...declared].filter((name) => byName.has(name) && !byName.get(name).official), group: 'pack', pack: record.name }
   }
@@ -6830,7 +6830,7 @@ async function marketEntries({ force = false } = {}) {
       last = error
     }
   }
-  throw new Error(`读整合包市场失败：${describeFetchError(last, url)}`)
+  throw new Error(`读实例市场失败：${describeFetchError(last, url)}`)
 }
 
 /**
@@ -7420,7 +7420,7 @@ async function bootOnce(ver, prof, onStarted) {
     // TIME_WAIT。真起不来时下面那条 catch 会把话说清楚。
     pushLog(`固定端口 ${pinned} 现在被占用，这次启动多半会失败`)
   }
-  pushLog(`启动 ${ver} · profile ${prof}${lanBindActive() ? ' · Web 绑定 局域网（dsh 仍绑 127.0.0.1，局域网经启动器代理）' : ''}${pinned ? ` · 固定端口 ${pinned}` : ''}${alongside ? '（与已在跑的实例并存）' : ''}`)
+  pushLog(`启动 ${ver} · 配置 ${prof}${lanBindActive() ? ' · Web 绑定 局域网（dsh 仍绑 127.0.0.1，局域网经启动器代理）' : ''}${pinned ? ` · 固定端口 ${pinned}` : ''}${alongside ? '（与已在跑的实例并存）' : ''}`)
   if (reused) {
     pushLog(remembered.key === `${ver}@${prof}`
       ? `复用自动端口：${ver}@${prof} → ${reused}`
@@ -7435,7 +7435,7 @@ async function bootOnce(ver, prof, onStarted) {
     fingerprint: profileFingerprint(homeDir(), prof),
   }
   const key = instanceKey(ver, prof)
-  if (instanceLinks.get(key)?.pending().length) throw new Error('仍有重启中的实例，请先停止这个 Profile 的实例')
+  if (instanceLinks.get(key)?.pending().length) throw new Error('仍有重启中的实例，请先停止这个配置的实例')
   instanceLinks.get(key)?.revoke()
   const home = homeDir()
   const instanceLink = await createInstanceLink({
@@ -7550,7 +7550,7 @@ async function bootWslOnce(ver, prof, context, onStarted) {
     const port = await allocateWslPort(distro, preferred, (candidate) => portAvailable(candidate))
     if (pinned && port !== pinned) pushLog(`固定端口 ${pinned} 在 WSL 或 Windows 侧被占用，这次改用 ${port}`)
     else if (remembered.port && port !== remembered.port) pushLog(`WSL 自动端口 ${remembered.port} 已不可用，这次改用 ${port}`)
-    pushLog(`启动 ${ver} · profile ${prof} · WSL ${distro}${workdir ? ` · 项目目录 ${workdir}` : ''}${pinned ? ` · 固定端口 ${pinned}` : ''}`)
+    pushLog(`启动 ${ver} · 配置 ${prof} · WSL ${distro}${workdir ? ` · 项目目录 ${workdir}` : ''}${pinned ? ` · 固定端口 ${pinned}` : ''}`)
     assertStartupActive()
     const diagnosticContext = {
       attemptId: randomBytes(16).toString('hex'),
@@ -7676,7 +7676,7 @@ async function startWslNow(version, profile = PROFILE_NAME, onStarted) {
     }
   }
   if (!info.profiles.includes(prof) && !TEMPLATE_PROFILES.includes(prof)) {
-    throw new Error(`WSL 里没有 profile ${prof}（先在 WSL 里用 dsh 建一次）`)
+    throw new Error(`WSL 里没有配置 ${prof}（先在 WSL 里用 dsh 建一次）`)
   }
   return bootWslOnce(ver, prof, { distro, wslHome, workdir: launchWslWorkdir() }, onStarted)
 }
@@ -7690,7 +7690,7 @@ async function startNow(version, profile = PROFILE_NAME, onStarted) {
   const prof = safeProfile(profile)
   // 保留名（desktop）也能起：入口换成 RESERVED_BOOT，见 CLI_BLOCKED_PROFILES
   if (!listProfiles().includes(prof)) {
-    throw new Error(`profile ${prof} 不存在（先用自带模板名起一次，或把装好的 profile 目录放进 .dsh/profiles）`)
+    throw new Error(`配置 ${prof} 不存在（先用自带模板名起一次，或把装好的配置目录放进 .dsh/profiles）`)
   }
   const existing = instances.get(instanceKey(ver, prof))
   if (existing?.status === 'running' && existing.url) {
@@ -7848,7 +7848,7 @@ async function startWithRepair(version, profile = PROFILE_NAME) {
   // 只存配置层（几十 KB），node_modules 不动；内容没变时 snapshotProfileConfig 会跳过。
   // 快照失败不拦启动——备份是保险，不是启动的前提。
   await snapshotProfileConfig(profile).catch((error) => {
-    pushLog(`[备份] Profile ${profile} 快照失败：${error instanceof Error ? error.message : error}`)
+    pushLog(`[备份] 配置 ${profile} 快照失败：${error instanceof Error ? error.message : error}`)
   })
   for (;;) {
     try {
@@ -7895,7 +7895,7 @@ async function start(version, profile) {
   const run = previous.then(async () => {
     assertStartupActive()
     if (optimizingVersion === version) throw new Error('正在优化此版本的依赖，请稍后再启动')
-    if (maintainingProfiles.has(key)) throw new Error(`profile「${name}」正在修改，稍后再启动`)
+    if (maintainingProfiles.has(key)) throw new Error(`配置「${name}」正在修改，稍后再启动`)
     startingProfiles.add(key)
     try {
       // 在同一条按 profile 串行的链里套用环境：两个启动项不会同时往一个目录写清单。
@@ -8009,11 +8009,11 @@ function initializedProfiles(root) {
 async function renameProfile(profile, nextName) {
   const from = safeProfile(profile)
   const name = safeProfile(nextName)
-  if (from.startsWith('.') || from.toLowerCase() === 'node_modules' || CLI_BLOCKED_PROFILES.has(from.toLowerCase())) throw new Error('系统 Profile 不能重命名')
-  if (name.startsWith('.') || name.toLowerCase() === 'node_modules' || TEMPLATE_PROFILES.includes(name.toLowerCase()) || CLI_BLOCKED_PROFILES.has(name.toLowerCase())) throw new Error('这个名称是系统保留名称，请换一个 Profile 名称')
+  if (from.startsWith('.') || from.toLowerCase() === 'node_modules' || CLI_BLOCKED_PROFILES.has(from.toLowerCase())) throw new Error('系统配置不能重命名')
+  if (name.startsWith('.') || name.toLowerCase() === 'node_modules' || TEMPLATE_PROFILES.includes(name.toLowerCase()) || CLI_BLOCKED_PROFILES.has(name.toLowerCase())) throw new Error('这个名称是系统保留名称，请换一个配置名称')
   const original = profileDirOf(from)
   const target = profileDirOf(name)
-  if (!existsSync(join(original, 'package.json')) || lstatSync(original).isSymbolicLink()) throw new Error('只能重命名已初始化的 Profile 目录')
+  if (!existsSync(join(original, 'package.json')) || lstatSync(original).isSymbolicLink()) throw new Error('只能重命名已初始化的配置目录')
   if (from === name) return { ok: true, renamedProfile: name, ...packsPayload() }
   const root = dirname(original)
   const home = homeDir()
@@ -8023,8 +8023,8 @@ async function renameProfile(profile, nextName) {
   let targetHeld = false
   try {
     await withIdleProfile(from, async () => {
-      if (readdirSync(root).some((entry) => entry.toLowerCase() === name.toLowerCase())) throw new Error(`Profile「${name}」已存在`)
-      if (startingProfiles.has(targetKey) || maintainingProfiles.has(targetKey) || instanceList().some((proc) => proc.profile === name && sameHome(proc.home))) throw new Error('正在修改这个 Profile，等操作结束再试')
+      if (readdirSync(root).some((entry) => entry.toLowerCase() === name.toLowerCase())) throw new Error(`配置「${name}」已存在`)
+      if (startingProfiles.has(targetKey) || maintainingProfiles.has(targetKey) || instanceList().some((proc) => proc.profile === name && sameHome(proc.home))) throw new Error('正在修改这个配置，等操作结束再试')
       maintainingProfiles.add(targetKey)
       targetHeld = true
       const links = []
@@ -8141,8 +8141,8 @@ async function renameProfile(profile, nextName) {
   }
   pluginUpdateCache.at = 0
   if (lastAutoFix?.home === home && lastAutoFix.profile === from) lastAutoFix.profile = name
-  await renameProfileInEnvironments(home, from, name).catch((error) => pushLog(`[环境] 改名后更新环境记录失败：${error instanceof Error ? error.message : error}`))
-  pushLog(`已重命名 Profile「${from}」为「${name}」`)
+  await renameProfileInEnvironments(home, from, name).catch((error) => pushLog(`[实例] 改名后更新实例记录失败：${error instanceof Error ? error.message : error}`))
+  pushLog(`已重命名配置「${from}」为「${name}」`)
   await emitState()
   return { ok: true, ...packsPayload(), renamedProfile: name, profile: name, state: await snapshot(), webProfiles: listProfiles().filter((profile) => profileBootsWebIn(home, profile)) }
 }
@@ -8184,19 +8184,19 @@ async function createProfile(profile, source = '', sourceHome = '') {
   const name = safeProfile(profile)
   const from = source ? safeProfile(source) : ''
   if (name.startsWith('.') || name.toLowerCase() === 'node_modules' || TEMPLATE_PROFILES.includes(name.toLowerCase()) || CLI_BLOCKED_PROFILES.has(name.toLowerCase())) {
-    throw new Error('这个名称是系统保留名称，请换一个 Profile 名称')
+    throw new Error('这个名称是系统保留名称，请换一个配置名称')
   }
   // 目标永远是「当前作用域」这一份；来源可以另指一个用户目录。
   const home = homeDir()
   const fromHome = from ? safeDshHome(sourceHome) || home : ''
   const root = join(home, 'profiles')
   await mkdir(root, { recursive: true })
-  if (readdirSync(root).some((entry) => entry.toLowerCase() === name.toLowerCase())) throw new Error(`Profile「${name}」已存在`)
+  if (readdirSync(root).some((entry) => entry.toLowerCase() === name.toLowerCase())) throw new Error(`配置「${name}」已存在`)
   const original = from ? join(fromHome, 'profiles', from) : ''
-  if (from && !existsSync(join(original, 'package.json'))) throw new Error(`Profile「${from}」尚未初始化，不能复制`)
+  if (from && !existsSync(join(original, 'package.json'))) throw new Error(`配置「${from}」尚未初始化，不能复制`)
   const target = join(home, 'profiles', name)
   const targetKey = `${home}\0${name}`
-  if (maintainingProfiles.has(targetKey)) throw new Error(`profile「${name}」正在修改，稍后再试`)
+  if (maintainingProfiles.has(targetKey)) throw new Error(`配置「${name}」正在修改，稍后再试`)
   // 锁的是来源那一份（同目录复制时就是自己）：来源被删/被改到一半，复制出来的是坏环境。
   await withIdleProfileIn(from ? fromHome : home, from || name, async () => {
     if (from) maintainingProfiles.add(targetKey)
@@ -8226,8 +8226,8 @@ async function createProfile(profile, source = '', sourceHome = '') {
         await runProfileInstall(await pluginCommandVersion(name), { profile: name })
       }
       pushLog(from
-        ? `已复制 Profile「${from}」为「${name}」${fromHome === home ? '' : `（来源目录 ${fromHome}）`}`
-        : `已创建 Profile「${name}」`)
+        ? `已复制配置「${from}」为「${name}」${fromHome === home ? '' : `（来源目录 ${fromHome}）`}`
+        : `已创建配置「${name}」`)
     } catch (error) {
       if (created) await rm(target, { recursive: true, force: true })
       throw error
@@ -8241,7 +8241,7 @@ async function createProfile(profile, source = '', sourceHome = '') {
 }
 
 /** 整合包对话框的筛选器（只有 Windows 的对话框用得上）。 */
-const PACK_FILE_FILTER_DSPACK = '整合包 (*.dspack)|*.dspack|ZIP 压缩包 (*.zip)|*.zip|所有文件 (*.*)|*.*'
+const PACK_FILE_FILTER_DSPACK = '实例文件 (*.dspack)|*.dspack|ZIP 压缩包 (*.zip)|*.zip|所有文件 (*.*)|*.*'
 const ZIP_FILE_FILTER = 'ZIP 文件 (*.zip)|*.zip|所有文件 (*.*)|*.*'
 
 /**
@@ -8258,7 +8258,7 @@ function pickPackFile({ save = false, defaultName = '' } = {}) {
     save,
     defaultName,
     filter: PACK_FILE_FILTER_DSPACK,
-    title: save ? '导出环境' : '选择环境文件',
+    title: save ? '导出实例' : '选择实例文件',
   })
 }
 
@@ -8710,7 +8710,7 @@ async function handleApi(req, res, url) {
   // WSL 启动项的文件都在发行版里，Windows 侧只负责拉起进程；
   // 统一在这里挡住本地文件路由，避免把 wsl:// 键当成 Windows 路径。
   if (launchIsWsl() && isWslLocalApiRoute(url.pathname)) {
-    send(res, 400, { error: 'WSL 启动项的 Profile、插件和整合包文件都在 WSL 内，当前版本不支持在 Windows 侧直接管理；请进入该发行版操作。' })
+    send(res, 400, { error: 'WSL 启动项的配置、插件和整合包文件都在 WSL 内，当前版本不支持在 Windows 侧直接管理；请进入该发行版操作。' })
     return
   }
   if (req.method === 'GET' && url.pathname === '/api/remote') {
@@ -8924,7 +8924,7 @@ async function handleApi(req, res, url) {
   if (req.method === 'POST' && ['/api/profiles/create', '/api/profiles/copy'].includes(url.pathname)) {
     const body = await readJson(req)
     const copying = url.pathname === '/api/profiles/copy'
-    if (copying && !body.source) { send(res, 400, { error: '请选择要复制的 Profile' }); return }
+    if (copying && !body.source) { send(res, 400, { error: '请选择要复制的配置' }); return }
     try { send(res, 200, await createProfile(body.profile, copying ? body.source : '', copying ? body.sourceHome : '')) }
     catch (error) { send(res, 400, { error: error instanceof Error ? error.message : String(error) }) }
     return
@@ -9027,11 +9027,11 @@ async function handleApi(req, res, url) {
       const home = safeWslPath(body.home || '', 'WSL 用户目录')
       const profile = safeProfile(body.profile || '')
       if (profile.startsWith('.') || profile.toLowerCase() === 'node_modules' || CLI_BLOCKED_PROFILES.has(profile.toLowerCase())) {
-        throw new Error(`「${profile}」不能作为 Profile 删除`)
+        throw new Error(`「${profile}」不能作为配置删除`)
       }
       const running = instanceList().some((proc) => proc.backend === 'wsl' && proc.distro === distro && proc.profile === profile
         && (proc.status === 'running' || proc.status === 'starting'))
-      if (running) throw new Error('这个 Profile 正在运行，先停止再删除')
+      if (running) throw new Error('这个配置正在运行，先停止再删除')
       const result = await removeWslProfile(distro, home, profile)
       if (result.ok) invalidateWslCache()
       send(res, 200, result)
@@ -9429,7 +9429,7 @@ async function handleApi(req, res, url) {
     try {
       const profile = body.profile ? String(body.profile) : PROFILE_NAME
       const dir = profileDirOf(profile)
-      if (maintainingProfiles.has(profileKey(profile))) throw new Error(`profile「${profile}」正在修改，稍后再试`)
+      if (maintainingProfiles.has(profileKey(profile))) throw new Error(`配置「${profile}」正在修改，稍后再试`)
       // 补丁层马上要改名移出 profile：先在启动器自己的配置备份里留一份（#88 里那次快照
       // 拍在安全启动之后，cordis.patch.yml 已经不在，回退也拿不回用户的自定义 provider）。
       await snapshotProfileConfig(profile, { force: true }).catch((error) => {
@@ -9450,7 +9450,7 @@ async function handleApi(req, res, url) {
     try {
       const profile = body.profile ? String(body.profile) : PROFILE_NAME
       const dir = profileDirOf(profile)
-      if (maintainingProfiles.has(profileKey(profile))) throw new Error(`profile「${profile}」正在修改，稍后再试`)
+      if (maintainingProfiles.has(profileKey(profile))) throw new Error(`配置「${profile}」正在修改，稍后再试`)
       const result = await restoreProfileBackup(dir, body.backup)
       if (result.restoredBundles.length) await restoreRecordedOrder(homeDir(), profile)
       if (lastRecovery?.home === homeDir()) lastRecovery = null
@@ -9569,7 +9569,7 @@ async function handleApi(req, res, url) {
       // 官方组件随 dsh 版本走，单独装/换版本会和运行时的 @deepseek-ai/* 对不上。
       if (name && name.startsWith('@deepseek-ai/')) throw new Error('官方组件随 dsh 安装，不能单独添加')
       if (name && Object.hasOwn(profileDependencies(target), name)) {
-        throw new Error(`${name} 已经在这个 Profile 里；要升级请用插件行的更新按钮`)
+        throw new Error(`${name} 已经在这个配置里；要升级请用插件行的更新按钮`)
       }
       const version = await pluginCommandVersion(profile)
       await addPlugin(version, spec, { profile })
@@ -9594,7 +9594,7 @@ async function handleApi(req, res, url) {
       if (!name) throw new Error('请选择要卸载的插件')
       if (name.startsWith('@deepseek-ai/')) throw new Error('官方组件随 dsh 安装，不能在这里卸载')
       const target = profileDirOf(profile)
-      if (!Object.hasOwn(profileDependencies(target), name)) throw new Error(`这个 Profile 里没有装 ${name}`)
+      if (!Object.hasOwn(profileDependencies(target), name)) throw new Error(`这个配置里没有装 ${name}`)
       const version = await pluginCommandVersion(profile)
       await removePlugin(version, name, { profile })
       pluginUpdateCache.at = 0
@@ -9613,7 +9613,7 @@ async function handleApi(req, res, url) {
     const profile = safeProfile(String(body.profile || PROFILE_NAME))
     const target = profileDirOf(profile)
     const result = await editProfile(profile, () => setPluginEnabled(target, name, enabled))
-    const where = body.profile && String(body.profile) !== PROFILE_NAME ? `（profile ${body.profile}）` : ''
+    const where = body.profile && String(body.profile) !== PROFILE_NAME ? `（配置 ${body.profile}）` : ''
     pushLog(`插件 ${name} → ${enabled ? '启用' : '禁用'}${where}${result.changed ? '' : result.mounted ? '（补挂载）' : '（无变化）'}`)
     send(res, 200, { ok: true, changed: result.changed, ...packsPayload(), ...listPlugins(target), profile, autoFix: autoFixForHome(), recovery: recoveryPayload(profile) })
     return
@@ -9668,13 +9668,13 @@ async function handleApi(req, res, url) {
     const profile = String(body.profile || '')
     const enabled = body.enabled !== false
     if (!profile) {
-      send(res, 400, { error: '要说清是哪个 profile' })
+      send(res, 400, { error: '要说清是哪个配置' })
       return
     }
     const target = join(homeDir(), 'profiles', safeProfile(profile))
     const plugins = listPlugins(target).plugins
     if (!plugins.length) {
-      send(res, 404, { error: `profile「${profile}」里没有已安装的插件` })
+      send(res, 404, { error: `配置「${profile}」里没有已安装的插件` })
       return
     }
     let selection
@@ -9686,7 +9686,7 @@ async function handleApi(req, res, url) {
     }
     const packages = selection.names
     if (!packages.length) {
-      send(res, 404, { error: selection.group === 'pack' ? `整合包「${selection.pack}」在 profile「${profile}」里没有已安装插件` : `profile「${profile}」里没有属于这个分组的插件` })
+      send(res, 404, { error: selection.group === 'pack' ? `整合包「${selection.pack}」在配置「${profile}」里没有已安装插件` : `配置「${profile}」里没有属于这个分组的插件` })
       return
     }
     let changed = 0
@@ -9700,27 +9700,27 @@ async function handleApi(req, res, url) {
         }
       }
     })
-    pushLog(`profile ${profile} 的插件 → ${enabled ? '启用' : '禁用'}（${changed} 个有变化${failed.length ? `，${failed.length} 个不支持：${failed.join('；')}` : ''}）`)
+    pushLog(`配置 ${profile} 的插件 → ${enabled ? '启用' : '禁用'}（${changed} 个有变化${failed.length ? `，${failed.length} 个不支持：${failed.join('；')}` : ''}）`)
     send(res, 200, { ok: true, changed, failed, selected: packages, pack: selection.pack || '', group: selection.group, profile, ...listPlugins(profileDirOf(profile)), ...packsPayload(), autoFix: autoFixForHome(), recovery: recoveryPayload(profile) })
     return
   }
   if (req.method === 'POST' && ['/api/packs/remove-profile', '/api/profiles/delete'].includes(url.pathname)) {
     const profile = String(body.profile || '')
     if (!profile) {
-      send(res, 400, { error: '要说清是哪个 profile' })
+      send(res, 400, { error: '要说清是哪个配置' })
       return
     }
     if (profile.startsWith('.') || profile.toLowerCase() === 'node_modules') {
-      send(res, 400, { error: '启动器内部目录不能作为 Profile 删除' })
+      send(res, 400, { error: '启动器内部目录不能作为配置删除' })
       return
     }
     if (CLI_BLOCKED_PROFILES.has(profile.toLowerCase())) {
-      send(res, 400, { error: `「${profile}」是官方桌面端专用的 Profile，不能删除` })
+      send(res, 400, { error: `「${profile}」是官方桌面端专用的配置，不能删除` })
       return
     }
     const target = join(homeDir(), 'profiles', safeProfile(profile))
     if (!existsSync(target)) {
-      send(res, 404, { error: `profile「${profile}」的目录不在` })
+      send(res, 404, { error: `配置「${profile}」的目录不在` })
       return
     }
     try {
@@ -9743,12 +9743,12 @@ async function handleApi(req, res, url) {
           PROFILE_NAME = nextProfile
         }
       })
-      pushLog(`已删掉整个 profile「${profile}」`)
+      pushLog(`已删掉整个配置「${profile}」`)
       await emitState()
       send(res, 200, { ok: true, ...listPlugins(profileDir()), ...packsPayload(), autoFix: autoFixForHome(), recovery: recoveryPayload() })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      pushLog(`删 profile「${profile}」失败：${message}`)
+      pushLog(`删配置「${profile}」失败：${message}`)
       send(res, 400, { error: message })
     }
     return
@@ -9774,11 +9774,11 @@ async function handleApi(req, res, url) {
     // 删目录这件事先判掉：允许的话才动手卸载，否则会留下「文件还原了、目录没删」的半截状态
     if (body.removeProfile === true) {
       if (!record.createdProfile) {
-        send(res, 400, { error: '这个 profile 在装整合包之前就在，不敢整个删掉；可以手动清理这个目录' })
+        send(res, 400, { error: '这个配置在装整合包之前就在，不敢整个删掉；可以手动清理这个目录' })
         return
       }
       if (record.profile === PROFILE_NAME) {
-        send(res, 400, { error: `profile「${record.profile}」是启动器正在用的那个，先在插件页换一个 profile 再删` })
+        send(res, 400, { error: `配置「${record.profile}」是启动器正在用的那个，先在插件页换一个配置再删` })
         return
       }
     }
@@ -9791,18 +9791,18 @@ async function handleApi(req, res, url) {
         const result = gone
           ? { ok: true, restored: 0 }
           : uninstallPack(record, { home: homeDir(), log: (line) => { lines.push(line); pushLog(`[整合包] ${line}`) } })
-        if (gone) lines.push(`profile 目录「${profilePath}」已经不在了，只清掉安装记录，不再还原文件`)
+        if (gone) lines.push(`配置目录「${profilePath}」已经不在了，只清掉安装记录，不再还原文件`)
         let removedProfile = false
         if (body.removeProfile === true) {
           await rm(join(homeDir(), 'profiles', record.profile), { recursive: true, force: true })
           removedProfile = true
-          pushLog(`[整合包] 已删掉整个 profile「${record.profile}」`)
+          pushLog(`[整合包] 已删掉整个配置「${record.profile}」`)
         }
         // 目录删成功才撤销安装记录；失败时至少还有记录可供用户重试。
         forgetPack(packDataDir(), record)
-        pushLog(`整合包 ${name} 已从 profile「${profile}」卸下（还原 ${result.restored} 个文件${removedProfile ? '，并删除 profile 目录' : ''}）`)
+        pushLog(`整合包 ${name} 已从配置「${profile}」卸下（还原 ${result.restored} 个文件${removedProfile ? '，并删除配置目录' : ''}）`)
         if (record.createdProfile && !removedProfile) {
-          lines.push(`这个 profile 是整合包建的，包新建的文件已删掉；node_modules 里装过的插件还在，想清干净可以在整合包页勾「同时删掉整个 profile 目录」`)
+          lines.push(`这个配置是整合包建的，包新建的文件已删掉；node_modules 里装过的插件还在，想清干净可以在整合包页勾「同时删掉整个配置目录」`)
         }
         return { restored: result.restored, lines, removedProfile }
       })
@@ -10114,7 +10114,7 @@ export async function startServer() {
   CONFIG = join(DATA, 'config.json')
   await mkdir(DATA, { recursive: true })
   // 旧形态数据（没有环境的启动项、带插件清单的 profile）收养成环境；失败不挡启动，下次再试。
-  await migrateLegacyData().catch((error) => pushLog(`[环境] 迁移旧数据失败，下次启动再试：${error instanceof Error ? error.message : error}`))
+  await migrateLegacyData().catch((error) => pushLog(`[实例] 迁移旧数据失败，下次启动再试：${error instanceof Error ? error.message : error}`))
   cleanStaleUpdates()
   // 检查过但一直没装的整合包会留在 inbox 里，启动时清一次过期的（DATA 可能刚改过）
   void prunePackInbox()

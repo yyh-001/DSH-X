@@ -37,8 +37,8 @@ export async function withProfileLock(profileDir, operation, probe) {
       break
     } catch (error) {
       if (error?.code !== 'EEXIST') throw error
-      if (attempt >= 1) throw new Error('profile 锁被占用，稍后再试')
-      if (lockIsActive(lockPath, probe)) throw new Error('另一个 profile 操作正在进行，稍后再试')
+      if (attempt >= 1) throw new Error('配置锁被占用，稍后再试')
+      if (lockIsActive(lockPath, probe)) throw new Error('另一个配置操作正在进行，稍后再试')
       unlinkSync(lockPath) // 僵死锁（属主进程已不在）：清掉再来一次
     }
   }
@@ -59,7 +59,7 @@ export function lockIsActive(lockPath, probe = (owner) => process.kill(owner, 0)
   let owner
   try {
     const info = lstatSync(lockPath)
-    if (info.isSymbolicLink() || !info.isFile()) throw new Error('profile 锁不是普通文件')
+    if (info.isSymbolicLink() || !info.isFile()) throw new Error('配置锁不是普通文件')
     owner = Number.parseInt(readFileSync(lockPath, 'utf8').trim(), 10)
   } catch {
     return true // 读不动就当作有人在用，宁可不做也别踩
@@ -179,7 +179,7 @@ export function sanitizeProfile(profileDir) {
           }
         }
       } catch (error) {
-        warning = `profile 清单没动（${error instanceof Error ? error.message : error}）；补丁层已备份`
+        warning = `配置清单没动（${error instanceof Error ? error.message : error}）；补丁层已备份`
       }
     }
     if (backup) writeFileSync(sidecarOf(backup), `${JSON.stringify({ at: Date.now(), dropped }, null, 2)}\n`)
@@ -194,7 +194,7 @@ export function sanitizeProfile(profileDir) {
  */
 export function restoreProfileBackup(profileDir, backupPath) {
   const name = basename(String(backupPath ?? ''))
-  if (!BACKUP_NAME_RE.test(name)) throw new Error('只认 profile 目录里的补丁层备份（cordis.patch.yml.bak-<时间戳>）')
+  if (!BACKUP_NAME_RE.test(name)) throw new Error('只认配置目录里的补丁层备份（cordis.patch.yml.bak-<时间戳>）')
   return withProfileLock(profileDir, () => {
     const target = join(profileDir, name)
     if (!existsSync(target)) throw new Error(`${name} 不在了`)

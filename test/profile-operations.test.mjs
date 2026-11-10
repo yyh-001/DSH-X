@@ -154,7 +154,7 @@ setTimeout(() => server.listen(0, '127.0.0.1', () => console.log('dsh web: http:
     await api('/api/launch-presets', { ...added.entry, name: '可编辑入口' })
     await api('/api/launch-presets/remove', { id: added.entry.id })
     assert.ok((await api('/api/state')).instances.some((item) => item.profile === 'guarded'), '增删入口不停止正在启动的实例')
-    await assert.rejects(api('/api/environments/import', { token: inspected.token, profile: 'guarded' }), /请先停止这个 Profile 的全部实例/)
+    await assert.rejects(api('/api/environments/import', { token: inspected.token, profile: 'guarded' }), /请先停止这个配置的全部实例/)
     assert.equal(readFileSync(join(guarded, 'cordis.patch.yml'), 'utf8'), patchBefore, '被挡住的导入不能碰补丁层')
     await launching
     await api('/api/start', { version: versions[1], profile: 'guarded' })
@@ -188,7 +188,7 @@ setTimeout(() => server.listen(0, '127.0.0.1', () => console.log('dsh web: http:
       ['/api/mcp/remove', { serverName: 'demo' }],
       ['/api/skills/local', { enabled: true }],
     ]) {
-      await assert.rejects(api(path, body), /profile.*操作|profile.*锁/, path)
+      await assert.rejects(api(path, body), /配置.*操作|配置锁/, path)
       assert.equal(readFileSync(patch, 'utf8'), before)
       assert.equal(existsSync(lock), true)
     }

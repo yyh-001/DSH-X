@@ -1,5 +1,5 @@
 /**
- * 「Profile 备份与回退」的页面部分：环境页每张卡片的 ⋯ 菜单里新增入口，
+ * 「配置备份与回退」的页面部分：配置页每张卡片的 ⋯ 菜单里新增入口，
  * 弹窗里列快照（时间 + 涉及文件）并支持「回退到此备份」。
  * 页面是无构建的原生 JS，这里读 HTML/CSS 源码做结构断言，纯函数抠进 vm 里跑，不起服务。
  */
@@ -46,7 +46,7 @@ function functionSource(name) {
 test('弹窗结构：标题、提示、列表、立即备份/刷新和关闭按钮', () => {
   const dialog = section('id="backupDialog"', 'id="launchPluginsDialog"')
   assert.match(dialog, /role="dialog" aria-modal="true" aria-labelledby="backupDialogTitle"/)
-  assert.match(dialog, /id="backupDialogTitle" data-i18n="Profile 备份与回退"/)
+  assert.match(dialog, /id="backupDialogTitle" data-i18n="配置备份与回退">配置备份与回退</)
   assert.match(dialog, /<p class="dialog-subtitle" id="backupDialogHint">/)
   assert.match(dialog, /<div class="backup-list" id="backupList">/)
   assert.match(dialog, /id="backupRefresh"[^>]*data-i18n="刷新"/)
@@ -112,7 +112,7 @@ test('备份时间按本地时区格式化成 YYYY-MM-DD HH:mm:ss', () => {
   assert.equal(vm.runInContext('backupTimeText(null)', sandbox), expected)
 })
 
-test('打开弹窗：提示里带上 Profile 名，先清空列表再拉取', () => {
+test('打开弹窗：提示里带上配置名，先清空列表再拉取', () => {
   const sandbox = {
     t: (zh, vars) => String(zh).replace(/\{(\w+)\}/g, (all, key) => (vars && key in vars ? vars[key] : all)),
     escapeHtml: (value) => String(value ?? ''),
@@ -136,7 +136,7 @@ test('打开弹窗：提示里带上 Profile 名，先清空列表再拉取', ()
   vm.createContext(sandbox)
   vm.runInContext(functionSource('openProfileBackups'), sandbox)
   vm.runInContext("openProfileBackups('work')", sandbox)
-  assert.match(sandbox.backupHintEl.textContent, /Profile「work」的配置层快照/)
+  assert.match(sandbox.backupHintEl.textContent, /^配置「work」的配置层快照/)
   assert.equal(sandbox.painted.length, 1)
   assert.equal(sandbox.painted[0].length, 0)
   assert.equal(sandbox.shown.length, 1)
@@ -243,7 +243,7 @@ test('样式与英文文案：列表限高滚动、行内按钮不换行，文�
   assert.match(styles, /\.backup-progress \{[^}]*display: flex/)
   assert.match(styles, /\.backup-progress \.spin \{[^}]*display: block/)
   const en = page.slice(page.indexOf('const EN = {'), page.indexOf('\n}\n', page.indexOf('const EN = {')))
-  for (const key of ['备份与回退', 'Profile 备份与回退', '回退到此备份', '立即备份', '回退完成', '已生成新备份。', '配置没有变化，不需要新备份。', '备份', '正在回退配置…', '正在重装依赖…', '正在生成备份…']) {
+  for (const key of ['备份与回退', '配置备份与回退', '回退到此备份', '立即备份', '回退完成', '已生成新备份。', '配置没有变化，不需要新备份。', '备份', '正在回退配置…', '正在重装依赖…', '正在生成备份…']) {
     assert.ok(en.includes(`"${key}":`), `英文文案缺少「${key}」`)
   }
 })

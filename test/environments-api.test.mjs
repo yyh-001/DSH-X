@@ -172,6 +172,26 @@ test('修改：改名、版本生效，说明不在这里改；不存在的 id�
   assert.equal((await envById(created.id)).name, '改好了', '被拒的修改不能落盘')
 })
 
+// 中文界面把这个对象叫「实例」（装好插件的 DSH），接口回给页面的报错也跟着说实例
+test('报错文案说「实例」：不存在、id 不合法、名字超长、移除不存在的插件', async () => {
+  const created = await create({ name: '报错文案', dshVersion: '1.0.0' })
+  const cases = [
+    ['/api/environments/update', { id: 'no-such-env', name: 'x' }, /^这个实例已不存在，请刷新后重试$/],
+    ['/api/environments/plugins/add', { id: 'no-such-env', spec: 'dsh-x-foo@1.0.0' }, /^这个实例已不存在，请刷新后重试$/],
+    ['/api/environments/update', { id: '../evil', name: 'x' }, /^实例 id 不合法$/],
+    ['/api/environments/update', { id: created.id, name: 'x'.repeat(49) }, /^实例名称请填 1-48 个字符$/],
+    ['/api/environments/plugins/remove', { id: created.id, name: 'dsh-x-not-here' }, /^实例里没有 dsh-x-not-here$/],
+  ]
+  for (const [path, body, expected] of cases) {
+    const { data } = await rejected(path, body, `${path} ${JSON.stringify(body)}`)
+    assert.match(data.error, expected, path)
+    assert.doesNotMatch(data.error, /环境/, `${path} 的报错不再说环境`)
+  }
+  // 启动项绑了不存在的实例：报错也说实例
+  const { data } = await rejected('/api/launch-presets', { name: '幽灵实例', version: '1.0.0', profile: freshProfile('ghost-instance'), environment: 'no-such-env' }, '不存在的实例 id')
+  assert.match(data.error, /这个实例已不存在，请刷新后/)
+})
+
 test('说明：导出时填，导出后记回环境（连同导出的版本号）', async () => {
   const created = await create({ name: '要导出', dshVersion: '1.0.0' })
   const path = join(env.root, `export-${created.id}.dspack`)

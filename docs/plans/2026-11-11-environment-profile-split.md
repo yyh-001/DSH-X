@@ -1,8 +1,10 @@
 # DSH-X Environment / Profile Split Plan
 
-**Status:** Implemented, all three phases, in the fork (`origin`) on one branch; it goes to upstream (`upstream`, yyh's repository) as one PR and one commit (the three phases were built and tested together, so per-phase commits would be states that never ran). Requirements came from a requirements-alignment session on 2026-11-11; decisions taken during implementation are under "Implementation notes".
+**Status:** Implemented, all three phases, in the fork (`origin`) on one branch; it goes to upstream (`upstream`, yyh's repository) as one PR with two commits: the feature (the three phases were built and tested together, so per-phase commits would be states that never ran) and the UI wording change that followed it. Requirements came from a requirements-alignment session on 2026-11-11; decisions taken during implementation are under "Implementation notes".
 
 **Goal:** Split "DSH version + plugins" out of the profile into an "Environment" that can be created, exported, imported and updated from an upstream. A Profile keeps only configuration and data. A launch entry picks one Environment and one Profile.
+
+**UI names:** this document and the code say Environment and Profile. In the UI an Environment is called 实例 (Instance: DSH with its plugins installed) and a Profile is called 配置; the English UI says Instance and Profile.
 
 **Architecture:** An Environment is a manifest in the launcher's data directory (DSH version, versioned plugin list, optional offline files, upstream source, local delta). dsh only understands a profile directory, so before launch the launcher writes the chosen Environment's plugin list into the chosen Profile's directory and installs dependencies only when they differ. Configuration is always read from and written to the Profile directory. Environment files keep the `.dspack` format (PackForge manifest v5).
 
@@ -33,7 +35,7 @@ Gaps against the goal:
 | # | Question | Decision |
 |---|---|---|
 | 1 | What is in a pack | DSH version number + plugin list (with version numbers). Each item may carry offline install files. No configuration, plugin configuration, skills, presets or user data |
-| 2 | What it is called | The modpack is renamed "Environment" (环境) |
+| 2 | What it is called | The modpack becomes the Environment. The UI calls it 实例 (Instance) and calls the Profile 配置 |
 | 3 | Relationship between Environment and Profile | Fully separate. A Profile has no plugins and is not bound to a version. A launch entry picks one Environment and one Profile |
 | 4 | How they are combined | Before launch, the Environment's plugin list is written into the Profile directory |
 | 5 | Local changes to an Environment that follows an upstream | Stored as "upstream + local delta"; the delta is replayed when the upstream updates |
@@ -195,7 +197,7 @@ Environment A is 11 npm plugins (68 packages in total) and Environment B is 4 of
 - Old data migration (see "Old data migration").
 - Management page:
   - A new Environments page: list, create, duplicate, delete, and install / remove / upgrade plugins.
-  - The page currently called 环境 (Environments) is renamed Profile.
+  - The page currently called 环境 (the profile list) is renamed 配置.
   - The launch entry dialog picks an Environment and a Profile.
   - Plugin switches go in the launch entry (Environment × Profile) view, because the switch is stored in the Profile's patch layer while the plugin list comes from the Environment.
 - Existing features that have to be re-pointed: plugin installs for Desktop Enhance and Browser Control (currently installed into "the current profile"), recovery mode, the auto-disable used by startup self-healing, settings keyed by `version@profile` (pinned ports, plugin profiling reports), and `plugin-tool.js`.
@@ -241,7 +243,7 @@ Decisions taken while building it. Each one fills a gap the sections above left 
 - **Switching back** restores the plugin list, DSH version and channel, source and offline files. Name, description and adoption records stay as they are now. If auto-clean removed the DSH version the old manifest needs, it is installed first.
 - **Description**: it is filled in at export and remembered; the Environments page edits only the name and the DSH version.
 - **WSL launch entries** (added upstream while this was being built) do not use Environments yet. Their Profile directory lives inside WSL, where the launcher can neither write the plugin list nor install dependencies. They work exactly as before: the launch editor hides the Environment picker, and migration skips them.
-- **Upstream's "启动环境" picker** (directory or WSL distro + Profile) is relabelled "目录与 Profile", so 环境 keeps a single meaning in the UI.
+- **Upstream's "启动环境" picker** (directory or WSL distro + Profile) is relabelled "目录与配置", so the old 环境 label is gone from the UI.
 
 ## Defaults (not asked one by one; open to veto)
 
@@ -259,7 +261,7 @@ Decisions taken while building it. Each one fills a gap the sections above left 
 
 **Other**
 
-- UI wording: the modpack is renamed 环境 (Environment), and the profile currently called 环境 in the UI goes back to being called Profile.
+- UI wording: the Environment is shown as 实例 and the Profile as 配置; the 环境 label is retired. Existing uses of 实例 (a running dsh process) and 配置 (config files) keep their meaning, by the user's choice.
 - Decision 10 is an interpretation of the answer "configuration and skills stay in the Profile"; it could also be read as "always skip".
 - Plugins managed by in-dsh market plugins (not in `package.json`, for example `.dsh-market`) are not part of an Environment in Phase 1; export shows a notice.
 - The Environment file keeps its extension. The GitHub Actions template is optional.
@@ -269,7 +271,7 @@ Decisions taken while building it. Each one fills a gap the sections above left 
 These are decided and do not wait for confirmation, but they all change behavior he wrote, so the PR description must list them one by one.
 
 - The model itself: launch entry = Environment × Profile, and a Profile no longer has plugins.
-- UI wording: 环境 (Environment) changes from meaning a profile to meaning the new object. About 140 lines in the management page, both the Chinese and English README, and the screenshot captions have to change.
+- UI wording: 环境, which meant a profile, is retired. Profiles are now called 配置 and the new object 实例. About 140 lines in the management page, both the Chinese and English README, and the screenshot captions have to change.
 - Retired: stacking multiple packs and uninstalling in order; "update modpack = upgrade each plugin to latest".
   - Retired routes: `/api/packs/inspect`, `/api/packs/install`, `/api/packs/export` and `/api/packs/update`.
   - Gone from the Profile page: import, export and the "update N" buttons. Import and export now live on the Environments page.

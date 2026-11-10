@@ -486,7 +486,7 @@ export { VERSION_RE }
 export function safeProfile(value) {
   const name = String(value ?? '').trim()
   if (!/^[A-Za-z0-9._-]{1,32}$/.test(name) || name === '.' || name === '..') {
-    throw new Error('profile 名只能用字母、数字、点、下划线、连字符（1-32 个字符）')
+    throw new Error('配置名只能用字母、数字、点、下划线、连字符（1-32 个字符）')
   }
   return name
 }

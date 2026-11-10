@@ -101,20 +101,20 @@
     el.grid.innerHTML = [
       ...environments.map((env) => card({
         attr: 'data-environment', value: env.id,
-        label: t('查看环境 {name} 的插件', { name: env.name }),
+        label: t('查看实例 {name} 的插件', { name: env.name }),
         name: env.name,
         meta: t('DSH {version} · {count} 个插件', { version: versionText(env), count: thirdParty(env).length }),
         tags: tagsOf(env),
       })),
       ...recipes.map((recipe) => card({
         attr: 'data-builtin', value: recipe.name,
-        label: t('导入内置环境 {name}', { name: recipe.displayName }),
+        label: t('导入内置实例 {name}', { name: recipe.displayName }),
         name: recipe.displayName,
-        meta: recipe.description || t('随启动器发的环境配方'),
+        meta: recipe.description || t('随启动器发的实例配方'),
         tags: [t('内置 · 点开导入')],
       })),
     ].join('')
-    el.hint.textContent = environments.length ? '' : t('还没有环境。新建、导入一个，或者先保存一个启动项，启动器会按它的 Profile 自动生成。')
+    el.hint.textContent = environments.length ? '' : t('还没有实例。新建、导入一个，或者先保存一个启动项，启动器会按它的配置自动生成。')
     el.grid.querySelectorAll('[data-environment]').forEach((button) => {
       button.onclick = () => open(button.dataset.environment)
     })
@@ -202,17 +202,17 @@
       el.channel.innerHTML = UPDATE_CHANNELS.map((channel) => `<option value="${channel}">${escapeHtml(t(UPDATE_CHANNEL_NAMES[channel]))}</option>`).join('')
       el.channel.value = env.updateChannel
     }
-    el.plugins.innerHTML = env.plugins.map(pluginRow).join('') || `<p class="hint">${escapeHtml(t('这个环境还没有插件。'))}</p>`
+    el.plugins.innerHTML = env.plugins.map(pluginRow).join('') || `<p class="hint">${escapeHtml(t('这个实例还没有插件。'))}</p>`
     el.plugins.querySelectorAll('[data-remove-plugin]').forEach((button) => {
       button.onclick = () => run(() => post('/api/environments/plugins/remove', { id: env.id, name: button.dataset.removePlugin }))
     })
     const users = env.usedBy.map((entry) => entry.name).join('、')
     const written = env.applied.map((item) => item.profile).join('、')
     el.usage.textContent = [
-      users ? t('在用的启动项：{names}', { names: users }) : t('还没有启动项用这个环境。'),
-      written ? t('现在写在 Profile：{names}', { names: written }) : '',
+      users ? t('在用的启动项：{names}', { names: users }) : t('还没有启动项用这个实例。'),
+      written ? t('现在装在配置：{names}', { names: written }) : '',
       env.following ? t('跟随上游 {repo}：这里的改动记成本地改动，上游更新后会重放。', { repo: env.source.repo }) : '',
-      t('改动在下次用这个环境启动时写进 Profile。'),
+      t('改动在下次用这个实例启动时生效。'),
     ].filter(Boolean).join(' ')
     for (const control of [el.upgrade, el.exportButton, el.duplicate, el.name, el.version, el.spec, byId('environmentSave'), byId('environmentAdd')]) control.disabled = busy
     // 版本类型只对「自动最新版本」有意义；钉了具体版本时它不影响选哪个版本
@@ -220,7 +220,7 @@
     syncUiSelect(el.version)
     syncUiSelect(el.channel)
     el.remove.disabled = busy || env.usedBy.length > 0
-    el.remove.title = env.usedBy.length ? t('还有启动项在用，先给它们换一个环境') : ''
+    el.remove.title = env.usedBy.length ? t('还有启动项在用，先给它们换一个实例') : ''
   }
 
   function paint() {
@@ -345,7 +345,7 @@
   }
   el.remove.onclick = async () => {
     const env = opened()
-    if (!env || !(await appConfirm(t('删除环境「{name}」？Profile 和里面已经装好的插件不受影响。', { name: env.name }), { title: t('删除环境') }))) return
+    if (!env || !(await appConfirm(t('删除实例「{name}」？配置和里面已经装好的插件不受影响。', { name: env.name }), { title: t('删除实例') }))) return
     void run(() => post('/api/environments/remove', { id: env.id }), { after: () => { openedId = '' } })
   }
 
@@ -434,7 +434,7 @@
       after: () => {
         delete updates[check.environment.id]
         hideUpdateDialog()
-        notify(t('环境「{name}」已更新到 {version}，下次用它启动时写进 Profile。', { name: check.environment.name, version: releaseLabel(check.latest) }))
+        notify(t('实例「{name}」已更新到 {version}，下次用它启动时生效。', { name: check.environment.name, version: releaseLabel(check.latest) }))
       },
       onError: (error) => { el.updateHint.textContent = error.message },
     })
@@ -475,13 +475,13 @@
   function paintLaunchHint() {
     const env = environments.find((item) => item.id === launchSelect.value)
     if (!env) {
-      launchHint.textContent = t('保存时按这个 Profile 现有的插件找到或生成一个环境。')
+      launchHint.textContent = t('保存时按这个配置现有的插件找到或生成一个实例。')
       return
     }
     const switched = launchSelect.value !== launchSelect.dataset.saved
     launchHint.textContent = switched
-      ? t('DSH {version} · {count} 个插件。换环境时版本跟着这个环境；要改版本，先保存，再改。', { version: versionText(env), count: thirdParty(env).length })
-      : t('DSH {version} · {count} 个插件。版本跟着环境走，在这里改版本就是改这个环境。', { version: versionText(env), count: thirdParty(env).length })
+      ? t('DSH {version} · {count} 个插件。换实例时版本跟着这个实例；要改版本，先保存，再改。', { version: versionText(env), count: thirdParty(env).length })
+      : t('DSH {version} · {count} 个插件。版本跟着实例走，在这里改版本就是改这个实例。', { version: versionText(env), count: thirdParty(env).length })
   }
 
   async function fillLaunchEnvironments(entry) {
@@ -489,7 +489,7 @@
     const current = entry?.environment || ''
     launchOriginal = { version: entry?.version || AUTO_VERSION, channel: launchChannel(entry) }
     // 先同步复位：上一次打开留下的选项和值，不能在列表回来之前被这次保存带上
-    launchSelect.innerHTML = `<option value="">${escapeHtml(t('自动：按 Profile 的插件匹配或新建'))}</option>${current ? `<option value="${escapeHtml(current)}">${escapeHtml(t('读取中…'))}</option>` : ''}`
+    launchSelect.innerHTML = `<option value="">${escapeHtml(t('自动：按配置的插件匹配或新建'))}</option>${current ? `<option value="${escapeHtml(current)}">${escapeHtml(t('读取中…'))}</option>` : ''}`
     launchSelect.value = current
     launchSelect.dataset.saved = current
     syncUiSelect(launchSelect)
@@ -501,7 +501,7 @@
     }
     if (revision !== launchRevision || launchDialog.hidden) return
     launchSelect.innerHTML = [
-      `<option value="">${escapeHtml(t('自动：按 Profile 的插件匹配或新建'))}</option>`,
+      `<option value="">${escapeHtml(t('自动：按配置的插件匹配或新建'))}</option>`,
       ...environments.map((env) => `<option value="${escapeHtml(env.id)}">${escapeHtml(`${env.name} · ${versionText(env)}`)}</option>`),
     ].join('')
     launchSelect.value = environments.some((env) => env.id === current) ? current : ''

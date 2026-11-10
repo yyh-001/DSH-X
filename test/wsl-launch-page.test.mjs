@@ -83,10 +83,10 @@ test('WSL 发行版列表按需拉：切到 WSL 才请求 /api/wsl，不等状�
   assert.match(body, /state\.wsl\?\.error \|\| t\('没有检测到 WSL 发行版。'\)/, '一个发行版都没有时要说清楚，而不是「先选择一个」')
 })
 
-test('WSL Profile 可以直接删除：请求走 /api/wsl/profile/remove，不再只留一个灰按钮', () => {
+test('WSL 里的配置可以直接删除：请求走 /api/wsl/profile/remove，不再只留一个灰按钮', () => {
   assert.match(page, /const canRemove = !pickerBusy && \(row\.wsl \|\| Boolean\(row\.pack\) && row\.pack\?\.removable !== false\)/, 'WSL 行也允许删除')
   assert.match(page, /post\('\/api\/wsl\/profile\/remove', \{ distro: wsl\.distro, home: wsl\.home, profile \}\)/)
-  assert.match(page, /删除 WSL「\{distro\}」里的 Profile「\{profile\}」？/, 'WSL 的删除确认要说清是发行版里的哪一份')
+  assert.match(page, /删除 WSL「\{distro\}」里的配置「\{profile\}」？/, 'WSL 的删除确认要说清是发行版里的哪一份')
   assert.match(page, /for \(const key of \[\.\.\.pickerWslProfileCache\.keys\(\)\]\)/, '删完清掉这份 Profile 的插件摘要缓存')
 })
 

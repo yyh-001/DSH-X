@@ -313,7 +313,7 @@ function classify(entries) {
     if (profileMatch) {
       const [, profile, inner] = profileMatch
       if (!safeRelPath(inner) || !/^[A-Za-z0-9._-]{1,32}$/.test(profile)) {
-        skipped.push({ path: rel, reason: 'profile 名或内部路径不合法' })
+        skipped.push({ path: rel, reason: '配置名或内部路径不合法' })
         continue
       }
       if (!profiles.has(profile)) profiles.set(profile, new Map())
@@ -384,7 +384,7 @@ function finishPack(parsed, parts, meta) {
   const errors = [...parsed.errors, ...parts.problems]
   const warnings = [...parsed.warnings]
   // 环境只锁直接依赖（设计稿「不锁传递依赖」）：旧锁文件放进别的 profile 只会让安装硬失败
-  if (parts.snapshots.lock) warnings.push('包里有 pnpm-lock.yaml，导入时忽略它（环境只锁直接依赖）')
+  if (parts.snapshots.lock) warnings.push('包里有 pnpm-lock.yaml，导入时忽略它（实例只锁直接依赖）')
   const patch = parts.patchCandidates[0]
     ? { source: parts.patchCandidates[0].path, text: parts.patchCandidates[0].data.toString('utf8') }
     : (typeof parsed.manifest?.patch === 'string' && parsed.manifest.patch.trim()
@@ -466,7 +466,7 @@ export function planConfigInstall(pack, { home, profile }) {
   const warnings = pack.warnings.slice()
   const profileDir = join(home, 'profiles', profile)
   const writes = configWrites(posix.join('profiles', profile), { patch: pack.patch, overrides: pack.overrides })
-  if (writes.length && !existsSync(join(profileDir, 'package.json'))) errors.push(`Profile「${profile}」还没初始化：先用它启动一次，再把配置导进去`)
+  if (writes.length && !existsSync(join(profileDir, 'package.json'))) errors.push(`配置「${profile}」还没初始化：先用它启动一次，再把配置导进去`)
   writes.push(...homeWrites(pack))
   return { ok: errors.length === 0, errors, warnings, writes, profile, configOnly: true }
 }
