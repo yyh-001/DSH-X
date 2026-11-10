@@ -34,10 +34,12 @@ test('启动子进程不用 detached：Windows 上 detached 会把控制台子�
   assert.match(script, /stdio: 'inherit'/, '日志直连终端，应用退出脚本才退出')
 })
 
-test('dry-run：core 用临时数据目录 + release/core-stage，不组装不启动', () => {
+test('dry-run：core 按平台给出数据目录 + release/core-stage，不组装不启动', () => {
   const result = dev(['core', '--dry-run'])
   assert.equal(result.status, 0)
-  assert.match(result.stdout, /dshx-dev/, '临时数据目录在 %TEMP%\\dshx-dev 下')
+  // Windows 用 %TEMP%\dshx-dev 隔离；mac/Linux 的 APP_DIR 不认 APPDATA，只能走真实数据目录。
+  if (process.platform === 'win32') assert.match(result.stdout, /dshx-dev/, '临时数据目录在 %TEMP%\\dshx-dev 下')
+  else assert.match(result.stdout, /真实数据目录/, 'mac/Linux 没有 APPDATA 隔离')
   assert.match(result.stdout, /core-stage/)
   assert.match(result.stdout, /没有组装、复制或启动/)
 })
