@@ -66,23 +66,23 @@
       <button type="button" class="brand-home" id="brandHome" title="返回启动器主页" aria-label="返回启动器主页" data-i18n-title="返回启动器主页" data-i18n-aria-label="返回启动器主页">
         <!-- 内部标签页里换成浏览器那种「回主页」图标，文字 logo 只在没有标签条时显示（见 launcher.css 的 .internal-tabs） -->
         <span class="brand-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.6 10.6 12 3.9l8.4 6.7"/><path d="M6.2 9.3V20h11.6V9.3"/></svg>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-house"/></svg>
         </span>
         <span class="brand">DSH-X</span>
         <span class="app-ver" id="appVer">__APP_VERSION__</span>
       </button>
-      <button type="button" class="self-update" id="selfUpdate" hidden data-i18n="更新">更新</button>
+      <button type="button" class="self-update" id="selfUpdate" hidden title="更新" aria-label="更新" data-i18n-title="更新" data-i18n-aria-label="更新"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-download"/></svg></button>
     </div>
     <div class="internal-tabs-area" id="internalTabsArea" hidden>
       <div class="internal-tab-list" id="internalTabList" role="tablist" aria-label="DSH-X"></div>
       <button type="button" class="gear-btn internal-tab-reload" id="internalTabReload" title="刷新页面" aria-label="刷新页面">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.5 14.7a8 8 0 1 1-1.9-8.3L21 10"/><path d="M21 4v6h-6"/></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-rotate-cw"/></svg>
       </button>
     </div>
     <div class="header-right">
       <!-- 设置入口：主页右上角的齿轮（原来那排 tab 已经并进设置页的左侧导航） -->
       <button type="button" class="gear-btn" id="settingsEntry" aria-label="设置" aria-pressed="false" title="设置">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 15.3a3.3 3.3 0 1 0 0-6.6 3.3 3.3 0 0 0 0 6.6Z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.8a1.6 1.6 0 0 0 .3 1.8l.1.1a1.9 1.9 0 1 1-2.7 2.7l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5v.2a1.9 1.9 0 1 1-3.8 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a1.9 1.9 0 1 1-2.7-2.7l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3.4a1.9 1.9 0 1 1 0-3.8h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a1.9 1.9 0 1 1 2.7-2.7l.1.1a1.6 1.6 0 0 0 1.8.3h.1a1.6 1.6 0 0 0 1-1.5V3.4a1.9 1.9 0 1 1 3.8 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a1.9 1.9 0 1 1 2.7 2.7l-.1.1a1.6 1.6 0 0 0-.3 1.8v.1a1.6 1.6 0 0 0 1.5 1h.2a1.9 1.9 0 1 1 0 3.8h-.1a1.6 1.6 0 0 0-1.5 1Z"/></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-settings"/></svg>
       </button>
       <!-- app 窗口模式才显示：原生标题栏被去掉了，最小化/最大化/关闭由页面接管 -->
       <div class="win-controls">
@@ -104,40 +104,40 @@
         <div class="nav-pill" aria-hidden="true"></div>
         <div class="nav-group">
           <button type="button" class="nav-item nav-back" data-pane="control">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="m12 5-7 7 7 7M5 12h14"/></svg>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-arrow-left"/></svg>
             <span data-i18n="返回">返回</span>
           </button>
           <div class="nav-label" data-i18n="设置">设置</div>
           <button type="button" class="nav-item" data-pane="settings" data-category="general">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 15.3a3.3 3.3 0 1 0 0-6.6 3.3 3.3 0 0 0 0 6.6Z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.8a1.6 1.6 0 0 0 .3 1.8l.1.1a1.9 1.9 0 1 1-2.7 2.7l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5v.2a1.9 1.9 0 1 1-3.8 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a1.9 1.9 0 1 1-2.7-2.7l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3.4a1.9 1.9 0 1 1 0-3.8h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a1.9 1.9 0 1 1 2.7-2.7l.1.1a1.6 1.6 0 0 0 1.8.3h.1a1.6 1.6 0 0 0 1-1.5V3.4a1.9 1.9 0 1 1 3.8 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a1.9 1.9 0 1 1 2.7 2.7l-.1.1a1.6 1.6 0 0 0-.3 1.8v.1a1.6 1.6 0 0 0 1.5 1h.2a1.9 1.9 0 1 1 0 3.8h-.1a1.6 1.6 0 0 0-1.5 1Z"/></svg>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-settings"/></svg>
             <span data-i18n="常规">常规</span>
           </button>
           <button type="button" class="nav-item" data-pane="plugins">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M12 3.2 20 7.4v9.2L12 20.8 4 16.6V7.4l8-4.2Z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M4.4 7.6 12 11.8l7.6-4.2M12 11.8v8.6"/></svg>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-box"/></svg>
             <span data-i18n="环境">环境</span>
           </button>
           <button type="button" class="nav-item" data-pane="settings" data-category="appearance">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-sun"/></svg>
             <span data-i18n="外观">外观</span>
           </button>
             <button type="button" class="nav-item" data-pane="mcp">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4.5 7.5h15v11h-15zM8 7.5V5h8v2.5M9.5 12.5h5M9.5 15.5h3"/></svg>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-app-window"/></svg>
             <span data-i18n="MCP">MCP</span>
           </button>
           <button type="button" class="nav-item" data-pane="skills">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 3.5l2.4 5 5.5.8-4 3.8 1 5.5-4.9-2.6-4.9 2.6 1-5.5-4-3.8 5.5-.8z"/></svg>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-star"/></svg>
             <span data-i18n="技能">技能</span>
           </button>
         <button type="button" class="nav-item" data-pane="log">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M6 3.5h9l3 3v14H6zM15 3.5v3h3M9 11h6M9 14.5h6M9 18h4"/></svg>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-file-text"/></svg>
             <span data-i18n="日志">日志</span>
           </button>
           <button type="button" class="nav-item" data-pane="settings" data-category="advanced">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="2" fill="#fff" stroke="currentColor" stroke-width="1.8"/><circle cx="15" cy="17" r="2" fill="#fff" stroke="currentColor" stroke-width="1.8"/></svg>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-sliders-horizontal"/></svg>
             <span data-i18n="高级设置">高级设置</span>
           </button>
           <button type="button" class="nav-item" data-pane="settings" data-category="about">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M12 11v5M12 7.8v.2"/></svg>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-info"/></svg>
             <span data-i18n="关于">关于</span>
           </button>
         </div>
@@ -148,7 +148,7 @@
              <!-- 控制面板就是主界面本身，不加标题：进来看到的就是这张卡片 -->
              <div class="card home">
         <div class="launch-presets" id="launchPresets"></div>
-        <button class="launch-add" id="launchAdd" type="button" title="添加启动项" aria-label="添加启动项" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span class="sr-only" data-i18n="添加启动项">添加启动项</span></button>
+        <button class="launch-add" id="launchAdd" type="button" title="添加启动项" aria-label="添加启动项" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-plus"/></svg><span class="sr-only" data-i18n="添加启动项">添加启动项</span></button>
         <p class="hint" id="hint"></p>
         <div class="progress" id="progress" hidden>
           <div class="progress-bar" id="progress-bar"></div>
@@ -165,7 +165,7 @@
               <div class="plugin-home-bar">
                 <select id="pluginHome" aria-label="dsh 用户目录" data-i18n-aria-label="dsh 用户目录"></select>
               </div>
-              <button class="ghost profile-add" id="profileAdd" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span data-i18n="新建 Profile">新建 Profile</span></button>
+              <button class="ghost profile-add" id="profileAdd" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-plus"/></svg><span data-i18n="新建 Profile">新建 Profile</span></button>
             </div>
             <!-- 一份 profile 一张卡。插件行只在「环境详情」里画（点开那张卡就是它），这里不再铺平面列表。 -->
             <div id="pluginOverview">
@@ -174,7 +174,7 @@
             <!-- 点开一张整合包卡片后进这里：左上返回图标，右上全部操作，下面直接是插件行 -->
             <div id="packView" hidden>
               <div class="pack-detail-top">
-                <button class="ghost icon-btn pack-back" id="packBack" type="button" title="返回环境列表" aria-label="返回环境列表"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 5-7 7 7 7M5 12h14"/></svg></button>
+                <button class="ghost icon-btn pack-back" id="packBack" type="button" title="返回环境列表" aria-label="返回环境列表"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-arrow-left"/></svg></button>
                 <div class="pack-detail-heading">
                   <span class="pack-detail-name" id="packDetailName"></span>
                   <span class="pack-detail-sub" id="packDetailSub"></span>
@@ -193,9 +193,9 @@
                 <h1 class="pane-title" data-i18n="MCP 服务器">MCP 服务器</h1>
               </div>
               <div class="plugin-actions">
-                <button class="ghost icon-btn action-icon" id="mcpAdd" type="button" title="添加" aria-label="添加"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
-                <button class="ghost icon-btn action-icon" id="mcpProbe" type="button" title="检测" aria-label="检测"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="m8 12 3 3 5-6"/></svg></button>
-                <button class="ghost icon-btn action-icon" id="mcpRefresh" type="button" title="刷新" aria-label="刷新"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16M8 16H3v5"/></svg></button>
+                <button class="ghost icon-btn action-icon" id="mcpAdd" type="button" title="添加" aria-label="添加"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-plus"/></svg></button>
+                <button class="ghost icon-btn action-icon" id="mcpProbe" type="button" title="检测" aria-label="检测"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-square-check"/></svg></button>
+                <button class="ghost icon-btn action-icon" id="mcpRefresh" type="button" title="刷新" aria-label="刷新"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-refresh-cw"/></svg></button>
               </div>
             </div>
             <div class="plugin-list" id="mcpList"></div>
@@ -210,10 +210,10 @@
                 <p class="pane-sub" id="skillSub" data-i18n="dsh 与 agents 两个用户级技能目录。">dsh 与 agents 两个用户级技能目录。</p>
               </div>
               <div class="plugin-actions">
-                <button class="ghost icon-btn action-icon" id="skillAdd" type="button" title="安装技能" aria-label="安装技能" data-i18n-title="安装技能" data-i18n-aria-label="安装技能"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 16v5h16v-5"/></svg></button><button class="ghost icon-btn action-icon" id="skillCreate" type="button" title="创建技能" aria-label="创建技能" data-i18n-title="创建技能" data-i18n-aria-label="创建技能"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
-                <button class="ghost icon-btn action-icon" id="skillOpenDsh" type="button" title="dsh 目录" aria-label="dsh 目录" data-i18n-title="dsh 目录" data-i18n-aria-label="dsh 目录"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5h6l2 3h10v12H3V7Z"/><path d="m7 11 3 2-3 2m5 0h4"/></svg></button>
-                <button class="ghost icon-btn action-icon" id="skillOpenAgents" type="button" title="agents 目录" aria-label="agents 目录" data-i18n-title="agents 目录" data-i18n-aria-label="agents 目录"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5h6l2 3h10v12H3V7Z"/><circle cx="12" cy="12" r="2"/><path d="M8 18a4 4 0 0 1 8 0"/></svg></button>
-                <button class="ghost icon-btn action-icon" id="skillRefresh" type="button" title="刷新" aria-label="刷新" data-i18n-title="刷新" data-i18n-aria-label="刷新"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16M8 16H3v5"/></svg></button>
+                <button class="ghost icon-btn action-icon" id="skillAdd" type="button" title="安装技能" aria-label="安装技能" data-i18n-title="安装技能" data-i18n-aria-label="安装技能"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-download"/></svg></button><button class="ghost icon-btn action-icon" id="skillCreate" type="button" title="创建技能" aria-label="创建技能" data-i18n-title="创建技能" data-i18n-aria-label="创建技能"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-plus"/></svg></button>
+                <button class="ghost icon-btn action-icon" id="skillOpenDsh" type="button" title="dsh 目录" aria-label="dsh 目录" data-i18n-title="dsh 目录" data-i18n-aria-label="dsh 目录"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-folder-code"/></svg></button>
+                <button class="ghost icon-btn action-icon" id="skillOpenAgents" type="button" title="agents 目录" aria-label="agents 目录" data-i18n-title="agents 目录" data-i18n-aria-label="agents 目录"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-folder-user"/></svg></button>
+                <button class="ghost icon-btn action-icon" id="skillRefresh" type="button" title="刷新" aria-label="刷新" data-i18n-title="刷新" data-i18n-aria-label="刷新"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-refresh-cw"/></svg></button>
               </div>
             </div>
             <div class="plugin-list" id="skillList"></div>
@@ -285,7 +285,7 @@
                     <span class="set-desc" data-i18n="默认 Awesome DSH Plugin，点右侧铅笔可编辑。">默认 Awesome DSH Plugin，点右侧铅笔可编辑。</span>
                   </div>
                   <div class="set-control">
-                    <button class="ghost icon-btn" id="pluginMarketSourcesEdit" type="button" title="编辑默认插件源" aria-label="编辑默认插件源" data-i18n-title="编辑默认插件源" data-i18n-aria-label="编辑默认插件源"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 4 4 4M4 20l4-1 12-12a2.8 2.8 0 0 0-4-4L4 15l-1 6Z"/></svg></button>
+                    <button class="set-edit" id="pluginMarketSourcesEdit" type="button" title="编辑默认插件源" aria-label="编辑默认插件源" data-i18n-title="编辑默认插件源" data-i18n-aria-label="编辑默认插件源"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-pencil"/></svg></button>
                   </div>
                 </div>
 
@@ -459,7 +459,7 @@
                     <input id="args" type="text" spellcheck="false" autocomplete="off" placeholder="例如：--log-level debug" />
                   </div>
                 </div>
-                <div class="set-row stacked">
+                <div class="set-row" id="nodeRuntimeRow">
                   <div class="set-text">
                     <span class="set-name" data-i18n="运行 dsh 的 Node">运行 dsh 的 Node</span>
                     <p class="hint" id="nodeRuntimeHint"></p>
@@ -625,10 +625,10 @@
     <div class="ask-card market-browser" id="packMarketCard" role="dialog" aria-modal="true" aria-labelledby="packImportTitle" tabindex="-1" data-dialog-size="large">
       <div class="dialog-heading">
         <h2 class="ask-title" id="packImportTitle" data-i18n="整合包市场">整合包市场</h2>
-        <button type="button" class="ghost icon-btn dialog-close" id="packImportClose" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button>
+        <button type="button" class="ghost icon-btn dialog-close" id="packImportClose" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button>
       </div>
       <div class="market-toolbar">
-        <div class="market-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg><input id="marketSearch" type="search" autocomplete="off" data-placeholder-i18n="搜索名称、作者或功能" aria-label="搜索整合包" /></div>
+        <div class="market-search"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-search"/></svg><input id="marketSearch" type="search" autocomplete="off" data-placeholder-i18n="搜索名称、作者或功能" aria-label="搜索整合包" /></div>
         <select id="marketSort" aria-label="整合包排序"><option value="updated" data-i18n="最近更新">最近更新</option><option value="stars" data-i18n="Star 最多">Star 最多</option><option value="name" data-i18n="按名称">按名称</option></select>
       </div>
       <div class="sr-only" id="packMarketTitle" data-i18n="社区整合包">社区整合包</div>
@@ -645,14 +645,14 @@
   </div>
   <div class="ask" id="packDetailDialog" hidden>
     <div class="ask-card market-detail-card" role="dialog" aria-modal="true" aria-labelledby="marketDetailTitle" data-dialog-size="medium">
-      <div class="dialog-heading"><h2 class="ask-title" id="marketDetailTitle" data-i18n="整合包详情">整合包详情</h2><button class="ghost icon-btn dialog-close" id="packDetailClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
+      <div class="dialog-heading"><h2 class="ask-title" id="marketDetailTitle" data-i18n="整合包详情">整合包详情</h2><button class="ghost icon-btn dialog-close" id="packDetailClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
       <div class="market-detail" id="packMarketDetail"></div>
       <div class="market-detail-actions" id="packMarketActions"></div>
     </div>
   </div>
   <div class="ask" id="packInstallDialog" hidden>
     <div class="ask-card pack-confirm-card" role="dialog" aria-modal="true" aria-labelledby="packInstallTitle" data-dialog-size="medium">
-      <div class="dialog-heading"><div><h2 class="ask-title" id="packInstallTitle" data-i18n="确认安装">确认安装</h2><p class="dialog-subtitle" data-i18n="选择安装环境，确认后开始安装。">选择安装环境，确认后开始安装。</p></div><button class="ghost icon-btn dialog-close" id="packInstallClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
+      <div class="dialog-heading"><div><h2 class="ask-title" id="packInstallTitle" data-i18n="确认安装">确认安装</h2><p class="dialog-subtitle" data-i18n="选择安装环境，确认后开始安装。">选择安装环境，确认后开始安装。</p></div><button class="ghost icon-btn dialog-close" id="packInstallClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
       <div class="pack-preparing" id="packPreparing" hidden><span class="spin" aria-hidden="true"></span><span data-i18n="正在读取安装信息…">正在读取安装信息…</span></div>
       <div class="pack-detail" id="packInspect" hidden></div>
       <div class="pack-install-footer">
@@ -682,7 +682,7 @@
   </div>
   <div class="ask" id="pluginAddDialog" hidden>
     <form class="ask-card" id="pluginAddForm" role="dialog" aria-modal="true" aria-labelledby="pluginAddTitle" data-dialog-size="small">
-      <div class="dialog-heading"><h2 class="ask-title" id="pluginAddTitle" data-i18n="添加插件">添加插件</h2><button class="ghost icon-btn dialog-close" id="pluginAddClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
+      <div class="dialog-heading"><h2 class="ask-title" id="pluginAddTitle" data-i18n="添加插件">添加插件</h2><button class="ghost icon-btn dialog-close" id="pluginAddClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
       <div class="dialog-body">
         <p class="dialog-subtitle" data-i18n="输入插件的 npm 包名、GitHub 地址或本地路径。">输入插件的 npm 包名、GitHub 地址或本地路径。</p>
         <label class="mcp-field" for="pluginAddSpec"><span data-i18n="包名或地址">包名或地址</span><input id="pluginAddSpec" type="text" autocomplete="off" spellcheck="false" placeholder="dsh-plugin-whale-pet" /></label>
@@ -696,7 +696,7 @@
   </div>
   <div class="ask" id="launchDialog" hidden>
     <form class="ask-card" id="launchForm" role="dialog" aria-modal="true" aria-labelledby="launchDialogTitle" data-dialog-size="medium">
-      <div class="dialog-heading launch-dialog-heading"><h2 class="ask-title" id="launchDialogTitle" data-i18n="编辑启动项">编辑启动项</h2><button class="ghost icon-btn dialog-close" id="launchDialogClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
+      <div class="dialog-heading launch-dialog-heading"><h2 class="ask-title" id="launchDialogTitle" data-i18n="编辑启动项">编辑启动项</h2><button class="ghost icon-btn dialog-close" id="launchDialogClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
       <div class="launch-modal-fields">
         <!-- 启动位置放最上面：新建时先定跑在本机还是 WSL，再填对应那一侧的字段；编辑老启动项时
              退化成静态标签（类型保存后不再变），避免在一个已存在的条目里切后端。 -->
@@ -762,7 +762,7 @@
           <div class="home-field launch-identity-field" id="launchIdentityField">
             <label for="launchName" data-i18n="名称">名称</label>
             <div class="launch-name-row"><button class="launch-icon-trigger" id="launchIconTrigger" type="button" title="修改图标" aria-label="修改图标" data-i18n-title="修改图标" data-i18n-aria-label="修改图标" aria-expanded="false" aria-controls="launchIconPopover"></button><input id="launchName" type="text" required maxlength="32" autocomplete="off" data-placeholder-i18n="例如：我的工作环境" /></div>
-            <div class="launch-icon-popover" id="launchIconPopover" hidden><div class="launch-icon-picker" id="launchIconPicker" role="group" aria-label="启动项图标"></div><div class="launch-icon-upload"><button class="ghost icon-btn" id="launchIconUpload" type="button" title="选择图片" aria-label="选择图片" data-i18n-title="选择图片" data-i18n-aria-label="选择图片"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 4-7 5 8"/></svg></button><button class="ghost icon-btn" id="launchIconReset" type="button" title="恢复默认" aria-label="恢复默认" data-i18n-title="恢复默认" data-i18n-aria-label="恢复默认"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v5h5M4 9a8 8 0 1 1-1 6"/></svg></button></div></div>
+            <div class="launch-icon-popover" id="launchIconPopover" hidden><div class="launch-icon-picker" id="launchIconPicker" role="group" aria-label="启动项图标"></div><div class="launch-icon-upload"><button class="ghost icon-btn" id="launchIconUpload" type="button" title="选择图片" aria-label="选择图片" data-i18n-title="选择图片" data-i18n-aria-label="选择图片"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-image"/></svg></button><button class="ghost icon-btn" id="launchIconReset" type="button" title="恢复默认" aria-label="恢复默认" data-i18n-title="恢复默认" data-i18n-aria-label="恢复默认"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-rotate-ccw"/></svg></button></div></div>
             <input id="launchIconFile" type="file" accept="image/png,image/jpeg,image/webp" hidden /><span class="hint launch-icon-error" id="launchIconHint"></span>
           </div>
           <!-- 本机版本整组（下拉、版本类型、管理按钮、渠道提示）在 WSL 下一起藏掉，避免残留的版本类型说明串到 WSL 版本下面。 -->
@@ -777,7 +777,7 @@
                   </button>
                   <div class="select-panel" id="versionPanel" role="listbox" hidden></div>
                 </div>
-                <button class="ghost icon-btn launch-compatibility-check" id="launchCheckCompatibility" type="button" title="检查兼容性" aria-label="检查兼容性" data-i18n-title="检查兼容性" data-i18n-aria-label="检查兼容性"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6z"/><path d="m8 12 3 3 5-6"/></svg></button>
+                <button class="ghost icon-btn launch-compatibility-check" id="launchCheckCompatibility" type="button" title="检查兼容性" aria-label="检查兼容性" data-i18n-title="检查兼容性" data-i18n-aria-label="检查兼容性"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-shield-check"/></svg></button>
               </div>
             </div>
             <!-- 版本类型决定「自动最新版本」挑哪些版本、提醒哪些新版本。三档开关的值是 version.js 里
@@ -795,7 +795,7 @@
               </div>
             </div>
             <!-- 管理版本是这一行的辅助动作，放到行尾单独站着；贴着版本下拉会把两个字段挤成三截 -->
-            <button class="ghost icon-btn launch-manage-version" id="launchManageVersions" type="button" title="管理版本" aria-label="管理版本" data-i18n-title="管理版本" data-i18n-aria-label="管理版本"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></button>
+            <button class="ghost icon-btn launch-manage-version" id="launchManageVersions" type="button" title="管理版本" aria-label="管理版本" data-i18n-title="管理版本" data-i18n-aria-label="管理版本"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-layout-list"/></svg></button>
             <p class="hint" id="launchUpdateChannelHint"></p>
             <div class="launch-compatibility" id="launchCompatibility" aria-live="polite" hidden>
               <p class="hint" id="launchCompatibilityStatus"></p>
@@ -859,43 +859,43 @@
       <div class="launch-tool-actions">
         <div class="launch-version-tools" id="launchVersionTools" hidden>
           <p class="hint" id="launchVersionNote"></p>
-          <button class="ghost icon-btn" id="update" type="button" hidden title="更新版本" aria-label="更新版本"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4m-5 5 5-5 5 5M5 16v4h14v-4"/></svg></button>
-          <button class="ghost icon-btn" id="remove" type="button" hidden title="卸载版本" aria-label="卸载版本"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg></button>
+          <button class="ghost icon-btn" id="update" type="button" hidden title="更新版本" aria-label="更新版本"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-upload"/></svg></button>
+          <button class="ghost icon-btn" id="remove" type="button" hidden title="卸载版本" aria-label="卸载版本"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-trash-2"/></svg></button>
         </div>
         </div>
         <p class="hint" id="recoveryHint" hidden></p>
       <div class="launch-save-actions">
-        <button class="ghost launch-repair" id="launchRecover" type="button" title="修复环境" aria-label="修复环境"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg></button>
-        <button class="ghost launch-delete" id="launchDelete" type="button" hidden title="删除启动项" aria-label="删除启动项" data-i18n-title="删除启动项" data-i18n-aria-label="删除启动项"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg></button>
+        <button class="ghost launch-repair" id="launchRecover" type="button" title="修复环境" aria-label="修复环境"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-wrench"/></svg></button>
+        <button class="ghost launch-delete" id="launchDelete" type="button" hidden title="删除启动项" aria-label="删除启动项" data-i18n-title="删除启动项" data-i18n-aria-label="删除启动项"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-trash-2"/></svg></button>
         <span class="launch-save-spacer"></span>
-        <button class="primary" id="launchSave" type="submit" title="保存" aria-label="保存" data-i18n-title="保存" data-i18n-aria-label="保存"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12l4 4v12a2 2 0 0 1-2 2Z"/><path d="M7 3v6h10V3M7 21v-8h10v8M14 5v2"/></svg></button>
+        <button class="primary" id="launchSave" type="submit" title="保存" aria-label="保存" data-i18n-title="保存" data-i18n-aria-label="保存"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-save"/></svg></button>
       </div>
     </form>
   </div>
   <div class="ask" id="profilePickDialog" hidden>
     <div class="ask-card profile-pick-card" role="dialog" aria-modal="true" aria-labelledby="profilePickTitle" data-dialog-size="xlarge" tabindex="-1">
-      <div class="dialog-heading"><div><h2 class="ask-title" id="profilePickTitle" data-i18n="选择 Profile">选择 Profile</h2><p class="dialog-subtitle" id="profilePickSubtitle" data-i18n="左边挑用户目录，中间挑 Profile，右边是它装着的插件。">左边挑用户目录，中间挑 Profile，右边是它装着的插件。</p></div><button class="ghost icon-btn dialog-close" id="profilePickClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
+      <div class="dialog-heading"><div><h2 class="ask-title" id="profilePickTitle" data-i18n="选择 Profile">选择 Profile</h2><p class="dialog-subtitle" id="profilePickSubtitle" data-i18n="左边挑用户目录，中间挑 Profile，右边是它装着的插件。">左边挑用户目录，中间挑 Profile，右边是它装着的插件。</p></div><button class="ghost icon-btn dialog-close" id="profilePickClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
       <!-- 三栏并排（跟资源管理器一个路子）：左栏用户目录、中栏该目录里的 Profile、右栏它装了什么。
            两栏各自能在原地加/改/删，省得为了复制或新建再跳回环境页；不能起网页的 Profile 仍列出但不可选。 -->
       <div class="profile-pick">
         <div class="profile-pick-col">
           <div class="profile-pick-head">
             <span class="profile-pick-caption" data-i18n="用户目录">用户目录</span>
-            <span class="profile-pick-tools"><button class="icon-btn profile-pick-tool" id="profilePickHomeAdd" type="button" title="添加目录" aria-label="添加目录" data-i18n-title="添加目录" data-i18n-aria-label="添加目录"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13V7a2 2 0 0 0-2-2h-7l-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h6"/><path d="M17 15v6M14 18h6"/></svg></button></span>
+            <span class="profile-pick-tools"><button class="icon-btn profile-pick-tool" id="profilePickHomeAdd" type="button" title="添加目录" aria-label="添加目录" data-i18n-title="添加目录" data-i18n-aria-label="添加目录"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-folder-plus"/></svg></button></span>
           </div>
           <div class="profile-pick-list" id="profilePickHomes" role="listbox" aria-label="用户目录" data-i18n-aria-label="用户目录"></div>
         </div>
         <div class="profile-pick-col">
           <div class="profile-pick-head">
             <span class="profile-pick-caption" data-i18n="Profile">Profile</span>
-            <span class="profile-pick-tools"><button class="icon-btn profile-pick-tool" id="profilePickCreate" type="button" title="新建 Profile" aria-label="新建 Profile" data-i18n-title="新建 Profile" data-i18n-aria-label="新建 Profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button><button class="icon-btn profile-pick-tool" id="profilePickCopy" type="button" title="复制选中的 Profile" aria-label="复制选中的 Profile" data-i18n-title="复制选中的 Profile" data-i18n-aria-label="复制选中的 Profile" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 5H6a2 2 0 0 0-2 2v9"/></svg></button></span>
+            <span class="profile-pick-tools"><button class="icon-btn profile-pick-tool" id="profilePickCreate" type="button" title="新建 Profile" aria-label="新建 Profile" data-i18n-title="新建 Profile" data-i18n-aria-label="新建 Profile"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-plus"/></svg></button><button class="icon-btn profile-pick-tool" id="profilePickCopy" type="button" title="复制选中的 Profile" aria-label="复制选中的 Profile" data-i18n-title="复制选中的 Profile" data-i18n-aria-label="复制选中的 Profile" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-copy"/></svg></button></span>
           </div>
           <div class="profile-pick-list" id="profilePickProfiles" role="listbox" aria-label="Profile" data-i18n-aria-label="Profile"></div>
         </div>
         <div class="profile-pick-col profile-pick-col--detail">
           <div class="profile-pick-head">
             <span class="profile-pick-caption" id="profilePickDetailCaption" data-i18n="这份环境里有什么">这份环境里有什么</span>
-            <span class="profile-pick-meta" id="profilePickMeta"></span>
+            <span class="profile-pick-tools"><span class="profile-pick-meta" id="profilePickMeta"></span><button class="icon-btn profile-pick-tool" id="profilePickPluginAdd" type="button" title="添加插件" aria-label="添加插件" data-i18n-title="添加插件" data-i18n-aria-label="添加插件" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-plus"/></svg></button></span>
           </div>
           <div class="profile-pick-list profile-detail-list" id="profilePickDetails" role="region" aria-label="Profile 详情" data-i18n-aria-label="Profile 详情"></div>
         </div>
@@ -909,12 +909,22 @@
   </div>
   <div class="ask" id="pickHomeAddDialog" hidden>
     <div class="ask-card" role="dialog" aria-modal="true" aria-labelledby="pickHomeAddTitle" data-dialog-size="small" tabindex="-1">
-      <div class="dialog-heading"><h2 class="ask-title" id="pickHomeAddTitle" data-i18n="添加目录">添加目录</h2><button class="ghost icon-btn dialog-close" id="pickHomeAddClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
+      <div class="dialog-heading"><h2 class="ask-title" id="pickHomeAddTitle" data-i18n="添加目录">添加目录</h2><button class="ghost icon-btn dialog-close" id="pickHomeAddClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
       <div class="dialog-body">
         <p class="dialog-subtitle" data-i18n="本机目录，或 WSL 发行版里的目录。">本机目录，或 WSL 发行版里的目录。</p>
-        <div class="pick-home-kind">
-          <button class="ghost" id="pickHomeAddLocal" type="button" data-i18n="本机目录…">本机目录…</button>
-          <button class="ghost" id="pickHomeAddWsl" type="button" data-i18n="WSL 目录…">WSL 目录…</button>
+        <div class="pick-home-tabs" id="pickHomeTabs" role="tablist" aria-label="目录类型" data-i18n-aria-label="目录类型" data-active="local">
+          <button class="pick-home-tab" type="button" role="tab" data-pick-home-kind="local" aria-selected="true" data-i18n="本机目录">本机目录</button>
+          <button class="pick-home-tab" type="button" role="tab" data-pick-home-kind="wsl" aria-selected="false" data-i18n="WSL 目录">WSL 目录</button>
+        </div>
+        <div id="pickHomeLocalFields">
+          <div class="home-field">
+            <label for="pickHomeLocalPath" data-i18n="目录路径">目录路径</label>
+            <div class="control-row">
+              <input id="pickHomeLocalPath" type="text" autocomplete="off" spellcheck="false" data-placeholder-i18n="例如 D:\dsh-home" />
+              <button class="ghost" id="pickHomeLocalBrowse" type="button" data-i18n="浏览…">浏览…</button>
+            </div>
+          </div>
+          <p class="hint" data-i18n="填本机目录的绝对路径，或点「浏览…」在系统对话框里选。">填本机目录的绝对路径，或点「浏览…」在系统对话框里选。</p>
         </div>
         <div id="pickHomeWslFields" hidden>
           <div class="home-field">
@@ -939,10 +949,10 @@
   </div>
   <div class="ask" id="versionManageDialog" hidden>
     <div class="ask-card version-manage-card" role="dialog" aria-modal="true" aria-labelledby="versionManageTitle" data-dialog-size="medium">
-      <div class="dialog-heading"><h2 class="ask-title" id="versionManageTitle" data-i18n="版本管理">版本管理</h2><div class="version-manage-heading-actions"><button class="ghost version-manage-check" id="versionManageCheck" type="button" title="检测版本" aria-label="检测版本" data-i18n-title="检测版本" data-i18n-aria-label="检测版本"><span class="spin" aria-hidden="true"></span><svg class="version-manage-check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/></svg><span data-i18n="检测版本">检测版本</span></button><button class="ghost icon-btn dialog-close" id="versionManageClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div></div>
+      <div class="dialog-heading"><h2 class="ask-title" id="versionManageTitle" data-i18n="版本管理">版本管理</h2><div class="version-manage-heading-actions"><button class="ghost version-manage-check" id="versionManageCheck" type="button" title="检测版本" aria-label="检测版本" data-i18n-title="检测版本" data-i18n-aria-label="检测版本"><span class="spin" aria-hidden="true"></span><svg class="version-manage-check-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-rotate-cw"/></svg><span data-i18n="检测版本">检测版本</span></button><button class="ghost icon-btn dialog-close" id="versionManageClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div></div>
       <form class="version-manage-install" id="versionInstallForm">
         <label class="sr-only" for="versionInstallSelect" data-i18n="安装版本">安装版本</label>
-        <div class="version-manage-install-row"><select id="versionInstallSelect"></select><button class="primary" id="versionManageInstall" type="submit" title="安装" aria-label="安装" data-i18n-title="安装" data-i18n-aria-label="安装"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v4h16v-4"/></svg></button></div>
+        <div class="version-manage-install-row"><select id="versionInstallSelect"></select><button class="primary" id="versionManageInstall" type="submit" title="安装" aria-label="安装" data-i18n-title="安装" data-i18n-aria-label="安装"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-download"/></svg></button></div>
       </form>
       <p class="hint" id="versionManageHint" role="status" aria-live="polite"></p>
       <div class="progress" id="versionManageProgress" hidden><div class="progress-bar" id="versionManageProgressBar"></div></div>
@@ -952,15 +962,14 @@
   </div>
   <div class="ask" id="launchLogDialog" hidden>
     <div class="ask-card" role="dialog" aria-modal="true" aria-labelledby="launchLogTitle" data-dialog-size="large">
-      <div class="dialog-heading"><div><h2 class="ask-title" id="launchLogTitle" data-i18n="启动项日志">启动项日志</h2><p class="dialog-subtitle" id="launchLogSubtitle"></p></div><button class="ghost icon-btn dialog-close" id="launchLogClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
+      <div class="dialog-heading"><div><h2 class="ask-title" id="launchLogTitle" data-i18n="启动项日志">启动项日志</h2><p class="dialog-subtitle" id="launchLogSubtitle"></p></div><button class="ghost icon-btn dialog-close" id="launchLogClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
       <div class="dialog-body">
         <div class="launch-log-tools" id="launchLogTools" hidden><span class="hint" id="launchLogHint"></span></div>
         <div class="launch-log-tabs" id="launchLogTabs" role="tablist" aria-label="启动项日志视图" data-i18n-aria-label="启动项日志视图">
           <button class="launch-log-tab" type="button" role="tab" data-log-tab="raw" aria-selected="true" data-i18n="原始日志">原始日志</button>
-          <button class="launch-log-tab" type="button" role="tab" data-log-tab="time" aria-selected="false" data-i18n="耗时构成" hidden>耗时构成</button>
-          <button class="launch-log-tab" type="button" role="tab" data-log-tab="space" aria-selected="false" data-i18n="空间构成" hidden>空间构成</button>
+          <button class="launch-log-tab" type="button" role="tab" data-log-tab="time" aria-selected="false" data-i18n="耗时构成">耗时构成</button>
+          <button class="launch-log-tab" type="button" role="tab" data-log-tab="space" aria-selected="false" data-i18n="空间构成">空间构成</button>
         </div>
-        <div class="launch-log-loading" id="launchLogLoading" hidden><span class="spin"></span><span data-i18n="正在读取日志…">正在读取日志…</span></div>
         <section class="launch-log-card" id="launchLogDiagnosis" hidden>
           <div class="launch-log-card-head"><h3 data-i18n="插件诊断">插件诊断</h3><span class="launch-log-head-meta"><span id="launchLogDiagnosisMeta"></span></span></div>
           <div class="launch-log-block" id="launchLogDiagnosisRows"></div>
@@ -968,31 +977,35 @@
         <section class="launch-log-card" id="launchLogVisual" data-log-panel="time" hidden>
           <div class="launch-log-card-head"><h3 data-i18n="耗时构成">耗时构成</h3><span class="launch-log-head-meta"><span id="launchLogWindow"></span><span id="launchLogRss" hidden></span></span></div>
           <div class="launch-log-block" id="launchLogPlugins"></div>
+          <p class="launch-log-empty" id="launchLogTimeEmpty" hidden></p>
         </section>
         <section class="launch-log-card" id="launchLogSpace" data-log-panel="space" hidden>
           <div class="launch-log-card-head"><h3 data-i18n="空间构成">空间构成</h3><span class="launch-log-head-meta"><span id="launchLogSpaceMeta"></span></span></div>
           <div class="launch-log-block" id="launchLogSpaceBody"></div>
+          <p class="launch-log-empty" id="launchLogSpaceEmpty" hidden></p>
         </section>
         <section class="launch-log-card" id="launchLogCard" data-log-panel="raw">
-          <div class="launch-log-card-head"><h3 data-i18n="原始日志">原始日志</h3><span class="launch-log-actions"><button class="ghost" type="button" id="launchLogCopy" data-i18n="复制">复制</button><button class="ghost" type="button" id="launchLogExport" data-i18n="导出">导出</button><button class="ghost" type="button" id="launchLogClear" data-i18n="清空">清空</button></span></div>
+          <div class="launch-log-card-head"><h3><span data-i18n="原始日志">原始日志</span><span class="spin launch-log-refresh-spin" id="launchLogRefreshSpin" hidden></span></h3><span class="launch-log-actions"><button class="ghost" type="button" id="launchLogCopy" data-i18n="复制">复制</button><button class="ghost" type="button" id="launchLogExport" data-i18n="导出">导出</button><button class="ghost" type="button" id="launchLogClear" data-i18n="清空">清空</button></span></div>
+          <div class="launch-log-loading" id="launchLogLoading" hidden><span class="spin"></span><span data-i18n="正在读取日志…">正在读取日志…</span></div>
           <pre class="launch-log-text" id="launchLogText"></pre>
+          <p class="launch-log-empty" id="launchLogRawEmpty" hidden></p>
         </section>
       </div>
     </div>
   </div>
   <div class="ask" id="pluginHomesDialog" hidden>
     <div class="ask-card" role="dialog" aria-modal="true" aria-labelledby="pluginHomesTitle" data-dialog-size="medium" tabindex="-1">
-      <div class="dialog-heading"><h2 class="ask-title" id="pluginHomesTitle" data-i18n="管理目录">管理目录</h2><button class="icon-btn plugin-home-action dialog-close" id="pluginHomesClose" type="button" title="关闭" aria-label="关闭" data-i18n-title="关闭" data-i18n-aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
+      <div class="dialog-heading"><h2 class="ask-title" id="pluginHomesTitle" data-i18n="管理目录">管理目录</h2><button class="icon-btn plugin-home-action dialog-close" id="pluginHomesClose" type="button" title="关闭" aria-label="关闭" data-i18n-title="关闭" data-i18n-aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
       <div class="dialog-body">
         <div id="pluginHomesList" class="plugin-homes-list"></div>
         <p class="hint profile-error" id="pluginHomesError" role="alert" hidden></p>
       </div>
-      <div class="plugin-homes-actions"><p class="hint" data-i18n="移除仅从列表中移除，保留目录里的数据。">移除仅从列表中移除，保留目录里的数据。</p><button class="icon-btn plugin-home-action" id="pluginHomesAdd" type="button" title="添加目录" aria-label="添加目录" data-i18n-title="添加目录" data-i18n-aria-label="添加目录"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v3"/><path d="M18 15v6M15 18h6"/></svg></button></div>
+      <div class="plugin-homes-actions"><p class="hint" data-i18n="移除仅从列表中移除，保留目录里的数据。">移除仅从列表中移除，保留目录里的数据。</p><button class="icon-btn plugin-home-action" id="pluginHomesAdd" type="button" title="添加目录" aria-label="添加目录" data-i18n-title="添加目录" data-i18n-aria-label="添加目录"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-folder-plus"/></svg></button></div>
     </div>
   </div>
   <div class="ask" id="profileDialog" hidden>
     <form class="ask-card profile-dialog-card" id="profileForm" role="dialog" aria-modal="true" aria-labelledby="profileDialogTitle" data-dialog-size="small">
-      <div class="dialog-heading"><h2 class="ask-title" id="profileDialogTitle" data-i18n="新建 Profile">新建 Profile</h2><button class="ghost icon-btn dialog-close" id="profileDialogClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
+      <div class="dialog-heading"><h2 class="ask-title" id="profileDialogTitle" data-i18n="新建 Profile">新建 Profile</h2><button class="ghost icon-btn dialog-close" id="profileDialogClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
       <div class="dialog-body">
       <label for="profileName" data-i18n="Profile 名称">Profile 名称</label>
       <input id="profileName" type="text" required maxlength="32" pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,31}" autocomplete="off" placeholder="my-work" />
@@ -1004,7 +1017,7 @@
   </div>
   <div class="ask" id="backupDialog" hidden>
     <div class="ask-card" role="dialog" aria-modal="true" aria-labelledby="backupDialogTitle" data-dialog-size="medium">
-      <div class="dialog-heading"><h2 class="ask-title" id="backupDialogTitle" data-i18n="Profile 备份与回退">Profile 备份与回退</h2><button class="ghost icon-btn dialog-close" id="backupClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
+      <div class="dialog-heading"><h2 class="ask-title" id="backupDialogTitle" data-i18n="Profile 备份与回退">Profile 备份与回退</h2><button class="ghost icon-btn dialog-close" id="backupClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
       <p class="dialog-subtitle" id="backupDialogHint"></p>
       <div class="backup-progress" id="backupProgress" hidden>
         <span class="spin" aria-hidden="true"></span>
@@ -1023,14 +1036,14 @@
         <div>
           <h2 class="sr-only" id="launchPluginsTitle" data-i18n="管理插件">管理插件</h2>
         </div>
-        <button class="ghost icon-btn" id="launchPluginsClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button>
+        <button class="ghost icon-btn" id="launchPluginsClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button>
       </div>
       <div id="launchPluginsHost"></div>
     </div>
   </div>
   <div class="ask" id="skillDetailDialog" hidden>
     <div class="ask-card skill-detail-card" role="dialog" aria-modal="true" aria-labelledby="skillDetailTitle" data-dialog-size="large">
-      <div class="dialog-heading"><h2 class="ask-title" id="skillDetailTitle" data-i18n="技能详情">技能详情</h2><button class="ghost icon-btn dialog-close" id="skillDetailClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
+      <div class="dialog-heading"><h2 class="ask-title" id="skillDetailTitle" data-i18n="技能详情">技能详情</h2><button class="ghost icon-btn dialog-close" id="skillDetailClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
       <p class="skill-detail-path" id="skillDetailPath"></p>
       <p class="skill-detail-description" id="skillDetailDescription"></p>
       <pre class="skill-detail-content" id="skillDetailContent" tabindex="0"></pre>
@@ -1038,12 +1051,12 @@
   </div>
   <div class="ask" id="skillInstallDialog" hidden>
     <form class="ask-card skill-editor-card skill-install-card" id="skillInstallForm" role="dialog" aria-modal="true" aria-labelledby="skillInstallTitle" data-dialog-size="medium">
-      <div class="dialog-heading"><h2 class="ask-title" id="skillInstallTitle" data-i18n="安装技能">安装技能</h2><div class="skill-install-heading-actions"><a class="skill-catalog-link" href="https://github.com/openai/skills/tree/main/skills/.curated" target="_blank" rel="noopener noreferrer" title="浏览 Codex 技能库" aria-label="浏览 Codex 技能库" data-i18n-title="浏览 Codex 技能库" data-i18n-aria-label="浏览 Codex 技能库"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6c-3-2-6-2-9-1v14c3-1 6-1 9 1 3-2 6-2 9-1V5c-3-1-6-1-9 1Zm0 0v14"/></svg></a><button class="ghost icon-btn dialog-close" id="skillInstallClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div></div>
+      <div class="dialog-heading"><h2 class="ask-title" id="skillInstallTitle" data-i18n="安装技能">安装技能</h2><div class="skill-install-heading-actions"><a class="skill-catalog-link" href="https://github.com/openai/skills/tree/main/skills/.curated" target="_blank" rel="noopener noreferrer" title="浏览 Codex 技能库" aria-label="浏览 Codex 技能库" data-i18n-title="浏览 Codex 技能库" data-i18n-aria-label="浏览 Codex 技能库"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-book-open"/></svg></a><button class="ghost icon-btn dialog-close" id="skillInstallClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div></div>
       <div class="dialog-body">
       <div class="skill-source-tabs" role="group" aria-label="安装来源"><button class="ghost" type="button" data-skill-source="github" aria-pressed="true">GitHub</button><button class="ghost" type="button" data-skill-source="local" aria-pressed="false" data-i18n="本地导入">本地导入</button></div>
       <div id="skillGithubFields"><label class="sr-only" for="skillSource" data-i18n="仓库或技能目录链接">仓库或技能目录链接</label><input id="skillSource" type="text" placeholder="owner/repo 或 GitHub 技能链接" data-placeholder-i18n="owner/repo 或 GitHub 技能链接" autocomplete="off" /><details class="skill-install-advanced"><summary data-i18n="指定分支">指定分支</summary><input id="skillRef" type="text" data-placeholder-i18n="留空使用链接中的分支或仓库默认分支" /></details></div>
-      <div id="skillLocalFields" hidden><div class="skill-file-actions"><button class="ghost" id="skillChooseFolder" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5h6l2 3h10v12H3V7Z"/></svg><span data-i18n="选择文件夹">选择文件夹</span></button><button class="ghost" id="skillChooseZip" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h10l4 4v14H5V3Z"/><path d="M11 3v10m-1 0h3v4h-3v-4"/></svg><span data-i18n="选择 ZIP">选择 ZIP</span></button></div><input id="skillFolderFiles" type="file" webkitdirectory multiple hidden /><input id="skillZipFile" type="file" accept=".zip" hidden /><p class="hint" id="skillLocalName" data-i18n="导入包含 SKILL.md 的文件夹或 ZIP">导入包含 SKILL.md 的文件夹或 ZIP</p></div>
-      <div class="skill-install-check"><button class="ghost icon-btn" id="skillInspect" type="button" title="检查来源" aria-label="检查来源" data-i18n-title="检查来源" data-i18n-aria-label="检查来源"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-6-6 6 6-6 6"/></svg><span class="spin" aria-hidden="true"></span></button><span class="hint" id="skillInspectHint" role="status"></span></div>
+      <div id="skillLocalFields" hidden><div class="skill-file-actions"><button class="ghost" id="skillChooseFolder" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-folder"/></svg><span data-i18n="选择文件夹">选择文件夹</span></button><button class="ghost" id="skillChooseZip" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-file-archive"/></svg><span data-i18n="选择 ZIP">选择 ZIP</span></button></div><input id="skillFolderFiles" type="file" webkitdirectory multiple hidden /><input id="skillZipFile" type="file" accept=".zip" hidden /><p class="hint" id="skillLocalName" data-i18n="导入包含 SKILL.md 的文件夹或 ZIP">导入包含 SKILL.md 的文件夹或 ZIP</p></div>
+      <div class="skill-install-check"><button class="ghost icon-btn" id="skillInspect" type="button" title="检查来源" aria-label="检查来源" data-i18n-title="检查来源" data-i18n-aria-label="检查来源"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-arrow-right"/></svg><span class="spin" aria-hidden="true"></span></button><span class="hint" id="skillInspectHint" role="status"></span></div>
       <div class="skill-import-list" id="skillImportList" hidden></div>
       <p class="skill-form-error" id="skillInstallError" role="alert"></p>
       </div>
@@ -1066,7 +1079,7 @@
   </div>
   <div class="ask" id="pluginSourcesDialog" hidden>
     <form class="ask-card skill-editor-card" id="pluginSourcesForm" role="dialog" aria-modal="true" aria-labelledby="pluginSourcesTitle">
-      <div class="dialog-heading"><h2 class="ask-title" id="pluginSourcesTitle" data-i18n="编辑默认插件源">编辑默认插件源</h2><button class="ghost icon-btn dialog-close" id="pluginSourcesClose" type="button" title="关闭" aria-label="关闭" data-i18n-title="关闭" data-i18n-aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
+      <div class="dialog-heading"><h2 class="ask-title" id="pluginSourcesTitle" data-i18n="编辑默认插件源">编辑默认插件源</h2><button class="ghost icon-btn dialog-close" id="pluginSourcesClose" type="button" title="关闭" aria-label="关闭" data-i18n-title="关闭" data-i18n-aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
       <div class="dialog-body">
         <label for="pluginMarketSources" data-i18n="索引地址（每行一个）">索引地址（每行一个）</label>
         <textarea id="pluginMarketSources" rows="4" spellcheck="false" placeholder="https://awesome-dsh-plugin.com/index.json"></textarea>
@@ -1130,6 +1143,13 @@
   "左边挑本机目录或 WSL 发行版，中间挑 Profile，右边是它的插件或 dsh 信息。": "Pick a local directory or a WSL distro on the left and a profile in the middle; the right column shows its plugins or dsh info.",
   "WSL · {distro}": "WSL · {distro}",
   "本机目录，或 WSL 发行版里的目录。": "A local directory, or one inside a WSL distro.",
+  "目录类型": "Directory type",
+  "本机目录": "Local directory",
+  "WSL 目录": "WSL directory",
+  "目录路径": "Directory path",
+  "例如 D:\\dsh-home": "e.g. D:\\dsh-home",
+  "填本机目录的绝对路径，或点「浏览…」在系统对话框里选。": "Enter an absolute local path, or click Browse… to pick one.",
+  "请先填写目录路径，或点「浏览…」选择。": "Enter a directory path, or click Browse… to pick one.",
   "本机目录…": "Local directory…",
   "WSL 目录…": "WSL directory…",
   "默认用户目录": "Default home",
@@ -1631,6 +1651,10 @@
   "启动项日志视图": "Launch log view",
   "查看 {name} 的日志": "View the log for {name}",
   "正在读取日志…": "Reading log…",
+  "正在读取耗时数据…": "Reading time breakdown…",
+  "还没有耗时数据": "No time breakdown yet",
+  "还没有空间占用数据": "No disk usage data yet",
+  "还没有日志": "No log yet",
   "这个启动项还没有日志。启动一次后，它自己的输出会出现在这里。": "This launch entry has no log yet. Start it once and its own output will show up here.",
   "只显示最后 120 KB。": "Showing the last 120 KB only.",
   "上次启动": "Last start",
@@ -1993,6 +2017,7 @@
   "创建独立环境，之后可以安装整合包或插件。名称只支持字母、数字、点、下划线和连字符。": "Create an independent environment, then add packs or plugins. Use letters, numbers, dots, underscores or hyphens in the name.",
   "复制「{profile}」的插件与配置，依赖会重新安装，可能需要一些时间。技能与 Prompt 设置不随之复制。": "Duplicate plugins and settings from {profile}. Dependencies will be reinstalled and may take a little while. Skills and Prompt settings are not copied.",
   "删除「{profile}」？其中的 {n} 个插件、配置和对应启动项会一并移除，会话与记忆保留。此操作无法撤销。": "Delete {profile}? Its {n} plugins, settings and launch entries will be removed. Sessions and memories will remain. This cannot be undone.",
+  "删除 WSL「{distro}」里的 Profile「{profile}」？其中的插件和配置会一并移除，会话与记忆保留。此操作无法撤销。": "Delete profile {profile} inside WSL {distro}? Its plugins and settings will be removed. Sessions and memories will remain. This cannot be undone.",
   "系统环境不能删除": "System profiles cannot be deleted",
   "这个 Profile 尚未初始化": "This profile has not been initialized",
   "请先启动一次这个环境，再管理插件。": "Start this environment once before managing its plugins.",
@@ -2012,6 +2037,8 @@
   "卸载插件": "Uninstall plugin",
   "卸载失败": "Uninstall failed",
   "卸载「{name}」？卸载后它提供的功能会消失，重启 dsh 后生效。": "Uninstall \"{name}\"? Its features will disappear; restart dsh to apply.",
+  "从「{profile}」卸载「{name}」？卸载后它提供的功能会消失，重启 dsh 后生效。": "Uninstall \"{name}\" from \"{profile}\"? Its features will disappear; restart dsh to apply.",
+  "正在从「{profile}」卸载「{name}」…": "Uninstalling \"{name}\" from \"{profile}\"…",
   "添加插件": "Add plugin",
   "输入插件的 npm 包名、GitHub 地址或本地路径。": "Enter the plugin's npm package name, GitHub address or local path.",
   "包名或地址": "Package name or address",
@@ -2283,7 +2310,13 @@
     const profilePickProfilesEl = document.getElementById('profilePickProfiles')
     const profilePickDetailsEl = document.getElementById('profilePickDetails')
     const profilePickMetaEl = document.getElementById('profilePickMeta')
+    const profilePickPluginAddEl = document.getElementById('profilePickPluginAdd')
     const pickHomeAddDialogEl = document.getElementById('pickHomeAddDialog')
+    const pickHomeTabsEl = document.getElementById('pickHomeTabs')
+    const pickHomeKindTabs = [...document.querySelectorAll('.pick-home-tab[data-pick-home-kind]')]
+    const pickHomeLocalFieldsEl = document.getElementById('pickHomeLocalFields')
+    const pickHomeLocalPathEl = document.getElementById('pickHomeLocalPath')
+    const pickHomeLocalBrowseEl = document.getElementById('pickHomeLocalBrowse')
     const pickHomeWslFieldsEl = document.getElementById('pickHomeWslFields')
     const pickHomeWslDistroEl = document.getElementById('pickHomeWslDistro')
     const pickHomeWslHomeEl = document.getElementById('pickHomeWslHome')
@@ -2311,6 +2344,7 @@
     const launchLogHintEl = document.getElementById('launchLogHint')
     const launchLogToolsEl = document.getElementById('launchLogTools')
     const launchLogLoadingEl = document.getElementById('launchLogLoading')
+    const launchLogRefreshSpinEl = document.getElementById('launchLogRefreshSpin')
     const launchLogCopyEl = document.getElementById('launchLogCopy')
     const launchLogWindowEl = document.getElementById('launchLogWindow')
     const launchLogRssEl = document.getElementById('launchLogRss')
@@ -2322,6 +2356,9 @@
     const launchLogSpaceEl = document.getElementById('launchLogSpace')
     const launchLogSpaceMetaEl = document.getElementById('launchLogSpaceMeta')
     const launchLogSpaceBodyEl = document.getElementById('launchLogSpaceBody')
+    const launchLogTimeEmptyEl = document.getElementById('launchLogTimeEmpty')
+    const launchLogSpaceEmptyEl = document.getElementById('launchLogSpaceEmpty')
+    const launchLogRawEmptyEl = document.getElementById('launchLogRawEmpty')
     const launchLogDiagnosisEl = document.getElementById('launchLogDiagnosis')
     const launchLogDiagnosisMetaEl = document.getElementById('launchLogDiagnosisMeta')
     const launchLogTabsEl = document.getElementById('launchLogTabs')
@@ -4800,6 +4837,11 @@
      * 两边的差别只在标题文案和确认后写到哪，窗里的列表、增删改、插件预览是同一套。
      */
     let pickerMode = 'copy'
+    // 「添加目录」弹窗当前是哪个页签：本机目录 / WSL 目录
+    let pickHomeKind = 'local'
+    // 选择窗的动效状态：换目录的方向（right/left），以及刚新增、要高亮一下的行（home:… / profile:…）
+    let pickerListDir = ''
+    let pickerNewRow = ''
     // 弹窗里的临时选择：目录 + Profile。取消就丢掉，只有「用它」才写回外面
     let pickerHome = ''
     let pickerProfile = ''
@@ -4833,6 +4875,8 @@
     let pickerRevision = 0
     // 增删改进行中：列表里的动作按钮全灰掉，免得连点建出两个
     let pickerBusy = false
+    // 右栏正在卸载的插件名：那一行换成转圈，其余行跟着 pickerBusy 一起灰掉
+    let pickerPluginRemoving = ''
 
     /** 目录的显示名：全局那份叫「全局目录」，其余的优先用登记时起的名字。 */
     function copyHomeName(home) {
@@ -4885,10 +4929,10 @@
      * 名字那行优先用登记时起的名字，路径那行只在两者不同时给，免得同一个值写两遍。
      */
     function paintPickerHomes() {
-      const folder = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2Z"/></svg>'
-      const openFolder = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M10 14 21 3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>'
-      const pencil = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 5 5-12 12H4v-5L16 3Z"/><path d="m14 5 5 5"/></svg>'
-      const trash = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5"/></svg>'
+      const folder = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-folder"/></svg>'
+      const openFolder = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-external-link"/></svg>'
+      const pencil = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-pencil"/></svg>'
+      const trash = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-trash-2"/></svg>'
       const rows = [{ home: '', name: t('全局目录'), path: state.dshHome || '~/.dsh' }]
       for (const [home, named] of homeOptions(pickerHome)) {
         const name = copyHomeName(home)
@@ -4908,19 +4952,19 @@
         }
       }
       const disabled = pickerBusy ? 'disabled' : ''
+      const highlightHome = pickerNewRow.startsWith('home:') ? pickerNewRow.slice('home:'.length) : ''
       profilePickHomesEl.innerHTML = rows.map((row) => {
         const selected = row.home === pickerHome
         const sub = row.path && row.path !== row.name ? `<span class="profile-pick-sub">${escapeHtml(row.path)}</span>` : ''
-        // 打开目录哪一行都有（全局那份也能在资源管理器里翻）；重命名/移除只给登记过的：
-        // 全局目录是兜底那份，服务端也会拦。WSL 行是探测出来的，不提供登记类操作。
-        const open = row.wsl
-          ? ''
-          : `<button class="icon-btn profile-pick-action" type="button" data-home-open="${escapeHtml(row.home)}" title="${escapeHtml(t('在文件夹里打开'))}" aria-label="${escapeHtml(t('在文件夹里打开'))}" ${disabled}>${openFolder}</button>`
+        // 打开目录哪一行都有（全局那份也能在资源管理器里翻；WSL 行会先换成 Windows 路径再打开）；
+        // 重命名/移除只给登记过的：全局目录是兜底那份，服务端也会拦。WSL 行是探测出来的，不提供登记类操作。
+        const open = `<button class="icon-btn profile-pick-action" type="button" data-home-open="${escapeHtml(row.home)}" title="${escapeHtml(t('在文件夹里打开'))}" aria-label="${escapeHtml(t('在文件夹里打开'))}" ${disabled}>${openFolder}</button>`
         const edit = row.home && !row.wsl
           ? `<button class="icon-btn profile-pick-action" type="button" data-home-rename="${escapeHtml(row.home)}" title="${escapeHtml(t('重命名目录'))}" aria-label="${escapeHtml(t('重命名目录'))}" ${disabled}>${pencil}</button><button class="icon-btn profile-pick-action danger" type="button" data-home-remove="${escapeHtml(row.home)}" title="${escapeHtml(t('移除目录'))}" aria-label="${escapeHtml(t('移除目录'))}" ${disabled}>${trash}</button>`
           : ''
-        return `<div class="profile-pick-row${selected ? ' is-selected' : ''}${row.wsl ? ' is-wsl' : ''}" data-home="${escapeHtml(row.home)}"><button class="profile-pick-hit" type="button" role="option" aria-selected="${selected}"><span class="profile-pick-icon">${folder}</span><span class="profile-pick-text"><span class="profile-pick-name">${escapeHtml(row.name)}</span>${sub}</span></button><span class="profile-pick-actions">${open}${edit}</span></div>`
+        return `<div class="profile-pick-row${selected ? ' is-selected' : ''}${row.wsl ? ' is-wsl' : ''}${highlightHome && row.home === highlightHome ? ' is-new' : ''}" data-home="${escapeHtml(row.home)}"><button class="profile-pick-hit" type="button" role="option" aria-selected="${selected}"><span class="profile-pick-icon">${folder}</span><span class="profile-pick-text"><span class="profile-pick-name">${escapeHtml(row.name)}</span>${sub}</span></button><span class="profile-pick-actions">${open}${edit}</span></div>`
       }).join('')
+      pickerNewRow = ''
       for (const hit of profilePickHomesEl.querySelectorAll('[data-home] .profile-pick-hit')) {
         hit.onclick = () => void selectPickerHome(hit.closest('[data-home]').dataset.home)
       }
@@ -4939,8 +4983,11 @@
     /** 行尾「打开」：在系统文件管理器里打开这个用户目录（空 home = 全局目录）。 */
     async function openPickerHome(home) {
       if (pickerBusy) return
+      // WSL 行存的 wsl:// 键不能当 Windows 路径用：服务端先用 wslpath 换成 \\wsl.localhost\… 再打开。
+      const wsl = parseWslHomeKey(home)
       try {
-        await post('/api/dsh-homes/open', { home })
+        if (wsl) await post('/api/wsl/open', { distro: wsl.distro, home: wsl.home })
+        else await post('/api/dsh-homes/open', { home })
       } catch (error) {
         profilePickHintEl.textContent = t(error.message)
       }
@@ -4949,9 +4996,27 @@
     /** 重播一次「刚刷新」的动效：先摘类再量一次 layout，连点也不会因为类还在而不触发。 */
     function replayListMotion(el) {
       if (!el?.classList) return
+      if (pickerListDir) el.dataset.dir = pickerListDir
+      else delete el.dataset.dir
       el.classList.remove('is-refreshed')
       void el.offsetWidth
       el.classList.add('is-refreshed')
+    }
+
+    /** 找选择窗列表里某一行的元素（attr 是 data-home / data-profile）。 */
+    function pickerRowElement(container, attr, value) {
+      return [...container.querySelectorAll(`[${attr}]`)].find((el) => el.getAttribute(attr) === value)
+    }
+
+    function pickerReduceMotion() {
+      return document.documentElement.classList.contains('reduce-motion') || matchMedia('(prefers-reduced-motion: reduce)').matches
+    }
+
+    /** 删除前让这一行淡出；减动效时直接返回，由调用方照常刷新。 */
+    async function fadePickerRowOut(row) {
+      if (!row || pickerReduceMotion()) return
+      row.classList.add('is-removing')
+      await new Promise((resolve) => setTimeout(resolve, 150))
     }
 
     /**
@@ -4960,8 +5025,8 @@
      * 每行还带插件数（来自 /api/packs），行尾给重命名/删除——增删改都作用在这个目录上。
      */
     function paintPickerProfiles(loading = true) {
-      const pencil = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 5 5-12 12H4v-5L16 3Z"/><path d="m14 5 5 5"/></svg>'
-      const trash = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5"/></svg>'
+      const pencil = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-pencil"/></svg>'
+      const trash = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-trash-2"/></svg>'
       const selectedRow = pickerRows.find((row) => row.name === pickerProfile)
       profilePickCopyEl.disabled = pickerBusy || !selectedRow || Boolean(parseWslHomeKey(pickerHome))
       if (loading) {
@@ -4972,9 +5037,11 @@
       if (!pickerRows.length) {
         profilePickProfilesEl.innerHTML = `<p class="profile-pick-note">${escapeHtml(t('这个目录里还没有 Profile'))}</p>`
         profilePickConfirmEl.disabled = true
+        pickerNewRow = ''
         replayListMotion(profilePickProfilesEl)
         return
       }
+      const highlightProfile = pickerNewRow.startsWith('profile:') ? pickerNewRow.slice('profile:'.length) : ''
       profilePickProfilesEl.innerHTML = pickerRows.map((row) => {
         const selected = row.name === pickerProfile
         const blocked = row.web ? '' : ' is-blocked'
@@ -4982,11 +5049,15 @@
         const note = row.wsl ? t('WSL 里的 Profile') : row.web
           ? (count === null ? t('还没初始化') : t('{n} 个插件', { n: count }))
           : t('不能起网页')
-        // 没初始化的 Profile 没有 package.json：重命名/删除都会被服务端拒，干脆灰掉
-        const canEdit = Boolean(row.pack) && !row.wsl && !pickerBusy
-        const actions = `<span class="profile-pick-actions"><button class="icon-btn profile-pick-action" type="button" data-profile-rename="${escapeHtml(row.name)}" title="${escapeHtml(t('重命名 Profile'))}" aria-label="${escapeHtml(t('重命名 Profile'))}" ${canEdit ? '' : 'disabled'}>${pencil}</button><button class="icon-btn profile-pick-action danger" type="button" data-profile-remove="${escapeHtml(row.name)}" title="${escapeHtml(t('删除 Profile'))}" aria-label="${escapeHtml(t('删除 Profile'))}" ${canEdit && row.pack?.removable !== false ? '' : 'disabled'}>${trash}</button></span>`
-        return `<div class="profile-pick-row${selected ? ' is-selected' : ''}${blocked}" data-profile="${escapeHtml(row.name)}"><button class="profile-pick-hit" type="button" role="option" aria-selected="${selected}" aria-disabled="${!row.web}" ${row.web ? '' : 'disabled'}><span class="profile-pick-text"><span class="profile-pick-name">${escapeHtml(row.name)}</span><span class="profile-pick-sub">${escapeHtml(note)}</span></span></button>${actions}</div>`
+        // 没初始化的本地 Profile 没有 package.json，改名/删除都会被服务端拒；
+        // WSL 的 Profile 只能删（文件在发行版里，改名入口没有对应接口）。
+        const canRename = Boolean(row.pack) && !row.wsl && !pickerBusy
+        const canRemove = !pickerBusy && (row.wsl || Boolean(row.pack) && row.pack?.removable !== false)
+        const rename = row.wsl ? '' : `<button class="icon-btn profile-pick-action" type="button" data-profile-rename="${escapeHtml(row.name)}" title="${escapeHtml(t('重命名 Profile'))}" aria-label="${escapeHtml(t('重命名 Profile'))}" ${canRename ? '' : 'disabled'}>${pencil}</button>`
+        const actions = `<span class="profile-pick-actions">${rename}<button class="icon-btn profile-pick-action danger" type="button" data-profile-remove="${escapeHtml(row.name)}" title="${escapeHtml(t('删除 Profile'))}" aria-label="${escapeHtml(t('删除 Profile'))}" ${canRemove ? '' : 'disabled'}>${trash}</button></span>`
+        return `<div class="profile-pick-row${selected ? ' is-selected' : ''}${blocked}${highlightProfile && row.name === highlightProfile ? ' is-new' : ''}" data-profile="${escapeHtml(row.name)}"><button class="profile-pick-hit" type="button" role="option" aria-selected="${selected}" aria-disabled="${!row.web}" ${row.web ? '' : 'disabled'}><span class="profile-pick-text"><span class="profile-pick-name">${escapeHtml(row.name)}</span><span class="profile-pick-sub">${escapeHtml(note)}</span></span></button>${actions}</div>`
       }).join('')
+      pickerNewRow = ''
       for (const hit of profilePickProfilesEl.querySelectorAll('[data-profile] .profile-pick-hit')) {
         if (hit.disabled) continue
         const name = hit.closest('[data-profile]').dataset.profile
@@ -5037,12 +5108,18 @@
     function paintPickerDetails() {
       if (!profilePickDetailsEl) return
       const row = pickerRows.find((item) => item.name === pickerProfile)
+      const trash = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-trash-2"/></svg>'
+      // 装/卸都只能作用于已初始化、且在本机的 Profile；WSL 的包文件在发行版里，这里只管看
+      profilePickPluginAddEl.disabled = pickerBusy || Boolean(pickerPluginRemoving) || Boolean(parseWslHomeKey(pickerHome)) || !row?.pack
       profilePickMetaEl.textContent = ''
       // 换了 Profile 才播一次淡入；同一份重复重画（比如置忙）不闪
       const changed = pickerDetailName !== (row?.name || '')
       pickerDetailName = row?.name || ''
       const render = (html) => {
         profilePickDetailsEl.innerHTML = html
+        for (const button of profilePickDetailsEl.querySelectorAll('[data-plugin-remove]')) {
+          button.onclick = () => void removePickerPlugin(button.dataset.pluginRemove)
+        }
         if (changed) replayListMotion(profilePickDetailsEl)
       }
       if (!row) return render(`<p class="profile-pick-note">${escapeHtml(t('先挑一个 Profile'))}</p>`)
@@ -5067,7 +5144,54 @@
       const on = plugins.filter((item) => item.enabled).length
       profilePickMetaEl.textContent = t('{n} 个插件 · {on} 个开着', { n: plugins.length, on })
       if (!plugins.length) return render(`<p class="profile-pick-note">${escapeHtml(t('这个环境里还没装插件'))}</p>`)
-      render(plugins.map((item) => `<div class="profile-detail-row${item.enabled ? '' : ' is-off'}"><span class="profile-detail-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span><span class="profile-detail-version">${escapeHtml(item.version || '')}</span>${item.enabled ? '' : `<span class="profile-detail-badge">${escapeHtml(t('已关闭'))}</span>`}</div>`).join(''))
+      const busy = pickerBusy || Boolean(pickerPluginRemoving)
+      render(plugins.map((item) => {
+        // 官方组件跟着 dsh 走，不给卸载入口（和插件页同一条保护线）
+        const action = item.official ? '' : `<button class="icon-btn profile-detail-action danger" type="button" data-plugin-remove="${escapeHtml(item.name)}" title="${escapeHtml(t('卸载 {name}', { name: item.name }))}" aria-label="${escapeHtml(t('卸载 {name}', { name: item.name }))}" ${busy ? 'disabled' : ''}>${pickerPluginRemoving === item.name ? '<span class="spin" aria-hidden="true"></span>' : trash}</button>`
+        const badge = item.enabled ? '' : `<span class="profile-detail-badge">${escapeHtml(t('已关闭'))}</span>`
+        return `<div class="profile-detail-row${item.enabled ? '' : ' is-off'}"><span class="profile-detail-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span><span class="profile-detail-version">${escapeHtml(item.version || '')}</span>${badge}${action}</div>`
+      }).join(''))
+    }
+
+    /**
+     * 右栏的「卸载」：从选中的 Profile 里卸一个第三方插件。
+     * 和插件页走同一个接口，但请求必须带上选择窗挑的目录（pickerHome；空串 = 全局目录）。
+     */
+    async function removePickerPlugin(name) {
+      const profile = pickerProfile
+      const row = pickerRows.find((item) => item.name === profile)
+      const plugin = (row?.pack?.plugins || []).find((item) => item.name === name)
+      if (pickerBusy || pickerPluginRemoving || !plugin || plugin.official) return
+      const confirmed = await appConfirm(
+        t('从「{profile}」卸载「{name}」？卸载后它提供的功能会消失，重启 dsh 后生效。', { profile, name }),
+        { title: t('卸载插件'), okText: t('卸载'), parent: profilePickDialogEl },
+      )
+      if (!confirmed || pickerBusy) return
+      pickerPluginRemoving = name
+      setPickerBusy(true)
+      paintPickerDetails()
+      profilePickHintEl.textContent = t('正在从「{profile}」卸载「{name}」…', { profile, name })
+      try {
+        await post('/api/plugins/remove', { name, profile }, { home: pickerHome, launchId: '' })
+        profilePickHintEl.textContent = ''
+        pickerCache.delete(pickerHome)
+        // 插件数变了：中栏那行的「n 个插件」和右栏一起重读
+        await selectPickerHome(pickerHome)
+        if (profile === pluginProfile && sameHomePath(pickerHome || state.dshHome, pluginTargetHome() || state.dshHome)) void loadPlugins({ checkUpdates: false })
+      } catch (error) {
+        profilePickHintEl.textContent = t(error.message)
+      } finally {
+        pickerPluginRemoving = ''
+        setPickerBusy(false)
+        paintPickerDetails()
+      }
+    }
+
+    /** 右栏栏头的「+」：把插件装进选中的 Profile（WSL 和没初始化的不给装）。 */
+    function openPickerPluginAdd() {
+      const row = pickerRows.find((item) => item.name === pickerProfile)
+      if (!row?.pack || pickerBusy || pickerPluginRemoving || parseWslHomeKey(pickerHome)) return
+      openPluginAdd({ profile: row.name, home: pickerHome, picker: true })
     }
 
     /** 一个目录的清单：Profile 列表（含没初始化的）+ 能起网页的 + 插件卡（/api/packs）。按目录缓存。 */
@@ -5090,6 +5214,14 @@
 
     /** 点左栏某个目录：换目录、重铺中栏和右栏；原来选的 Profile 还在这个目录里才保留。 */
     async function selectPickerHome(home) {
+      // 换目录时按左栏的先后决定中栏/右栏从哪边推入；同目录刷新（增删后）不带方向
+      const homes = [...profilePickHomesEl.querySelectorAll('[data-home]')]
+      const oldIndex = homes.findIndex((el) => el.dataset.home === pickerHome)
+      const newIndex = homes.findIndex((el) => el.dataset.home === home)
+      pickerListDir = pickerHome !== home && oldIndex >= 0 && newIndex >= 0
+        ? (newIndex > oldIndex ? 'right' : 'left')
+        : ''
+      if (pickerListDir) setTimeout(() => { pickerListDir = '' }, 400)
       pickerHome = home
       markPickerHome()
       const revision = ++pickerRevision
@@ -5169,6 +5301,7 @@
       profilePickProfilesEl.innerHTML = ''
       profilePickDetailsEl.innerHTML = ''
       profilePickMetaEl.textContent = ''
+      profilePickPluginAddEl.disabled = true
       ;(pickerMode === 'form' ? launchEnvPickEl : launchCopyPickEl).setAttribute('aria-expanded', 'true')
       // 左栏要列出 WSL 发行版：还没探过就先取一次（服务端有 10 秒缓存）。
       if (pickerMode === 'form' && state.wsl?.available !== false) {
@@ -5256,23 +5389,24 @@
     }
 
     /** 左栏的「+ 添加目录」：挑一个磁盘目录登记进来，然后直接停在新目录上。 */
-    async function addPickerHome() {
-      if (pickerBusy) return
+    /** 登记一个本机目录并选中它；失败返回 {ok:false,error}，让「添加目录」弹窗把原因显示在原地。 */
+    async function registerPickerHome(home) {
+      if (pickerBusy) return { ok: false, error: new Error('正在忙，稍后再试') }
+      setPickerBusy(true)
       try {
-        const picked = await pickDirectoryPath(pickerHome || state.dshHome || '')
-        if (picked.error) throw new Error(picked.error)
-        if (!picked.path) return
-        setPickerBusy(true)
-        const data = await post('/api/dsh-homes/add', { home: picked.path })
+        const data = await post('/api/dsh-homes/add', { home })
         applyHomes(data.dshHomes)
         pickerCache.clear()
+        const added = (Array.isArray(data.dshHomes) ? data.dshHomes : []).find((item) => sameHomePath(item, home)) || home
+        pickerNewRow = `home:${added}`
         paintPickerHomes()
         profilePickHintEl.textContent = ''
-        await selectPickerHome(picked.path)
+        await selectPickerHome(added)
+        return { ok: true }
       } catch (error) {
-        profilePickHintEl.textContent = t(error.message)
+        return { ok: false, error }
       } finally {
-        if (pickerBusy) setPickerBusy(false)
+        setPickerBusy(false)
       }
     }
 
@@ -5298,38 +5432,62 @@
 
     async function openPickHomeAddDialog() {
       if (pickerBusy) return
-      pickHomeWslFieldsEl.hidden = true
-      document.getElementById('pickHomeAddLocal').disabled = false
       pickHomeWslHomeEl.value = '~/.dsh'
+      pickHomeLocalPathEl.value = ''
       pickHomeAddHintEl.textContent = ''
-      pickHomeAddConfirmEl.disabled = true
       paintPickHomeWslDistros()
-      showPackDialog(pickHomeAddDialogEl, document.getElementById('pickHomeAddLocal'))
+      paintPickHomeKind('local')
+      showPackDialog(pickHomeAddDialogEl, pickHomeTabsEl.querySelector('[aria-selected="true"]'))
       if (state.wsl?.available !== false) {
         try { await ensureWslInfo() } catch { /* 只列本机目录 */ }
         paintPickHomeWslDistros()
+        paintPickHomeKind(pickHomeKind)
       }
-      pickHomeAddConfirmEl.disabled = true
     }
 
     function closePickHomeAddDialog() {
       void hidePackDialog(pickHomeAddDialogEl)
     }
 
-    function showPickHomeWslFields() {
-      pickHomeWslFieldsEl.hidden = false
-      paintPickHomeWslDistros(pickHomeWslDistroEl.value)
-      pickHomeAddConfirmEl.disabled = !pickHomeWslDistroEl.value
-      document.getElementById('pickHomeAddLocal').disabled = true
+    /** 「本机目录 / WSL 目录」两个页签：同一时间只露对应那一侧的字段。 */
+    function paintPickHomeKind(kind) {
+      pickHomeKind = kind === 'wsl' ? 'wsl' : 'local'
+      pickHomeTabsEl.dataset.active = pickHomeKind
+      for (const tab of pickHomeKindTabs) tab.setAttribute('aria-selected', String(tab.dataset.pickHomeKind === pickHomeKind))
+      pickHomeWslFieldsEl.hidden = pickHomeKind !== 'wsl'
+      pickHomeLocalFieldsEl.hidden = pickHomeKind !== 'local'
+      pickHomeAddHintEl.textContent = ''
+      if (pickHomeKind === 'wsl') {
+        paintPickHomeWslDistros(pickHomeWslDistroEl.value)
+        pickHomeAddConfirmEl.disabled = !pickHomeWslDistroEl.value
+      } else {
+        pickHomeAddConfirmEl.disabled = !pickHomeLocalPathEl.value.trim()
+      }
     }
 
     async function confirmPickHomeAdd() {
-      if (pickHomeWslFieldsEl.hidden) return
+      if (pickHomeKind === 'local') {
+        const path = pickHomeLocalPathEl.value.trim()
+        if (!path) {
+          pickHomeAddHintEl.textContent = t('请先填写目录路径，或点「浏览…」选择。')
+          return
+        }
+        pickHomeAddConfirmEl.disabled = true
+        const result = await registerPickerHome(path)
+        if (!result.ok) {
+          pickHomeAddConfirmEl.disabled = false
+          pickHomeAddHintEl.textContent = t(result.error?.message || String(result.error))
+          return
+        }
+        closePickHomeAddDialog()
+        return
+      }
       const distro = pickHomeWslDistroEl.value
       if (!distro) return
       const home = pickHomeWslHomeEl.value.trim() || '~/.dsh'
       closePickHomeAddDialog()
       pickerHome = wslHomeKeyOf(distro, home)
+      pickerNewRow = `home:${pickerHome}`
       paintPickerHomes()
       await selectPickerHome(pickerHome)
     }
@@ -5339,6 +5497,8 @@
       if (pickerBusy || !home) return
       const name = copyHomeName(home)
       if (!await appConfirm(t('移除「{home}」？只从列表里移除，目录里的数据都还在。', { home: name }), { title: t('移除目录'), parent: profilePickDialogEl })) return
+      const rowEl = pickerRowElement(profilePickHomesEl, 'data-home', home)
+      await fadePickerRowOut(rowEl)
       setPickerBusy(true)
       try {
         const data = await post('/api/dsh-homes/remove', { home })
@@ -5355,6 +5515,7 @@
         paintPickerHomes()
         await selectPickerHome('')
       } catch (error) {
+        rowEl?.classList.remove('is-removing')
         profilePickHintEl.textContent = t(error.message)
       } finally {
         setPickerBusy(false)
@@ -5363,20 +5524,41 @@
 
     /** 中栏的「✕」：删掉这个目录里的这份 Profile（会话与记忆留着，启动项跟着删）。 */
     async function removePickerProfile(profile) {
+      const wsl = parseWslHomeKey(pickerHome)
       const row = pickerRows.find((item) => item.name === profile)
-      if (pickerBusy || !row?.pack) return
-      const n = row.pack.pluginCount ?? (row.pack.plugins || []).length
-      if (!await appConfirm(t('删除「{profile}」？其中的 {n} 个插件、配置和对应启动项会一并移除，会话与记忆保留。此操作无法撤销。', { profile, n }), { title: t('删除 Profile'), parent: profilePickDialogEl })) return
+      if (pickerBusy || (!row?.pack && !row?.wsl)) return
+      const n = row.wsl
+        ? (Array.isArray(pickerWslProfileInfo?.plugins) ? pickerWslProfileInfo.plugins.length : null)
+        : (row.pack.pluginCount ?? (row.pack.plugins || []).length)
+      const message = row.wsl
+        ? t('删除 WSL「{distro}」里的 Profile「{profile}」？其中的插件和配置会一并移除，会话与记忆保留。此操作无法撤销。', { distro: wsl?.distro || '', profile })
+        : t('删除「{profile}」？其中的 {n} 个插件、配置和对应启动项会一并移除，会话与记忆保留。此操作无法撤销。', { profile, n })
+      if (!await appConfirm(message, { title: t('删除 Profile'), parent: profilePickDialogEl })) return
+      const rowEl = pickerRowElement(profilePickProfilesEl, 'data-profile', profile)
+      await fadePickerRowOut(rowEl)
       setPickerBusy(true)
       try {
-        await post('/api/profiles/delete', { profile }, { home: pickerHome, launchId: '' })
-        pickerCache.delete(pickerHome)
-        if (pickerProfile === profile) pickerProfile = ''
-        profilePickHintEl.textContent = ''
-        await selectPickerHome(pickerHome)
-        // 删的正好是环境页正在看的那份：那边重新拉一遍，别停在旧列表上
-        if (sameHomePath(pickerHome || state.dshHome, pluginTargetHome() || state.dshHome)) void loadPlugins()
+        if (row.wsl) {
+          if (!wsl) throw new Error('WSL 目录信息不完整')
+          await post('/api/wsl/profile/remove', { distro: wsl.distro, home: wsl.home, profile })
+          // 选择窗里的插件摘要缓存也有这份 Profile：清掉，刷新时重新读
+          for (const key of [...pickerWslProfileCache.keys()]) {
+            if (key.startsWith(`${wsl.distro}\0${wsl.home}\0`)) pickerWslProfileCache.delete(key)
+          }
+          if (pickerProfile === profile) pickerProfile = ''
+          profilePickHintEl.textContent = ''
+          await selectPickerHome(pickerHome)
+        } else {
+          await post('/api/profiles/delete', { profile }, { home: pickerHome, launchId: '' })
+          pickerCache.delete(pickerHome)
+          if (pickerProfile === profile) pickerProfile = ''
+          profilePickHintEl.textContent = ''
+          await selectPickerHome(pickerHome)
+          // 删的正好是环境页正在看的那份：那边重新拉一遍，别停在旧列表上
+          if (sameHomePath(pickerHome || state.dshHome, pluginTargetHome() || state.dshHome)) void loadPlugins()
+        }
       } catch (error) {
+        rowEl?.classList.remove('is-removing')
         profilePickHintEl.textContent = t(error.message)
       } finally {
         setPickerBusy(false)
@@ -5410,11 +5592,28 @@
     launchEnvPickEl.onclick = () => void openProfilePicker('form')
     profilePickConfirmEl.onclick = confirmProfilePick
     profilePickHomeAddEl.onclick = () => void openPickHomeAddDialog()
+    profilePickPluginAddEl.onclick = () => openPickerPluginAdd()
     document.getElementById('pickHomeAddClose').onclick = closePickHomeAddDialog
     document.getElementById('pickHomeAddCancel').onclick = closePickHomeAddDialog
-    document.getElementById('pickHomeAddLocal').onclick = () => { closePickHomeAddDialog(); void addPickerHome() }
-    document.getElementById('pickHomeAddWsl').onclick = showPickHomeWslFields
+    for (const tab of pickHomeKindTabs) tab.onclick = () => paintPickHomeKind(tab.dataset.pickHomeKind)
     pickHomeAddConfirmEl.onclick = () => void confirmPickHomeAdd()
+    pickHomeLocalPathEl.oninput = () => {
+      if (pickHomeKind === 'local') pickHomeAddConfirmEl.disabled = !pickHomeLocalPathEl.value.trim()
+      pickHomeAddHintEl.textContent = ''
+    }
+    pickHomeLocalPathEl.onkeydown = (event) => {
+      if (event.key !== 'Enter' || pickHomeAddConfirmEl.disabled) return
+      event.preventDefault()
+      void confirmPickHomeAdd()
+    }
+    pickHomeLocalBrowseEl.onclick = async () => {
+      const picked = await pickDirectoryPath(pickHomeLocalPathEl.value.trim() || pickerHome || state.dshHome || '')
+      if (picked.error) { pickHomeAddHintEl.textContent = t(picked.error); return }
+      if (!picked.path) return
+      pickHomeLocalPathEl.value = picked.path
+      pickHomeAddConfirmEl.disabled = false
+      pickHomeAddHintEl.textContent = ''
+    }
     document.getElementById('pickHomeWslBrowse').onclick = async () => {
       const distro = pickHomeWslDistroEl.value
       if (!distro) return
@@ -5672,7 +5871,7 @@
         const feedback = launchCopyFeedback.get(button) || { icon: button.innerHTML }
         clearTimeout(feedback.timer)
         launchCopyFeedback.set(button, feedback)
-        button.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>'
+        button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-check"/></svg>'
         button.title = t('链接已复制')
         feedback.timer = setTimeout(() => {
           button.innerHTML = feedback.icon
@@ -5763,9 +5962,11 @@
     let launchLogQuery = 0
     let launchLogReportKey = ''
     let launchLogStorageKey = ''
-    // 日志弹窗的页签：原始日志常驻；耗时/空间/诊断有数据才出现
+    // 日志弹窗的页签：原始日志 / 耗时构成 / 空间构成常驻；诊断有数据才跟着原始日志出现
     let launchLogTab = 'raw'
-    const launchLogAvailable = { raw: true, time: false, space: false, diagnosis: false }
+    // 上一次落在第几个页签：切换时用它决定面板从左边还是右边进场
+    let launchLogShownIndex = -1
+    const launchLogAvailable = { diagnosis: false }
     // 耗时账本按「这一次运行」缓存：同一次运行反复打开直接复用，重启后 runAt 变了才重取。
     const launchReportCache = new Map()
     // 日志正文按启动项缓存：再次打开先显示上次看到的全文，后台刷新再替换，不用空白等一次请求。
@@ -5781,17 +5982,27 @@
       return value >= 1000 ? `${(value / 1000).toFixed(2)}s` : `${Math.round(value)}ms`
     }
 
-    /** 只显示当前页签对应的卡片；没有内容的页签直接收起来。 */
+    /** 三个页签常驻；没内容的页签在面板里显示空状态，不再把按钮收起来。 */
     function paintLaunchLogTabs() {
-      if (!launchLogAvailable[launchLogTab]) launchLogTab = 'raw'
       for (const button of launchLogTabButtons) {
         const key = button.dataset.logTab
-        button.hidden = !launchLogAvailable[key]
         button.setAttribute('aria-selected', String(key === launchLogTab))
         button.tabIndex = key === launchLogTab ? 0 : -1
       }
+      // 选中块的宽/位移在 CSS 里按页签数算；三个页签常驻，索引跟着当前页签走
+      const index = launchLogTabButtons.findIndex((button) => button.dataset.logTab === launchLogTab)
+      const nextIndex = index < 0 ? 0 : index
+      launchLogTabsEl.dataset.count = String(launchLogTabButtons.length)
+      launchLogTabsEl.dataset.index = String(nextIndex)
+      // 面板顺着页签移动的方向进场：往右切从右边推，往左切从左边推。
+      // 同一页签的重复 paint 不能把方向删掉，否则动画会在半路换回默认的淡入。
+      const active = launchLogPanels[launchLogTab]
+      if (active && launchLogShownIndex >= 0 && launchLogShownIndex !== nextIndex) {
+        active.dataset.dir = nextIndex > launchLogShownIndex ? 'right' : 'left'
+      }
+      launchLogShownIndex = nextIndex
       for (const [key, panel] of Object.entries(launchLogPanels)) {
-        panel.hidden = !(launchLogAvailable[key] && key === launchLogTab)
+        panel.hidden = key !== launchLogTab
       }
       // 插件诊断和原始日志同屏，不单独占页签；有诊断数据且停在原始日志时才出现
       launchLogDiagnosisEl.hidden = !(launchLogAvailable.diagnosis && launchLogTab === 'raw')
@@ -5799,8 +6010,14 @@
     }
 
     function syncLaunchLogVisual() {
-      launchLogAvailable.time = !launchLogPluginsEl.hidden && launchLogPluginsEl.innerHTML.trim().length > 0
       paintLaunchLogTabs()
+    }
+
+    /** 页签内容为空时的占位行；传空串收起。 */
+    function showLaunchLogEmpty(element, text) {
+      if (!element) return
+      element.hidden = !text
+      element.textContent = text || ''
     }
 
     /** 诊断里的问题行：同一个包只列一次，标签沿用诊断面板的叫法。 */
@@ -5891,6 +6108,9 @@
       if (ledger < 1 || (!packages.length && !native.length && pluginMs < 1)) {
         launchLogPluginsEl.hidden = true
         launchLogPluginsEl.innerHTML = ''
+        launchLogWindowEl.textContent = ''
+        launchLogRssEl.hidden = true
+        showLaunchLogEmpty(launchLogTimeEmptyEl, t('还没有耗时数据'))
         syncLaunchLogVisual()
         return
       }
@@ -5939,6 +6159,7 @@
         ${nativeRows.length ? `<p class="hint launch-log-note">${escapeHtml(t('原生/GC 已按最近的 JS 调用方归到包；这里只按系统调用/GC 类型汇总。'))}</p>` : ''}
         <p class="hint launch-log-note">${escapeHtml(t('插件合计 {plugin}%（含它带进来的依赖）；其余为运行时启动、文件扫描与未归属。', { plugin: percent(pluginMs) }))}</p>`
       launchLogPluginsEl.hidden = false
+      showLaunchLogEmpty(launchLogTimeEmptyEl, '')
       syncLaunchLogVisual()
     }
 
@@ -5951,12 +6172,16 @@
         renderLaunchReport(cached)
         return
       }
+      showLaunchLogEmpty(launchLogTimeEmptyEl, t('正在读取耗时数据…'))
+      launchLogWindowEl.textContent = ''
+      launchLogRssEl.hidden = true
       try {
         const report = await getJson(`/api/plugin-profile?version=${encodeURIComponent(version)}&profile=${encodeURIComponent(profile)}`)
         if (launchLogReportKey !== key) return
         if (report?.missing) {
           launchLogPluginsEl.hidden = true
           launchLogPluginsEl.innerHTML = ''
+          showLaunchLogEmpty(launchLogTimeEmptyEl, t('还没有耗时数据'))
           syncLaunchLogVisual()
           return
         }
@@ -5964,7 +6189,11 @@
         if (launchReportCache.size > 8) launchReportCache.delete(launchReportCache.keys().next().value)
         renderLaunchReport(report)
       } catch {
-        // 没有账本就只显示日志
+        if (launchLogReportKey !== key) return
+        launchLogPluginsEl.hidden = true
+        launchLogPluginsEl.innerHTML = ''
+        showLaunchLogEmpty(launchLogTimeEmptyEl, t('还没有耗时数据'))
+        syncLaunchLogVisual()
       }
     }
 
@@ -5994,8 +6223,8 @@
         <div class="launch-log-subhead">${escapeHtml(t('最占空间的 5 项'))}</div>
         <div class="launch-log-bars">${items.map((item) => `<div class="launch-log-bar-row${item.plugin ? ' is-plugin' : ''}"><span class="name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span><span class="track"><span class="fill" style="width:${Math.max(2, (Number(item.bytes) || 0) / max * 100).toFixed(1)}%"></span></span><span class="value">${escapeHtml(formatBytes(item.bytes))}</span></div>`).join('')}</div>
         <p class="hint launch-log-note">${escapeHtml(t('插件按它引用到的依赖计入（共用依赖按引用它的插件均摊）；合计是版本目录 + 这个环境目录的逻辑大小，pnpm 共享 store 不重复计入。'))}</p>`
-      launchLogAvailable.space = true
-      paintLaunchLogTabs()
+      launchLogSpaceBodyEl.hidden = false
+      showLaunchLogEmpty(launchLogSpaceEmptyEl, '')
     }
 
     async function loadStorageBreakdown(entry, version) {
@@ -6007,6 +6236,8 @@
       // 「正在计算占用…」会叠在原始日志页签下面，而且没有对应的页签按钮
       launchLogSpaceMetaEl.textContent = t('正在计算占用…')
       launchLogSpaceBodyEl.innerHTML = ''
+      launchLogSpaceBodyEl.hidden = true
+      showLaunchLogEmpty(launchLogSpaceEmptyEl, t('正在计算占用…'))
       try {
         const data = await getJson(
           `/api/storage/breakdown?version=${encodeURIComponent(version)}&profile=${encodeURIComponent(profile)}`,
@@ -6017,12 +6248,11 @@
         renderStorageBreakdown(data)
       } catch {
         if (launchLogStorageKey !== key) return
-        // 算不出来就收起这块，不占着位置
-        launchLogSpaceEl.hidden = true
+        // 算不出来也留在页签里，给一句空状态
         launchLogSpaceMetaEl.textContent = ''
         launchLogSpaceBodyEl.innerHTML = ''
-        launchLogAvailable.space = false
-        paintLaunchLogTabs()
+        launchLogSpaceBodyEl.hidden = true
+        showLaunchLogEmpty(launchLogSpaceEmptyEl, t('还没有空间占用数据'))
       }
     }
 
@@ -6066,8 +6296,11 @@
         const data = await getJson(`/api/launch-log?id=${encodeURIComponent(entry.id)}`)
         if (query !== launchLogQuery || launchLogEntry !== entry || launchLogDialogEl.hidden) return null
         const nearBottom = launchLogTextEl.scrollHeight - launchLogTextEl.scrollTop - launchLogTextEl.clientHeight < 24
-        launchLogTextEl.textContent = simplifyLogText(data.text)
-        launchLogTextCache.set(entry.id, launchLogTextEl.textContent)
+        const logText = simplifyLogText(data.text)
+        launchLogTextEl.textContent = logText
+        launchLogTextEl.hidden = !logText.trim()
+        showLaunchLogEmpty(launchLogRawEmptyEl, logText.trim() ? '' : t('还没有日志'))
+        launchLogTextCache.set(entry.id, logText)
         if (launchLogTextCache.size > 8) launchLogTextCache.delete(launchLogTextCache.keys().next().value)
         setLaunchLogHint(data.text
           ? (data.clipped ? t('只显示最后 120 KB。') : '')
@@ -6103,6 +6336,8 @@
       launchLogTextEl.textContent = cachedText
       setLaunchLogHint('')
       launchLogLoadingEl.hidden = Boolean(cachedText)
+      // 有缓存时正文立刻可见，后台刷新用一个小的转圈提示，别再撑出一整行空白
+      launchLogRefreshSpinEl.hidden = !cachedText
       launchLogRssEl.hidden = true
       launchLogRssEl.textContent = ''
       launchLogRssEl.title = ''
@@ -6114,18 +6349,26 @@
       launchLogSpaceEl.hidden = true
       launchLogSpaceMetaEl.textContent = ''
       launchLogSpaceBodyEl.innerHTML = ''
+      // 三个页签常驻：空数据先收起空状态，等各自的加载结果再决定写什么
+      showLaunchLogEmpty(launchLogTimeEmptyEl, '')
+      showLaunchLogEmpty(launchLogSpaceEmptyEl, '')
+      showLaunchLogEmpty(launchLogRawEmptyEl, '')
+      launchLogTextEl.hidden = !cachedText.trim()
       launchLogTab = 'raw'
-      launchLogAvailable.time = false
-      launchLogAvailable.space = false
+      launchLogShownIndex = -1
+      for (const panel of Object.values(launchLogPanels)) delete panel.dataset.dir
       launchLogAvailable.diagnosis = false
       renderLaunchLogDiagnosis(null)
       syncLaunchLogVisual()
       await showDialog(launchLogDialogEl)
       launchLogTextEl.scrollTop = launchLogTextEl.scrollHeight
       const data = await refreshLaunchLog()
+      launchLogRefreshSpinEl.hidden = true
+      // 日志已经画出来了就收起加载行：后面的耗时/空间是各自面板的事，
+      // 不能让它继续占着固定高度里的一大块空白
+      launchLogLoadingEl.hidden = true
       if (version && version !== 'auto') await loadLaunchReport(version, entry.profile || 'web', data?.runs?.[0]?.at || '')
       if (version) void loadStorageBreakdown(entry, version)
-      launchLogLoadingEl.hidden = true
       clearInterval(launchLogTimer)
       launchLogTimer = setInterval(() => {
         if (!launchLogDialogEl.hidden) void refreshLaunchLog()
@@ -6135,6 +6378,7 @@
     function closeLaunchLog() {
       launchLogEntry = null
       launchLogStorageKey = ''
+      launchLogShownIndex = -1
       launchLogQuery += 1
       launchLogLoadingEl.hidden = true
       clearInterval(launchLogTimer)
@@ -6231,17 +6475,17 @@
     }
 
     const LAUNCH_ICON_PATHS = {
-      terminal: '<rect x="3" y="4" width="18" height="13" rx="3"/><path d="m7 8 3 2.5L7 13m6 0h4M9 21h6m-3-4v4"/>',
-      code: '<path d="m8 7-5 5 5 5m8-10 5 5-5 5m-3-13-2 16"/>',
-      globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c5 5 5 13 0 18-5-5-5-13 0-18Z"/>',
-      folder: '<path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11H3V7Z"/>',
-      sparkles: '<path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3Z"/>',
-      rocket: '<path d="M14 4c3-1 6-1 6-1s0 3-1 6l-6 7-5-5 6-7ZM8 11H4l-1 5 5-1m5 1v4l-5 1 1-5M4 20l2-2"/><circle cx="16" cy="7" r="1"/>',
+      terminal: 'terminal',
+      code: 'code-xml',
+      globe: 'globe',
+      folder: 'folder',
+      sparkles: 'sparkles',
+      rocket: 'rocket',
     }
     const LAUNCH_ICON_NAMES = { terminal: '终端', code: '代码', globe: '网页', folder: '文件夹', sparkles: '星光', rocket: '火箭' }
     function launchIconMarkup(icon) {
       if (/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(icon || '')) return `<img src="${escapeHtml(icon)}" alt="" />`
-      return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${LAUNCH_ICON_PATHS[icon] || LAUNCH_ICON_PATHS.terminal}</svg>`
+      return `<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-${LAUNCH_ICON_PATHS[icon] || 'terminal'}"/></svg>`
     }
     let launchIcon = 'terminal'
     let launchIconMotion = null, launchIconsOpen = false, paintedLaunchIcon = null
@@ -6356,19 +6600,19 @@
           <span class="launch-preset-copy"><span class="launch-preset-heading">
             <span class="launch-preset-name">${escapeHtml(name)}</span>${wsl ? `<span class="launch-tag launch-tag-wsl" title="${escapeHtml(entry.wslDistro || launchWslDistroOf(entry))}">WSL</span>` : ''}${builtin ? `<span class="launch-builtin">${escapeHtml(t('内置'))}</span>` : ''}</span>
             <span class="launch-preset-meta" title="${escapeHtml(automaticHint)}"><span>${escapeHtml([note, installNote, startupNote].filter(Boolean).join(' · '))}</span></span>
-            ${hasNewVersion ? `<button class="launch-new-version" type="button" data-version-id="${entry.id}" ${action || state.installing ? 'disabled' : ''}>${escapeHtml(t('新版本 {version}', { version: latest }))}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button>` : ''}</span>
+            ${hasNewVersion ? `<button class="launch-new-version" type="button" data-version-id="${entry.id}" ${action || state.installing ? 'disabled' : ''}>${escapeHtml(t('新版本 {version}', { version: latest }))}<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-chevron-right"/></svg></button>` : ''}</span>
           <span class="launch-actions"><button class="launch-edit launch-plugins"${wsl ? ' hidden' : ''} type="button" data-plugins-id="${entry.id}" title="${escapeHtml(t('管理插件'))}" aria-label="${escapeHtml(t('管理 {name} 的插件', { name }))}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9M8 5.25l8 4.5"/></svg></button><button class="launch-edit launch-log${issue ? ' has-issue' : ''}" type="button" data-log-id="${entry.id}" title="${escapeHtml(t('查看 {name} 的日志', { name }))}" aria-label="${escapeHtml(t('查看 {name} 的日志', { name }))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5h9l3 3v14H6zM15 3.5v3h3M9 11h6M9 14.5h6M9 18h4"/></svg></button><button class="launch-edit" type="button" data-edit-id="${entry.id}" title="${escapeHtml(t('编辑 {name}', { name }))}" aria-label="${escapeHtml(t('编辑 {name}', { name }))}" ${action || state.installing || ownAction || busy ? 'disabled' : ''}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 4 4 4M4 20l4-1 12-12a2.8 2.8 0 0 0-4-4L4 15l-1 6Z"/></svg></button>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-package"/></svg></button><button class="launch-edit launch-log${issue ? ' has-issue' : ''}" type="button" data-log-id="${entry.id}" title="${escapeHtml(t('查看 {name} 的日志', { name }))}" aria-label="${escapeHtml(t('查看 {name} 的日志', { name }))}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-file-text"/></svg></button><button class="launch-edit" type="button" data-edit-id="${entry.id}" title="${escapeHtml(t('编辑 {name}', { name }))}" aria-label="${escapeHtml(t('编辑 {name}', { name }))}" ${action || state.installing || ownAction || busy ? 'disabled' : ''}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-pencil"/></svg></button>
           ${live ? `<button class="icon-btn launch-action" type="button" data-restart-id="${entry.id}" title="${escapeHtml(t('重启'))}" aria-label="${escapeHtml(t('重启'))}" ${action || ownAction || busy ? 'disabled' : ''}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/></svg></button>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-rotate-cw"/></svg></button>
           <button class="icon-btn launch-action" type="button" data-stop-id="${entry.id}" title="${escapeHtml(t('停止'))}" aria-label="${escapeHtml(t('停止'))}" ${action || ownAction || busy ? 'disabled' : ''}>
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg></button>` : ''}
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-square"/></svg></button>` : ''}
           <span class="launch-open"><button class="primary icon-btn launch-primary${busy || ownAction ? ' loading' : ''}" type="button" data-launch-id="${entry.id}" title="${escapeHtml(live?.status === 'running' && live.url ? '' : label)}" aria-label="${escapeHtml(label)}" ${!version || action || ownAction || installBlocked || busy || (live?.status === 'running' && !live.url) ? 'disabled' : ''}>
             <span class="spin" aria-hidden="true"></span>${live?.status === 'running'
-              ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-10 10M10 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"/></svg>'
+              ? '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-external-link"/></svg>'
               : '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5a1 1 0 0 1 1.5-.86l10 6.5a1 1 0 0 1 0 1.72l-10 6.5A1 1 0 0 1 8 18.5Z"/></svg>'}</button>
-          ${live?.status === 'running' && live.url ? `<span class="launch-link-popover" role="group" aria-label="${escapeHtml(t('访问链接'))}"><span class="launch-link-head"><span>${escapeHtml(t('访问链接'))}</span><button class="launch-link-copy" type="button" data-copy-launch-link title="${escapeHtml(t('复制链接'))}" aria-label="${escapeHtml(t('复制链接'))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg></button></span><a class="launch-link-value" href="${escapeHtml(live.url)}" data-copy-url="${escapeHtml(live.lanUrl || live.url)}" target="_blank" rel="noopener">${escapeHtml(live.lanUrl || live.url)}</a>${live.lanError ? `<span class="launch-link-note">${escapeHtml(lanErrorText(live.lanError))}</span>` : ''}</span>` : ''}</span></span>
+          ${live?.status === 'running' && live.url ? `<span class="launch-link-popover" role="group" aria-label="${escapeHtml(t('访问链接'))}"><span class="launch-link-head"><span>${escapeHtml(t('访问链接'))}</span><button class="launch-link-copy" type="button" data-copy-launch-link title="${escapeHtml(t('复制链接'))}" aria-label="${escapeHtml(t('复制链接'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-copy"/></svg></button></span><a class="launch-link-value" href="${escapeHtml(live.url)}" data-copy-url="${escapeHtml(live.lanUrl || live.url)}" target="_blank" rel="noopener">${escapeHtml(live.lanUrl || live.url)}</a>${live.lanError ? `<span class="launch-link-note">${escapeHtml(lanErrorText(live.lanError))}</span>` : ''}</span>` : ''}</span></span>
         </div>`
       }).join('')
       // 状态推送很频繁；内容没变就保留节点，避免悬停动效和键盘焦点反复重置。
@@ -6695,7 +6939,7 @@
         const label = t('卸载版本')
         const optimize = t('优化依赖')
         const size = versionSizes?.[version] ? formatBytes(versionSizes[version]) : ''
-        return `<div class="version-manage-row" role="listitem"><div class="version-manage-info"><strong>${escapeHtml(version)}</strong>${size ? `<span class="version-manage-size">${escapeHtml(size)}</span>` : ''}${live ? `<span title="${escapeHtml(status)}">${escapeHtml(status)}</span>` : ''}</div><button class="ghost version-optimize" type="button" data-optimize-version="${escapeHtml(version)}" title="${escapeHtml(t('整理重复依赖，减少内存和磁盘占用'))}" ${busy || live ? 'disabled' : ''}>${escapeHtml(optimize)}</button><button class="ghost icon-btn version-remove" type="button" data-remove-version="${escapeHtml(version)}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" ${busy || live ? 'disabled' : ''}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg></button></div>`
+        return `<div class="version-manage-row" role="listitem"><div class="version-manage-info"><strong>${escapeHtml(version)}</strong>${size ? `<span class="version-manage-size">${escapeHtml(size)}</span>` : ''}${live ? `<span title="${escapeHtml(status)}">${escapeHtml(status)}</span>` : ''}</div><button class="ghost version-optimize" type="button" data-optimize-version="${escapeHtml(version)}" title="${escapeHtml(t('整理重复依赖，减少内存和磁盘占用'))}" ${busy || live ? 'disabled' : ''}>${escapeHtml(optimize)}</button><button class="ghost icon-btn version-remove" type="button" data-remove-version="${escapeHtml(version)}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" ${busy || live ? 'disabled' : ''}><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-trash-2"/></svg></button></div>`
       }).join('') || `<p class="hint version-manage-empty">${escapeHtml(t('尚未安装任何版本'))}</p>`
       // 状态推送和安装进度频繁变化，保留相同的行以免键盘焦点被重建打断。
       if (versionManageMarkup !== markup) {
@@ -7673,26 +7917,26 @@
 
     function paintSelfPill() {
       if (!selfUpdateEl || selfUpdateEl.hidden) return
+      // 左上角只露图标：状态和版本都放进 title / aria-label，不再改 textContent（那会把图标擦掉）
+      const set = (state, label) => {
+        selfUpdateEl.dataset.state = state
+        selfUpdateEl.title = label
+        selfUpdateEl.setAttribute('aria-label', label)
+      }
       if (shellActive()) {
         const shell = selfState.shell
         const latest = shell.latest || ''
         const pct = Math.round(shell.progress?.percent || 0)
-        selfUpdateEl.textContent = shell.status === 'downloading'
-          ? `外壳更新 ${latest} · ${pct}%`
-          : shell.status === 'ready' ? `外壳更新 ${latest} · 已下载` : `外壳更新 ${latest}`
-        selfUpdateEl.title = shell.status === 'ready' ? t('新版本已下载，点这里完成安装')
-          : shell.status === 'downloading' ? t('正在后台下载新版本')
-            : `更新外壳到 ${latest}`
+        if (shell.status === 'downloading') set('downloading', `${t('正在后台下载新版本')}${pct ? ` · ${pct}%` : ''}`)
+        else if (shell.status === 'ready') set('ready', t('新版本已下载，点这里完成安装'))
+        else set('available', latest ? `更新外壳到 ${latest}` : t('更新外壳'))
         return
       }
       const latest = selfState.coreLatest || selfState.latest || ''
       const downloaded = Boolean(selfState.ready || selfState.appStaged)
-      selfUpdateEl.textContent = selfState.downloading
-        ? `更新 ${latest} · ${selfState.pct}%`
-        : downloaded ? `更新 ${latest} · 已下载` : (latest ? `更新 ${latest}` : t('更新'))
-      selfUpdateEl.title = downloaded ? t('新版本已下载，点这里完成安装')
-        : selfState.downloading ? t('正在后台下载新版本')
-          : (latest ? `更新核心到 ${latest}` : t('更新核心'))
+      if (downloaded) set('ready', t('新版本已下载，点这里完成安装'))
+      else if (selfState.downloading) set('downloading', `${t('正在后台下载新版本')}${selfState.pct ? ` · ${selfState.pct}%` : ''}`)
+      else set('available', latest ? `更新核心到 ${latest}` : t('更新核心'))
     }
 
     /**
@@ -8234,9 +8478,9 @@
     }
     function paintPluginHomesDialog() {
       const rows = [[state.dshHome, pluginHomeName(state.dshHome, t('全局目录'))], ...pluginHomes()]
-      const folder = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2Z"/></svg>'
-      pluginHomesListEl.innerHTML = rows.map(([home, name], index) => `<div class="plugin-home-row"><span class="plugin-home-folder">${folder}</span><div class="plugin-home-info"><strong>${escapeHtml(name === home ? t('用户目录') : name)}</strong><span>${escapeHtml(home)}</span></div><div class="plugin-home-actions"><button class="icon-btn plugin-home-action" type="button" data-home-open="${escapeHtml(home)}" title="${escapeHtml(t('打开目录：{path}', { path: home }))}" aria-label="${escapeHtml(t('打开目录：{path}', { path: home }))}" ${pluginHomesBusy ? 'disabled' : ''}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M10 14 21 3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg></button><button class="icon-btn plugin-home-action" type="button" data-home-rename="${escapeHtml(home)}" title="${escapeHtml(t('重命名目录'))}" aria-label="${escapeHtml(t('重命名目录'))}" ${pluginHomesBusy || packBusy ? 'disabled' : ''}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 5 5-12 12H4v-5L16 3Z"/><path d="m14 5 5 5"/></svg></button>${index ? `<button class="icon-btn plugin-home-action danger" type="button" data-home-remove="${escapeHtml(home)}" title="${escapeHtml(t('移除目录'))}" aria-label="${escapeHtml(t('移除目录'))}" ${pluginHomesBusy ? 'disabled' : ''}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5"/></svg></button>` : ''}</div></div>`).join('')
-        + staleHomeNames().map(([home, name]) => `<div class="plugin-home-row is-stale"><span class="plugin-home-folder">${folder}</span><div class="plugin-home-info"><strong>${escapeHtml(t('失效的目录名'))}</strong><span>${escapeHtml(t('{name}（{home}）', { name, home }))}</span></div><div class="plugin-home-actions"><button class="icon-btn plugin-home-action danger" type="button" data-home-forget="${escapeHtml(home)}" title="${escapeHtml(t('清除这个失效的目录名'))}" aria-label="${escapeHtml(t('清除这个失效的目录名'))}" ${pluginHomesBusy ? 'disabled' : ''}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5"/></svg></button></div></div>`).join('')
+      const folder = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-folder"/></svg>'
+      pluginHomesListEl.innerHTML = rows.map(([home, name], index) => `<div class="plugin-home-row"><span class="plugin-home-folder">${folder}</span><div class="plugin-home-info"><strong>${escapeHtml(name === home ? t('用户目录') : name)}</strong><span>${escapeHtml(home)}</span></div><div class="plugin-home-actions"><button class="icon-btn plugin-home-action" type="button" data-home-open="${escapeHtml(home)}" title="${escapeHtml(t('打开目录：{path}', { path: home }))}" aria-label="${escapeHtml(t('打开目录：{path}', { path: home }))}" ${pluginHomesBusy ? 'disabled' : ''}><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-external-link"/></svg></button><button class="icon-btn plugin-home-action" type="button" data-home-rename="${escapeHtml(home)}" title="${escapeHtml(t('重命名目录'))}" aria-label="${escapeHtml(t('重命名目录'))}" ${pluginHomesBusy || packBusy ? 'disabled' : ''}><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-pencil"/></svg></button>${index ? `<button class="icon-btn plugin-home-action danger" type="button" data-home-remove="${escapeHtml(home)}" title="${escapeHtml(t('移除目录'))}" aria-label="${escapeHtml(t('移除目录'))}" ${pluginHomesBusy ? 'disabled' : ''}><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-trash-2"/></svg></button>` : ''}</div></div>`).join('')
+        + staleHomeNames().map(([home, name]) => `<div class="plugin-home-row is-stale"><span class="plugin-home-folder">${folder}</span><div class="plugin-home-info"><strong>${escapeHtml(t('失效的目录名'))}</strong><span>${escapeHtml(t('{name}（{home}）', { name, home }))}</span></div><div class="plugin-home-actions"><button class="icon-btn plugin-home-action danger" type="button" data-home-forget="${escapeHtml(home)}" title="${escapeHtml(t('清除这个失效的目录名'))}" aria-label="${escapeHtml(t('清除这个失效的目录名'))}" ${pluginHomesBusy ? 'disabled' : ''}><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-trash-2"/></svg></button></div></div>`).join('')
       pluginHomesAddEl.disabled = pluginHomesBusy
       pluginHomesListEl.querySelectorAll('[data-home-open]').forEach((button) => {
         button.onclick = () => void openPluginHome(button)
@@ -8522,6 +8766,12 @@
       if ('lang' in data || 'langPref' in data) {
         const pref = 'langPref' in data ? data.langPref : data.lang
         uiLangEl.value = pref === 'zh' || pref === 'en' ? pref : 'system'
+      }
+      // 设置文件可能被另一个实例改过：运行时语言和页面当前语言不一致时跟着切，
+      // 下拉和界面就不会各说各话（保存响应也走这里）。
+      if ('lang' in data && data.lang && (data.lang === 'en' ? 'en' : 'zh') !== lang) {
+        lang = data.lang === 'en' ? 'en' : 'zh'
+        applyLang()
       }
       if ('theme' in data) {
         savedTheme = data.theme === 'light' || data.theme === 'dark' ? data.theme : 'system'
@@ -9075,18 +9325,24 @@
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
     }
 
+    // 添加弹窗这次装进哪个环境：插件页用 openedPack，选择窗用右栏选中的那行（home 带目录作用域）
+    let pluginAddTarget = null
+
     /**
      * 添加插件（官方做法：把 spec 交给 `dsh plugin add`，由 pnpm 解析）。
      *
-     * 装进当前正在查看的环境；启动项弹窗里就是那个启动项绑定的 profile。
+     * 默认装进当前正在查看的环境；选择窗会显式传 { profile, home }，装进它右栏选中的那份。
      * 关掉弹窗不会中断服务端的安装（进度走 SSE），只是看不到进度条了。
      */
-    function openPluginAdd() {
+    function openPluginAdd(target = null) {
       if (packBusy || pluginUpdating || pluginRemoving || pluginAdding || pluginTogglePending.size) return
-      if (!openedPack?.profile) return
+      // 插件页不带 home（沿用 pluginHome / 启动项作用域）；选择窗的 target 才显式指定目录
+      const next = target || (openedPack?.profile ? { profile: openedPack.profile } : null)
+      if (!next?.profile) return
+      pluginAddTarget = next
       pluginAddSpecEl.value = ''
       pluginAddErrorEl.hidden = true
-      pluginAddTargetEl.textContent = t('装进环境「{profile}」', { profile: openedPack.profile })
+      pluginAddTargetEl.textContent = t('装进环境「{profile}」', { profile: next.profile })
       pluginAddGoEl.disabled = false
       pluginAddGoEl.classList.remove('loading')
       paintProgress(pluginAddProgressEl, pluginAddProgressBarEl, null, false)
@@ -9101,7 +9357,7 @@
     document.getElementById('pluginAddCancel').onclick = closePluginAdd
     pluginAddFormEl.onsubmit = async (event) => {
       event.preventDefault()
-      if (pluginAdding || !openedPack?.profile) return
+      if (pluginAdding || !pluginAddTarget?.profile) return
       const spec = pluginAddSpecEl.value.trim()
       pluginAddErrorEl.hidden = true
       if (!spec) {
@@ -9110,16 +9366,25 @@
         pluginAddSpecEl.focus()
         return
       }
-      const profile = openedPack.profile
+      const target = pluginAddTarget
+      const profile = target.profile
       pluginAdding = true
       pluginAddGoEl.disabled = true
       pluginAddGoEl.classList.add('loading')
       paintProgress(pluginAddProgressEl, pluginAddProgressBarEl, pluginProgress, Boolean(pluginProgress))
       try {
-        const data = await post('/api/plugins/add', { spec, profile })
+        const data = await post('/api/plugins/add', { spec, profile }, target.picker ? { home: target.home, launchId: '' } : {})
         applyPluginPayload(data)
         if (profile === pluginProfile) await loadPlugins({ checkUpdates: false })
         await hidePackDialog(pluginAddDialogEl)
+        // 选择窗装的：左/中/右三栏的插件数一起刷新
+        if (target.picker) {
+          pickerCache.delete(target.home)
+          if (!profilePickDialogEl.hidden) {
+            profilePickHintEl.textContent = ''
+            await selectPickerHome(pickerHome)
+          }
+        }
         notify(t('已装好 {spec}，重启 dsh 后生效。', { spec: data.name || spec }), t('添加插件'))
       } catch (error) {
         pluginAddErrorEl.textContent = error.message
@@ -9166,7 +9431,7 @@
     /** 添加弹窗里的进度条：插件没有行可以挂进度，就在弹窗里画。 */
     function paintPluginAddProgress() {
       if (pluginAddDialogEl.hidden) return
-      const active = pluginAdding && pluginProgress && pluginProgress.profile === openedPack?.profile
+      const active = pluginAdding && pluginProgress && pluginProgress.profile === pluginAddTarget?.profile
       paintProgress(pluginAddProgressEl, pluginAddProgressBarEl, pluginProgress, Boolean(active))
     }
     let pluginsLoaded = false
@@ -9233,8 +9498,8 @@
           ${sharedPacks.length ? `<span class="plugin-source">${escapeHtml(t('同时包含于：{names}', { names: sharedPacks.join('、') }))}</span>` : ''}
           ${plugin.description ? `<span class="plugin-desc">${escapeHtml(plugin.description)}</span>` : ''}
         </span>
-        ${removable ? `<button class="ghost icon-btn plugin-remove" type="button" data-remove="${escapeHtml(plugin.name)}" data-profile="${escapeHtml(profile)}" title="${escapeHtml(t('卸载 {name}', { name: plugin.name }))}" aria-label="${escapeHtml(t('卸载 {name}', { name: plugin.name }))}" ${busy ? 'disabled' : ''}>${packMoreIcons.trash}</button>` : ''}
         ${update?.hasUpdate ? `<button class="plugin-update" type="button" data-update="${escapeHtml(plugin.name)}" data-profile="${escapeHtml(profile)}" aria-label="${escapeHtml(`${plugin.name} ${t('更新到 {latest}', { latest: update.latest })}`)}" ${busy ? 'disabled' : ''}><span class="spin" aria-hidden="true"></span><span class="update-label">${escapeHtml(t('更新到 {latest}', { latest: update.latest }))}</span></button>` : ''}
+        ${removable ? `<button class="ghost icon-btn plugin-remove" type="button" data-remove="${escapeHtml(plugin.name)}" data-profile="${escapeHtml(profile)}" title="${escapeHtml(t('卸载 {name}', { name: plugin.name }))}" aria-label="${escapeHtml(t('卸载 {name}', { name: plugin.name }))}" ${busy ? 'disabled' : ''}>${packMoreIcons.trash}</button>` : ''}
         <input type="checkbox" data-plugin="${escapeHtml(plugin.name)}" data-profile="${escapeHtml(profile)}" ${enabled ? 'checked' : ''} ${!plugin.toggleable || pending || busy ? 'disabled' : ''} ${pending ? 'class="is-switching" aria-busy="true"' : ''} />
       </label><div class="plugin-row-progress" data-plugin-progress="${escapeHtml(plugin.name)}" data-profile="${escapeHtml(profile)}" hidden>
         <span class="plugin-progress-label">${escapeHtml(progressLabel)}</span><div class="progress" role="progressbar" aria-label="${escapeHtml(`${plugin.name} ${progressLabel}`)}"><div class="progress-bar"></div></div>
@@ -9721,8 +9986,14 @@
           if (homeName) {
             paintPickerHomes()
           } else {
-            if (data.createdProfile) pickerProfile = data.createdProfile
-            if (renaming && pickerProfile === profileCopySource) pickerProfile = data.renamedProfile
+            if (data.createdProfile) {
+              pickerProfile = data.createdProfile
+              pickerNewRow = `profile:${data.createdProfile}`
+            }
+            if (renaming && pickerProfile === profileCopySource) {
+              pickerProfile = data.renamedProfile
+              pickerNewRow = `profile:${data.renamedProfile}`
+            }
             await selectPickerHome(pickerHome)
           }
         }
@@ -9890,7 +10161,7 @@
             ${tags.length ? `<div class="pack-card-tags">${tags.map((tag) => `<span class="pack-tag">${escapeHtml(tag)}</span>`).join('')}</div>` : ''}
           </div>
           <span class="pack-card-arrow" aria-hidden="true">›</span>
-        </button><details class="pack-more profile-menu"><summary title="${escapeHtml(t('更多操作'))}" aria-label="${escapeHtml(t('更多操作'))}"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></summary><div class="pack-more-actions">
+        </button><details class="pack-more profile-menu"><summary title="${escapeHtml(t('更多操作'))}" aria-label="${escapeHtml(t('更多操作'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-ellipsis"/></svg></summary><div class="pack-more-actions">
           <button class="ghost" type="button" data-profile-backups="${escapeHtml(item.profile)}">${packMoreIcons.backup}${escapeHtml(t('备份与回退'))}</button>
           <button class="ghost" type="button" data-profile-copy="${escapeHtml(item.profile)}" ${packBusy || pluginUpdating || pluginRemoving || pluginAdding ? 'disabled' : ''}>${packMoreIcons.copy}${escapeHtml(t('复制 Profile'))}</button>
           <button class="ghost" type="button" data-profile-rename="${escapeHtml(item.profile)}" ${!removable || packBusy || pluginUpdating || pluginRemoving || pluginAdding ? 'disabled' : ''} ${!removable ? `title="${escapeHtml(t('系统环境不能重命名'))}"` : ''}>${packMoreIcons.rename}${escapeHtml(t('重命名 Profile'))}</button>
@@ -9949,18 +10220,18 @@
 
     /** 「更多操作」菜单的行首图标：stroke 风格跟顶栏按钮一套。 */
     const packMoreIcons = {
-      add: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
-      rename: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 5 5-12 12H4v-5L16 3Z"/><path d="m14 5 5 5"/></svg>',
-      copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>',
-      install: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9M12 5v4M10 7h4"/></svg>',
-      refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16M8 16H3v5"/></svg>',
-      update: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4m-5 5 5-5 5 5M4 16v4h16v-4"/></svg>',
-      enable: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.4 12.4 2.5 2.5 5-5.2"/></svg>',
-      disable: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m5.9 5.9 12.2 12.2"/></svg>',
-      export: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V4"/><path d="m7 8 5-4.8L17 8"/><path d="M5 20h14"/></svg>',
-      import: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="m7 11 5 4.8L17 11"/><path d="M5 20h14"/></svg>',
-      trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M9.5 7V4.5h5V7"/><path d="m6.5 7 .8 12.5h9.4L17.5 7"/></svg>',
-      backup: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 8v4l3 2"/></svg>',
+      add: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-plus"/></svg>',
+      rename: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-pencil"/></svg>',
+      copy: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-copy"/></svg>',
+      install: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-package-plus"/></svg>',
+      refresh: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-refresh-cw"/></svg>',
+      update: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-upload"/></svg>',
+      enable: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-circle-check"/></svg>',
+      disable: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-ban"/></svg>',
+      export: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-arrow-up-to-line"/></svg>',
+      import: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-arrow-down-to-line"/></svg>',
+      trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-trash-2"/></svg>',
+      backup: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-history"/></svg>',
     }
 
     /** 按包声明的组成归类，而不是按包名猜插件名。共享插件只显示一行，
@@ -10021,7 +10292,7 @@
         packPluginListEl.classList.remove('is-grouped')
         packPluginListEl.innerHTML = pluginDialogLoading
           ? `<div class="plugin-empty-state"><span class="plugin-empty-spinner" aria-hidden="true"></span><p role="status">${escapeHtml(t('正在加载插件…'))}</p></div>`
-          : `<div class="plugin-empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/></svg><strong>${escapeHtml(t('这个 Profile 尚未初始化'))}</strong><p>${escapeHtml(t('请先启动一次这个环境，再管理插件。'))}</p></div>`
+          : `<div class="plugin-empty-state"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-package"/></svg><strong>${escapeHtml(t('这个 Profile 尚未初始化'))}</strong><p>${escapeHtml(t('请先启动一次这个环境，再管理插件。'))}</p></div>`
         return
       }
       const pending = item.profile === packState.profile
@@ -10037,7 +10308,7 @@
         ${item.profile === packState.profile ? `<button class="ghost icon-btn pack-tool${pluginChecking ? ' is-checking' : ''}" type="button" data-pack-check-updates="1" title="${escapeHtml(t('检查更新'))}" aria-label="${escapeHtml(t('检查更新'))}" aria-busy="${pluginChecking}" ${pluginChecking || pluginUpdating || pluginRemoving || packBusy ? 'disabled' : ''}>${packMoreIcons.refresh}</button>` : ''}
         ${pending || pluginUpdating === '*' ? `<button class="ghost icon-btn pack-tool pack-update${pluginUpdating === '*' ? ' loading' : ''}" type="button" data-pack-update="1" title="${escapeHtml(t('更新 {n} 个', { n: pending }))}" aria-label="${escapeHtml(t('更新 {n} 个', { n: pending }))}" aria-busy="${pluginUpdating === '*'}" ${pluginUpdating || pluginRemoving || packBusy ? 'disabled' : ''}><span class="spin" aria-hidden="true"></span>${packMoreIcons.update}<span class="pack-update-count" aria-hidden="true">${pending}</span></button>` : ''}
         <details class="pack-more">
-          <summary title="${escapeHtml(t('更多操作'))}" aria-label="${escapeHtml(t('更多操作'))}"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></summary>
+          <summary title="${escapeHtml(t('更多操作'))}" aria-label="${escapeHtml(t('更多操作'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-ellipsis"/></svg></summary>
           <div class="pack-more-actions">
             <button class="ghost" type="button" data-pack-import-here="1" ${packBusy || pluginUpdating || pluginRemoving ? 'disabled' : ''}>${packMoreIcons.import}${escapeHtml(t('导入当前环境'))}</button>
             <button class="ghost" type="button" data-pack-export="1" ${packBusy || pluginUpdating || pluginRemoving ? 'disabled' : ''}>${packMoreIcons.export}${escapeHtml(t('导出当前环境'))}</button>
@@ -10096,7 +10367,7 @@
             ${record && !record.synthetic ? `<button class="ghost icon-btn danger" type="button" data-group-remove="${escapeHtml(group.key)}" title="${escapeHtml(record === latest ? t('卸载 {name}', { name: group.name }) : t('请先卸载此后安装的整合包'))}" aria-label="${escapeHtml(t('卸载 {name}', { name: group.name }))}" ${disabled || record !== latest ? 'disabled' : ''}>${packMoreIcons.trash}</button>` : ''}
             <label class="toggle plugin-group-toggle" title="${escapeHtml([mixed ? t('部分启用') : '', t(enabled ? '禁用 {name}' : '启用 {name}', { name: group.name })].filter(Boolean).join(' · '))}"><input type="checkbox" data-group-toggle="${escapeHtml(group.key)}" aria-label="${escapeHtml(t(enabled ? '禁用 {name}' : '启用 {name}', { name: group.name }))}" ${enabled ? 'checked' : ''} ${switching ? 'class="is-switching" aria-busy="true"' : ''} ${disabled || !toggleable.length ? 'disabled' : ''}/></label>
           </div><details class="plugin-group" data-plugin-group="${escapeHtml(group.key)}" ${expanded.get(group.key) !== false ? 'open' : ''}>
-            <summary><svg class="plugin-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg><span class="plugin-group-heading"><span class="plugin-group-name">${escapeHtml(group.name)}</span><span class="plugin-group-version">${escapeHtml([group.version ? `v${group.version}` : '', t('{n} 个插件', { n: group.plugins.length }), mixed ? t('部分启用') : ''].filter(Boolean).join(' · '))}</span></span></summary>
+            <summary><svg class="plugin-group-chevron" viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-chevron-right"/></svg><span class="plugin-group-heading"><span class="plugin-group-name">${escapeHtml(group.name)}</span><span class="plugin-group-version">${escapeHtml([group.version ? `v${group.version}` : '', t('{n} 个插件', { n: group.plugins.length }), mixed ? t('部分启用') : ''].filter(Boolean).join(' · '))}</span></span></summary>
             <div class="plugin-group-body">${rows}</div>
           </details></div>`
         }).join('')
@@ -10309,8 +10580,8 @@
       hidePackDialog(packExportDialog)
     }
 
-    const marketCube = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/></svg>'
-    const marketStar = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9Z"/></svg>'
+    const marketCube = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-package"/></svg>'
+    const marketStar = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-star"/></svg>'
     function marketDate(value) {
       const date = new Date(value)
       return Number.isFinite(date.getTime()) ? date.toISOString().slice(0, 10) : ''
@@ -10771,13 +11042,13 @@
       edit.type = 'button'
       edit.className = 'ghost icon-btn action-icon'
       edit.title = edit.ariaLabel = t('编辑')
-      edit.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 5 5-12 12-6 1 1-6L16 3Zm-2 2 5 5"/></svg>'
+      edit.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-pencil"/></svg>'
       edit.onclick = () => openMcpDialog(server)
       const remove = document.createElement('button')
       remove.type = 'button'
       remove.className = 'ghost icon-btn action-icon'
       remove.title = remove.ariaLabel = t('删除')
-      remove.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg>'
+      remove.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-trash-2"/></svg>'
       remove.onclick = async () => {
         remove.disabled = true
         try {
@@ -11152,7 +11423,7 @@
           ${truncated ? `<span class="plugin-desc" title="${escapeHtml(full)}">${escapeHtml(truncated)}</span>` : ''}
         </button>
         <input type="checkbox" ${skill.disableModelInvocation ? '' : 'checked'} ${skill.frontmatterOk ? '' : 'disabled'} aria-label="${escapeHtml(t('启用 {name}', { name: displayName }))}" />
-        <button type="button" class="skill-delete" aria-label="${escapeHtml(t('删除技能 {name}', { name: displayName }))}" title="${escapeHtml(t('删除'))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6m4-6v6"/></svg></button>`
+        <button type="button" class="skill-delete" aria-label="${escapeHtml(t('删除技能 {name}', { name: displayName }))}" title="${escapeHtml(t('删除'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-trash-2"/></svg></button>`
       const detail = row.querySelector('.skill-open')
       detail.onclick = () => openSkillDetail(skill, detail)
       const input = row.querySelector('input')

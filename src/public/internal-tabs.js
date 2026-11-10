@@ -7,7 +7,7 @@
 
   const root = document.documentElement
   const send = (message) => window.ipc?.postMessage(typeof message === 'string' ? message : JSON.stringify(message))
-  const closeIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m7 7 10 10M7 17 17 7"/></svg>'
+  const closeIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg>'
   const items = new Map()
   let lastHeight = 0
   let selected = ''

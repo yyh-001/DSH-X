@@ -78,3 +78,21 @@ test('自动更新只下载，安装留给用户', () => {
   assert.doesNotMatch(shellMain, /maybeInstallShellUpdate/, '没有自动安装外壳的路径')
   assert.match(shellMain, /snapshot\.status === 'ready'\) notifyUpdateReady/, '外壳下完只提醒，不自动安装')
 })
+
+test('左上角更新提示只露图标：状态和版本放 title，不往按钮里写文字', () => {
+  assert.match(html, /id="selfUpdate"[^>]*><svg[^>]*><use href="\/icons\.svg#lucide-download"/, '按钮里是下载图标')
+  assert.doesNotMatch(html, /id="selfUpdate"[^>]*data-i18n="更新"/, '不能挂文字 i18n，否则切语言会把图标擦掉')
+  assert.match(html, /selfUpdateEl\.dataset\.state = state/, '状态写到 data-state')
+  assert.doesNotMatch(html, /selfUpdateEl\.textContent =/, '不再改按钮文字')
+  assert.match(css, /\.self-update\[data-state="ready"\]::after/, '下载完用右上角小点提示')
+  assert.match(css, /\.self-update\[data-state="downloading"\] svg \{ animation/, '下载中图标呼吸')
+  assert.match(css, /html\.reduce-motion \.self-update\[data-state="downloading"\] svg \{ animation: none; \}/, '减动效时停止呼吸')
+})
+
+test('更新按钮跟字标垂直居中，入场只淡入不位移', () => {
+  const boot = readFileSync(fileURLToPath(new URL('../src/public/launcher-boot.css', import.meta.url)), 'utf8')
+  assert.match(css, /\.brand-block \{ display: flex; align-items: center;/, '字标和更新按钮按中线对齐')
+  assert.match(boot, /\.brand-block \.self-update \{ animation: launcher-module-fade-in/, '按钮只淡入')
+  assert.doesNotMatch(boot, /\.brand-block \.self-update[^}]*launcher-module-in/, '不再跟着版本号一起上滑')
+  assert.match(boot, /@keyframes launcher-module-fade-in/, '淡入关键帧存在')
+})

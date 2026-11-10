@@ -447,4 +447,30 @@ export async function readWslProfile(distro, home, profile, run = null) {
   return { ok: true, profile: name, home: String(home || '').trim() || '~/.dsh', plugins, bundles: bundles || [] }
 }
 
+/**
+ * 删除 WSL 里的一个 Profile 目录（插件与配置一起删；会话和记忆在 ~/.dsh 别处，不动）。
+ * 名字由调用方用 safeProfile 校验过；这里只负责进发行版删目录，存在性由远端脚本判断。
+ */
+export async function removeWslProfile(distro, home, profile, run = null) {
+  const name = String(profile || '').trim()
+  if (!distro) throw new Error('先选择一个 WSL 发行版')
+  if (!name) throw new Error('Profile 名称不能为空')
+  const script = [
+    'set -e',
+    `p=${shellQuote(name)}`,
+    `h=${shellQuote(String(home || '').trim() || '~/.dsh')}`,
+    'case "$h" in "~") h="$HOME" ;; "~/"*) h="$HOME/${h:2}" ;; esac',
+    'd="$h/profiles/$p"',
+    'if [ ! -d "$d" ]; then echo __DSHX_MISSING__; exit 0; fi',
+    'rm -rf -- "$d"',
+    'echo __DSHX_REMOVED__',
+  ].join(String.fromCharCode(10))
+  const exec = run || ((target, command) => runBashScript(target, command))
+  const result = await exec(distro, script, { timeoutMs: 10000 })
+  if (!result.ok) throw new Error(result.stderr.trim() || '删除 WSL Profile 失败')
+  const text = decodeWslOutput(result.stdout)
+  if (text.includes('__DSHX_MISSING__')) return { ok: false, profile: name, error: '这个 Profile 还没初始化' }
+  return { ok: true, profile: name }
+}
+
 export { WSL_EXE, DEFAULT_HOME }

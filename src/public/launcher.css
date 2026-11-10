@@ -137,20 +137,32 @@ header {
 /* 「回主页」图标只在内部标签页里出现（.internal-tabs.has-tabs 底下的规则），其余形态仍是文字 logo */
 .brand-icon { display: none; }
 .brand-home:focus-visible { outline: 2px solid var(--accent); outline-offset: 5px; border-radius: 3px; }
-.brand-block { display: flex; align-items: baseline; gap: 10px; }
+.brand-block { display: flex; align-items: center; gap: 10px; }
 .app-ver { color: var(--muted); font-size: 12px; }
 .app-ver:empty { display: none; }
 .self-update {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--topbar-control, 36px);
+  height: var(--topbar-control, 36px);
+  padding: 0;
   border: 0;
+  border-radius: var(--topbar-radius, 12px);
   background: var(--accent);
   color: #fff;
-  font: 600 12px/1 inherit;
-  padding: 6px 12px;
-  border-radius: 999px;
   cursor: pointer;
+  position: relative;
 }
+.self-update svg { width: 16px; height: 16px; }
 .self-update:hover { filter: brightness(0.94); }
 .self-update[hidden] { display: none; }
+/* 只露图标：下载中让箭头呼吸，下载完右上角点一个小绿点提示可以安装 */
+.self-update[data-state="downloading"] svg { animation: self-update-pulse 1.4s ease-in-out infinite; }
+.self-update[data-state="ready"]::after { content: ''; position: absolute; top: 5px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: #34d399; box-shadow: 0 0 0 2px var(--chrome-strip, var(--bg)); }
+@keyframes self-update-pulse { 50% { opacity: .45; } }
+html.reduce-motion .self-update[data-state="downloading"] svg { animation: none; }
+@media (prefers-reduced-motion: reduce) { .self-update[data-state="downloading"] svg { animation: none; } }
 .header-right { display: flex; align-items: center; gap: 10px; }
 /* 右上角 Star：和设置齿轮同高的小胶囊 */
 .star-link {
@@ -281,7 +293,7 @@ html.internal-tabs.has-tabs header {
 .internal-tabs.has-tabs .brand-home:hover { background: var(--accent-soft); color: var(--accent); }
 .internal-tabs.has-tabs .brand-icon { display: grid; place-items: center; }
 .internal-tabs.has-tabs .brand-icon svg { width: 16px; height: 16px; }
-.internal-tabs.has-tabs .self-update { padding: 5px 10px; border-radius: var(--topbar-radius); }
+.internal-tabs.has-tabs .self-update { border-radius: var(--topbar-radius); }
 .internal-tabs.has-tabs .win-controls { gap: 0; margin-left: 4px; }
 .internal-tabs.has-tabs .win-btn { width: 40px; height: var(--topbar-control); border-radius: 6px; }
 /* 标签要「长在页面顶上」：整条没有下内边距，标签高 35px（控件 30 + 顶上那 5px 内边距）正好
@@ -775,12 +787,24 @@ html.reduce-motion .launch-enhance-tip { transition: none; }
 /* ---- 选 Profile：三栏选择窗（用户目录 / Profile / 插件） ---- */
 /* 跟资源管理器一个路子：左目录、中 Profile、右它装了什么，点两下就选定。每栏各自滚动，
    弹窗高度锁在视口里，短窗口下只有列表滚、标题和按钮不动。 */
-/* 「添加目录」：本机 / WSL 两选一，选 WSL 后下面展开发行版和用户目录 */
-.pick-home-kind { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.pick-home-kind .ghost { height: 38px; }
-#pickHomeWslFields { display: grid; gap: 12px; margin-top: 12px; }
+/* 「添加目录」本机 / WSL 两档：和启动项表单的页签同一套滑动选中块 */
+.pick-home-tabs { position: relative; display: flex; gap: 2px; padding: 4px; border-radius: 12px; background: var(--accent-soft); }
+.pick-home-tabs::after { content: ''; position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 10px) / 2); border-radius: 9px; background: var(--card); box-shadow: 0 2px 8px rgba(22, 35, 61, .1); pointer-events: none; transition: transform 240ms cubic-bezier(.22, .61, .36, 1); }
+.pick-home-tabs[data-active="wsl"]::after { transform: translateX(calc(100% + 2px)); }
+.pick-home-tab { position: relative; z-index: 1; flex: 1 1 0; padding: 8px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; transition: color 160ms ease; }
+.pick-home-tab:hover { color: var(--text); }
+.pick-home-tab[aria-selected="true"] { color: var(--accent); font-weight: 600; }
+.pick-home-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+html.reduce-motion .pick-home-tabs::after { transition: none; }
+@media (prefers-reduced-motion: reduce) { .pick-home-tabs::after { transition: none; } }
+#pickHomeLocalFields { display: grid; gap: 8px; }
+#pickHomeLocalFields[hidden] { display: none; }
+#pickHomeWslFields { display: grid; gap: 12px; }
 #pickHomeWslFields[hidden] { display: none; }
 .profile-pick { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 200px 220px minmax(0, 1fr); gap: 14px; }
+/* 选择启动环境：窗口固定高度，三栏列表各自在栏内滚动；切目录 / Profile 时不再跟着内容长高 */
+#profilePickDialog .ask-card { height: min(760px, calc(100dvh - var(--dialog-safe-area))); }
+#profilePickDialog .profile-pick-list { min-height: 0; max-height: none; }
 .profile-pick-col { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 6px; min-width: 0; min-height: 0; }
 .profile-pick-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; }
 .profile-pick-caption { color: var(--muted); font-size: 12px; font-weight: 500; }
@@ -832,11 +856,27 @@ html.reduce-motion .launch-enhance-tip { transition: none; }
 /* 换目录 / 换 Profile 时列表整块重铺：淡入落位一下，别硬跳（JS 里 replayListMotion 重播） */
 @keyframes profile-pick-refresh { from { opacity: .35; transform: translateY(-2px); } }
 .profile-pick-list.is-refreshed, .profile-detail-list.is-refreshed { animation: profile-pick-refresh 160ms cubic-bezier(.22,.61,.36,1) both; }
+/* 换目录带方向：往右切从右边推，往左切从左边推（JS 选中项变化时写 data-dir） */
+@keyframes profile-pick-refresh-right { from { opacity: .35; transform: translateX(8px); } }
+@keyframes profile-pick-refresh-left { from { opacity: .35; transform: translateX(-8px); } }
+.profile-pick-list.is-refreshed[data-dir="right"], .profile-detail-list.is-refreshed[data-dir="right"] { animation-name: profile-pick-refresh-right; }
+.profile-pick-list.is-refreshed[data-dir="left"], .profile-detail-list.is-refreshed[data-dir="left"] { animation-name: profile-pick-refresh-left; }
+/* 删除前先淡出；新加的行高亮一下（JS 写 is-removing / is-new） */
+@keyframes profile-pick-row-out { to { opacity: 0; transform: translateX(10px); } }
+.profile-pick-row.is-removing { animation: profile-pick-row-out 150ms ease-in both; pointer-events: none; }
+@keyframes profile-pick-row-new { 0% { background-color: var(--accent-soft); } 100% { background-color: transparent; } }
+.profile-pick-row.is-new { animation: profile-pick-row-new 900ms ease-out; }
 html.reduce-motion .profile-pick-list.is-refreshed,
 html.reduce-motion .profile-detail-list.is-refreshed,
+html.reduce-motion .profile-pick-list.is-refreshed[data-dir],
+html.reduce-motion .profile-detail-list.is-refreshed[data-dir],
+html.reduce-motion .profile-pick-row.is-removing,
+html.reduce-motion .profile-pick-row.is-new,
 html.reduce-motion .profile-pick-row { transition: none; animation: none; }
 @media (prefers-reduced-motion: reduce) {
-  .profile-pick-list.is-refreshed, .profile-detail-list.is-refreshed { animation: none; }
+  .profile-pick-list.is-refreshed, .profile-detail-list.is-refreshed,
+  .profile-pick-list.is-refreshed[data-dir], .profile-detail-list.is-refreshed[data-dir],
+  .profile-pick-row.is-removing, .profile-pick-row.is-new { animation: none; }
   .profile-pick-row, .profile-pick-hit { transition: none; }
 }
 /* 详情栏：插件一行一个，名字占满、版本靠右，关掉的那份整行压暗 */
@@ -846,6 +886,18 @@ html.reduce-motion .profile-pick-row { transition: none; animation: none; }
 .profile-detail-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .profile-detail-version { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12px; }
 .profile-detail-badge { flex: 0 0 auto; padding: 1px 6px; border-radius: 999px; background: var(--accent-soft); color: var(--muted); font-size: 10.5px; }
+/* 右栏每行的卸载钮：比栏头工具小一号，悬停才泛红；官方组件这枚不出现 */
+.profile-pick .profile-detail-action {
+  flex: 0 0 auto; width: 28px; height: 28px; padding: 6px; border: 0; border-radius: 8px;
+  background: transparent; color: var(--muted);
+}
+.profile-pick .profile-detail-action svg { width: 16px; height: 16px; }
+.profile-pick .profile-detail-action:hover:not(:disabled) { background: var(--accent-soft); color: var(--text); }
+.profile-pick .profile-detail-action.danger:hover:not(:disabled) { background: #fff1f2; color: #e5484d; }
+.profile-pick .profile-detail-action:disabled { opacity: .4; cursor: default; }
+/* 栏头右侧：插件数可以截断，别把旁边的「+」挤出去 */
+.profile-pick .profile-pick-col--detail .profile-pick-tools { min-width: 0; }
+#profilePickMeta { min-width: 0; }
 /* 窄窗口（标签形态那一档，最窄 720）：三栏挤不下，详情折到下面通栏，两栏各留一半 */
 @media (max-width: 980px) {
   .profile-pick { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
@@ -1184,6 +1236,10 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 .set-control select { width: 150px; }
 .set-control .ui-select { width: 160px; }
 .set-control .ui-select:has(#webBind) { width: 206px; }
+/* 运行 dsh 的 Node：下拉固定在行尾；切到「系统 Node」时路径输入在它下面展开，不再整行竖排 */
+#nodeRuntimeRow .set-control { flex-direction: column; align-items: flex-end; width: 340px; }
+#nodeRuntimeRow .set-control .ui-select { width: 160px; }
+#nodeRuntimeRow .set-control input[type=text] { width: 100%; }
 .set-row > input[type=number] {
   width: 104px;
   flex: 0 0 auto;
@@ -1202,6 +1258,14 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
    图标放到 24px —— 通用 .icon-btn svg 是 20px，铅笔那种只占画布 3/4 的图形缩完只剩 15px，看着太小。 */
 .set-control .icon-btn { width: var(--control-height); height: var(--control-height); border-radius: 10px; }
 .set-control .icon-btn svg { width: 24px; height: 24px; }
+/* 设置行里的铅笔：跟主页启动项的操作图标同一套——静止无底色无描边，悬停才铺浅色。
+   不套 .ghost，否则会多出一枚白底描边的"按钮"，和启动项卡片上的图标不一致。 */
+.set-control .set-edit { width: 32px; height: 32px; padding: 7px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: background-color 140ms ease, color 140ms ease, transform 160ms ease; }
+.set-control .set-edit svg { width: 18px; height: 18px; }
+.set-control .set-edit:hover:not(:disabled) { background: var(--accent-soft); color: var(--text); }
+.set-control .set-edit:active:not(:disabled) { transform: scale(.96); }
+.set-control .set-edit:disabled { opacity: .4; cursor: default; }
+.set-control .set-edit:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* 设置页的危险操作（浏览器数据 → 清除全部）：红字红边，和其他 ghost 按钮同尺寸 */
 .set-control .ghost.danger { color: var(--danger); border-color: #f7ccd2; }
 .set-control .ghost.danger:hover:not(:disabled) { background: #fff1f2; }
@@ -1304,6 +1368,8 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
   .set-row:has(.ui-select) { flex-wrap: wrap; }
   .set-row:has(.ui-select) .set-text, .set-row:has(.ui-select) .set-control { flex: 1 1 100%; }
   .set-control .ui-select, .set-control .ui-select:has(#webBind) { width: 100%; }
+  #nodeRuntimeRow .set-control { width: 100%; align-items: stretch; }
+  #nodeRuntimeRow .set-control .ui-select { width: 100%; }
   .set-row.stacked .set-control { flex-wrap: wrap; }
   .set-row.stacked .set-control input[type=text], .set-row.stacked .set-control input[type=password] { flex-basis: 100%; }
   #pane-settings .pane-top { flex-wrap: wrap; }
@@ -1446,17 +1512,55 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 .launch-log-loading .spin { display: block; width: 16px; height: 16px; }
 .launch-log-tools .hint { margin: 0; }
 /* 日志弹窗的页签：原始日志常驻，耗时/空间/诊断有数据才出现 */
-.launch-log-tabs { display: flex; gap: 2px; padding: 4px; margin-bottom: 10px; border-radius: 12px; background: var(--accent-soft); }
+/* 启动项日志：窗口高度固定，切页签不再跟着内容忽高忽低；内容在卡片内部滚动 */
+#launchLogDialog .ask-card { height: min(700px, calc(100dvh - var(--dialog-safe-area))); }
+/* 页签和卡片之间只留 dialog-body 的一道间距：页签自带的 margin 与相邻卡片的 margin 叠起来会多出一截空白 */
+#launchLogDialog .launch-log-tabs { margin-bottom: 0; }
+#launchLogDialog .launch-log-card + .launch-log-card { margin-top: 0; }
+.launch-log-tabs { position: relative; display: flex; gap: 2px; padding: 4px; margin-bottom: 10px; border-radius: 12px; background: var(--accent-soft); }
 .launch-log-tabs[hidden] { display: none; }
-.launch-log-tab { flex: 1 1 0; padding: 7px 8px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font-family: inherit; font-size: 12.5px; font-weight: 500; cursor: pointer; transition: color 160ms ease, background 160ms ease; }
+/* 选中块独立成一层：页签数量会随数据有无增减（1–3 个），宽和位移都按 data-count/index 算 */
+.launch-log-tabs::after { content: ''; position: absolute; top: 4px; bottom: 4px; left: 4px; border-radius: 9px; background: var(--card); box-shadow: 0 2px 8px rgba(22, 35, 61, .1); pointer-events: none; will-change: transform; transition: transform 280ms cubic-bezier(.22, .61, .36, 1); }
+.launch-log-tabs[data-count="1"]::after { width: calc(100% - 8px); }
+.launch-log-tabs[data-count="2"]::after { width: calc((100% - 10px) / 2); }
+.launch-log-tabs[data-count="3"]::after { width: calc((100% - 12px) / 3); }
+.launch-log-tabs[data-index="1"]::after { transform: translateX(calc(100% + 2px)); }
+.launch-log-tabs[data-index="2"]::after { transform: translateX(calc(200% + 4px)); }
+.launch-log-tab { position: relative; z-index: 1; flex: 1 1 0; padding: 7px 8px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font-family: inherit; font-size: 12.5px; font-weight: 500; cursor: pointer; transition: color 160ms ease; }
 .launch-log-tab[hidden] { display: none; }
 .launch-log-tab:hover { color: var(--text); }
-.launch-log-tab[aria-selected="true"] { background: var(--card); color: var(--accent); font-weight: 600; box-shadow: 0 2px 8px rgba(22, 35, 61, .1); }
+.launch-log-tab[aria-selected="true"] { color: var(--accent); font-weight: 600; }
 .launch-log-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+html.reduce-motion .launch-log-tabs::after { transition: none; }
+@media (prefers-reduced-motion: reduce) { .launch-log-tabs::after { transition: none; } }
+/* 切页签时内容从切换方向轻推一下：display:none → 显示会重播，和启动项表单的页签同一套 */
+#launchLogDialog .launch-log-card[data-log-panel]:not([hidden]) { flex: 1 1 auto; animation: launch-log-panel-in 200ms cubic-bezier(.22, .61, .36, 1) both; }
+#launchLogDialog .launch-log-card[data-log-panel][data-dir="right"]:not([hidden]) { animation-name: launch-log-panel-in-right; }
+#launchLogDialog .launch-log-card[data-log-panel][data-dir="left"]:not([hidden]) { animation-name: launch-log-panel-in-left; }
+@keyframes launch-log-panel-in { from { opacity: 0; transform: translateY(6px); } }
+@keyframes launch-log-panel-in-right { from { opacity: 0; transform: translateX(12px); } }
+@keyframes launch-log-panel-in-left { from { opacity: 0; transform: translateX(-12px); } }
+html.reduce-motion #launchLogDialog .launch-log-card[data-log-panel]:not([hidden]),
+html.reduce-motion #launchLogDialog .launch-log-card[data-log-panel][data-dir]:not([hidden]) { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  #launchLogDialog .launch-log-card[data-log-panel]:not([hidden]),
+  #launchLogDialog .launch-log-card[data-log-panel][data-dir]:not([hidden]) { animation: none; }
+}
 .launch-log-tools .hint:empty { display: none; }
 .launch-log-meta { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; background: rgba(127, 127, 127, .1); color: var(--text); font-size: 12px; }
 .launch-log-card { border: 1px solid var(--line); border-radius: 14px; padding: 14px; background: rgba(127, 127, 127, .035); }
 .launch-log-card + .launch-log-card { margin-top: 12px; }
+/* 固定高度下卡片撑满剩余空间；页签内容在卡片里滚，不被外层 dialog-body 裁掉。
+   display:flex 会盖掉 [hidden] 的默认 display:none，所以只给没隐藏的卡片开 flex。 */
+#launchLogDialog .launch-log-card { min-height: 0; }
+#launchLogDialog .launch-log-card:not([hidden]) { display: flex; flex-direction: column; }
+#launchLogDialog .launch-log-card[hidden] { display: none; }
+#launchLogDialog .launch-log-card > .launch-log-block,
+#launchLogDialog .launch-log-text { flex: 1 1 auto; min-height: 0; max-height: none; }
+#launchLogDialog .launch-log-loading { flex: 1 1 auto; min-height: 0; }
+/* 三个页签常驻，没内容时在卡片里给一行空状态（加载中也写在这一行） */
+.launch-log-empty { flex: 1 1 auto; display: grid; place-items: center; margin: 0; padding: 18px; color: var(--muted); font-size: 12.5px; text-align: center; }
+.launch-log-empty[hidden] { display: none; }
 .launch-log-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .launch-log-card-head h3 { margin: 0; color: var(--text); font-size: 13px; font-weight: 650; }
 .launch-log-card-head > span { color: var(--muted); font-size: 11.5px; }
@@ -1501,6 +1605,9 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 .launch-log-bar-row .value { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
 .launch-log-note { margin: 8px 0 0; }
 .launch-log-text { margin: 0; max-height: min(38vh, 380px); min-height: 150px; overflow: auto; padding: 12px; border-radius: 10px; background: #f7faff; color: #3f5478; font: 12px/1.5 ui-monospace, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+/* 有缓存时正文立刻可见：标题旁边一个小转圈提示后台还在刷新，不再撑一整行 */
+.launch-log-refresh-spin { width: 12px; height: 12px; margin-left: 7px; vertical-align: middle; color: var(--muted); }
+.launch-log-refresh-spin:not([hidden]) { display: inline-block; }
 .ghost {
   border: 1px solid #c7d8f7;
   background: #fff;
@@ -1971,6 +2078,11 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 .ask-card > * { flex-shrink: 0; }
 .ask-card > .launch-modal-fields { flex: 1 1 auto; }
 .dialog-body { display: flex; flex-direction: column; gap: 14px; flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px; margin: -4px; scrollbar-width: thin; }
+/* 横向滑入的入场动画（translateX 12px）会把面板临时推出滚动容器：只设了 overflow-y: auto
+   时另一轴也会按 auto 处理，动画那 200ms 底部就闪一条横向滚动条。日志正文和选择窗列表
+   都不需要横向滚动，直接裁掉。 */
+#launchLogDialog .dialog-body,
+.profile-pick-list { overflow-x: hidden; }
 .dialog-body > * { flex-shrink: 0; }
 .profile-dialog-card .dialog-body, #packExportDialog .dialog-body { gap: 0; }
 .ask-title { margin: 0 0 10px; font-size: 17px; font-weight: 650; }

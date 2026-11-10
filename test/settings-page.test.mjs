@@ -208,6 +208,11 @@ test('外观跟着状态推送走：设置标签里换主题，管窗口的那�
   assert.match(html, /if \('theme' in data\) \{[\s\S]{0,220}?window\.setLauncherTheme\(savedTheme\)/, 'fillSettings 里换主题那一条还在')
 })
 
+test('水面背景默认关：新装不跑 WebGL 动画，想开在设置里打开', () => {
+  const settings = readFileSync(fileURLToPath(new URL('../src/settings.js', import.meta.url)), 'utf8')
+  assert.match(settings, /hideBackground: true,/, 'DEFAULTS 里默认关')
+})
+
 test('常规的系统组有六个桌面端开关，成败都按服务端回值回显', () => {
   // 键名和 shell/prefs.mjs / settings.js 的 DEFAULTS 是同一组，别在页面里改名
   const ids = ['hardwareAcceleration', 'autoUpdate', 'taskNotifications', 'notificationSound', 'closeToTray', 'keepAwake']
@@ -253,4 +258,21 @@ test('界面语言有「系统默认」选项并默认选中', () => {
   )
   assert.match(html, /"系统默认": "System default",/, '英文界面有翻译')
   assert.match(html, /uiLangEl\.value = pref === 'zh' \|\| pref === 'en' \? pref : 'system'/, '回显时按偏好落位，缺省落在系统默认')
+  assert.match(html, /if \('lang' in data && data\.lang &&[\s\S]{0,120}?applyLang\(\)/, '设置刷新时界面语言跟着运行时语言切，下拉和界面不能各说各话')
+})
+
+test('默认插件源的铅笔和主页启动项图标同一套：无边框、悬停才铺底色', () => {
+  const button = html.match(/<button[^>]*id="pluginMarketSourcesEdit"[^>]*>/)?.[0] || ''
+  assert.match(button, /class="set-edit"/, '用设置页自己的铅笔样式')
+  assert.doesNotMatch(button, /ghost|icon-btn/, '不再套白底描边的 ghost 按钮')
+  assert.match(css, /\.set-control \.set-edit \{[^}]*border: 0;[^}]*background: transparent;/, '静止无边框无底色')
+  assert.match(css, /\.set-control \.set-edit:hover:not\(:disabled\) \{[^}]*background: var\(--accent-soft\)/, '悬停才铺浅色')
+  assert.match(css, /\.set-control \.set-edit svg \{ width: 18px; height: 18px; \}/, '图标尺寸和启动项卡片一致')
+})
+
+test('运行 dsh 的 Node：下拉固定在行尾，系统 Node 的路径输入在下方展开', () => {
+  assert.match(html, /<div class="set-row" id="nodeRuntimeRow">[\s\S]{0,200}?运行 dsh 的 Node/, '这一行不再是整行竖排')
+  assert.doesNotMatch(html, /<div class="set-row stacked">\s*<div class="set-text">\s*<span class="set-name" data-i18n="运行 dsh 的 Node"/, '不再用 stacked 把下拉挤到下一行')
+  assert.match(css, /#nodeRuntimeRow \.set-control \{[^}]*flex-direction: column;[^}]*align-items: flex-end;/, '下拉靠右，路径输入在下面')
+  assert.match(css, /#nodeRuntimeRow \.set-control input\[type=text\] \{ width: 100%; \}/, '路径输入撑满这一列')
 })

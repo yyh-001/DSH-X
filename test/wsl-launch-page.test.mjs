@@ -22,19 +22,26 @@ test('启动项只有一套表单：WSL 作为「目录」出现在三级选择�
   assert.match(page, /function parseWslHomeKey\(/)
   assert.match(page, /pickerMode === 'form' && state\.wsl\?\.available !== false/)
   assert.match(page, /name: t\('WSL · \{distro\}'/, '左栏把 WSL 发行版当目录行')
-  assert.match(page, /async function selectPickerHome\(home\)[\s\S]{0,400}?const wsl = parseWslHomeKey\(home\)/, '选中 WSL 目录走 /api/wsl 探测')
+  assert.match(page, /async function selectPickerHome\(home\)[\s\S]{0,900}?const wsl = parseWslHomeKey\(home\)/, '选中 WSL 目录走 /api/wsl 探测')
   assert.match(page, /function applyWslPickerToLaunchForm\(\{ distro, home \}, profile\)/)
   assert.match(page, /if \(wsl\) applyWslPickerToLaunchForm\(wsl, pickerProfile\)/)
 })
 
-test('新增目录弹窗可以选 WSL：发行版 + 用户目录，添加后选中那个 WSL 目录', () => {
+test('新增目录弹窗用两个页签区分本机 / WSL，WSL 页签填发行版 + 用户目录', () => {
   assert.match(page, /id="pickHomeAddDialog"/)
-  assert.match(page, /id="pickHomeAddLocal"[^>]*data-i18n="本机目录…"/)
-  assert.match(page, /id="pickHomeAddWsl"[^>]*data-i18n="WSL 目录…"/)
+  assert.match(page, /id="pickHomeTabs"[^>]*data-active="local"/, '本机 / WSL 做成页签，默认本机')
+  assert.match(page, /data-pick-home-kind="local"[^>]*data-i18n="本机目录"/)
+  assert.match(page, /data-pick-home-kind="wsl"[^>]*data-i18n="WSL 目录"/)
+  assert.match(page, /function paintPickHomeKind\(kind\)/, '页签切换只切字段，不再用两个大按钮')
+  assert.match(page, /id="pickHomeLocalPath"/, '本机页签有目录路径输入框')
+  assert.match(page, /id="pickHomeLocalBrowse"/, '浏览按钮只回填路径，不直接登记')
+  assert.match(page, /pickHomeKind === 'local'[\s\S]{0,500}?registerPickerHome\(path\)/, '本机页签点「添加」登记输入的路径')
   assert.match(page, /id="pickHomeWslDistro"/)
   assert.match(page, /id="pickHomeWslHome"/)
-  assert.match(page, /function confirmPickHomeAdd\(\)[\s\S]{0,600}?pickerHome = wslHomeKeyOf\(distro, home\)/)
+  assert.match(page, /function confirmPickHomeAdd\(\)[\s\S]{0,1400}?pickerHome = wslHomeKeyOf\(distro, home\)/)
   assert.match(page, /profilePickHomeAddEl\.onclick = \(\) => void openPickHomeAddDialog\(\)/)
+  assert.match(css, /\.pick-home-tabs::after \{[^}]*transition: transform 240ms/, '选中块滑动')
+  assert.match(css, /html\.reduce-motion \.pick-home-tabs::after \{ transition: none; \}/, '减动效时关掉滑动')
 })
 
 test('WSL 字段和本机版本互斥：选 WSL 目录时藏掉版本组、露出项目目录', () => {
@@ -63,4 +70,25 @@ test('WSL 发行版列表按需拉：切到 WSL 才请求 /api/wsl，不等状�
   assert.match(body, /await ensureWslInfo\(\)/, '切到 WSL / 打开 WSL 启动项时要按需拉列表')
   assert.doesNotMatch(page, /wslInfoLoaded/, '发行版列表不做跨会话缓存，靠服务端 10 秒缓存控成本')
   assert.match(body, /state\.wsl\?\.error \|\| t\('没有检测到 WSL 发行版。'\)/, '一个发行版都没有时要说清楚，而不是「先选择一个」')
+})
+
+test('WSL Profile 可以直接删除：请求走 /api/wsl/profile/remove，不再只留一个灰按钮', () => {
+  assert.match(page, /const canRemove = !pickerBusy && \(row\.wsl \|\| Boolean\(row\.pack\) && row\.pack\?\.removable !== false\)/, 'WSL 行也允许删除')
+  assert.match(page, /post\('\/api\/wsl\/profile\/remove', \{ distro: wsl\.distro, home: wsl\.home, profile \}\)/)
+  assert.match(page, /删除 WSL「\{distro\}」里的 Profile「\{profile\}」？/, 'WSL 的删除确认要说清是发行版里的哪一份')
+  assert.match(page, /for \(const key of \[\.\.\.pickerWslProfileCache\.keys\(\)\]\)/, '删完清掉这份 Profile 的插件摘要缓存')
+})
+
+test('选择窗的切换 / 增删动效：方向推入、删除淡出、新增高亮，且遵守减动效', () => {
+  assert.match(css, /@keyframes profile-pick-refresh-right/)
+  assert.match(css, /@keyframes profile-pick-refresh-left/)
+  assert.match(css, /@keyframes profile-pick-row-out/)
+  assert.match(css, /@keyframes profile-pick-row-new/)
+  assert.match(css, /\.profile-pick-row\.is-removing \{ animation: profile-pick-row-out/)
+  assert.match(css, /\.profile-pick-row\.is-new \{ animation: profile-pick-row-new/)
+  assert.match(css, /html\.reduce-motion \.profile-pick-row\.is-removing/)
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{[\s\S]{0,300}?\.profile-pick-row\.is-new \{ animation: none; \}/)
+  assert.match(page, /async function fadePickerRowOut\(row\)/)
+  assert.match(page, /pickerNewRow = `home:\$\{added\}`/, '新增目录高亮')
+  assert.match(page, /pickerNewRow = `profile:\$\{data\.createdProfile\}`/, '新建 Profile 高亮')
 })

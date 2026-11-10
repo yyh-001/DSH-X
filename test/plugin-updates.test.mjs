@@ -147,3 +147,16 @@ test('服务端在插件操作期间发进度，结束时收掉', () => {
   assert.match(server, /pluginProgressName = pkg\s*\n\s*pluginProgressProfile = profile\s*\n\s*emitPluginProgress\(\{ phase: 'resolve' \}\)/, '开始时就绑定插件名与 profile')
   assert.match(server, /emitPluginProgress\(null\)/, '结束时收掉（成功失败都要收）')
 })
+
+test('插件行的删除按钮固定在开关左边：有没有更新按钮都不改变位置', () => {
+  const start = html.indexOf('function pluginRowHtml(')
+  const end = html.indexOf('function bindPluginRowEvents(', start)
+  assert.ok(start > 0 && end > start, '找得到插件行模板')
+  const row = html.slice(start, end)
+  const update = row.indexOf('class="plugin-update"')
+  const remove = row.indexOf('plugin-remove"')
+  const toggle = row.indexOf('<input type="checkbox" data-plugin=')
+  assert.ok(update > 0 && remove > 0 && toggle > 0, '更新、删除、开关都在模板里')
+  assert.ok(update < remove, '更新按钮在删除按钮左边，有更新时也不会把删除挤走')
+  assert.ok(remove < toggle, '删除按钮紧挨开关左边')
+})

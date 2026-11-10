@@ -38,8 +38,9 @@ html.launcher-entering .backdrop { animation: launcher-scene-in 600ms ease both;
    这里别再给它写 display：这份样式表最后加载，同特异性的 display 会盖掉 launcher.css 里
    「标签形态藏起字标」那条——0.1.22 就是这样，回主页图标和挤成两行的「DSH-X」叠在左上角。 */
 html.launcher-entering .brand-home .brand { animation: launcher-wordmark-in 700ms 30ms cubic-bezier(.16, 1, .3, 1) both; }
-html.launcher-entering .brand-home .app-ver,
-html.launcher-entering .brand-block .self-update { animation: launcher-module-in 450ms 220ms cubic-bezier(.16, 1, .3, 1) both; }
+html.launcher-entering .brand-home .app-ver { animation: launcher-module-in 450ms 220ms cubic-bezier(.16, 1, .3, 1) both; }
+/* 更新按钮只淡入、不做位移动画：它是贴在字标旁边的图标，跟着版本号一起往上滑会显得比文字低一截 */
+html.launcher-entering .brand-block .self-update { animation: launcher-module-fade-in 450ms 220ms cubic-bezier(.16, 1, .3, 1) both; }
 /* 毛玻璃及其父层保持原位，避免透明度动画隔断背景采样。
    整条启动项一起向上入场；只标记开场已有的行，状态更新不会重播。 */
 .launcher-preset-enter {
@@ -52,6 +53,7 @@ html.launcher-entering .mascot { animation: launcher-fish-in 1000ms 60ms cubic-b
 @keyframes launcher-boot-out { to { opacity: 0; transform: translateY(-8px); } }
 @keyframes launcher-scene-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes launcher-module-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes launcher-module-fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes launcher-fish-in { from { opacity: 0; transform: translateY(65%) scale(.98); } to { opacity: 1; transform: none; } }
 @keyframes launcher-preset-in { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
 

@@ -23,6 +23,12 @@ function render(report) {
     report,
     launchLogPluginsEl: { hidden: true, innerHTML: '' },
     launchLogWindowEl: { textContent: '' },
+    launchLogRssEl: { hidden: false, textContent: '', title: '' },
+    launchLogTimeEmptyEl: { hidden: true, textContent: '' },
+    showLaunchLogEmpty(element, text) {
+      element.hidden = !text
+      element.textContent = text || ''
+    },
     syncLaunchLogVisual() { sandbox.visualSynced += 1 },
     visualSynced: 0,
     escapeHtml,

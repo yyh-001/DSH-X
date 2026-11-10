@@ -122,3 +122,18 @@ test('界面语言默认是「系统默认」，显式选择后跟随系统语�
   assert.equal(data.langPref, 'system', '重启后仍回显系统默认')
   assert.equal(data.lang, expected, '系统默认始终跟随系统语言，而不是 lang.txt')
 })
+
+test('另一个实例改了 settings.json 后，运行时语言跟着文件走，不再和下拉打架', async () => {
+  await server.stopAll()
+  writeFileSync(settingsFile, JSON.stringify({ ...initial, lang: 'zh' }))
+  origin = await server.startServer()
+  let data = await (await fetch(`${origin}/api/settings`)).json()
+  assert.equal(data.lang, 'zh')
+
+  // 模拟安装版 / 另一个窗口直接改设置文件（不经过本进程的保存接口）
+  writeFileSync(settingsFile, JSON.stringify({ ...initial, lang: 'en' }))
+  data = await (await fetch(`${origin}/api/settings`)).json()
+  assert.equal(data.langPref, 'en', '下拉回显文件里的偏好')
+  assert.equal(data.lang, 'en', '读设置时把运行时语言对齐到文件，不能一个英文一个中文')
+  assert.match(await (await fetch(origin)).text(), /data-lang="en"/, '下一次页面渲染也用文件里的语言')
+})

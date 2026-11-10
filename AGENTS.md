@@ -26,12 +26,15 @@ Node 服务  src/start.js → src/server.js   管理页后端 + 版本 / 插件 
 | `npm test` | 全部用例（`node --test`，300+ 用例，约 16 秒） |
 | `node --test test/packs.test.mjs` | 单个用例文件 |
 | `npm run electron` | 用 Electron 外壳从源码起（Windows / macOS / Linux，先 `npm install`） |
+| `npm run dev:core` / `dev:shell` / `dev:app` | 不打包的验收实例：安装版外壳+本地核心 / 源码外壳 / 伪安装；见 `scripts/dev.mjs` |
 | `npm run dist` | 打安装包（都先 `npm install`；macOS 还要 Xcode CLT） |
 | `npm run stage:core` | 只组装核心层 `release/core-stage`（给 `pack-core.mjs` 打 npm 包），不出安装包 |
 | `node scripts/make-pack.mjs` | 把 `src/packs/<名字>/` 打成 `.dspack`（产物在 `release/packs/`） |
 
 - **跑测试别把输出接管道**（`| head`、`| tail` 会把输出缓冲成 0 字节，等于白跑）；要留证据就重定向到文件。
+- **日常验收不用每次打包**：`dev:core` 用已安装外壳 + `release/core-stage`，临时数据目录，可与正式版并行；`dev:shell` 跑源码外壳（先退出已安装的 DSH-X，共用真实数据目录）；`dev:app` 把 `shell/` 同步进 `release/dev-app`（`app.isPackaged=true`，验打包后行为）。三者都支持 `--fresh` / `--no-stage` / `--dry-run`；只有验安装器、更新清单、平台产物时才需要 `npm run dist`。
 - 没有 lint / 格式化配置，**也别加**：风格靠已有代码和这份文档。
+- **界面图标统一走 Lucide**（ISC）：源 SVG 在 `scripts/icons/lucide-1.69.0/`，`npm run icons` 生成 `src/public/icons.svg`；页面只写 `<svg><use href="/icons.svg#lucide-x"/></svg>`，不要再手写图标路径。新增图标先放源文件再生成。窗口按钮、下拉小三角、实心 Star、播放是自绘的少数例外；许可证随雪碧图发（`src/public/icons-LICENSE.txt`）。
 - 用例里有三只"假服务器"（`test/fake-s3.mjs`、`fake-webdav.mjs`、`fake-proxy.mjs`），网络相关改动靠它们离线验证。
 
 ## 硬规矩

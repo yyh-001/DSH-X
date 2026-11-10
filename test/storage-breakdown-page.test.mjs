@@ -33,10 +33,13 @@ test('空间构成：分类条、各插件占用、top5 和总计都画出来', 
     escapeHtml: (text) => String(text).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('"', '&quot;'),
     formatBytes: (bytes) => `${(Number(bytes) / 1048576).toFixed(1)} MB`,
     launchLogSpaceEl: { hidden: true },
-    launchLogAvailable: { space: false },
-    paintLaunchLogTabs() {},
     launchLogSpaceMetaEl: { textContent: '' },
-    launchLogSpaceBodyEl: { innerHTML: '' },
+    launchLogSpaceBodyEl: { innerHTML: '', hidden: false },
+    launchLogSpaceEmptyEl: { hidden: true, textContent: '' },
+    showLaunchLogEmpty(element, text) {
+      element.hidden = !text
+      element.textContent = text || ''
+    },
   }
   vm.createContext(sandbox)
   vm.runInContext(code, sandbox)
@@ -61,7 +64,8 @@ test('空间构成：分类条、各插件占用、top5 和总计都画出来', 
     ],
   })})`, sandbox)
 
-  assert.equal(sandbox.launchLogAvailable.space, true, '数据到了，空间页签变可用')
+  assert.equal(sandbox.launchLogSpaceBodyEl.hidden, false, '数据到了，内容区显示')
+  assert.equal(sandbox.launchLogSpaceEmptyEl.hidden, true, '空状态收起')
   assert.equal(sandbox.launchLogSpaceMetaEl.textContent, '合计 200.0 MB')
   const body = sandbox.launchLogSpaceBodyEl.innerHTML
   assert.match(body, /ledger-plugin[^>]*>.*?10%/, '插件本体 20/200 = 10%')

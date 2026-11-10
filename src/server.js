@@ -139,7 +139,7 @@ import {
   saveSettings,
   VERSION_RE,
 } from './settings.js'
-import { allocateWslPort, inspectWslDistro, invalidateWslCache, listWslDistros, parseWslHomeKey, resolveWslHome, readWslProfile, startWslInstance, stopWslInstance, wslAvailable, wslHomeKey, wslPath, wslPortAvailable } from './wsl.js'
+import { allocateWslPort, inspectWslDistro, invalidateWslCache, listWslDistros, parseWslHomeKey, resolveWslHome, readWslProfile, removeWslProfile, startWslInstance, stopWslInstance, wslAvailable, wslHomeKey, wslPath, wslPortAvailable } from './wsl.js'
 // 带代理的 fetch：Node 的全局 fetch 既不看系统代理也不看 HTTP_PROXY，外网请求都走 netFetch
 import { netFetch, proxyEnv, resetProxyCache, resolveProxy } from './proxy.js'
 import { APP_DIR, fileManager } from './filemanager.js'
@@ -526,6 +526,7 @@ const WSL_LOCAL_API_EXACT = new Set([
   '/api/dsh-homes/rename',
   '/api/wsl/path',
   '/api/wsl/profile',
+  '/api/wsl/profile/remove',
 ])
 function isWslLocalApiRoute(pathname) {
   return WSL_LOCAL_API_EXACT.has(pathname)
@@ -1881,6 +1882,9 @@ async function applyDataDir(dir) {
 
 async function publicSettings() {
   const stored = await loadSettings()
+  // 别的实例（安装版 / 另一个窗口）可能刚改了 settings.json：读设置时把运行时语言对齐，
+  // 否则会出现「下拉写 English、界面还是中文」这种 LANG 与文件不一致的状态。
+  LANG = resolveLang(stored.lang)
   const wslProbe = wslAvailable() ? await listWslDistros() : { available: false, distros: [], error: '当前不是 Windows，或找不到 wsl.exe' }
   return {
     dataDir: DATA,
@@ -7420,6 +7424,44 @@ async function handleApi(req, res, url) {
       const home = safeWslPath(url.searchParams.get('home') || '', 'WSL 用户目录')
       const profile = safeProfile(url.searchParams.get('profile') || '')
       send(res, 200, await readWslProfile(distro, home, profile))
+    } catch (error) {
+      send(res, 400, { error: error instanceof Error ? error.message : String(error) })
+    }
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/wsl/profile/remove') {
+    // 目录选择窗里删 WSL Profile：文件在发行版里，只能进 WSL 删；
+    // 正在跑的实例先拦住，避免删掉它脚下的配置。
+    try {
+      const distro = String(body.distro || '').trim()
+      if (!distro || distro.length > 128 || /[\x00-\x1f]/.test(distro)) throw new Error('WSL 发行版名称不合法')
+      const home = safeWslPath(body.home || '', 'WSL 用户目录')
+      const profile = safeProfile(body.profile || '')
+      if (profile.startsWith('.') || profile.toLowerCase() === 'node_modules' || CLI_BLOCKED_PROFILES.has(profile.toLowerCase())) {
+        throw new Error(`「${profile}」不能作为 Profile 删除`)
+      }
+      const running = instanceList().some((proc) => proc.backend === 'wsl' && proc.distro === distro && proc.profile === profile
+        && (proc.status === 'running' || proc.status === 'starting'))
+      if (running) throw new Error('这个 Profile 正在运行，先停止再删除')
+      const result = await removeWslProfile(distro, home, profile)
+      if (result.ok) invalidateWslCache()
+      send(res, 200, result)
+    } catch (error) {
+      send(res, 400, { error: error instanceof Error ? error.message : String(error) })
+    }
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/wsl/open') {
+    // 在资源管理器里打开 WSL 里的目录：先用 wslpath 换成 Windows 路径（顺带把发行版拉起来），
+    // 再交给系统文件管理器。`~` 由 wslpath 那一步用 $HOME 展开。
+    try {
+      const distro = String(body.distro || '').trim()
+      if (!distro || distro.length > 128 || /[\x00-\x1f]/.test(distro)) throw new Error('WSL 发行版名称不合法')
+      const home = safeWslPath(body.home || '', 'WSL 用户目录') || '~'
+      const dir = await wslPath(distro, home, 'windows')
+      await openDirectory(dir)
+      pushLog(`已打开 WSL 目录 ${distro}:${home}`)
+      send(res, 200, { ok: true, dir })
     } catch (error) {
       send(res, 400, { error: error instanceof Error ? error.message : String(error) })
     }

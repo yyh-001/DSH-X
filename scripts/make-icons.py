@@ -11,7 +11,7 @@ becomes assets/icon.png, so the icons can be regenerated without the original
 file.
 """
 
-from PIL import Image
+from PIL import Image, ImageDraw
 import struct
 import sys
 import io
@@ -26,11 +26,11 @@ ICO_SIZES = [16, 32, 48, 64, 256]
 TRAY_SIZES = [16, 20, 24, 32, 48]
 FAVICON_PNG = 64
 
-# Corner shape of the app tile: a superellipse ("squircle") like the source
-# artwork's own tile, n=2 would be a plain rounded rectangle, larger is squarer.
-# 3.0 比最初的 4.5 更圆润：标题栏 / 任务栏 / 通知标题里是一枚圆角应用图标，
-# 而不是一个几乎见棱见角的白方块。
-CORNER_N = 3.0
+# Corner shape of the app tile: a plain rounded rectangle, like other desktop
+# software. 微信 256px 的图标量出来圆角半径是 57px（22.3%），这里照它来。
+# 之前按超椭圆（squircle）做：n 小的时候桌面快捷方式显得过圆，n 大了又发方，
+# 都不像普通应用的图标。
+CORNER_RADIUS = 0.223
 SUPERSAMPLE = 4
 
 # A pixel counts as removed background below FULL; up to BLEND it is an
@@ -98,25 +98,18 @@ def whiten(raw):
     return out
 
 
-def corner_mask(size, n=CORNER_N):
-    """Anti-aliased |u|^n + |v|^n <= 1 mask for one size."""
+def corner_mask(size, ratio=CORNER_RADIUS):
+    """Anti-aliased rounded-rectangle mask for one size (radius as a share of the edge)."""
     cached = _MASKS.get(size)
     if cached is not None:
         return cached
-    ss = SUPERSAMPLE
-    big = size * ss
+    big = size * SUPERSAMPLE
     mask = Image.new("L", (big, big), 0)
-    px = mask.load()
-    half = big / 2.0
-    for y in range(big):
-        v = abs((y + 0.5 - half) / half)
-        if v >= 1.0:
-            continue
-        span = half * (1.0 - v ** n) ** (1.0 / n)
-        x0 = max(0, int(round(half - span)))
-        x1 = min(big, int(round(half + span)))
-        for x in range(x0, x1):
-            px[x, y] = 255
+    ImageDraw.Draw(mask).rounded_rectangle(
+        (0, 0, big - 1, big - 1),
+        radius=max(1, round(big * ratio)),
+        fill=255,
+    )
     mask = mask.resize((size, size), Image.Resampling.LANCZOS)
     _MASKS[size] = mask
     return mask

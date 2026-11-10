@@ -382,7 +382,8 @@ export const DEFAULTS = {
   launchIsolation: 'profile',
   panelTransparency: 30,
   reduceMotion: false,
-  hideBackground: false,
+  // 水面是整页 WebGL 动画，默认关掉省 GPU；想要背景的去设置里自己打开
+  hideBackground: true,
   hideBigFish: false,
   // ---- 桌面端系统开关（Electron 外壳直接读 settings.json，见 shell/prefs.mjs）----
   // Chromium 硬件加速：关闭能规避显卡/驱动导致的白屏与闪退，代价是动画更吃 CPU，重启生效
