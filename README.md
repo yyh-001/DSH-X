@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a> 启动器（dsh 启动器）——<br />
+  <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a> 启动器 ——<br />
   启动项与多实例，版本、插件、实例、MCP 和技能管理。
 </p>
 

@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  A <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a> launcher (dsh launcher) —<br />
+  A <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a> launcher —<br />
   launch entries and multiple instances, version, plugin, instance, MCP and skill management.
 </p>
 
