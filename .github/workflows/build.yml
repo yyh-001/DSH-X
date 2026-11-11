@@ -187,10 +187,11 @@ jobs:
         shell: pwsh
         run: |
           # 安装包名跟外壳版本（shell/package.json）；根 package.json 是核心版本，两者可能不同。
+          # 正常安装包的命名见 electron-builder.config.mjs（DSH-X-<版本>-win-x64.exe）。
           $version = (Get-Content shell/package.json | ConvertFrom-Json).version
           $csc = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
           $source = Join-Path $PWD "scripts\legacy-updater-bridge.cs"
-          $installer = Join-Path $PWD "release\eb\DSH-Setup-$version.exe"
+          $installer = Join-Path $PWD "release\eb\DSH-X-$version-win-x64.exe"
           $out = Join-Path $PWD "release\eb\DSH-Setup.exe"
           & $csc /nologo /target:winexe "/out:$out" "/resource:$installer,DSH-Setup-payload.exe" $source
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -198,10 +199,10 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: needs.prepare.outputs.shell_changed == '1'
         with:
-          name: DSH-Setup-windows
+          name: DSH-X-win-x64
           path: |
-            release/eb/DSH-Setup-*.exe
-            release/eb/DSH-Setup-*.exe.blockmap
+            release/eb/DSH-X-*-win-x64.exe
+            release/eb/DSH-X-*-win-x64.exe.blockmap
             release/eb/DSH-Setup.exe
             release/eb/latest.yml
           if-no-files-found: error
@@ -220,7 +221,7 @@ jobs:
           # 安装包放发布页；核心包在 npm 上，SBOM/发布清单留在本机自查
           # electron-updater 要 latest.yml + 安装包 + blockmap；核心包在 npm 上
           # DSH-Setup.exe 是给 0.1.18 旧更新器的兼容桥
-          gh release upload "$tag" release/eb/DSH-Setup-*.exe release/eb/DSH-Setup-*.exe.blockmap release/eb/DSH-Setup.exe release/eb/latest.yml --clobber
+          gh release upload "$tag" release/eb/DSH-X-*-win-x64.exe release/eb/DSH-X-*-win-x64.exe.blockmap release/eb/DSH-Setup.exe release/eb/latest.yml --clobber
 
   # mac 的打包能力在 PR #25（scripts/pack-mac.mjs）里，合并之后这里才真的会出包；
   # 没合并时这一步只打个招呼就过，不至于把整个 workflow 挂红。

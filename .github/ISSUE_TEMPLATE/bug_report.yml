@@ -38,7 +38,7 @@ body:
     attributes:
       label: 安装方式
       options:
-        - Windows 安装包（DSH-Setup）
+        - Windows 安装包（DSH-X-…-win-x64.exe）
         - macOS dmg
         - Linux AppImage
         - npm 全局（@yyh001/dsh-x）

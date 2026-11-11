@@ -179,10 +179,6 @@ h1 span { display: block; }
 .feature-number { color: var(--accent); font-size: 11px; font-weight: 800; letter-spacing: .13em; }
 .feature h2 { margin: 13px 0 7px; font-size: 17px; letter-spacing: -.02em; }
 .feature p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.65; }
-.previews { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; padding-bottom: 72px; }
-.previews figure { min-width: 0; margin: 0; }
-.previews img { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); }
-.previews figcaption { margin-top: 13px; color: var(--muted); font-size: 12px; }
 /* 问答用原生 details/summary：没有脚本，开合状态也不受中英切换影响（切换只重写文本） */
 .faq { padding-bottom: 72px; }
 .faq-heading { display: flex; align-items: baseline; gap: 12px; margin: 0 0 16px; font-size: 19px; letter-spacing: -.02em; }
@@ -242,7 +238,6 @@ html[data-color-scheme="dark"] .icon-control .moon { display: block; }
   .btn { flex: 1 1 190px; }
   .links { margin-top: 29px; }
   .features { grid-template-columns: 1fr; gap: 10px; padding-bottom: 48px; }
-  .previews { grid-template-columns: 1fr; padding-bottom: 48px; }
   .faq { padding-bottom: 48px; }
   .faq-item summary { padding: 14px 16px; font-size: 13px; }
   .faq-item p { padding: 0 16px 15px; }

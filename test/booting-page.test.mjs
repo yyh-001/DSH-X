@@ -11,10 +11,12 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import vm from 'node:vm'
-import { systemLang } from '../src/settings.js'
 import { packumentOf, startChannelServer } from './update-channel-fixture.mjs'
 
 const env = await startChannelServer({ prefix: 'dsh-booting-', packument: packumentOf({ latest: '1.0.0' }, ['1.0.0']) })
+// settings.js 的 APP_DIR 在模块加载时就固定了：必须等 startChannelServer 隔离完用户目录再加载，
+// 否则 server 读写的是真实的 %APPDATA%/DSH/settings.json（下面把语言切成英文那步会写进用户设置）。
+const { systemLang } = await import('../src/settings.js')
 test.after(() => env.cleanup())
 
 const page = readFileSync(new URL('../src/public/index.html', import.meta.url), 'utf8')

@@ -4,7 +4,7 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 import { currentRegistry } from '../src/registry.js'
-import { dshEnv } from '../src/server.js'
+import { dshEnv, installerUrl } from '../src/server.js'
 import { DEFAULTS, DEFAULT_SOURCE, DEFAULT_UPDATE_SOURCE, DOWNLOAD_SOURCES, safeDownloadSource, safeUpdateSource, updateSourceForDownload, updateUrlCandidates } from '../src/settings.js'
 
 const read = (name) => readFileSync(fileURLToPath(new URL(`../${name}`, import.meta.url)), 'utf8')
@@ -89,6 +89,20 @@ test('设置页有下载源选择器：改动即保存，并说明两种源各�
 // 启动器自更新的下载源：默认「国内加速」——它不是「只走镜像」，候选顺序永远是
 // 「镜像优先、直连兜底」，直连放最后，免得每次更新都先等一次直连超时；
 // 而「直连」在国内等于没有退路（市场索引的域名被 DNS 污染、release 资产的 443 连不上）。
+test('安装包直链：Windows 走稳定兼容桥，mac 按最新版本拼新命名', () => {
+  assert.equal(installerUrl({ mac: false }), 'https://github.com/yyh-001/DSH-X/releases/latest/download/DSH-Setup.exe')
+  assert.equal(installerUrl({ mac: false, latest: '0.1.27' }), 'https://github.com/yyh-001/DSH-X/releases/latest/download/DSH-Setup.exe', 'Windows 不需要版本号')
+  assert.equal(installerUrl({ mac: true, arch: 'arm64' }), 'https://github.com/yyh-001/DSH-X/releases/latest', '版本号未知时退回发布页')
+  assert.equal(
+    installerUrl({ mac: true, arch: 'arm64', latest: '0.1.27' }),
+    'https://github.com/yyh-001/DSH-X/releases/download/v0.1.27/DSH-X-0.1.27-mac-arm64.dmg',
+  )
+  assert.equal(
+    installerUrl({ mac: true, arch: 'x64', latest: '0.1.27' }),
+    'https://github.com/yyh-001/DSH-X/releases/download/v0.1.27/DSH-X-0.1.27-mac-x64.dmg',
+  )
+})
+
 test('更新下载源：默认国内加速，镜像优先、直连兜底', () => {
   const url = 'https://github.com/yyh-001/DSH-X/releases/latest/download/DSH-Setup.exe'
   assert.equal(DEFAULT_UPDATE_SOURCE, 'mirror', '默认国内加速')

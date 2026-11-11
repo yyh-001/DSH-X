@@ -195,7 +195,7 @@ dsh 的环境隔离单位。模板名（web / headless / acp / sdk / …）会�
 - 三个平台和服务同进程（Electron 外壳），用 `setHost({ onWake, openTab, openWindow, exit, relaunch, shellUpdate })` 直接接管；`relaunch` 供核心更新后重启外壳（`app.relaunch()`，避免单实例锁把新进程顶掉）。旧 Rust 外壳读 stdout 标记行的路径已经退役。
 - dsh / npm / pnpm 子进程一律用 `platform.js` 的 `RUNTIME_NODE`，**别用 `process.execPath` 自己拼**：Electron 里 `RUNTIME_NODE` 就是 Electron 本体，拉子进程时必须同时展开 `RUNTIME_NODE_ENV`（里面是 `ELECTRON_RUN_AS_NODE=1`），否则会当 GUI 打开；`withBundledRuntime` / `orderRuntimePaths` 负责把 `node/` 里的 `node` / `node.cmd` 包装放进 PATH。
 - 自更新（Windows）：electron-updater 下载 NSIS 安装包 → 静默安装 → 由安装程序拉起新版；Linux 用 `latest-linux.yml` + AppImage（从 AppImage 启动时 `APPIMAGE` 环境变量存在，electron-updater 才能替换）。macOS 目前不提供外壳自更新：临时签名装不上 zip 更新包，发布页只发 dmg 供手动安装。electron-builder 的 `latest.yml` / `latest-linux.yml` 和 `.blockmap` 必须一起上传，否则差分/更新取不到包。
-- 发版产物要一起传：有外壳改动的版本才传 Windows 的 `DSH-Setup-<外壳版本>.exe` + `.blockmap` + `latest.yml`、mac 的 dmg（外壳自更新暂不提供，所以不发 zip/latest-mac.yml）、Linux 的 AppImage + deb + `latest-linux.yml`（deb 不进这个 yml）；核心 npm 包（`<核心版本>`）每次都由 `core-package` job 单独发。纯核心发版没有安装包资产，`latest*.yml` 和「Latest」都停在上一次外壳发版。
+- 发版产物要一起传：有外壳改动的版本才传 Windows 的 `DSH-X-<外壳版本>-win-x64.exe` + `.blockmap` + `latest.yml`、mac 的 dmg（外壳自更新暂不提供，所以不发 zip/latest-mac.yml）、Linux 的 AppImage + deb + `latest-linux.yml`（deb 不进这个 yml）；核心 npm 包（`<核心版本>`）每次都由 `core-package` job 单独发。纯核心发版没有安装包资产，`latest*.yml` 和「Latest」都停在上一次外壳发版。命名统一为 `DSH-X-<版本>-<平台>-<架构>.<扩展名>`，架构一律 x64 / arm64；唯一的例外是给 0.1.18 旧更新器的兼容桥 `DSH-Setup.exe`。
 
 ### 网络与子进程环境
 

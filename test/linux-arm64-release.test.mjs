@@ -11,13 +11,10 @@ import vm from 'node:vm'
 const fileUrl = (path) => new URL(`../${path}`, import.meta.url)
 const read = (path) => readFileSync(fileURLToPath(fileUrl(path)), 'utf8')
 
-// electron-builder 的 ${arch} 在不同格式下展开成不同的名字（AppImage 用 x86_64，deb 用 amd64，
-// arm64 两种格式都是 arm64）；这里按它的规则造出「每台 runner 实际会产出的文件名」，
-// 让配置、workflow 的 glob、落地页的匹配规则在同一组文件名上互相验证。
-const ARCH_NAME = {
-  x64: { AppImage: 'x86_64', deb: 'amd64' },
-  arm64: { AppImage: 'arm64', deb: 'arm64' },
-}
+// 发布资产统一叫 DSH-X-<版本>-<平台>-<架构>.<扩展名>，架构一律 x64 / arm64。
+// electron-builder 的 ${arch} 在 AppImage 上会展开成 x86_64、deb 上展开成 amd64，所以 Linux
+// 的 artifactName 直接按 process.arch 固化架构标签；测试在 x64 / arm64 runner 上都跑，
+// 两边分别校验本机产出的名字，配置里写死成某一种架构会立刻挂。
 const EXT = { AppImage: 'AppImage', deb: 'deb' }
 // x64 的更新清单不带后缀是 electron-updater 的历史约定；arm64 的带 -arm64，updater 按 process.arch 找
 const FEED = { x64: 'latest-linux.yml', arm64: 'latest-linux-arm64.yml' }
@@ -28,7 +25,7 @@ const ARCHES = ['x64', 'arm64']
 // 正式版和预发布版各一个：预发布版号里自带连字符，`[^-]+` 一类的写法会在这里露馅
 const VERSIONS = ['0.2.0', '0.2.0-rc.1']
 
-const linuxFile = (version, arch, format) => `DSH-X-${version}-${ARCH_NAME[arch][format]}.${EXT[format]}`
+const linuxFile = (version, arch, format) => `DSH-X-${version}-linux-${arch}.${EXT[format]}`
 /** 某一台 runner 打完包后 release/eb 里和 Linux 发版相关的文件（只有本机架构那一份）。 */
 const runnerOutputs = (version, arch) => [
   ...LINUX_FORMATS.map((format) => `${OUTPUT_DIR}/${linuxFile(version, arch, format)}`),
@@ -49,7 +46,8 @@ const expandArtifactName = (template, { version, arch, format }) =>
   template
     .replaceAll('${productName}', 'DSH-X')
     .replaceAll('${version}', version)
-    .replaceAll('${arch}', ARCH_NAME[arch][format])
+    // mac / win 模板仍用 ${arch}；Linux 模板在配置加载时已按 process.arch 固化
+    .replaceAll('${arch}', arch)
     .replaceAll('${ext}', EXT[format])
 
 test('electron-builder 配置是纯 ESM 默认导出，只依赖 node:path', async () => {
@@ -76,20 +74,24 @@ test('Linux 目标不钉架构：每个 target 都不写 arch，按打包机架�
   }
 })
 
-test('Linux 文件名带 ${arch}：x64 / arm64 × AppImage / deb 四个文件名互不冲突，且与落地页约定一致', async () => {
+test('Linux 文件名带架构且两种格式写法一致：x64 / arm64 × AppImage / deb 互不冲突', async () => {
   const config = await loadBuilderConfig()
   for (const format of LINUX_FORMATS) {
     const template = artifactTemplate(config, format)
     assert.equal(typeof template, 'string', `${format} 没有 artifactName`)
-    assert.match(template, /\$\{arch\}/, `${format} 的 artifactName 必须包含 \${arch}`)
+    // ${arch} 在 AppImage 上会展开成 x86_64、deb 上展开成 amd64，同一份 x64 包两种写法
+    assert.doesNotMatch(template, /\$\{arch\}/, `${format} 的 artifactName 不要用 \${arch}（各格式展开结果不同）`)
   }
   for (const version of VERSIONS) {
-    const produced = ARCHES.flatMap((arch) => LINUX_FORMATS.map((format) =>
-      expandArtifactName(artifactTemplate(config, format), { version, arch, format })))
-    assert.equal(new Set(produced).size, produced.length, `文件名冲突：${produced.join(', ')}`)
-    // 落地页和 workflow 的 glob 按 DSH-X-<v>-<arch>.<ext> 认包，配置改了命名规则三处要一起改
-    const expected = ARCHES.flatMap((arch) => LINUX_FORMATS.map((format) => linuxFile(version, arch, format)))
+    // 配置按打包机架构固化标签；本机 runner 的 process.arch 就是实际产出的架构
+    const produced = LINUX_FORMATS.map((format) =>
+      expandArtifactName(artifactTemplate(config, format), { version, arch: process.arch, format }))
+    // 落地页和 workflow 的 glob 按 DSH-X-<v>-linux-<arch>.<ext> 认包，配置改了命名规则三处要一起改
+    const expected = LINUX_FORMATS.map((format) => linuxFile(version, process.arch, format))
     assert.deepEqual(produced, expected)
+    // 两台 runner 的文件名仍然互不冲突（测试本身在 x64 和 arm64 runner 上各跑一次）
+    const both = ARCHES.flatMap((arch) => LINUX_FORMATS.map((format) => linuxFile(version, arch, format)))
+    assert.equal(new Set(both).size, both.length, `文件名冲突：${both.join(', ')}`)
   }
 })
 
@@ -387,12 +389,12 @@ function linuxButtonKinds() {
 }
 
 const asset = (name) => ({ name, browser_download_url: `https://github.com/yyh-001/DSH-X/releases/download/v/${name}` })
-const macDmg = (version, arch) => `DSH-X-${version}-${arch}.dmg`
+const macDmg = (version, arch) => `DSH-X-${version}-mac-${arch}.dmg`
 /** 一份 release 的资产，Linux 部分按给定架构与顺序排；mac / win / 清单穿插其中，模拟真实列表的杂项。 */
 function releaseAssets(version, linuxArches) {
   return [
-    `DSH-Setup-${version}.exe`,
-    `DSH-Setup-${version}.exe.blockmap`,
+    `DSH-X-${version}-win-x64.exe`,
+    `DSH-X-${version}-win-x64.exe.blockmap`,
     'DSH-Setup.exe',
     'latest.yml',
     macDmg(version, 'arm64'),
@@ -449,10 +451,31 @@ test('落地页 mac 按钮不和 Linux arm64 混淆：arm64 AppImage / deb 排�
       for (const assets of [all, linuxFirst, [...linuxFirst].reverse()]) {
         assert.equal(pick('macArm', assets), macDmg(version, 'arm64'))
         assert.equal(pick('macX64', assets), macDmg(version, 'x64'))
-        assert.equal(pick('win', assets), `DSH-Setup-${version}.exe`)
+        assert.equal(pick('win', assets), `DSH-X-${version}-win-x64.exe`)
       }
     }
   }
+})
+
+test('状态：≤0.1.26 的旧命名仍能被认出来（发布列表里还有老版本，下载计数也靠它）', () => {
+  const version = '0.1.26'
+  const legacy = [
+    `DSH-Setup-${version}.exe`,
+    `DSH-Setup-${version}.exe.blockmap`,
+    'DSH-Setup.exe',
+    'latest.yml',
+    `DSH-X-${version}-arm64.dmg`,
+    `DSH-X-${version}-x64.dmg`,
+    `DSH-X-${version}-x86_64.AppImage`,
+    `DSH-X-${version}-amd64.deb`,
+    `DSH-X-${version}-arm64.AppImage`,
+    `DSH-X-${version}-arm64.deb`,
+  ].map(asset)
+  assert.equal(pick('win', legacy), `DSH-Setup-${version}.exe`)
+  assert.equal(pick('macArm', legacy), `DSH-X-${version}-arm64.dmg`)
+  assert.equal(pick('macX64', legacy), `DSH-X-${version}-x64.dmg`)
+  assert.equal(pick('appImage', legacy), `DSH-X-${version}-x86_64.AppImage`)
+  assert.equal(pick('deb', legacy), `DSH-X-${version}-amd64.deb`)
 })
 
 test('落地页 Linux 按钮不会被 mac 的 arm64 dmg 或更新清单误配（边界：只有非 Linux 资产）', () => {
@@ -463,12 +486,19 @@ test('落地页 Linux 按钮不会被 mac 的 arm64 dmg 或更新清单误配（
   for (const kind of Object.keys(assetOf)) assert.equal(pick(kind, []), undefined, `${kind} 在空列表上应返回 undefined`)
 })
 
-test('状态：API 还没回来（或限流）时，Linux 菜单写死的链接是 x64 包', () => {
-  // GitHub API 未认证 60 次/小时，用完时页面就靠 HTML 里写死的 href；那份也得是 x64，不能是 arm64
-  const menu = PAGE.match(/id="linuxSplit"[\s\S]*?class="split-menu"[\s\S]*?<\/div>/)?.[0]
-  assert.ok(menu, '找不到 #linuxSplit')
-  const hrefs = [...menu.matchAll(/href="([^"]+)"/g)].map((m) => m[1]).filter((h) => /\.(AppImage|deb)$/.test(h))
-  assert.equal(hrefs.length, 2, `Linux 菜单应有 AppImage / deb 两个直链，实际：${hrefs.join(', ')}`)
-  assert.match(hrefs[0], /-x86_64\.AppImage$/)
-  assert.match(hrefs[1], /-amd64\.deb$/)
+test('状态：API 还没回来（或限流）时，兜底链接不会把用户送回旧版本', () => {
+  // GitHub API 未认证 60 次/小时，用完时页面就靠 HTML 里写死的 href。
+  // Windows 有稳定的 DSH-Setup.exe 兼容桥；mac / Linux 的资产名带版本，只能回发布页，
+  // 不能再写死某个旧版本（之前停在 v0.1.22，限流时用户会悄悄拿到四版之前的包）。
+  const win = PAGE.match(/id="download"[^>]*href="([^"]+)"/)?.[1]
+  assert.equal(win, 'https://github.com/yyh-001/DSH-X/releases/latest/download/DSH-Setup.exe')
+  for (const id of ['macSplit', 'linuxSplit']) {
+    const menu = PAGE.match(new RegExp(`id="${id}"[\\s\\S]*?class="split-menu"[\\s\\S]*?<\\/div>`))?.[0]
+    assert.ok(menu, `找不到 #${id}`)
+    const hrefs = [...menu.matchAll(/href="([^"]+)"/g)].map((m) => m[1])
+    assert.equal(hrefs.length, 2, `${id} 应有两条下载链接，实际：${hrefs.join(', ')}`)
+    for (const href of hrefs) {
+      assert.equal(href, 'https://github.com/yyh-001/DSH-X/releases/latest', `${id} 的兜底链接应退回发布页，实际：${href}`)
+    }
+  }
 })

@@ -40,10 +40,12 @@
       <p class="eyebrow" data-zh="开源 · 跨平台 · 即刻启动" data-en="Open source · Cross-platform · Ready to launch">开源 · 跨平台 · 即刻启动</p>
       <h1><span class="title-name">DSH-X</span><span class="title-rest" data-zh="让启动更简单。" data-en="Start with ease.">让启动更简单。</span></h1>
       <p class="lead" data-zh="保存常用启动项，同时运行多个环境。版本、插件与整合包，一处管理；打开就是官方原版 DSH Web。" data-en="Save your launch entries and run multiple environments together. Manage versions, plugins and modpacks in one place, then open the original DSH Web UI.">保存常用启动项，同时运行多个环境。版本、插件与整合包，一处管理；打开就是官方原版 DSH Web。</p>
-      <!-- 下载按钮：href 直接写死当前版本的真实资产，API 被限流或 JS 没跑也能下对包。
-           发版时把下面五条 URL 和版本号一起更新（脚本拿到 release 列表后会按版本覆盖）。 -->
+      <!-- 下载按钮：href 走稳定的发布页地址，API 被限流或 JS 没跑也能下到包。
+           Windows 有 0.1.18 起一直存在的兼容桥 DSH-Setup.exe（始终指向最新外壳）；
+           mac / Linux 的资产名带版本和架构，没有稳定直链，只能退回发布页自己挑。
+           脚本拿到 release 列表后会把五条 href 换成当前版本的真实资产。 -->
       <div class="cta">
-        <a class="btn btn-go" id="download" href="https://github.com/yyh-001/DSH-X/releases/download/v0.1.22/DSH-Setup-0.1.22.exe">
+        <a class="btn btn-go" id="download" href="https://github.com/yyh-001/DSH-X/releases/latest/download/DSH-Setup.exe">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 4.2 10.5 3v8.15H2V4.2Zm9.5-1.34L22 1.35v9.8H11.5V2.86ZM2 12.15h8.5V20.3L2 19.1v-6.95Zm9.5 0H22v9.8l-10.5-1.51v-8.29Z"/></svg>
           <span data-zh="下载 Windows 版" data-en="Download for Windows">下载 Windows 版</span>
         </a>
@@ -55,8 +57,8 @@
             <span class="split-caret" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 9.5 12 15.5 18 9.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
           </button>
           <div class="split-menu" role="listbox">
-            <a role="option" href="https://github.com/yyh-001/DSH-X/releases/download/v0.1.22/DSH-X-0.1.22-arm64.dmg"><span>Apple Silicon</span><span class="menu-hint">arm64</span></a>
-            <a role="option" href="https://github.com/yyh-001/DSH-X/releases/download/v0.1.22/DSH-X-0.1.22-x64.dmg"><span>Intel</span><span class="menu-hint">x64</span></a>
+            <a role="option" href="https://github.com/yyh-001/DSH-X/releases/latest"><span>Apple Silicon</span><span class="menu-hint">arm64</span></a>
+            <a role="option" href="https://github.com/yyh-001/DSH-X/releases/latest"><span>Intel</span><span class="menu-hint">x64</span></a>
           </div>
         </span>
         <span class="split" id="linuxSplit">
@@ -66,8 +68,8 @@
             <span class="split-caret" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 9.5 12 15.5 18 9.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
           </button>
           <div class="split-menu" role="listbox">
-            <a role="option" href="https://github.com/yyh-001/DSH-X/releases/download/v0.1.22/DSH-X-0.1.22-x86_64.AppImage"><span>AppImage</span><span class="menu-hint">chmod +x</span></a>
-            <a role="option" href="https://github.com/yyh-001/DSH-X/releases/download/v0.1.22/DSH-X-0.1.22-amd64.deb"><span>.deb</span><span class="menu-hint">Debian / Ubuntu</span></a>
+            <a role="option" href="https://github.com/yyh-001/DSH-X/releases/latest"><span>AppImage</span><span class="menu-hint">chmod +x</span></a>
+            <a role="option" href="https://github.com/yyh-001/DSH-X/releases/latest"><span>.deb</span><span class="menu-hint">Debian / Ubuntu</span></a>
           </div>
         </span>
       </div>
@@ -76,7 +78,7 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a1 1 0 0 1 1 1v9.59l3.3-3.3a1 1 0 1 1 1.4 1.42l-5 5a1 1 0 0 1-1.4 0l-5-5A1 1 0 1 1 7.7 10.3l3.3 3.3V4a1 1 0 0 1 1-1Zm-7 15a1 1 0 0 1 1 1v1h12v-1a1 1 0 1 1 2 0v2a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1Z"/></svg>
           <span id="dlText"></span>
         </span>
-        <a class="ver-link" id="ver" href="https://github.com/yyh-001/DSH-X/releases/latest" target="_blank" rel="noopener" title="发布说明">v0.1.22</a>
+        <a class="ver-link" id="ver" href="https://github.com/yyh-001/DSH-X/releases/latest" target="_blank" rel="noopener" title="发布说明">Releases</a>
       </div>
       <p class="cta-note" data-zh="Windows 下载安装包；macOS 下载 dmg（Apple Silicon / Intel 可选，首次打开如提示未验证请右键打开）；Linux 下载 AppImage（chmod +x 后运行）或 deb。" data-en="Windows: download the installer. macOS: pick the Apple Silicon or Intel dmg (right-click Open if macOS cannot verify it). Linux: download the AppImage (chmod +x, then run) or the deb.">Windows 下载安装包；macOS 下载 dmg（Apple Silicon / Intel 可选，首次打开如提示未验证请右键打开）；Linux 下载 AppImage（chmod +x 后运行）或 deb。</p>
       <nav class="links" aria-label="社区链接">
@@ -108,10 +110,6 @@
     <article class="feature"><span class="feature-number">02 / PLUGINS · MODPACKS</span><h2 data-zh="插件按环境管理" data-en="Plugins by environment">插件按环境管理</h2><p data-zh="单独开关与更新插件，从市场导入整合包。默认装进当前环境，确认前可查看变更、切换目标。" data-en="Toggle and update plugins, or import a modpack from the market. Review changes and choose the target profile before installing.">单独开关与更新插件，从市场导入整合包。默认装进当前环境，确认前可查看变更、切换目标。</p></article>
     <article class="feature"><span class="feature-number">03 / MCP · SKILLS</span><h2 data-zh="MCP 与技能" data-en="MCP & skills">MCP 与技能</h2><p data-zh="配置 MCP 服务器，导入、管理与开关技能，让常用能力随时可用。" data-en="Configure MCP servers and import, manage and toggle skills to keep your tools close at hand.">配置 MCP 服务器，导入、管理与开关技能，让常用能力随时可用。</p></article>
     <article class="feature"><span class="feature-number">04 / ORIGINAL WEB</span><h2 data-zh="熟悉的 DSH，随你打开" data-en="DSH, opened your way">熟悉的 DSH，随你打开</h2><p data-zh="选择浏览器标签页、浏览器独立窗口或桌面窗口。原版 DSH Web 不变，启动器提供深浅主题与大肥鱼。" data-en="Choose a browser tab, standalone browser window or desktop window. Enjoy the original DSH Web UI, with light and dark launcher themes and the Big Fish.">选择浏览器标签页、浏览器独立窗口或桌面窗口。原版 DSH Web 不变，启动器提供深浅主题与大肥鱼。</p></article>
-  </section>
-  <section class="wrap previews" aria-label="界面预览">
-    <figure><img data-shot="profiles" src="./screenshots/landing-shot-profiles.jpg" alt="DSH-X 环境列表" width="1440" height="960" loading="lazy" /><figcaption data-zh="环境列表 · 插件各自管理" data-en="Environments · Manage plugins separately">环境列表 · 插件各自管理</figcaption></figure>
-    <figure><img data-shot="market" src="./screenshots/landing-shot-market.jpg" alt="DSH-X 整合包市场" width="1440" height="960" loading="lazy" /><figcaption data-zh="整合包市场 · 浏览与导入" data-en="Modpack market · Browse and import">整合包市场 · 浏览与导入</figcaption></figure>
   </section>
   <!-- 「有官方桌面端为啥还要启动器」被问得最多，正面回答一次，省得每个新人都自己猜 -->
   <section class="wrap faq" aria-labelledby="faq-heading">
@@ -202,12 +200,6 @@
       const shot = document.getElementById('productShot')
       shot.src = `./screenshots/landing-shot-${dark ? 'dark-mode' : 'home'}${suffix}.jpg`
       shot.alt = lang === 'en' ? 'DSH-X launch entries' : 'DSH-X 启动项主页'
-      for (const image of document.querySelectorAll('[data-shot]')) {
-        image.src = `./screenshots/landing-shot-${image.dataset.shot}${suffix}.jpg`
-        image.alt = image.dataset.shot === 'profiles'
-          ? (lang === 'en' ? 'DSH-X environments' : 'DSH-X 环境列表')
-          : (lang === 'en' ? 'DSH-X modpack market' : 'DSH-X 整合包市场')
-      }
     }
 
     document.getElementById('theme').onclick = () => {
@@ -234,7 +226,9 @@
       .catch(() => {})
     // 一次拿整份 release 列表，三件事一起做：下载次数、版本下拉、给当前平台挑资产。
     // 原来这里请求两次（?per_page=100 数下载量 + /latest 取资产），合成一次省一个 round trip。
-    const INSTALLER = /^DSH-Setup(?:-.*)?\.exe$|^DSH-X-.*\.(?:dmg|AppImage|deb)$/
+    // 下载次数要累加最近 30 个 release：0.1.27 起是 DSH-X-<版本>-<平台>-<架构>.*，
+    // 更早的是 DSH-Setup-*.exe / x86_64 / amd64 那套，两种都算。
+    const INSTALLER = /^DSH-X-.*\.(?:exe|dmg|AppImage|deb)$|^DSH-Setup(?:-.*)?\.exe$/
     const RELEASES_PAGE = "https://github.com/yyh-001/DSH-X/releases/latest"
 
     // 系统默认值：优先 UA-CH 的 platform，其次 navigator.platform；认不出来就当 Windows
@@ -259,14 +253,20 @@
     }
 
     const assetOf = {
-      // Windows 优先版本化的正常安装包；DSH-Setup.exe 是给 0.1.18 旧更新器的兼容桥
-      win: (as) => as.find((a) => /^DSH-Setup-\d.*\.exe$/.test(a.name)) || as.find((a) => a.name === "DSH-Setup.exe"),
+      // Windows 优先新命名；旧版本（≤0.1.26）的 DSH-Setup-<版本>.exe 和 0.1.18 兼容桥继续兜底
+      win: (as) => as.find((a) => /^DSH-X-.*-win-x64\.exe$/.test(a.name))
+        || as.find((a) => /^DSH-Setup-\d.*\.exe$/.test(a.name))
+        || as.find((a) => a.name === "DSH-Setup.exe"),
+      // mac 的两种命名都带 -arm64 / -x64 后缀：新名字是 DSH-X-<版本>-mac-<架构>.dmg，
+      // 旧名字是 DSH-X-<版本>-<架构>.dmg
       macArm: (as) => as.find((a) => /^DSH-X-.*-arm64\.dmg$/.test(a.name)),
       macX64: (as) => as.find((a) => /^DSH-X-.*-x64\.dmg$/.test(a.name)),
-      // Linux 同一版有 x64 和 arm64 两份，按钮是给 x64 的：钉死 x86_64 / amd64，
-      // 只认后缀会按资产顺序随机拿到 arm64 包
-      appImage: (as) => as.find((a) => /-x86_64\.AppImage$/.test(a.name)),
-      deb: (as) => as.find((a) => /-amd64\.deb$/.test(a.name)),
+      // Linux 同一版有 x64 和 arm64 两份，按钮是给 x64 的：钉死 x64，
+      // 只认后缀会按资产顺序随机拿到 arm64 包。x86_64 / amd64 是 ≤0.1.26 的旧写法。
+      appImage: (as) => as.find((a) => /-linux-x64\.AppImage$/.test(a.name))
+        || as.find((a) => /-x86_64\.AppImage$/.test(a.name)),
+      deb: (as) => as.find((a) => /-linux-x64\.deb$/.test(a.name))
+        || as.find((a) => /-amd64\.deb$/.test(a.name)),
     }
 
     let currentRelease = null
@@ -302,8 +302,9 @@
 
     /**
      * 按钮和菜单项的 href：拿到 release 列表就换成那一版的资产，拿不到就**保留 HTML 里写死的那份**。
-     * 后者很关键——GitHub API 未认证 60 次/小时/IP，用完时链接仍然要能直接下到包，
-     * 不能退回成一个只会跳转发布页的地址。
+     * GitHub API 未认证 60 次/小时/IP，用完时兜底链接仍然要能用：Windows 走稳定的
+     * DSH-Setup.exe 兼容桥（直接下安装包），mac / Linux 的资产名带版本和架构、没有稳定直链，
+     * 只能退回发布页自己挑——比写死一个旧版本号、悄悄让用户下到几版之前的包要诚实。
      */
     function paintLinks() {
       if (!currentRelease) return

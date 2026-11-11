@@ -17,7 +17,15 @@ import { join } from 'node:path'
  * （identity: '-'），否则未签名的 arm64 包会被 Gatekeeper 判成「已损坏」，连启动都不行。
  * mac 只出 dmg，不打包 zip（也就没有 latest-mac.yml）；以后拿到 Developer ID，把 zip 目标
  * 加回来，并放开 shell/updater.mjs 里的 mac 限制。
+ *
+ * 发布资产统一命名：DSH-X-<版本>-<平台>-<架构>.<扩展名>，架构一律用 Node 的 x64 / arm64。
+ * electron-builder 的 ${arch} 在 AppImage 上展开成 x86_64、deb 上展开成 amd64，同一份 x64 包
+ * 会出现两种写法；Linux 目标本来就按打包机架构出包（见 linux.target 的注释），
+ * 直接用 process.arch 当标签，两种格式就一致了。交叉编译（--arm64 跑在 x64 上）不支持，
+ * 配置里也没有任何 target 钉架构，所以 process.arch 就是实际产出的架构。
  */
+const LINUX_ARCH = process.arch
+
 export default {
   appId: 'io.github.yyh-001.dsh-x',
   productName: 'DSH-X',
@@ -42,7 +50,7 @@ export default {
     target: [{ target: 'nsis', arch: ['x64'] }],
     icon: join('src', 'assets', 'dsh.ico'),
     executableName: 'DSH',
-    artifactName: 'DSH-Setup-${version}.${ext}',
+    artifactName: 'DSH-X-${version}-win-x64.${ext}',
   },
   nsis: {
     oneClick: false,
@@ -66,7 +74,7 @@ export default {
     // Info.plist 里的值——换 Electron 版本时这里会直接提醒改 README 和发版说明。
     minimumSystemVersion: '13.0',
     executableName: 'DSH',
-    artifactName: 'DSH-X-${version}-${arch}.${ext}',
+    artifactName: 'DSH-X-${version}-mac-${arch}.${ext}',
     // 没有固定证书时用 ad-hoc 签名（'-'）；有证书的 tag 构建交给 electron-builder 自动发现
     identity: process.env.DSH_MAC_IDENTITY || (process.env.DSH_MAC_REQUIRE_SIGNED === '1' ? undefined : '-'),
     hardenedRuntime: false,
@@ -74,14 +82,14 @@ export default {
   },
   dmg: {
     title: 'DSH-X',
-    artifactName: 'DSH-X-${version}-${arch}.${ext}',
+    artifactName: 'DSH-X-${version}-mac-${arch}.${ext}',
   },
   linux: {
     // 不写 arch：electron-builder 按打包机的架构出包。CI 的 linux job 在 x64 与原生 arm64
     // runner 上各跑一次，各出各的；写死 ['x64', 'arm64'] 会让每台机器都交叉打另一份，
-    // 两个 job 上传同名资产互相 clobber（mac dmg 踩过）。文件名靠 artifactName 里的 ${arch}
-    // 区分（x86_64 / amd64 vs arm64），更新清单 electron-builder 自己按架构命名：
-    // x64 是 latest-linux.yml，arm64 是 latest-linux-arm64.yml，electron-updater 也按 process.arch 去找。
+    // 两个 job 上传同名资产互相 clobber（mac dmg 踩过）。文件名里的 LINUX_ARCH 让两种架构
+    // 互不重名，更新清单 electron-builder 自己按架构命名：x64 是 latest-linux.yml，
+    // arm64 是 latest-linux-arm64.yml，electron-updater 也按 process.arch 去找。
     target: [
       // AppImage：单个文件、全发行版通用，也是 electron-updater 在 Linux 上唯一认的形态
       // （它靠 APPIMAGE 环境变量找到要替换的那个文件）。
@@ -94,7 +102,7 @@ export default {
     icon: join('src', 'assets', 'icon.png'),
     category: 'Development',
     executableName: 'DSH',
-    artifactName: 'DSH-X-${version}-${arch}.${ext}',
+    artifactName: `DSH-X-\${version}-linux-${LINUX_ARCH}.\${ext}`,
     synopsis: 'DeepSeek Harness launcher',
     description: 'DeepSeek Harness 桌面启动器',
     // deb 的 Maintainer 字段是必填的，不填 electron-builder 直接报错。

@@ -232,8 +232,18 @@ const APP_VERSION = CORE_VERSION
 /** 外壳版本：外壳加载核心前通过 DSH_SHELL_VERSION 传进来；拆包后和核心版本分开走。 */
 const SHELL_VERSION = String(process.env.DSH_SHELL_VERSION || APP_VERSION)
 const APP_REPO = 'yyh-001/DSH-X'
-// 发布页上的安装包名：scripts/pack.mjs 按平台产出同名文件
-const APP_SETUP = IS_MAC ? `DSH-X-mac-${process.arch}.dmg` : 'DSH-Setup.exe'
+const RELEASES_URL = `https://github.com/${APP_REPO}/releases`
+/**
+ * 发布页上的安装包直链（管理页「到发布页下载」用）。
+ * Windows 有给 0.1.18 旧更新器保留的稳定兼容桥 DSH-Setup.exe，永远指向最新一次外壳发版；
+ * mac 的 dmg 叫 DSH-X-<版本>-mac-<架构>.dmg，必须知道最新版本号才能拼直链，版本号还没拿到时
+ * 只能退回发布页让用户自己挑。纯核心发版会被标成 --latest=false，不会把 latest 抢走。
+ */
+export function installerUrl({ latest = null, mac = IS_MAC, arch = process.arch } = {}) {
+  if (!mac) return `${RELEASES_URL}/latest/download/DSH-Setup.exe`
+  if (!latest) return `${RELEASES_URL}/latest`
+  return `${RELEASES_URL}/download/v${latest}/DSH-X-${latest}-mac-${arch}.dmg`
+}
 // 管理页端口：环境变量 PORT（开发和测试用）优先，其余看设置；启动时 startServer() 再定最终值
 let PORT = resolvePort() || DEFAULT_PORT
 /** 配置的端口被别的程序占用时，往后最多试这么多个端口。 */
@@ -5432,8 +5442,7 @@ function stripTag(tag) {
 
 async function checkSelfUpdate({ force = false } = {}) {
   const current = APP_VERSION
-  const url = `https://github.com/${APP_REPO}/releases/latest/download/${APP_SETUP}`
-  const fallback = { current, latest: null, update: false, url }
+  const fallback = { current, latest: null, update: false, url: installerUrl() }
   // npm 版：CLI 和核心都走 npm，不提示完整安装包
   if (NPM_MODE) return { ...fallback, npm: true }
   // 拆包后的核心：完整安装包的自更新归外壳（electron-updater），这里不再查 GitHub
@@ -5453,7 +5462,7 @@ async function checkSelfUpdate({ force = false } = {}) {
     const cur = parseVer(current)
     const next = parseVer(latest)
     const update = Boolean(cur && next && cmpVer(next, cur) > 0)
-    const data = { current, latest, update, url }
+    const data = { current, latest, update, url: installerUrl({ latest }) }
     selfCache = { at: Date.now(), data }
     return data
   } catch {

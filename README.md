@@ -55,16 +55,16 @@
 
 | 平台 | 系统要求 | 安装包 |
 | --- | --- | --- |
-| Windows | Windows 10 及以上，x64 | `DSH-Setup-<版本>.exe`（NSIS） |
-| macOS | macOS 13 及以上 | `DSH-X-<版本>-arm64.dmg`（Apple Silicon）/ `DSH-X-<版本>-x64.dmg`（Intel） |
-| Linux | x64；AppImage 依赖 FUSE | `DSH-X-<版本>-x86_64.AppImage` / `DSH-X-<版本>-amd64.deb` |
+| Windows | Windows 10 及以上，x64 | `DSH-X-<版本>-win-x64.exe`（NSIS） |
+| macOS | macOS 13 及以上 | `DSH-X-<版本>-mac-arm64.dmg`（Apple Silicon）/ `DSH-X-<版本>-mac-x64.dmg`（Intel） |
+| Linux | x64；AppImage 依赖 FUSE | `DSH-X-<版本>-linux-x64.AppImage` / `DSH-X-<版本>-linux-x64.deb` |
 
 > [!NOTE]
 > 安装包只带外壳和 Electron，不内置核心。首次启动需要联网，从 npm 下载当前通道的 `dsh-x-core`，窗口里显示实时进度和下载源；之后核心更新同样走 npm。
 
 ### Windows
 
-下载 `DSH-Setup-<版本>.exe` 安装，从桌面打开 **DSH-X**。安装包未做 Authenticode 签名，SmartScreen 可能提示「未知发布者」，见[签名与杀软误报](#签名与杀软误报)。
+下载 `DSH-X-<版本>-win-x64.exe` 安装，从桌面打开 **DSH-X**。安装包未做 Authenticode 签名，SmartScreen 可能提示「未知发布者」，见[签名与杀软误报](#签名与杀软误报)。
 
 ### macOS
 
@@ -78,12 +78,12 @@ mac 的外壳自更新暂不提供，核心仍走 npm 更新。
 
 ### Linux
 
-下载 `DSH-X-<版本>-x86_64.AppImage`，`chmod +x` 后直接运行；没有 FUSE 时用 `./DSH-X-<版本>-x86_64.AppImage --appimage-extract-and-run`。
+下载 `DSH-X-<版本>-linux-x64.AppImage`，`chmod +x` 后直接运行；没有 FUSE 时用 `./DSH-X-<版本>-linux-x64.AppImage --appimage-extract-and-run`。
 
 Debian / Ubuntu 也可以装 deb（装到 `/opt/DSH-X`、带菜单项、`apt remove dsh-x` 卸干净），但 **deb 版没有外壳自更新**，换版本要去发布页重新下载：
 
 ```sh
-sudo apt install ./DSH-X-<版本>-amd64.deb
+sudo apt install ./DSH-X-<版本>-linux-x64.deb
 ```
 
 配置在 `~/.config/DSH`，核心缓存在 `~/.cache/dsh-x`；两种包的核心更新都走 npm。
@@ -93,9 +93,9 @@ sudo apt install ./DSH-X-<版本>-amd64.deb
 Release 页面每个文件旁边有 sha256，本地对一下即可：
 
 ```sh
-certutil -hashfile DSH-Setup-<版本>.exe SHA256        # Windows
-shasum -a 256 DSH-X-<版本>-arm64.dmg                  # macOS
-sha256sum DSH-X-<版本>-x86_64.AppImage                # Linux
+certutil -hashfile DSH-X-<版本>-win-x64.exe SHA256     # Windows
+shasum -a 256 DSH-X-<版本>-mac-arm64.dmg              # macOS
+sha256sum DSH-X-<版本>-linux-x64.AppImage             # Linux
 ```
 
 ## 使用
@@ -244,7 +244,7 @@ sha256sum DSH-X-<版本>-x86_64.AppImage                # Linux
 
 ## 签名与杀软误报
 
-发布清单的签名用于校验文件完整性，与 Windows 发布者签名不同。目前 `DSH-Setup-<版本>.exe` 和给 0.1.18 旧更新器用的兼容桥 `DSH-Setup.exe` 都尚未做 Authenticode 签名，可能出现 SmartScreen「未知发布者」提示。杀软误报可向[微软](https://www.microsoft.com/en-us/wdsi/filesubmission)或对应杀软厂商提交安装包申诉。
+发布清单的签名用于校验文件完整性，与 Windows 发布者签名不同。目前 `DSH-X-<版本>-win-x64.exe` 和给 0.1.18 旧更新器用的兼容桥 `DSH-Setup.exe` 都尚未做 Authenticode 签名，可能出现 SmartScreen「未知发布者」提示。杀软误报可向[微软](https://www.microsoft.com/en-us/wdsi/filesubmission)或对应杀软厂商提交安装包申诉。
 
 ## 说明
 
@@ -267,7 +267,7 @@ npm install
 npm run dist
 ```
 
-Windows 产出 `release/eb/DSH-Setup-<版本>.exe`（NSIS）和给 0.1.18 旧更新器用的兼容桥 `release/eb/DSH-Setup.exe`；macOS 产出 `release/eb/DSH-X-<版本>-<arch>.dmg`；Linux 产出 `release/eb/DSH-X-<版本>-x86_64.AppImage`。安装包由 electron-builder 生成，不再需要 Rust / Inno Setup。
+Windows 产出 `release/eb/DSH-X-<版本>-win-x64.exe`（NSIS）和给 0.1.18 旧更新器用的兼容桥 `release/eb/DSH-Setup.exe`；macOS 产出 `release/eb/DSH-X-<版本>-mac-<arch>.dmg`；Linux 产出 `release/eb/DSH-X-<版本>-linux-x64.AppImage` 和 `.deb`。安装包由 electron-builder 生成，不再需要 Rust / Inno Setup。
 
 安装包只带外壳和 Electron，核心不在包里：首次启动由 `shell/core-fetch.mjs` 从 npm 取到用户目录的 `core/current`，之后核心跟随 npm 更新。
 

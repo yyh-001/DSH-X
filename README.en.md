@@ -55,16 +55,16 @@ Download the installer for your platform from [Releases](https://github.com/yyh-
 
 | Platform | Requirements | Installer |
 | --- | --- | --- |
-| Windows | Windows 10 or later, x64 | `DSH-Setup-<version>.exe` (NSIS) |
-| macOS | macOS 13 or later | `DSH-X-<version>-arm64.dmg` (Apple Silicon) / `DSH-X-<version>-x64.dmg` (Intel) |
-| Linux | x64; AppImage needs FUSE | `DSH-X-<version>-x86_64.AppImage` / `DSH-X-<version>-amd64.deb` |
+| Windows | Windows 10 or later, x64 | `DSH-X-<version>-win-x64.exe` (NSIS) |
+| macOS | macOS 13 or later | `DSH-X-<version>-mac-arm64.dmg` (Apple Silicon) / `DSH-X-<version>-mac-x64.dmg` (Intel) |
+| Linux | x64; AppImage needs FUSE | `DSH-X-<version>-linux-x64.AppImage` / `DSH-X-<version>-linux-x64.deb` |
 
 > [!NOTE]
 > The installer ships only the shell and Electron; the core is not bundled. The first launch needs network access: it downloads the current channel's `dsh-x-core` from npm and shows live progress and the download source. Later core updates also come from npm.
 
 ### Windows
 
-Download `DSH-Setup-<version>.exe`, install it and open **DSH-X** from the desktop. The installer has no Authenticode signature, so SmartScreen may show an "unknown publisher" prompt — see [Signing and antivirus false positives](#signing-and-antivirus-false-positives).
+Download `DSH-X-<version>-win-x64.exe`, install it and open **DSH-X** from the desktop. The installer has no Authenticode signature, so SmartScreen may show an "unknown publisher" prompt — see [Signing and antivirus false positives](#signing-and-antivirus-false-positives).
 
 ### macOS
 
@@ -78,12 +78,12 @@ Shell auto-update is currently unavailable, while core updates still come from n
 
 ### Linux
 
-Download `DSH-X-<version>-x86_64.AppImage`, `chmod +x` it and run it. If FUSE is unavailable, use `./DSH-X-<version>-x86_64.AppImage --appimage-extract-and-run`.
+Download `DSH-X-<version>-linux-x64.AppImage`, `chmod +x` it and run it. If FUSE is unavailable, use `./DSH-X-<version>-linux-x64.AppImage --appimage-extract-and-run`.
 
 On Debian / Ubuntu you can also install the deb: it lands in `/opt/DSH-X`, adds a menu entry and uninstalls with `apt remove dsh-x`, but **the deb build has no shell auto-update** — grab the new installer from the releases page:
 
 ```sh
-sudo apt install ./DSH-X-<version>-amd64.deb
+sudo apt install ./DSH-X-<version>-linux-x64.deb
 ```
 
 Settings live in `~/.config/DSH` and the core cache in `~/.cache/dsh-x`; core updates use npm for both packages.
@@ -93,9 +93,9 @@ Settings live in `~/.config/DSH` and the core cache in `~/.cache/dsh-x`; core up
 The releases page lists a sha256 next to every file — compare it locally:
 
 ```sh
-certutil -hashfile DSH-Setup-<version>.exe SHA256        # Windows
-shasum -a 256 DSH-X-<version>-arm64.dmg                  # macOS
-sha256sum DSH-X-<version>-x86_64.AppImage                # Linux
+certutil -hashfile DSH-X-<version>-win-x64.exe SHA256     # Windows
+shasum -a 256 DSH-X-<version>-mac-arm64.dmg              # macOS
+sha256sum DSH-X-<version>-linux-x64.AppImage             # Linux
 ```
 
 ## Usage
@@ -244,7 +244,7 @@ A companion Wallpaper Engine wallpaper — [DSH-X · 大肥鱼桌面终端](http
 
 ## Signing and antivirus false positives
 
-The release-manifest signature verifies file integrity and is separate from Windows publisher signing. `DSH-Setup-<version>.exe` and the legacy `DSH-Setup.exe` bridge for the 0.1.18 updater currently have no Authenticode signature, so SmartScreen may show an "unknown publisher" prompt. Report antivirus false positives by submitting the installer to [Microsoft](https://www.microsoft.com/en-us/wdsi/filesubmission) or the relevant antivirus vendor.
+The release-manifest signature verifies file integrity and is separate from Windows publisher signing. `DSH-X-<version>-win-x64.exe` and the legacy `DSH-Setup.exe` bridge for the 0.1.18 updater currently have no Authenticode signature, so SmartScreen may show an "unknown publisher" prompt. Report antivirus false positives by submitting the installer to [Microsoft](https://www.microsoft.com/en-us/wdsi/filesubmission) or the relevant antivirus vendor.
 
 ## Notes
 
@@ -267,7 +267,7 @@ npm install
 npm run dist
 ```
 
-Windows produces `release/eb/DSH-Setup-<version>.exe` (NSIS) plus the legacy `release/eb/DSH-Setup.exe` bridge for the 0.1.18 updater; macOS produces `release/eb/DSH-X-<version>-<arch>.dmg`; Linux produces `release/eb/DSH-X-<version>-x86_64.AppImage`. Installers are built with electron-builder; Rust / Inno Setup are no longer required.
+Windows produces `release/eb/DSH-X-<version>-win-x64.exe` (NSIS) plus the legacy `release/eb/DSH-Setup.exe` bridge for the 0.1.18 updater; macOS produces `release/eb/DSH-X-<version>-mac-<arch>.dmg`; Linux produces `release/eb/DSH-X-<version>-linux-x64.AppImage` and `.deb`. Installers are built with electron-builder; Rust / Inno Setup are no longer required.
 
 The installer contains only the shell and Electron; the core is not bundled. On first launch `shell/core-fetch.mjs` fetches it from npm into `core/current` in the user data directory, and later core updates follow npm.
 
