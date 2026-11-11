@@ -26,7 +26,7 @@ import {
   surfaceInk,
 } from '../shell/model.mjs'
 import { runtimeNode, runtimeNodeEnv } from '../src/platform.js'
-import { resolveDark, stoppedPage } from '../shell/pages.mjs'
+import { resolveDark, stoppedPage, tabBaseColor } from '../shell/pages.mjs'
 
 test('停止页跟随主题与系统深浅色（#58，和 tabs.rs 的同名用例一致）', () => {
   assert.ok(resolveDark('dark', false) && resolveDark('dark', true))
@@ -38,6 +38,11 @@ test('停止页跟随主题与系统深浅色（#58，和 tabs.rs 的同名用�
   assert.ok(dark.includes('background:#15171c') && !dark.includes('#f5f8ff'), '深色停止页不能带浅色底')
   const en = stoppedPage('en', true)
   assert.ok(en.includes('This DSH instance has stopped.') && !en.includes('此 DSH'), '英文界面不能冒出中文')
+})
+
+test('标签页视图的底色跟页面 body 一致：默认白色会在深色下闪一下白屏', () => {
+  assert.equal(tabBaseColor(false), '#eef3fd', '浅色用 launcher.css 的 --bg')
+  assert.equal(tabBaseColor(true), '#18181b', '深色用 theme.css 的 --bg')
 })
 
 test('本机地址判定：只认回环，userinfo 里的主机名骗不过去', () => {

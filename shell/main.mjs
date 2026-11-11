@@ -11,7 +11,7 @@ import { createCoreRecovery, isEnvironmentStartupError } from './core-recovery.m
 import { corePackageName, channelOf, coreRegistries, fetchCoreMetadata, installCore, pickCoreRelease, tarballFor } from './core-fetch.mjs'
 import { createUpdater } from './updater.mjs'
 import { readPrefs } from './prefs.mjs'
-import { coreSetupPage, coreSetupPaintScript, dataUrl, errorPage, idlePage, resolveDark } from './pages.mjs'
+import { coreSetupPage, coreSetupPaintScript, dataUrl, errorPage, idlePage, resolveDark, tabBaseColor } from './pages.mjs'
 import { clickTarget, dialogOptions, notificationDecision, notifyThrottled } from './desktop.mjs'
 import {
   LAUNCH_ACTIONS,
@@ -1000,7 +1000,11 @@ function createDshWindow() {
 
 /** 让独立窗口跟上 dsh 的当前地址；地址没变不刷新（别把用户正在看的页面刷掉），空地址换本地页。 */
 function followDshWindow(url) {
+  if (dshWindow.isDestroyed()) return
   const page = url || ''
+  // 窗口自己的底色在页面画出第一帧前露出来，不设就是白的（深色下打开独立窗口那一下白屏）：
+  // 换页前先铺目标页的底色。本地那张「没在跑」的页固定是深色，不管主题。
+  dshWindow.setBackgroundColor(page ? tabBaseColor(resolveDark(state.theme, nativeTheme.shouldUseDarkColors)) : '#15171c')
   if (dshWindow.page === page) return
   dshWindow.page = page
   const target = page || dataUrl(idlePage(state.lang))

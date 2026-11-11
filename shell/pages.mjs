@@ -156,6 +156,15 @@ export function resolveDark(theme, systemDark) {
 }
 
 /**
+ * 标签页原生视图（WebContentsView）自己的底色：页面还没画出第一帧时露出的就是它，
+ * 不设就是纯白——深色模式下打开标签页那一下白屏就是它。取 launcher.css / theme.css 的 --bg，
+ * 和页面 body 同色，画出第一帧时看不出接缝。
+ */
+export function tabBaseColor(dark) {
+  return dark ? '#18181b' : '#eef3fd'
+}
+
+/**
  * 标签页对应的实例停了：不在旧端口上反复刷新，以免重启间隙误加载到另一个实例。
  * 深色沿用 idlePage 的配色（底色 #15171c、文字 #b9bec9）：同一个外壳里不该有两种黑。
  */

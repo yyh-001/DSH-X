@@ -1,5 +1,5 @@
 import { nativeTheme } from 'electron'
-import { dataUrl, resolveDark, stoppedPage } from './pages.mjs'
+import { dataUrl, resolveDark, stoppedPage, tabBaseColor } from './pages.mjs'
 import { reorderBy, sameOrigin, isBootingUrl, followAction, surfaceInk } from './model.mjs'
 
 /**
@@ -76,9 +76,19 @@ export class BrowserTabs {
     const dark = resolveDark(this.theme, nativeTheme.shouldUseDarkColors)
     if (dark === this.dark && !langChanged) return
     this.dark = dark
+    this.paintBackgrounds()
     for (const tab of this.tabs) {
       if (tab.target.managed && !tab.loaded) this.load(tab, dataUrl(stoppedPage(this.lang, this.dark)))
     }
+  }
+
+  /**
+   * 刷一遍原生视图的底色。WebContentsView 不设底色就是白的：页面画出第一帧之前，
+   * 露出来的是这块白（深色模式下就是打开标签页那一下白屏）。换主题时也要跟着换。
+   */
+  paintBackgrounds() {
+    const color = tabBaseColor(this.dark)
+    for (const tab of [...this.tabs, ...this.retired]) tab.view.setBackgroundColor(color)
   }
 
   tabBounds() {
@@ -176,6 +186,8 @@ export class BrowserTabs {
     let tab = this.tabs.find((item) => item.target.id === target.id)
     if (!tab) {
       const view = this.hooks.createView(target.id)
+      // 先上底色再装页面：present 不等页面画出第一帧，中间那段由视图自己兜住。
+      view.setBackgroundColor(tabBaseColor(this.dark))
       view.setVisible(false)
       view.setBounds(this.tabBounds())
       this.window.contentView.addChildView(view)
