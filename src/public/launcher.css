@@ -2259,6 +2259,10 @@ html.reduce-motion #connectionWslFields, html.reduce-motion #connectionSshFields
 .pack-detail-sub { color: var(--muted); font-size: 12px; line-height: 1.4; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* 环境页的几行表单（新建 / 改名改版本 / 加插件）：一行排开，输入框吃掉剩余宽度，窄屏换行 */
 .environment-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+/* display:flex 会盖掉 hidden 属性：不跟随上游 / 没有历史的实例，那两行要真的藏起来 */
+.environment-form[hidden] { display: none; }
+/* 跟随上游那一行：说明占满左边，「更新…」贴右 */
+.environment-form > .hint { flex: 1 1 240px; margin: 0; }
 .environment-form input { flex: 1 1 180px; min-width: 0; }
 .environment-form select { flex: 0 1 auto; min-width: 0; }
 /* 整行统一到控件高：.ghost 默认 30px、更新药丸 28px、返回键 36px，混着排上下沿对不齐 */

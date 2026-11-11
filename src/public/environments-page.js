@@ -217,7 +217,7 @@
       el.channel.innerHTML = UPDATE_CHANNELS.map((channel) => `<option value="${channel}">${escapeHtml(t(UPDATE_CHANNEL_NAMES[channel]))}</option>`).join('')
       el.channel.value = env.updateChannel
     }
-    el.plugins.innerHTML = env.plugins.map(pluginRow).join('') || `<p class="hint">${escapeHtml(t('这个实例还没有插件。'))}</p>`
+    el.plugins.innerHTML = env.plugins.map(pluginRow).join('') || `<div class="plugin-empty">${escapeHtml(t('这个实例还没有插件。'))}</div>`
     el.plugins.querySelectorAll('[data-remove-plugin]').forEach((button) => {
       button.onclick = () => run(() => post('/api/environments/plugins/remove', { id: env.id, name: button.dataset.removePlugin }))
     })
