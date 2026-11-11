@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url'
 import { APP_DIR, fileManager } from './filemanager.js'
 import { IS_MAC } from './platform.js'
 import { safeFolderConfig, safePolicy, safeS3Config, safeScopeIds, safeStoreType, safeWebdavConfig, safeZipConfig } from './sync.js'
-import { VERSION_CHANNEL, VERSION_CHANNELS } from './version.js'
+import { ENVIRONMENT } from './environments.js'
+import { VERSION_CHANNEL, VERSION_CHANNELS, VERSION_RE } from './version.js'
 
 const ROOT = dirname(fileURLToPath(import.meta.url))
 const SETTINGS_DIR = APP_DIR
@@ -477,18 +478,15 @@ export function safePort(value) {
   return port
 }
 
-/**
- * 版本号的字符集（registry 里的 tag 名、`data/versions/<版本>` 的目录名都按它收）。
- * 导出是给 `instancePorts` 的键用——那张表的键是「版本@profile」，两边都不能含 @，
- * 拼接才不会有歧义（见 server.js 的 instanceKey）。
- */
-export const VERSION_RE = /^[0-9A-Za-z][0-9A-Za-z._+-]*$/
+// 版本号字符集的定义在 version.js（环境模块也要用它，又不能反过来 import 设置模块）；
+// 这里接着导出，老的引用点不用改。
+export { VERSION_RE }
 
 /** profile 名会变成 ~/.dsh/profiles 下的目录名，只允许目录安全字符。 */
 export function safeProfile(value) {
   const name = String(value ?? '').trim()
   if (!/^[A-Za-z0-9._-]{1,32}$/.test(name) || name === '.' || name === '..') {
-    throw new Error('profile 名只能用字母、数字、点、下划线、连字符（1-32 个字符）')
+    throw new Error('配置名只能用字母、数字、点、下划线、连字符（1-32 个字符）')
   }
   return name
 }
@@ -623,7 +621,11 @@ export function safeLaunchPresets(value) {
     // 坏的通道值退回默认而不是丢掉启动项：通道只管提醒，不值得为它让用户的入口消失。
     let updateChannel = DEFAULT_UPDATE_CHANNEL
     try { updateChannel = safeUpdateChannel(item.updateChannel) } catch { /* 保留默认 */ }
+    // 启动项用的环境（见 environments.js）。坏值只丢这个字段：启动时的收养会按目录、profile
+    // 和版本把它接回原来的环境，不值得为它丢掉整条启动项。
+    const environment = typeof item.environment === 'string' && ENVIRONMENT.ID_RE.test(item.environment) ? item.environment : ''
     return [{ id, name, version, profile, port,
+      ...(environment ? { environment } : {}),
       ...(item.autoLaunch === true ? { autoLaunch: true } : {}),
       ...(updateChannel !== DEFAULT_UPDATE_CHANNEL ? { updateChannel } : {}),
       // auto 只是启动项的取值方式，不是用过的版本；留在历史里会把清理规则带偏。
@@ -974,6 +976,18 @@ async function saveSettingsNow(patch) {
     await rm(temporary, { force: true }).catch(() => {})
   }
   return merged
+}
+
+/**
+ * 迁移前给 settings.json 留一份原样备份；备份已经在就不再覆盖——留下的是「第一次迁移之前」
+ * 的那份，之后多少次逐项收养都不会把它换成半新半旧的版本。
+ * @returns 这次是否真的写了备份
+ */
+export async function backupSettingsOnce(suffix) {
+  const target = `${SETTINGS_FILE}${suffix}`
+  if (existsSync(target) || !existsSync(SETTINGS_FILE)) return false
+  await writeFile(target, await readFile(SETTINGS_FILE))
+  return true
 }
 
 export function inferDataDir() {

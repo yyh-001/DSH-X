@@ -538,6 +538,21 @@ export async function installSpec(root, name, range, onLog = () => {}) {
 }
 
 /**
+ * 把一个本地插件目录按 npm pack 的规则（package.json 的 files、.npmignore）打成 tarball，放进 dest。
+ * 不跑 prepack / prepare：导出环境不该替用户执行插件自己的脚本。
+ * @returns 生成的 tarball 绝对路径
+ */
+export async function packDirectory(dir, dest, onLog = () => {}) {
+  const { cli } = await ensureNpm(onLog)
+  await mkdir(dest, { recursive: true })
+  const before = new Set(await readdir(dest))
+  await runNpm(cli, ['pack', dir, '--pack-destination', dest, '--ignore-scripts', '--loglevel=error'], { cwd: dest, onLog })
+  const created = (await readdir(dest)).filter((name) => name.endsWith('.tgz') && !before.has(name))
+  if (created.length !== 1) throw new Error(`npm pack 没有产出唯一的 tarball（${created.length} 个）：${dir}`)
+  return join(dest, created[0])
+}
+
+/**
  * 只重排已装依赖：离线、不跑生命周期脚本、不改直接依赖的版本范围。
  * 交给 npm 校验依赖与 peer 约束，不能自己按包名删目录或合并不同版本。
  */

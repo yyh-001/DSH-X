@@ -50,7 +50,8 @@ test('WSL scope 下本地文件路由统一返回 400，启动与会话状态接
     ['/api/profile-backups?profile=web'],
     ['/api/profile-backups/snapshot', 'POST', { profile: 'web' }],
     ['/api/packs'],
-    ['/api/packs/install', 'POST', { file: 'demo.dspack' }],
+    // 整包安装（/api/packs/install）撤了，导入挪到环境页；还会往 Profile 里写文件的是撤销
+    ['/api/packs/uninstall', 'POST', { name: 'demo', profile: 'web' }],
     ['/api/plugins/update', 'POST', { name: 'demo' }],
     ['/api/plugins/upgrade-incompatible', 'POST', {}],
     ['/api/desktop-enhance/install', 'POST', {}],
@@ -81,4 +82,11 @@ test('WSL scope 下本地文件路由统一返回 400，启动与会话状态接
   // 本机启动项照常能读整合包。
   const local = await fetch(origin + '/api/packs', { headers: { origin } })
   assert.equal(local.status, 200)
+  // WSL 启动项不接环境（Profile 目录在 WSL 里，启动器写不进去也装不了依赖）：启动时的迁移 / 收养跳过它
+  const { readFileSync } = await import('node:fs')
+  const stored = JSON.parse(readFileSync(join(app, 'settings.json'), 'utf8')).launchPresets.find((item) => item.id === preset.id)
+  assert.ok(stored, 'WSL 启动项留着')
+  assert.equal('environment' in stored, false, 'WSL 启动项不记 environment')
+  const envs = await fetch(origin + '/api/environments', { headers: { origin } }).then((res) => res.json())
+  assert.ok(!(envs.environments || []).some((item) => (item.usedBy || []).some((use) => use.id === preset.id)), '没有哪个环境说自己被 WSL 启动项用着')
 })

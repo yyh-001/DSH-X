@@ -78,10 +78,11 @@ test('目录的迟到响应不能覆盖另一次选择，目录检查后按新�
   assert.deepEqual(Array.from(c.state.profilesByHome['D:/new']), ['web'])
 })
 
-test('自定义档的目录 + Profile 交给选择窗，底下的下拉只当真相源', () => {
+test('自定义档的目录 + 配置交给选择窗，底下的下拉只当真相源', () => {
   const field = section('id="launchEnvField"', 'id="launchPort"')
-  // 一行「启动环境」触发器：点开三栏选择窗，目录和 Profile 一起挑
-  assert.match(field, /<label for="launchEnvPick"[^>]*>启动环境<\/label>/)
+  // 一行「目录与配置」触发器：点开三栏选择窗，目录和配置（dsh profile）一起挑；「实例」留给装好插件的 DSH
+  assert.match(field, /<label for="launchEnvPick" data-i18n="目录与配置">目录与配置<\/label>/)
+  assert.doesNotMatch(field, /目录与 Profile|启动环境/, '旧叫法不再出现在这一格')
   assert.match(field, /id="launchEnvPick" aria-haspopup="dialog"/)
   assert.match(field, /id="launchEnvPickValue"/)
   assert.doesNotMatch(field, /launchPickHome|launchResetHome|readonly/)
@@ -90,7 +91,7 @@ test('自定义档的目录 + Profile 交给选择窗，底下的下拉只当真
   assert.match(field, /<select id="launchDshHome"[^>]*hidden><\/select>/)
   assert.match(field, /<select id="launchProfile" title="Profile" hidden><\/select>/)
   assert.ok(!page.includes('id="launchHomeSelectField"'), '目录下拉不再单独占一行')
-  // 项目目录已经下线：编辑弹窗里只剩这一处环境字段
+  // 项目目录已经下线：编辑弹窗里选目录的只剩这一处
   assert.doesNotMatch(page, /id="launchWorkdir"|id="launchProjectDir"/)
   // 原生 select 得接进自绘那套，否则点开的是系统菜单（藏起来的这两个也在其中）
   assert.match(page, /querySelectorAll\('#launchDshHome[^']*#launchProfile[^']*#pluginHome/)
@@ -131,6 +132,25 @@ test('换目录走下拉的 change，拉回新目录的 Profile', async () => {
   assert.equal(await c.refreshLaunchHomeProfiles(true), true)
   assert.deepEqual(Array.from(c.state.profilesByHome['D:/isolated']), ['web'])
   assert.equal(c.launchDshHomeEl.value, 'D:/isolated', '服务端规范化后的路径要写回下拉')
+})
+
+// 中文界面把 dsh profile 叫「配置」：修复提示的两种说法（刚修过 / 只剩一份备份）和重启按钮都这么说
+test('修复提示说「配置」：刚修过、只剩备份两种情形都不再写 Profile', () => {
+  const { context: c } = editor()
+  c.launchDshHomeEl.value = 'D:/isolated'
+  Object.assign(c, { packBusy: false, installedList: () => ['1.0.0'], escapeHtml: (text) => String(text), launchPluginScope: 'work' })
+  vm.runInContext(section('    function renderRecovery()', '    async function restoreRecovery('), c)
+  c.editorRecovery = { home: 'D:/isolated', data: { profile: 'web', last: { backup: 'D:/isolated/profiles/web/cordis.patch.yml.bak-1', dropped: ['third-party'] } } }
+  c.renderRecovery()
+  assert.equal(c.recoveryHintEl.hidden, false)
+  assert.match(c.recoveryHintEl.innerHTML, /^已修复配置 web：补丁层已备份，停用第三方插件 1 个，重启后生效。/)
+  assert.match(c.recoveryHintEl.innerHTML, />启动 \/ 重启这个配置<\/button>/, '重启按钮也说配置')
+  c.editorRecovery = { home: 'D:/isolated', data: { profile: 'web', last: null, backups: [{ path: 'D:/isolated/profiles/web/cordis.patch.yml.bak-2' }] } }
+  c.renderRecovery()
+  assert.equal(c.recoveryHintEl.hidden, false)
+  assert.match(c.recoveryHintEl.innerHTML, /^配置 web 有一份配置备份，可还原。/, '只剩备份时的提示把 dsh profile 叫配置')
+  assert.match(page, /"配置 \{profile\} 有一份配置备份，可还原。": "Profile \{profile\} [^"]+"/, '英文仍叫 Profile')
+  assert.doesNotMatch(c.recoveryHintEl.innerHTML, /Profile/, '修复提示里不再写 Profile')
 })
 
 test('独立目录的恢复提示不受全局状态推送覆盖，空作用域能明确回到全局目录', () => {
@@ -205,22 +225,22 @@ test('环境修复和重启带启动项作用域，仅重启对应目录的实�
   ])
 })
 
-test('Profile 下拉末项是「编辑 Profile…」，选中它不当作 profile', () => {
+test('配置下拉末项是「编辑配置…」，选中它不当作 profile', () => {
   const { context: c } = editor()
   const editOption = '__edit_profile__'
   c.paintLaunchProfiles()
   assert.match(c.launchProfileEl.innerHTML, /<option value="web" selected>web<\/option>/)
-  assert.match(c.launchProfileEl.innerHTML, new RegExp(`<option value="${editOption}">编辑 Profile…</option>$`))
+  assert.match(c.launchProfileEl.innerHTML, new RegExp(`<option value="${editOption}">编辑配置…</option>$`))
   let jumped = 0
   c.openProfileInEnvironment = () => { jumped += 1 }
   c.launchProfileEl.value = editOption
   c.launchProfileEl.onchange()
   assert.equal(c.launchProfile, 'web', '占位项不能混进当前 profile')
   assert.equal(c.launchProfileEl.value, 'web', '选中跳转项后选择要还原')
-  assert.equal(jumped, 1, '选中后跳到环境页')
+  assert.equal(jumped, 1, '选中后跳到配置页')
 })
 
-test('编辑 Profile…：收起弹窗，环境页切到启动项选的那份目录并打开那张卡', async () => {
+test('编辑配置…：收起弹窗，配置页切到启动项选的那份目录并打开那张卡', async () => {
   const { context: c, calls } = editor()
   let pane = ''
   let opened = ''
@@ -238,11 +258,11 @@ test('编辑 Profile…：收起弹窗，环境页切到启动项选的那份目
   })
   await c.openProfileInEnvironment()
   assert.equal(pane, 'plugins')
-  assert.equal(c.pluginHome, 'D:/isolated', '环境页要跟着切到同一份用户目录')
+  assert.equal(c.pluginHome, 'D:/isolated', '配置页要跟着切到同一份用户目录')
   assert.equal(opened, 'work')
 })
 
-test('编辑 Profile…：还没初始化过的 Profile 只提示怎么让它出现', async () => {
+test('编辑配置…：还没初始化过的配置只提示怎么让它出现', async () => {
   const { context: c, calls } = editor()
   let opened = ''
   Object.assign(c, {
@@ -258,6 +278,6 @@ test('编辑 Profile…：还没初始化过的 Profile 只提示怎么让它出
   })
   await c.openProfileInEnvironment()
   assert.equal(opened, '', '没卡片时不能凭空打开详情')
-  assert.match(calls.at(-1), /Profile「qa」还没初始化/)
-  assert.match(page, /"编辑 Profile…": "Edit profile…"/, '英文文案跟着补')
+  assert.match(calls.at(-1), /^配置「qa」还没初始化：先用它启动一次/)
+  assert.match(page, /"编辑配置…": "Edit profile…"/, '英文文案跟着补，英文仍叫 profile')
 })

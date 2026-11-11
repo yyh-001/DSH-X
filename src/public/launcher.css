@@ -1668,7 +1668,6 @@ html.reduce-motion #launchLogDialog .launch-log-card[data-log-panel][data-dir]:n
 .plugin-group-tools .icon-btn svg { width: 16px; height: 16px; }
 .plugin-group-toggle { margin: 0 0 0 5px; align-self: center; }
 .plugin-group-toggle input { width: 44px; height: 26px; }
-.group-update.loading .pack-update-count { display: none; }
 .plugin-group > summary { display: flex; align-items: center; gap: 10px; height: 62px; min-height: 62px; padding: 10px 146px 10px 16px; color: var(--text); cursor: pointer; list-style: none; }
 .plugin-group > summary::-webkit-details-marker { display: none; }
 .plugin-group-chevron { width: 13px; height: 13px; flex: 0 0 auto; color: var(--muted); transition: transform 220ms ease; }
@@ -1838,14 +1837,16 @@ html.reduce-motion #launchLogDialog .launch-log-card[data-log-panel][data-dir]:n
 .pack-detail-heading { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .pack-detail-top .pack-detail-name { font-size: 17px; font-weight: 700; color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pack-detail-sub { color: var(--muted); font-size: 12px; line-height: 1.4; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 环境页的几行表单（新建 / 改名改版本 / 加插件）：一行排开，输入框吃掉剩余宽度，窄屏换行 */
+.environment-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+.environment-form input { flex: 1 1 180px; min-width: 0; }
+.environment-form select { flex: 0 1 auto; min-width: 0; }
 /* 整行统一到控件高：.ghost 默认 30px、更新药丸 28px、返回键 36px，混着排上下沿对不齐 */
 .pack-detail-actions .ghost, .pack-detail-actions .plugin-update { height: var(--control-height); padding: 0 var(--control-padding); border-radius: var(--control-radius); font-size: var(--control-font-size); transition: border-color 0.12s ease, background 0.12s ease; }
 .pack-detail-actions .ghost:hover:not(:disabled) { border-color: #b9ccf0; background: var(--accent-soft); }
 .pack-detail-actions .pack-tool { position: relative; width: 34px; min-width: 34px; height: 34px; padding: 7px; }
 .pack-tool svg { width: 18px; height: 18px; }
 .pack-tool.is-checking svg { animation: spin 900ms linear infinite; }
-.pack-update-count { position: absolute; top: -5px; right: -5px; min-width: 16px; height: 16px; display: grid; place-items: center; padding: 0 3px; border-radius: 8px; background: var(--accent); color: var(--bg); font-size: 9px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.pack-update.loading .pack-update-count { display: none; }
 /* 进环境详情：整块自下而上淡入（包络两端归零、不回弹）；作用域只在主页面，弹窗里另有开卡动画 */
 @keyframes pack-view-in {
   from { opacity: 0; transform: translateY(8px); }
@@ -2697,3 +2698,7 @@ html.reduce-motion #launchIconTrigger, html.reduce-motion #launchDialog .launch-
 #ask .ask-title { padding-right: 36px; }
 .ask-close { position: absolute; top: 12px; right: 12px; width: 30px; height: 30px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer; transition: background-color .15s ease, color .15s ease; }
 .ask-close:hover { background: var(--accent-soft); color: var(--text); }
+
+/* 导出环境：导出方式和离线文件勾选各占一组，竖排 */
+.pack-export-target,
+.pack-export-offline { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }

@@ -60,6 +60,17 @@ test('常规设置里不再重复 WSL 默认值：发行版 / 用户目录都在
   assert.match(page, /WSL 的默认值不再单独占一块设置/)
 })
 
+test('WSL 启动项不接环境：切到 WSL 藏起环境下拉，WSL 那条保存路径不带 environment', () => {
+  // Profile 目录在 WSL 里，启动器写不进插件清单也装不了依赖，所以 WSL 启动项没有环境可选
+  const backend = at('function setLaunchBackend')
+  const body = page.slice(backend, page.indexOf('\n    }\n', backend))
+  assert.match(body, /document\.getElementById\('launchEnvironmentField'\)\.hidden = wsl/, '切到 WSL 藏起环境下拉，切回本机再露出来')
+  const submit = at('launchFormEl.onsubmit = async')
+  const wslBranch = page.slice(page.indexOf('if (wsl) {', submit), page.indexOf('const guided = !editingLaunchId', submit))
+  assert.match(wslBranch, /backend: 'wsl'/, '这一段是 WSL 的保存路径')
+  assert.doesNotMatch(wslBranch, /environment/, 'WSL 保存不带环境')
+})
+
 test('WSL 发行版列表按需拉：切到 WSL 才请求 /api/wsl，不等状态推送', () => {
   // /api/state 推送里不再带发行版列表（每次探测要 spawn wsl.exe），页面自己按需取。
   const ensure = page.indexOf('async function ensureWslInfo')
@@ -72,10 +83,10 @@ test('WSL 发行版列表按需拉：切到 WSL 才请求 /api/wsl，不等状�
   assert.match(body, /state\.wsl\?\.error \|\| t\('没有检测到 WSL 发行版。'\)/, '一个发行版都没有时要说清楚，而不是「先选择一个」')
 })
 
-test('WSL Profile 可以直接删除：请求走 /api/wsl/profile/remove，不再只留一个灰按钮', () => {
+test('WSL 里的配置可以直接删除：请求走 /api/wsl/profile/remove，不再只留一个灰按钮', () => {
   assert.match(page, /const canRemove = !pickerBusy && \(row\.wsl \|\| Boolean\(row\.pack\) && row\.pack\?\.removable !== false\)/, 'WSL 行也允许删除')
   assert.match(page, /post\('\/api\/wsl\/profile\/remove', \{ distro: wsl\.distro, home: wsl\.home, profile \}\)/)
-  assert.match(page, /删除 WSL「\{distro\}」里的 Profile「\{profile\}」？/, 'WSL 的删除确认要说清是发行版里的哪一份')
+  assert.match(page, /删除 WSL「\{distro\}」里的配置「\{profile\}」？/, 'WSL 的删除确认要说清是发行版里的哪一份')
   assert.match(page, /for \(const key of \[\.\.\.pickerWslProfileCache\.keys\(\)\]\)/, '删完清掉这份 Profile 的插件摘要缓存')
 })
 

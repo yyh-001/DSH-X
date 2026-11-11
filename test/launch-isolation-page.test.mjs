@@ -42,20 +42,22 @@ const pathHelpers = page.slice(page.indexOf('    const normalizeHomePath ='), pa
 
 const EN_REQUIRED = [
   '隔离方式', '插件隔离', '会话隔离', '自定义',
-  '将自动新建 Profile「{name}」：沿用全局 dsh 目录，会话与记忆共享，插件与配置独立。',
+  '将自动新建配置「{name}」：沿用全局 dsh 目录，会话与记忆共享，插件与配置独立。',
   '将自动新建独立目录：会话、记忆、插件与配置全部独立。',
   '数据目录还没就绪，稍后再试',
-  '版本、端口和启动环境都在这里手动选；点「启动环境」换目录或 Profile，左栏「+」加目录。',
-  '新建 Profile', '自定义目录', '自动新建（{path}）',
-  'Profile 名称，留空用 web',
-  '这个 Profile 不能启动网页，换一个名称',
-  '编辑 Profile…',
-  'Profile「{profile}」还没初始化：先用它启动一次，dsh 会建好这个环境，之后就能在这里编辑。',
+  // 选目录和配置（dsh profile）的那个按钮叫「目录与配置」（「实例」留给装好插件的 DSH）
+  '版本、端口、目录和配置都在这里手动选；点「目录与配置」换目录或配置，左栏「+」加目录。',
+  '新建配置', '自定义目录', '自动新建（{path}）',
+  '配置名称，留空用 web',
+  '这个配置不能启动网页，换一个名称',
+  '编辑配置…',
+  // 中文界面说 dsh profile 的地方一律叫「配置」（英文仍叫 Profile）
+  '配置「{profile}」还没初始化：先用它启动一次，dsh 会把它建好，之后就能在这里编辑。',
   // 复制档：说清复制范围 + 目标名的几条错误
-  '把「{profile}」复制成新的 Profile「{name}」：插件与配置跟过来，技能、Prompt 管理和会话不跟。',
-  '先选一份要复制的 Profile：左边挑用户目录，右边挑 Profile；复制出来的环境从空白会话开始。',
-  '「{name}」是系统保留名称，换个 Profile 名称（例如 {name}-copy）。',
-  '目标名字不能和来源「{profile}」一样，换一个 Profile 名称。',
+  '把「{profile}」复制成新的配置「{name}」：插件与配置跟过来，技能、Prompt 管理和会话不跟。',
+  '先选一份要复制的配置：左边挑用户目录，右边挑配置；复制出来的配置从空白会话开始。',
+  '「{name}」是系统保留名称，换个配置名称（例如 {name}-copy）。',
+  '目标名字不能和来源「{profile}」一样，换一个配置名称。',
   '全局目录里已经有「{name}」，换个名字再复制。',
   '这个目录里已经有「{profile}」，换个名字再复制。',
   '（待定）',
@@ -85,26 +87,27 @@ test('三档 tab：默认插件隔离，顺序固定，tab 带无障碍角色和
   assert.ok(!page.includes('launch-isolation-option'), '旧的单选卡片样式已经换成 tab')
 })
 
-test('前两档下面挂一条两档 tab：自己起名 / 从已有 Profile 复制，同一时间只露一块', () => {
+test('前两档下面挂一条两档 tab：自己起名 / 从已有配置复制，同一时间只露一块', () => {
   const isolation = section('<div class="launch-isolation" id="launchIsolationField">', '<div class="launch-custom-fields" id="launchCustomFields">')
   // 引导块夹在说明行和完整表单之间，不打断原来的字段顺序
   assert.ok(isolation.indexOf('id="launchIsolationHint"') < isolation.indexOf('id="launchGuideField"'), '引导块放在说明行下面')
   assert.match(isolation, /<div class="launch-guide" id="launchGuideField">/)
   // 两档 tab 跟上面三档同款胶囊，只是等分两份；data-active 取值（name / copy）跟三档的错开
-  assert.match(isolation, /<div class="launch-isolation-tabs launch-isolation-tabs--pair" id="launchSourceTabs" role="tablist" aria-label="Profile 来源"[^>]*data-active="name">/)
+  assert.match(isolation, /<div class="launch-isolation-tabs launch-isolation-tabs--pair" id="launchSourceTabs" role="tablist" aria-label="配置来源" data-i18n-aria-label="配置来源"[^>]*data-active="name">/)
   const tabs = [...isolation.matchAll(/<button class="launch-isolation-tab launch-source-tab"[^>]*data-source="(name|copy)"[^>]*>/g)]
-  assert.deepEqual(tabs.map((match) => match[1]), ['name', 'copy'], 'tab 顺序：新建 Profile → 从已有 Profile 复制')
+  assert.deepEqual(tabs.map((match) => match[1]), ['name', 'copy'], 'tab 顺序：新建配置 → 从已有配置复制')
   assert.match(isolation, /data-source="name" aria-selected="true" aria-controls="launchSourceNamePanel"/, '默认停在自己起名那档')
   assert.match(isolation, /data-source="copy" aria-selected="false" aria-controls="launchSourceCopyPanel"/)
-  for (const label of ['新建 Profile', '从已有 Profile 复制']) {
+  for (const label of ['新建配置', '从已有配置复制']) {
     assert.ok(isolation.includes(`data-i18n="${label}">${label}</button>`), `tab 文案要有中英翻译：${label}`)
   }
   // 面板：名字那档默认露出来，复制来源那块先藏着
   assert.match(isolation, /<div class="launch-source-panel" id="launchSourceNamePanel" role="tabpanel">/)
   assert.match(isolation, /<div class="launch-source-panel" id="launchSourceCopyPanel" role="tabpanel" hidden>/)
   // 名字输入两档各一个：插件隔离改 Profile 名，会话隔离给新目录里的 Profile 取名
-  assert.match(isolation, /id="launchProfileCustom"[^>]*aria-label="Profile 名称"/, '没有可见 label，读屏靠 aria-label')
-  assert.match(isolation, /id="launchHomeProfile"[^>]*aria-label="Profile 名称"/)
+  assert.match(isolation, /id="launchProfileCustom"[^>]*aria-label="配置名称" data-i18n-aria-label="配置名称"/, '没有可见 label，读屏靠 aria-label')
+  assert.match(isolation, /id="launchHomeProfile"[^>]*aria-label="配置名称" data-i18n-aria-label="配置名称"/)
+  assert.doesNotMatch(isolation, /(?:aria-label|data-i18n)="[^"]*Profile[^"]*"/, '这一块的中文文案不再写 Profile')
   // 会话隔离的目标目录在 tab 上面：它说的是「建到哪」，跟「Profile 从哪来」是两件事
   assert.match(isolation, /id="launchGuideDirField">\s*<select id="launchHomeCustom" aria-label="dsh 用户目录"[^>]*><\/select>/)
   assert.ok(isolation.indexOf('id="launchHomeCustom"') < isolation.indexOf('id="launchSourceTabs"'), '目录在 tab 上面')
@@ -124,8 +127,8 @@ test('自定义档是可显隐的字段块：原来那张完整表单原样搬�
   const fields = section('<div class="launch-custom-fields" id="launchCustomFields">', '<!-- /launch-custom-fields -->')
   assert.match(fields, /id="versionPicker"[\s\S]*id="launchUpdateChannel"/, '版本行也在里面')
   assert.match(fields, /id="launchIdentityField"[\s\S]*id="launchName"/)
-  // 用户目录 + Profile 合并成一个「启动环境」触发器，两个下拉藏在同一格里当真相源
-  assert.match(fields, /id="launchEnvField"[\s\S]*<label for="launchEnvPick"[\s\S]*id="launchEnvPick" aria-haspopup="dialog"[\s\S]*id="launchEnvPickValue"[\s\S]*<select id="launchDshHome"[^>]*hidden><\/select>[\s\S]*<select id="launchProfile" title="Profile" hidden><\/select>/, '环境选择窗触发器 + 两个隐藏下拉')
+  // 用户目录 + 配置合并成一个「目录与配置」触发器，两个下拉藏在同一格里当真相源
+  assert.match(fields, /id="launchEnvField"[\s\S]*<label for="launchEnvPick"[\s\S]*id="launchEnvPick" aria-haspopup="dialog"[\s\S]*id="launchEnvPickValue"[\s\S]*<select id="launchDshHome"[^>]*hidden><\/select>[\s\S]*<select id="launchProfile" title="Profile" hidden><\/select>/, '目录与配置的选择窗触发器 + 两个隐藏下拉')
   assert.ok(!fields.includes('id="launchHomeSelectField"'), '目录下拉不再单独占一行')
   assert.match(fields, /id="launchPort"/)
   // 「打开启动器时启动」自定义档里也有一份（折叠里那两份跟它同步）
@@ -355,7 +358,7 @@ test('引导接线：说明行/占位符随档刷新、目录下拉由登记目�
   assert.match(paint, /tabsEl\.dataset\.active = launchIsolation/, '切档把胶囊浮块滑到对应位置')
   assert.match(paint, /paintLaunchHomeCustom\(\)/, '切档时重画目录下拉（第一项跟着自动目录变）')
   assert.match(paint, /launchProfileCustomEl\.placeholder = suggestIsolatedProfile\(\)/, 'Profile 名称占位符就是自动会取的名字')
-  assert.match(paint, /launchHomeProfileEl\.placeholder = t\('Profile 名称，留空用 web'\)/)
+  assert.match(paint, /launchHomeProfileEl\.placeholder = t\('配置名称，留空用 web'\)/)
   assert.match(paint, /paintLaunchHint\(\)/, '说明行由单独的函数画（改名字时只重画它）')
   // 名字边打边更新：说明行和启动项名都跟着变
   const typing = section('    for (const input of [launchProfileCustomEl, launchHomeProfileEl]) {', '    // 两排 tab 共用一个容器')
@@ -376,7 +379,7 @@ test('引导接线：说明行/占位符随档刷新、目录下拉由登记目�
   assert.match(open, /launchHomeCustomEl\.value = ''/)
   assert.match(open, /launchHomeProfileEl\.value = ''/)
   assert.match(open, /launchCopyNameAuto\.profile = ''/, '复制档代填过的名字也要忘掉')
-  assert.match(open, /launchSourceMode = 'name'/, '第二排 tab 回到「新建 Profile」')
+  assert.match(open, /launchSourceMode = 'name'/, '第二排 tab 回到「新建配置」')
   assert.match(open, /paintLaunchSource\(\)/, '复位后连面板一起重画')
 })
 
@@ -457,19 +460,19 @@ test('两档 tab 只换来源面板：浮块按 data-active 平移，选中态�
   // 同一个容器里两排 tab：先认第二排，再认隔离方式那排
   assert.match(page, /const source = event\.target\.closest\?\.\('\.launch-source-tab'\)/)
   assert.match(page, /setLaunchSource\(source\.dataset\.source\)/)
-  // 复制来源只在停在「从已有 Profile 复制」时才算数
+  // 复制来源只在停在「从已有配置复制」时才算数
   const copy = section('    function selectedCopy() {', '    /**')
   assert.match(copy, /if \(launchSourceMode !== 'copy' \|\| !launchCopySource\) return null/, '切回自己起名那档就不再复制')
   assert.match(copy, /profile: launchCopySource\.profile, home: launchCopySource\.home/, '来源是选择窗写回的状态，不再读下拉')
   const prepare = section('    async function prepareGuidedLaunch() {', '    /**\n     * 版本比较')
   assert.match(prepare, /const typed = String\(guidedProfileNameEl\(\)\?\.value \|\| ''\)\.trim\(\)/, '名字两档都读')
   assert.match(prepare, /typed \|\| \(copy \? suggestCopyProfile\(copy\.profile\) : ''\) \|\| suggestIsolatedProfile\(\)/, '复制档建议「来源-copy」')
-  assert.match(prepare, /if \(launchSourceMode === 'copy' && !copy\) throw new Error\(t\('先选一份要复制的 Profile'\)\)/, '停在复制那档却没来源就不许保存')
+  assert.match(prepare, /if \(launchSourceMode === 'copy' && !copy\) throw new Error\(t\('先选一份要复制的配置'\)\)/, '停在复制那档却没来源就不许保存')
   assert.match(prepare, /RESERVED_PROFILE_NAMES\.has\(lower\)/, '保留名在页面就拦住，错误指向名字输入')
   assert.match(prepare, /已经有「\{name\}」，换个名字再复制/, '目标已存在时说清保存会跳过复制')
 })
 
-test('选 Profile 是三栏选择窗：目录 / Profile / 插件，两档用途共用一个窗', () => {
+test('选配置是三栏选择窗：目录 / 配置 / 插件，两档用途共用一个窗', () => {
   const dialog = section('id="profilePickDialog"', 'id="versionManageDialog"')
   assert.match(dialog, /data-dialog-size="xlarge"/, '三栏要够宽')
   assert.match(dialog, /<div class="profile-pick">[\s\S]*id="profilePickHomes" role="listbox"[\s\S]*id="profilePickProfiles" role="listbox"[\s\S]*id="profilePickDetails"/, '三栏从左到右：目录 → Profile → 插件')
@@ -504,8 +507,11 @@ test('选 Profile 是三栏选择窗：目录 / Profile / 插件，两档用途�
   // 两档用途：标题不同，确认后写到不同地方
   const open = section('    async function openProfilePicker(mode = ', '    function closeProfilePicker() {')
   assert.match(open, /pickerMode = mode === 'form' \? 'form' : 'copy'/)
-  assert.match(open, /setPickerHeading\('选择启动环境'/, 'form 档：给自定义档挑')
-  assert.match(open, /setPickerHeading\('选择要复制的 Profile'/, 'copy 档：挑复制来源')
+  // 「实例」专指装好插件的 DSH；这个窗挑的是目录和配置（dsh profile）
+  assert.match(open, /setPickerHeading\('选择目录与配置', '左边挑本机目录或 WSL 发行版，中间挑配置，右边是它的插件或 dsh 信息。'\)/, 'form 档：给自定义档挑')
+  assert.doesNotMatch(page, /选择启动环境|'启动环境'/, '旧叫法「启动环境」不再出现')
+  assert.doesNotMatch(page, /选择目录与 Profile|'目录与 Profile'|"目录与 Profile"|>目录与 Profile</, '旧叫法「（选择）目录与 Profile」不再出现')
+  assert.match(open, /setPickerHeading\('选择要复制的配置', '左边挑用户目录，中间挑配置；复制的是它现在装着的插件与配置。'\)/, 'copy 档：挑复制来源')
   const confirm = section('    function confirmProfilePick() {', '    /**\n     * form 档的写回')
   assert.match(confirm, /if \(wsl\) applyWslPickerToLaunchForm\(wsl, pickerProfile\)[\s\S]{0,40}?applyPickerToLaunchForm\(choice\)/, 'form 档写回启动项表单（WSL 目录走 WSL 分支）')
   assert.match(confirm, /launchCopySource = choice/, 'copy 档写回复制来源')
@@ -553,6 +559,22 @@ test('选 Profile 是三栏选择窗：目录 / Profile / 插件，两档用途�
   const fallback = section('    function defaultCopySource() {', '    /** 复制来源那行按钮')
   assert.match(fallback, /web\.includes\('web'\) \? 'web' : \(web\[0\] \|\| ''\)/, '有 web 就默认 web，否则挑第一份')
   assert.match(fallback, /return profile \? \{ home: state\.dshHome \|\| '', profile \} : null/, '默认来源写真实全局目录：空串会被服务端当成目标目录')
+})
+
+// 中文界面把 dsh profile 叫「配置」：三栏选择窗的标题、栏头、读屏名称、栏头按钮都跟着改（英文仍叫 Profile）
+test('三栏选择窗的文案：标题「选择配置」，中栏和右栏说配置，栏头按钮「新建配置」', () => {
+  const dialog = section('id="profilePickDialog"', 'id="versionManageDialog"')
+  assert.match(dialog, /id="profilePickTitle" data-i18n="选择配置">选择配置<\/h2>/)
+  assert.match(dialog, /id="profilePickSubtitle" data-i18n="左边挑用户目录，中间挑配置，右边是它装着的插件。">/)
+  assert.match(dialog, /id="profilePickCreate" type="button" title="新建配置" aria-label="新建配置" data-i18n-title="新建配置" data-i18n-aria-label="新建配置"/)
+  assert.match(dialog, /id="profilePickDetailCaption" data-i18n="这个配置里有什么">这个配置里有什么</)
+  assert.match(dialog, /id="profilePickDetails" role="region" aria-label="配置详情" data-i18n-aria-label="配置详情"/)
+  // 中栏：栏头文字和列表的读屏名称
+  const middle = dialog.slice(dialog.indexOf('id="profilePickHomes"'), dialog.indexOf('id="profilePickDetailCaption"'))
+  assert.match(middle, /<span class="profile-pick-caption" data-i18n="配置">配置<\/span>/, '中栏栏头叫「配置」')
+  assert.match(middle, /id="profilePickProfiles" role="listbox" aria-label="配置" data-i18n-aria-label="配置"/, '中栏列表的读屏名称叫「配置」')
+  // 注释里讲结构时还会提 Profile，只看标记本身
+  assert.doesNotMatch(dialog.replace(/<!--[\s\S]*?-->/g, ''), /(?:data-i18n|aria-label|title)="[^"]*Profile[^"]*"|>Profile</, '选择窗里的中文不再写 Profile')
 })
 
 test('右栏插件列表的 vm：第三方插件带卸载钮，官方组件没有；本机已初始化才能装', () => {
