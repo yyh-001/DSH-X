@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  A third-party desktop launcher for <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a> —<br />
+  A <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a> launcher (dsh launcher) —<br />
   launch entries and multiple instances, version, plugin, instance, MCP and skill management.
 </p>
 
