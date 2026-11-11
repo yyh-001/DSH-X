@@ -170,6 +170,7 @@
             <div class="pane-top plugin-overview-top">
               <div>
                 <h1 class="pane-title" data-i18n="配置">配置</h1>
+                <p class="pane-sub" data-i18n="配置 = dsh 的 profile：插件开关、插件设置和 MCP 存在这里，会话与记忆所有配置共用。启动项选一个实例和一个配置。">配置 = dsh 的 profile：插件开关、插件设置和 MCP 存在这里，会话与记忆所有配置共用。启动项选一个实例和一个配置。</p>
               </div>
               <div class="plugin-home-bar">
                 <select id="pluginHome" aria-label="dsh 用户目录" data-i18n-aria-label="dsh 用户目录"></select>
@@ -1692,6 +1693,7 @@
   "查看实例 {name} 的插件": "View plugins in {name}",
   "查看配置 {name} 的插件": "View plugins in {name}",
   "配置": "Profiles",
+  "配置 = dsh 的 profile：插件开关、插件设置和 MCP 存在这里，会话与记忆所有配置共用。启动项选一个实例和一个配置。": "A profile is a dsh profile: plugin switches, plugin settings and MCP servers live here, while sessions and memories are shared by all profiles. A launch entry picks one instance and one profile.",
   "WSL 里的配置": "Profile in WSL",
   "SSH 里的配置": "Profile over SSH",
   "这个配置还没初始化": "This profile has not been initialized",
@@ -12530,6 +12532,28 @@
     }
 
     /**
+     * 网格里的一张卡（配置页、实例页共用，两边长得一样）：色块 + 名字 + 一行摘要 + 标签，
+     * 右边可挂「更多操作」菜单。data 是按钮上的 data-* 属性；点卡片、点菜单项由调用方自己绑。
+     */
+    function gridCardHtml({ data, label, title = '', tile, name, meta, tags = [], selected = false, menu = '' }) {
+      const attrs = Object.entries(data).map(([key, value]) => `data-${key}="${escapeHtml(value)}"`).join(' ')
+      const more = menu
+        ? `<details class="pack-more profile-menu"><summary title="${escapeHtml(t('更多操作'))}" aria-label="${escapeHtml(t('更多操作'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-ellipsis"/></svg></summary><div class="pack-more-actions">${menu}</div></details>`
+        : ''
+      return `<div class="profile-card"><button class="pack-card${selected ? ' is-selected' : ''}" type="button" ${attrs} aria-label="${escapeHtml(label)}"${title ? ` title="${escapeHtml(title)}"` : ''}>
+          ${packTileHtml(tile)}
+          <div class="pack-card-body">
+            <div class="pack-card-head">
+              <span class="pack-card-name">${escapeHtml(name)}</span>
+            </div>
+            <div class="pack-card-meta">${escapeHtml(meta)}</div>
+            ${tags.length ? `<div class="pack-card-tags">${tags.map((tag) => `<span class="pack-tag">${escapeHtml(tag)}</span>`).join('')}</div>` : ''}
+          </div>
+          <span class="pack-card-arrow" aria-hidden="true">›</span>
+        </button>${more}</div>`
+    }
+
+    /**
      * 一个 profile 卡片的公共内容（列表卡片与详情页头共用）。
      *
      * 「几个开着」是配置状态（写在那份 profile 的补丁层里），和「正在运行」是两件事：
@@ -12891,24 +12915,21 @@
       const list = Array.isArray(packState.packs) ? packState.packs : []
       document.getElementById('profileAdd').disabled = Boolean(packBusy || pluginUpdating || pluginRemoving || pluginAdding)
       const cards = list.map((item) => {
-        const tags = packSourceTags(item)
         const removable = item.removable === true
-        return `<div class="profile-card"><button class="pack-card${openedPack?.profile === item.profile ? ' is-selected' : ''}" type="button" data-pack-open="1" data-profile="${escapeHtml(item.profile)}" aria-label="${escapeHtml(t('查看配置 {name} 的插件', { name: item.profile }))}">
-          ${packTileHtml(item)}
-          <div class="pack-card-body">
-            <div class="pack-card-head">
-              <span class="pack-card-name">${escapeHtml(item.profile)}</span>
-            </div>
-            <div class="pack-card-meta">${escapeHtml(packMetaLine(item))}</div>
-            ${tags.length ? `<div class="pack-card-tags">${tags.map((tag) => `<span class="pack-tag">${escapeHtml(tag)}</span>`).join('')}</div>` : ''}
-          </div>
-          <span class="pack-card-arrow" aria-hidden="true">›</span>
-        </button><details class="pack-more profile-menu"><summary title="${escapeHtml(t('更多操作'))}" aria-label="${escapeHtml(t('更多操作'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-ellipsis"/></svg></summary><div class="pack-more-actions">
+        return gridCardHtml({
+          data: { 'pack-open': '1', profile: item.profile },
+          label: t('查看配置 {name} 的插件', { name: item.profile }),
+          tile: item,
+          name: item.profile,
+          meta: packMetaLine(item),
+          tags: packSourceTags(item),
+          selected: openedPack?.profile === item.profile,
+          menu: `
           <button class="ghost" type="button" data-profile-backups="${escapeHtml(item.profile)}">${packMoreIcons.backup}${escapeHtml(t('备份与回退'))}</button>
           <button class="ghost" type="button" data-profile-copy="${escapeHtml(item.profile)}" ${packBusy || pluginUpdating || pluginRemoving || pluginAdding ? 'disabled' : ''}>${packMoreIcons.copy}${escapeHtml(t('复制配置'))}</button>
           <button class="ghost" type="button" data-profile-rename="${escapeHtml(item.profile)}" ${!removable || packBusy || pluginUpdating || pluginRemoving || pluginAdding ? 'disabled' : ''} ${!removable ? `title="${escapeHtml(t('系统配置不能重命名'))}"` : ''}>${packMoreIcons.rename}${escapeHtml(t('重命名配置'))}</button>
-          <button class="ghost danger" type="button" data-profile-delete="${escapeHtml(item.profile)}" ${!removable || packBusy || pluginUpdating || pluginRemoving || pluginAdding ? 'disabled' : ''} ${!removable ? `title="${escapeHtml(t('系统配置不能删除'))}"` : ''}>${packMoreIcons.trash}${escapeHtml(t('删除配置'))}</button>
-        </div></details></div>`
+          <button class="ghost danger" type="button" data-profile-delete="${escapeHtml(item.profile)}" ${!removable || packBusy || pluginUpdating || pluginRemoving || pluginAdding ? 'disabled' : ''} ${!removable ? `title="${escapeHtml(t('系统配置不能删除'))}"` : ''}>${packMoreIcons.trash}${escapeHtml(t('删除配置'))}</button>`,
+        })
       }).join('')
       // 安装整合包的入口在环境详情里（装进这个环境），网格里不再放独立的加卡
       packGridEl.innerHTML = cards
@@ -12970,6 +12991,7 @@
       disable: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-ban"/></svg>',
       trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-trash-2"/></svg>',
       backup: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-history"/></svg>',
+      export: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-upload"/></svg>',
     }
 
     /** 按包声明的组成归类，而不是按包名猜插件名。共享插件只显示一行，

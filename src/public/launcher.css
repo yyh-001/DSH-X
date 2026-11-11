@@ -2275,10 +2275,11 @@ html.reduce-motion #connectionWslFields, html.reduce-motion #connectionSshFields
 #pane-plugins #packView { animation: pack-view-in 0.28s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
 /* 进环境详情后页顶标题整条让位（pane-top 是 flex，hidden 属性会被盖掉） */
 #pluginPanel .pane-top[hidden] { display: none; }
-#pluginPanel .plugin-overview-top { align-items: center; flex-wrap: wrap; }
-#pluginPanel .plugin-overview-top > div:first-child { width: auto; flex-shrink: 0; }
-#pluginPanel .plugin-overview-top .ghost { margin-top: 0; }
+/* 标题下有一行说明，排法同实例页：左栏（标题 + 说明）能收窄换行，右边的目录下拉和按钮贴顶 */
+#pluginPanel .plugin-overview-top { flex-wrap: wrap; }
+#pluginPanel .plugin-overview-top > div:first-child { flex: 1 1 320px; min-width: 0; }
 .plugin-home-bar { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.plugin-overview-top .plugin-home-bar { flex: 0 1 280px; margin-top: 4px; }
 .plugin-home-bar .ui-select { flex: 0 1 280px; width: min(100%, 280px); min-width: 0; margin-left: auto; }
 #pluginHomesDialog .ask-card { --dialog-width: 520px; }
 #pluginHomesDialog .dialog-heading { margin-bottom: 12px; }

@@ -222,37 +222,76 @@ const envSlice = (from, to) => {
   return envPage.slice(start, end)
 }
 
-/** 假容器：innerHTML 照写，querySelectorAll('[data-x]') 从写进去的 HTML 里把带这个属性的按钮捞出来。 */
+/**
+ * 假容器：innerHTML 照写，querySelectorAll('[data-x]') 从写进去的 HTML 里把带这个属性的按钮捞出来，
+ * dataset 带上按钮的全部 data-* 属性（同一个值可能出现在好几张卡上，按位置区分）。
+ * 每个按钮带一个假的所在菜单（closest('details')），点菜单项后能看出菜单有没有收起。
+ */
 function fakeContainer() {
   const box = { innerHTML: '', dataset: {}, buttons: new Map() }
+  const camel = (name) => name.replace(/-([a-z])/g, (_, c) => c.toUpperCase())
   box.querySelectorAll = (selector) => {
     const attr = /^\[data-([a-z-]+)\]$/.exec(selector)?.[1]
     if (!attr) return []
-    const key = attr.replace(/-([a-z])/g, (_, c) => c.toUpperCase())
     return [...box.innerHTML.matchAll(new RegExp(`<button[^>]*data-${attr}="([^"]*)"[^>]*>`, 'g'))].map((match) => {
-      const id = `${attr}:${match[1]}`
-      if (!box.buttons.has(id)) box.buttons.set(id, { dataset: { [key]: match[1] }, disabled: /\sdisabled(?=[\s>])/.test(match[0]) })
+      const id = `${attr}:${match.index}:${match[1]}`
+      if (!box.buttons.has(id)) {
+        const menu = { open: true }
+        const dataset = Object.fromEntries([...match[0].matchAll(/\sdata-([a-z-]+)="([^"]*)"/g)].map(([, name, value]) => [camel(name), value]))
+        box.buttons.set(id, { dataset, disabled: /\sdisabled(?=[\s>])/.test(match[0]), menu, closest: (sel) => (sel === 'details' ? menu : null) })
+      }
       return box.buttons.get(id)
     })
   }
   return box
 }
 
+/** 页面里的转义（和 index.html 的 escapeHtml 同一张表）。 */
+const escapeHtmlLike = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]))
+const fillVars = (text, vars = {}) => text.replace(/\{(\w+)\}/g, (_, key) => String(vars[key] ?? ''))
+
+/**
+ * 两页共用的卡片：主脚本里真实的 packTileHtml + gridCardHtml + packMetaLine 放进沙箱，
+ * 配置页（renderPackGrid）和实例页（environments-page.js 的 renderGrid）都靠它画卡。
+ */
+function cardContext(extra = {}) {
+  const context = vm.createContext({
+    t: fillVars, escapeHtml: escapeHtmlLike,
+    // 菜单图标换成可辨认的小标记，断言只看文字和结构
+    packMoreIcons: Object.fromEntries(['add', 'rename', 'copy', 'refresh', 'enable', 'disable', 'trash', 'backup', 'export'].map((name) => [name, `<i data-icon="${name}"></i>`])),
+    ...extra,
+  })
+  new vm.Script(slice('    function packTileHtml(', '    function packMetaLine(item)')
+    + slice('    function packMetaLine(item)', '    function packSourceTags(item)')).runInContext(context)
+  return context
+}
+
+/** 把网格 HTML 拆成一张张卡片（每张以 profile-card 外壳开头）。 */
+const cardsOf = (gridHtml) => gridHtml.split('<div class="profile-card">').slice(1).map((card) => `<div class="profile-card">${card}`)
+/** 卡片的骨架：依次出现的标签 + class（选中态去掉），不看文字、data-* 和图标标记。 */
+const skeletonOf = (cardHtml) => [...cardHtml.matchAll(/<([a-z]+)\b([^>]*)>/g)]
+  .filter(([, tag]) => tag !== 'i')
+  .map(([, tag, attrs]) => `${tag}.${(/class="([^"]*)"/.exec(attrs)?.[1] || '').replace(' is-selected', '')}`)
+const tileOf = (cardHtml) => {
+  const match = /<div class="pack-tile" style="--tile-hue:(\d+)" aria-hidden="true">([^<]*)<\/div>/.exec(cardHtml)
+  return match ? { hue: Number(match[1]), char: match[2] } : null
+}
+
 test('内置环境配方是环境页网格里的卡片：没导入过的才画，点一张进导入预览；导入弹窗里没有这一块', () => {
   const grid = fakeContainer()
   const inspected = []
-  const context = vm.createContext({
+  const context = cardContext({
     el: { grid, hint: { textContent: '' } },
     environments: [{ id: 'env-a', name: '甲', dshVersion: '1.0.0', plugins: [], usedBy: [] }],
     builtin: [
-      { name: 'dsh-x-recommended', displayName: 'DSH-X 推荐实例', description: '开箱即用', imported: false },
+      { name: 'dsh-x-recommended', displayName: 'DSH-X 推荐实例', description: '开箱即用的一整套插件，说明很长很长', imported: false },
       { name: 'dsh-x-workbench', displayName: '工作台', description: '', imported: true },
     ],
-    versionText: (env) => env.dshVersion, thirdParty: (env) => env.plugins, tagsOf: () => [],
+    busy: false, updates: {},
+    versionText: (env) => env.dshVersion, thirdParty: (env) => env.plugins,
     open() {}, inspectPack: (payload) => { inspected.push(JSON.parse(JSON.stringify(payload))) },
-    t: (text, vars = {}) => text.replace(/\{(\w+)\}/g, (_, key) => String(vars[key] ?? '')), escapeHtml: (text) => String(text ?? ''),
   })
-  new vm.Script(envSlice('  function card(', '  function versionOptions(')).runInContext(context)
+  new vm.Script(envSlice('  function tagsOf(', '  function versionOptions(')).runInContext(context)
   context.renderGrid()
   assert.match(grid.innerHTML, /data-environment="env-a"/, '环境卡片照画')
   // 中文界面把这个对象叫「实例」：卡片按钮的读屏名称跟着说实例（配置页那张卡说「查看配置…」）
@@ -262,6 +301,15 @@ test('内置环境配方是环境页网格里的卡片：没导入过的才画�
   const recipes = grid.querySelectorAll('[data-builtin]')
   assert.deepEqual(recipes.map((button) => button.dataset.builtin), ['dsh-x-recommended'], '导入过的配方不再给卡片')
   assert.match(grid.innerHTML, /DSH-X 推荐实例/)
+  // 配方卡片和实例卡片同一套样子：色块 + 名字 + 一行摘要 + 标签；没有「更多操作」，说明全文只放悬停提示
+  const recipeCard = cardsOf(grid.innerHTML).find((card) => card.includes('data-builtin="dsh-x-recommended"'))
+  assert.deepEqual(tileOf(recipeCard)?.char, 'D', '色块是名字的第一个字')
+  assert.match(recipeCard, /<span class="pack-card-name">DSH-X 推荐实例<\/span>/)
+  assert.match(recipeCard, /<div class="pack-card-meta">随启动器发的实例配方<\/div>/, '摘要固定一行，不放长说明')
+  assert.match(recipeCard, /<div class="pack-card-tags"><span class="pack-tag">内置 · 点开导入<\/span><\/div>/)
+  assert.match(recipeCard, /<button class="pack-card" type="button" data-builtin="dsh-x-recommended" aria-label="[^"]*" title="开箱即用的一整套插件，说明很长很长">/, '说明全文放进悬停提示')
+  assert.equal(recipeCard.split('开箱即用的一整套插件').length - 1, 1, '说明只在 title 里出现一次，卡片正文里没有')
+  assert.doesNotMatch(recipeCard, /<details|更多操作/, '配方卡片没有「更多操作」')
   recipes[0].onclick()
   assert.deepEqual(inspected, [{ builtin: 'dsh-x-recommended' }], '点配方卡片走导入预览（只读检查）')
   assert.equal(context.el.hint.textContent, '', '有实例时不显示空列表提示')
@@ -639,7 +687,7 @@ test('导航与页标题：新对象那页叫「实例」，dsh profile 那页�
 test('两张卡片网格的入口按钮：中文各说各的对象（查看实例 / 查看配置），英文同一句', () => {
   const dict = enDict()
   assert.match(envPage, /label: t\('查看实例 \{name\} 的插件', \{ name: env\.name \}\)/, '实例卡片按实例名')
-  assert.match(html, /aria-label="\$\{escapeHtml\(t\('查看配置 \{name\} 的插件', \{ name: item\.profile \}\)\)\}"/, '配置卡片按 profile 名')
+  assert.match(html, /label: t\('查看配置 \{name\} 的插件', \{ name: item\.profile \}\)/, '配置卡片按 profile 名')
   assert.equal(dict['查看实例 {name} 的插件'], 'View plugins in {name}')
   assert.equal(dict['查看配置 {name} 的插件'], 'View plugins in {name}')
   assert.doesNotMatch(uiSource(html) + uiSource(envPage), /查看环境 \{name\} 的插件/, '旧标签不再用')
@@ -778,25 +826,171 @@ test('实例详情底下的用法行：列出在用的启动项、现在装在�
   assert.equal(el.remove.title, '')
 })
 
-test('配置页的卡片：按钮说「查看配置 {name} 的插件」，更多操作都叫「…配置」，系统配置的提示也叫配置', () => {
+/** 配置页网格（主脚本的 renderPackGrid），卡片由共用的 gridCardHtml 画。 */
+function profileGrid({ packs, openedPack = null, packBusy = false, tags = () => [] }) {
   const grid = fakeContainer()
-  const context = vm.createContext({
-    paintPluginHomes() {}, packSourceTags: () => [], packTileHtml: () => '', packMetaLine: () => '',
-    packState: { packs: [{ profile: 'work', removable: true }, { profile: 'web', removable: false }] },
-    openedPack: null, packBusy: false, pluginUpdating: '', pluginRemoving: '', pluginAdding: false,
-    packMoreIcons: { backup: '', copy: '', rename: '', trash: '' }, packGridEl: grid,
+  const calls = []
+  const context = cardContext({
+    paintPluginHomes() {}, packSourceTags: tags,
+    packState: { packs }, openedPack, packBusy, pluginUpdating: '', pluginRemoving: '', pluginAdding: false, packGridEl: grid,
     document: { getElementById: () => ({}) },
-    t: (text, vars = {}) => text.replace(/\{(\w+)\}/g, (_, key) => String(vars[key] ?? '')), escapeHtml: (text) => String(text ?? ''),
+    openPack: (profile) => calls.push(['open', profile]),
+    openProfileBackups: (profile) => calls.push(['backups', profile]),
+    openProfileDialog: (profile, mode = 'copy') => calls.push([mode, profile]),
+    removeProfileDir: (item) => calls.push(['delete', item?.profile]),
   })
   new vm.Script(slice('    function renderPackGrid() {', '    function openPack(profile) {')).runInContext(context)
   context.renderPackGrid()
+  return { grid, calls, context }
+}
+
+/** 实例页网格（environments-page.js 的 renderGrid + 三个菜单动作），卡片同样由 gridCardHtml 画。 */
+function instanceGrid({ environments, builtin = [], busy = false, confirm = true }) {
+  const grid = fakeContainer()
+  const posts = []
+  const confirms = []
+  const exported = []
+  const counts = { loads: 0 }
+  const context = cardContext({
+    el: { grid, hint: { textContent: '' } }, environments, builtin, busy, updates: {}, openedId: '', nameMax: 48,
+    versionText: (env) => env.dshVersion, thirdParty: (env) => env.plugins.filter((plugin) => !plugin.official),
+    open: (id) => { context.openedId = id }, inspectPack() {}, renderView() {}, notify() {},
+    load: async () => { counts.loads += 1 },
+    post: async (path, body) => { posts.push([path, JSON.parse(JSON.stringify(body))]); return path.endsWith('/create') ? { environment: { id: 'env-copy' } } : {} },
+    appConfirm: async (message, options) => { confirms.push([message, options?.title]); return confirm },
+    openExportDialog: (env) => exported.push(env.id),
+  })
+  new vm.Script(envSlice('  function tagsOf(', '  function versionOptions(')
+    + envSlice('  async function run(', '  function open(id) {')
+    + envSlice('  function duplicateEnvironment(env) {', '  el.duplicate.onclick')).runInContext(context)
+  context.renderGrid()
+  return { grid, posts, confirms, exported, counts, context }
+}
+
+/** 等沙箱里没 await 的那串异步（void run(...)）跑完。 */
+async function settle(done) {
+  for (let i = 0; i < 50 && !done(); i += 1) await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.ok(done(), '异步动作没有跑完')
+}
+
+test('配置页的卡片：按钮说「查看配置 {name} 的插件」，更多操作都叫「…配置」，系统配置的提示也叫配置', () => {
+  const plugins = [{ name: 'a', enabled: true }, { name: 'b', enabled: true }]
+  const { grid, calls } = profileGrid({
+    // 形状同 /api/packs 的一张卡：name 就是 profile 名
+    packs: [{ profile: 'work', name: 'work', removable: true, pluginCount: 2, plugins }, { profile: 'web', name: 'web', removable: false, pluginCount: 0, plugins: [] }],
+    openedPack: { profile: 'work' },
+  })
   assert.match(grid.innerHTML, /data-profile="work" aria-label="查看配置 work 的插件"/)
   assert.match(grid.innerHTML, /data-profile="web" aria-label="查看配置 web 的插件"/)
   assert.doesNotMatch(grid.innerHTML, /查看实例|查看环境/, '配置卡片不说实例')
-  for (const label of ['复制配置', '重命名配置', '删除配置']) assert.ok(grid.innerHTML.includes(`>${label}</button>`), `更多操作里有「${label}」`)
+  const [work, web] = cardsOf(grid.innerHTML)
+  // 内容照旧：色块（profile 名首字）、名字、「几个插件 · 几个开着」、选中态
+  assert.equal(tileOf(work)?.char, 'w')
+  assert.match(work, /<span class="pack-card-name">work<\/span>/)
+  assert.match(work, /<div class="pack-card-meta">2 个插件 · 2 个开着<\/div>/)
+  assert.match(web, /<div class="pack-card-meta">0 个插件<\/div>/, '没有插件时不写「0 个开着」')
+  assert.match(work, /<button class="pack-card is-selected" type="button" data-pack-open="1" data-profile="work"/, '正在看的那张标成选中')
+  assert.match(web, /<button class="pack-card" type="button" data-pack-open="1" data-profile="web"/)
+  // 更多操作：备份与回退 / 复制 / 重命名 / 删除，顺序固定
+  const items = [...work.matchAll(/<i data-icon="\w+"><\/i>([^<]+)<\/button>/g)].map((match) => match[1])
+  assert.deepEqual(items, ['备份与回退', '复制配置', '重命名配置', '删除配置'])
   assert.match(grid.innerHTML, /data-profile-rename="web" disabled title="系统配置不能重命名"/)
   assert.match(grid.innerHTML, /data-profile-delete="web" disabled title="系统配置不能删除"/)
   assert.doesNotMatch(grid.innerHTML, /Profile|环境/, '卡片上的中文不再写 Profile / 环境')
+  // 行为照旧：点卡片进详情，菜单项各走各的，点完收起菜单
+  grid.querySelectorAll('[data-pack-open]').find((button) => button.dataset.profile === 'work').onclick()
+  const copy = grid.querySelectorAll('[data-profile-copy]').find((button) => button.dataset.profileCopy === 'work')
+  copy.onclick()
+  grid.querySelectorAll('[data-profile-backups]').find((button) => button.dataset.profileBackups === 'work').onclick()
+  assert.deepEqual(calls, [['open', 'work'], ['copy', 'work'], ['backups', 'work']])
+  assert.equal(copy.menu.open, false, '点了菜单项菜单收起')
+})
+
+test('实例卡片和配置卡片同一个样子：色块 + 名字 + 一行摘要 + 标签 + 右边「更多操作」', () => {
+  const env = { id: 'env-a', name: '甲实例', dshVersion: '1.0.0', plugins: [{ name: 'x', official: false }, { name: '@deepseek-ai/dsh-base', official: true }], usedBy: [{ id: 'l1', name: '工作' }] }
+  const { grid } = instanceGrid({ environments: [env] })
+  const [card] = cardsOf(grid.innerHTML)
+  assert.equal(tileOf(card)?.char, '甲', '色块是实例名的第一个字')
+  assert.match(card, /<span class="pack-card-name">甲实例<\/span>/)
+  assert.match(card, /<div class="pack-card-meta">DSH 1\.0\.0 · 1 个插件<\/div>/, '一行摘要：版本 + 第三方插件数')
+  assert.match(card, /<div class="pack-card-tags"><span class="pack-tag">1 个启动项在用<\/span><\/div>/, '标签行')
+  assert.match(card, /<details class="pack-more profile-menu"><summary title="更多操作" aria-label="更多操作">/, '右边有「更多操作」')
+  // 和配置卡片逐个标签对得上（选中态、文字、data-* 不算；菜单里的项各页不同，只比到菜单为止）
+  const { grid: profiles } = profileGrid({ packs: [{ profile: 'work', name: 'work', removable: true, pluginCount: 0, plugins: [] }], tags: () => ['来源'] })
+  const upToMenu = (html) => { const skeleton = skeletonOf(html); return skeleton.slice(0, skeleton.indexOf('div.pack-more-actions') + 1) }
+  assert.deepEqual(upToMenu(card), upToMenu(cardsOf(profiles.innerHTML)[0]), '两种卡片的结构一样')
+  assert.ok(upToMenu(card).includes('div.pack-tile') && upToMenu(card).includes('div.pack-more-actions'))
+  // 色相跟着 id 走：改名不换色，换 id 才换
+  const hueOf = (item) => tileOf(cardsOf(instanceGrid({ environments: [item] }).grid.innerHTML)[0]).hue
+  assert.equal(hueOf({ ...env, name: '乙改了名' }), tileOf(card).hue, '改名后颜色不变')
+  assert.notEqual(hueOf({ ...env, id: 'env-zz9' }), tileOf(card).hue, '不同的实例颜色不同')
+  assert.equal(tileOf(cardsOf(instanceGrid({ environments: [{ ...env, name: '乙改了名' }] }).grid.innerHTML)[0]).char, '乙', '首字跟着新名字')
+})
+
+test('实例卡片的「更多操作」：复制 / 导出 / 删除，和详情页那排按钮做同一件事，点完收起菜单', async () => {
+  const env = { id: 'env-a', name: '甲', dshVersion: '1.0.0', plugins: [], usedBy: [] }
+  const used = { id: 'env-b', name: '乙', dshVersion: '1.0.0', plugins: [], usedBy: [{ id: 'l1', name: '工作' }] }
+  const view = instanceGrid({ environments: [env, used] })
+  const [first, second] = cardsOf(view.grid.innerHTML)
+  const items = (card) => [...card.matchAll(/<i data-icon="(\w+)"><\/i>([^<]+)<\/button>/g)].map((match) => `${match[1]}:${match[2]}`)
+  assert.deepEqual(items(first), ['copy:复制实例', 'export:导出实例', 'trash:删除实例'])
+  const camel = (name) => name.replace(/-([a-z])/g, (_, c) => c.toUpperCase())
+  const button = (attr, id) => view.grid.querySelectorAll(`[data-${attr}]`).find((item) => item.dataset[camel(attr)] === id)
+  // 有启动项在用：删除灰着，并说清为什么；没人用的可以删
+  assert.match(second, /data-environment-delete="env-b" disabled title="还有启动项在用，先给它们换一个实例"/)
+  assert.equal(button('environment-delete', 'env-b').disabled, true)
+  assert.equal(button('environment-delete', 'env-a').disabled, false)
+  assert.doesNotMatch(first, /data-environment-delete="env-a"[^>]*title=/, '能删时不挂提示')
+
+  // 复制：建「甲 副本」，来源是这张卡的实例，建好后进新实例的详情
+  const copy = button('environment-copy', 'env-a')
+  copy.onclick()
+  assert.equal(copy.menu.open, false, '点了菜单项菜单收起')
+  await settle(() => view.counts.loads > 0)
+  assert.deepEqual(view.posts, [['/api/environments/create', { name: '甲 副本', from: 'env-a' }]])
+  assert.equal(view.context.openedId, 'env-copy', '复制完打开副本的详情')
+
+  // 导出：打开这张卡那个实例的导出弹窗
+  const exportButton = button('environment-export', 'env-b')
+  exportButton.onclick()
+  assert.equal(exportButton.menu.open, false)
+  assert.deepEqual(view.exported, ['env-b'])
+
+  // 删除：先确认，取消就什么都不发；确认后删掉并回到列表
+  const cancelled = instanceGrid({ environments: [env], confirm: false })
+  const cancelButton = cancelled.grid.querySelectorAll('[data-environment-delete]')[0]
+  cancelButton.onclick()
+  await settle(() => cancelled.confirms.length > 0)
+  assert.deepEqual(cancelled.confirms, [['删除实例「甲」？配置和里面已经装好的插件不受影响。', '删除实例']])
+  assert.equal(cancelButton.menu.open, false)
+  assert.deepEqual(cancelled.posts, [], '取消就不删')
+  const approved = instanceGrid({ environments: [env] })
+  approved.context.openedId = 'env-a'
+  approved.grid.querySelectorAll('[data-environment-delete]')[0].onclick()
+  await settle(() => approved.counts.loads > 0)
+  assert.deepEqual(approved.posts, [['/api/environments/remove', { id: 'env-a' }]])
+  assert.equal(approved.context.openedId, '', '删完回到列表')
+
+  // 另一个实例操作还在跑：复制和删除都灰着，导出不受影响
+  const busy = instanceGrid({ environments: [env], busy: true })
+  const busyButton = (attr) => busy.grid.querySelectorAll(`[data-${attr}]`)[0]
+  assert.equal(busyButton('environment-copy').disabled, true)
+  assert.equal(busyButton('environment-delete').disabled, true)
+  assert.equal(busyButton('environment-export').disabled, false)
+})
+
+test('配置页标题下有一行说明（和实例页一样）：配置 = dsh 的 profile，中英一一对上', () => {
+  const dict = enDict()
+  const pane = slice('<section class="pane" id="pane-plugins">', '<section class="pane" id="pane-environments">')
+  const intro = '配置 = dsh 的 profile：插件开关、插件设置和 MCP 存在这里，会话与记忆所有配置共用。启动项选一个实例和一个配置。'
+  const title = '<h1 class="pane-title" data-i18n="配置">配置</h1>'
+  const sub = `<p class="pane-sub" data-i18n="${intro}">${intro}</p>`
+  assert.ok(pane.includes(title) && pane.includes(sub), '标题和说明都在')
+  assert.match(pane.slice(pane.indexOf(title) + title.length, pane.indexOf(sub)), /^\s*$/, '说明紧跟在标题下面')
+  // 实例页同一个排法
+  const envPane = slice('<section class="pane" id="pane-environments">', '<section class="pane fill" id="pane-mcp">')
+  assert.match(envPane, /<h1 class="pane-title" data-i18n="实例">实例<\/h1>\s*<p class="pane-sub" data-i18n="实例 = 装好插件的 DSH。/)
+  assert.equal(dict[intro], 'A profile is a dsh profile: plugin switches, plugin settings and MCP servers live here, while sessions and memories are shared by all profiles. A launch entry picks one instance and one profile.')
 })
 
 test('这次新加的文案有英文，返回按钮的提示可翻译，「修复配置」不再重复', () => {

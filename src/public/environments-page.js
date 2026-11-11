@@ -5,7 +5,7 @@
 //
 // 单独一个文件，跑在主脚本之后，用主脚本的全局：t、post、getJson、escapeHtml、notify、appConfirm、
 // installedList、UPDATE_CHANNEL_NAMES、UPDATE_CHANNELS、paneLoaders、createUiSelect、syncUiSelect、
-// showPackDialog、hidePackDialog、trapPackDialog、packNotes，
+// showPackDialog、hidePackDialog、trapPackDialog、packNotes，卡片和配置页共用 gridCardHtml、packMoreIcons，
 // 导入导出复用主脚本的弹窗（openImportDialog、inspectPack、openExportDialog、environmentState、AUTO_VERSION）。
 (() => {
   const byId = (id) => document.getElementById(id)
@@ -84,39 +84,54 @@
     return tags
   }
 
-  function card({ attr, value, label, name, meta, tags }) {
-    return `<div class="profile-card"><button class="pack-card" type="button" ${attr}="${escapeHtml(value)}" aria-label="${escapeHtml(label)}">
-      <div class="pack-card-body">
-        <div class="pack-card-head"><span class="pack-card-name">${escapeHtml(name)}</span></div>
-        <div class="pack-card-meta">${escapeHtml(meta)}</div>
-        ${tags.length ? `<div class="pack-card-tags">${tags.map((tag) => `<span class="pack-tag">${escapeHtml(tag)}</span>`).join('')}</div>` : ''}
-      </div>
-      <span class="pack-card-arrow" aria-hidden="true">›</span>
-    </button></div>`
+  // 卡片右边的「更多操作」：和详情页那排按钮是同一组动作（复制 / 导出 / 删除），不另起一套
+  function menuOf(env) {
+    const inUse = env.usedBy.length > 0
+    return `
+      <button class="ghost" type="button" data-environment-copy="${escapeHtml(env.id)}" ${busy ? 'disabled' : ''}>${packMoreIcons.copy}${escapeHtml(t('复制实例'))}</button>
+      <button class="ghost" type="button" data-environment-export="${escapeHtml(env.id)}">${packMoreIcons.export}${escapeHtml(t('导出实例'))}</button>
+      <button class="ghost danger" type="button" data-environment-delete="${escapeHtml(env.id)}" ${busy || inUse ? 'disabled' : ''} ${inUse ? `title="${escapeHtml(t('还有启动项在用，先给它们换一个实例'))}"` : ''}>${packMoreIcons.trash}${escapeHtml(t('删除实例'))}</button>`
   }
 
   function renderGrid() {
     // 内置配方还没导入过的放在后面：点开就是导入预览，导入一次后就是普通环境
     const recipes = builtin.filter((recipe) => !recipe.imported)
     el.grid.innerHTML = [
-      ...environments.map((env) => card({
-        attr: 'data-environment', value: env.id,
+      ...environments.map((env) => gridCardHtml({
+        data: { environment: env.id },
         label: t('查看实例 {name} 的插件', { name: env.name }),
+        // 色相按 id 定：改名不换色
+        tile: { name: env.id, displayName: env.name },
         name: env.name,
         meta: t('DSH {version} · {count} 个插件', { version: versionText(env), count: thirdParty(env).length }),
         tags: tagsOf(env),
+        menu: menuOf(env),
       })),
-      ...recipes.map((recipe) => card({
-        attr: 'data-builtin', value: recipe.name,
+      // 配方说明很长，卡片上只留一行，全文放进悬停提示
+      ...recipes.map((recipe) => gridCardHtml({
+        data: { builtin: recipe.name },
         label: t('导入内置实例 {name}', { name: recipe.displayName }),
+        title: recipe.description || '',
+        tile: { name: recipe.name, displayName: recipe.displayName },
         name: recipe.displayName,
-        meta: recipe.description || t('随启动器发的实例配方'),
+        meta: t('随启动器发的实例配方'),
         tags: [t('内置 · 点开导入')],
       })),
     ].join('')
     el.hint.textContent = environments.length ? '' : t('还没有实例。新建、导入一个，或者先保存一个启动项，启动器会按它的配置自动生成。')
+    const envOf = (id) => environments.find((env) => env.id === id) || null
+    const fromMenu = (button, action) => { button.closest('details').open = false; action() }
     el.grid.querySelectorAll('[data-environment]').forEach((button) => {
       button.onclick = () => open(button.dataset.environment)
+    })
+    el.grid.querySelectorAll('[data-environment-copy]').forEach((button) => {
+      button.onclick = () => fromMenu(button, () => duplicateEnvironment(envOf(button.dataset.environmentCopy)))
+    })
+    el.grid.querySelectorAll('[data-environment-export]').forEach((button) => {
+      button.onclick = () => fromMenu(button, () => exportEnvironment(envOf(button.dataset.environmentExport)))
+    })
+    el.grid.querySelectorAll('[data-environment-delete]').forEach((button) => {
+      button.onclick = () => fromMenu(button, () => { void removeEnvironment(envOf(button.dataset.environmentDelete)) })
     })
     el.grid.querySelectorAll('[data-builtin]').forEach((button) => {
       button.onclick = () => { void inspectPack({ builtin: button.dataset.builtin }) }
@@ -297,10 +312,7 @@
   for (const select of [el.version, el.channel, el.history, byId('launchEnvironment')]) createUiSelect(select)
   el.back.onclick = () => { openedId = ''; paint() }
   el.importButton.onclick = () => openImportDialog()
-  el.exportButton.onclick = () => {
-    const env = opened()
-    if (env) openExportDialog(env)
-  }
+  el.exportButton.onclick = () => exportEnvironment(opened())
   el.version.onchange = () => {
     el.channel.disabled = el.version.value !== AUTO_VERSION
     syncUiSelect(el.channel)
@@ -337,17 +349,21 @@
       },
     })
   }
-  el.duplicate.onclick = () => {
-    const env = opened()
+  // 复制 / 导出 / 删除：详情页的按钮和卡片的「更多操作」都走这三个，复制完都进新实例的详情
+  function duplicateEnvironment(env) {
     if (!env) return
     const name = t('{name} 副本', { name: env.name })
     void run(() => post('/api/environments/create', { name: nameMax ? name.slice(0, nameMax) : name, from: env.id }), { after: (result) => { openedId = result.environment.id } })
   }
-  el.remove.onclick = async () => {
-    const env = opened()
+  function exportEnvironment(env) {
+    if (env) openExportDialog(env)
+  }
+  async function removeEnvironment(env) {
     if (!env || !(await appConfirm(t('删除实例「{name}」？配置和里面已经装好的插件不受影响。', { name: env.name }), { title: t('删除实例') }))) return
     void run(() => post('/api/environments/remove', { id: env.id }), { after: () => { openedId = '' } })
   }
+  el.duplicate.onclick = () => duplicateEnvironment(opened())
+  el.remove.onclick = () => { void removeEnvironment(opened()) }
 
   // 进环境页时查一次上游（设计稿「默认」）；列表先画出来，检查结果回来再补上标记
   paneLoaders.environments = async () => {
