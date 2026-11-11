@@ -478,6 +478,7 @@ test('选 Profile 是三栏选择窗：目录 / Profile / 插件，两档用途�
   assert.match(dialog, /id="profilePickConfirm" type="button" disabled data-i18n="用它"/, '没选好之前「用它」是灰的')
   assert.match(css, /#profilePickDialog \.ask-card \{[^}]*height: min\(760px, calc\(100dvh - var\(--dialog-safe-area\)\)\)/, '选择窗高度固定，切目录 / Profile 不长高')
   assert.match(css, /#profilePickDialog \.profile-pick-list \{[^}]*min-height: 0;[^}]*max-height: none;/, '三栏列表在栏内滚动，不再用自身高度撑窗口')
+  assert.match(css, /\.ask-card > \.profile-pick \{ flex: 1 1 auto; \}/, '插件多时正文区要能被压回卡片高度，「用它」不能被推到视口外')
   // 两栏/中栏的动作按钮：目录加、Profile 建/复制
   assert.match(dialog, /id="profilePickHomeAdd" type="button"/)
   assert.match(dialog, /id="profilePickCreate" type="button"/)
