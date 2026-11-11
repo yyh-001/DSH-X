@@ -181,8 +181,9 @@
     // 状态→配件配合：犯困/睡着时呆毛、蝴蝶结、毛耳朵一起垂下来，醒来/好奇时精神起来（经弹簧平滑，不跳变）
     let droopTarget = 0;
     switch (state) {
-      case 'curious': tilt += 6; lift -= 9; left = 1.08; right = .82; droopTarget = -.3; break;
-      case 'thinking': tilt -= 5; left = .65; right = .85; lookY -= .6; lookX += .35; break;
+      // 两眼开合保持一致：以前好奇 / 思考时左右眼一大一小，配上歪头看着就是大小眼（取原来两眼的均值）。
+      case 'curious': tilt += 6; lift -= 9; left = right = .95; droopTarget = -.3; break;
+      case 'thinking': tilt -= 5; left = right = .75; lookY -= .6; lookX += .35; break;
       case 'playful': tilt += Math.sin(age * 2.2) * 2; lift -= Math.sin(Math.min(age / 1.2, 1) * Math.PI) * 14; break;
       case 'drowsy': tilt += 4; lift += 10; left = right = .45; droopTarget = .45; break;
       case 'sleeping': tilt += 6; lift += 16; left = right = .055; squash += Math.sin(age * 2) * .012; lookX = lookY = 0; droopTarget = 1; break;
