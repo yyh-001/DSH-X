@@ -738,6 +738,10 @@ html.reduce-motion .launch-enhance-tip { transition: none; }
    省略号和右侧箭头一起消失。 */
 .launch-isolation { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .launch-isolation[hidden] { display: none; }
+/* 切档条在滚动区（.launch-modal-fields）外面：字段区自己滚，标题和 tab 一直停在上沿。
+   间距按原来 grid 里的 8px 留，说明行还带 12px 上外边距，和拆开前一样。 */
+.launch-isolation-head { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin-bottom: 8px; }
+.launch-isolation-head[hidden] { display: none; }
 .launch-isolation-title { color: var(--muted); font-size: 12px; font-weight: 500; }
 /* 三档用胶囊分段切：底槽固定在那一圈，当前档的浮块是底槽上的伪元素（data-active 决定滑到哪一档），
    切档时浮块平移过去，比背景色硬切更像真的开关。tab 本身只改文字颜色，不再各自铺底，否则浮块会被盖住。 */
@@ -808,6 +812,9 @@ html.reduce-motion .pick-home-tabs::after { transition: none; }
 /* 选择启动环境：窗口固定高度，三栏列表各自在栏内滚动；切目录 / Profile 时不再跟着内容长高 */
 #profilePickDialog .ask-card { height: min(760px, calc(100dvh - var(--dialog-safe-area))); }
 #profilePickDialog .profile-pick-list { min-height: 0; max-height: none; }
+/* 状态提示没内容时不占位：.hint 的 min-height + 上外边距会在「用它」上方空出一整行。
+   不用 display:none —— 这行是 aria-live 的状态区，留在可访问树里，有提示时才长出来。 */
+#profilePickHint:empty { min-height: 0; margin-top: 0; }
 .profile-pick-col { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 6px; min-width: 0; min-height: 0; }
 .profile-pick-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; }
 .profile-pick-caption { color: var(--muted); font-size: 12px; font-weight: 500; }

@@ -778,6 +778,19 @@
   <div class="ask" id="launchDialog" hidden>
     <form class="ask-card" id="launchForm" role="dialog" aria-modal="true" aria-labelledby="launchDialogTitle" data-dialog-size="medium">
       <div class="dialog-heading launch-dialog-heading"><h2 class="ask-title" id="launchDialogTitle" data-i18n="编辑启动项">编辑启动项</h2><button class="ghost icon-btn dialog-close" id="launchDialogClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
+      <!-- 新建启动项先问「怎么隔离」：三档用 tab 切换。前两档什么都不用填（版本、名称、目录、Profile
+           都由页面代算），直接保存就新建；想指定 Profile 名、或者照抄一份现成的，用后面那条两档 tab，
+           留空还是自动取名。第三档「自定义」才是原来那张完整表单。编辑老启动项时引导整块藏起来、
+           字段直接露出（见 setLaunchIsolation）。
+           切档条放在滚动区外：字段区（.launch-modal-fields）自己滚，切档停在上沿不动。 -->
+      <div class="launch-isolation-head" id="launchIsolationHead">
+        <span class="launch-isolation-title" data-i18n="隔离方式">隔离方式</span>
+        <div class="launch-isolation-tabs" id="launchIsolationTabs" role="tablist" aria-label="隔离方式" data-i18n-aria-label="隔离方式" data-active="profile">
+          <button class="launch-isolation-tab" type="button" role="tab" data-isolation="profile" aria-selected="true" data-i18n="插件隔离">插件隔离</button>
+          <button class="launch-isolation-tab" type="button" role="tab" data-isolation="home" aria-selected="false" data-i18n="会话隔离">会话隔离</button>
+          <button class="launch-isolation-tab" type="button" role="tab" data-isolation="custom" aria-selected="false" data-i18n="自定义">自定义</button>
+        </div>
+      </div>
       <div class="launch-modal-fields">
         <!-- 启动位置放最上面：新建时先定跑在本机还是 WSL，再填对应那一侧的字段；编辑老启动项时
              退化成静态标签（类型保存后不再变），避免在一个已存在的条目里切后端。 -->
@@ -789,17 +802,8 @@
           <input id="launchWslHome" type="hidden" />
           <p class="hint" id="launchWslHint" role="status" aria-live="polite"></p>
         </div>
-        <!-- 新建启动项先问「怎么隔离」：三档用 tab 切换。前两档什么都不用填（版本、名称、目录、Profile
-             都由页面代算），直接保存就新建；想指定 Profile 名、或者照抄一份现成的，用下面那条两档 tab，
-             留空还是自动取名。第三档「自定义」才是原来那张完整表单。编辑老启动项时引导整块藏起来、
-             字段直接露出（见 setLaunchIsolation）。 -->
+        <!-- 切档条在滚动区外（#launchIsolationHead）：这里只剩这一档的说明和引导字段，跟着字段一起滚。 -->
         <div class="launch-isolation" id="launchIsolationField">
-          <span class="launch-isolation-title" data-i18n="隔离方式">隔离方式</span>
-          <div class="launch-isolation-tabs" id="launchIsolationTabs" role="tablist" aria-label="隔离方式" data-i18n-aria-label="隔离方式" data-active="profile">
-            <button class="launch-isolation-tab" type="button" role="tab" data-isolation="profile" aria-selected="true" data-i18n="插件隔离">插件隔离</button>
-            <button class="launch-isolation-tab" type="button" role="tab" data-isolation="home" aria-selected="false" data-i18n="会话隔离">会话隔离</button>
-            <button class="launch-isolation-tab" type="button" role="tab" data-isolation="custom" aria-selected="false" data-i18n="自定义">自定义</button>
-          </div>
           <p class="hint" id="launchIsolationHint"></p>
           <!-- 前两档下面不再是上下叠着的折叠条，而是一条两档 tab（跟上面三档同款胶囊）：
                要么自己起个 Profile 名，要么照抄一份现成的，同一时间只露一块。
@@ -2465,6 +2469,8 @@
     const launchAutoLaunchEl = document.getElementById('launchAutoLaunch')
     const launchAutoLaunchGuidedEl = document.getElementById('launchAutoLaunchGuided')
     const launchIsolationFieldEl = document.getElementById('launchIsolationField')
+    // 切档条在滚动区外：显示/隐藏和引导块同一份状态，点按也要和引导区共用处理器
+    const launchIsolationHeadEl = document.getElementById('launchIsolationHead')
     const launchIsolationHintEl = document.getElementById('launchIsolationHint')
     const launchCustomFieldsEl = document.getElementById('launchCustomFields')
     // 引导块：会话隔离的目标目录 + 两档 tab（自己起名 / 照抄一份）
@@ -4573,6 +4579,7 @@
       document.getElementById('launchManageVersions').hidden = wsl
       const guided = creating && launchIsolation !== 'custom'
       launchIsolationFieldEl.hidden = wsl || !creating
+      launchIsolationHeadEl.hidden = wsl || !creating
       launchCustomFieldsEl.hidden = wsl ? false : guided
       launchNameEl.required = wsl || !guided
       if (wsl) {
@@ -4877,6 +4884,7 @@
       launchIsolation = mode === 'home' || mode === 'custom' ? mode : 'profile'
       const guided = creating && launchIsolation !== 'custom'
       launchIsolationFieldEl.hidden = !creating
+      launchIsolationHeadEl.hidden = !creating
       launchCustomFieldsEl.hidden = guided
       // 引导块跟档走：前两档露出来，里面按档藏名字输入（值留着，切走再切回来不用重填）
       if (launchGuideFieldEl) launchGuideFieldEl.hidden = !guided
@@ -4957,8 +4965,9 @@
       }
     }
 
-    // 两排 tab 共用一个容器：先看是不是第二排（data-source），否则按隔离方式那排处理
-    launchIsolationFieldEl.onclick = (event) => {
+    // 两排 tab 共用一套处理：先看是不是第二排（data-source），否则按隔离方式那排处理。
+    // 切档条在滚动区外（#launchIsolationHead），第二排 tab 留在引导区里，两块都接这个处理器。
+    const onLaunchIsolationClick = (event) => {
       const source = event.target.closest?.('.launch-source-tab')
       if (source) {
         setLaunchSource(source.dataset.source)
@@ -4973,6 +4982,8 @@
       launchIsolationSaved = launchIsolation
       queueSetting('launchIsolation', launchIsolation)
     }
+    launchIsolationFieldEl.onclick = onLaunchIsolationClick
+    launchIsolationHeadEl.onclick = onLaunchIsolationClick
 
     /**
      * 会话隔离折叠里的目录下拉：和「自定义」那档一样是登记目录的下拉，只是第一项换成「自动新建」。

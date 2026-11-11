@@ -69,6 +69,12 @@ test('三档 tab：默认插件隔离，顺序固定，tab 带无障碍角色和
   const dialog = section('id="launchDialog"', '</form>')
   assert.match(dialog, /<div class="launch-isolation" id="launchIsolationField">/)
   assert.match(dialog, /<div class="launch-isolation-tabs" id="launchIsolationTabs" role="tablist" aria-label="隔离方式"[^>]*data-active="profile">/, '浮块默认停在插件隔离')
+  // 切档条在滚动区外：字段区（.launch-modal-fields）自己滚的时候，tab 不跟着走
+  const headAt = dialog.indexOf('id="launchIsolationHead"')
+  const fieldsAt = dialog.indexOf('class="launch-modal-fields"')
+  assert.ok(headAt >= 0 && headAt < fieldsAt, '切档条排在滚动区前面')
+  assert.ok(dialog.indexOf('id="launchIsolationField"') > fieldsAt, '引导块仍留在滚动区里')
+  assert.match(css, /\.launch-isolation-head \{[^}]*margin-bottom: 8px/, '切档条和下方字段之间留 8px')
   const tabs = [...dialog.matchAll(/<button class="launch-isolation-tab"[^>]*data-isolation="(profile|home|custom)"[^>]*>/g)]
   assert.deepEqual(tabs.map((match) => match[1]), ['profile', 'home', 'custom'], 'tab 顺序：插件隔离 → 会话隔离 → 自定义')
   assert.equal((dialog.match(/<button class="launch-isolation-tab" type="button" role="tab" data-isolation=/g) || []).length, 3, '三个 tab 都要 role=tab')
@@ -183,6 +189,7 @@ function isolationHarness() {
     paintLaunchIsolation: () => { calls.paint += 1 },
     guidedLaunchName: () => { calls.autoNames += 1; return 'auto-name' },
     launchIsolationFieldEl: { hidden: false },
+    launchIsolationHeadEl: { hidden: false },
     launchCustomFieldsEl: { hidden: false },
     launchGuideFieldEl: { hidden: false },
     launchGuideDirFieldEl: { hidden: false },
@@ -216,6 +223,7 @@ test('切档只改可见性：前两档收起字段块、名字代填，自定�
 
   context.setLaunchIsolation('profile', true)
   assert.equal(context.launchIsolationFieldEl.hidden, false, '新建时 tab 要露出来')
+  assert.equal(context.launchIsolationHeadEl.hidden, false, '切档条也跟着露出来')
   assert.equal(context.launchCustomFieldsEl.hidden, true, '插件隔离什么都不用填')
   assert.equal(context.launchGuideFieldEl.hidden, false, '插件隔离的引导块露出来')
   assert.equal(context.launchGuideDirFieldEl.hidden, true, '插件隔离沿用全局目录，没得挑')
@@ -247,6 +255,7 @@ test('编辑已有启动项不显示隔离 tab，字段块直接露出来', () =
   context.launchNameEl.value = '我的工作环境'
   context.setLaunchIsolation('custom', false)
   assert.equal(context.launchIsolationFieldEl.hidden, true, '编辑老启动项时引导整块收起')
+  assert.equal(context.launchIsolationHeadEl.hidden, true, '编辑时切档条也不露')
   assert.equal(context.launchCustomFieldsEl.hidden, false, '手填字段不能藏起来')
   assert.equal(context.launchGuideFieldEl.hidden, true, '编辑时引导块跟着收起')
   assert.equal(context.launchNameEl.value, '我的工作环境', '编辑时不代填名字')
@@ -361,7 +370,7 @@ test('引导接线：说明行/占位符随档刷新、目录下拉由登记目�
   assert.match(paint, /launchHomeProfileEl\.placeholder = t\('配置名称，留空用 web'\)/)
   assert.match(paint, /paintLaunchHint\(\)/, '说明行由单独的函数画（改名字时只重画它）')
   // 名字边打边更新：说明行和启动项名都跟着变
-  const typing = section('    for (const input of [launchProfileCustomEl, launchHomeProfileEl]) {', '    // 两排 tab 共用一个容器')
+  const typing = section('    for (const input of [launchProfileCustomEl, launchHomeProfileEl]) {', '    // 两排 tab 共用一套处理')
   assert.match(typing, /input\.oninput = \(\) => \{/, '两个名字输入都要接线')
   assert.match(typing, /fillGuidedLaunchName\(\)/)
   assert.match(typing, /paintLaunchHint\(\)/)
@@ -457,9 +466,13 @@ test('两档 tab 只换来源面板：浮块按 data-active 平移，选中态�
   assert.match(set, /paintLaunchSource\(\)/)
   assert.match(set, /fillCopyProfileName\(\)/, '切到复制档要代填「来源-copy」')
   assert.match(set, /paintLaunchIsolation\(\)/, '说明行跟着换（选了复制要说清复制的是谁）')
-  // 同一个容器里两排 tab：先认第二排，再认隔离方式那排
+  // 切档条在滚动区外、第二排 tab 留在引导区：两块挂同一套处理器，先认第二排再认隔离方式那排
   assert.match(page, /const source = event\.target\.closest\?\.\('\.launch-source-tab'\)/)
   assert.match(page, /setLaunchSource\(source\.dataset\.source\)/)
+  assert.match(page, /launchIsolationFieldEl\.onclick = onLaunchIsolationClick/)
+  assert.match(page, /launchIsolationHeadEl\.onclick = onLaunchIsolationClick/)
+  // 切档条和引导块同一份显示状态：新建且本机才露出来
+  assert.equal((page.match(/launchIsolationHeadEl\.hidden = /g) || []).length, 2, '两条切后端 / 切档的路径都要带上切档条')
   // 复制来源只在停在「从已有配置复制」时才算数
   const copy = section('    function selectedCopy() {', '    /**')
   assert.match(copy, /if \(launchSourceMode !== 'copy' \|\| !launchCopySource\) return null/, '切回自己起名那档就不再复制')
@@ -482,6 +495,7 @@ test('选配置是三栏选择窗：目录 / 配置 / 插件，两档用途共�
   assert.match(css, /#profilePickDialog \.ask-card \{[^}]*height: min\(760px, calc\(100dvh - var\(--dialog-safe-area\)\)\)/, '选择窗高度固定，切目录 / Profile 不长高')
   assert.match(css, /#profilePickDialog \.profile-pick-list \{[^}]*min-height: 0;[^}]*max-height: none;/, '三栏列表在栏内滚动，不再用自身高度撑窗口')
   assert.match(css, /\.ask-card > \.profile-pick \{ flex: 1 1 auto; \}/, '插件多时正文区要能被压回卡片高度，「用它」不能被推到视口外')
+  assert.match(css, /#profilePickHint:empty \{ min-height: 0; margin-top: 0; \}/, '状态提示为空时不占高度，列表和「用它」之间不留一整行空白')
   // 两栏/中栏的动作按钮：目录加、Profile 建/复制
   assert.match(dialog, /id="profilePickHomeAdd" type="button"/)
   assert.match(dialog, /id="profilePickCreate" type="button"/)
@@ -698,7 +712,7 @@ test('保存与打开弹窗的接线：新建走引导时名字也代填，带 e
 test('记住上次选的档：打开「添加启动项」落在保存过的档，切档时顺手存回设置', () => {
   const open = section('    function openLaunchEditor(entry) {', '    async function closeLaunchEditor()')
   assert.match(open, /setLaunchIsolation\(entry \? 'custom' : launchIsolationSaved, !entry\)/, '新建从上次那一档开始')
-  const click = section('    launchIsolationFieldEl.onclick =', '    async function prepareGuidedLaunch(')
+  const click = section('    const onLaunchIsolationClick = (event) => {', '    async function prepareGuidedLaunch(')
   assert.match(click, /if \(editingLaunchId\) return/, '编辑老启动项时不写偏好')
   assert.match(click, /launchIsolationSaved = launchIsolation/, '本地也立刻记住，不等写盘回来')
   assert.match(click, /queueSetting\('launchIsolation', launchIsolation\)/, '切档后记住这一档')
