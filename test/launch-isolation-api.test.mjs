@@ -41,8 +41,7 @@ test('会话隔离：Profile 建在与启动项相同的独立目录里', async 
 test('不带 ensureProfile 时保持老行为：Profile 不存在就报错，不落盘', async () => {
   const result = await save({ name: '老行为', version: 'auto', profile: 'ghost' })
   assert.equal(result.ok, false, '缺 Profile 的老请求要继续被拒')
-  // 报错里 dsh profile 叫「配置」
-  assert.match(String(result.data.error), /配置 ghost 不存在/)
+  assert.match(String(result.data.error), /profile ghost 不存在/)
   const state = await env.state()
   assert.ok(!(state.launchPresets || []).some((entry) => entry.name === '老行为'), '失败的请求不能留下启动项')
 })

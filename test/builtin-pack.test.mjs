@@ -1,29 +1,20 @@
 /**
- * 内置环境（src/packs/dsh-x-recommended）：随安装包发的配方，导入成一个环境，四件依赖都按版本从 npm 装。
+ * 内置整合包（packs/dsh-x-recommended）：随安装包发的配方，四件依赖都按版本从 npm 装。
  *
- * 跑真服务（假 dsh 入口 + 假 npm registry）。配方以前是「整包装进一个 Profile」，现在是内置环境：
- * 环境页列出来 → 检查（只读）→ 导入成一个普通环境；导入这一步只存环境清单，不往任何 Profile 里装东西，
- * 下次用这个环境启动时才写进 Profile、装依赖。
- * 配方里写的是范围（^0.1.65 这种）：环境只锁直接依赖，导入时按 registry 钉成此刻满足范围的最高版本。
+ * 跑真服务（假 dsh 入口）——写清单、注册 bundle 都是启动器自己的代码，
+ * 只有 pnpm 那一步被假入口挡掉，正是这里要验的边界。
  */
 import assert from 'node:assert/strict'
 import { isolateUserHome } from './isolated-home.mjs'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { startPluginRegistry } from './environments-fixture.mjs'
+import { fileURLToPath } from 'node:url'
 
-const RECIPE = 'dsh-x-recommended'
+const PACK_DIR = fileURLToPath(new URL('../src/packs/dsh-x-recommended', import.meta.url))
 const PACKAGES = ['dsh-config-manager', 'dsh-x-memory', 'dsh-x-sync', 'dsh-x-aquarium']
-// 假 registry 上的版本表：每个范围都有一个「满足但不是最新」的答案，钉错（拿 latest、拿范围下限）一眼看得出来
-const PUBLISHED = {
-  'dsh-config-manager': { versions: ['0.1.60', '0.1.65', '0.1.70', '0.2.0'], pinned: '0.1.70' },
-  'dsh-x-memory': { versions: ['0.1.0', '0.1.1', '0.1.4', '1.0.0'], pinned: '0.1.4' },
-  'dsh-x-sync': { versions: ['0.1.0', '0.1.1', '0.1.9', '0.2.0'], pinned: '0.1.9' },
-  'dsh-x-aquarium': { versions: ['0.1.2', '0.1.3', '0.1.8', '1.0.0-rc.1'], pinned: '0.1.8' },
-}
 
 async function freePort() {
   const probe = createServer()
@@ -50,12 +41,12 @@ async function startManager() {
     autoStart: false,
     seedMarket: false,
   }, null, 2))
-  // 假 dsh：被拉起一次就往 DSH_HOME/calls.log 记一行，用来证明导入时没跑任何 dsh 命令（没往 Profile 装东西）
+  // 假 dsh：版本目录里放一份能解析的入口，plugin 命令跑它就够了
   const fakeBin = join(dataDir, 'versions', '9.9.9', 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js')
   mkdirSync(join(fakeBin, '..'), { recursive: true })
-  writeFileSync(fakeBin, "import { appendFileSync } from 'node:fs'\nimport { join } from 'node:path'\nappendFileSync(join(process.env.DSH_HOME, 'calls.log'), process.argv.slice(2).join(' ') + '\\n')\nprocess.exit(0)\n")
+  writeFileSync(fakeBin, 'process.exit(0)\n')
   writeFileSync(join(dataDir, 'config.json'), JSON.stringify({ versions: ['9.9.9'] }, null, 2))
-  // 默认 Profile 的清单：导入前后要一个字节不差
+  // 当前 profile 的清单：registerBundle 要有东西可写
   const profileDir = join(home, 'profiles', 'web')
   mkdirSync(profileDir, { recursive: true })
   writeFileSync(join(profileDir, 'package.json'), JSON.stringify({
@@ -65,11 +56,6 @@ async function startManager() {
     dsh: { profile: { bundles: ['@deepseek-ai/dsh-base'], patchReload: 'live' } },
   }, null, 2))
 
-  // 插件版本从这里查，不出网（服务端每次用时现读 npm_config_registry）
-  const registry = await startPluginRegistry(Object.fromEntries(Object.entries(PUBLISHED).map(([name, { versions }]) => [
-    name, { versions, tags: { latest: versions.at(-1) } },
-  ])))
-  process.env.npm_config_registry = registry.url
   process.env.APPDATA = appData
   process.env.DSH_VERSIONS_DATA = dataDir
   process.env.PORT = String(port)
@@ -83,84 +69,35 @@ async function startManager() {
     })
     return { status: res.status, data: await res.json() }
   }
-  return { root, appDir, home, dataDir, profileDir, call, get: async (path) => {
+  return { root, home, dataDir, profileDir, call, get: async (path) => {
     const res = await fetch(`${origin}${path}`, { headers: { origin } })
     return { status: res.status, data: await res.json() }
-  }, registry, stop: async () => { server.stopAll(); await registry.close() } }
+  }, stop: () => server.stopAll() }
 }
 
-test('内置环境：配方导入成一个环境，四件依赖钉成 npm 上的精确版本，导入时不碰任何 Profile', async (t) => {
+test('内置整合包：四件依赖都按版本从 npm 装', async (t) => {
   const manager = await startManager()
-  t.after(async () => {
-    await manager.stop()
+  t.after(() => {
+    manager.stop()
     rmSync(manager.root, { recursive: true, force: true })
   })
 
-  // 内置配方只在环境页列（/api/environments 的 builtin）；/api/packs 不再带一份
   const packs = await manager.get('/api/packs')
-  assert.equal(packs.status, 200)
-  assert.equal('builtin' in packs.data, false, '/api/packs 不再有 builtin 字段')
+  assert.equal(packs.data.builtin?.name, 'dsh-x-recommended', '/api/packs 要带上内置整合包的信息')
+  assert.ok(packs.data.builtin.path.endsWith('dsh-x-recommended'))
 
-  const recipeOf = async () => (await manager.get('/api/environments')).data.builtin?.find((item) => item.name === RECIPE)
-  const before = await recipeOf()
-  assert.ok(before, '/api/environments 的 builtin 要列出内置配方')
-  assert.ok(before.displayName, '有给人看的名字')
-  assert.ok(before.version, '有版本号')
-  assert.equal(typeof before.description, 'string')
-  assert.equal(before.imported, false, '还没导入过')
-  // 中文界面把它叫「实例」（装好插件的 DSH）：配方的名字和说明跟着改，name / packId 不变
-  assert.equal(before.displayName, 'DSH-X 推荐实例')
-  assert.ok(before.description.startsWith('DSH-X 的一整套开箱插件。'), before.description)
-  const recipes = (await manager.get('/api/environments')).data.builtin || []
-  const workbench = recipes.find((item) => item.name === 'dsh-x-workbench')
-  assert.ok(workbench, '桌面工作台配方也在列')
-  // 导入只建实例；两份技能要勾上「把包里的配置导进配置」才写进 ~/.dsh/skills，不再说会另建一个 profile
-  assert.match(workbench.description, /导入时勾上「把包里的配置导进配置」才写进 ~\/\.dsh\/skills/)
-  for (const recipe of recipes) {
-    assert.doesNotMatch(`${recipe.displayName} ${recipe.description}`, /整合包|环境|独立 ?profile/i, `${recipe.name} 的名字和说明不再说整合包 / 环境 / 独立 profile`)
-  }
-  const envCount = (await manager.get('/api/environments')).data.environments.length
-  const profileBytes = readFileSync(join(manager.profileDir, 'package.json'))
-
-  const inspect = await manager.call('/api/environments/import/inspect', { builtin: RECIPE })
+  const inspect = await manager.call('/api/packs/inspect', { source: PACK_DIR })
   assert.equal(inspect.status, 200, inspect.data.error)
-  assert.equal(inspect.data.ok, true, JSON.stringify(inspect.data.errors))
-  const preview = inspect.data.environment
-  assert.equal(preview.packId, RECIPE)
-  const plugins = preview.plugins.filter((plugin) => !plugin.official)
-  assert.deepEqual(plugins.map((plugin) => plugin.name).sort(), [...PACKAGES].sort(), '四件都在插件清单里')
-  for (const plugin of plugins) {
-    // 依赖都要是 npm 上的精确版本：范围按 registry 钉成满足它的最高版本，不能再有 bundled，也不能是本地路径
-    assert.equal(plugin.spec, PUBLISHED[plugin.name].pinned, `${plugin.name} 钉成满足范围的最高版本`)
-    assert.equal(plugin.local, false, `${plugin.name} 不是本地插件`)
-    assert.equal(plugin.offline, false, `${plugin.name} 不带离线文件`)
-    assert.equal(plugin.bundle, true, `${plugin.name} 要在 bundle 列表里，否则 dsh 不加载`)
+  assert.equal(inspect.data.ok, true, JSON.stringify(inspect.data.plan?.errors))
+  assert.equal(inspect.data.pack.name, 'dsh-x-recommended')
+  assert.deepEqual(inspect.data.pack.bundles.map((item) => item.name).sort(), [...PACKAGES].sort(), '四件都在层栈里')
+  assert.ok(inspect.data.pack.dependencies.every((dep) => /^\^/.test(dep.spec)), '依赖都要是版本号，不能再有 bundled')
+
+  const install = await manager.call('/api/packs/install', { token: inspect.data.token, profile: 'dshx' })
+  assert.equal(install.status, 200, install.data.error)
+  const manifest = JSON.parse(readFileSync(join(manager.home, 'profiles', 'dshx', 'package.json'), 'utf8'))
+  for (const name of PACKAGES) {
+    assert.match(manifest.dependencies[name], /^\^/, `${name} 按版本从 npm 装`)
+    assert.ok(manifest.dsh.profile.bundles.includes(name), `${name} 要在 bundle 列表里，否则 dsh 不加载`)
   }
-  // 配方写的是范围（>=0.1.6）：本机已装的 9.9.9 满足，就用它，不联网也不再装一个
-  assert.equal(preview.dshVersion, '9.9.9', '取本机已装、满足范围的最高版本')
-  assert.equal(preview.dshInstalled, true)
-  assert.deepEqual(inspect.data.warnings, [], '每个范围都钉上了，没有提醒')
-  for (const name of PACKAGES) assert.ok(manager.registry.asked(name), `${name} 的版本是查 registry 得来的`)
-  assert.equal((await manager.get('/api/environments')).data.environments.length, envCount, '检查是只读的：不建环境')
-
-  const imported = await manager.call('/api/environments/import', { token: inspect.data.token })
-  assert.equal(imported.status, 200, imported.data.error)
-  assert.equal(imported.data.ok, true)
-  const id = imported.data.environment?.id
-  assert.ok(id, '导入要回新环境')
-  assert.ok(existsSync(join(manager.appDir, 'envs', id, 'environment.json')), '环境清单落在启动器的设置目录里')
-  const view = (await manager.get('/api/environments')).data.environments.find((item) => item.id === id)
-  assert.ok(view, '导入的环境出现在列表里')
-  assert.equal(view.name, 'DSH-X 推荐实例', '导入的实例沿用配方的名字')
-  assert.deepEqual(view.plugins.filter((plugin) => !plugin.official).map((plugin) => plugin.name).sort(), [...PACKAGES].sort())
-  for (const name of PACKAGES) assert.ok(view.bundles.includes(name), `${name} 要挂载`)
-  // 存下来的是检查时钉好的那一份精确版本
-  const saved = JSON.parse(readFileSync(join(manager.appDir, 'envs', id, 'environment.json'), 'utf8'))
-  for (const name of PACKAGES) assert.equal(saved.base.dependencies[name], PUBLISHED[name].pinned, `${name} 在环境清单里是精确版本`)
-  assert.equal((await recipeOf()).imported, true, '导入过一次就标成已导入')
-
-  // 导入只存环境：不建配方里写的那个 Profile，不改现有 Profile，也不跑 dsh 去装依赖
-  assert.equal(existsSync(join(manager.home, 'profiles', 'dshx')), false, '不再新建 dshx 这份 Profile')
-  assert.ok(readFileSync(join(manager.profileDir, 'package.json')).equals(profileBytes), '现有 Profile 的清单一个字节不改')
-  assert.equal(existsSync(join(manager.home, 'calls.log')), false, '导入时没跑任何 dsh 命令')
 })

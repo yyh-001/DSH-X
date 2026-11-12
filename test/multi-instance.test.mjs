@@ -325,7 +325,7 @@ test('同版本同 Profile 可在不同 DSH_HOME 并存，管理和停止按启�
   const first = await api('/api/start', { version: A, profile: 'web' })
   const second = await api('/api/start', { version: A, profile: 'web' }, launchId)
   assert.notEqual(first.url, second.url)
-  await assert.rejects(api('/api/stop', { version: A, profile: '../bad', home: otherHome }), /配置名只能用/)
+  await assert.rejects(api('/api/stop', { version: A, profile: '../bad', home: otherHome }), /profile 名/)
   assert.equal((await state()).instances.filter((item) => item.version === A && item.profile === 'web').length, 2)
   assert.equal(await (await fetch(new URL('/home', first.url))).text(), HOME)
   assert.equal(await (await fetch(new URL('/home', second.url))).text(), otherHome)

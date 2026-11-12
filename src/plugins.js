@@ -436,7 +436,7 @@ export function ensureBundleMounted(profileDir, spec) {
   try {
     manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
   } catch {
-    return { ok: false, changed: false, name: packageName, reason: '配置清单读不了' }
+    return { ok: false, changed: false, name: packageName, reason: 'profile 清单读不了' }
   }
   const bundles = manifest?.dsh?.profile?.bundles
   if (!Array.isArray(bundles)) return { ok: false, changed: false, name: packageName, reason: '清单里没有 bundles 字段' }
@@ -459,7 +459,7 @@ export function removeBundleMounted(profileDir, names) {
   try {
     manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
   } catch {
-    return { ok: false, changed: false, reason: '配置清单读不了' }
+    return { ok: false, changed: false, reason: 'profile 清单读不了' }
   }
   const bundles = manifest?.dsh?.profile?.bundles
   if (!Array.isArray(bundles)) return { ok: false, changed: false, reason: '清单里没有 bundles 字段' }

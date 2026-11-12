@@ -16,7 +16,7 @@ const starting = source.slice(source.indexOf('async function start(version, prof
 
 function manager(overrides = {}) {
   const ctx = vm.createContext({
-    installing: null, optimizingVersion: null, installProgress: null, pluginBusy: false,
+    installing: null, optimizingVersion: null, installProgress: null, packInstalling: false, pluginBusy: false,
     startChains: new Map(), startingProfiles: new Set(), safeVersion: value => value, safeProfile: value => value,
     profileKey: value => value, PROFILE_NAME: 'web', maintainingProfiles: new Set(),
     revokeIdleInstanceLinks() {},
@@ -30,9 +30,8 @@ function manager(overrides = {}) {
 }
 
 test('只整理已安装的闲置受管版本，启动准备与其它安装操作均受保护', async () => {
-  // 「装整合包进 Profile」这个操作已经撤掉（整合包改成导入为环境），它那道护栏随之没了；剩下的护栏一条不少
   for (const change of [
-    { installing: '2.0.0' }, { pluginBusy: true },
+    { installing: '2.0.0' }, { packInstalling: true }, { pluginBusy: true },
     { startChains: new Map([['pending', Promise.resolve()]]) }, { startingProfiles: new Set(['web']) },
     { instanceList: () => [{ version: '1.0.0', status: 'stopping' }] },
     { isManaged: () => false }, { existsSync: () => false },

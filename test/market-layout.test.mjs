@@ -6,7 +6,7 @@ import vm from 'node:vm'
 const source = readFileSync(new URL('../src/public/market-layout.js', import.meta.url), 'utf8')
 const html = readFileSync(new URL('../src/public/index.html', import.meta.url), 'utf8')
 
-test('市场完整展示超过旧分页上限的实例，排序和搜索后导入仍指向原条目', () => {
+test('市场完整展示超过旧分页上限的整合包，排序和搜索后安装仍指向原条目', () => {
   const entries = Array.from({ length: 30 }, (_, index) => ({
     id: `author/pack-${index}`, name: `pack-${index}`, displayName: `Pack ${String(index).padStart(2, '0')}`,
     author: index === 29 ? 'target-author' : 'author', version: '1.0.0', stars: index,
@@ -24,8 +24,7 @@ test('市场完整展示超过旧分页上限的实例，排序和搜索后导�
     },
   }
   const context = vm.createContext({
-    // 「已导入」看的是主脚本的实例列表（environmentState），这里一个实例都没有：30 张卡都能导入
-    packMarket: { entries }, packMarketEl: grid, packState: {}, state: {}, environmentState: { list: [], pendingOpen: '' },
+    packMarket: { entries }, packMarketEl: grid, packState: {}, state: {},
     openedPack: null, pluginProfile: 'web', packBusy: false, launcherRunning: () => false,
     marketSearchEl: { value: '' }, marketSortEl: { value: 'stars' },
     document: { getElementById(id) { assert.equal(id, 'marketCount'); return count } },
@@ -40,15 +39,14 @@ test('市场完整展示超过旧分页上限的实例，排序和搜索后导�
   context.openMarketDetail = (index) => selected.push(entries[index])
   context.renderPackMarket()
   assert.equal(installs.length, 30)
-  // 整合包现在叫实例（装好插件的 DSH）：计数文案跟着改
-  assert.equal(count.textContent, '30 个实例')
+  assert.equal(count.textContent, '30 个整合包')
   assert.equal(installs[0].dataset.market, '29')
   installs[0].onclick(); details[0].onclick()
   assert.deepEqual(selected, [entries[29], entries[29]])
   context.marketSearchEl.value = 'target-author'
   context.renderPackMarket()
   assert.equal(installs.length, 1)
-  assert.equal(count.textContent, '1 个实例')
+  assert.equal(count.textContent, '1 个整合包')
   installs[0].onclick()
   assert.equal(selected.at(-1), entries[29])
 })

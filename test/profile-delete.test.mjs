@@ -108,7 +108,7 @@ server.listen(0, '127.0.0.1', () => console.log('dsh web: http://127.0.0.1:' + s
     assert.ok(existsSync(desktop))
     assert.equal((await api('/api/packs')).packs.find((entry) => entry.profile === 'desktop').removable, false)
     for (const profile of ['.dsh-alias-desktop', 'node_modules', '../home']) {
-      await assert.rejects(api('/api/profiles/delete', { profile }), /内部目录|配置名只能用/)
+      await assert.rejects(api('/api/profiles/delete', { profile }), /内部目录|profile 名/)
     }
   })
 

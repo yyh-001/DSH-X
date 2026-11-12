@@ -5,28 +5,20 @@ import { join } from 'node:path'
 import test from 'node:test'
 
 import { crc32, readZip, writeZip } from '../src/zip.js'
-import { environmentFromPack } from '../src/environment-pack.js'
-// 整合包改成「导入为环境」后，整包装进 Profile 的默认 profile 名（defaultProfileFor）、页面摘要（packSummary）、
-// 把 Profile 打成包（exportPack）、整包安装计划（planInstall）都撤了；导出走 /api/environments/export（见 packs-api）。
-// 这里只留解析、只导配置的安装计划（planConfigInstall）与它的写入 / 备份 / 回滚，以及导出钉版读实装版本的 installedVersion
 import {
-  MANIFEST_FIELDS,
-  PACK_TYPES,
   applyInstall,
   backupDirFor,
-  forgetPack,
-  installSpecs,
-  installedVersion,
-  isSensitiveFile,
+  defaultProfileFor,
+  exportPack,
   parsePackArchive,
   parsePackDir,
   parsePackSource,
-  planConfigInstall,
+  packSummary,
+  planInstall,
   readPackState,
   rememberPack,
   rollbackFiles,
   safeRelPath,
-  sameInstall,
   slugName,
   uninstallPack,
 } from '../src/packs.js'
@@ -210,32 +202,43 @@ test('来源识别：本地路径、链接、owner/repo、@版本', () => {
   assert.throws(() => parsePackSource('随便一段话'), /认不出这个来源/)
 })
 
-test('slug：落在目录安全字符里', () => {
+test('profile 名与 slug：都落在目录安全字符里', () => {
   assert.equal(slugName('Better DeepSeek Harness'), 'better-deepseek-harness')
   assert.equal(slugName('@scope/name'), 'scope-name')
   assert.equal(slugName(''), 'pack')
+  assert.equal(defaultProfileFor(parsePackArchive(makePack({ manifest: { profileName: '' } }))), 'demo')
 })
 
-// ---- 依赖坐标 ----
-// 环境只认「包名 → spec」一张表：旧整包安装要往 package.json 里写的那份别名表（installAliases）跟着撤了
-
-test('依赖坐标：github:owner/repo + 版本 会翻成别名 + pnpm spec，不再另带别名表', () => {
-  const dependencies = {
-    'github:swaylq/dsh-wildmon': 'a2c7df00b27c2de9f2b0915d3bd5f1acc4d02c68',
-    'dsh-cost-meter': '1.7.37',
-    'github:owner/heads-up': 'latest',
-  }
-  const expected = {
+test('依赖坐标：github:owner/repo + 版本 会翻成别名 + pnpm spec', () => {
+  const pack = parsePackArchive(makePack({
+    manifest: {
+      bundles: ['@deepseek-ai/dsh-base', 'dsh-wildmon'],
+      dependencies: {
+        'github:swaylq/dsh-wildmon': 'a2c7df00b27c2de9f2b0915d3bd5f1acc4d02c68',
+        'dsh-cost-meter': '1.7.37',
+        'github:owner/heads-up': 'latest',
+      },
+    },
+  }))
+  assert.deepEqual(pack.installSpecs, {
     'dsh-wildmon': 'github:swaylq/dsh-wildmon#a2c7df00b27c2de9f2b0915d3bd5f1acc4d02c68',
     'dsh-cost-meter': '1.7.37',
     'heads-up': 'github:owner/heads-up',
-  }
-  const pack = parsePackArchive(makePack({ manifest: { bundles: ['@deepseek-ai/dsh-base', 'dsh-wildmon'], dependencies } }))
-  assert.deepEqual(pack.installSpecs, expected)
-  assert.ok(!('github:swaylq/dsh-wildmon' in pack.installSpecs), '坐标本身不当包名')
-  assert.equal('installAliases' in pack, false, '解析结果里不再有别名表')
-  // 直接调用：返回 { specs, warnings }，只有这两样
-  assert.deepEqual(installSpecs(['@deepseek-ai/dsh-base', 'dsh-wildmon'], dependencies), { specs: expected, warnings: [] })
+  })
+  assert.deepEqual(pack.installAliases['github:swaylq/dsh-wildmon'], {
+    name: 'dsh-wildmon',
+    spec: 'github:swaylq/dsh-wildmon#a2c7df00b27c2de9f2b0915d3bd5f1acc4d02c68',
+  })
+  const home = tempDir()
+  const plan = planInstall(pack, { home, profile: 'demo' })
+  const value = JSON.parse(plan.writes.find((write) => write.rel === 'profiles/demo/package.json').data)
+  assert.equal(value.dependencies['dsh-wildmon'], 'github:swaylq/dsh-wildmon#a2c7df00b27c2de9f2b0915d3bd5f1acc4d02c68')
+  assert.ok(!('github:swaylq/dsh-wildmon' in value.dependencies), '坐标本身不当包名')
+  const summary = packSummary(pack)
+  assert.deepEqual(summary.dependencies.find((item) => item.name === 'github:swaylq/dsh-wildmon').installAs, {
+    name: 'dsh-wildmon',
+    spec: 'github:swaylq/dsh-wildmon#a2c7df00b27c2de9f2b0915d3bd5f1acc4d02c68',
+  })
 })
 
 test('依赖坐标：协议型键原样交给 pnpm 并说明', () => {
@@ -247,107 +250,57 @@ test('依赖坐标：协议型键原样交给 pnpm 并说明', () => {
   }))
   assert.deepEqual(pack.installSpecs, { 'https://example.com/x.tgz': '1.0.0' })
   assert.match(pack.warnings.join(), /协议型坐标/)
-  const direct = installSpecs([], { 'https://example.com/x.tgz': '1.0.0' })
-  assert.deepEqual(direct.specs, { 'https://example.com/x.tgz': '1.0.0' })
-  assert.equal(direct.warnings.length, 1, '警告跟着返回值走，调用方并进包的警告里')
-  assert.match(direct.warnings[0], /协议型坐标/)
 })
 
-// ---- 解析时的提示 ----
+// ---- 安装计划 ----
 
-test('解析：锁文件只提示一句「导入时忽略」；缺 package.json 快照、缺补丁层都不再报', () => {
-  // 实例只锁直接依赖：插件清单在清单的 dependencies 里，包里有没有 package.json 快照、补丁层都无所谓
-  const bare = parsePackArchive(makePack({ packageJson: false }))
-  assert.equal(bare.ok, true)
-  assert.deepEqual(bare.warnings, [], '没快照、没补丁层的干净包一条警告都不该有')
-  const locked = parsePackArchive(makePack({ entries: [{ name: 'pnpm-lock.yaml', data: 'lockfileVersion: 9.0\n' }] }))
-  assert.deepEqual(locked.warnings, ['包里有 pnpm-lock.yaml，导入时忽略它（实例只锁直接依赖）'])
-})
-
-test('解析：环境文件在清单上加的 offline / environment 字段认得，不当「不处理的字段」', () => {
-  assert.deepEqual({ ...MANIFEST_FIELDS }, { OFFLINE: 'offline', ENVIRONMENT: 'environment' })
-  assert.deepEqual({ ...PACK_TYPES }, { PROFILE: 'profile', WHOLE_HOME: 'dshhome', COLLECTION: 'collection' })
-  assert.ok(Object.isFrozen(MANIFEST_FIELDS) && Object.isFrozen(PACK_TYPES), '常量表不许被调用方改掉')
-  const pack = parsePackArchive(makePack({
-    manifest: {
-      [MANIFEST_FIELDS.OFFLINE]: { 'dsh-cost-meter': { file: 'offline/dsh-cost-meter-1.7.37.tgz', sha256: '0'.repeat(64) } },
-      [MANIFEST_FIELDS.ENVIRONMENT]: { dshVersion: '0.1.7-rc.2' },
-    },
-  }))
-  assert.equal(pack.ok, true)
-  assert.doesNotMatch(pack.warnings.join('\n'), /不处理的字段/)
-  // 私有字段照旧只警告，而且只点它自己的名字
-  const mixed = parsePackArchive(makePack({ manifest: { offline: {}, 'x-eac': {} } }))
-  assert.match(mixed.warnings.join('\n'), /不处理的字段：x-eac（忽略）/)
-})
-
-test('敏感文件：凭据、密钥、改 registry 的 .npmrc、整机设置都算，普通文件不算', () => {
-  for (const rel of ['.env', 'overrides/.env.local', '.npmrc', 'home/.netrc', 'settings.yaml', 'credentials.json', 'certs/x.pem', 'a/b.key', '.ssh/id_rsa', 'id_ed25519.pub']) {
-    assert.equal(isSensitiveFile(rel), true, `${rel} 不该离开本机`)
-  }
-  for (const rel of ['skills/a/SKILL.md', 'config/extra.json', 'environment.json', 'offline/dsh-x-memory-0.1.4.tgz', 'README.md', '']) {
-    assert.equal(isSensitiveFile(rel), false, `${rel || '(空)'} 是普通文件`)
-  }
-  assert.equal(isSensitiveFile(undefined), false, '空值不抛')
-})
-
-// ---- 只导配置的安装计划 ----
-// 插件清单归环境、启动前由启动器写；配置导入只写补丁层、overrides 和用户级文件，
-// 要是这里也动 package.json，撤销时会把环境后来写进去的清单还原成旧的
-
-function initedProfile(home, profile, packageJson = '{"name":"dsh-profile-x","private":true}\n') {
-  const dir = join(home, 'profiles', profile)
-  mkdirSync(dir, { recursive: true })
-  writeFileSync(join(dir, 'package.json'), packageJson)
-  return dir
-}
-
-test('配置导入计划：只写补丁层、overrides、home 文件，不碰 package.json / pnpm-workspace.yaml / cordis.yml', () => {
+test('新建 profile：写出骨架清单，把层栈与依赖并进去', () => {
   const home = tempDir()
-  initedProfile(home, 'web')
   const pack = parsePackArchive(makePack({
-    entries: [
-      { name: 'overrides/cordis.patch.yml', data: '- id: dsh-cost-meter\n  disabled: false\n' },
-      { name: 'overrides/config/extra.json', data: '{}' },
-      { name: 'home/skills/a/SKILL.md', data: '# a' },
-      { name: 'pnpm-workspace.yaml', data: 'packages:\n  - .\n' },
-      { name: 'profiles/web/cordis.yml', data: 'plugins: {}\n' },
-    ],
+    entries: [{ name: 'overrides/cordis.patch.yml', data: '- id: dsh-cost-meter\n  disabled: false\n' }],
   }))
-  const plan = planConfigInstall(pack, { home, profile: 'web' })
+  const plan = planInstall(pack, { home, profile: 'demo' })
   assert.equal(plan.ok, true)
-  assert.equal(plan.configOnly, true)
-  assert.equal(plan.profile, 'web')
-  assert.deepEqual(plan.writes.map((write) => write.rel), [
-    'profiles/web/cordis.patch.yml',
-    'profiles/web/config/extra.json',
-    'skills/a/SKILL.md',
+  assert.equal(plan.createsProfile, true)
+  const manifestWrite = plan.writes.find((write) => write.rel === 'profiles/demo/package.json')
+  const value = JSON.parse(manifestWrite.data)
+  assert.deepEqual(value.dsh.profile.bundles, ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-cost-meter'])
+  assert.deepEqual(value.dependencies, { 'dsh-cost-meter': '1.7.37' })
+  assert.deepEqual(plan.writes.filter((write) => write.rel.startsWith('profiles/demo/')).map((write) => write.rel), [
+    'profiles/demo/package.json',
+    'profiles/demo/pnpm-workspace.yaml',
+    'profiles/demo/cordis.yml',
+    'profiles/demo/cordis.patch.yml',
   ])
-  assert.equal(plan.writes.find((write) => write.kind === 'patch').overwrite, true, '补丁层整份替换')
-  for (const name of ['package.json', 'pnpm-workspace.yaml', 'cordis.yml']) {
-    assert.ok(!plan.writes.some((write) => write.rel.endsWith(`/${name}`) || write.rel === name), `${name} 归环境，配置导入不写`)
-  }
-  assert.deepEqual(Object.keys(plan).sort(), ['configOnly', 'errors', 'ok', 'profile', 'warnings', 'writes'])
+  assert.equal(plan.writes.find((write) => write.kind === 'patch').overwrite, true)
 })
 
-test('配置导入计划：配置（dsh profile）还没初始化（没有 package.json）就不往它目录里写', () => {
+test('已有 profile：保留用户自己的依赖与其它字段，只并包里的东西', () => {
   const home = tempDir()
-  const pack = parsePackArchive(makePack({ entries: [{ name: 'overrides/cordis.patch.yml', data: '- id: x\n' }] }))
-  const missing = planConfigInstall(pack, { home, profile: 'fresh' })
-  assert.equal(missing.ok, false)
-  assert.match(missing.errors.join(), /配置「fresh」还没初始化：先用它启动一次/)
-  // 目录在、只有一份补丁层也不算：dsh 不认没有 package.json 的 profile
-  mkdirSync(join(home, 'profiles', 'half'), { recursive: true })
-  writeFileSync(join(home, 'profiles', 'half', 'cordis.patch.yml'), '[]\n')
-  assert.equal(planConfigInstall(pack, { home, profile: 'half' }).ok, false)
-  // 只有用户级文件的包不往 profile 目录里写，Profile 在不在都行
-  const homeOnly = parsePackArchive(makePack({ entries: [{ name: 'home/AGENTS.md', data: '全局指令' }] }))
-  const plan = planConfigInstall(homeOnly, { home, profile: 'fresh' })
-  assert.equal(plan.ok, true)
-  assert.deepEqual(plan.writes.map((write) => write.rel), ['AGENTS.md'])
+  const profileDir = join(home, 'profiles', 'web')
+  mkdirSync(profileDir, { recursive: true })
+  writeFileSync(join(profileDir, 'package.json'), JSON.stringify({
+    name: 'dsh-profile-web',
+    private: true,
+    description: '用户自己的 profile',
+    dependencies: { 'dsh-meme': '0.1.43' },
+    dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', 'dsh-meme'], patchReload: 'live' } },
+  }))
+  writeFileSync(join(profileDir, 'pnpm-workspace.yaml'), 'packages:\n  - .\nallowBuilds:\n  ssh2: true\n')
+  const pack = parsePackArchive(makePack({ entries: [] }))
+  const plan = planInstall(pack, { home, profile: 'web', hostProfile: 'web' })
+  const value = JSON.parse(plan.writes.find((write) => write.rel === 'profiles/web/package.json').data)
+  assert.equal(value.description, '用户自己的 profile', '用户写的字段留着')
+  assert.deepEqual(value.dependencies, { 'dsh-meme': '0.1.43', 'dsh-cost-meter': '1.7.37' })
+  assert.deepEqual(value.dsh.profile.bundles, ['@deepseek-ai/dsh-base', 'dsh-meme', '@deepseek-ai/dsh-web-app', 'dsh-cost-meter'])
+  assert.equal(value.dsh.profile.patchReload, 'live')
+  assert.ok(!plan.writes.some((write) => write.rel === 'profiles/web/pnpm-workspace.yaml'), '已有工作区文件不覆盖（allowBuilds 在里面）')
+  assert.ok(!plan.writes.some((write) => write.rel === 'profiles/web/cordis.patch.yml'), '包里没有补丁层就不动现有的补丁层')
+  assert.equal(plan.createsProfile, false)
+  assert.match(plan.warnings.join(), /重启 dsh/)
 })
 
-test('配置导入计划：home 文件进白名单，敏感文件和会话不进', () => {
+test('安装计划：home 文件进白名单，敏感文件不进', () => {
   const home = tempDir()
   const pack = parsePackArchive(makePack({
     entries: [
@@ -357,13 +310,16 @@ test('配置导入计划：home 文件进白名单，敏感文件和会话不进
       { name: 'home/settings.yaml', data: 'x' },
     ],
   }))
-  const rels = planConfigInstall(pack, { home, profile: 'demo' }).writes.map((write) => write.rel)
-  assert.deepEqual(rels.sort(), ['AGENTS.md', 'skills/a/SKILL.md'])
+  const plan = planInstall(pack, { home, profile: 'demo' })
+  const rels = plan.writes.map((write) => write.rel)
+  assert.ok(rels.includes('skills/a/SKILL.md'))
+  assert.ok(rels.includes('AGENTS.md'))
+  assert.ok(!rels.includes('sessions/2026/x.jsonl'))
+  assert.ok(!rels.includes('settings.yaml'))
 })
 
-// 整机快照（dshhome）一个包里有好几份 profile，各有各的插件清单；环境只有一份插件清单，接不住。
-// 以前按 profile 逐个装进去，现在「整包装进 Profile」撤了，导入只认能变成一个环境的包，这种要明确拒掉。
-test('dshhome 形态：解析得出来，但导入成环境时明确拒绝', () => {
+test('dshhome 形态：按清单里的 profile 逐个装，整机文件只收白名单', () => {
+  const home = tempDir()
   const pack = parsePackArchive(makeZip({
     'dspack.json': JSON.stringify({ format: 'dspack', version: 3 }),
     'manifest.json': JSON.stringify({
@@ -378,10 +334,13 @@ test('dshhome 形态：解析得出来，但导入成环境时明确拒绝', () 
     }),
     'home/AGENTS.md': '全局指令',
   }))
-  assert.equal(pack.ok, true, '格式本身是合法的整合包')
-  const env = environmentFromPack(pack)
-  assert.equal(env.ok, false, '不能当成一个环境导入')
-  assert.match(env.errors.join(), /dshhome/, '报错要点名是哪种形态，用户才知道为什么不行')
+  assert.equal(pack.ok, true)
+  const plan = planInstall(pack, { home, profile: 'ignored' })
+  const rels = plan.writes.map((write) => write.rel)
+  assert.ok(rels.includes('profiles/work/package.json'))
+  assert.ok(rels.includes('AGENTS.md'))
+  assert.equal(JSON.parse(plan.writes.find((write) => write.rel === 'profiles/work/package.json').data).dependencies['dsh-cost-meter'], '1.7.37')
+  assert.match(plan.warnings.join(), /整机快照形态/)
 })
 
 function makeZip(map) {
@@ -390,67 +349,45 @@ function makeZip(map) {
 
 // ---- 执行与回滚 ----
 
-test('配置导入：写文件、记备份，记录标成只导配置、没新建 profile；中途失败回滚回原样', async () => {
+test('安装：写文件、记备份、失败时回滚回原样', async () => {
   const home = tempDir()
   const dataDir = tempDir()
-  const manifest = '{\n  "name": "dsh-profile-demo",\n  "private": true\n}\n'
-  const profileDir = initedProfile(home, 'demo', manifest)
-  writeFileSync(join(profileDir, 'cordis.patch.yml'), '[]\n')
+  const profileDir = join(home, 'profiles', 'demo')
+  mkdirSync(profileDir, { recursive: true })
+  writeFileSync(join(profileDir, 'package.json'), '{\n  "name": "dsh-profile-demo",\n  "private": true\n}\n')
   const pack = parsePackArchive(makePack({
     entries: [
       { name: 'overrides/cordis.patch.yml', data: '- id: dsh-cost-meter\n' },
       { name: 'home/AGENTS.md', data: '指令' },
     ],
   }))
-  const plan = planConfigInstall(pack, { home, profile: 'demo' })
+  const plan = planInstall(pack, { home, profile: 'demo' })
   const logs = []
-  const result = await applyInstall(plan, { home, dataDir, pack, source: '文件：x.dspack', log: (line) => logs.push(line) })
+  const result = await applyInstall(plan, {
+    home,
+    dataDir,
+    pack,
+    source: '文件：x.dspack',
+    runInstall: async (profile) => { logs.push(`install ${profile}`) },
+    log: (line) => logs.push(line),
+  })
   assert.equal(result.ok, true)
-  assert.equal(readFileSync(join(profileDir, 'cordis.patch.yml'), 'utf8'), '- id: dsh-cost-meter\n')
+  assert.deepEqual(logs.filter((line) => line.startsWith('install ')), ['install demo'])
+  assert.match(readFileSync(join(profileDir, 'package.json'), 'utf8'), /dsh-cost-meter/)
   assert.equal(readFileSync(join(home, 'AGENTS.md'), 'utf8'), '指令')
-  assert.equal(readFileSync(join(profileDir, 'package.json'), 'utf8'), manifest, 'package.json 原样，一个字节都不动')
-  assert.ok(existsSync(join(result.backupDir, 'files', 'profiles/demo/cordis.patch.yml')), '被覆盖的补丁层有备份')
-  assert.ok(!existsSync(join(result.backupDir, 'files', 'profiles/demo/package.json')), '没写的文件不备份')
-  const { record } = result
-  assert.equal(record.configOnly, true)
-  assert.equal(record.createdProfile, false, '配置导入从不新建 profile')
-  assert.equal(record.profile, 'demo')
-  assert.equal(record.name, 'demo')
-  assert.equal(record.source, '文件：x.dspack')
-  assert.deepEqual(record.files.map(({ rel, existed }) => [rel, existed]), [
-    ['profiles/demo/cordis.patch.yml', true],
-    ['AGENTS.md', false],
-  ])
+  assert.ok(existsSync(join(result.backupDir, 'files', 'profiles/demo/package.json')), '被覆盖的文件有备份')
 
-  // 第二份写入找不到内容：前面已经写下去的要还原，后面的一个都不留
-  const before = readFileSync(join(profileDir, 'cordis.patch.yml'), 'utf8')
-  const broken = {
-    profile: 'demo',
-    configOnly: true,
-    writes: [
-      { rel: 'profiles/demo/cordis.patch.yml', kind: 'patch', data: 'second\n' },
-      { rel: 'profiles/demo/config/x.json', kind: 'override', source: 'overrides/missing.json' },
-    ],
-  }
-  await assert.rejects(applyInstall(broken, { home, dataDir, pack, log: () => {} }), /没有内容（已回滚）/)
-  assert.equal(readFileSync(join(profileDir, 'cordis.patch.yml'), 'utf8'), before)
-  assert.ok(!existsSync(join(profileDir, 'config', 'x.json')))
+  // 再装一次、这次让依赖安装失败：文件必须回到安装前
+  const before = readFileSync(join(profileDir, 'package.json'), 'utf8')
+  const plan2 = planInstall(pack, { home, profile: 'demo' })
+  await assert.rejects(
+    applyInstall(plan2, { home, dataDir, pack, runInstall: async () => { throw new Error('pnpm 炸了') }, log: () => {} }),
+    /pnpm 炸了（已回滚）/,
+  )
+  assert.equal(readFileSync(join(profileDir, 'package.json'), 'utf8'), before)
 })
 
-test('执行计划：不再装依赖；不是只导配置的计划，记录里也没有 configOnly', async () => {
-  const home = tempDir()
-  const dataDir = tempDir()
-  const pack = parsePackArchive(makePack())
-  const calls = []
-  const plan = { ok: true, profile: 'demo', writes: [{ rel: 'AGENTS.md', kind: 'home', data: '指令' }] }
-  // runInstall 已经不是 applyInstall 的参数：传了也不会被调用（插件由环境在启动前写进 profile、再装）
-  const { record } = await applyInstall(plan, { home, dataDir, pack, runInstall: async (profile) => calls.push(profile) })
-  assert.deepEqual(calls, [])
-  assert.equal(record.createdProfile, false)
-  assert.equal('configOnly' in record, false)
-})
-
-test('安装记录：备份目录带时间戳；同一次安装只留一条，整包安装和只导配置各算各的', () => {
+test('安装记录：备份目录带时间戳，状态文件记下装了哪个包', () => {
   const dataDir = tempDir()
   const stamp = backupDirFor(dataDir, 'demo', new Date('2026-09-26T10:00:00Z'))
   assert.match(stamp.replace(/\\/g, '/'), /packs\/backups\/20260926100000-demo$/)
@@ -458,56 +395,22 @@ test('安装记录：备份目录带时间戳；同一次安装只留一条，�
   rememberPack(dataDir, { name: 'demo', version: '1.1.0', profile: 'demo', files: [] })
   assert.equal(readPackState(dataDir).packs.length, 1, '同一个包同一 profile 只留一条')
   assert.equal(readPackState(dataDir).packs[0].version, '1.1.0')
-  // 同一个包先整包装过、后来又只导配置：两条记录，各自撤销
-  rememberPack(dataDir, { name: 'demo', version: '2.0.0', profile: 'demo', configOnly: true, files: [] })
-  rememberPack(dataDir, { name: 'demo', version: '2.0.1', profile: 'demo', configOnly: true, files: [] })
-  rememberPack(dataDir, { name: 'demo', version: '1.0.0', profile: 'other', files: [] })
-  assert.deepEqual(readPackState(dataDir).packs.map((item) => [item.profile, item.version, item.configOnly === true]), [
-    ['demo', '1.1.0', false],
-    ['demo', '2.0.1', true],
-    ['other', '1.0.0', false],
-  ])
-  // forgetPack 收的是记录本身，按同一套规则只摘掉对上的那条
-  forgetPack(dataDir, { name: 'demo', profile: 'demo', configOnly: true })
-  assert.deepEqual(readPackState(dataDir).packs.map((item) => [item.profile, item.version]), [['demo', '1.1.0'], ['other', '1.0.0']])
-  forgetPack(dataDir, readPackState(dataDir).packs[0])
-  assert.deepEqual(readPackState(dataDir).packs.map((item) => [item.profile, item.version]), [['other', '1.0.0']])
 })
 
-test('同一次安装：名字、Profile、是否只导配置三样都对上才算', () => {
-  const legacy = { name: 'demo', profile: 'web' }
-  const config = { name: 'demo', profile: 'web', configOnly: true }
-  assert.equal(sameInstall(legacy, { name: 'demo', profile: 'web' }), true)
-  assert.equal(sameInstall(legacy, { name: 'demo', profile: 'web', configOnly: false }), true)
-  assert.equal(sameInstall(legacy, { name: 'demo', profile: 'web', configOnly: true }), false)
-  assert.equal(sameInstall(config, { name: 'demo', profile: 'web' }), false, '不带 configOnly 指的是整包安装')
-  assert.equal(sameInstall(config, { name: 'demo', profile: 'web', configOnly: true }), true)
-  assert.equal(sameInstall(legacy, { name: 'demo', profile: 'other' }), false)
-  assert.equal(sameInstall(legacy, { name: 'other', profile: 'web' }), false)
-})
-
-test('撤销配置导入：包新建的文件删掉、覆盖的文件还原，package.json 不受牵连', async () => {
+test('卸载：包新建的文件删掉、覆盖的文件还原', async () => {
   const home = tempDir()
   const dataDir = tempDir()
-  const profileDir = initedProfile(home, 'demo')
-  const manifest = readFileSync(join(profileDir, 'package.json'), 'utf8')
+  const profileDir = join(home, 'profiles', 'demo')
+  mkdirSync(profileDir, { recursive: true })
   writeFileSync(join(profileDir, 'cordis.patch.yml'), '[]\n')
-  const pack = parsePackArchive(makePack({
-    entries: [
-      { name: 'overrides/cordis.patch.yml', data: '- id: x\n' },
-      { name: 'overrides/config/new.json', data: '{"a":1}' },
-    ],
-  }))
-  const { record } = await applyInstall(planConfigInstall(pack, { home, profile: 'demo' }), { home, dataDir, pack, log: () => {} })
+  const pack = parsePackArchive(makePack({ entries: [{ name: 'overrides/cordis.patch.yml', data: '- id: x\n' }] }))
+  const plan = planInstall(pack, { home, profile: 'demo' })
+  const { record } = await applyInstall(plan, { home, dataDir, pack, runInstall: async () => {}, log: () => {} })
   assert.equal(readFileSync(join(profileDir, 'cordis.patch.yml'), 'utf8'), '- id: x\n')
-  assert.ok(existsSync(join(profileDir, 'config', 'new.json')), '新写的文件在')
-  // 导入之后环境往 package.json 里写了插件清单：撤销配置不能把它还原回去
-  writeFileSync(join(profileDir, 'package.json'), `${manifest.trim()}\n`.replace('"private":true', '"private":true,"dependencies":{"dsh-x":"1.0.0"}'))
-  const afterEnvironment = readFileSync(join(profileDir, 'package.json'), 'utf8')
+  assert.ok(existsSync(join(profileDir, 'pnpm-workspace.yaml')), '新写的文件在')
   uninstallPack(record, { home, log: () => {} })
   assert.equal(readFileSync(join(profileDir, 'cordis.patch.yml'), 'utf8'), '[]\n', '覆盖的补丁层还原')
-  assert.ok(!existsSync(join(profileDir, 'config', 'new.json')), '包新建的文件被删掉')
-  assert.equal(readFileSync(join(profileDir, 'package.json'), 'utf8'), afterEnvironment)
+  assert.ok(!existsSync(join(profileDir, 'pnpm-workspace.yaml')), '包新建的文件被删掉')
 })
 
 test('回滚：备份缺失时报出来而不是假装成功', () => {
@@ -522,54 +425,67 @@ test('回滚：备份缺失时报出来而不是假装成功', () => {
   assert.throws(() => uninstallPack({ backupDir: join(home, 'missing'), files: [{ rel: 'profiles/x/package.json', existed: true }] }, { home }), /未能还原/)
 })
 
-test('连续导入同一个包的配置：独立备份，撤销仍回到首次导入前', async () => {
+test('连续重装同一个包：独立备份，撤销仍回到首次安装前', async () => {
   const home = tempDir()
   const dataDir = tempDir()
-  const profileDir = initedProfile(home, 'demo', '{"name":"original","private":true}\n')
+  const profileDir = join(home, 'profiles', 'demo')
+  mkdirSync(profileDir, { recursive: true })
+  writeFileSync(join(profileDir, 'package.json'), '{"name":"original","private":true}\n')
   writeFileSync(join(profileDir, 'cordis.patch.yml'), 'original\n')
   const before = readFileSync(join(profileDir, 'package.json'), 'utf8')
   const pack = parsePackArchive(makePack({ entries: [{ name: 'overrides/cordis.patch.yml', data: 'first\n' }] }))
   const now = new Date('2026-10-01T01:00:00Z')
-  const first = await applyInstall(planConfigInstall(pack, { home, profile: 'demo' }), { home, dataDir, pack, now })
-  const next = parsePackArchive(makePack({
-    manifest: { version: '2.0.0' },
-    entries: [
-      { name: 'overrides/cordis.patch.yml', data: 'second\n' },
-      { name: 'overrides/config/x.json', data: '{}' },
-    ],
-  }))
-  const second = await applyInstall(planConfigInstall(next, { home, profile: 'demo' }), { home, dataDir, pack: next, now, previousRecord: first.record })
+  const first = await applyInstall(planInstall(pack, { home, profile: 'demo' }), { home, dataDir, pack, now })
+  const next = parsePackArchive(makePack({ manifest: { version: '2.0.0' }, entries: [{ name: 'overrides/cordis.patch.yml', data: 'second\n' }] }))
+  const second = await applyInstall(planInstall(next, { home, profile: 'demo' }), { home, dataDir, pack: next, now, previousRecord: first.record })
   assert.notEqual(first.backupDir, second.backupDir, '同一秒内的备份不能覆盖')
-  assert.equal(second.record.configOnly, true)
-  assert.equal(second.record.createdProfile, false)
   uninstallPack(second.record, { home })
-  assert.equal(readFileSync(join(profileDir, 'cordis.patch.yml'), 'utf8'), 'original\n')
-  assert.equal(existsSync(join(profileDir, 'config', 'x.json')), false)
   assert.equal(readFileSync(join(profileDir, 'package.json'), 'utf8'), before)
+  assert.equal(readFileSync(join(profileDir, 'cordis.patch.yml'), 'utf8'), 'original\n')
+  assert.equal(existsSync(join(profileDir, 'pnpm-workspace.yaml')), false)
 })
 
-// ---- 导出钉版读的实装版本 ----
-// 整个 Profile 打成包的导出撤了（环境导出只带 DSH 精确版本和插件清单，见 packs-api）；
-// 「范围 / tag 按 node_modules 实测版本钉死」由导出那层做，这里只管把实装版本读出来，读不到给空串
+// ---- 导出 ----
 
-test('实装版本：按 node_modules 里的 package.json 读，带 scope 的包也找得到', () => {
-  const profileDir = join(tempDir(), 'profiles', 'mine')
+test('导出：依赖按 node_modules 实测版本钉死，补丁层进 overrides，凭据不进包', () => {
+  const home = tempDir()
+  const dataDir = tempDir()
+  const profileDir = join(home, 'profiles', 'mine')
   mkdirSync(join(profileDir, 'node_modules', 'dsh-cost-meter'), { recursive: true })
   writeFileSync(join(profileDir, 'node_modules', 'dsh-cost-meter', 'package.json'), '{"name":"dsh-cost-meter","version":"1.7.37"}')
-  mkdirSync(join(profileDir, 'node_modules', '@acme', 'dsh-bar'), { recursive: true })
-  writeFileSync(join(profileDir, 'node_modules', '@acme', 'dsh-bar', 'package.json'), '{"name":"@acme/dsh-bar","version":" 2.3.1 "}')
-  assert.equal(installedVersion(profileDir, 'dsh-cost-meter'), '1.7.37')
-  assert.equal(installedVersion(profileDir, '@acme/dsh-bar'), '2.3.1', '前后空白去掉')
+  writeFileSync(join(profileDir, 'package.json'), JSON.stringify({
+    name: 'dsh-profile-mine',
+    private: true,
+    dependencies: { 'dsh-cost-meter': '^1.7.0', 'dsh-meme': 'file:../meme', '.env': '1.0.0' },
+    dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', 'dsh-cost-meter'], patchReload: 'live' } },
+  }))
+  writeFileSync(join(profileDir, 'cordis.patch.yml'), '- id: x\n  disabled: true\n')
+  writeFileSync(join(profileDir, '.env'), 'SECRET=1')
+  mkdirSync(join(home, 'skills', 'a'), { recursive: true })
+  writeFileSync(join(home, 'skills', 'a', 'SKILL.md'), '# a')
+
+  const out = exportPack({ profileDir, home, name: 'My Pack', version: '2.0.0', includeHome: true })
+  assert.equal(out.name, 'my-pack')
+  assert.deepEqual(out.dependencies, { 'dsh-cost-meter': '1.7.37', 'dsh-meme': 'file:../meme', '.env': '1.0.0' })
+  assert.ok(out.entries.includes('home/skills/a/SKILL.md'))
+
+  const back = parsePackArchive(out.buffer)
+  assert.equal(back.ok, true)
+  assert.equal(back.fields.name, 'my-pack')
+  assert.equal(back.fields.version, '2.0.0')
+  assert.equal(back.fields.dependencies['dsh-cost-meter'], '1.7.37', '范围被钉成实测版本')
+  assert.equal(back.patch.source, 'overrides/cordis.patch.yml')
+  assert.deepEqual(back.home.map((item) => item.path), ['skills/a/SKILL.md'])
+  assert.deepEqual(back.skipped, [], '导出不写敏感文件，所以也没有跳过的')
+
+  // 导出的包能装进一个新 profile
+  const plan = planInstall(back, { home, profile: 'from-pack' })
+  assert.equal(plan.ok, true)
+  const value = JSON.parse(plan.writes.find((write) => write.rel === 'profiles/from-pack/package.json').data)
+  assert.deepEqual(value.dsh.profile.bundles, ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-cost-meter'], '新 profile 的骨架层（base/web-app）也在')
 })
 
-test('实装版本：没装成、读不到、没写版本都给空串，不编一个版本出来', () => {
-  const profileDir = join(tempDir(), 'profiles', 'mine')
-  mkdirSync(join(profileDir, 'node_modules', 'broken'), { recursive: true })
-  writeFileSync(join(profileDir, 'node_modules', 'broken', 'package.json'), '{ not json')
-  mkdirSync(join(profileDir, 'node_modules', 'no-version'), { recursive: true })
-  writeFileSync(join(profileDir, 'node_modules', 'no-version', 'package.json'), '{"name":"no-version"}')
-  assert.equal(installedVersion(profileDir, 'not-installed'), '')
-  assert.equal(installedVersion(profileDir, 'broken'), '')
-  assert.equal(installedVersion(profileDir, 'no-version'), '')
-  assert.equal(installedVersion(join(tempDir(), 'no-such-profile'), 'dsh-cost-meter'), '', 'Profile 目录都不在也不抛')
+test('导出：没有 package.json 的 profile 直接说没有', () => {
+  const home = tempDir()
+  assert.throws(() => exportPack({ profileDir: join(home, 'profiles', 'nope'), home }), /没有可读的 package\.json/)
 })

@@ -6,13 +6,6 @@
  * 和启动器自己的目录。以后做 dsh 插件时，sync.js + zipfile.js + 这个文件就是完整的一套。
  */
 
-/**
- * 版本号的字符集（registry 里的 tag 名、`data/versions/<版本>` 的目录名都按它收）。
- * 导出是给 `instancePorts` 的键用——那张表的键是「版本@profile」，两边都不能含 @，
- * 拼接才不会有歧义（见 server.js 的 instanceKey）。
- */
-export const VERSION_RE = /^[0-9A-Za-z][0-9A-Za-z._+-]*$/
-
 export function parseVer(version) {
   const match = String(version).trim().match(/^(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/)
   if (!match) return null
@@ -59,100 +52,6 @@ export function cmpVer(a, b) {
   if (a.pre) return -1
   if (b.pre) return 1
   return 0
-}
-
-// 「比这个主次补版本的所有预发布都低」的预发布段：^1.2.3 的上界是 2.0.0-0，2.0.0-rc.1 才不会混进来。
-const LOWEST_PRE = '0'
-const COMPARATOR_RE = /^(\^|~|>=|<=|>|<|=)?v?(\d+|[xX*])(?:\.(\d+|[xX*]))?(?:\.(\d+|[xX*]))?(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/
-const ANY_RANGE = new Set(['', '*', 'x', 'X', 'latest'])
-
-const versionOf = (major, minor = 0, patch = 0, pre = '') => ({ major, minor, patch, pre })
-const isWildcard = (part) => part === undefined || /^[xX*]$/.test(part)
-
-/** 一个比较式展开成上下界；认不出的写法返回 null（整组都不算满足，不猜）。 */
-function expandComparator(token) {
-  const match = COMPARATOR_RE.exec(token)
-  if (!match) return null
-  const [, op = '', rawMajor, rawMinor, rawPatch, pre = ''] = match
-  if (isWildcard(rawMajor)) return []
-  const major = Number(rawMajor)
-  const minor = isWildcard(rawMinor) ? undefined : Number(rawMinor)
-  const patch = isWildcard(rawPatch) ? undefined : Number(rawPatch)
-  const base = versionOf(major, minor ?? 0, patch ?? 0, pre)
-  const below = (next) => ({ op: '<', ver: { ...next, pre: LOWEST_PRE } })
-  if (op === '^') {
-    const upper = major > 0 || minor === undefined ? versionOf(major + 1)
-      : minor > 0 || patch === undefined ? versionOf(0, minor + 1) : versionOf(0, 0, patch + 1)
-    return [{ op: '>=', ver: base }, below(upper)]
-  }
-  if (op === '~') {
-    return [{ op: '>=', ver: base }, below(minor === undefined ? versionOf(major + 1) : versionOf(major, minor + 1))]
-  }
-  const partial = minor === undefined || patch === undefined
-  // 缺段的版本（1.2 / 1）代表一整段版本：比它大 = 比这一段都大，<= 它 = 低于下一段
-  const nextBlock = minor === undefined ? versionOf(major + 1) : versionOf(major, minor + 1)
-  if (op === '' || op === '=') {
-    if (!partial) return [{ op: '=', ver: base }]
-    return [{ op: '>=', ver: base }, below(nextBlock)]
-  }
-  if (partial && op === '>') return [{ op: '>=', ver: { ...nextBlock, pre: LOWEST_PRE } }]
-  if (partial && op === '<=') return [below(nextBlock)]
-  if (partial && op === '<') return [{ op: '<', ver: { ...base, pre: LOWEST_PRE } }]
-  return [{ op, ver: base }]
-}
-
-/**
- * npm 默认规则：预发布版只在组里有一个比较式带着同一个「主.次.补」的预发布段时才算数
- * （`>=1.3.0-rc.1` 收 1.3.0-rc.2，但 `^1.2.0` 不收 1.3.0-alpha.1）。
- */
-function prereleaseAllowed(target, comparators) {
-  if (!target.pre) return true
-  return comparators.some(({ ver }) => ver.pre && ver.pre !== LOWEST_PRE && ver.major === target.major && ver.minor === target.minor && ver.patch === target.patch)
-}
-
-const COMPARE = {
-  '<': (order) => order < 0,
-  '<=': (order) => order <= 0,
-  '>': (order) => order > 0,
-  '>=': (order) => order >= 0,
-  '=': (order) => order === 0,
-}
-
-/**
- * 版本范围判断（semver 范围写法的够用子集）：`||` 分组，组内空格分隔的比较式全部满足即可；
- * 认 `^` `~` `x`/`*` 通配、`>=` `>` `<=` `<` `=` 和裸版本号（缺的段算通配）。
- *
- * includePrerelease（默认开）时预发布版照常按大小比较：dsh 大部分版本都是预发布，整合包作者写
- * `>=0.2.1-rc.1 <0.3.0-0` 就是想要 0.2.2-rc.1 这类版本，按 npm 的默认规则它会被排除，环境就永远
- * 挑不到 DSH 版本。挑插件版本时要关掉它，和 pnpm 解析范围的结果一致（`^1.2.0` 不该落到 1.3.0-alpha）。
- */
-export function satisfiesRange(version, range, { includePrerelease = true } = {}) {
-  const target = parseVer(version)
-  if (!target) return false
-  const text = String(range ?? '').trim()
-  if (ANY_RANGE.has(text)) return includePrerelease || !target.pre
-  return text.split('||').some((group) => {
-    const comparators = group.trim().split(/\s+/).filter(Boolean).map(expandComparator)
-    if (comparators.some((item) => item === null)) return false
-    const flat = comparators.flat()
-    return flat.every(({ op, ver }) => COMPARE[op](cmpVer(target, ver))) && (includePrerelease || prereleaseAllowed(target, flat))
-  })
-}
-
-/** 能不能当版本范围解析（^1.2.0、>=1 <2、1.x、*）；npm 的 dist-tag（next、beta）不行。 */
-export function isVersionRange(text) {
-  const value = String(text ?? '').trim()
-  if (ANY_RANGE.has(value)) return true
-  return value.split('||').every((group) => {
-    const tokens = group.trim().split(/\s+/).filter(Boolean)
-    return tokens.length > 0 && tokens.every((token) => expandComparator(token) !== null)
-  })
-}
-
-/** 是不是一个精确版本号（不是范围、不是 tag）：parseVer 只认数字开头，带运算符的进不来。 */
-export function isExactVersion(text) {
-  const parsed = parseVer(text)
-  return Boolean(parsed) && parsed.parts === 3
 }
 
 /**

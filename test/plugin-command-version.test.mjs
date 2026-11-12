@@ -94,18 +94,11 @@ if (args[0] === 'plugin') {
     assert.equal(command.args.includes('--accept-risk'), false)
   }
 
-  // 整合包更新（/api/packs/update，把整组插件升到最新）撤了：设计稿第三期里环境的更新只跟上游 release 走。
-  // 选哪个内核跑插件命令这件事还在，单个和全部更新都走 /api/plugins/update，覆盖照旧
-  await t.test('停止的启动项固定 0.2.0：单个和全部更新均使用 0.2.0；整合包更新接口已下线', async () => {
+  await t.test('停止的启动项固定 0.2.0：单个、全部和整合包更新均使用 0.2.0', async () => {
     await saveSettings({ launchPresets: [preset(ID, OLD)] })
-    for (const options of [{}, { all: true }]) {
+    for (const options of [{}, { all: true }, { path: '/api/packs/update' }]) {
       await update(OLD, { launchId: ID, ...options })
     }
-    resetPlugin()
-    const before = commands().length
-    const gone = await api('/api/packs/update', { profile: 'myweb1' }, { 'x-dsh-launch-id': ID })
-    assert.equal(gone.status, 404, JSON.stringify(gone))
-    assert.equal(commands().length, before, '下线的接口不跑插件命令')
   })
   await t.test('按目录管理 Profile 时也采用唯一匹配启动项的固定版本', async () => {
     await update(OLD)

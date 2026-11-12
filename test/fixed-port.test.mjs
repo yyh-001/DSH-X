@@ -366,7 +366,7 @@ test('钉重了 / 钉到管理页 / 钉给不起 web 的 profile：都当场拒'
   await assert.rejects(pin(B, MANAGER_PORT), /管理页/, '管理页自己在用的端口要让开')
   await assert.rejects(pin(A, await freePort(), 'headless'), /不起 web/, '不起 web 的 profile 没有端口可钉')
   await assert.rejects(pin(A, 70000), /1-65535/, '端口范围照旧收口')
-  await assert.rejects(pin(A, 1, 'ghost/../profile'), /配置名只能用字母、数字、点、下划线、连字符/, '配置名（dsh profile 名）照旧只认目录安全字符')
+  await assert.rejects(pin(A, 1, 'ghost/../profile'), /profile/, 'profile 名照旧只认目录安全字符')
   // 留空 = 取消钉：不留残余，也不因为 profile 不起 web 而拒绝（清掉总是对的）
   assert.deepEqual(await pin(A, ''), { key: `${A}@web`, port: 0, busy: false })
   assert.ok(!(await state()).instancePorts[`${A}@web`])

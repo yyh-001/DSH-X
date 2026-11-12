@@ -1456,7 +1456,7 @@ export const PROFILE_SYNC_FILES = [
 export const SYNC_SCOPES = [
   { id: 'sessions', label: '会话记录', hint: '每个项目的聊天记录（session.jsonl.zstd）' },
   { id: 'attachments', label: '附件', hint: '对话里贴的图片和文件' },
-  { id: 'plugins', label: '插件与配置', hint: '当前配置的插件清单、补丁层（拉下来后自动重装依赖）' },
+  { id: 'plugins', label: '插件与配置', hint: '当前 profile 的插件清单、补丁层（拉下来后自动重装依赖）' },
   { id: 'skills', label: '技能', hint: 'dsh 与 agents 两个用户级技能目录' },
   { id: 'memory', label: '记忆', hint: 'dsh 的长期记忆目录' },
 ]

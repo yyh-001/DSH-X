@@ -1,12 +1,12 @@
 # DSH-X 桌面工作台
 
-DSH-X 的第二套内置实例：**把 [dsh-tauri 桌面版](https://github.com/dsh-tauri/deepseek-harness-desktop) 最常用的几项能力，在纯 dsh 生态里凑齐；再把 [ZCode](https://github.com/zai-org/ZCode) 的两份通用技能带过来。** 导入后是一个实例，在启动项里选它、再选一个配置就能启动。
+DSH-X 的第二套整合包：**把 [dsh-tauri 桌面版](https://github.com/dsh-tauri/deepseek-harness-desktop) 最常用的几项能力，在纯 dsh 生态里凑齐；再把 [ZCode](https://github.com/zai-org/ZCode) 的两份通用技能带过来。** 装它 = 得到一个独立 profile（默认名 `workbench`），和现有环境互不打扰。
 
 > 为什么不是直接装 dsh-tauri 的插件：dsh-tauri 的 12 个内置插件都声明了 `external: ["dsh-tauri/client"]`，依赖 Tauri 宿主桥，在纯 dsh（包括 DSH-X 的 Electron 壳）里加载不到模块。所以这里选的是生态里同能力的独立插件，不是移植。
 
 ## 里面有什么
 
-### 插件（可在插件页单独开关）
+### 插件（装进 `workbench`，可在插件页单独开关）
 
 | 插件 | 干什么 | 对应 dsh-tauri 的 |
 |---|---|---|
@@ -16,7 +16,7 @@ DSH-X 的第二套内置实例：**把 [dsh-tauri 桌面版](https://github.com/
 | [`dsh-archived-conversations`](https://github.com/AKS1st/dsh-archived-conversations) | 设置页里的「已归档对话」列表与只读预览（最近 6 条消息）。dsh 目前没有取消归档 API，所以只读、不恢复 | `dsh-tauri-archive` |
 | [`dsh-plugin-notify-sounds`](https://github.com/BillCx330/dsh-plugin-notify-sounds) | 需要你决策或任务完成时的提示音 + 系统通知（点通知跳回窗口），任务栏标题标记「等待你 / 已完成」，看过就安静 | `dsh-tauri-notification` |
 
-### 技能（导入时勾上「把包里的配置导进配置」才写到 `~/.dsh/skills`，所有配置共用）
+### 技能（写到 `~/.dsh/skills`，所有 profile 共用）
 
 | 技能 | 干什么 | 来源 |
 |---|---|---|
@@ -25,21 +25,21 @@ DSH-X 的第二套内置实例：**把 [dsh-tauri 桌面版](https://github.com/
 
 `agent-browser` / `electron` 需要本机有 CLI：`npm i -g agent-browser`、`brew install agent-browser` 或 `cargo install agent-browser`，也可以直接 `npx agent-browser`。技能目录里附了完整参考文档和脚本模板，模型按需读，不会一次性灌进上下文。
 
-## 和「DSH-X 推荐实例」的区别
+## 和「DSH-X 推荐整合包」的区别
 
-- 推荐实例管的是**底子**：配置备份/迁移、记忆、同步、装饰。
-- 这个实例管的是**干活**：编辑与 Git、工作树、定时任务、归档、通知，外加浏览器/Electron 自动化技能。
-- 两者是两个实例，不同启动项可以各用一个；技能同名时后导入的覆盖先导入的（写入前会备份）。
+- 推荐包管的是**环境**：配置备份/迁移、记忆、同步、装饰。
+- 这个包管的是**干活**：编辑与 Git、工作树、定时任务、归档、通知，外加浏览器/Electron 自动化技能。
+- 两者装到不同 profile 可以并存；技能同名时后装的覆盖先装的（安装前会备份）。
 
-## 怎么导入
+## 怎么装
 
-实例页里列着它（内置，点开导入）。别的来源三选一：
+三种方式，任选：
 
-1. **本地文件**：在实例页点「导入…」选 `.dspack`。
+1. **本地文件**：把 `.dspack` 拖进插件页的「整合包」区（或点安装选文件）。
 2. **直链**：填这个包的下载地址。
 3. **GitHub 仓库**：填 `owner/repo`（取最新 Release 里的 `.dspack`）。
 
-导入前会列出要用的 DSH 版本、插件和可选的技能，确认了才动手。导入后在启动项里选这个实例启动；技能在「技能」页能看到，改完不用重启。
+装之前会把「要装什么、要改哪些文件、什么不会装」列给你看，确认了才动手；装失败自动回滚。装完在插件页切到 `workbench`、重启 dsh 生效；技能在「技能」页能看到，改完不用重启。
 
 ## 需要什么
 
@@ -50,7 +50,7 @@ DSH-X 的第二套内置实例：**把 [dsh-tauri 桌面版](https://github.com/
 
 ## 许可与出处
 
-- 这份配方本身 MIT。
+- 整合包本身 MIT。
 - `agent-browser`、`electron` 技能：Copyright 2025 Vercel Inc.，Apache-2.0；本副本取自 zai-org/ZCode（Apache-2.0，commit `3c5b227649371507ddc4eb46ac5133afe6db1cab`）。DSH-X 原样收录未修改，每个技能目录里附了 `NOTICE.md` 与许可全文。
 - 五个插件各自许可见对应 npm 包。
 
