@@ -99,6 +99,7 @@ export function parseTabTarget(value) {
     title: typeof value.title === 'string' ? value.title : 'DSH',
     status: typeof value.status === 'string' ? value.status : 'running',
     managed: typeof value.managed === 'boolean' ? value.managed : true,
+    ...Object.fromEntries(['home', 'profile', 'version', 'homeName'].filter((key) => typeof value[key] === 'string').map((key) => [key, value[key]])),
   }
 }
 
@@ -109,6 +110,7 @@ export function parseLaunchEntry(value) {
   return {
     id: value.id,
     instanceId: typeof value.instanceId === 'string' ? value.instanceId : '',
+    ...(typeof value.viewId === 'string' ? { viewId: value.viewId } : {}),
     name: value.name,
     status: value.status,
     installed: value.installed === true,

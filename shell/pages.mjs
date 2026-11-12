@@ -115,8 +115,8 @@ export function idlePage(lang) {
   const en = lang === 'en'
   const title = en ? 'dsh is not running' : 'dsh 没在运行'
   const hint = en ? 'Start it here, or go back to the launcher page.' : '可以在这里直接启动，或者回到启动器管理页。'
-  const start = en ? 'Start dsh' : '启动 dsh'
-  const manager = en ? 'Open launcher' : '打开管理页'
+  const start = en ? 'Start this instance' : '启动此实例'
+  const manager = en ? 'Open launcher' : '打开启动器'
   return `<!doctype html>
 <html lang="${en ? 'en' : 'zh-CN'}"><head><meta charset="utf-8"><title>${title}</title><style>
   :root { color-scheme: dark; }

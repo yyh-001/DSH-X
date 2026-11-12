@@ -6,12 +6,14 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { BrowserTabs } from './tabs.mjs'
+import { InstanceViews, instanceWindowTitle, launchForView, legacyWindowTarget } from './instance-views.mjs'
+import { InstanceWindow } from './instance-window.mjs'
 import { BROWSER_IPC, DesktopBrowserGuests } from './browser-guests.mjs'
 import { createCoreRecovery, isEnvironmentStartupError } from './core-recovery.mjs'
 import { corePackageName, channelOf, coreRegistries, fetchCoreMetadata, installCore, pickCoreRelease, tarballFor } from './core-fetch.mjs'
 import { createUpdater } from './updater.mjs'
 import { readPrefs } from './prefs.mjs'
-import { coreSetupPage, coreSetupPaintScript, dataUrl, errorPage, idlePage, resolveDark, tabBaseColor } from './pages.mjs'
+import { coreSetupPage, coreSetupPaintScript, dataUrl, errorPage, resolveDark, tabBaseColor } from './pages.mjs'
 import { clickTarget, dialogOptions, notificationDecision, notifyThrottled } from './desktop.mjs'
 import {
   LAUNCH_ACTIONS,
@@ -123,7 +125,7 @@ let server = null
 let managerBase = ''
 let mainWindow = null
 let tabs = null
-let dshWindow = null
+let instanceViews = null
 let tray = null
 let trayMenuKey = ''
 let state = parseTrayState('')
@@ -615,7 +617,10 @@ async function start() {
   installDownloadHandler()
   installBrowserGuestIpc()
   // 系统深浅色在运行中变了（控制中心切换）：停止页跟着重画（#58）
-  nativeTheme.on('updated', () => tabs?.systemThemeChanged())
+  nativeTheme.on('updated', () => {
+    tabs?.systemThemeChanged()
+    instanceViews?.preferences(state.lang, resolveDark(state.theme, nativeTheme.shouldUseDarkColors))
+  })
 
   // 默认是 Electron 本体（process.execPath）；设置里选了系统 Node 或显式 DSH_RUNTIME_NODE 时可能落空。
   if (!RUNTIME_NODE || (app.isPackaged && !existsSync(RUNTIME_NODE))) {
@@ -677,6 +682,8 @@ async function start() {
     onWake: async () => showManager(),
     openTab: (target) => openInternalTab(target),
     openWindow: (url) => openDshWindow(url),
+    presentInstance: (target, options) => instanceViews.presentInstance(target, options),
+    onStateChanged: () => applyState(parseTrayState(server.trayStateText())),
     exit: (code) => exitApp(code),
     // 核心更新后重启：AppImage 重启 APPIMAGE 本身，其他平台用 app.relaunch()
     relaunch: relaunchApp,
@@ -757,11 +764,25 @@ function createMainWindow() {
   })
   mainWindow.on('resize', () => tabs?.layout())
   guardManager(mainWindow.webContents)
-  tabs = new BrowserTabs(mainWindow, { createView: createTabView })
+  tabs = new BrowserTabs(mainWindow, {
+    retire: (record) => instanceViews.retire(record),
+    dispose: (id) => instanceViews.disposeView(id),
+    reveal: () => revealWindow(mainWindow, MAIN_WINDOW),
+    systemDark: () => nativeTheme.shouldUseDarkColors,
+  })
+  instanceViews = new InstanceViews({
+    createView: createTabView,
+    createHost: (kind) => kind === 'internal' ? tabs : createDshWindow(),
+    bootUrl: (target) => {
+      if (!target.home || !target.profile || !target.version) return ''
+      const params = new URLSearchParams({ home: target.home, profile: target.profile, version: target.home.startsWith('wsl://') ? 'auto' : target.version, name: target.title })
+      return `${managerUrl()}booting?${params}`
+    },
+  })
   mainWindow.loadURL(`${managerUrl()}?window=${WINDOW_QUERY}`)
 }
 
-/** 管理页和独立窗口那张本地页：只有它们装预加载、拿得到 window.ipc。 */
+/** 管理页的预加载；实例占位页的窄化桥由 remotePreferences 那份预加载提供。 */
 function managerPreferences() {
   return { preload: PRELOAD, sandbox: true, contextIsolation: true, nodeIntegration: false, spellcheck: false }
 }
@@ -829,9 +850,12 @@ function createTabView(id) {
   // 右侧栏浏览器：这块 WebContents 是 guest 的唯一 owner，页面销毁时租约自己释放。
   browserGuests.bind(contents)
   browserGuestOwners.add(contents)
-  contents.on('destroyed', () => browserGuestOwners.delete(contents))
+  contents.on('destroyed', () => {
+    browserGuestOwners.delete(contents)
+    instanceViews?.disposeView(id)
+  })
   contents.setWindowOpenHandler(({ url }) => {
-    if (!tabs.link(id, url)) openLink(url)
+    if (!instanceViews.link(id, url)) openLink(url)
     return { action: 'deny' }
   })
   contents.on('will-navigate', (event, url) => {
@@ -840,20 +864,27 @@ function createTabView(id) {
     event.preventDefault()
     shell.openExternal(url)
   })
-  contents.on('page-title-updated', (_event, title) => tabs.title(id, title))
+  contents.on('page-title-updated', (_event, title) => instanceViews.title(id, title))
   // 页面画完再采一次底色：present 那次可能还停在加载屏上（采到的是加载页的颜色），
   // 采完选中的标签才和它下面那块页面同色。
-  contents.on('did-stop-loading', () => tabs.resample(id))
+  contents.on('did-stop-loading', () => {
+    const record = instanceViews.views.get(id)
+    if (record?.host === tabs) tabs.resample(record.target.id)
+  })
   contents.on('before-input-event', (event, input) => {
     const action = shortcutAction(input, true)
     if (action) {
       event.preventDefault()
-      tabs.action({ action })
+      const record = instanceViews.views.get(id)
+      if (!record || record.pendingClose) return
+      if (record.host === tabs) tabs.action({ action })
+      else if (action === 'close-active') record.host.window.close()
+      else if (action === 'reload') instanceViews.recover(id)
     }
   })
-  // 页面进程崩了只剩一块空白：由外壳重新认证装回（见 BrowserTabs.recover）
+  // 页面进程崩了只恢复这一页，登记器沿用当前实例的认证地址。
   contents.on('render-process-gone', (_event, details) => {
-    if (!CLEAN_EXITS.has(details.reason)) tabs.recover(id)
+    if (!CLEAN_EXITS.has(details.reason)) instanceViews.recover(id)
   })
   return view
 }
@@ -861,9 +892,8 @@ function createTabView(id) {
 /** 管理页和本地页发来的消息（window.ipc.postMessage）。按发送方分派，别的 webContents 发的一律不认。 */
 ipcMain.on(IPC_CHANNEL, (event, message) => {
   if (mainWindow && event.sender === mainWindow.webContents) return handleManagerMessage(message)
-  // 独立窗口里远端 dsh 页面也带着这个预加载（同一块 webContents 换页，预加载改不了）：
-  // 只认外壳自己那张 data: 本地页发的消息
-  if (dshWindow && event.sender === dshWindow.webContents && event.senderFrame?.url.startsWith('data:')) return handleIdleMessage(message)
+  const record = instanceViews?.localSender(event)
+  if (record) return handleIdleMessage(record, message)
 })
 
 function handleManagerMessage(message) {
@@ -923,8 +953,7 @@ function openInternalTab(target) {
     shell.openExternal(target.url)
     return
   }
-  tabs.open(target)
-  revealWindow(mainWindow, MAIN_WINDOW)
+  instanceViews.presentInstance(target, { presentation: 'internal', explicit: true })
 }
 
 /**
@@ -949,78 +978,53 @@ function openLink(url) {
   if (isWebUrl(url)) shell.openExternal(url)
 }
 
-/** 独立 DSH 窗口：按需创建，关窗口只是藏起来（和主窗口一个口径）。 */
+/** 旧核心的 URL 入口：识别已有身份后与新协议共用登记器。 */
 function openDshWindow(url) {
-  if (!dshWindow) createDshWindow()
-  dshWindow.instanceId = null
-  followDshWindow(url)
-  revealWindow(dshWindow, DSH_WINDOW)
+  instanceViews.presentInstance(legacyWindowTarget(url, managerUrl(), state.instances), { presentation: 'window', explicit: true })
 }
 
 function createDshWindow() {
-  dshWindow = new BrowserWindow({
+  const window = new BrowserWindow({
     ...DSH_WINDOW,
     title: 'DSH',
     show: false,
     ...(IS_WINDOWS ? { icon: ICON_FILE } : {}),
-    // 本地那张「没在跑」的页要 window.ipc；远端 dsh 页面的预加载只暴露 postMessage，
-    // 而 handleIdleMessage 只认 launch / manager 两个词，dsh 页面发什么都没有效果。
-    // --dsh-host-paths 只给这个窗口装 __DSH_HOST_PATHS__（拖拽文件取真实路径），管理页不装。
-    webPreferences: { ...managerPreferences(), additionalArguments: ['--dsh-host-paths'] },
+    backgroundColor: tabBaseColor(resolveDark(state.theme, nativeTheme.shouldUseDarkColors)),
+    // 页面只在可迁移的视图里加载，窗口自身不暴露管理 IPC。
+    webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false },
   })
-  dshWindow.page = null
-  dshWindow.instanceId = null
-  dshWindow.on('close', (event) => {
-    if (quitting) return
-    event.preventDefault()
-    dshWindow.hide()
-  })
-  const contents = dshWindow.webContents
-  contents.setWindowOpenHandler(({ url }) => {
-    openLink(url)
-    return { action: 'deny' }
-  })
-  contents.on('will-navigate', (event, url) => {
-    if (!isExternalWebUrl(url)) return
-    event.preventDefault()
-    shell.openExternal(url)
-  })
-  // 网页标题同步到窗口标题：否则窗口菜单里永远只有一个「DSH」
-  contents.on('page-title-updated', (event, title) => {
-    event.preventDefault()
-    dshWindow.setTitle(title.trim() || 'DSH')
-  })
-  contents.on('render-process-gone', (_event, details) => {
-    if (CLEAN_EXITS.has(details.reason) || !dshWindow.page) return
-    const url = dshWindow.page
-    dshWindow.page = null
-    followDshWindow(url)
+  return new InstanceWindow(window, {
+    quitting: () => quitting,
+    dispose: (id) => instanceViews.disposeView(id),
+    reveal: (target) => revealWindow(target, DSH_WINDOW),
+    titles: syncInstanceTitles,
+    hidden: () => {
+      if (!tray && !BrowserWindow.getAllWindows().some((item) => item.isVisible())) showManager()
+    },
   })
 }
 
-/** 让独立窗口跟上 dsh 的当前地址；地址没变不刷新（别把用户正在看的页面刷掉），空地址换本地页。 */
-function followDshWindow(url) {
-  if (dshWindow.isDestroyed()) return
-  const page = url || ''
-  // 窗口自己的底色在页面画出第一帧前露出来，不设就是白的（深色下打开独立窗口那一下白屏）：
-  // 换页前先铺目标页的底色。本地那张「没在跑」的页固定是深色，不管主题。
-  dshWindow.setBackgroundColor(page ? tabBaseColor(resolveDark(state.theme, nativeTheme.shouldUseDarkColors)) : '#15171c')
-  if (dshWindow.page === page) return
-  dshWindow.page = page
-  const target = page || dataUrl(idlePage(state.lang))
-  dshWindow.webContents.loadURL(target).catch(() => {})
+function syncInstanceTitles() {
+  const records = [...instanceViews.targets.values()].filter((record) => record.host?.kind === 'window')
+  for (const record of records) {
+    const duplicates = records.some((other) => other !== record && other.target.title === record.target.title)
+    const title = instanceWindowTitle(record, duplicates)
+    // 旧核心没有目录显示名时加窗口序号，避免系统窗口菜单里出现完全相同的标题。
+    const suffix = duplicates && !record.target.homeName ? ` · ${record.viewId.split('-').at(-1)}` : ''
+    record.host.window.setTitle(title + suffix)
+  }
 }
 
-function handleIdleMessage(message) {
-  // 只有本地那张页会发这两个；dsh 自己的页面发什么都不管
+function handleIdleMessage(record, message) {
   if (message === 'manager') {
     showManager()
     return
   }
   if (message !== 'launch') return
-  const row = state.launches.find((item) => item.instanceId && item.instanceId === dshWindow.instanceId)
-  if (row) trayAction({ id: row.id, instanceId: row.instanceId, action: 'start', targetId: '' })
-  // 原来的入口已被删除时，返回启动器选择，不能误启动另一项
+  const row = launchForView(record, state.launches)
+  const request = row && launchActionRequest(row, 'start')
+  if (request) void trayAction(request)
+  // 入口已被删除或改指其他实例时，不能误启动另一项。
   else showManager()
 }
 
@@ -1061,8 +1065,7 @@ function appMenu() {
  */
 function closeWindow(window) {
   if (!window) return
-  if (window === mainWindow) window.close()
-  else window.hide()
+  window.close()
 }
 
 /**
@@ -1145,20 +1148,9 @@ async function pollTray() {
 function applyState(next) {
   state = next
   syncTrayMenu()
-  // dsh 重启后地址（端口、token）会变：独立窗口跟着选中的实例换页，不能被后来启动的另一项抢走
-  if (dshWindow) {
-    if (!dshWindow.instanceId && dshWindow.page) {
-      dshWindow.instanceId = state.instances.find((target) => sameOrigin(target.url, dshWindow.page))?.id || null
-    }
-    if (dshWindow.instanceId) {
-      const target = state.instances.find((item) => item.id === dshWindow.instanceId)
-      followDshWindow(target?.url || '')
-    }
-  }
-  if (tabs) {
-    tabs.preferences(internalMode(state), state.lang, state.theme)
-    tabs.follow(state.instances)
-  }
+  instanceViews?.preferences(state.lang, resolveDark(state.theme, nativeTheme.shouldUseDarkColors))
+  instanceViews?.follow(state.instances, state.launches)
+  tabs?.preferences(internalMode(state), state.lang, state.theme)
 }
 
 /** 托盘的启动项操作：后台请求，失败就把管理页叫出来、用页面自己的提示说明原因。 */
@@ -1374,6 +1366,7 @@ function liveInstanceCount() {
 /** 管理服务收尾之后（退出 / 自更新）真正退出：先放行窗口的 close，再让 Electron 退。 */
 function exitApp(code = 0) {
   quitting = true
+  instanceViews?.dispose()
   app.exit(code)
 }
 
@@ -1388,4 +1381,5 @@ app.on('before-quit', (event) => {
 })
 // 窗口全关了也不退：托盘还在（默认行为在 macOS 上本来就不退，这里写明白）
 app.on('window-all-closed', () => {})
+app.on('will-quit', () => instanceViews?.dispose())
 

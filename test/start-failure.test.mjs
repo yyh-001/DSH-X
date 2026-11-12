@@ -70,8 +70,8 @@ test('提示框能带一段可复制的输出，启动这条线上的报错都�
   assert.match(html, /noticeDetailEl\.textContent = detail/)
   assert.match(html, /if \(data\.failure\) error\.failure = data\.failure/, 'post() 把服务端带回来的失败信息挂到 Error 上')
   assert.match(html, /function notifyError\(error\) \{\s+if \(error\?\.failure\) showFailure\(error\.failure\)/)
-  // 启动项启动、升级后拉起、带 ?launch 自动启动、整合包页重启：四个入口
-  assert.equal(html.match(/notifyError\(error\)/g)?.length, 5, '四处调用加一处定义')
+  // 启动项启动、升级后拉起、自动启动、整合包重启及显式开窗共用诊断入口。
+  assert.equal(html.match(/notifyError\(error\)/g)?.length, 6, '五处调用加一处定义')
 })
 
 test('主界面留着上次启动失败的入口：托盘里点的启动没有页面在等结果', () => {
