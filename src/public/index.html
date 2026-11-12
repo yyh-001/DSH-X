@@ -134,7 +134,7 @@
           </button>
           <button type="button" class="nav-item" data-pane="settings" data-category="advanced">
             <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-sliders-horizontal"/></svg>
-            <span data-i18n="高级设置">高级设置</span>
+            <span data-i18n="高级">高级</span>
           </button>
           <button type="button" class="nav-item" data-pane="settings" data-category="about">
             <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-info"/></svg>
@@ -1031,7 +1031,7 @@
         </div>
       </div>
       <div class="backup-list" id="backupList"></div>
-      <div class="ask-actions"><button class="ghost" id="backupRefresh" type="button" data-i18n="刷新">刷新</button><button class="ghost" id="backupNow" type="button" data-i18n="立即备份">立即备份</button></div>
+      <div class="ask-actions"><button class="ghost" id="backupRefresh" type="button" data-i18n="刷新">刷新</button><button class="primary" id="backupNow" type="button" data-i18n="立即备份">立即备份</button></div>
     </div>
   </div>
   <div class="ask" id="launchPluginsDialog" hidden>
@@ -1573,7 +1573,7 @@
   "没有可开关的加载行（客户端插件，由插件市场管理）": "No toggleable loader row (client plugin, managed by the marketplace)",
   "官方组件，不提供开关": "Official component, no toggle",
   "市场自管行，不提供开关": "Marketplace-managed row, no toggle",
-  "高级设置": "Advanced",
+  "高级": "Advanced",
   "外观": "Appearance",
   "选择启动器的外观；跟随系统会在系统主题变化时自动切换。": "Choose the launcher appearance. System follows the OS theme.",
   "跟随系统": "System",
@@ -2006,6 +2006,7 @@
   "已删除备份。": "Backup deleted.",
   "立即备份": "Back up now",
   "还没有备份。每次启动会存一份，也可以点「立即备份」。": "No backups yet. One is saved before each launch, or click “Back up now”.",
+  "Profile「{profile}」的配置层快照 · 最多保留 10 份 / 30 天": "Config-layer snapshots of {profile} · latest 10 / 30 days kept",
   "Profile「{profile}」的配置层快照：补丁、依赖清单和 npmrc；回退时会按清单重装依赖，node_modules 本身不在备份里。最多保留最近 10 份，超过 30 天的自动清理。": "Config-layer snapshots of {profile}: patch, dependency manifest and npmrc. Restoring also reinstalls dependencies from the manifest; node_modules itself is not backed up. The latest 10 are kept; snapshots older than 30 days are removed automatically.",
   "回退到这份备份？当前配置会先自动存一份，回退后会自动重装依赖（可能比较慢），并需要重启这个 Profile 的实例才生效。": "Restore this backup? The current config is backed up first, dependencies are reinstalled afterwards (this can take a while), and the profile's instance must be restarted to apply it.",
   "已回退。重启这个 Profile 的实例后生效。": "Restored. Restart this profile's instance to apply it.",
@@ -3878,7 +3879,7 @@
       general: ['常规', '设置启动器的启动方式、界面语言，以及 dsh 的插件与启动配置。'],
       appearance: ['外观', '选择启动器的外观；跟随系统会在系统主题变化时自动切换。'],
       browser: ['浏览器控制', '内置浏览器的开关、证书校验与浏览数据。'],
-      advanced: ['高级设置', ''],
+      advanced: ['高级', ''],
       about: ['关于', '查看当前版本并检查更新。'],
     }
     const settingsSections = [...document.querySelectorAll('#pane-settings .set-section[data-category]')]
@@ -10053,7 +10054,11 @@
     function paintProfileBackups(backups) {
       const rows = Array.isArray(backups) ? backups : []
       const trash = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-trash-2"/></svg>'
-      backupListEl.innerHTML = rows.length ? rows.map((item) => `<div class="backup-row"><div class="backup-row-text"><span class="backup-time">${escapeHtml(backupTimeText(item.createdAt))}</span><span class="backup-files">${escapeHtml((item.files || []).map((file) => file.name).join('、'))}</span></div><button class="ghost" type="button" data-backup-restore="${escapeHtml(item.id)}" ${backupLoading ? 'disabled' : ''}>${escapeHtml(t('回退到此备份'))}</button><button class="ghost icon-btn backup-delete" type="button" data-backup-delete="${escapeHtml(item.id)}" title="${escapeHtml(t('删除这份备份'))}" aria-label="${escapeHtml(t('删除这份备份'))}" ${backupLoading ? 'disabled' : ''}>${trash}</button></div>`).join('') : `<p class="hint">${escapeHtml(t('还没有备份。每次启动会存一份，也可以点「立即备份」。'))}</p>`
+      backupListEl.innerHTML = rows.length ? rows.map((item) => {
+        const names = (item.files || []).map((file) => file.name)
+        // 每份备份装的文件基本一样（补丁、清单、npmrc）：行里只报数量，全名挂在 title 上
+        return `<div class="backup-row"><div class="backup-row-text"><span class="backup-time">${escapeHtml(backupTimeText(item.createdAt))}</span>${names.length ? `<span class="backup-files" title="${escapeHtml(names.join('、'))}">${escapeHtml(t('{n} 个文件', { n: names.length }))}</span>` : ''}</div><button class="ghost" type="button" data-backup-restore="${escapeHtml(item.id)}" title="${escapeHtml(t('回退到此备份'))}" aria-label="${escapeHtml(t('回退到此备份'))}" ${backupLoading ? 'disabled' : ''}>${escapeHtml(t('回退'))}</button><button class="ghost icon-btn backup-delete" type="button" data-backup-delete="${escapeHtml(item.id)}" title="${escapeHtml(t('删除这份备份'))}" aria-label="${escapeHtml(t('删除这份备份'))}" ${backupLoading ? 'disabled' : ''}>${trash}</button></div>`
+      }).join('') : `<p class="hint">${escapeHtml(t('还没有备份。每次启动会存一份，也可以点「立即备份」。'))}</p>`
       backupListEl.querySelectorAll('[data-backup-restore]').forEach((button) => {
         button.onclick = () => { void restoreProfileBackup(button.dataset.backupRestore) }
       })
@@ -10104,8 +10109,12 @@
       if (!profile || packBusy || pluginUpdating || pluginRemoving || pluginAdding) return
       backupProfile = profile
       backupPhase = ''
-      backupHintEl.textContent = t('Profile「{profile}」的配置层快照：补丁、依赖清单和 npmrc；回退时会按清单重装依赖，node_modules 本身不在备份里。最多保留最近 10 份，超过 30 天的自动清理。', { profile })
+      // 说明只留一行保留策略；补丁/清单这些细节挂 title，鼠标停一下就能看全
+      backupHintEl.textContent = t('Profile「{profile}」的配置层快照 · 最多保留 10 份 / 30 天', { profile })
+      backupHintEl.title = t('Profile「{profile}」的配置层快照：补丁、依赖清单和 npmrc；回退时会按清单重装依赖，node_modules 本身不在备份里。最多保留最近 10 份，超过 30 天的自动清理。', { profile })
       paintProfileBackups([])
+      // 上次关窗时可能停在列表中间，重新打开从最新一份看起
+      backupListEl.scrollTop = 0
       paintBackupProgress()
       showPackDialog(backupDialogEl)
       void loadProfileBackups()

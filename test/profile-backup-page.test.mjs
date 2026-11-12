@@ -167,9 +167,11 @@ test('列表渲染：空列表给提示，有备份时每行是时间 + 文件 +
   sandbox.deleteHandlers = [{ dataset: { backupDelete: '123-000000' }, onclick: null }]
   vm.runInContext(`paintProfileBackups([{ id: '123-000000', createdAt: ${at}, files: [{ name: 'package.json' }, { name: 'cordis.patch.yml' }] }])`, sandbox)
   assert.match(sandbox.backupListEl.innerHTML, /2024-01-02 03:04:05/)
+  // 行里只报文件数，全名挂在 title 上
+  assert.match(sandbox.backupListEl.innerHTML, /2 个文件/)
   assert.match(sandbox.backupListEl.innerHTML, /package\.json、cordis\.patch\.yml/)
   assert.match(sandbox.backupListEl.innerHTML, /data-backup-restore="123-000000"/)
-  assert.match(sandbox.backupListEl.innerHTML, /回退到此备份/)
+  assert.match(sandbox.backupListEl.innerHTML, /title="回退到此备份"[^>]*>回退</)
   assert.match(sandbox.backupListEl.innerHTML, /data-backup-delete="123-000000"/)
   assert.match(sandbox.backupListEl.innerHTML, /删除这份备份/)
   assert.equal(typeof sandbox.handlers[0].onclick, 'function')
@@ -287,15 +289,20 @@ test('列备份不会把回退按钮渲染成禁用（列表加载与长操作�
 
 test('样式与英文文案：列表限高滚动、行内按钮不换行，文案全部有译文', () => {
   const styles = cssSection('.backup-list {', '.pack-source {')
-  assert.match(styles, /\.backup-list \{[^}]*max-height: min\(46vh, 360px\)[^}]*overflow-y: auto/)
+  assert.match(styles, /\.backup-list \{[^}]*max-height: min\(46vh, 380px\)[^}]*overflow-y: auto/)
   assert.match(styles, /\.backup-row \{[^}]*display: flex[^}]*align-items: center/)
-  assert.match(styles, /\.backup-files \{[^}]*overflow-wrap: anywhere/)
-  // 删除钮是 32px 方形图标钮，别把时间那栏挤窄
-  assert.match(styles, /\.backup-row \.backup-delete \{[^}]*width: 32px;[^}]*border-radius: 9px/)
+  assert.match(styles, /\.backup-files \{[^}]*white-space: nowrap/)
+  // 有备份时是一张表：行间分隔线、悬停才铺底色
+  assert.match(styles, /\.backup-list:has\(\.backup-row\) \{[^}]*border: 1px solid var\(--line\)/)
+  assert.match(css, /#backupDialogHint \{ margin-bottom: 10px; \}/, '说明和表格之间要有间距，边框不能压着字脚')
+  assert.match(styles, /\.backup-row \{[^}]*border-top: 1px solid var\(--line\)/)
+  assert.match(styles, /\.backup-row:hover \{ background: var\(--accent-soft\); \}/)
+  // 删除钮是方形图标钮，别把时间那栏挤窄
+  assert.match(styles, /\.backup-row \.backup-delete \{[^}]*width: 30px;[^}]*border-radius: 9px/)
   assert.match(styles, /\.backup-progress \{[^}]*display: flex/)
   assert.match(styles, /\.backup-progress \.spin \{[^}]*display: block/)
   const en = page.slice(page.indexOf('const EN = {'), page.indexOf('\n}\n', page.indexOf('const EN = {')))
-  for (const key of ['备份与回退', 'Profile 备份与回退', '回退到此备份', '删除这份备份', '删除这份备份？删除后不能再回退到它；当前配置不受影响。', '删除备份', '已删除备份。', '立即备份', '回退完成', '已生成新备份。', '配置没有变化，不需要新备份。', '备份', '正在回退配置…', '正在重装依赖…', '正在生成备份…']) {
+  for (const key of ['备份与回退', 'Profile 备份与回退', 'Profile「{profile}」的配置层快照 · 最多保留 10 份 / 30 天', '回退到此备份', '删除这份备份', '删除这份备份？删除后不能再回退到它；当前配置不受影响。', '删除备份', '已删除备份。', '立即备份', '回退完成', '已生成新备份。', '配置没有变化，不需要新备份。', '备份', '正在回退配置…', '正在重装依赖…', '正在生成备份…']) {
     assert.ok(en.includes(`"${key}":`), `英文文案缺少「${key}」`)
   }
 })

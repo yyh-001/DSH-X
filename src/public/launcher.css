@@ -1957,16 +1957,21 @@ html.reduce-motion #launchLogDialog .launch-log-card[data-log-panel][data-dir]:n
   to { opacity: 1; transform: none; }
 }
 .pack-more-meta { padding: 6px 10px 2px; border-top: 1px solid var(--line); margin-top: 4px; color: var(--muted); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
-/* Profile 备份与回退：列表限高滚动，每行时间 + 涉及文件 + 回退按钮 */
-.backup-list { display: grid; gap: 8px; max-height: min(46vh, 360px); overflow-y: auto; padding: 2px 0; }
+/* Profile 备份与回退：列表限高滚动；有备份时排成一张表，行间只用分隔线 */
+/* 说明和下面那张表之间留一口气：贴太紧时表格上边框会压着说明的字脚 */
+#backupDialogHint { margin-bottom: 10px; }
+.backup-list { display: grid; gap: 8px; max-height: min(46vh, 380px); overflow-y: auto; padding: 2px 0; }
 .backup-list .hint { margin: 4px 2px; }
-.backup-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
-.backup-row-text { display: grid; gap: 2px; min-width: 0; flex: 1; }
-.backup-time { font-size: 13px; color: var(--text); }
-.backup-files { font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
-.backup-row .ghost { flex: 0 0 auto; height: 32px; padding: 0 12px; border-radius: 999px; font-size: 12px; }
+.backup-list:has(.backup-row) { gap: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface, var(--card)); }
+.backup-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-top: 1px solid var(--line); }
+.backup-row:first-child { border-top: 0; }
+.backup-row:hover { background: var(--accent-soft); }
+.backup-row-text { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex: 1; }
+.backup-time { font-size: 13px; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.backup-files { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.backup-row .ghost { flex: 0 0 auto; height: 30px; padding: 0 12px; border-radius: 999px; font-size: 12px; }
 /* 行尾删除：同高的方形图标钮，不跟时间和文件那栏抢宽度 */
-.backup-row .backup-delete { width: 32px; min-width: 32px; padding: 6px; border-radius: 9px; color: var(--muted); }
+.backup-row .backup-delete { width: 30px; min-width: 30px; padding: 6px; border-radius: 9px; color: var(--muted); }
 .backup-row .backup-delete svg { width: 16px; height: 16px; }
 .backup-row .backup-delete:hover:not(:disabled) { background: #fff1f2; border-color: #fecdd3; color: #e5484d; }
 /* 回退 / 立即备份期间：转圈 + 一条进度（依赖重装时用服务端推来的真实进度） */
