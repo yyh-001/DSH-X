@@ -5,7 +5,7 @@
  */
 import assert from 'node:assert/strict'
 import { isolateUserHome } from './isolated-home.mjs'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -59,6 +59,39 @@ test('Profile 配置层备份：快照去重、列表、回退与参数校验', 
     assert.equal(list.backups[0].id, firstId)
   })
 
+  await t.test('自动清理：打开列表 / 内容没变时都清掉超过 30 天的备份，最新一份再旧也留着', async () => {
+    const [stamp] = readdirSync(join(data, 'backups', 'profiles'))
+    const root = join(data, 'backups', 'profiles', stamp, 'web')
+    // 伪造一份 2020 年的备份：内容哈希对不上当前配置也不要紧，清理只看 createdAt
+    const writeStale = (id) => {
+      mkdirSync(join(root, id))
+      writeFileSync(join(root, id, 'manifest.json'), JSON.stringify({
+        profile: 'web', home, createdAt: new Date('2020-01-01T00:00:00Z').getTime(), signature: 'stale',
+        files: [{ name: 'package.json', size: 1 }],
+      }))
+    }
+    // 打开备份窗（列列表）就清一次
+    writeStale('20200101-000000')
+    const listed = await api('/api/profile-backups?profile=web')
+    assert.ok(!listed.backups.some((item) => item.id === '20200101-000000'), '打开列表时过期备份就被清掉')
+    assert.equal(existsSync(join(root, '20200101-000000')), false)
+    // 配置没变（和最新那份一样）走「不需要新备份」分支，过期清理也得照跑
+    writeStale('20200102-000000')
+    const again = await api('/api/profile-backups/snapshot', { profile: 'web' })
+    assert.equal(again.backup, null, '内容没变，不该新建备份')
+    assert.equal(existsSync(join(root, '20200102-000000')), false, '去重分支里也清过期备份')
+    // 只剩的那份就是最新（也是唯一）一份：改成 60 天前，再触发一次去重快照，它不能被清
+    const manifestPath = join(root, firstId, 'manifest.json')
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+    const originalAt = manifest.createdAt
+    manifest.createdAt = Date.now() - 60 * 24 * 60 * 60 * 1000
+    writeFileSync(manifestPath, JSON.stringify(manifest))
+    await api('/api/profile-backups/snapshot', { profile: 'web' })
+    assert.ok((await api('/api/profile-backups?profile=web')).backups.some((item) => item.id === firstId), '最新一份再旧也留着，回退入口不能消失')
+    // 恢复原时间：后面还要拿它当「旧备份」，不能被下一次真正的新快照按 30 天规则清掉
+    writeFileSync(manifestPath, JSON.stringify({ ...manifest, createdAt: originalAt }))
+  })
+
   await t.test('改坏配置后生成新快照，回退能把旧内容改回来', async () => {
     writeFileSync(join(profile, 'cordis.patch.yml'), '- id: demo\n  disabled: true\n')
     const snapshot = await api('/api/profile-backups/snapshot', { profile: 'web' })
@@ -73,11 +106,24 @@ test('Profile 配置层备份：快照去重、列表、回退与参数校验', 
     assert.ok(after.backups.length >= 3, '回退前应先把当前（坏）状态也存一份')
   })
 
+  await t.test('手动删除备份：只删指定那份', async () => {
+    const before = await api('/api/profile-backups?profile=web')
+    const target = before.backups[before.backups.length - 1]
+    const removed = await api('/api/profile-backups/delete', { profile: 'web', id: target.id })
+    assert.equal(removed.ok, true)
+    assert.equal(removed.deleted, target.id)
+    const after = await api('/api/profile-backups?profile=web')
+    assert.equal(after.backups.length, before.backups.length - 1)
+    assert.ok(!after.backups.some((item) => item.id === target.id), '删掉的那份不在列表里')
+  })
+
   await t.test('非法 profile / id 不会碰目录，也不炸服务', async () => {
     assert.equal((await api('/api/profile-backups?profile=../web')).status, 400)
     assert.equal((await api('/api/profile-backups?profile=web&id=../../x')).status, 400)
     assert.equal((await api('/api/profile-backups/snapshot', { profile: '' })).status, 400)
     assert.equal((await api('/api/profile-backups/restore', { profile: 'web', id: '20000101-000000' })).status, 404)
     assert.equal((await api('/api/profile-backups/restore', { profile: 'web', id: '../x' })).status, 400)
+    assert.equal((await api('/api/profile-backups/delete', { profile: 'web', id: '../x' })).status, 400)
+    assert.equal((await api('/api/profile-backups/delete', { profile: 'web', id: '20000101-000000' })).status, 404)
   })
 })

@@ -1,5 +1,5 @@
 /**
- * 「Profile 备份与回退」的页面部分：环境页每张卡片的 ⋯ 菜单里新增入口，
+ * 「配置备份与回退」的页面部分：配置页每张卡片的 ⋯ 菜单里新增入口，
  * 弹窗里列快照（时间 + 涉及文件）并支持「回退到此备份」。
  * 页面是无构建的原生 JS，这里读 HTML/CSS 源码做结构断言，纯函数抠进 vm 里跑，不起服务。
  */
@@ -46,7 +46,7 @@ function functionSource(name) {
 test('弹窗结构：标题、提示、列表、立即备份/刷新和关闭按钮', () => {
   const dialog = section('id="backupDialog"', 'id="launchPluginsDialog"')
   assert.match(dialog, /role="dialog" aria-modal="true" aria-labelledby="backupDialogTitle"/)
-  assert.match(dialog, /id="backupDialogTitle" data-i18n="Profile 备份与回退"/)
+  assert.match(dialog, /id="backupDialogTitle" data-i18n="Profile 备份与回退">Profile 备份与回退</)
   assert.match(dialog, /<p class="dialog-subtitle" id="backupDialogHint">/)
   assert.match(dialog, /<div class="backup-list" id="backupList">/)
   assert.match(dialog, /id="backupRefresh"[^>]*data-i18n="刷新"/)
@@ -112,7 +112,7 @@ test('备份时间按本地时区格式化成 YYYY-MM-DD HH:mm:ss', () => {
   assert.equal(vm.runInContext('backupTimeText(null)', sandbox), expected)
 })
 
-test('打开弹窗：提示里带上 Profile 名，先清空列表再拉取', () => {
+test('打开弹窗：提示里带上配置名，先清空列表再拉取', () => {
   const sandbox = {
     t: (zh, vars) => String(zh).replace(/\{(\w+)\}/g, (all, key) => (vars && key in vars ? vars[key] : all)),
     escapeHtml: (value) => String(value ?? ''),
@@ -136,24 +136,26 @@ test('打开弹窗：提示里带上 Profile 名，先清空列表再拉取', ()
   vm.createContext(sandbox)
   vm.runInContext(functionSource('openProfileBackups'), sandbox)
   vm.runInContext("openProfileBackups('work')", sandbox)
-  assert.match(sandbox.backupHintEl.textContent, /Profile「work」的配置层快照/)
+  assert.match(sandbox.backupHintEl.textContent, /^Profile「work」的配置层快照/)
   assert.equal(sandbox.painted.length, 1)
   assert.equal(sandbox.painted[0].length, 0)
   assert.equal(sandbox.shown.length, 1)
   assert.equal(sandbox.loadRequested, true)
 })
 
-test('列表渲染：空列表给提示，有备份时每行是时间 + 文件 + 回退按钮', () => {
+test('列表渲染：空列表给提示，有备份时每行是时间 + 文件 + 回退/删除按钮', () => {
   const sandbox = {
     t: (zh, vars) => String(zh).replace(/\{(\w+)\}/g, (all, key) => (vars && key in vars ? vars[key] : all)),
     escapeHtml: (value) => String(value ?? '').replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch])),
     backupLoading: false,
     handlers: [],
+    deleteHandlers: [],
     backupListEl: {
       innerHTML: '',
-      querySelectorAll: () => sandbox.handlers,
+      querySelectorAll: (selector) => (selector.includes('backup-delete') ? sandbox.deleteHandlers : sandbox.handlers),
     },
     restoreProfileBackup: () => {},
+    removeProfileBackup: () => {},
   }
   vm.createContext(sandbox)
   vm.runInContext(functionSource('backupTimeText'), sandbox)
@@ -162,13 +164,61 @@ test('列表渲染：空列表给提示，有备份时每行是时间 + 文件 +
   assert.match(sandbox.backupListEl.innerHTML, /还没有备份/)
   const at = new Date(2024, 0, 2, 3, 4, 5).getTime()
   sandbox.handlers = [{ dataset: { backupRestore: '123-000000' }, onclick: null }]
-  sandbox.backupListEl.querySelectorAll = () => sandbox.handlers
+  sandbox.deleteHandlers = [{ dataset: { backupDelete: '123-000000' }, onclick: null }]
   vm.runInContext(`paintProfileBackups([{ id: '123-000000', createdAt: ${at}, files: [{ name: 'package.json' }, { name: 'cordis.patch.yml' }] }])`, sandbox)
   assert.match(sandbox.backupListEl.innerHTML, /2024-01-02 03:04:05/)
   assert.match(sandbox.backupListEl.innerHTML, /package\.json、cordis\.patch\.yml/)
   assert.match(sandbox.backupListEl.innerHTML, /data-backup-restore="123-000000"/)
   assert.match(sandbox.backupListEl.innerHTML, /回退到此备份/)
+  assert.match(sandbox.backupListEl.innerHTML, /data-backup-delete="123-000000"/)
+  assert.match(sandbox.backupListEl.innerHTML, /删除这份备份/)
   assert.equal(typeof sandbox.handlers[0].onclick, 'function')
+  assert.equal(typeof sandbox.deleteHandlers[0].onclick, 'function')
+})
+
+test('删除备份：先确认再请求接口，成功后刷新列表', async () => {
+  const sandbox = {
+    backupProfile: 'web',
+    backupLoading: false,
+    backupDialogEl: {},
+    t: (zh) => zh,
+    confirms: [],
+    posts: [],
+    notices: [],
+    loads: 0,
+    appConfirm: async (message, options) => { sandbox.confirms.push({ message, options }); return true },
+    post: async (path, body) => { sandbox.posts.push({ path, body }); return { ok: true } },
+    notify: (message, title) => { sandbox.notices.push({ message, title }) },
+    loadProfileBackups: async () => { sandbox.loads += 1 },
+  }
+  vm.createContext(sandbox)
+  vm.runInContext(functionSource('removeProfileBackup'), sandbox)
+  const button = { disabled: false }
+  sandbox.button = button
+  await vm.runInContext("removeProfileBackup('20260101-000000', button)", sandbox)
+  assert.match(sandbox.confirms[0].message, /^删除这份备份/)
+  assert.equal(sandbox.posts[0].path, '/api/profile-backups/delete')
+  // 跨 realm 的对象 deepEqual 会较真原型，逐字段比
+  assert.equal(sandbox.posts[0].body.profile, 'web')
+  assert.equal(sandbox.posts[0].body.id, '20260101-000000')
+  assert.equal(sandbox.loads, 1, '删完重新拉列表')
+  assert.equal(sandbox.notices[0].message, '已删除备份。')
+  assert.equal(button.disabled, true, '删除中按钮先灰掉，防连点')
+  // 确认框点取消：不发请求
+  sandbox.appConfirm = async () => false
+  sandbox.posts = []
+  const cancelButton = { disabled: false }
+  sandbox.button = cancelButton
+  await vm.runInContext("removeProfileBackup('20260101-000000', button)", sandbox)
+  assert.equal(sandbox.posts.length, 0)
+  // 请求失败：提示错误并把按钮解禁，列表原样留着
+  sandbox.appConfirm = async () => true
+  sandbox.post = async () => { throw new Error('删除失败') }
+  const retry = { disabled: false }
+  sandbox.button = retry
+  await vm.runInContext("removeProfileBackup('20260101-000000', button)", sandbox)
+  assert.equal(retry.disabled, false)
+  assert.equal(sandbox.notices.at(-1).message, '删除失败')
 })
 
 test('回退 / 备份期间：进度区出现、按钮禁用，依赖重装时跟着真实进度', () => {
@@ -240,10 +290,12 @@ test('样式与英文文案：列表限高滚动、行内按钮不换行，文�
   assert.match(styles, /\.backup-list \{[^}]*max-height: min\(46vh, 360px\)[^}]*overflow-y: auto/)
   assert.match(styles, /\.backup-row \{[^}]*display: flex[^}]*align-items: center/)
   assert.match(styles, /\.backup-files \{[^}]*overflow-wrap: anywhere/)
+  // 删除钮是 32px 方形图标钮，别把时间那栏挤窄
+  assert.match(styles, /\.backup-row \.backup-delete \{[^}]*width: 32px;[^}]*border-radius: 9px/)
   assert.match(styles, /\.backup-progress \{[^}]*display: flex/)
   assert.match(styles, /\.backup-progress \.spin \{[^}]*display: block/)
   const en = page.slice(page.indexOf('const EN = {'), page.indexOf('\n}\n', page.indexOf('const EN = {')))
-  for (const key of ['备份与回退', 'Profile 备份与回退', '回退到此备份', '立即备份', '回退完成', '已生成新备份。', '配置没有变化，不需要新备份。', '备份', '正在回退配置…', '正在重装依赖…', '正在生成备份…']) {
+  for (const key of ['备份与回退', 'Profile 备份与回退', '回退到此备份', '删除这份备份', '删除这份备份？删除后不能再回退到它；当前配置不受影响。', '删除备份', '已删除备份。', '立即备份', '回退完成', '已生成新备份。', '配置没有变化，不需要新备份。', '备份', '正在回退配置…', '正在重装依赖…', '正在生成备份…']) {
     assert.ok(en.includes(`"${key}":`), `英文文案缺少「${key}」`)
   }
 })

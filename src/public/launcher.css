@@ -1965,6 +1965,10 @@ html.reduce-motion #launchLogDialog .launch-log-card[data-log-panel][data-dir]:n
 .backup-time { font-size: 13px; color: var(--text); }
 .backup-files { font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
 .backup-row .ghost { flex: 0 0 auto; height: 32px; padding: 0 12px; border-radius: 999px; font-size: 12px; }
+/* 行尾删除：同高的方形图标钮，不跟时间和文件那栏抢宽度 */
+.backup-row .backup-delete { width: 32px; min-width: 32px; padding: 6px; border-radius: 9px; color: var(--muted); }
+.backup-row .backup-delete svg { width: 16px; height: 16px; }
+.backup-row .backup-delete:hover:not(:disabled) { background: #fff1f2; border-color: #fecdd3; color: #e5484d; }
 /* 回退 / 立即备份期间：转圈 + 一条进度（依赖重装时用服务端推来的真实进度） */
 .backup-progress { display: flex; align-items: flex-start; gap: 10px; padding: 10px 2px 2px; }
 .backup-progress[hidden] { display: none; }

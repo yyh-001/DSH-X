@@ -3074,6 +3074,8 @@ function profileDir() {
 // 多个 dsh 用户目录里同名 profile 靠指纹分开，互不覆盖。
 const PROFILE_BACKUP_FILES = ['cordis.patch.yml', 'package.json', 'pnpm-lock.yaml', '.npmrc']
 const PROFILE_BACKUP_KEEP = 10
+/** 超过这个岁数的备份自动清掉（最新一份永远留着，回退入口不能凭空消失）。 */
+const PROFILE_BACKUP_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000
 const PROFILE_BACKUP_ID = /^\d{8}-\d{6}(?:-\d+)?$/
 
 function homeStamp(home = homeDir()) {
@@ -3122,9 +3124,11 @@ function profileConfigSnapshot(profileDirPath) {
 
 async function rotateProfileBackups(profile, home = homeDir()) {
   const root = profileBackupRoot(profile, home)
-  for (const stale of listProfileBackups(profile, home).slice(PROFILE_BACKUP_KEEP)) {
-    await rm(join(root, stale.id), { recursive: true, force: true })
-  }
+  const backups = listProfileBackups(profile, home)
+  const expiredBefore = Date.now() - PROFILE_BACKUP_MAX_AGE_MS
+  // 两类都清：超出保留份数的，以及太旧的。第 0 份是最新那份，年龄再大也不清。
+  const stale = backups.filter((item, index) => index >= PROFILE_BACKUP_KEEP || (index > 0 && item.createdAt < expiredBefore))
+  for (const item of stale) await rm(join(root, item.id), { recursive: true, force: true })
 }
 
 /**
@@ -3140,7 +3144,11 @@ async function snapshotProfileConfig(profile, { force = false } = {}) {
   const home = homeDir()
   const root = profileBackupRoot(name, home)
   const latest = listProfileBackups(name, home)[0]
-  if (!force && latest?.signature === signature) return null
+  if (!force && latest?.signature === signature) {
+    // 内容没变不建新备份，但过期清理照做：不然不改配置就永远清不掉旧备份。
+    await rotateProfileBackups(name, home)
+    return null
+  }
   await mkdir(root, { recursive: true })
   const stamp = profileBackupTimestamp()
   let id = stamp
@@ -3175,6 +3183,18 @@ async function restoreProfileConfig(profile, id) {
   }
   pushLog(`[备份] Profile ${name} 回退到 ${id}${saved ? `（回退前已存一份 ${saved.id}）` : ''}`)
   return { ok: true, restored: String(id), backup: saved }
+}
+
+/** 手动删掉一份配置快照：只认这个 profile 备份根目录下的合法时间戳目录。 */
+async function deleteProfileBackup(profile, id) {
+  const name = safeProfile(profile || PROFILE_NAME)
+  const backupId = String(id || '')
+  if (!PROFILE_BACKUP_ID.test(backupId)) throw new Error('备份编号不对')
+  const target = join(profileBackupRoot(name, homeDir()), backupId)
+  if (!readBackupManifest(target)) throw new Error('找不到这份备份')
+  await rm(target, { recursive: true, force: true })
+  pushLog(`[备份] 配置 ${name} 删除备份 ${backupId}`)
+  return { ok: true, deleted: backupId }
 }
 
 /**
@@ -7360,7 +7380,10 @@ async function handleApi(req, res, url) {
       const profile = safeProfile(url.searchParams.get('profile') || PROFILE_NAME)
       const id = url.searchParams.get('id')
       if (id !== null && !PROFILE_BACKUP_ID.test(id)) throw new Error('备份编号不对')
-      send(res, 200, { profile, home: homeDir(), backups: listProfileBackups(profile) })
+      const home = homeDir()
+      // 打开备份窗时顺手清掉过期的：别让「自动清理」只等下一次启动才发生
+      await rotateProfileBackups(profile, home)
+      send(res, 200, { profile, home, backups: listProfileBackups(profile, home) })
     } catch (error) { send(res, 400, { error: error instanceof Error ? error.message : String(error) }) }
     return
   }
@@ -7888,6 +7911,17 @@ async function handleApi(req, res, url) {
     }
     catch (error) {
       // 备份不存在给 404，参数/状态不对给 400，页面靠这两个码区分提示。
+      const message = error instanceof Error ? error.message : String(error)
+      send(res, /找不到这份备份/.test(message) ? 404 : 400, { error: message })
+    }
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/profile-backups/delete') {
+    try {
+      const profile = safeProfile(String(body.profile || '') || PROFILE_NAME)
+      send(res, 200, await deleteProfileBackup(profile, body.id))
+    } catch (error) {
+      // 和回退一致：备份不存在给 404，参数不对给 400
       const message = error instanceof Error ? error.message : String(error)
       send(res, /找不到这份备份/.test(message) ? 404 : 400, { error: message })
     }

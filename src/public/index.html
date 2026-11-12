@@ -2000,9 +2000,13 @@
   "备份与回退": "Backups & rollback",
   "Profile 备份与回退": "Profile backups & rollback",
   "回退到此备份": "Restore this backup",
+  "删除这份备份": "Delete this backup",
+  "删除这份备份？删除后不能再回退到它；当前配置不受影响。": "Delete this backup? You will not be able to restore it; the current config is not affected.",
+  "删除备份": "Delete backup",
+  "已删除备份。": "Backup deleted.",
   "立即备份": "Back up now",
   "还没有备份。每次启动会存一份，也可以点「立即备份」。": "No backups yet. One is saved before each launch, or click “Back up now”.",
-  "Profile「{profile}」的配置层快照：补丁、依赖清单和 npmrc；回退时会按清单重装依赖，node_modules 本身不在备份里。": "Config-layer snapshots of {profile}: patch, dependency manifest and npmrc. Restoring also reinstalls dependencies from the manifest; node_modules itself is not backed up.",
+  "Profile「{profile}」的配置层快照：补丁、依赖清单和 npmrc；回退时会按清单重装依赖，node_modules 本身不在备份里。最多保留最近 10 份，超过 30 天的自动清理。": "Config-layer snapshots of {profile}: patch, dependency manifest and npmrc. Restoring also reinstalls dependencies from the manifest; node_modules itself is not backed up. The latest 10 are kept; snapshots older than 30 days are removed automatically.",
   "回退到这份备份？当前配置会先自动存一份，回退后会自动重装依赖（可能比较慢），并需要重启这个 Profile 的实例才生效。": "Restore this backup? The current config is backed up first, dependencies are reinstalled afterwards (this can take a while), and the profile's instance must be restarted to apply it.",
   "已回退。重启这个 Profile 的实例后生效。": "Restored. Restart this profile's instance to apply it.",
   "已回退并重装依赖。重启这个 Profile 的实例后生效。": "Restored and dependencies reinstalled. Restart this profile's instance to apply it.",
@@ -10048,9 +10052,13 @@
     }
     function paintProfileBackups(backups) {
       const rows = Array.isArray(backups) ? backups : []
-      backupListEl.innerHTML = rows.length ? rows.map((item) => `<div class="backup-row"><div class="backup-row-text"><span class="backup-time">${escapeHtml(backupTimeText(item.createdAt))}</span><span class="backup-files">${escapeHtml((item.files || []).map((file) => file.name).join('、'))}</span></div><button class="ghost" type="button" data-backup-restore="${escapeHtml(item.id)}" ${backupLoading ? 'disabled' : ''}>${escapeHtml(t('回退到此备份'))}</button></div>`).join('') : `<p class="hint">${escapeHtml(t('还没有备份。每次启动会存一份，也可以点「立即备份」。'))}</p>`
+      const trash = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-trash-2"/></svg>'
+      backupListEl.innerHTML = rows.length ? rows.map((item) => `<div class="backup-row"><div class="backup-row-text"><span class="backup-time">${escapeHtml(backupTimeText(item.createdAt))}</span><span class="backup-files">${escapeHtml((item.files || []).map((file) => file.name).join('、'))}</span></div><button class="ghost" type="button" data-backup-restore="${escapeHtml(item.id)}" ${backupLoading ? 'disabled' : ''}>${escapeHtml(t('回退到此备份'))}</button><button class="ghost icon-btn backup-delete" type="button" data-backup-delete="${escapeHtml(item.id)}" title="${escapeHtml(t('删除这份备份'))}" aria-label="${escapeHtml(t('删除这份备份'))}" ${backupLoading ? 'disabled' : ''}>${trash}</button></div>`).join('') : `<p class="hint">${escapeHtml(t('还没有备份。每次启动会存一份，也可以点「立即备份」。'))}</p>`
       backupListEl.querySelectorAll('[data-backup-restore]').forEach((button) => {
         button.onclick = () => { void restoreProfileBackup(button.dataset.backupRestore) }
+      })
+      backupListEl.querySelectorAll('[data-backup-delete]').forEach((button) => {
+        button.onclick = () => { void removeProfileBackup(button.dataset.backupDelete, button) }
       })
     }
 
@@ -10064,7 +10072,7 @@
       backupProgressEl.hidden = !active
       backupNowEl.disabled = active
       backupRefreshEl.disabled = active
-      for (const button of backupListEl.querySelectorAll('[data-backup-restore]')) button.disabled = active
+      for (const button of backupListEl.querySelectorAll('[data-backup-restore], [data-backup-delete]')) button.disabled = active
       if (!active) {
         paintProgress(backupProgressTrackEl, backupProgressTrackEl.querySelector('.progress-bar'), null, false)
         backupProgressLabelEl.textContent = ''
@@ -10096,7 +10104,7 @@
       if (!profile || packBusy || pluginUpdating || pluginRemoving || pluginAdding) return
       backupProfile = profile
       backupPhase = ''
-      backupHintEl.textContent = t('Profile「{profile}」的配置层快照：补丁、依赖清单和 npmrc；回退时会按清单重装依赖，node_modules 本身不在备份里。', { profile })
+      backupHintEl.textContent = t('Profile「{profile}」的配置层快照：补丁、依赖清单和 npmrc；回退时会按清单重装依赖，node_modules 本身不在备份里。最多保留最近 10 份，超过 30 天的自动清理。', { profile })
       paintProfileBackups([])
       paintBackupProgress()
       showPackDialog(backupDialogEl)
@@ -10131,6 +10139,20 @@
         backupLoading = false
         backupPhase = ''
         paintBackupProgress()
+      }
+    }
+    /** 手动删一份备份：只删备份文件，不碰当前配置；删完重新拉列表。 */
+    async function removeProfileBackup(id, button) {
+      if (!backupProfile || !id || backupLoading || button?.disabled) return
+      if (!await appConfirm(t('删除这份备份？删除后不能再回退到它；当前配置不受影响。'), { title: t('删除备份'), parent: backupDialogEl })) return
+      if (button) button.disabled = true
+      try {
+        await post('/api/profile-backups/delete', { profile: backupProfile, id })
+        notify(t('已删除备份。'), t('备份'))
+        await loadProfileBackups()
+      } catch (error) {
+        notify(error.message)
+        if (button) button.disabled = false
       }
     }
     backupNowEl.onclick = async () => {
