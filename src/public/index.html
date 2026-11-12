@@ -719,6 +719,10 @@
           <select id="launchWslDistro" hidden></select>
           <select id="launchWslProfile" hidden></select>
           <input id="launchWslHome" type="hidden" />
+          <div class="home-field">
+            <label for="launchWslUser" data-i18n="WSL 用户（选填）">WSL 用户（选填）</label>
+            <input id="launchWslUser" type="text" autocomplete="off" spellcheck="false" data-placeholder-i18n="默认登录用户；例如 root" />
+          </div>
           <p class="hint" id="launchWslHint" role="status" aria-live="polite"></p>
         </div>
         <!-- 切档条在滚动区外（#launchIsolationHead）：这里只剩这一档的说明和引导字段，跟着字段一起滚。 -->
@@ -1146,6 +1150,8 @@
   "选择启动环境": "Choose a launch environment",
   "左边挑本机目录或 WSL 发行版，中间挑 Profile，右边是它的插件或 dsh 信息。": "Pick a local directory or a WSL distro on the left and a profile in the middle; the right column shows its plugins or dsh info.",
   "WSL · {distro}": "WSL · {distro}",
+  "WSL 用户（选填）": "WSL user (optional)",
+  "默认登录用户；例如 root": "Default login user; e.g. root",
   "本机目录，或 WSL 发行版里的目录。": "A local directory, or one inside a WSL distro.",
   "目录类型": "Directory type",
   "本机目录": "Local directory",
@@ -1865,6 +1871,12 @@
   "启动失败": "Start failed",
   "{label} 启动失败": "{label} failed to start",
   "{label} 启动超时": "{label} timed out while starting",
+  "没有找到 wsl.exe：先在 Windows 功能里启用「适用于 Linux 的 Windows 子系统」": "wsl.exe not found: enable “Windows Subsystem for Linux” in Windows features first",
+  "这个 WSL 发行版不存在或已被删除：先在终端运行 wsl -l -v 核对名称": "This WSL distro does not exist or was removed: run wsl -l -v in a terminal to check the name",
+  "WSL 里没有这个用户：核对启动项的 WSL 用户，或留空用默认用户": "This WSL user does not exist: check the launch entry's WSL user, or leave it empty for the default user",
+  "WSL 没有响应：先在终端运行一次 wsl -l -v 把它叫起来再试": "WSL is not responding: run wsl -l -v once in a terminal, then try again",
+  "WSL 里找不到 dsh 或这个 Profile：先在发行版里运行 dsh --version 确认": "dsh or this profile was not found in WSL: run dsh --version in the distro to confirm",
+  "WSL 项目目录不存在：改一下启动项的 WSL 项目目录": "The WSL project directory does not exist: update the launch entry's WSL project directory",
   "{text}（退出码 {code}）": "{text} (exit code {code})",
   "{text}，以下是 dsh 退出前的输出：": "{text}. Output from dsh before it exited:",
   "查看错误信息": "Show error",
@@ -2288,6 +2300,7 @@
     const launchLocalVersionGroupEl = document.getElementById('launchLocalVersionGroup')
     const launchWslDistroEl = document.getElementById('launchWslDistro')
     const launchWslHomeEl = document.getElementById('launchWslHome')
+    const launchWslUserEl = document.getElementById('launchWslUser')
     const launchWslWorkdirEl = document.getElementById('launchWslWorkdir')
     const launchWslHintEl = document.getElementById('launchWslHint')
     const launchWslProfileEl = document.getElementById('launchWslProfile')
@@ -3041,12 +3054,24 @@
       noticeCopyEl.hidden = false
     }
 
-    /** 启动失败的那句话。服务端给的是中文原文，认得出的两种换成界面语言，再补上退出码。 */
+    /**
+     * 启动失败的那句话。服务端给的是中文原文，认得出的两种换成界面语言，再补上退出码。
+     * WSL 的失败还带 reasonCode：按码给可操作提示，比让用户自己从 stderr 里猜强。
+     */
+    const FAILURE_CODE_TEXT = {
+      'wsl-unavailable': '没有找到 wsl.exe：先在 Windows 功能里启用「适用于 Linux 的 Windows 子系统」',
+      'distro-missing': '这个 WSL 发行版不存在或已被删除：先在终端运行 wsl -l -v 核对名称',
+      'user-missing': 'WSL 里没有这个用户：核对启动项的 WSL 用户，或留空用默认用户',
+      'wsl-timeout': 'WSL 没有响应：先在终端运行一次 wsl -l -v 把它叫起来再试',
+      'dsh-missing': 'WSL 里找不到 dsh 或这个 Profile：先在发行版里运行 dsh --version 确认',
+      'workspace-unavailable': 'WSL 项目目录不存在：改一下启动项的 WSL 项目目录',
+    }
     function failureText(failure) {
       const known = /^(\S+) 启动(失败|超时)$/.exec(failure.message || '')
-      const text = known
+      const coded = failure.code && FAILURE_CODE_TEXT[failure.code] ? t(FAILURE_CODE_TEXT[failure.code]) : ''
+      const text = coded || (known
         ? t(known[2] === '超时' ? '{label} 启动超时' : '{label} 启动失败', { label: known[1] })
-        : failure.message || t('启动失败')
+        : failure.message || t('启动失败'))
       const code = failure.exit?.code
       return code == null ? text : t('{text}（退出码 {code}）', { text, code })
     }
@@ -4314,7 +4339,8 @@
     async function refreshWslProfiles(resetMissing = false) {
       const distro = launchWslDistroEl.value
       const home = launchWslHomeEl.value.trim()
-      const key = `${distro}\0${home}`
+      const user = launchWslUserEl.value.trim()
+      const key = `${distro}\0${home}\0${user}`
       launchWslInspectKey = key
       if (!distro) {
         launchWslProfiles = []
@@ -4324,7 +4350,7 @@
       }
       launchWslHintEl.textContent = t('正在读取 WSL 里的 dsh…')
       try {
-        const data = await getJson(`/api/wsl?distro=${encodeURIComponent(distro)}&home=${encodeURIComponent(home)}`)
+        const data = await getJson(`/api/wsl?distro=${encodeURIComponent(distro)}&home=${encodeURIComponent(home)}&user=${encodeURIComponent(user)}`)
         if (launchWslInspectKey !== key) return false
         state.wsl = {
           ...(state.wsl || {}),
@@ -4410,6 +4436,7 @@
       if (wsl) {
         paintLaunchWslDistros(entry?.wslDistro || '')
         launchWslHomeEl.value = entry?.wslHome || ''
+        launchWslUserEl.value = entry?.wslUser || ''
         launchWslWorkdirEl.value = entry?.wslWorkdir || ''
         // 发行版列表是打开编辑器才去探的：先按已保存的发行版画一版，探测回来再补全。
         void (async () => {
@@ -4435,6 +4462,7 @@
     if (typeof launchWslDistroEl !== 'undefined' && launchWslDistroEl) {
       launchWslDistroEl.onchange = () => { launchWslProfiles = []; void refreshWslProfiles(true); paintLaunchEnvTrigger() }
       launchWslHomeEl.onchange = () => { launchWslProfiles = []; void refreshWslProfiles(true); paintLaunchEnvTrigger() }
+      launchWslUserEl.onchange = () => { launchWslProfiles = []; void refreshWslProfiles(true); paintLaunchEnvTrigger() }
       if (launchWslProfileEl) launchWslProfileEl.onchange = () => {
         launchProfile = launchWslProfileEl.value
         launchProfileEl.value = launchProfile
@@ -4447,7 +4475,7 @@
         if (!distro) { launchWslHintEl.textContent = t('先选择一个 WSL 发行版。'); return }
         button.disabled = true
         try {
-          const picked = await pickWslDirectory(distro, input.value)
+          const picked = await pickWslDirectory(distro, input.value, launchWslUserEl.value.trim())
           if (picked.path) {
             input.value = picked.path
             after?.()
@@ -4872,15 +4900,22 @@
     let pickerWslProfileInfo = null
     const pickerWslProfileCache = new Map()
 
+    /** 启动项表单里填的 WSL 用户；选择窗在 form 档探测目录时跟着它走。 */
+    function pickerWslUser() {
+      if (pickerMode !== 'form') return ''
+      return typeof launchWslUserEl !== 'undefined' && launchWslUserEl ? launchWslUserEl.value.trim() : ''
+    }
+
     async function loadPickerWslProfile() {
       const wsl = parseWslHomeKey(pickerHome)
       if (!wsl || !pickerProfile) { pickerWslProfileInfo = null; return }
-      const key = `${wsl.distro}\u0000${wsl.home}\u0000${pickerProfile}`
+      const user = pickerWslUser()
+      const key = `${wsl.distro}\u0000${wsl.home}\u0000${pickerProfile}\u0000${user}`
       const cached = pickerWslProfileCache.get(key)
       if (cached) { pickerWslProfileInfo = cached; return }
       pickerWslProfileInfo = null
       try {
-        const data = await getJson(`/api/wsl/profile?distro=${encodeURIComponent(wsl.distro)}&home=${encodeURIComponent(wsl.home)}&profile=${encodeURIComponent(pickerProfile)}`)
+        const data = await getJson(`/api/wsl/profile?distro=${encodeURIComponent(wsl.distro)}&home=${encodeURIComponent(wsl.home)}&profile=${encodeURIComponent(pickerProfile)}&user=${encodeURIComponent(user)}`)
         pickerWslProfileCache.set(key, data)
         pickerWslProfileInfo = data
       } catch (error) {
@@ -5002,7 +5037,7 @@
       // WSL 行存的 wsl:// 键不能当 Windows 路径用：服务端先用 wslpath 换成 \\wsl.localhost\… 再打开。
       const wsl = parseWslHomeKey(home)
       try {
-        if (wsl) await post('/api/wsl/open', { distro: wsl.distro, home: wsl.home })
+        if (wsl) await post('/api/wsl/open', { distro: wsl.distro, home: wsl.home, user: pickerWslUser() })
         else await post('/api/dsh-homes/open', { home })
       } catch (error) {
         profilePickHintEl.textContent = t(error.message)
@@ -5248,7 +5283,7 @@
       if (wsl) {
         // WSL 的「目录」= 发行版 + 用户目录：Profile 和 dsh 信息都从 /api/wsl 探测。
         try {
-          const data = await getJson(`/api/wsl?distro=${encodeURIComponent(wsl.distro)}&home=${encodeURIComponent(wsl.home)}`)
+          const data = await getJson(`/api/wsl?distro=${encodeURIComponent(wsl.distro)}&home=${encodeURIComponent(wsl.home)}&user=${encodeURIComponent(pickerWslUser())}`)
           if (revision !== pickerRevision) return
           const inspect = data.inspect || {}
           pickerWslInfo = inspect.ok ? inspect : null
@@ -5633,7 +5668,7 @@
     document.getElementById('pickHomeWslBrowse').onclick = async () => {
       const distro = pickHomeWslDistroEl.value
       if (!distro) return
-      const picked = await pickWslDirectory(distro, pickHomeWslHomeEl.value)
+      const picked = await pickWslDirectory(distro, pickHomeWslHomeEl.value, pickerWslUser())
       if (picked.path) pickHomeWslHomeEl.value = picked.path
       else if (picked.error) pickHomeAddHintEl.textContent = picked.error
     }
@@ -7227,6 +7262,7 @@
             version: 'auto', profile: launchProfile, port: launchPortEl.value.trim(),
             backend: 'wsl', wslDistro: launchWslDistroEl.value,
             wslHome: launchWslHomeEl.value.trim(), wslWorkdir: launchWslWorkdirEl.value.trim(),
+            wslUser: launchWslUserEl.value.trim(),
             autoLaunch: launchAutoLaunchEl.checked,
           })
           updateLaunchEntry(data.entry)
@@ -7886,19 +7922,19 @@
     }
 
     /** WSL 路径 ↔ Windows 路径：原生目录对话框只认 Windows 路径，选完再用 wslpath 转回去。 */
-    async function convertWslPath(distro, value, direction) {
-      const data = await post('/api/wsl/path', { distro, path: String(value || ''), direction })
+    async function convertWslPath(distro, value, direction, user = '') {
+      const data = await post('/api/wsl/path', { distro, path: String(value || ''), direction, ...(user ? { user } : {}) })
       return String(data.path || '')
     }
 
     /** 挑一个 WSL 里的目录：从当前值换算出的 Windows 路径打开原生对话框，返回 Linux 路径。 */
-    async function pickWslDirectory(distro, current) {
+    async function pickWslDirectory(distro, current, user = '') {
       let initial = ''
-      try { initial = await convertWslPath(distro, current || '~/.dsh', 'windows') } catch { initial = '' }
+      try { initial = await convertWslPath(distro, current || '~/.dsh', 'windows', user) } catch { initial = '' }
       const picked = await pickDirectoryPath(initial)
       if (!picked.path) return { canceled: true, error: picked.error || '' }
       try {
-        return { canceled: false, path: await convertWslPath(distro, picked.path, 'linux') }
+        return { canceled: false, path: await convertWslPath(distro, picked.path, 'linux', user) }
       } catch (error) {
         return { canceled: true, error: error.message }
       }

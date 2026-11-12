@@ -561,7 +561,7 @@ test('选 Profile 是三栏选择窗：目录 / Profile / 插件，两档用途�
   assert.match(remove, /\{ home: pickerHome, launchId: '' \}/, '删除也按选择窗的目录走')
   const openHome = section('    async function openPickerHome(', '     * 中栏的 Profile')
   assert.match(openHome, /post\('\/api\/dsh-homes\/open', \{ home \}\)/, '本机目录「打开」走系统文件管理器那条接口')
-  assert.match(openHome, /parseWslHomeKey\(home\)[\s\S]*post\('\/api\/wsl\/open', \{ distro: wsl\.distro, home: wsl\.home \}\)/, 'WSL 行先换成 Windows 路径再打开')
+  assert.match(openHome, /parseWslHomeKey\(home\)[\s\S]*post\('\/api\/wsl\/open', \{ distro: wsl\.distro, home: wsl\.home, user: pickerWslUser\(\) \}\)/, 'WSL 行先换成 Windows 路径再打开')
   assert.match(page, /button\.onclick = \(\) => void openPickerHome\(button\.dataset\.homeOpen\)/, '行尾按钮接到打开')
   // 默认来源：还没有来源时就是全局目录里的 web
   const fallback = section('    function defaultCopySource() {', '    /** 复制来源那行按钮')

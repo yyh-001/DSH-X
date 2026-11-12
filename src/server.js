@@ -135,11 +135,13 @@ import {
   safeWslPath,
   safeWslPorts,
   safeWslSettings,
+  safeWslUser,
   DEFAULT_WSL_SERVICE_MODE,
   saveSettings,
   VERSION_RE,
 } from './settings.js'
 import { allocateWslPort, inspectWslDistro, invalidateWslCache, listWslDistros, parseWslHomeKey, resolveWslHome, readWslProfile, removeWslProfile, startWslInstance, stopWslInstance, wslAvailable, wslHomeKey, wslPath, wslPortAvailable } from './wsl.js'
+import { formatProxyForLog, remoteError, remoteErrorFields } from './remote.js'
 // 带代理的 fetch：Node 的全局 fetch 既不看系统代理也不看 HTTP_PROXY，外网请求都走 netFetch
 import { netFetch, proxyEnv, resetProxyCache, resolveProxy } from './proxy.js'
 import { APP_DIR, fileManager } from './filemanager.js'
@@ -488,6 +490,8 @@ export function publicFailure(failure, secrets = secretValues) {
     }),
     ...(failure.diagnosis ? { diagnosis: sanitizeDiagnosis(failure.diagnosis) } : {}),
     ...(failure.binding ? { binding: sanitizeDiagnosis(failure.binding) } : {}),
+    ...(failure.code ? { code: failure.code } : {}),
+    ...(typeof failure.retryable === 'boolean' ? { retryable: failure.retryable } : {}),
   }
 }
 
@@ -508,15 +512,15 @@ function homeDir() {
   return store?.home || defaultHome()
 }
 
-/** 当前请求是不是 WSL 启动项；所有本地文件系统操作都要先看它。 */
-function launchIsWsl() {
+/** 当前请求是不是远程启动项（WSL，之后还有 SSH）；所有本地文件系统操作都要先看它。 */
+function launchIsRemote() {
   return launchScope.getStore()?.backend === 'wsl'
 }
 
 // 这些接口都直接读写 Windows 侧 DSH_HOME；WSL 启动项的目录是 wsl:// 键，
 // 混进来会被 path.win32.join 拼成相对路径，甚至落到进程工作目录。
 // 集中在这里拦，新增本机文件路由时只要补一个前缀，别再让每条路由各自记得判断。
-const WSL_LOCAL_API_PREFIXES = [
+const REMOTE_LOCAL_API_PREFIXES = [
   '/api/plugins',
   '/api/profiles',
   '/api/recover',
@@ -527,7 +531,7 @@ const WSL_LOCAL_API_PREFIXES = [
   '/api/skills',
   '/api/sync',
 ]
-const WSL_LOCAL_API_EXACT = new Set([
+const REMOTE_LOCAL_API_EXACT = new Set([
   '/api/plugin-profile',
   '/api/launch-home/profiles',
   '/api/pick-dir',
@@ -538,13 +542,17 @@ const WSL_LOCAL_API_EXACT = new Set([
   '/api/wsl/profile',
   '/api/wsl/profile/remove',
 ])
-function isWslLocalApiRoute(pathname) {
-  return WSL_LOCAL_API_EXACT.has(pathname)
-    || WSL_LOCAL_API_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(prefix + '/'))
+function isRemoteLocalApiRoute(pathname) {
+  return REMOTE_LOCAL_API_EXACT.has(pathname)
+    || REMOTE_LOCAL_API_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(prefix + '/'))
 }
 function launchDistro() {
   const store = launchScope.getStore()
   return (store?.wslDistro || WSL_SETTINGS.defaultDistro || '').trim()
+}
+function launchWslUser() {
+  const store = launchScope.getStore()
+  return String(store?.wslUser || '').trim()
 }
 function launchWslHome() {
   const store = launchScope.getStore()
@@ -2004,7 +2012,7 @@ async function setInstancePortNow(version, profile, port) {
   const key = `${ver}@${prof}`
   const home = homeDir()
   const extra = home !== defaultHome()
-  const wsl = launchIsWsl()
+  const wsl = launchIsRemote()
   const distro = launchDistro()
   const map = { ...(wsl ? (WSL_PORTS[distro] || {}) : extra ? ENVIRONMENT_PORTS[home] : INSTANCE_PORTS) }
   const savePorts = async (next) => {
@@ -2173,7 +2181,7 @@ async function trayAction(body, startup = {}) {
   if (action !== 'stop' && !row.installed) throw new Error('请先在启动器中安装此版本')
   trayActions.set(row.key, { id: row.id, name: row.name, home: row.home, version: row.version, profile: row.profile, status: action === 'stop' ? 'stopping' : 'starting' })
   const wslScope = row.preset?.backend === 'wsl'
-    ? { backend: 'wsl', wslDistro: row.preset.wslDistro || WSL_SETTINGS.defaultDistro, wslHome: row.preset.wslHome || WSL_SETTINGS.defaultHome, wslWorkdir: row.preset.wslWorkdir || '' }
+    ? { backend: 'wsl', wslDistro: row.preset.wslDistro || WSL_SETTINGS.defaultDistro, wslHome: row.preset.wslHome || WSL_SETTINGS.defaultHome, wslWorkdir: row.preset.wslWorkdir || '', wslUser: row.preset.wslUser || '' }
     : {}
   try {
     return await launchScope.run({ ...startup, ...wslScope, home: row.home, launchId: row.preset?.id }, async () => {
@@ -2263,6 +2271,7 @@ async function saveLaunchPresetNow(body) {
   let wslDistro = ''
   let wslHome = ''
   let wslWorkdir = ''
+  let wslUser = ''
   let home = ''
   let wslInfo = null
   if (backend === 'wsl') {
@@ -2272,9 +2281,13 @@ async function saveLaunchPresetNow(body) {
     if (!wslDistro) throw new Error('先选择一个 WSL 发行版')
     wslHome = safeWslPath(body.wslHome, 'WSL 用户目录') || WSL_SETTINGS.defaultHome
     wslWorkdir = safeWslPath(body.wslWorkdir, 'WSL 项目目录')
+    wslUser = safeWslUser(body.wslUser)
     home = wslHomeKey(wslDistro, wslHome)
-    wslInfo = await inspectWslDistro(wslDistro, wslHome, { force: true, dshCommand: WSL_SETTINGS.dshCommand || 'dsh' })
-    if (!wslInfo.ok) throw new Error(wslInfo.error || `WSL 里的 dsh 不可用（${wslDistro}）`)
+    wslInfo = await inspectWslDistro(wslDistro, wslHome, { force: true, dshCommand: WSL_SETTINGS.dshCommand || 'dsh', user: wslUser })
+    if (!wslInfo.ok) throw remoteError(wslInfo.reasonCode || 'wsl-failed', wslInfo.error || `WSL 里的 dsh 不可用（${wslDistro}）`)
+    // 探测会把发行版名按 wsl -l -v 归一（大小写不敏感）；存归一后的名字，
+    // 免得同一台机器因为大小写不同被当成两个目录。
+    if (wslInfo.distro) wslDistro = wslInfo.distro
     if (!wslInfo.profiles.includes(profile) && !TEMPLATE_PROFILES.includes(profile)) throw new Error(`WSL 里没有 profile ${profile}，先在 WSL 里用 dsh 建一次`)
   } else {
     // 数据目录只用 dsh 用户目录；旧的「项目目录」字段不再读取，历史启动项按已保存的 dshHome 走。
@@ -2322,7 +2335,8 @@ async function saveLaunchPresetNow(body) {
   const sameBackend = (existingEntry?.backend === 'wsl') === (backend === 'wsl')
   const sameWslScope = backend !== 'wsl'
     || ((existingEntry?.wslDistro || WSL_SETTINGS.defaultDistro) === wslDistro
-      && (existingEntry?.wslHome || '') === (wslHome || ''))
+      && (existingEntry?.wslHome || '') === (wslHome || '')
+      && (existingEntry?.wslUser || '') === (wslUser || ''))
   const tripleChanged = !existingEntry || existingEntry.version !== version || existingEntry.profile !== profile
     || !sameBackend || !sameWslScope
     || (backend === 'local' && (existingEntry.dshHome || defaultHome()) !== home)
@@ -2333,6 +2347,7 @@ async function saveLaunchPresetNow(body) {
     if (backend === 'wsl') {
       if (item.backend !== 'wsl' || (item.wslDistro || WSL_SETTINGS.defaultDistro) !== wslDistro) return false
       if ((item.wslHome || '') !== (wslHome || '')) return false
+      if ((item.wslUser || '') !== (wslUser || '')) return false
       return item.version === version
     }
     if (item.backend === 'wsl' || (item.dshHome || defaultHome()) !== home) return false
@@ -2354,7 +2369,7 @@ async function saveLaunchPresetNow(body) {
     ...(existingEntry?.usedVersion ? { usedVersion: existingEntry.usedVersion } : {}),
     ...(existingEntry?.prevVersion ? { prevVersion: existingEntry.prevVersion } : {}),
     ...(backend === 'wsl'
-      ? { backend: 'wsl', wslDistro, ...(wslHome ? { wslHome } : {}), ...(wslWorkdir ? { wslWorkdir } : {}), wslServiceMode: DEFAULT_WSL_SERVICE_MODE }
+      ? { backend: 'wsl', wslDistro, ...(wslHome ? { wslHome } : {}), ...(wslWorkdir ? { wslWorkdir } : {}), ...(wslUser ? { wslUser } : {}), wslServiceMode: DEFAULT_WSL_SERVICE_MODE }
       : { ...(dshHome ? { dshHome } : {}) }),
     ...(icon !== 'terminal' ? { icon } : {}) }
   if (index >= 0) presets[index] = entry
@@ -3491,14 +3506,14 @@ function bootArgs(profile = PROFILE_NAME, pinned = 0) {
 
 /** 这个「版本 × profile」手工固定的端口（0 = 自动分配并记忆）。 */
 function pinnedPort(version, profile) {
-  if (launchIsWsl()) return WSL_PORTS[launchDistro()]?.[`${version}@${profile}`] || 0
+  if (launchIsRemote()) return WSL_PORTS[launchDistro()]?.[`${version}@${profile}`] || 0
   const ports = homeDir() === defaultHome() ? INSTANCE_PORTS : ENVIRONMENT_PORTS[homeDir()]
   return ports?.[`${version}@${profile}`] || 0
 }
 
 /** 自动端口：局域网模式也一样记（dsh 照样绑回环，端口不变局域网链接也不变）；用户额外参数仍由用户决定。 */
 function remembersAutoPort(profile, pinned) {
-  if (launchIsWsl()) return false
+  if (launchIsRemote()) return false
   return !pinned && bootsWebApp(profile)
     && !EXTRA_ARGS.some((arg) => /^--(?:port|host)(?:=|$)/.test(arg))
 }
@@ -5528,7 +5543,7 @@ async function terminateProcess(proc) {
   // 只杀 wsl.exe 会把 dsh 留在 WSL 里继续占端口，下一次启动就撞 EADDRINUSE。
   if (proc.backend === 'wsl') {
     try {
-      const result = await stopWslInstance({ distro: proc.distro, instanceId: proc.instanceId, port: proc.wslPort })
+      const result = await stopWslInstance({ distro: proc.distro, user: proc.wslUser || '', instanceId: proc.instanceId, port: proc.wslPort })
       if (!result.ok) pushLog(`${label}：WSL 侧停止脚本返回非零（${String(result.stderr || '').trim() || '无输出'}）`)
     } catch (error) {
       pushLog(`${label}：WSL 侧停止失败：${error instanceof Error ? error.message : error}`)
@@ -5987,6 +6002,8 @@ async function bootWslOnce(ver, prof, context, onStarted) {
   const startedAt = performance.now()
   const distro = context.distro
   const wslHome = context.wslHome
+  const wslUser = String(context.user || '')
+  const identity = context.identity || { distro, user: wslUser, home: context.wslHome }
   const workdir = context.workdir || ''
   // 启动项钉的端口在 WSL 下按 distro 存；前端在 version=auto 时拿不到实际版本，所以再按 preset.port 兜一次。
   const launchId = launchScope.getStore()?.launchId
@@ -6000,7 +6017,7 @@ async function bootWslOnce(ver, prof, context, onStarted) {
     const port = await allocateWslPort(distro, preferred, (candidate) => portAvailable(candidate))
     if (pinned && port !== pinned) pushLog(`固定端口 ${pinned} 在 WSL 或 Windows 侧被占用，这次改用 ${port}`)
     else if (remembered.port && port !== remembered.port) pushLog(`WSL 自动端口 ${remembered.port} 已不可用，这次改用 ${port}`)
-    pushLog(`启动 ${ver} · profile ${prof} · WSL ${distro}${workdir ? ` · 项目目录 ${workdir}` : ''}${pinned ? ` · 固定端口 ${pinned}` : ''}`)
+    pushLog(`启动 ${ver} · profile ${prof} · WSL ${distro}${wslUser ? ` · 用户 ${wslUser}` : ''}${workdir ? ` · 项目目录 ${workdir}` : ''}${pinned ? ` · 固定端口 ${pinned}` : ''}`)
     assertStartupActive()
     const diagnosticContext = {
       attemptId: randomBytes(16).toString('hex'),
@@ -6013,12 +6030,17 @@ async function bootWslOnce(ver, prof, context, onStarted) {
     try {
       started = await startWslInstance({
         distro,
+        user: wslUser,
+        identity,
         profile: prof,
         home: wslHome,
         workdir,
         port,
         dshCommand: WSL_SETTINGS.dshCommand || 'dsh',
         serviceMode: DEFAULT_WSL_SERVICE_MODE,
+        // 代理探测放在 WSL 里做：Windows 侧的 localhost 在 NAT 模式到不了，
+        // 探不通时改用宿主网关；两边都不通就不注代理（注死地址比不注更糟）。
+        proxy: resolveProxy(),
       })
     } catch (error) {
       lastFailure = {
@@ -6029,17 +6051,24 @@ async function bootWslOnce(ver, prof, context, onStarted) {
         message: error instanceof Error ? error.message : String(error),
         exit: null,
         tail: [],
+        ...remoteErrorFields(error),
       }
       await emitState().catch(() => {})
       throw error
+    }
+    if (started.proxy?.via === 'gateway') {
+      pushLog(`WSL 访问不到 Windows 侧代理 ${formatProxyForLog(started.proxy.original)}，已改用宿主网关 ${started.proxy.gateway}（${formatProxyForLog(started.proxy.url)}）`)
+    } else if (started.proxy?.via === 'unreachable') {
+      pushLog(`Windows 侧代理 ${formatProxyForLog(started.proxy.original)} 在 WSL 里连不上，本次不带代理启动`)
     }
     const spawnAt = performance.now()
     const proc = attachProcess(ver, prof, started.child, diagnosticContext, null)
     Object.assign(proc, {
       backend: 'wsl',
-      distro,
+      distro: started.distro || distro,
       wslHome,
       wslWorkdir: workdir,
+      wslUser: started.user || wslUser,
       serviceMode: started.serviceMode,
       instanceId: started.instanceId,
       wslPort: port,
@@ -6088,6 +6117,7 @@ async function bootWslOnce(ver, prof, context, onStarted) {
         exit: proc.exit,
         tail: (proc.tail || []).slice(-120),
         diagnosis: proc.diagnosis.report(),
+        ...remoteErrorFields(error),
       }
       failure.binding = bindDiagnosis(diagnosticContext, failure.diagnosis)
       lastFailure = failure
@@ -6099,15 +6129,42 @@ async function bootWslOnce(ver, prof, context, onStarted) {
   }
 }
 
-/** 从 WSL 里已安装的 dsh 起一个实例；版本 auto 用 WSL 里实测到的版本。 */
+/**
+ * 从 WSL 里已安装的 dsh 起一个实例；版本 auto 用 WSL 里实测到的版本。
+ * 外层只负责把失败记成 lastFailure（带 reasonCode）：探测阶段就失败的请求
+ * 也要让页面拿到失败对象，不能只有一句 error。
+ */
 async function startWslNow(version, profile = PROFILE_NAME, onStarted) {
+  try {
+    return await startWslNowInner(version, profile, onStarted)
+  } catch (error) {
+    if (!error?.failure) {
+      lastFailure = {
+        at: Date.now(),
+        version: String(version ?? ''),
+        profile,
+        home: homeDir(),
+        message: error instanceof Error ? error.message : String(error),
+        exit: null,
+        tail: [],
+        ...remoteErrorFields(error),
+      }
+      try { error.failure = lastFailure } catch { /* 非 Error 对象仍保留状态里的记录 */ }
+      await emitState().catch(() => {})
+    }
+    throw error
+  }
+}
+
+async function startWslNowInner(version, profile = PROFILE_NAME, onStarted) {
   const requested = safeVersion(version)
   const prof = safeProfile(profile)
   const distro = launchDistro()
   if (!distro) throw new Error('还没有选择 WSL 发行版（先在设置里选一个默认发行版，或给启动项指定）')
+  const wslUser = launchWslUser()
   const wslHome = launchWslHome()
-  const info = await inspectWslDistro(distro, wslHome, { force: true, dshCommand: WSL_SETTINGS.dshCommand || 'dsh' })
-  if (!info.ok) throw new Error(info.error || `WSL 发行版 ${distro} 里的 dsh 不可用`)
+  const info = await inspectWslDistro(distro, wslHome, { force: true, dshCommand: WSL_SETTINGS.dshCommand || 'dsh', user: wslUser })
+  if (!info.ok) throw remoteError(info.reasonCode || 'wsl-failed', info.error || `WSL 发行版 ${distro} 里的 dsh 不可用`)
   const detected = (String(info.version || '').match(/[0-9][0-9A-Za-z._+-]*/) || [])[0] || ''
   const ver = requested === 'auto' ? detected : requested
   if (!ver) throw new Error('没读到 WSL 里 dsh 的版本号，先在 WSL 里运行 dsh --version 确认')
@@ -6126,9 +6183,15 @@ async function startWslNow(version, profile = PROFILE_NAME, onStarted) {
     }
   }
   if (!info.profiles.includes(prof) && !TEMPLATE_PROFILES.includes(prof)) {
-    throw new Error(`WSL 里没有 profile ${prof}（先在 WSL 里用 dsh 建一次）`)
+    throw remoteError('dsh-missing', `WSL 里没有 profile ${prof}（先在 WSL 里用 dsh 建一次）`)
   }
-  return bootWslOnce(ver, prof, { distro, wslHome, workdir: launchWslWorkdir() }, onStarted)
+  return bootWslOnce(ver, prof, {
+    distro: info.distro || distro,
+    wslHome,
+    workdir: launchWslWorkdir(),
+    user: info.user || wslUser,
+    identity: { distro: info.distro || distro, user: info.user || wslUser, home: info.home },
+  }, onStarted)
 }
 
 /**
@@ -6280,7 +6343,7 @@ async function autoDisableFailedPlugins(error, already, profile = PROFILE_NAME) 
  */
 async function startWithRepair(version, profile = PROFILE_NAME) {
   // WSL 实例不碰 Windows 侧 profile：没有 .npmrc / 补丁层可修，也不该在本地建目录。
-  if (launchIsWsl()) return startWslNow(version, profile)
+  if (launchIsRemote()) return startWslNow(version, profile)
   lastAutoFix = null
   // 同一个组合上一次的失败到此作废，页面上那条「启动失败」跟着收掉
   if (failureIsFor(version, profile)) {
@@ -6370,7 +6433,7 @@ export async function launchInstalled() {
     // 已经在起：等它就行。重新走一遍启动流程会按「当前探测到的版本」拼实例键，
     // WSL 里的 dsh 恰好在这段时间升级时找不到这个正在起的实例，可能再起一个同目录的进程。
     const scope = live.backend === 'wsl'
-      ? { backend: 'wsl', home: live.home, wslDistro: live.distro, wslHome: live.wslHome, wslWorkdir: live.wslWorkdir, ...(live.launchId ? { launchId: live.launchId } : {}) }
+      ? { backend: 'wsl', home: live.home, wslDistro: live.distro, wslHome: live.wslHome, wslWorkdir: live.wslWorkdir, wslUser: live.wslUser || '', ...(live.launchId ? { launchId: live.launchId } : {}) }
       : { home: live.home }
     const result = await launchScope.run(scope, () => waitUntilReady(live, live.version))
     return { version: live.version, url: result.url }
@@ -6393,15 +6456,15 @@ export async function restartInstalled() {
     // 启动项填 auto 的 WSL 实例：重启要重新探测 WSL 里的 dsh（可能刚升过级），
     // 拿上次记录的具体版本当钉子会直接报「版本不一致」，实例停着起不来。
     const version = preset?.backend === 'wsl' && preset.version === 'auto' ? 'auto' : proc.version
-    return { version, profile: proc.profile, home: proc.home, backend: proc.backend, distro: proc.distro, wslHome: proc.wslHome, wslWorkdir: proc.wslWorkdir, launchId: proc.launchId || '' }
+    return { version, profile: proc.profile, home: proc.home, backend: proc.backend, distro: proc.distro, wslHome: proc.wslHome, wslWorkdir: proc.wslWorkdir, wslUser: proc.wslUser || '', launchId: proc.launchId || '' }
   })
   if (!targets.length) return launchInstalled()
   await stop()
   let last = null
   let failure = null
-  const results = await Promise.allSettled(targets.map(({ version, profile, home, backend, distro, wslHome, wslWorkdir, launchId }) =>
+  const results = await Promise.allSettled(targets.map(({ version, profile, home, backend, distro, wslHome, wslWorkdir, wslUser, launchId }) =>
     launchScope.run(backend === 'wsl'
-      ? { backend: 'wsl', home, wslDistro: distro, wslHome, wslWorkdir, ...(launchId ? { launchId } : {}) }
+      ? { backend: 'wsl', home, wslDistro: distro, wslHome, wslWorkdir, wslUser, ...(launchId ? { launchId } : {}) }
       : { home }, () => start(version, profile))))
   for (const [index, result] of results.entries()) {
     if (result.status === 'fulfilled') last = { version: targets[index].version, profile: targets[index].profile, url: result.value.url }
@@ -7149,7 +7212,7 @@ async function handleApi(req, res, url) {
   }
   // WSL 启动项的文件都在发行版里，Windows 侧只负责拉起进程；
   // 统一在这里挡住本地文件路由，避免把 wsl:// 键当成 Windows 路径。
-  if (launchIsWsl() && isWslLocalApiRoute(url.pathname)) {
+  if (launchIsRemote() && isRemoteLocalApiRoute(url.pathname)) {
     send(res, 400, { error: 'WSL 启动项的 Profile、插件和整合包文件都在 WSL 内，当前版本不支持在 Windows 侧直接管理；请进入该发行版操作。' })
     return
   }
@@ -7236,13 +7299,14 @@ async function handleApi(req, res, url) {
       const refresh = url.searchParams.get('refresh') === '1'
       const listed = await listWslDistros({ force: refresh })
       const distro = String(url.searchParams.get('distro') || '').trim()
+      const user = safeWslUser(url.searchParams.get('user') || '')
       let inspect = null
       if (distro) {
         let home = ''
         try { home = safeWslPath(url.searchParams.get('home') || '', 'WSL 用户目录') } catch { home = '' }
-        inspect = await inspectWslDistro(distro, home || WSL_SETTINGS.defaultHome, { force: refresh, dshCommand: WSL_SETTINGS.dshCommand || 'dsh' })
+        inspect = await inspectWslDistro(distro, home || WSL_SETTINGS.defaultHome, { force: refresh, dshCommand: WSL_SETTINGS.dshCommand || 'dsh', user })
       }
-      send(res, 200, { available: listed.available, distros: listed.distros, error: listed.error || '', defaults: safeWslSettings(WSL_SETTINGS), inspect })
+      send(res, 200, { available: listed.available, distros: listed.distros, error: listed.error || '', reasonCode: listed.reasonCode || '', retryable: listed.retryable ?? null, defaults: safeWslSettings(WSL_SETTINGS), inspect })
     } catch (error) {
       send(res, 400, { error: error instanceof Error ? error.message : String(error) })
     }
@@ -7455,7 +7519,8 @@ async function handleApi(req, res, url) {
       if (!distro || distro.length > 128 || /[\x00-\x1f]/.test(distro)) throw new Error('WSL 发行版名称不合法')
       const home = safeWslPath(url.searchParams.get('home') || '', 'WSL 用户目录')
       const profile = safeProfile(url.searchParams.get('profile') || '')
-      send(res, 200, await readWslProfile(distro, home, profile))
+      const user = safeWslUser(url.searchParams.get('user') || '')
+      send(res, 200, await readWslProfile(distro, home, profile, { user }))
     } catch (error) {
       send(res, 400, { error: error instanceof Error ? error.message : String(error) })
     }
@@ -7469,13 +7534,15 @@ async function handleApi(req, res, url) {
       if (!distro || distro.length > 128 || /[\x00-\x1f]/.test(distro)) throw new Error('WSL 发行版名称不合法')
       const home = safeWslPath(body.home || '', 'WSL 用户目录')
       const profile = safeProfile(body.profile || '')
+      const user = safeWslUser(body.user)
       if (profile.startsWith('.') || profile.toLowerCase() === 'node_modules' || CLI_BLOCKED_PROFILES.has(profile.toLowerCase())) {
         throw new Error(`「${profile}」不能作为 Profile 删除`)
       }
       const running = instanceList().some((proc) => proc.backend === 'wsl' && proc.distro === distro && proc.profile === profile
+        && (proc.wslUser || '') === user
         && (proc.status === 'running' || proc.status === 'starting'))
       if (running) throw new Error('这个 Profile 正在运行，先停止再删除')
-      const result = await removeWslProfile(distro, home, profile)
+      const result = await removeWslProfile(distro, home, profile, { user })
       if (result.ok) invalidateWslCache()
       send(res, 200, result)
     } catch (error) {
@@ -7490,7 +7557,8 @@ async function handleApi(req, res, url) {
       const distro = String(body.distro || '').trim()
       if (!distro || distro.length > 128 || /[\x00-\x1f]/.test(distro)) throw new Error('WSL 发行版名称不合法')
       const home = safeWslPath(body.home || '', 'WSL 用户目录') || '~'
-      const dir = await wslPath(distro, home, 'windows')
+      const user = safeWslUser(body.user)
+      const dir = await wslPath(distro, home, 'windows', { user })
       await openDirectory(dir)
       pushLog(`已打开 WSL 目录 ${distro}:${home}`)
       send(res, 200, { ok: true, dir })
@@ -7507,7 +7575,8 @@ async function handleApi(req, res, url) {
       const value = String(body.path || '').trim()
       if (value.length > 4096) throw new Error('路径太长')
       const direction = body.direction === 'windows' ? 'windows' : 'linux'
-      send(res, 200, { path: await wslPath(distro, value, direction) })
+      const user = safeWslUser(body.user)
+      send(res, 200, { path: await wslPath(distro, value, direction, { user }) })
     } catch (error) {
       send(res, 400, { error: error instanceof Error ? error.message : String(error) })
     }
@@ -8780,7 +8849,7 @@ export async function startServer() {
           const entry = safeLaunchPresets(loadSettingsSync().launchPresets).find((item) => item.id === launchId)
           if (!entry) { send(res, 400, { error: '启动项已不存在，请刷新后重试' }); return }
           const scope = entry.backend === 'wsl'
-            ? { backend: 'wsl', home: wslHomeKey(entry.wslDistro || WSL_SETTINGS.defaultDistro, entry.wslHome || WSL_SETTINGS.defaultHome), wslDistro: entry.wslDistro || WSL_SETTINGS.defaultDistro, wslHome: entry.wslHome || WSL_SETTINGS.defaultHome, wslWorkdir: entry.wslWorkdir || '' }
+            ? { backend: 'wsl', home: wslHomeKey(entry.wslDistro || WSL_SETTINGS.defaultDistro, entry.wslHome || WSL_SETTINGS.defaultHome), wslDistro: entry.wslDistro || WSL_SETTINGS.defaultDistro, wslHome: entry.wslHome || WSL_SETTINGS.defaultHome, wslWorkdir: entry.wslWorkdir || '', wslUser: entry.wslUser || '' }
             : { home: entry.dshHome || defaultHome() }
           await launchScope.run({ ...scope, launchId }, () => handleApi(req, res, url))
         } else if (req.headers['x-dsh-home']) {

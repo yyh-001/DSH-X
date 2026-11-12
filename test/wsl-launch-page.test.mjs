@@ -79,6 +79,25 @@ test('WSL Profile 可以直接删除：请求走 /api/wsl/profile/remove，不�
   assert.match(page, /for \(const key of \[\.\.\.pickerWslProfileCache\.keys\(\)\]\)/, '删完清掉这份 Profile 的插件摘要缓存')
 })
 
+test('WSL 用户：启动项可填，探测 / 路径转换 / Profile 详情都带上它', () => {
+  assert.match(page, /id="launchWslLocationFields" hidden>[\s\S]{0,400}?id="launchWslUser"/)
+  assert.match(page, /data-placeholder-i18n="默认登录用户；例如 root"/)
+  assert.match(page, /wslUser: launchWslUserEl\.value\.trim\(\)/, '保存时带上用户')
+  assert.match(page, /const user = launchWslUserEl\.value\.trim\(\)/)
+  assert.match(page, /user=\$\{encodeURIComponent\(user\)\}/, '探测 dsh 时带 user')
+  assert.match(page, /launchWslUserEl\.onchange = \(\) => \{ launchWslProfiles = \[\]; void refreshWslProfiles\(true\)/, '改用户要重新探测 Profile')
+  assert.match(page, /\/api\/wsl\/profile\?distro=[^`]*&user=\$\{encodeURIComponent\(user\)\}/, 'Profile 详情带 user')
+  assert.match(page, /pickWslDirectory\(distro, input\.value, launchWslUserEl\.value\.trim\(\)\)/, '路径转换按当前用户展开 ~')
+})
+
+test('WSL 启动失败按 reasonCode 给可操作文案，原始 message 仍作兜底', () => {
+  assert.match(page, /const FAILURE_CODE_TEXT = \{/)
+  for (const code of ['wsl-unavailable', 'distro-missing', 'user-missing', 'wsl-timeout', 'dsh-missing', 'workspace-unavailable']) {
+    assert.ok(page.includes(`'${code}'`), `缺 ${code} 的页面文案`)
+  }
+  assert.match(page, /failure\.code && FAILURE_CODE_TEXT\[failure\.code\] \? t\(FAILURE_CODE_TEXT\[failure\.code\]\) : ''/)
+})
+
 test('选择窗的切换 / 增删动效：方向推入、删除淡出、新增高亮，且遵守减动效', () => {
   assert.match(css, /@keyframes profile-pick-refresh-right/)
   assert.match(css, /@keyframes profile-pick-refresh-left/)

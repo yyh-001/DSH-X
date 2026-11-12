@@ -3,6 +3,7 @@ import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { isValidWslUser } from './remote.js'
 import { APP_DIR, fileManager } from './filemanager.js'
 import { IS_MAC } from './platform.js'
 import { safeFolderConfig, safePolicy, safeS3Config, safeScopeIds, safeStoreType, safeWebdavConfig, safeZipConfig } from './sync.js'
@@ -278,6 +279,19 @@ export function safeWslDistro(value) {
   const trimmed = value.trim()
   if (!trimmed) return ''
   if (trimmed.length > 64 || /[\x00-\x1f\x7f/]/.test(trimmed)) throw new Error('WSL 发行版名称不合法')
+  return trimmed
+}
+
+/**
+ * WSL 用户：空 = 用发行版的默认登录用户。校验沿用 ZCode 的规则
+ * （1–64 字符、禁控制字符和 : / \），另外去掉首尾空白。
+ */
+export function safeWslUser(value) {
+  if (value === undefined || value === null) return ''
+  if (typeof value !== 'string') throw new Error('WSL 用户填一个用户名，别填别的')
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  if (!isValidWslUser(trimmed)) throw new Error('WSL 用户名不合法（1-64 个字符，不能含 : / \\ 和控制字符）')
   return trimmed
 }
 
@@ -596,6 +610,7 @@ export function safeLaunchPresets(value) {
     let wslDistro = ''
     let wslHome = ''
     let wslWorkdir = ''
+    let wslUser = ''
     if (backend === 'wsl') {
       // WSL 项不碰 Windows 的 safeDshHome / safeWorkdir：那些函数要求盘符绝对路径，
       // 会把 /root/.dsh 当相对路径拒掉。路径按 Linux 语义单独校验。
@@ -603,6 +618,7 @@ export function safeLaunchPresets(value) {
         wslDistro = safeWslDistro(item.wslDistro)
         wslHome = safeWslPath(item.wslHome, 'WSL 用户目录')
         wslWorkdir = safeWslPath(item.wslWorkdir, 'WSL 项目目录')
+        wslUser = safeWslUser(item.wslUser)
       } catch { return [] }
     }
     let dshHome = ''
@@ -630,7 +646,7 @@ export function safeLaunchPresets(value) {
       ...(VERSION_RE.test(usedVersion) && usedVersion !== 'auto' ? { usedVersion } : {}),
       ...(VERSION_RE.test(prevVersion) && prevVersion !== 'auto' ? { prevVersion } : {}),
       ...(dshHome ? { dshHome } : {}),
-      ...(backend === 'wsl' ? { backend: 'wsl', ...(wslDistro ? { wslDistro } : {}), ...(wslHome ? { wslHome } : {}), ...(wslWorkdir ? { wslWorkdir } : {}), wslServiceMode: DEFAULT_WSL_SERVICE_MODE } : {}),
+      ...(backend === 'wsl' ? { backend: 'wsl', ...(wslDistro ? { wslDistro } : {}), ...(wslHome ? { wslHome } : {}), ...(wslWorkdir ? { wslWorkdir } : {}), ...(wslUser ? { wslUser } : {}), wslServiceMode: DEFAULT_WSL_SERVICE_MODE } : {}),
       ...(icon !== 'terminal' ? { icon } : {}) }]
   })
   const builtin = presets.find((item) => item.id === DEFAULT_LAUNCH_ID) || { ...DEFAULT_LAUNCH }
