@@ -42,8 +42,7 @@ test('WSL scope 下本地文件路由统一返回 400，启动与会话状态接
     ['/api/plugins?profile=web'],
     ['/api/plugin-profile?version=0.1.0&profile=web'],
     ['/api/launch-home/profiles'],
-    ['/api/profiles/create', 'POST', { profile: 'demo' }],
-    ['/api/profiles/delete', 'POST', { profile: 'web' }],
+    // /api/profiles/* 现在转发给远端 core，不再属于“本地文件路由”。
     ['/api/recover?profile=web'],
     ['/api/recover', 'POST', { profile: 'web' }],
     ['/api/recover/restore', 'POST', { profile: 'web' }],
@@ -67,17 +66,22 @@ test('WSL scope 下本地文件路由统一返回 400，启动与会话状态接
   }
   // x-dsh-home 的 wsl:// 分支也要进同一个 guard（不依赖启动项 id）。
   const wslHome = encodeURIComponent('wsl://Fedora/' + encodeURIComponent('~/.dsh'))
-  const viaHome = await fetch(origin + '/api/profiles/create', {
+  const viaHome = await fetch(origin + '/api/plugins', {
     method: 'POST', headers: { origin, 'content-type': 'application/json', 'x-dsh-home': wslHome },
     body: JSON.stringify({ profile: 'demo' }),
   })
   assert.equal(viaHome.status, 400)
   assert.match((await viaHome.json()).error, /WSL/)
-  // 启动 / 状态 / 设置接口不能误伤：WSL 实例还要靠它们工作。
-  for (const path of ['/api/settings', '/api/state']) {
+  // 启动 / 设置接口不能误伤：WSL 实例还要靠它们工作。
+  for (const path of ['/api/settings']) {
     const { response, data } = await call(path)
     assert.equal(response.status, 200, path + ' 应保持可用：' + JSON.stringify(data))
   }
+  // 带启动项作用域的 /api/state 现在转发给远端 core；发行版不存在时报远端错误，
+  // 而不是被本地文件路由 guard 挡成 400。
+  const scopedState = await call('/api/state')
+  assert.notEqual(scopedState.response.status, 400)
+  assert.match(JSON.stringify(scopedState.data), /Fedora|WSL/)
   // 本机启动项照常能读整合包。
   const local = await fetch(origin + '/api/packs', { headers: { origin } })
   assert.equal(local.status, 200)

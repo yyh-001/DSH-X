@@ -16,6 +16,7 @@ function installer(overrides = {}) {
   const context = vm.createContext({
     action: '', state: { installing: null }, picked: '0.1.0', versionValue: '0.1.0', launchProfile: 'safe', userPicked: true,
     installedList: () => ['0.1.0'], render() {}, runningInfo: () => null, isManagedVersion: () => true,
+    versionTargetIsWsl: () => false, versionScopeOptions: () => ({}), loadVersionScopeState: async () => null,
     t: translate, versionCheckSeq: 0, versionCheck: {}, appConfirm: async () => true,
     post: async (path, body) => { calls.push({ path, version: body.version }) },
     getJson: async (path) => { calls.push({ path }); return { installed: ['0.1.0', '0.2.0'] } },
@@ -97,6 +98,7 @@ test('运行中或停止中的任一实例都会锁住对应版本的卸载，�
     versionSizes: { '0.1.0': 1024 * 1024, '0.2.0': 2 * 1024 * 1024 }, versionSizesTotal: 3 * 1024 * 1024, versionSizesLoading: false,
     formatBytes: (bytes) => `${(bytes / 1048576).toFixed(1)} MB`,
     installedList: () => ['0.1.0', '0.2.0'], latestRemoteVersion: () => '0.3.0', allVersionList: () => ['0.3.0', '0.2.0', '0.1.0'],
+    versionTargetIsWsl: () => false, versionScopeState: null,
     compareVersion: (a, b) => a.localeCompare(b), runningInfo: () => null, versionNames: (values) => values,
     t: translate, escapeHtml: (text) => String(text), syncUiSelect() {}, paintProgress() {},
     document: { getElementById: element },

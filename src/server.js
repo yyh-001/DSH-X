@@ -140,8 +140,9 @@ import {
   saveSettings,
   VERSION_RE,
 } from './settings.js'
-import { allocateWslPort, inspectWslDistro, invalidateWslCache, listWslDistros, parseWslHomeKey, resolveWslHome, readWslProfile, removeWslProfile, startWslInstance, stopWslInstance, wslAvailable, wslHomeKey, wslPath, wslPortAvailable } from './wsl.js'
-import { formatProxyForLog, remoteError, remoteErrorFields } from './remote.js'
+import { allocateWslPort, createWslBackend, inspectWslDistro, invalidateWslCache, listWslDistros, parseWslHomeKey, resolveWslHome, readWslProfile, removeWslProfile, startWslInstance, stopWslInstance, wslAvailable, wslHomeKey, wslPath, wslPortAvailable } from './wsl.js'
+import { getWslRemoteCore, stopAllRemoteCores } from './remote-core.js'
+import { formatProxyForLog, pickDistro, remoteError, remoteErrorFields, REMOTE_REASON } from './remote.js'
 // 带代理的 fetch：Node 的全局 fetch 既不看系统代理也不看 HTTP_PROXY，外网请求都走 netFetch
 import { netFetch, proxyEnv, resetProxyCache, resolveProxy } from './proxy.js'
 import { APP_DIR, fileManager } from './filemanager.js'
@@ -2302,12 +2303,13 @@ async function saveLaunchPresetNow(body) {
     wslWorkdir = safeWslPath(body.wslWorkdir, 'WSL 项目目录')
     wslUser = safeWslUser(body.wslUser)
     home = wslHomeKey(wslDistro, wslHome)
-    wslInfo = await inspectWslDistro(wslDistro, wslHome, { force: true, dshCommand: WSL_SETTINGS.dshCommand || 'dsh', user: wslUser })
-    if (!wslInfo.ok) throw remoteError(wslInfo.reasonCode || 'wsl-failed', wslInfo.error || `WSL 里的 dsh 不可用（${wslDistro}）`)
-    // 探测会把发行版名按 wsl -l -v 归一（大小写不敏感）；存归一后的名字，
-    // 免得同一台机器因为大小写不同被当成两个目录。
-    if (wslInfo.distro) wslDistro = wslInfo.distro
-    if (!wslInfo.profiles.includes(profile) && !TEMPLATE_PROFILES.includes(profile)) throw new Error(`WSL 里没有 profile ${profile}，先在 WSL 里用 dsh 建一次`)
+    // B 路线：dsh 版本/Profile 由 WSL 里的 dsh-x-core 管，保存时只校验发行版存在，
+    // 不再要求发行版里有全局 dsh（远端 core 可能用的是托管版本）。
+    const listed = await listWslDistros()
+    if (!listed.available) throw remoteError(REMOTE_REASON.wslUnavailable, listed.error || '当前没有可用的 WSL 环境')
+    const picked = pickDistro(wslDistro, listed.distros)
+    if (picked.missing) throw remoteError(REMOTE_REASON.distroMissing, `未找到名为 ${wslDistro} 的 WSL 发行版（先在终端运行 wsl -l -v 核对名称）`)
+    if (picked.name) wslDistro = picked.name
   } else {
     // 数据目录只用 dsh 用户目录；旧的「项目目录」字段不再读取，历史启动项按已保存的 dshHome 走。
     dshHome = safeDshHome(body.dshHome)
@@ -5558,6 +5560,8 @@ async function killTree(pid, child, force = true) {
  */
 async function terminateProcess(proc) {
   const label = `${proc.version}/${proc.profile}`
+  // 远端 core 起的实例没有本地 child：把停止请求转发给 core。
+  if (proc.remoteCore) return stopRemoteCoreInstance(proc)
   // WSL 实例：先让 Linux 侧的脚本按 pidfile 收掉 dsh 本体，再杀 wsl.exe 这扇门。
   // 只杀 wsl.exe 会把 dsh 留在 WSL 里继续占端口，下一次启动就撞 EADDRINUSE。
   if (proc.backend === 'wsl') {
@@ -6180,37 +6184,168 @@ async function startWslNowInner(version, profile = PROFILE_NAME, onStarted) {
   const prof = safeProfile(profile)
   const distro = launchDistro()
   if (!distro) throw new Error('还没有选择 WSL 发行版（先在设置里选一个默认发行版，或给启动项指定）')
-  const wslUser = launchWslUser()
-  const wslHome = launchWslHome()
-  const info = await inspectWslDistro(distro, wslHome, { force: true, dshCommand: WSL_SETTINGS.dshCommand || 'dsh', user: wslUser })
-  if (!info.ok) throw remoteError(info.reasonCode || 'wsl-failed', info.error || `WSL 发行版 ${distro} 里的 dsh 不可用`)
-  const detected = (String(info.version || '').match(/[0-9][0-9A-Za-z._+-]*/) || [])[0] || ''
-  const ver = requested === 'auto' ? detected : requested
-  if (!ver) throw new Error('没读到 WSL 里 dsh 的版本号，先在 WSL 里运行 dsh --version 确认')
-  if (!VERSION_RE.test(ver)) throw new Error(`WSL 里的 dsh 版本号看起来不对：${info.version}`)
-  // WSL 里的 dsh 是发行版自己的一份，启动器不能像 Windows 版本目录那样切旧版；
-  // 启动项若钉着一个版本而 WSL 已升级，继续启动只会把实际版本记错，直接说清。
-  if (requested !== 'auto' && detected && requested !== detected) {
-    throw new Error(`WSL 里的 dsh 是 ${detected}，和启动项钉的 ${requested} 不一致；改成自动，或先更新启动项`)
+  return startWslViaRemoteCore({ requested, profile: prof, distro, user: launchWslUser(), onStarted })
+}
+
+/** `~/.dsh` 在 WSL 里按发行版用户的 HOME 展开；绝对路径原样。 */
+function resolveRemoteHome(value, userHome) {
+  const text = String(value || '').trim() || '~/.dsh'
+  if (text === '~') return userHome
+  if (text.startsWith('~/')) return `${userHome}/${text.slice(2)}`.replace(/\/+/g, '/')
+  return text
+}
+
+/**
+ * 给指定 WSL 目标起一个远端 core（不依赖当前 launchScope），并把它的 DSH_HOME 固定到 home。
+ * /api/wsl 的兜底和启动项操作共用这一条。
+ */
+async function remoteCoreForTarget({ distro, user = '', home = '' }) {
+  const proxy = resolveProxy()
+  const core = getWslRemoteCore({
+    distro,
+    user,
+    version: APP_VERSION,
+    packageSpec: String(process.env.DSH_CORE_TARBALL || '').trim() || undefined,
+    proxy,
+  })
+  await core.start({ proxy })
+  const identity = await createWslBackend({ distro, user }).resolveIdentity()
+  const targetHome = resolveRemoteHome(home || '~/.dsh', identity.home)
+  if (core.appliedHome !== targetHome) {
+    await core.json('/api/settings', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ dshHome: targetHome }),
+    })
+    core.appliedHome = targetHome
   }
-  const existing = instances.get(instanceKey(ver, prof))
-  if (existing?.status === 'running' && existing.url) return { url: existing.url }
-  if (existing?.status === 'starting') return waitUntilReady(existing, ver)
-  if (existing?.status === 'stopping') {
-    if (!(await waitExit(existing.child, STOP_EXIT_TIMEOUT_MS + STOP_KILL_GRACE_MS))) {
-      throw new Error(`${ver}/${prof} 正在停止且尚未退出，请稍后再启动`)
-    }
+  return { core, home: targetHome, identity }
+}
+
+/**
+ * 取当前 WSL 作用域对应的远端 core，并把它固定到启动项的 DSH_HOME。
+ * 安装/启动是幂等的：已经在跑就直接复用。
+ */
+async function ensureRemoteCoreForScope() {
+  const distro = launchDistro()
+  const user = launchWslUser()
+  if (!distro) throw new Error('还没有选择 WSL 发行版')
+  return remoteCoreForTarget({ distro, user, home: launchWslHome() })
+}
+
+/** 这些接口在 WSL 作用域下直接转发给远端 core，本地不自己执行。 */
+const REMOTE_CORE_PROXY_PREFIXES = ['/api/install', '/api/uninstall', '/api/versions', '/api/profiles', '/api/state']
+function isRemoteCoreProxyRoute(pathname) {
+  return REMOTE_CORE_PROXY_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(prefix + '/'))
+}
+
+/** 把当前请求原样转给远端 core，再把它的状态/响应体带回来。 */
+async function proxyToRemoteCore(req, res, url, body) {
+  const { core, home } = await ensureRemoteCoreForScope()
+  const headers = { 'content-type': req.headers['content-type'] || 'application/json' }
+  // Profile 路由靠 x-dsh-home 定位目录；远端只认 Linux 绝对路径。
+  if (url.pathname.startsWith('/api/profiles')) headers['x-dsh-home'] = encodeURIComponent(home)
+  const response = await core.request(url.pathname + url.search, {
+    method: req.method,
+    headers,
+    ...(req.method === 'POST' ? { body: JSON.stringify(body ?? {}) } : {}),
+    timeoutMs: 15 * 60 * 1000,
+  })
+  const contentType = response.headers.get('content-type') || 'application/json; charset=utf-8'
+  const text = await response.text()
+  send(res, response.status, text, contentType)
+}
+
+/**
+ * B 路线：本地 UI 不直接起 WSL 里的 dsh，而是让 WSL 里的 dsh-x-core 起来并用它自己的
+ * 启动逻辑。本地只保留一个“远端实例”的影子 proc，状态/地址给页面用，停止时转发给 core。
+ */
+async function startWslViaRemoteCore({ requested, profile, distro, user, onStarted }) {
+  const { core, home } = await ensureRemoteCoreForScope()
+  // 远端 core 的 /api/start 只认具体版本；auto 在这里按远端已装版本解析。
+  const remoteState = await core.json('/api/state')
+  let remoteInstalled = Array.isArray(remoteState.installed) ? remoteState.installed.filter(Boolean) : []
+  let effective = requested === 'auto'
+    ? remoteInstalled.slice().sort((a, b) => cmpVer(parseVer(b) ?? parseVer('0'), parseVer(a) ?? parseVer('0')))[0] || ''
+    : requested
+  if (!effective && requested === 'auto') {
+    // 一个版本都没有：按远端自己看到的 latest 装一个，别让「点启动」只报一句未安装。
+    try {
+      const check = await core.json('/api/versions/check')
+      effective = String(check?.latest || '')
+    } catch { /* 读不到远程列表就留空，下面给明确错误 */ }
   }
-  if (!info.profiles.includes(prof) && !TEMPLATE_PROFILES.includes(prof)) {
-    throw remoteError('dsh-missing', `WSL 里没有 profile ${prof}（先在 WSL 里用 dsh 建一次）`)
+  if (!effective) throw new Error('远端 core 里还没有可用的 dsh 版本，请先在版本管理里安装一个')
+  if (!remoteInstalled.includes(effective)) {
+    pushLog(`远端 core 里没有 dsh ${effective}，开始自动安装…`)
+    await core.json('/api/install', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ version: effective }),
+      timeoutMs: 15 * 60 * 1000,
+    })
+    const refreshed = await core.json('/api/state')
+    remoteInstalled = Array.isArray(refreshed.installed) ? refreshed.installed.filter(Boolean) : []
+    if (!remoteInstalled.includes(effective)) throw new Error(`远端 core 安装 dsh ${effective} 后仍没有读到这个版本`)
   }
-  return bootWslOnce(ver, prof, {
-    distro: info.distro || distro,
-    wslHome,
-    workdir: launchWslWorkdir(),
-    user: info.user || wslUser,
-    identity: { distro: info.distro || distro, user: info.user || wslUser, home: info.home },
-  }, onStarted)
+  const started = await core.json('/api/start', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ version: effective, profile }),
+  })
+  if (!started?.url) throw new Error('远端 core 没有返回 dsh 地址')
+  // /api/start 返回时实例已经就绪；从 core 的 state 里取实际版本（auto 时尤其需要）。
+  let remote = null
+  for (let attempt = 0; attempt < 6 && !remote; attempt += 1) {
+    const state = await core.json('/api/state')
+    remote = (state.instances || []).find((item) => item.url === started.url) || null
+    if (!remote) await new Promise((resolve) => setTimeout(resolve, 200))
+  }
+  const version = remote?.version || effective
+  const key = instanceKey(version, profile)
+  const existing = instances.get(key)
+  if (existing?.url) return { url: existing.url }
+  const proc = {
+    key,
+    version,
+    profile,
+    home: homeDir(),
+    url: started.url,
+    status: 'running',
+    backend: 'wsl',
+    distro,
+    wslHome: launchWslHome(),
+    wslHomePath: home,
+    wslUser: user,
+    launchId: launchScope.getStore()?.launchId || '',
+    remoteCore: core,
+    remoteCoreKey: `${distro}\0${user}\0${APP_VERSION}`,
+    child: null,
+    tail: [],
+    startedAt: Date.now(),
+    readyAt: performance.now(),
+    startupMs: 0,
+    diagnosis: { report: () => ({}) },
+  }
+  instances.set(key, proc)
+  pushLog(`远端 core 已启动 dsh ${version}/${profile}（WSL ${distro}${user ? ` · 用户 ${user}` : ''}）`)
+  onStarted?.(proc)
+  await emitState()
+  return { url: started.url }
+}
+
+async function stopRemoteCoreInstance(proc) {
+  try {
+    await proc.remoteCore?.json('/api/stop', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ version: proc.version, profile: proc.profile, home: proc.wslHomePath || '' }),
+    })
+  } catch (error) {
+    pushLog(`远端 core 停止 ${proc.version}/${proc.profile} 失败：${error instanceof Error ? error.message : error}`)
+  }
+  instances.delete(proc.key)
+  return true
 }
 
 /**
@@ -7234,6 +7369,13 @@ async function handleApi(req, res, url) {
     send(res, 403, { error: '跨站请求被拒绝' })
     return
   }
+  // WSL 作用域下的版本/Profile/状态接口：本地 UI 不变，实际执行交给远端 core。
+  // 要放在本地文件路由拦截之前：/api/profiles 现在由远端 core 处理，不再返回 400。
+  if (launchIsRemote() && isRemoteCoreProxyRoute(url.pathname)) {
+    const body = req.method === 'POST' ? await readJson(req) : {}
+    await proxyToRemoteCore(req, res, url, body)
+    return
+  }
   // WSL 启动项的文件都在发行版里，Windows 侧只负责拉起进程；
   // 统一在这里挡住本地文件路由，避免把 wsl:// 键当成 Windows 路径。
   if (launchIsRemote() && isRemoteLocalApiRoute(url.pathname)) {
@@ -7329,6 +7471,33 @@ async function handleApi(req, res, url) {
         let home = ''
         try { home = safeWslPath(url.searchParams.get('home') || '', 'WSL 用户目录') } catch { home = '' }
         inspect = await inspectWslDistro(distro, home || WSL_SETTINGS.defaultHome, { force: refresh, dshCommand: WSL_SETTINGS.dshCommand || 'dsh', user })
+        // B 路线：发行版里没有全局 dsh 也不该拦住启动项编辑器；远端 core 有托管版本时
+        // 用它的 state 补上版本/Profile 列表。
+        if (inspect && !inspect.ok && (inspect.missing || inspect.reasonCode === 'dsh-missing')) {
+          try {
+            const { core, home: coreHome } = await remoteCoreForTarget({ distro, user, home })
+            const state = await core.json('/api/state')
+            const installed = (Array.isArray(state.installed) ? state.installed : [])
+              .filter(Boolean)
+              .sort((a, b) => cmpVer(parseVer(b) ?? parseVer('0'), parseVer(a) ?? parseVer('0')))
+            inspect = {
+              ...inspect,
+              ok: true,
+              missing: false,
+              error: '',
+              reasonCode: '',
+              retryable: null,
+              home: state.dshHome || coreHome,
+              dshHome: state.dshHome || coreHome,
+              version: installed[0] || '',
+              profiles: Array.isArray(state.profiles) ? state.profiles : [],
+              managed: installed.map((item) => ({ version: item, path: '' })),
+              dshSource: 'remote-core',
+              remoteCore: true,
+              raw: '',
+            }
+          } catch { /* 远端 core 起不来时保留原来的 dsh-missing 说明 */ }
+        }
       }
       send(res, 200, { available: listed.available, distros: listed.distros, error: listed.error || '', reasonCode: listed.reasonCode || '', retryable: listed.retryable ?? null, defaults: safeWslSettings(WSL_SETTINGS), inspect })
     } catch (error) {
@@ -9051,6 +9220,7 @@ export async function stopAll() {
     if (instances.get(proc.key)?.child === proc.child) instances.delete(proc.key)
   }))
   instances.clear()
+  if (typeof stopAllRemoteCores === 'function') await stopAllRemoteCores().catch(() => {})
   logWriter.flush()
   flushLogEvents()
   for (const res of clients) {

@@ -1152,6 +1152,11 @@
   "WSL · {distro}": "WSL · {distro}",
   "WSL 用户（选填）": "WSL user (optional)",
   "默认登录用户；例如 root": "Default login user; e.g. root",
+  "正在读取远端版本…": "Reading remote versions…",
+  "卸载 WSL 里的 {version}？插件和数据会保留。": "Remove dsh {version} from WSL? Plugins and data are kept.",
+  "在 WSL 里创建独立环境；插件依赖会在首次启动时解析。": "Create an isolated environment in WSL; plugin dependencies resolve on first launch.",
+  "复制「{profile}」的配置；插件依赖会在首次启动时解析。": "Copy {profile}'s configuration; plugin dependencies resolve on first launch.",
+  "重命名后，对应启动项会自动使用新名称。": "Launch entries will use the new name automatically.",
   "本机目录，或 WSL 发行版里的目录。": "A local directory, or one inside a WSL distro.",
   "目录类型": "Directory type",
   "本机目录": "Local directory",
@@ -3864,7 +3869,7 @@
     let pluginHome = ''
     let pluginViewRevision = 0
     let pluginLoadRequest = 0
-    const scopedLaunchId = (path, explicit) => explicit !== undefined ? explicit : (launchPluginScope && /^\/api\/(plugins|packs|profiles|profile-backups|recover|sync|mcp|skills|start|stop|instance-port)(?:\/|\?|$)/.test(path) ? launchPluginScope : '')
+    const scopedLaunchId = (path, explicit) => explicit !== undefined ? explicit : (launchPluginScope && /^\/api\/(plugins|packs|profiles|profile-backups|recover|sync|mcp|skills|start|stop|instance-port|install|uninstall|versions)(?:\/|\?|$)/.test(path) ? launchPluginScope : '')
     function apiScopeHeaders(path, options = {}) {
       const launchId = scopedLaunchId(path, options.launchId)
       if (launchId) return { 'x-dsh-launch-id': launchId }
@@ -4105,10 +4110,12 @@
     }
 
     function installedList() {
+      if (versionTargetIsWsl()) return Array.isArray(versionScopeState?.installed) ? versionNames(versionScopeState.installed) : []
       return versionNames(state.installed)
     }
 
     function isManagedVersion(version) {
+      if (versionTargetIsWsl()) return true
       const row = (state.versions || []).find((item) => item && item.version === version)
       if (row && 'managed' in row) return row.managed !== false
       return true
@@ -4424,10 +4431,21 @@
       // WSL 的隐藏真相源和项目目录跟着后端切；「启动环境」触发器两边共用，不藏。
       launchWslLocationFieldsEl.hidden = !wsl
       launchWslWorkdirFieldEl.hidden = !wsl
-      if (typeof launchLocalVersionGroupEl !== 'undefined' && launchLocalVersionGroupEl) launchLocalVersionGroupEl.hidden = wsl
-      document.getElementById('launchVersionField').hidden = wsl
+      // 版本选择对 WSL 也要露出来：数据源换成远端 core，UI 仍用本机这套。
+      if (typeof launchLocalVersionGroupEl !== 'undefined' && launchLocalVersionGroupEl) launchLocalVersionGroupEl.hidden = false
+      document.getElementById('launchVersionField').hidden = false
       launchChannelFieldEl.hidden = wsl
-      document.getElementById('launchManageVersions').hidden = wsl
+      document.getElementById('launchManageVersions').hidden = false
+      if (wsl) {
+        versionScopeState = null
+        void loadVersionScopeState().then(() => {
+          if (!launchBackendIsWsl()) return
+          render()
+          if (!versionManageDialogEl.hidden) paintVersionManager()
+        })
+      } else {
+        versionScopeState = null
+      }
       const guided = creating && launchIsolation !== 'custom'
       launchIsolationFieldEl.hidden = wsl || !creating
       launchIsolationHeadEl.hidden = wsl || !creating
@@ -6788,6 +6806,33 @@
     let versionSizesTotal = 0
     let versionSizesLoading = false
     let versionInstallOptions = ''
+    /** WSL 启动项编辑时的远端 core state；版本列表/安装都跟着它走，不用另做一套 UI。 */
+    let versionScopeState = null
+
+    function versionTargetIsWsl() {
+      if (typeof launchBackendIsWsl !== 'function') return false
+      if (typeof launchDialogEl === 'undefined' || !launchDialogEl) return false
+      return launchBackendIsWsl() === true && launchDialogEl.hidden !== true
+    }
+
+    function versionScopeOptions() {
+      if (!versionTargetIsWsl()) return {}
+      const id = typeof editingLaunchId === 'string' ? editingLaunchId : ''
+      return id ? { launchId: id } : {}
+    }
+
+    async function loadVersionScopeState() {
+      if (!versionTargetIsWsl() || !editingLaunchId) {
+        versionScopeState = null
+        return null
+      }
+      try {
+        versionScopeState = await getJson('/api/state', versionScopeOptions())
+      } catch {
+        versionScopeState = null
+      }
+      return versionScopeState
+    }
 
     function openVersionManager() {
       if (!versionManageDialogEl.hidden && !versionManageDialogEl.dataset.dialogClosing) return
@@ -6802,6 +6847,15 @@
       }
       versionManageDialogEl.classList.toggle('is-child-dialog', versionManageReturnToEditor)
       paintVersionManager()
+      if (versionTargetIsWsl()) {
+        versionScopeState = null
+        void loadVersionScopeState().then(() => {
+          if (!versionManageDialogEl.hidden) {
+            paintVersionManager()
+            render()
+          }
+        })
+      }
       void loadVersionSizes()
       showDialog(versionManageDialogEl)
       document.getElementById('versionManageClose').focus()
@@ -6900,9 +6954,15 @@
       resetVersionCheck()
       render()
       try {
-        await post('/api/install', { version })
-        applyState(await getJson('/api/state'))
-        void loadVersionSizes()
+        await post('/api/install', { version }, versionScopeOptions())
+        if (versionTargetIsWsl()) {
+          await loadVersionScopeState()
+          render()
+          if (!versionManageDialogEl.hidden) paintVersionManager()
+        } else {
+          applyState(await getJson('/api/state'))
+          void loadVersionSizes()
+        }
       } catch (error) { notify(error.message) }
       finally { action = ''; render() }
     }
@@ -6913,9 +6973,15 @@
       resetVersionCheck()
       render()
       try {
-        await post('/api/versions/optimize', { version })
-        applyState(await getJson('/api/state'))
-        void loadVersionSizes()
+        await post('/api/versions/optimize', { version }, versionScopeOptions())
+        if (versionTargetIsWsl()) {
+          await loadVersionScopeState()
+          render()
+          if (!versionManageDialogEl.hidden) paintVersionManager()
+        } else {
+          applyState(await getJson('/api/state'))
+          void loadVersionSizes()
+        }
         notify(t('依赖优化完成'), t('优化依赖'))
       } catch (error) { notify(error.message) }
       finally { action = ''; render() }
@@ -6936,7 +7002,7 @@
       versionSizesLoading = true
       if (!versionManageDialogEl.hidden) paintVersionManager()
       try {
-        const data = await getJson('/api/versions/sizes')
+        const data = await getJson('/api/versions/sizes', versionScopeOptions())
         versionSizes = data?.versions && typeof data.versions === 'object' ? data.versions : null
         versionSizesTotal = Number(data?.total) || 0
       } catch { /* 算不出来不影响版本管理 */ }
@@ -6967,7 +7033,8 @@
       }
       const checkButton = document.getElementById('versionManageCheck')
       // 检测期间也锁住安装：列表可能正在换，同时点会装到旧列表里的版本
-      const busy = Boolean(action) || Boolean(state.installing) || versionCheck.busy
+      const scopeLoading = versionTargetIsWsl() && !versionScopeState
+      const busy = Boolean(action) || Boolean(state.installing) || versionCheck.busy || scopeLoading
       versionInstallSelectEl.disabled = busy || !available.length
       document.getElementById('versionManageInstall').disabled = busy || !versionInstallSelectEl.value
       checkButton.disabled = busy
@@ -6977,7 +7044,8 @@
       const installing = Boolean(state.installing) || action === 'install' || action === 'update' || action === 'optimize'
       // 检测结果排在最后：安装 / 卸载 / 优化进行中时，进度比「刚检测到什么」更重要
       const checkNote = versionCheck.error || versionCheck.message
-      document.getElementById('versionManageHint').textContent = versionCheck.busy ? t('正在检测版本…')
+      document.getElementById('versionManageHint').textContent = scopeLoading ? t('正在读取远端版本…')
+        : versionCheck.busy ? t('正在检测版本…')
         : action === 'optimize' || installProgress?.phase === 'optimize' ? t('正在优化依赖…') : installing ? progressHint(t('正在安装'))
         : action === 'uninstall' ? t('正在卸载…')
         : checkNote || (!available.length && !versionNames(remote.versions).length ? t('读不到远程版本。') : '')
@@ -7145,17 +7213,25 @@
     async function uninstallVersion(version) {
       if (!version || action || state.installing || runningInfo(version)) return
       const system = !isManagedVersion(version)
-      const ok = await appConfirm(system
-        ? t('卸载 {version}？这是系统里的 DSH，会从本机移除。插件和数据会保留。', { version })
-        : t('卸载 {version}？插件和数据会保留。', { version }))
+      const ok = await appConfirm(versionTargetIsWsl()
+        ? t('卸载 WSL 里的 {version}？插件和数据会保留。', { version })
+        : system
+          ? t('卸载 {version}？这是系统里的 DSH，会从本机移除。插件和数据会保留。', { version })
+          : t('卸载 {version}？插件和数据会保留。', { version }))
       if (!ok) return
       action = 'uninstall'
       resetVersionCheck()
       render()
       try {
-        await post('/api/uninstall', { version })
-        applyState(await getJson('/api/state'))
-        void loadVersionSizes()
+        await post('/api/uninstall', { version }, versionScopeOptions())
+        if (versionTargetIsWsl()) {
+          await loadVersionScopeState()
+          render()
+          if (!versionManageDialogEl.hidden) paintVersionManager()
+        } else {
+          applyState(await getJson('/api/state'))
+          void loadVersionSizes()
+        }
       }
       catch (error) { notify(error.message) }
       finally { action = ''; render() }
@@ -7213,6 +7289,7 @@
       paintLaunchProfiles()
       if (!launchBackendIsWsl() && entry?.dshHome) void refreshLaunchHomeProfiles()
       render()
+      if (launchBackendIsWsl()) void loadVersionScopeState().then(() => { render(); if (!versionManageDialogEl.hidden) paintVersionManager() })
       if (!launchBackendIsWsl()) void loadRecovery(launchProfile)
       launchNameEl.focus()
     }
@@ -7259,7 +7336,7 @@
           if (!await refreshWslProfiles(true)) return
           const data = await post('/api/launch-presets', {
             id: editingLaunchId || undefined, name: launchNameEl.value, icon: launchIcon,
-            version: 'auto', profile: launchProfile, port: launchPortEl.value.trim(),
+            version: versionValue || 'auto', profile: launchProfile, port: launchPortEl.value.trim(),
             backend: 'wsl', wslDistro: launchWslDistroEl.value,
             wslHome: launchWslHomeEl.value.trim(), wslWorkdir: launchWslWorkdirEl.value.trim(),
             wslUser: launchWslUserEl.value.trim(),
@@ -7343,8 +7420,9 @@
       // 钉死具体版本时，「版本类型」管不到这个版本本身，也不影响更新提醒，整块收起来；
       // 只有「自动最新版本」才需要它。说明行跟着一起藏，不然会剩半截提示悬空。
       const autoVersion = (versionValue || 'auto') === 'auto'
-      launchChannelFieldEl.hidden = !autoVersion
-      launchUpdateChannelHintEl.hidden = !autoVersion
+      launchChannelFieldEl.hidden = !autoVersion || versionTargetIsWsl()
+      launchUpdateChannelHintEl.hidden = !autoVersion || versionTargetIsWsl()
+      if (typeof launchCheckCompatibilityEl !== 'undefined' && launchCheckCompatibilityEl) launchCheckCompatibilityEl.hidden = versionTargetIsWsl()
       const version = selected()
       syncLaunchCompatibility()
       const anyLive = version ? runningInfo(version) : null
@@ -9975,11 +10053,16 @@
       profileNameEl.maxLength = homeName ? 64 : 32
       if (homeName) profileNameEl.removeAttribute('pattern')
       else profileNameEl.pattern = '[A-Za-z0-9][A-Za-z0-9._-]{0,31}'
-      document.getElementById('profileDialogNote').textContent = homeName
-        ? t('只修改显示名称，目录路径与数据保持不变。')
-        : renaming ? t('重命名后，对应启动项会自动使用新名称。请先停止此环境的全部实例。') : source
-        ? t('复制「{profile}」的插件与配置，依赖会重新安装，可能需要一些时间。技能与 Prompt 设置不随之复制。', { profile: source })
-        : t('创建独立环境，之后可以安装整合包或插件。名称只支持字母、数字、点、下划线和连字符。')
+      const wslTarget = Boolean(profileDialogFromPicker && parseWslHomeKey(profileDialogHome))
+      document.getElementById('profileDialogNote').textContent = wslTarget
+        ? renaming ? t('重命名后，对应启动项会自动使用新名称。')
+          : source ? t('复制「{profile}」的配置；插件依赖会在首次启动时解析。', { profile: source })
+            : t('在 WSL 里创建独立环境；插件依赖会在首次启动时解析。')
+        : homeName
+          ? t('只修改显示名称，目录路径与数据保持不变。')
+          : renaming ? t('重命名后，对应启动项会自动使用新名称。请先停止此环境的全部实例。') : source
+            ? t('复制「{profile}」的插件与配置，依赖会重新安装，可能需要一些时间。技能与 Prompt 设置不随之复制。', { profile: source })
+            : t('创建独立环境，之后可以安装整合包或插件。名称只支持字母、数字、点、下划线和连字符。')
       let proposed = homeName ? pluginHomeName(source, source === state.dshHome ? t('全局目录') : pluginHomes().get(source) || t('用户目录')) : renaming ? source : source ? `${source.slice(0, 27)}-copy` : ''
       // 复制建议名要避开目标目录里已有的 Profile：选择窗里改的是它挑的那份，环境页里改的是当前那份
       const siblings = profileDialogFromPicker
@@ -10014,10 +10097,23 @@
         const name = profileNameEl.value.trim()
         const renaming = profileDialogMode === 'rename'
         const homeName = profileDialogMode === 'home'
+        const wslTarget = Boolean(profileDialogFromPicker && parseWslHomeKey(profileDialogHome))
         // 选择窗里改的是它挑的目录，得显式带上作用域（空串就是全局目录，不能落回环境页那份）；
         // 环境页那条老路仍用自动作用域
         const scope = profileDialogFromPicker ? { home: profileDialogHome, launchId: '' } : {}
         const data = await post(homeName ? '/api/dsh-homes/rename' : renaming ? '/api/profiles/rename' : profileCopySource ? '/api/profiles/copy' : '/api/profiles/create', homeName ? { home: profileCopySource, name } : renaming ? { profile: profileCopySource, name } : { profile: name, source: profileCopySource }, scope)
+        if (wslTarget) {
+          // 远端 core 的接口形状和本机一致，但没有本地 packs/plugin 数据要合并。
+          const targetProfile = data.renamedProfile || data.createdProfile || data.profile
+          await hidePackDialog(profileDialogEl)
+          pickerCache.delete(profileDialogHome)
+          if (targetProfile) {
+            pickerProfile = targetProfile
+            pickerNewRow = `profile:${targetProfile}`
+          }
+          await selectPickerHome(pickerHome)
+          return
+        }
         if (homeName) state.dshHomeNames = data.dshHomeNames
         if (renaming) {
           ++pluginViewRevision

@@ -37,12 +37,20 @@ function shellPath(value) {
   return `"${homePrefix === '~/' ? '$HOME/' : homePrefix}${rest.replace(/["\\$`]/g, '\\$&')}"`
 }
 
+/** Windows 下的本地 tarball 路径转成 WSL 能读的 /mnt/<盘>/...。 */
+function wslPackageSpec(value) {
+  const text = String(value || '')
+  const match = /^([A-Za-z]):[\\/](.*)$/u.exec(text)
+  if (!match) return text
+  return `/mnt/${match[1].toLowerCase()}/${match[2].replaceAll('\\', '/').replace(/^\/+/u, '')}`
+}
+
 /** 安装脚本：只装 dsh-x-core 本体；数据目录/配置目录由启动参数固定。 */
 export function buildRemoteCoreInstallScript(options = {}) {
   const version = String(options.version || '').trim()
   if (!VERSION_RE.test(version)) throw new Error('核心版本号不合法')
   const root = String(options.installRoot || `${DEFAULT_INSTALL_ROOT}/${version}`)
-  const spec = String(options.packageSpec || `dsh-x-core@${version}`)
+  const spec = wslPackageSpec(String(options.packageSpec || `dsh-x-core@${version}`))
   return [
     'set -eu',
     `root=${shellPath(root)}`,

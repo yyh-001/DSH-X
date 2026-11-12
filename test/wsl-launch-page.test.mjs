@@ -44,8 +44,15 @@ test('新增目录弹窗用两个页签区分本机 / WSL，WSL 页签填发行�
   assert.match(css, /html\.reduce-motion \.pick-home-tabs::after \{ transition: none; \}/, '减动效时关掉滑动')
 })
 
-test('WSL 字段和本机版本互斥：选 WSL 目录时藏掉版本组、露出项目目录', () => {
-  assert.match(page, /launchLocalVersionGroupEl\.hidden = wsl/, '本机版本整组隐藏')
+test('WSL 也用本机版本选择器：版本组露出，数据源切到远端 core', () => {
+  assert.match(page, /launchLocalVersionGroupEl\.hidden = false/, 'WSL 不再藏掉版本组')
+  assert.match(page, /document\.getElementById\('launchVersionField'\)\.hidden = false/, '版本下拉对 WSL 可见')
+  assert.match(page, /document\.getElementById\('launchManageVersions'\)\.hidden = false/, '管理版本按钮对 WSL 可见')
+  assert.match(page, /function versionTargetIsWsl\(\)/)
+  assert.match(page, /getJson\('\/api\/state', versionScopeOptions\(\)\)/, '版本管理按启动项作用域读远端 state')
+  assert.match(page, /post\('\/api\/install', \{ version \}, versionScopeOptions\(\)\)/, '安装走远端 core 代理')
+  assert.match(page, /post\('\/api\/uninstall', \{ version \}, versionScopeOptions\(\)\)/, '卸载走远端 core 代理')
+  assert.match(page, /version: versionValue \|\| 'auto'/, 'WSL 启动项保存选中的版本')
   assert.match(page, /launchWslWorkdirFieldEl\.hidden = !wsl/)
   assert.match(page, /launchWslLocationFieldsEl\.hidden = !wsl/)
   assert.match(page, /if \(launchBackendIsWsl\(\)\) setLaunchBackend\('local'\)/, '选择本机目录时切回本机')
