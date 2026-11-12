@@ -43,6 +43,7 @@ const APP_FILES = [
   'capabilities.js',
   'manager-auth.js',
   'remote.js',
+  'remote-core.js',
   'wsl.js',
   'wsl-scripts.js',
   'proxy.js',
