@@ -61,6 +61,10 @@ export async function buildCorePackage({ appDir = DEFAULT_APP, version, outDir =
     type: 'module',
     // 核心由外壳用 server.js 启动，不是 Electron 入口
     main: 'server.js',
+    // npm 版入口：npm i -g 之后 dsh-x-core 直接起 web 管理页（外壳加载的仍是 server.js）；
+    // 名字不叫 dsh-x，免得和 Electron CLI（@yyh001/dsh-x）的 bin 撞车。
+    bin: { 'dsh-x-core': 'start.js' },
+    engines: { node: '>=22.18.0' },
     files: ['**/*'],
     // 核心按哪个 Electron 版本构建；外壳发现不一致就让用户更新外壳
     dshX: { electron },

@@ -25,7 +25,7 @@ test('启动补丁只放开侧栏 Browser：不碰插件行，desktop profile �
 
 test('设置接口回显证书开关和外壳能力字段', () => {
   assert.match(server, /browserIgnoreCertificate: stored\.browserIgnoreCertificate === true/)
-  assert.match(server, /browserHost: Boolean\(host\.browser\)/, '页面据它决定清理按钮能不能点')
+  assert.match(server, /browserHost: capabilities\(\)\.browser/, '页面据它决定清理按钮能不能点')
   assert.match(server, /\('browserIgnoreCertificate' in body \? \{ browserIgnoreCertificate: body\.browserIgnoreCertificate === true \}/)
 })
 

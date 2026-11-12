@@ -165,9 +165,15 @@ for (const mode of ['ENOTDIR', 'EACCES']) {
         if (mode === 'ENOTDIR') rmSync(parent)
         else chmodSync(parent, 0o700)
         const url = await core.startServer()
-        assert.equal((await fetch(url)).status, 200)
+        // 管理页要会话 cookie：用 launch token 换一次再读（和浏览器 / 外壳走同一条路）
+        const exchange = await fetch(core.managerUrlWithToken(), { redirect: 'manual' })
+        const cookie = String(exchange.headers.get('set-cookie') || '').split(';')[0]
+        assert.equal((await fetch(url, { headers: { cookie } })).status, 200)
         assert.deepEqual(snapshot(), before, '仅启动服务不应擅自改恢复标记，成功后的清理由外壳负责')
         await core.stopAll()
+        // Windows + Node 24：undici 的连接还在关闭时 process.exit 会撞 libuv 的
+        // UV_HANDLE_CLOSING 断言（同一个脚本只发一次请求就不会）。等一拍再退。
+        await new Promise((resolve) => setTimeout(resolve, 250))
         console.log('REAL_CORE_RETRY_OK')
         process.exit(0)
       `

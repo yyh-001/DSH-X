@@ -40,11 +40,22 @@ test.after(async () => {
 })
 
 const saved = () => JSON.parse(readFileSync(settingsFile, 'utf8'))
+/**
+ * 管理页要会话 cookie：先用 launch token 换一次，再带着 cookie 读页面。
+ * Node 的 fetch 没有 cookie 罐，redirect 跟过去的那一下也不会把 Set-Cookie 留给下一次请求。
+ */
+async function managerPage() {
+  const exchange = await fetch(server.managerUrlWithToken(), { redirect: 'manual' })
+  const cookie = String(exchange.headers.get('set-cookie') || '').split(';')[0]
+  assert.match(cookie, /^dsh-x-manager-/, '换 cookie 失败，后面的页面断言没有意义')
+  return (await fetch(origin, { headers: { cookie } })).text()
+}
+
 async function checkLanguage(expected) {
   const response = await fetch(`${origin}/api/settings`)
   assert.equal(response.status, 200)
   assert.equal((await response.json()).lang, expected, '设置页回填使用已选择的语言')
-  const html = await (await fetch(origin)).text()
+  const html = await managerPage()
   assert.match(html, new RegExp(`data-lang="${expected}"`), '重新打开页面仍使用已选择的语言')
 }
 
@@ -135,5 +146,5 @@ test('另一个实例改了 settings.json 后，运行时语言跟着文件走�
   data = await (await fetch(`${origin}/api/settings`)).json()
   assert.equal(data.langPref, 'en', '下拉回显文件里的偏好')
   assert.equal(data.lang, 'en', '读设置时把运行时语言对齐到文件，不能一个英文一个中文')
-  assert.match(await (await fetch(origin)).text(), /data-lang="en"/, '下一次页面渲染也用文件里的语言')
+  assert.match(await managerPage(), /data-lang="en"/, '下一次页面渲染也用文件里的语言')
 })

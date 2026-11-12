@@ -40,6 +40,8 @@ const APP_FILES = [
   'log-writer.js',
   'registry.js',
   'settings.js',
+  'capabilities.js',
+  'manager-auth.js',
   'remote.js',
   'wsl.js',
   'wsl-scripts.js',

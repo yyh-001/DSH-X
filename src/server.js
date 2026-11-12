@@ -145,6 +145,8 @@ import { formatProxyForLog, remoteError, remoteErrorFields } from './remote.js'
 // 带代理的 fetch：Node 的全局 fetch 既不看系统代理也不看 HTTP_PROXY，外网请求都走 netFetch
 import { netFetch, proxyEnv, resetProxyCache, resolveProxy } from './proxy.js'
 import { APP_DIR, fileManager } from './filemanager.js'
+import { detectCapabilities } from './capabilities.js'
+import { ManagerAuth } from './manager-auth.js'
 import { lanUrlOf, pickLanAddress, startLanProxy } from './lan-proxy.js'
 import { DESKTOP_API_VERSION, DESKTOP_CAPABILITIES, parseDesktopRequest } from './desktop.js'
 import { checkCoreUpdate, downloadCoreTarball, extractCoreTarball, stagingExists, stagingStats } from './core-npm.js'
@@ -181,6 +183,22 @@ export function installerUrl({ latest = null, mac = IS_MAC, arch = process.arch 
 let PORT = resolvePort() || DEFAULT_PORT
 /** 配置的端口被别的程序占用时，往后最多试这么多个端口。 */
 const PORT_SCAN = 20
+
+/**
+ * 管理页访问令牌（见 manager-auth.js）：startServer() 里加载，桌面模式和 web 模式都启用。
+ * 页面导航要带 cookie，本机无 Origin 的调用（外壳、插件、curl）不受影响。
+ */
+let managerAuth = null
+
+/**
+ * 带 launch token 的管理页地址。外壳窗口、start.js 开浏览器、被唤醒的那个实例都从这里拿：
+ * token 每次启动重新生成，直接拼 `http://127.0.0.1:PORT/` 在非首次运行时会被 401。
+ * 服务还没起来时返回空串，调用方自己决定退回什么地址。
+ */
+export function managerUrlWithToken(params = {}) {
+  if (!managerAuth) return ''
+  return managerAuth.authenticatedUrl(`http://127.0.0.1:${PORT}/`, params)
+}
 
 /** 探端口上是不是我们自己的管理页——用 /api/ping 的身份标记区分「自己的实例」和「别人的程序」。 */
 async function probeManager(port) {
@@ -1987,9 +2005,10 @@ async function publicSettings() {
     // 内置浏览器（右侧栏浏览器）：开关与证书策略。browserHost 表明当前外壳能否清理浏览数据
     // （只有 Electron 外壳拿得到 guest 分区；浏览器里打开管理页 / 旧外壳没有这层能力）。
     browserIgnoreCertificate: stored.browserIgnoreCertificate === true,
-    browserHost: Boolean(host.browser),
-    shellPrefs: process.env.DSH_SHELL_PREFS === '1',
-    desktopShell: shellWindowHost(),
+    // 能力检测统一走 capabilities.js：web 模式下这三个都是 false，页面据此禁用整组开关
+    browserHost: capabilities().browser,
+    shellPrefs: capabilities().shellPrefs,
+    desktopShell: capabilities().windowHost,
     webBind: WEB_BIND,
   }
 }
@@ -6871,14 +6890,19 @@ function openInAppWindow(url) {
  */
 const OPEN_SIGNAL = '__DSH_OPEN__'
 
+/** 当前进程的能力视图：外壳注入的钩子 + 外壳设的环境变量（见 capabilities.js）。 */
+function capabilities() {
+  return detectCapabilities({ host })
+}
+
 /** 本进程是不是由原生外壳（DSH.exe / DSH-X.app）托管：只有它能开内嵌窗口。 */
 function shellWindowHost() {
-  return process.env.DSH_APP_WINDOW === '1'
+  return capabilities().windowHost
 }
 
 // 旧版外壳只认识独立窗口标记；单独报告标签页能力，避免新版页面选了内部打开却没有反应。
 function internalTabsHost() {
-  return shellWindowHost() && process.env.DSH_INTERNAL_TABS === '1'
+  return capabilities().internalTabs
 }
 
 /**
@@ -8738,6 +8762,24 @@ async function handleApi(req, res, url) {
     send(res, 200, { ok: true })
     return
   }
+  // 设置 → 关于「在浏览器中打开」：把带一次性令牌的地址交给系统浏览器。
+  // 不走 openLocalUrl —— 那会按「打开 dsh 的方式」塞进外壳的内嵌标签，这里要的是外部浏览器。
+  if (req.method === 'POST' && url.pathname === '/api/open-manager') {
+    const target = managerUrlWithToken()
+    if (!target) {
+      send(res, 503, { error: '管理服务还没就绪，稍后再试' })
+      return
+    }
+    try {
+      await fileManager.openUrl(target)
+      send(res, 200, { ok: true })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      pushLog(`打开管理页失败：${message}`)
+      send(res, 500, { error: `打开浏览器失败：${message}` })
+    }
+    return
+  }
   if (req.method === 'POST' && url.pathname === '/api/pick-dir') {
     try {
       send(res, 200, { path: await pickDirectory(safeDshHome(body.initialPath)) })
@@ -8832,6 +8874,9 @@ export async function startServer() {
   cleanStaleUpdates()
   // 检查过但一直没装的整合包会留在 inbox 里，启动时清一次过期的（DATA 可能刚改过）
   void prunePackInbox()
+  // 管理页访问令牌：签名密钥跨重启保留（老 cookie 继续有效），launch token 每次启动重新生成。
+  await mkdir(APP_DIR, { recursive: true })
+  managerAuth = ManagerAuth.load(APP_DIR)
   // 默认 16KB 的请求头上限会被浏览器里堆积的 cookie 顶爆（HTTP 431），放宽到 128KB
   const handler = async (req, res) => {
     try {
@@ -8842,7 +8887,16 @@ export async function startServer() {
         return
       }
       const url = new URL(req.url ?? '/', `http://127.0.0.1:${PORT}`)
+      // 一次性 launch token 换长期 cookie：`GET /?token=...` 由这里应答并 303 到干净地址。
+      if (managerAuth?.exchange(req, res, url)) return
       if (url.pathname.startsWith('/api/')) {
+        // 跨站来源的读请求不带会话 cookie 一律拒绝：GET 接口里有 dsh 的临时 token 和
+        // 日志，不能只靠 CORS 挡（读不到响应，状态码和错误体还是会被拿到）。写请求仍然
+        // 由 handleApi 的 sameSiteRequest 回 403，行为和以前一致。
+        if ((req.method === 'GET' || req.method === 'HEAD') && !sameSiteRequest(req) && !managerAuth?.isAuthenticated(req)) {
+          send(res, 401, { error: '需要访问令牌：重新从启动时打印的地址进入管理页' })
+          return
+        }
         // 启动项带自己的 ID；把目录限定在这次异步请求里，并发管理不同环境不会改动全局默认目录。
         const launchId = req.headers['x-dsh-launch-id']
         if (launchId) {
@@ -8880,6 +8934,12 @@ export async function startServer() {
         return
       }
       const file = url.pathname === '/' ? 'index.html' : url.pathname.slice(1)
+      // 管理页本身要令牌：页面里嵌着版本、实例和 dsh 的临时 token，不能靠「别人读不到」。
+      // 静态资源（js/css/图片）不挡——它们不含数据，挡了只会让 401 页面变成空白。
+      if (file === 'index.html' && !managerAuth?.isAuthenticated(req)) {
+        managerAuth?.unauthorized(res)
+        return
+      }
       const path = join(PUBLIC, file)
       if (!path.startsWith(PUBLIC) || !existsSync(path)) {
         send(res, 404, 'not found', 'text/plain; charset=utf-8')
@@ -8950,6 +9010,11 @@ export async function startServer() {
     PORT = candidate
     if (offset > 0) pushLog(`管理页改用端口 ${PORT}（${preferred} 起被占用）`)
     pushLog(`DSH 管理器 http://127.0.0.1:${PORT}`)
+    // 带 token 的地址：外壳窗口和 start.js 从这里取；web 模式再往终端打一份——
+    // 浏览器第一次进来只有这条路，cookie 种下之后直接开 3780 才成立。
+    const managerUrl = managerUrlWithToken()
+    managerAuth?.writeSession(APP_DIR, { port: PORT, url: managerUrl })
+    if (!IN_ELECTRON) console.log(`DSH 管理器 ${managerUrl}`)
     // 给应用层增量更新的替换助手留一个「新版本启动成功」的标记
     try { writeFileSync(join(APP_DIR, 'update-ok'), String(Date.now())) } catch { /* 标记写不了不影响启动 */ }
     // 版本更新后刷新快捷方式图标（图标文件名带版本号，快捷方式还指着旧文件）。

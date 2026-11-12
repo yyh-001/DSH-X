@@ -790,6 +790,14 @@ export function safeDataDir(dir) {
   return resolve(trimmed)
 }
 
+/**
+ * 核心是不是装在 node_modules 里（`npm i -g dsh-x-core` 那种）。
+ * 那种位置不能当数据目录：全局安装可能只读，升级又是整包替换，数据会跟着包一起没。
+ */
+export function packagedUnderNodeModules(dir = ROOT) {
+  return /(^|[\\/])node_modules[\\/]/u.test(String(dir))
+}
+
 export function fallbackDataDir() {
   const local = join(ROOT, 'data')
   if (hasInstall(local)) return local
@@ -797,8 +805,9 @@ export function fallbackDataDir() {
   if (userDir) {
     const roaming = join(userDir, 'data')
     if (hasInstall(roaming)) return roaming
-    // 装好的启动器（有原生外壳）一律放每用户目录；macOS 的安装目录在 .app 包里，更是写不得
-    if (fileManager.launcherExecutable()) return roaming
+    // 装好的启动器（有原生外壳）一律放每用户目录；macOS 的安装目录在 .app 包里，更是写不得。
+    // npm 版的核心在 node_modules 里，同样不能落在包内。
+    if (fileManager.launcherExecutable() || packagedUnderNodeModules()) return roaming
   }
   return local
 }

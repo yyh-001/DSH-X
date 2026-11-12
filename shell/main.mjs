@@ -758,7 +758,16 @@ function createMainWindow() {
   mainWindow.on('resize', () => tabs?.layout())
   guardManager(mainWindow.webContents)
   tabs = new BrowserTabs(mainWindow, { createView: createTabView })
-  mainWindow.loadURL(`${managerUrl()}?window=${WINDOW_QUERY}`)
+  mainWindow.loadURL(managerPageUrl())
+}
+
+/**
+ * 管理页地址：带一次性 launch token，跳转一次后 cookie 接管，地址栏回到干净的 `?window=`。
+ * 老核心没有这个导出时退回不带 token 的地址（老核心也不校验），两边版本可以各自升级。
+ */
+function managerPageUrl() {
+  const authenticated = server?.managerUrlWithToken?.({ window: WINDOW_QUERY })
+  return authenticated || `${managerUrl()}?window=${WINDOW_QUERY}`
 }
 
 /** 管理页和独立窗口那张本地页：只有它们装预加载、拿得到 window.ipc。 */

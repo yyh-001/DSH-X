@@ -4,7 +4,16 @@ import { homedir, tmpdir } from 'node:os'
 import { join, sep } from 'node:path'
 import test from 'node:test'
 
-import { defaultDshHome, ensureWritableDir, safeDataDir, safeDshHome } from '../src/settings.js'
+import { defaultDshHome, ensureWritableDir, packagedUnderNodeModules, safeDataDir, safeDshHome } from '../src/settings.js'
+
+test('装在 node_modules 里的核心不把数据落进包里', () => {
+  // npm 版（npm i -g dsh-x-core）：升级整包替换、全局目录还可能只读
+  assert.equal(packagedUnderNodeModules(join('C:\\Users\\x\\AppData\\Roaming\\npm', 'node_modules', 'dsh-x-core')), true)
+  assert.equal(packagedUnderNodeModules('/usr/local/lib/node_modules/dsh-x-core'), true)
+  // 安装包的核心在 core/current，源码运行在仓库里：都还是包内相对布局，维持原判断
+  assert.equal(packagedUnderNodeModules('C:\\Users\\x\\AppData\\Roaming\\DSH\\core\\current'), false)
+  assert.equal(packagedUnderNodeModules('/opt/dsh/node_modules_backup/core'), false)
+})
 
 test('绝对路径放行，末尾斜杠和空白顺手规范掉', () => {
   const base = join(tmpdir(), 'dsh-data')
