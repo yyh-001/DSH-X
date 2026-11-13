@@ -17,10 +17,17 @@ export const REMOTE_REASON = Object.freeze({
   dshMissing: 'dsh-missing',
   workspaceUnavailable: 'workspace-unavailable',
   wslFailed: 'wsl-failed',
+  sshUnreachable: 'ssh-unreachable',
+  sshAuthFailed: 'ssh-auth-failed',
+  sshHostKeyChanged: 'ssh-host-key-changed',
+  sshNodeMissing: 'ssh-node-missing',
+  sshNodeDownloadFailed: 'ssh-node-download-failed',
+  sshCoreInstallFailed: 'ssh-core-install-failed',
+  sshFailed: 'ssh-failed',
 })
 
 /** 只有「等一会儿再试可能就好」的失败才标 retryable；配置/环境类失败重试只会重复报错。 */
-const RETRYABLE_REASONS = new Set([REMOTE_REASON.wslTimeout])
+const RETRYABLE_REASONS = new Set([REMOTE_REASON.wslTimeout, REMOTE_REASON.sshUnreachable, REMOTE_REASON.sshFailed])
 
 /**
  * 带原因码的启动错误。

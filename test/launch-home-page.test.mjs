@@ -5,7 +5,7 @@ import vm from 'node:vm'
 
 const page = readFileSync(new URL('../src/public/index.html', import.meta.url), 'utf8')
 const section = (from, to) => page.slice(page.indexOf(from), page.indexOf(to, page.indexOf(from)))
-const homes = section('    function paintLaunchHomePath()', '    function allVersionList()')
+const homes = section('    function paintLaunchHomePath()', '    // ---- 连接管理')
 // 目录下拉的候选列表和「环境」页共用一份实现，一起装进沙箱。
 const homeList = section('    function homeOptions(current)', '    function paintPluginHomes()')
 const recovery = section('    function recoveryOptions()', '    function renderRecovery()')
@@ -28,6 +28,7 @@ function editor(getJson = async () => ({ home: 'D:/isolated', profiles: ['web'],
     getJson, post: async (...args) => { calls.push(args); return {} },
     launchEntries: () => context.state.launchPresets,
     PLUGIN_HOME_MANAGE: '__manage__', openPluginHomesDialog() {},
+    parseWslHomeKey: (key) => String(key).startsWith('wsl://') ? { distro: 'Debian', home: '~/.dsh' } : null,
   })
   vm.runInContext(homeList + recovery + homes, context)
   return { context, elements, calls }
@@ -40,12 +41,12 @@ test('WSL 自动版本的启动请求始终带 auto，不带上一次用过的�
   assert.match(start, /post\('\/api\/start', \{ version, profile \}, \{ launchId \}\)/, '启动请求用纠正后的版本')
 })
 
-test('目录下拉：第一项是沿用全局目录，已保存的独立目录仍留在选项里', () => {
+test('目录下拉：第一项是本机，已保存的独立目录仍留在选项里', () => {
   const { context: c, elements } = editor()
   c.paintLaunchHomes('D:/isolated')
   assert.equal(c.launchDshHomeEl.value, 'D:/isolated')
   assert.equal(elements.launchDshHomeTrigger.title, 'D:/isolated', '完整路径挂在触发器上')
-  assert.match(c.launchDshHomeEl.innerHTML, /<option value="">沿用全局目录（C:\/global）<\/option>/, '空值项写清继承的是哪个目录')
+  assert.match(c.launchDshHomeEl.innerHTML, /<option value="">本机（C:\/global）<\/option>/, '空值项写清继承的是哪个目录')
   assert.match(c.launchDshHomeEl.innerHTML, /<option value="D:\/isolated">D:\/isolated<\/option>/, '启动项自己的目录不能从列表里消失')
   assert.equal(elements.launchRecover.disabled, false)
   assert.equal(c.recoveryOptions().launchId, 'work')
@@ -59,6 +60,16 @@ test('目录下拉：第一项是沿用全局目录，已保存的独立目录�
   assert.equal(c.launchDshHomeEl.value, '')
   assert.equal(elements.launchDshHomeTrigger.title, 'C:/global')
   assert.equal(c.recoveryOptions().launchId, '')
+})
+
+test('WSL 合成键不会当成本机目录出现在下拉里，也不会重复成两行', () => {
+  const { context: c } = editor()
+  c.state.instances = [{ version: '1.0.0', profile: 'web', home: 'wsl://Debian/~%2F.dsh' }]
+  c.state.launchPresets.push({ id: 'wsl', profile: 'web', dshHome: 'wsl://Debian/~%2F.dsh' })
+  c.paintLaunchHomes('')
+  assert.doesNotMatch(c.launchDshHomeEl.innerHTML, /wsl:\/\//, 'WSL 行由选择窗单独渲染')
+  c.paintLaunchHomes('wsl://Debian/~%2F.dsh')
+  assert.doesNotMatch(c.launchDshHomeEl.innerHTML, /wsl:\/\//, '当前值也不能把合成键塞回本机目录')
 })
 
 test('目录的迟到响应不能覆盖另一次选择，目录检查后按新目录刷新 Profile', async () => {

@@ -111,7 +111,16 @@ async function buildCoreStage() {
     main: 'server.js',
     // 核心按哪个 Electron 版本构建；外壳发现不一致就让用户更新外壳
     dshX: { electron: ELECTRON_VERSION },
+    // SSH transport 的纯 JS 依赖；crypto 原生加速是可选的，不装也能跑
+    dependencies: { ssh2: PKG.dependencies.ssh2 },
   }, null, 2)}\n`)
+  const npm = spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['install', '--omit=dev', '--omit=optional', '--ignore-scripts', '--no-audit', '--no-fund', '--prefer-offline'], {
+    cwd: CORE_STAGE,
+    stdio: 'inherit',
+    windowsHide: false,
+    shell: process.platform === 'win32',
+  })
+  if (npm.status !== 0) throw new Error('npm install (core stage) failed')
   console.log(`核心层：${CORE_STAGE}（${PKG.version}）`)
 }
 

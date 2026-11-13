@@ -1,3 +1,4 @@
+import { createHash, randomBytes } from 'node:crypto'
 import { existsSync, lstatSync, readFileSync } from 'node:fs'
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
@@ -295,6 +296,18 @@ export function safeWslUser(value) {
   return trimmed
 }
 
+/** 「从选择窗里隐藏」的 WSL 发行版：只是不显示，不卸载、不删文件。 */
+export function safeWslHiddenDistros(value) {
+  const out = []
+  for (const item of Array.isArray(value) ? value : []) {
+    let name = ''
+    try { name = safeWslDistro(item) } catch { continue }
+    if (name && !out.includes(name)) out.push(name)
+    if (out.length >= 50) break
+  }
+  return out
+}
+
 /**
  * WSL 里的路径：绝对路径或 ~/ 开头。不能用 node:path 的 isAbsolute——那是 Windows 的规则，
  * 在 Windows 上 /root/.dsh 会被判成相对路径；这里按 Linux 语义单独校验。
@@ -343,6 +356,211 @@ export function safeWslPorts(value) {
   return out
 }
 
+/** 连接只认 WSL 和 SSH；Docker 暂不支持。 */
+export const CONNECTION_KINDS = Object.freeze(['wsl', 'ssh'])
+export const SSH_AUTH_TYPES = Object.freeze(['password', 'key', 'agent'])
+
+export function safeConnectionId(value) {
+  const text = String(value ?? '').trim().toLowerCase()
+  return /^[a-f0-9]{16}$/.test(text) ? text : ''
+}
+
+export function safeConnectionName(value) {
+  if (value === undefined || value === null) return ''
+  if (typeof value !== 'string') throw new Error('连接名称填一个名字，别填别的')
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  if (trimmed.length > 32 || /[\x00-\x1f\x7f]/.test(trimmed)) throw new Error('连接名称不合法（1-32 个字符）')
+  return trimmed
+}
+
+/** SSH 主机：域名、IPv4 或 IPv6 字面量都收；不允许空白、斜杠和控制字符。 */
+export function safeSshHost(value) {
+  if (value === undefined || value === null) return ''
+  if (typeof value !== 'string') throw new Error('SSH 主机填一个地址，别填别的')
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  if (trimmed.length > 255 || /[\s/\\\x00-\x1f\x7f]/.test(trimmed)) throw new Error('SSH 主机地址不合法')
+  return trimmed
+}
+
+export function safeSshPort(value) {
+  if (value === undefined || value === null || value === '') return 22
+  const port = Number(value)
+  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('SSH 端口应为 1 到 65535')
+  return port
+}
+
+export function safeSshUsername(value) {
+  if (value === undefined || value === null) return ''
+  if (typeof value !== 'string') throw new Error('SSH 用户名填一个用户名，别填别的')
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  if (trimmed.length > 64 || /[\s:@/\\\x00-\x1f\x7f]/.test(trimmed)) throw new Error('SSH 用户名不合法')
+  return trimmed
+}
+
+/** 本机私钥路径：允许 ~ 展开，最终存绝对路径。 */
+export function safeSshKeyPath(value) {
+  if (value === undefined || value === null) return ''
+  if (typeof value !== 'string') throw new Error('私钥路径填一个路径，别填别的')
+  let text = value.trim()
+  if (!text) return ''
+  if (text === '~') text = homedir()
+  else if (text === '~/' || text === '~\\') text = homedir()
+  else if (text.startsWith('~/') || text.startsWith('~\\')) text = join(homedir(), text.slice(2))
+  if (!isAbsolute(text)) throw new Error('私钥路径要用绝对路径（例如 ~/.ssh/id_ed25519）')
+  return resolve(text)
+}
+
+/** 密文信封由 secret-store 生成；这里只做形状/长度校验，不在这里解密。 */
+export function safeSecretEnvelope(value) {
+  if (value === undefined || value === null || value === '') return ''
+  if (typeof value !== 'string') return ''
+  const text = value.trim()
+  return /^v1:[A-Za-z0-9+/=]{8,8192}$/.test(text) ? text : ''
+}
+
+/** SSH host key 指纹：SHA256:base64。 */
+export function safeHostKeyFingerprint(value) {
+  if (value === undefined || value === null || value === '') return ''
+  const text = String(value).trim()
+  return /^SHA256:[A-Za-z0-9+/=]{20,100}$/.test(text) ? text : ''
+}
+
+function safeSshConfigAlias(value) {
+  if (value === undefined || value === null) return ''
+  const text = String(value).trim()
+  if (!text) return ''
+  if (text.length > 128 || /[\s\x00-\x1f\x7f]/.test(text)) return ''
+  return text
+}
+
+/** 单条连接：坏数据直接丢，不影响其它连接和启动项。 */
+export function safeConnection(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const kind = value.kind === 'ssh' ? 'ssh' : value.kind === 'wsl' ? 'wsl' : ''
+  if (!kind) return null
+  let name = ''
+  try { name = safeConnectionName(value.name) } catch { return null }
+  const id = safeConnectionId(value.id) || randomBytes(8).toString('hex')
+  if (kind === 'wsl') {
+    let wslDistro = ''
+    let wslUser = ''
+    try {
+      wslDistro = safeWslDistro(value.wslDistro)
+      wslUser = safeWslUser(value.wslUser)
+    } catch { return null }
+    if (!wslDistro) return null
+    if (!name) name = wslUser ? `${wslDistro} · ${wslUser}` : wslDistro
+    if (name.length > 32) name = name.slice(0, 32)
+    return { id, name, kind, wslDistro, ...(wslUser ? { wslUser } : {}) }
+  }
+  let host = ''
+  let port = 22
+  let username = ''
+  let privateKeyPath = ''
+  try {
+    host = safeSshHost(value.host)
+    port = safeSshPort(value.port)
+    username = safeSshUsername(value.username)
+    privateKeyPath = safeSshKeyPath(value.privateKeyPath)
+  } catch { return null }
+  if (!host || !username) return null
+  let authType = SSH_AUTH_TYPES.includes(value.authType) ? value.authType : (privateKeyPath ? 'key' : 'password')
+  // 选了私钥却没填路径的脏设置退回密码，不让连接整体消失。
+  if (authType === 'key' && !privateKeyPath) authType = 'password'
+  if (!name) name = `${username}@${host}`
+  if (name.length > 32) name = name.slice(0, 32)
+  const sshConfigAlias = safeSshConfigAlias(value.sshConfigAlias)
+  const passwordSecret = safeSecretEnvelope(value.passwordSecret)
+  const passphraseSecret = safeSecretEnvelope(value.passphraseSecret)
+  const hostKeyFingerprint = safeHostKeyFingerprint(value.hostKeyFingerprint)
+  return {
+    id, name, kind, host, port, username, authType,
+    ...(privateKeyPath ? { privateKeyPath } : {}),
+    ...(sshConfigAlias ? { sshConfigAlias } : {}),
+    ...(passwordSecret ? { passwordSecret } : {}),
+    ...(passphraseSecret ? { passphraseSecret } : {}),
+    ...(hostKeyFingerprint ? { hostKeyFingerprint } : {}),
+  }
+}
+
+/** 连接表：按 id 和目标去重，最多 50 条。 */
+export function safeConnections(value) {
+  const out = []
+  const ids = new Set()
+  const targets = new Set()
+  for (const item of Array.isArray(value) ? value : []) {
+    const connection = safeConnection(item)
+    if (!connection) continue
+    const target = connection.kind === 'wsl'
+      ? `wsl\0${connection.wslDistro}\0${connection.wslUser || ''}`
+      : `ssh\0${connection.username}@${connection.host}:${connection.port}`
+    if (ids.has(connection.id) || targets.has(target)) continue
+    ids.add(connection.id)
+    targets.add(target)
+    out.push(connection)
+    if (out.length >= 50) break
+  }
+  return out
+}
+
+/** SSH 固定端口按连接分开存：键是连接 id。 */
+export function safeSshPorts(value) {
+  const out = {}
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return out
+  for (const [rawId, ports] of Object.entries(value)) {
+    const id = safeConnectionId(rawId)
+    if (id) out[id] = safeInstancePorts(ports)
+  }
+  return out
+}
+
+/** 旧启动项第一次被读到时补出稳定的 WSL 连接：同一发行版+用户始终落到同一个 id。 */
+function migrateLegacyWslPresets(presets, connections, wsl) {
+  const list = Array.isArray(connections) ? connections.slice() : []
+  const byId = new Map(list.map((item) => [item.id, item]))
+  const usedNames = new Set(list.map((item) => item.name))
+  const uniqueName = (base) => {
+    let name = base.slice(0, 32)
+    for (let n = 2; usedNames.has(name) && n < 100; n += 1) name = `${base.slice(0, 28)} (${n})`
+    usedNames.add(name)
+    return name
+  }
+  const next = (Array.isArray(presets) ? presets : []).map((item) => {
+    if (!item || typeof item !== 'object' || item.backend !== 'wsl') return item
+    let distro = ''
+    let user = ''
+    try {
+      distro = safeWslDistro(item.wslDistro) || String(wsl?.defaultDistro || '')
+      user = safeWslUser(item.wslUser)
+    } catch { return item }
+    if (!distro) return item
+    let connection = item.connectionId ? byId.get(safeConnectionId(item.connectionId)) : null
+    if (!connection || connection.kind !== 'wsl') {
+      connection = list.find((entry) => entry.kind === 'wsl' && entry.wslDistro === distro && (entry.wslUser || '') === user) || null
+    }
+    if (!connection) {
+      const id = createHash('sha1').update(`wsl\0${distro}\0${user}`).digest('hex').slice(0, 16)
+      connection = byId.get(id) || {
+        id,
+        name: uniqueName(user ? `${distro} · ${user}` : distro),
+        kind: 'wsl',
+        wslDistro: distro,
+        ...(user ? { wslUser: user } : {}),
+      }
+      if (!byId.has(id)) {
+        byId.set(id, connection)
+        list.push(connection)
+      }
+    }
+    if (item.connectionId === connection.id && item.remoteHome === (item.wslHome || '')) return item
+    return { ...item, connectionId: connection.id, ...(item.wslHome ? { remoteHome: item.wslHome } : {}) }
+  })
+  return { presets: next, connections: list }
+}
+
 export function safeDshHomes(value) {
   const homes = new Map()
   for (const item of Array.isArray(value) ? value : []) {
@@ -384,8 +602,14 @@ export const DEFAULTS = {
   autoPorts: {},
   // 旧设置没有启动项时，读取侧会补上内置默认项，首次使用无需先填参数。
   launchPresets: [],
+  // 可复用的远端连接（WSL / SSH）：启动项只引用 connectionId。
+  connections: [],
+  // SSH 固定端口按连接分开存：键是连接 id，值是 版本@profile → 端口。
+  sshPorts: {},
   // WSL 后端：全局默认发行版 / 默认用户目录 / dsh 命令；具体启动项可以各自覆盖。
   wsl: { ...DEFAULT_WSL },
+  // 从选择窗里隐藏的 WSL 发行版（只影响列表；卸载发行版/删文件不归这里管）。
+  wslHiddenDistros: [],
   // WSL 固定端口：按发行版分开，键是发行版名，值是 版本@profile → 端口。
   wslPorts: {},
   // 界面语言：system（跟随系统，默认）/ zh / en（settings.json 为准；旧安装器的 lang.txt
@@ -540,9 +764,10 @@ export function safeEnvironmentPorts(value) {
   const out = {}
   if (!value || typeof value !== 'object' || Array.isArray(value)) return out
   for (const [rawHome, ports] of Object.entries(value)) {
-    // WSL 实例的 home 是 wsl://发行版/路径 的合成键，不是 Windows 路径；自动端口记忆也要能存。
-    if (String(rawHome).startsWith('wsl://') && rawHome.length <= 1024) {
-      out[rawHome] = safeInstancePorts(ports)
+    // 远端实例的 home 是 wsl://发行版/路径 或 ssh://连接/路径 的合成键，不是 Windows 路径。
+    const remoteKey = String(rawHome)
+    if ((remoteKey.startsWith('wsl://') || remoteKey.startsWith('ssh://')) && remoteKey.length <= 1024) {
+      out[remoteKey] = safeInstancePorts(ports)
       continue
     }
     let home
@@ -605,8 +830,20 @@ export function safeLaunchPresets(value) {
     seen.add(id)
     let icon = 'terminal'
     try { icon = safeLaunchIcon(item.icon) } catch { /* 旧设置里的坏图片退回默认图标，保留启动项。 */ }
-    // backend 只有显式写 wsl 才算 WSL；老启动项没有这个字段，仍按本机处理，保持兼容。
-    const backend = item.backend === 'wsl' ? 'wsl' : 'local'
+    // backend 只认显式写出的 wsl / ssh；老启动项没有这个字段，仍按本机处理。
+    const backend = item.backend === 'ssh' ? 'ssh' : item.backend === 'wsl' ? 'wsl' : 'local'
+    const connectionId = safeConnectionId(item.connectionId)
+    const remote = backend !== 'local'
+    // SSH 必须有连接；WSL 老启动项允许暂时没有 connectionId（读取时会自动补）。
+    if (backend === 'ssh' && !connectionId) return []
+    let remoteHome = ''
+    let workdir = ''
+    if (remote) {
+      try {
+        remoteHome = safeWslPath(item.remoteHome ?? item.wslHome, '远端用户目录')
+        workdir = safeWslPath(item.workdir ?? item.wslWorkdir, '远端项目目录')
+      } catch { return [] }
+    }
     let wslDistro = ''
     let wslHome = ''
     let wslWorkdir = ''
@@ -616,8 +853,8 @@ export function safeLaunchPresets(value) {
       // 会把 /root/.dsh 当相对路径拒掉。路径按 Linux 语义单独校验。
       try {
         wslDistro = safeWslDistro(item.wslDistro)
-        wslHome = safeWslPath(item.wslHome, 'WSL 用户目录')
-        wslWorkdir = safeWslPath(item.wslWorkdir, 'WSL 项目目录')
+        wslHome = remoteHome
+        wslWorkdir = workdir
         wslUser = safeWslUser(item.wslUser)
       } catch { return [] }
     }
@@ -646,7 +883,10 @@ export function safeLaunchPresets(value) {
       ...(VERSION_RE.test(usedVersion) && usedVersion !== 'auto' ? { usedVersion } : {}),
       ...(VERSION_RE.test(prevVersion) && prevVersion !== 'auto' ? { prevVersion } : {}),
       ...(dshHome ? { dshHome } : {}),
+      ...(connectionId ? { connectionId } : {}),
+      ...(remote ? { remoteHome, ...(workdir ? { workdir } : {}) } : {}),
       ...(backend === 'wsl' ? { backend: 'wsl', ...(wslDistro ? { wslDistro } : {}), ...(wslHome ? { wslHome } : {}), ...(wslWorkdir ? { wslWorkdir } : {}), ...(wslUser ? { wslUser } : {}), wslServiceMode: DEFAULT_WSL_SERVICE_MODE } : {}),
+      ...(backend === 'ssh' ? { backend: 'ssh' } : {}),
       ...(icon !== 'terminal' ? { icon } : {}) }]
   })
   const builtin = presets.find((item) => item.id === DEFAULT_LAUNCH_ID) || { ...DEFAULT_LAUNCH }
@@ -830,6 +1070,12 @@ function mergeStoredSettings(stored) {
   try { merged.systemNodePath = safeSystemNodePath(merged.systemNodePath) } catch { merged.systemNodePath = '' }
   merged.wsl = safeWslSettings(merged.wsl)
   merged.wslPorts = safeWslPorts(merged.wslPorts)
+  merged.sshPorts = safeSshPorts(merged.sshPorts)
+  merged.connections = safeConnections(merged.connections)
+  // 旧 WSL 启动项还没引用连接：读取时补出稳定的连接并把 connectionId 填回去。
+  const migrated = migrateLegacyWslPresets(merged.launchPresets, merged.connections, merged.wsl)
+  merged.launchPresets = migrated.presets
+  merged.connections = safeConnections(migrated.connections)
   return merged
 }
 
@@ -922,6 +1168,9 @@ async function saveSettingsNow(patch) {
   merged.launchPresets = safeLaunchPresets(merged.launchPresets)
   merged.wsl = safeWslSettings('wsl' in patch ? patch.wsl : merged.wsl)
   merged.wslPorts = safeWslPorts('wslPorts' in patch ? patch.wslPorts : merged.wslPorts)
+  merged.sshPorts = safeSshPorts('sshPorts' in patch ? patch.sshPorts : merged.sshPorts)
+  merged.connections = safeConnections('connections' in patch ? patch.connections : merged.connections)
+  merged.wslHiddenDistros = safeWslHiddenDistros('wslHiddenDistros' in patch ? patch.wslHiddenDistros : merged.wslHiddenDistros)
   merged.dshHomes = safeDshHomes(merged.dshHomes)
   merged.dshHomeNames = safeDshHomeNames(merged.dshHomeNames)
   merged.lang = 'lang' in patch ? safeLang(patch.lang) : safeLang(merged.lang)

@@ -106,6 +106,18 @@ import {
   safeDshHomeNames,
   safeEnvironmentPorts,
   safeInstancePorts,
+  safeConnections,
+  safeConnection,
+  safeConnectionId,
+  safeConnectionName,
+  safeSshPorts,
+  safeSshHost,
+  safeSshPort,
+  safeSshUsername,
+  safeSshKeyPath,
+  SSH_AUTH_TYPES,
+  safeSecretEnvelope,
+  safeHostKeyFingerprint,
   safeLaunchPresets,
   safeLaunchIcon,
   safeLaunchIsolation,
@@ -136,18 +148,24 @@ import {
   safeWslPorts,
   safeWslSettings,
   safeWslUser,
+  safeWslHiddenDistros,
   DEFAULT_WSL_SERVICE_MODE,
   saveSettings,
   VERSION_RE,
 } from './settings.js'
 import { allocateWslPort, createWslBackend, inspectWslDistro, invalidateWslCache, listWslDistros, parseWslHomeKey, resolveWslHome, readWslProfile, removeWslProfile, startWslInstance, stopWslInstance, wslAvailable, wslHomeKey, wslPath, wslPortAvailable } from './wsl.js'
-import { getWslRemoteCore, stopAllRemoteCores } from './remote-core.js'
+import { getWslRemoteCore, resolveWslInstallRoot, stopAllRemoteCores, stopWslRemoteCore } from './remote-core.js'
+import { getSshRemoteCore, stopAllSshRemoteCores, stopSshRemoteCore } from './ssh-core.js'
+import { createSshBackend, testSshConnection } from './ssh.js'
+import { readRemoteProfile, removeRemoteProfile } from './remote-profile.js'
+import { listSshConfigAliases } from './ssh-config.js'
 import { formatProxyForLog, pickDistro, remoteError, remoteErrorFields, REMOTE_REASON } from './remote.js'
 // 带代理的 fetch：Node 的全局 fetch 既不看系统代理也不看 HTTP_PROXY，外网请求都走 netFetch
 import { netFetch, proxyEnv, resetProxyCache, resolveProxy } from './proxy.js'
 import { APP_DIR, fileManager } from './filemanager.js'
 import { detectCapabilities } from './capabilities.js'
 import { ManagerAuth } from './manager-auth.js'
+import { createSecretStore } from './secret-store.js'
 import { lanUrlOf, pickLanAddress, startLanProxy } from './lan-proxy.js'
 import { DESKTOP_API_VERSION, DESKTOP_CAPABILITIES, parseDesktopRequest } from './desktop.js'
 import { checkCoreUpdate, downloadCoreTarball, extractCoreTarball, stagingExists, stagingStats } from './core-npm.js'
@@ -162,6 +180,8 @@ writeElectronBinMarker({ coreDir: ROOT, execPath: process.execPath, inElectron: 
 let DATA = resolveDataDir()
 const PUBLIC = join(ROOT, 'public')
 let CONFIG = join(DATA, 'config.json')
+// 连接密码/私钥口令只以密文进 settings.json；密钥文件跟数据目录走。
+const connectionSecrets = createSecretStore({ keyFile: join(DATA, 'connection-key') })
 const PKG = '@deepseek-ai/dsh'
 /** 核心版本：读取规则见 app-version.js（源码运行时在 src/ 上一级，打包后在核心根）。 */
 const APP_VERSION = CORE_VERSION
@@ -245,6 +265,14 @@ let INSTANCE_PORTS = safeInstancePorts(loadSettingsSync().instancePorts)
 let ENVIRONMENT_PORTS = {}
 // WSL 的固定端口单独一张表：按发行版分开，键仍然是 版本@profile。
 let WSL_PORTS = safeWslPorts(loadSettingsSync().wslPorts)
+let SSH_PORTS = safeSshPorts(loadSettingsSync().sshPorts)
+let CONNECTIONS = safeConnections(loadSettingsSync().connections)
+// 连接测试结果只在本进程里；不写进 settings（避免每次启动显示过期状态）。
+const CONNECTION_TESTS = new Map()
+// 连接运行时：上次准备/连接成功识别到的机器名、用户、远端目录和在线状态。只活在内存里。
+const CONNECTION_RUNTIME = new Map()
+// 正在进行的「连接远端」流程（安装确认、进度、日志）；同一连接只保留一个。
+const CONNECTION_PREPARES = new Map()
 let WSL_SETTINGS = safeWslSettings(loadSettingsSync().wsl)
 // 界面语言（system / zh / en）：settings.json 为准；system（默认）跟随系统语言。
 // 没选过（旧设置的空值）仍先用 lang.txt（旧安装器写的）初始化，两者都没有时跟随系统。
@@ -528,12 +556,23 @@ function homeDir() {
   if (store?.backend === 'wsl') {
     return store.home || wslHomeKey(store.wslDistro || WSL_SETTINGS.defaultDistro, store.wslHome || WSL_SETTINGS.defaultHome)
   }
+  if (store?.backend === 'ssh') {
+    return store.home || sshHomeKey(store.connectionId, store.remoteHome || '~/.dsh')
+  }
   return store?.home || defaultHome()
 }
 
-/** 当前请求是不是远程启动项（WSL，之后还有 SSH）；所有本地文件系统操作都要先看它。 */
+/** 当前启动项跑在哪：local / wsl / ssh。连接存在时以连接类型为准。 */
+function launchKind() {
+  const store = launchScope.getStore()
+  const connection = launchConnection()
+  if (connection) return connection.kind
+  return store?.backend === 'ssh' ? 'ssh' : store?.backend === 'wsl' ? 'wsl' : 'local'
+}
+
+/** 当前请求是不是远程启动项（WSL / SSH）；所有本地文件系统操作都要先看它。 */
 function launchIsRemote() {
-  return launchScope.getStore()?.backend === 'wsl'
+  return launchKind() !== 'local'
 }
 
 // 这些接口都直接读写 Windows 侧 DSH_HOME；WSL 启动项的目录是 wsl:// 键，
@@ -565,21 +604,153 @@ function isRemoteLocalApiRoute(pathname) {
   return REMOTE_LOCAL_API_EXACT.has(pathname)
     || REMOTE_LOCAL_API_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(prefix + '/'))
 }
+function launchConnection() {
+  const id = safeConnectionId(launchScope.getStore()?.connectionId)
+  return id ? CONNECTIONS.find((item) => item.id === id) || null : null
+}
+
+/** SSH 实例的 home 合成键；和页面的 sshHomeKeyOf 保持同一格式。 */
+function sshHomeKey(connectionId, home) {
+  return `ssh://${safeConnectionId(connectionId)}/${encodeURIComponent(String(home || '~/.dsh').trim() || '~/.dsh')}`
+}
+
+function parseSshHomeKey(key) {
+  const text = String(key || '')
+  if (!text.startsWith('ssh://')) return null
+  const rest = text.slice('ssh://'.length)
+  const slash = rest.indexOf('/')
+  if (slash < 0) return null
+  const id = safeConnectionId(rest.slice(0, slash))
+  if (!id) return null
+  try { return { connectionId: id, home: decodeURIComponent(rest.slice(slash + 1)) } } catch { return null }
+}
+
+/** 把一个启动项翻译成请求作用域；WSL / SSH 都在这里定连接、目录和用户。 */
+function presetScope(entry) {
+  const backend = entry?.backend === 'ssh' ? 'ssh' : entry?.backend === 'wsl' ? 'wsl' : 'local'
+  if (backend === 'local') return { home: entry?.dshHome || defaultHome() }
+  const connection = entry?.connectionId ? CONNECTIONS.find((item) => item.id === entry.connectionId) || null : null
+  if (backend === 'wsl') {
+    const distro = connection?.wslDistro || entry?.wslDistro || WSL_SETTINGS.defaultDistro
+    const user = connection?.wslUser || entry?.wslUser || ''
+    const remoteHome = entry?.remoteHome || entry?.wslHome || WSL_SETTINGS.defaultHome || '~/.dsh'
+    return {
+      backend: 'wsl',
+      home: wslHomeKey(distro, remoteHome),
+      wslDistro: distro,
+      wslHome: remoteHome,
+      wslWorkdir: entry?.workdir || entry?.wslWorkdir || '',
+      wslUser: user,
+      ...(connection ? { connectionId: connection.id } : {}),
+    }
+  }
+  const remoteHome = entry?.remoteHome || '~/.dsh'
+  return {
+    backend: 'ssh',
+    home: sshHomeKey(connection?.id || entry?.connectionId, remoteHome),
+    connectionId: connection?.id || entry?.connectionId,
+    remoteHome,
+    workdir: entry?.workdir || '',
+  }
+}
+
+/** 连接下发到页面时只给形状和「有没有密码」，密文信封不出后端。 */
+function redactedConnection(connection) {
+  if (!connection) return null
+  const base = {
+    id: connection.id, name: connection.name, kind: connection.kind,
+    hasPassword: Boolean(connection.passwordSecret),
+    hasPassphrase: Boolean(connection.passphraseSecret),
+  }
+  return connection.kind === 'wsl'
+    ? { ...base, wslDistro: connection.wslDistro, ...(connection.wslUser ? { wslUser: connection.wslUser } : {}) }
+    : {
+      ...base, host: connection.host, port: connection.port, username: connection.username,
+      authType: connection.authType,
+      ...(connection.privateKeyPath ? { privateKeyPath: connection.privateKeyPath } : {}),
+      ...(connection.sshConfigAlias ? { sshConfigAlias: connection.sshConfigAlias } : {}),
+      ...(connection.hostKeyFingerprint ? { hostKeyFingerprint: connection.hostKeyFingerprint } : {}),
+    }
+}
+
+function publicConnections() {
+  return CONNECTIONS.map(redactedConnection).filter(Boolean)
+}
+
+/** 只在真正连接/测试时解密；解密失败按连接级错误报，不把信封内容带出去。 */
+function connectionSecretsFor(connection) {
+  return {
+    password: connection.passwordSecret ? connectionSecrets.reveal(connection.passwordSecret) : '',
+    passphrase: connection.passphraseSecret ? connectionSecrets.reveal(connection.passphraseSecret) : '',
+  }
+}
+
+/** 首次连上后把主机指纹写回连接；后续指纹不一致会在 ssh.js 里被拒绝。 */
+async function rememberSshHostKey(connection, fingerprint) {
+  if (!fingerprint || connection.hostKeyFingerprint === fingerprint) return
+  const stored = await loadSettings()
+  const list = safeConnections(stored.connections).map((item) => item.id === connection.id
+    ? { ...item, hostKeyFingerprint: fingerprint }
+    : item)
+  await saveSettings({ connections: list })
+  CONNECTIONS = safeConnections(list)
+}
+
+/** 按连接建一个临时 backend（WSL/SSH），用完就断开；用于 Profile 读写这类一次性操作。 */
+async function withRemoteBackend(connection, fn) {
+  if (connection.kind === 'wsl') {
+    const backend = createWslBackend({ distro: connection.wslDistro, user: connection.wslUser || '' })
+    try {
+      return await fn(backend)
+    } finally {
+      await backend.disposeAndWait?.()
+    }
+  }
+  const backend = createSshBackend(connection, connectionSecretsFor(connection))
+  try {
+    await backend.resolveIdentity()
+    await rememberSshHostKey(connection, backend.hostKeyFingerprint)
+    return await fn(backend)
+  } finally {
+    await backend.disposeAndWait()
+  }
+}
+
+function remoteConnectionById(value) {
+  const id = safeConnectionId(value)
+  const connection = id ? CONNECTIONS.find((item) => item.id === id) || null : null
+  if (!connection) throw new Error('连接已不存在，请刷新后重新选择')
+  return connection
+}
+
 function launchDistro() {
   const store = launchScope.getStore()
+  const connection = launchConnection()
+  if (connection?.kind === 'wsl') return (connection.wslDistro || WSL_SETTINGS.defaultDistro || '').trim()
+  if (connection) return ''
   return (store?.wslDistro || WSL_SETTINGS.defaultDistro || '').trim()
 }
 function launchWslUser() {
   const store = launchScope.getStore()
+  const connection = launchConnection()
+  if (connection) return connection.kind === 'wsl' ? String(connection.wslUser || '').trim() : ''
   return String(store?.wslUser || '').trim()
 }
 function launchWslHome() {
   const store = launchScope.getStore()
-  try { return resolveWslHome(store?.wslHome || WSL_SETTINGS.defaultHome) } catch { return store?.wslHome || WSL_SETTINGS.defaultHome || '~/.dsh' }
+  const value = store?.remoteHome || store?.wslHome || WSL_SETTINGS.defaultHome
+  try { return resolveWslHome(value) } catch { return value || '~/.dsh' }
+}
+
+/** 当前作用域里的远端用户目录（WSL / SSH 通用，~ 不展开）。 */
+function launchRemoteHome() {
+  const store = launchScope.getStore()
+  const parsed = parseSshHomeKey(store?.home) || parseWslHomeKey(store?.home)
+  return String(store?.remoteHome || parsed?.home || store?.wslHome || '~/.dsh').trim() || '~/.dsh'
 }
 function launchWslWorkdir() {
   const store = launchScope.getStore()
-  const value = String(store?.wslWorkdir || '').trim()
+  const value = String(store?.workdir || store?.wslWorkdir || '').trim()
   if (!value) return ''
   try { return resolveWslHome(value) } catch { return value }
 }
@@ -1672,11 +1843,17 @@ function instanceInfo(proc) {
     startupPhase: proc.status === 'starting' ? (proc.startupPhase || 'launching') : '',
     diagnosticWarning: publicFailure(proc.diagnosticWarning),
     backend: proc.backend || 'local',
+    ...(proc.connectionId ? { connectionId: proc.connectionId } : {}),
     ...(proc.backend === 'wsl' ? {
       distro: proc.distro || '',
       wslHome: proc.wslHome || '',
       wslWorkdir: proc.wslWorkdir || '',
       serviceMode: proc.serviceMode || DEFAULT_WSL_SERVICE_MODE,
+      instanceId: proc.instanceId || '',
+    } : {}),
+    ...(proc.backend === 'ssh' ? {
+      remoteHome: proc.remoteHome || '',
+      workdir: proc.workdir || '',
       instanceId: proc.instanceId || '',
     } : {}),
   }
@@ -1861,8 +2038,13 @@ async function snapshotDefault() {
     // 手工钉死端口的实例（键 `版本@profile` → 端口）：控制页那个端口输入框回显它
     instancePorts: INSTANCE_PORTS,
     wslPorts: WSL_PORTS,
+    sshPorts: SSH_PORTS,
     wsl: wslSnapshot,
     launchPresets: presets,
+    connections: publicConnections(),
+    connectionTests: Object.fromEntries(CONNECTION_TESTS),
+    connectionRuntime: publicConnectionRuntime(),
+    connectionPrepares: [...CONNECTION_PREPARES.values()].map(publicPrepare),
     // 每种版本类型的实际类型、已装版本、最新版：页面的自动选版本和提醒都读它，不在页面上重新分类
     channelPlans: channelPlans(installed),
     instances: all.map(instanceInfo),
@@ -2112,7 +2294,7 @@ function channelPlans(installed) {
  * 客户端 recommendedVersion 的服务端镜像——查重必须用解析后的版本。
  */
 function resolvePresetVersion(entry, home, config, versions = null) {
-  if (entry.backend === 'wsl') {
+  if (entry.backend === 'wsl' || entry.backend === 'ssh') {
     if (entry.version !== 'auto') return entry.version
     const live = liveInstanceList().find((item) => item.profile === entry.profile && item.home === home)
     return live?.version || entry.usedVersion || 'auto'
@@ -2155,8 +2337,8 @@ function trayLaunches() {
   const all = instanceList()
   const matched = new Set()
   const rows = safeLaunchPresets(loadSettingsSync().launchPresets).map((preset) => {
-    const home = preset.backend === 'wsl'
-      ? wslHomeKey(preset.wslDistro || WSL_SETTINGS.defaultDistro, preset.wslHome || WSL_SETTINGS.defaultHome)
+    const home = preset.backend === 'wsl' || preset.backend === 'ssh'
+      ? presetScope(preset).home
       : preset.dshHome || defaultHome()
     const pending = [...trayActions.values()].find((item) => item.id === preset.id && item.home === home && item.profile === preset.profile)
     // 自动版本重启途中暂时没有实例，继续显示原版本，避免跳到最高已装版本。
@@ -2174,7 +2356,7 @@ function trayLaunches() {
   return rows.map((row) => {
     const key = JSON.stringify([row.home, row.version, row.profile])
     const pending = trayActions.get(key)
-    return { ...row, key, instanceId: key, status: pending?.status || row.proc?.status || 'stopped', busy: Boolean(pending), installed: row.preset?.backend === 'wsl' ? true : versions.includes(row.version), target: row.proc ? internalTabTarget(row.proc, row.name) : null }
+    return { ...row, key, instanceId: key, status: pending?.status || row.proc?.status || 'stopped', busy: Boolean(pending), installed: row.preset?.backend === 'wsl' || row.preset?.backend === 'ssh' ? true : versions.includes(row.version), target: row.proc ? internalTabTarget(row.proc, row.name) : null }
   })
 }
 
@@ -2200,19 +2382,18 @@ async function trayAction(body, startup = {}) {
   if (['stop', 'restart'].includes(action) && !row.proc) throw new Error('该启动项没有运行实例')
   if (action !== 'stop' && !row.installed) throw new Error('请先在启动器中安装此版本')
   trayActions.set(row.key, { id: row.id, name: row.name, home: row.home, version: row.version, profile: row.profile, status: action === 'stop' ? 'stopping' : 'starting' })
-  const wslScope = row.preset?.backend === 'wsl'
-    ? { backend: 'wsl', wslDistro: row.preset.wslDistro || WSL_SETTINGS.defaultDistro, wslHome: row.preset.wslHome || WSL_SETTINGS.defaultHome, wslWorkdir: row.preset.wslWorkdir || '', wslUser: row.preset.wslUser || '' }
-    : {}
+  const remoteScope = row.preset?.backend === 'wsl' || row.preset?.backend === 'ssh' ? presetScope(row.preset) : {}
   try {
-    return await launchScope.run({ ...startup, ...wslScope, home: row.home, launchId: row.preset?.id }, async () => {
+    return await launchScope.run({ ...startup, ...remoteScope, home: row.home, launchId: row.preset?.id }, async () => {
       if (action === 'stop' || action === 'restart') await stop(row.version, row.profile, row.home)
       if (action !== 'stop') {
-        const startVersion = row.preset?.backend === 'wsl' && row.preset.version === 'auto' ? 'auto' : row.version
+        const remoteAuto = (row.preset?.backend === 'wsl' || row.preset?.backend === 'ssh') && row.preset.version === 'auto'
+        const startVersion = remoteAuto ? 'auto' : row.version
         if (row.preset) {
-          // WSL 启动项在 auto 时还没有具体版本号（实际版本由 WSL 里的 dsh 决定），
+          // 远端启动项在 auto 时还没有具体版本号（实际版本由远端 core 决定），
           // setInstancePort 只认 VERSION_RE，会把 'auto' 当非法版本号拒绝；端口留到
           // 启动时按 preset.port 解析，这里跳过钉端口，不能因此拦住托盘/自动启动。
-          if (!(row.preset.backend === 'wsl' && row.preset.version === 'auto')) {
+          if (!remoteAuto) {
             await setInstancePort(row.version, row.profile, row.preset.port)
           }
           await recordLaunchUse(row.preset.id, startVersion)
@@ -2286,30 +2467,51 @@ async function saveLaunchPresetNow(body) {
   if (!name || name.length > 32) throw new Error('启动项名称请填 1-32 个字符')
   const version = safeVersion(body.version)
   const profile = safeProfile(body.profile)
-  const backend = body.backend === 'wsl' ? 'wsl' : 'local'
+  const backend = body.backend === 'ssh' ? 'ssh' : body.backend === 'wsl' ? 'wsl' : 'local'
+  const connectionId = safeConnectionId(body.connectionId)
+  const connection = connectionId ? CONNECTIONS.find((item) => item.id === connectionId) || null : null
+  if (connectionId && !connection) throw new Error('这个连接已不存在，请刷新后重新选择')
+  if (connection && connection.kind !== backend) throw new Error('连接类型和启动项的运行位置不一致')
   let dshHome = ''
   let wslDistro = ''
   let wslHome = ''
   let wslWorkdir = ''
   let wslUser = ''
+  let remoteHome = ''
+  let workdir = ''
   let home = ''
   let wslInfo = null
-  if (backend === 'wsl') {
-    // WSL 启动项：不碰 Windows 的 safeDshHome / safeWorkdir，也不在 Windows 侧建目录。
-    // 发行版和用户目录都允许留空，留空时继承全局设置。
-    wslDistro = safeWslDistro(body.wslDistro) || WSL_SETTINGS.defaultDistro
-    if (!wslDistro) throw new Error('先选择一个 WSL 发行版')
-    wslHome = safeWslPath(body.wslHome, 'WSL 用户目录') || WSL_SETTINGS.defaultHome
-    wslWorkdir = safeWslPath(body.wslWorkdir, 'WSL 项目目录')
-    wslUser = safeWslUser(body.wslUser)
-    home = wslHomeKey(wslDistro, wslHome)
-    // B 路线：dsh 版本/Profile 由 WSL 里的 dsh-x-core 管，保存时只校验发行版存在，
-    // 不再要求发行版里有全局 dsh（远端 core 可能用的是托管版本）。
-    const listed = await listWslDistros()
-    if (!listed.available) throw remoteError(REMOTE_REASON.wslUnavailable, listed.error || '当前没有可用的 WSL 环境')
-    const picked = pickDistro(wslDistro, listed.distros)
-    if (picked.missing) throw remoteError(REMOTE_REASON.distroMissing, `未找到名为 ${wslDistro} 的 WSL 发行版（先在终端运行 wsl -l -v 核对名称）`)
-    if (picked.name) wslDistro = picked.name
+  if (backend !== 'local') {
+    // 远端启动项：主机/用户来自连接；旧 WSL 启动项没有连接时继续读表单字段。
+    if (backend === 'ssh') {
+      if (!connection) throw new Error('先选择一个 SSH 连接')
+      remoteHome = safeWslPath(body.remoteHome, '远端用户目录') || '~/.dsh'
+      workdir = safeWslPath(body.workdir, '远端项目目录')
+      home = sshHomeKey(connection.id, remoteHome)
+    } else {
+      if (connection) {
+        wslDistro = connection.wslDistro
+        wslUser = connection.wslUser || ''
+        remoteHome = safeWslPath(body.remoteHome ?? body.wslHome, 'WSL 用户目录') || WSL_SETTINGS.defaultHome || '~/.dsh'
+      } else {
+        // 旧路径：还没迁移出连接的 WSL 启动项。
+        wslDistro = safeWslDistro(body.wslDistro) || WSL_SETTINGS.defaultDistro
+        if (!wslDistro) throw new Error('先选择一个 WSL 发行版')
+        remoteHome = safeWslPath(body.wslHome, 'WSL 用户目录') || WSL_SETTINGS.defaultHome || '~/.dsh'
+        wslUser = safeWslUser(body.wslUser)
+      }
+      wslHome = remoteHome
+      workdir = safeWslPath(body.workdir ?? body.wslWorkdir, 'WSL 项目目录')
+      wslWorkdir = workdir
+      home = wslHomeKey(wslDistro, remoteHome)
+      // B 路线：dsh 版本/Profile 由 WSL 里的 dsh-x-core 管，保存时只校验发行版存在，
+      // 不再要求发行版里有全局 dsh（远端 core 可能用的是托管版本）。
+      const listed = await listWslDistros()
+      if (!listed.available) throw remoteError(REMOTE_REASON.wslUnavailable, listed.error || '当前没有可用的 WSL 环境')
+      const picked = pickDistro(wslDistro, listed.distros)
+      if (picked.missing) throw remoteError(REMOTE_REASON.distroMissing, `未找到名为 ${wslDistro} 的 WSL 发行版（先在终端运行 wsl -l -v 核对名称）`)
+      if (picked.name) wslDistro = picked.name
+    }
   } else {
     // 数据目录只用 dsh 用户目录；旧的「项目目录」字段不再读取，历史启动项按已保存的 dshHome 走。
     dshHome = safeDshHome(body.dshHome)
@@ -2350,34 +2552,46 @@ async function saveLaunchPresetNow(body) {
   const updateChannel = requestedChannel ?? safeUpdateChannel(existingEntry?.updateChannel)
   const config = await loadConfig()
   const wslVersion = backend === 'wsl' ? (String(wslInfo?.version || '').match(/[0-9][0-9A-Za-z._+-]*/)?.[0] || '') : ''
-  const effectiveVersion = backend === 'wsl'
+  const effectiveVersion = backend !== 'local'
     ? (version === 'auto' ? wslVersion : version)
     : resolvePresetVersion({ version, profile, updateChannel }, home, config)
-  const sameBackend = (existingEntry?.backend === 'wsl') === (backend === 'wsl')
-  const sameWslScope = backend !== 'wsl'
-    || ((existingEntry?.wslDistro || WSL_SETTINGS.defaultDistro) === wslDistro
-      && (existingEntry?.wslHome || '') === (wslHome || '')
-      && (existingEntry?.wslUser || '') === (wslUser || ''))
+  const existingBackend = existingEntry?.backend === 'ssh' ? 'ssh' : existingEntry?.backend === 'wsl' ? 'wsl' : 'local'
+  const sameBackend = existingBackend === backend
+  const sameRemoteScope = backend === 'local'
+    || (connectionId
+      ? existingEntry?.connectionId === connectionId && (existingEntry?.remoteHome || '') === (remoteHome || '')
+        && (existingEntry?.workdir || '') === (workdir || '')
+      : ((existingEntry?.wslDistro || WSL_SETTINGS.defaultDistro) === wslDistro
+        && (existingEntry?.wslHome || '') === (wslHome || '')
+        && (existingEntry?.wslUser || '') === (wslUser || '')
+        && (existingEntry?.wslWorkdir || '') === (wslWorkdir || '')))
   const tripleChanged = !existingEntry || existingEntry.version !== version || existingEntry.profile !== profile
-    || !sameBackend || !sameWslScope
+    || !sameBackend || !sameRemoteScope
     || (backend === 'local' && (existingEntry.dshHome || defaultHome()) !== home)
     || (version === 'auto' && safeUpdateChannel(existingEntry.updateChannel) !== updateChannel)
   if (tripleChanged && effectiveVersion && presets.some((item) => {
     if (item.id === id) return false
     if (item.profile !== profile) return false
-    if (backend === 'wsl') {
-      if (item.backend !== 'wsl' || (item.wslDistro || WSL_SETTINGS.defaultDistro) !== wslDistro) return false
-      if ((item.wslHome || '') !== (wslHome || '')) return false
-      if ((item.wslUser || '') !== (wslUser || '')) return false
+    if (backend !== 'local') {
+      const itemBackend = item.backend === 'ssh' ? 'ssh' : item.backend === 'wsl' ? 'wsl' : 'local'
+      if (itemBackend !== backend) return false
+      if (connectionId) {
+        if (item.connectionId !== connectionId || (item.remoteHome || '') !== (remoteHome || '')) return false
+        if ((item.workdir || '') !== (workdir || '')) return false
+      } else {
+        if ((item.wslDistro || WSL_SETTINGS.defaultDistro) !== wslDistro) return false
+        if ((item.wslHome || '') !== (wslHome || '')) return false
+        if ((item.wslUser || '') !== (wslUser || '')) return false
+      }
       return item.version === version
     }
-    if (item.backend === 'wsl' || (item.dshHome || defaultHome()) !== home) return false
+    if (item.backend === 'wsl' || item.backend === 'ssh' || (item.dshHome || defaultHome()) !== home) return false
     return resolvePresetVersion(item, home, config) === effectiveVersion
   })) {
     throw new Error('这个目录中的版本与 profile 已有启动项，编辑现有的即可')
   }
   if (port) {
-    if (backend !== 'wsl' && !launchScope.run({ home }, () => bootsWebApp(profile))) throw new Error(`profile ${profile} 不起 web 应用，端口对它没用`)
+    if (backend === 'local' && !launchScope.run({ home }, () => bootsWebApp(profile))) throw new Error(`profile ${profile} 不起 web 应用，端口对它没用`)
     if (port === PORT || port === safePort(stored.port)) throw new Error(`端口 ${port} 是管理页自己在用的，换一个`)
     if (presets.some((item) => item.id !== id && item.port === port)) throw new Error(`端口 ${port} 已被其他启动项使用，换一个`)
   }
@@ -2389,9 +2603,11 @@ async function saveLaunchPresetNow(body) {
     // 用过的版本记录跟着启动项走，编辑参数不该抹掉回退历史。
     ...(existingEntry?.usedVersion ? { usedVersion: existingEntry.usedVersion } : {}),
     ...(existingEntry?.prevVersion ? { prevVersion: existingEntry.prevVersion } : {}),
+    ...(connectionId ? { connectionId } : {}),
+    ...(backend !== 'local' ? { remoteHome, ...(workdir ? { workdir } : {}) } : {}),
     ...(backend === 'wsl'
       ? { backend: 'wsl', wslDistro, ...(wslHome ? { wslHome } : {}), ...(wslWorkdir ? { wslWorkdir } : {}), ...(wslUser ? { wslUser } : {}), wslServiceMode: DEFAULT_WSL_SERVICE_MODE }
-      : { ...(dshHome ? { dshHome } : {}) }),
+      : backend === 'ssh' ? { backend: 'ssh' } : { ...(dshHome ? { dshHome } : {}) }),
     ...(icon !== 'terminal' ? { icon } : {}) }
   if (index >= 0) presets[index] = entry
   else presets.push(entry)
@@ -2642,6 +2858,8 @@ async function saveManagerSettings(body) {
   INSTANCE_PORTS = safeInstancePorts(stored.instancePorts)
   ENVIRONMENT_PORTS = liveEnvironmentPorts(stored)
   WSL_PORTS = safeWslPorts(stored.wslPorts)
+  SSH_PORTS = safeSshPorts(stored.sshPorts)
+  CONNECTIONS = safeConnections(stored.connections)
   WSL_SETTINGS = safeWslSettings(stored.wsl)
   if ('wsl' in body) invalidateWslCache()
   if ('lang' in body) LANG = resolveLang(stored.lang)
@@ -3527,7 +3745,12 @@ function bootArgs(profile = PROFILE_NAME, pinned = 0) {
 
 /** 这个「版本 × profile」手工固定的端口（0 = 自动分配并记忆）。 */
 function pinnedPort(version, profile) {
-  if (launchIsRemote()) return WSL_PORTS[launchDistro()]?.[`${version}@${profile}`] || 0
+  const kind = launchKind()
+  if (kind === 'wsl') return WSL_PORTS[launchDistro()]?.[`${version}@${profile}`] || 0
+  if (kind === 'ssh') {
+    const id = launchConnection()?.id || safeConnectionId(launchScope.getStore()?.connectionId)
+    return id ? SSH_PORTS[id]?.[`${version}@${profile}`] || 0 : 0
+  }
   const ports = homeDir() === defaultHome() ? INSTANCE_PORTS : ENVIRONMENT_PORTS[homeDir()]
   return ports?.[`${version}@${profile}`] || 0
 }
@@ -4195,7 +4418,8 @@ async function checkVersionUpdates({ force = false } = {}) {
  * 标量接口仍返回一个代表计划：有更新时取最新候选，无更新时沿用最宽通道。
  */
 function followedUpdatePlans(installed, presets) {
-  const followed = new Set(presets.map((entry) => safeUpdateChannel(entry.updateChannel)))
+  // WSL 启动项跟着远端 core 的已装版本走，别把它的通道混进本机的更新提醒。
+  const followed = new Set(presets.filter((entry) => entry.backend !== 'wsl').map((entry) => safeUpdateChannel(entry.updateChannel)))
   if (!followed.size) {
     followed.add(DEFAULT_UPDATE_CHANNEL)
   }
@@ -6157,9 +6381,11 @@ async function bootWslOnce(ver, prof, context, onStarted) {
  * 外层只负责把失败记成 lastFailure（带 reasonCode）：探测阶段就失败的请求
  * 也要让页面拿到失败对象，不能只有一句 error。
  */
-async function startWslNow(version, profile = PROFILE_NAME, onStarted) {
+/** 远端启动分派：WSL 走 wsl.exe，SSH 走 ssh2 隧道；两者都落到同一个远端 core。 */
+/** 远端启动统一入口：失败时记 lastFailure（带 reasonCode），页面按码给可操作文案。 */
+async function startRemoteNow(version, profile = PROFILE_NAME, onStarted) {
   try {
-    return await startWslNowInner(version, profile, onStarted)
+    return await startRemoteInner(version, profile, onStarted)
   } catch (error) {
     if (!error?.failure) {
       lastFailure = {
@@ -6179,12 +6405,19 @@ async function startWslNow(version, profile = PROFILE_NAME, onStarted) {
   }
 }
 
-async function startWslNowInner(version, profile = PROFILE_NAME, onStarted) {
+async function startRemoteInner(version, profile = PROFILE_NAME, onStarted) {
   const requested = safeVersion(version)
   const prof = safeProfile(profile)
-  const distro = launchDistro()
-  if (!distro) throw new Error('还没有选择 WSL 发行版（先在设置里选一个默认发行版，或给启动项指定）')
-  return startWslViaRemoteCore({ requested, profile: prof, distro, user: launchWslUser(), onStarted })
+  if (launchKind() === 'wsl' && !launchDistro()) {
+    throw new Error('还没有选择 WSL 发行版（先在连接里选一个发行版，或给启动项指定连接）')
+  }
+  // 版本类型跟本机同一套：auto 只在所选通道里挑远端已装/最新版本。
+  const launchId = launchScope.getStore()?.launchId || ''
+  const entry = safeLaunchPresets(loadSettingsSync().launchPresets).find((item) => item.id === launchId)
+  return startRemoteViaCore({
+    requested, profile: prof,
+    channel: safeUpdateChannel(entry?.updateChannel), onStarted,
+  })
 }
 
 /** `~/.dsh` 在 WSL 里按发行版用户的 HOME 展开；绝对路径原样。 */
@@ -6219,6 +6452,44 @@ async function remoteCoreForTarget({ distro, user = '', home = '' }) {
     })
     core.appliedHome = targetHome
   }
+  const known = CONNECTIONS.find((item) => item.kind === 'wsl'
+    && item.wslDistro === distro
+    && (item.wslUser || '') === (user || ''))
+  if (known) {
+    setConnectionRuntime(known.id, {
+      status: 'online', hostname: distro, osUser: identity.user, remoteHome: targetHome, version: APP_VERSION,
+    })
+    void emitState().catch(() => {})
+  }
+  return { core, home: targetHome, identity }
+}
+
+/** SSH 版：一个连接只保留一个远端 core，首次连接会记录主机指纹。 */
+async function remoteCoreForSsh(connection, home = '') {
+  const stored = loadSettingsSync()
+  const core = getSshRemoteCore({
+    connection,
+    version: APP_VERSION,
+    secrets: connectionSecretsFor(connection),
+    source: stored.downloadSource || 'official',
+    cacheDir: DATA,
+  })
+  await core.start()
+  await rememberSshHostKey(connection, core.backend.hostKeyFingerprint)
+  const identity = await core.backend.resolveIdentity()
+  const targetHome = resolveRemoteHome(home || '~/.dsh', identity.home)
+  if (core.appliedHome !== targetHome) {
+    await core.json('/api/settings', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ dshHome: targetHome }),
+    })
+    core.appliedHome = targetHome
+  }
+  setConnectionRuntime(connection.id, {
+    status: 'online', hostname: connection.host, osUser: identity.user, remoteHome: targetHome, version: APP_VERSION,
+  })
+  void emitState().catch(() => {})
   return { core, home: targetHome, identity }
 }
 
@@ -6227,6 +6498,11 @@ async function remoteCoreForTarget({ distro, user = '', home = '' }) {
  * 安装/启动是幂等的：已经在跑就直接复用。
  */
 async function ensureRemoteCoreForScope() {
+  if (launchKind() === 'ssh') {
+    const connection = launchConnection()
+    if (!connection) throw new Error('SSH 连接已不存在，请重新选择')
+    return remoteCoreForSsh(connection, launchRemoteHome())
+  }
   const distro = launchDistro()
   const user = launchWslUser()
   if (!distro) throw new Error('还没有选择 WSL 发行版')
@@ -6234,7 +6510,7 @@ async function ensureRemoteCoreForScope() {
 }
 
 /** 这些接口在 WSL 作用域下直接转发给远端 core，本地不自己执行。 */
-const REMOTE_CORE_PROXY_PREFIXES = ['/api/install', '/api/uninstall', '/api/versions', '/api/profiles', '/api/state']
+const REMOTE_CORE_PROXY_PREFIXES = ['/api/install', '/api/uninstall', '/api/versions', '/api/profiles', '/api/state', '/api/plugins/check-compatibility']
 function isRemoteCoreProxyRoute(pathname) {
   return REMOTE_CORE_PROXY_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(prefix + '/'))
 }
@@ -6243,8 +6519,10 @@ function isRemoteCoreProxyRoute(pathname) {
 async function proxyToRemoteCore(req, res, url, body) {
   const { core, home } = await ensureRemoteCoreForScope()
   const headers = { 'content-type': req.headers['content-type'] || 'application/json' }
-  // Profile 路由靠 x-dsh-home 定位目录；远端只认 Linux 绝对路径。
-  if (url.pathname.startsWith('/api/profiles')) headers['x-dsh-home'] = encodeURIComponent(home)
+  // Profile / 兼容性检查靠 x-dsh-home 定位目录；远端只认 Linux 绝对路径。
+  if (url.pathname.startsWith('/api/profiles') || url.pathname === '/api/plugins/check-compatibility') {
+    headers['x-dsh-home'] = encodeURIComponent(home)
+  }
   const response = await core.request(url.pathname + url.search, {
     method: req.method,
     headers,
@@ -6260,20 +6538,40 @@ async function proxyToRemoteCore(req, res, url, body) {
  * B 路线：本地 UI 不直接起 WSL 里的 dsh，而是让 WSL 里的 dsh-x-core 起来并用它自己的
  * 启动逻辑。本地只保留一个“远端实例”的影子 proc，状态/地址给页面用，停止时转发给 core。
  */
-async function startWslViaRemoteCore({ requested, profile, distro, user, onStarted }) {
+/**
+ * WSL 的自动版本解析：和本机同一套通道规则——只在启动项版本类型收的范围内挑，
+ * 同 profile 跑着的优先，其次已装的最高版；一个都没装就返回空串，由调用方决定去装哪个。
+ */
+export function resolveWslAutoVersion({ requested, profile = '', channel = DEFAULT_UPDATE_CHANNEL, installed = [], instances = [], check = null }) {
+  const known = [...installed, ...(Array.isArray(check?.versions) ? check.versions : [])]
+  const activeChannel = effectiveChannel(channel, known)
+  const live = (Array.isArray(instances) ? instances : [])
+    .filter((item) => item.profile === profile && ['running', 'starting', 'stopping'].includes(item.status)
+      && versionInChannel(activeChannel, item.version))
+    .sort((a, b) => cmpVer(parseVer(b.version) ?? parseVer('0'), parseVer(a.version) ?? parseVer('0')))[0]
+  const highest = installed.filter((version) => versionInChannel(activeChannel, version))
+    .sort((a, b) => cmpVer(parseVer(b) ?? parseVer('0'), parseVer(a) ?? parseVer('0')))[0] || ''
+  return { version: requested === 'auto' ? (live?.version || highest) : requested, channel: activeChannel }
+}
+
+async function startRemoteViaCore({ requested, profile, channel = DEFAULT_UPDATE_CHANNEL, onStarted }) {
+  const kind = launchKind()
+  const connection = launchConnection()
   const { core, home } = await ensureRemoteCoreForScope()
-  // 远端 core 的 /api/start 只认具体版本；auto 在这里按远端已装版本解析。
+  // 远端 core 的 /api/start 只认具体版本；auto 在这里按远端已装版本和启动项的版本类型解析。
   const remoteState = await core.json('/api/state')
   let remoteInstalled = Array.isArray(remoteState.installed) ? remoteState.installed.filter(Boolean) : []
-  let effective = requested === 'auto'
-    ? remoteInstalled.slice().sort((a, b) => cmpVer(parseVer(b) ?? parseVer('0'), parseVer(a) ?? parseVer('0')))[0] || ''
-    : requested
+  let check = null
+  if (requested === 'auto') {
+    try { check = await core.json('/api/versions/check') } catch { /* 读不到远端列表就只按已装版本算 */ }
+  }
+  const activeChannel = effectiveChannel(channel, [...remoteInstalled, ...(Array.isArray(check?.versions) ? check.versions : [])])
+  let effective = resolveWslAutoVersion({
+    requested, profile, channel, installed: remoteInstalled, instances: remoteState.instances, check,
+  }).version
   if (!effective && requested === 'auto') {
-    // 一个版本都没有：按远端自己看到的 latest 装一个，别让「点启动」只报一句未安装。
-    try {
-      const check = await core.json('/api/versions/check')
-      effective = String(check?.latest || '')
-    } catch { /* 读不到远程列表就留空，下面给明确错误 */ }
+    // 一个版本都没有：按远端自己看到的、所选通道里的最新版装一个，别让「点启动」只报一句未安装。
+    effective = latestRemoteFor({ tags: check?.tags, versions: check?.versions }, (version) => versionInChannel(activeChannel, version))
   }
   if (!effective) throw new Error('远端 core 里还没有可用的 dsh 版本，请先在版本管理里安装一个')
   if (!remoteInstalled.includes(effective)) {
@@ -6312,14 +6610,23 @@ async function startWslViaRemoteCore({ requested, profile, distro, user, onStart
     home: homeDir(),
     url: started.url,
     status: 'running',
-    backend: 'wsl',
-    distro,
-    wslHome: launchWslHome(),
-    wslHomePath: home,
-    wslUser: user,
+    backend: kind,
+    ...(kind === 'wsl' ? {
+      distro: launchDistro(),
+      wslHome: launchWslHome(),
+      wslHomePath: home,
+      wslUser: launchWslUser(),
+    } : {
+      connectionId: connection?.id || launchScope.getStore()?.connectionId || '',
+      remoteHome: launchRemoteHome(),
+      remoteHomePath: home,
+      workdir: launchWslWorkdir(),
+    }),
     launchId: launchScope.getStore()?.launchId || '',
     remoteCore: core,
-    remoteCoreKey: `${distro}\0${user}\0${APP_VERSION}`,
+    remoteCoreKey: kind === 'ssh'
+      ? `ssh\0${connection?.id || ''}\0${APP_VERSION}`
+      : `wsl\0${launchDistro()}\0${launchWslUser()}\0${APP_VERSION}`,
     child: null,
     tail: [],
     startedAt: Date.now(),
@@ -6328,7 +6635,9 @@ async function startWslViaRemoteCore({ requested, profile, distro, user, onStart
     diagnosis: { report: () => ({}) },
   }
   instances.set(key, proc)
-  pushLog(`远端 core 已启动 dsh ${version}/${profile}（WSL ${distro}${user ? ` · 用户 ${user}` : ''}）`)
+  pushLog(kind === 'ssh'
+    ? `远端 core 已启动 dsh ${version}/${profile}（SSH ${connection?.name || connection?.host || ''}）`
+    : `远端 core 已启动 dsh ${version}/${profile}（WSL ${launchDistro()}${launchWslUser() ? ` · 用户 ${launchWslUser()}` : ''}）`)
   onStarted?.(proc)
   await emitState()
   return { url: started.url }
@@ -6339,7 +6648,7 @@ async function stopRemoteCoreInstance(proc) {
     await proc.remoteCore?.json('/api/stop', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ version: proc.version, profile: proc.profile, home: proc.wslHomePath || '' }),
+      body: JSON.stringify({ version: proc.version, profile: proc.profile, home: proc.wslHomePath || proc.remoteHomePath || proc.remoteHome || '' }),
     })
   } catch (error) {
     pushLog(`远端 core 停止 ${proc.version}/${proc.profile} 失败：${error instanceof Error ? error.message : error}`)
@@ -6496,8 +6805,8 @@ async function autoDisableFailedPlugins(error, already, profile = PROFILE_NAME) 
  * 修复全部落在这次启动的 profile 自己头上（多开下别的 profile 不能被顺手改掉）。
  */
 async function startWithRepair(version, profile = PROFILE_NAME) {
-  // WSL 实例不碰 Windows 侧 profile：没有 .npmrc / 补丁层可修，也不该在本地建目录。
-  if (launchIsRemote()) return startWslNow(version, profile)
+  // 远端实例不碰 Windows 侧 profile：没有 .npmrc / 补丁层可修，也不该在本地建目录。
+  if (launchIsRemote()) return startRemoteNow(version, profile)
   lastAutoFix = null
   // 同一个组合上一次的失败到此作废，页面上那条「启动失败」跟着收掉
   if (failureIsFor(version, profile)) {
@@ -6607,19 +6916,20 @@ export async function restartInstalled() {
   const presets = safeLaunchPresets(loadSettingsSync().launchPresets)
   const targets = instanceList().map((proc) => {
     const preset = proc.launchId ? presets.find((item) => item.id === proc.launchId) : null
-    // 启动项填 auto 的 WSL 实例：重启要重新探测 WSL 里的 dsh（可能刚升过级），
-    // 拿上次记录的具体版本当钉子会直接报「版本不一致」，实例停着起不来。
-    const version = preset?.backend === 'wsl' && preset.version === 'auto' ? 'auto' : proc.version
-    return { version, profile: proc.profile, home: proc.home, backend: proc.backend, distro: proc.distro, wslHome: proc.wslHome, wslWorkdir: proc.wslWorkdir, wslUser: proc.wslUser || '', launchId: proc.launchId || '' }
+    // 启动项填 auto 的远端实例：重启要重新探测远端已装版本，拿上次记录的具体版本当钉子会报版本不一致。
+    const remote = preset?.backend === 'wsl' || preset?.backend === 'ssh'
+    const version = remote && preset.version === 'auto' ? 'auto' : proc.version
+    return {
+      version, profile: proc.profile, launchId: proc.launchId || '',
+      scope: preset ? presetScope(preset) : { home: proc.home },
+    }
   })
   if (!targets.length) return launchInstalled()
   await stop()
   let last = null
   let failure = null
-  const results = await Promise.allSettled(targets.map(({ version, profile, home, backend, distro, wslHome, wslWorkdir, wslUser, launchId }) =>
-    launchScope.run(backend === 'wsl'
-      ? { backend: 'wsl', home, wslDistro: distro, wslHome, wslWorkdir, wslUser, ...(launchId ? { launchId } : {}) }
-      : { home }, () => start(version, profile))))
+  const results = await Promise.allSettled(targets.map(({ version, profile, scope, launchId }) =>
+    launchScope.run({ ...scope, ...(launchId ? { launchId } : {}) }, () => start(version, profile))))
   for (const [index, result] of results.entries()) {
     if (result.status === 'fulfilled') last = { version: targets[index].version, profile: targets[index].profile, url: result.value.url }
     else failure = failure || result.reason
@@ -7155,9 +7465,10 @@ export { pruneDanglingLinks, pruneVersions, recordLaunchUse, snapshot, stop }
 async function stop(version, profile = '', targetHome = '') {
   const wantedVersion = version ? safeVersion(version) : ''
   const wantedProfile = wantedVersion && profile ? safeProfile(profile) : ''
-  // WSL 的 home 是合成键（wsl://发行版/路径），不能过 Windows 的 safeDshHome。
-  const wslKey = targetHome && typeof parseWslHomeKey === 'function' ? parseWslHomeKey(targetHome) : null
-  const home = wslKey ? targetHome : targetHome ? safeDshHome(targetHome) : homeDir()
+  // WSL / SSH 的 home 是合成键，不能过 Windows 的 safeDshHome。
+  const remoteKey = (typeof parseWslHomeKey === 'function' ? parseWslHomeKey(targetHome) : null)
+    || (typeof parseSshHomeKey === 'function' ? parseSshHomeKey(targetHome) : null)
+  const home = remoteKey ? targetHome : targetHome ? safeDshHome(targetHome) : homeDir()
   const targets = !wantedVersion
     ? instanceList().filter((proc) => !targetHome || proc.home === home)
     : wantedProfile
@@ -7358,6 +7669,519 @@ function desktopPayload() {
   }
 }
 
+function sameConnectionTarget(left, right) {
+  if (!left || !right || left.kind !== right.kind) return false
+  return left.kind === 'wsl'
+    ? left.wslDistro === right.wslDistro && (left.wslUser || '') === (right.wslUser || '')
+    : left.host === right.host && left.port === right.port && left.username === right.username
+}
+
+/**
+ * 保存连接：没给 id 就新建；给了 id 就更新。密码/口令只在页面显式传新值时重新加密，
+ * 空字符串表示保持不变，clearPassword/clearPassphrase 才真正删掉。
+ */
+async function saveConnectionFromBody(body) {
+  const stored = await loadSettings()
+  const list = safeConnections(stored.connections)
+  const id = safeConnectionId(body.id)
+  const existing = id ? list.find((item) => item.id === id) || null : null
+  if (id && !existing) throw new Error('这个连接已不存在，请刷新后重试')
+  const kind = body.kind === 'ssh' ? 'ssh' : 'wsl'
+  if (existing && existing.kind !== kind) throw new Error('连接类型不能修改，请新建一个连接')
+  const name = safeConnectionName(body.name) || existing?.name || ''
+  let draft
+  if (kind === 'wsl') {
+    draft = {
+      id: existing?.id || randomBytes(8).toString('hex'),
+      name,
+      kind,
+      wslDistro: safeWslDistro(body.wslDistro),
+      wslUser: safeWslUser(body.wslUser),
+    }
+  } else {
+    draft = {
+      id: existing?.id || randomBytes(8).toString('hex'),
+      name,
+      kind,
+      host: safeSshHost(body.host),
+      port: safeSshPort(body.port),
+      username: safeSshUsername(body.username),
+      authType: body.authType,
+      privateKeyPath: safeSshKeyPath(body.privateKeyPath),
+      sshConfigAlias: body.sshConfigAlias,
+      hostKeyFingerprint: safeHostKeyFingerprint(body.hostKeyFingerprint ?? existing?.hostKeyFingerprint),
+      passwordSecret: body.clearPassword === true ? ''
+        : (typeof body.password === 'string' && body.password ? connectionSecrets.protect(body.password) : existing?.passwordSecret || ''),
+      passphraseSecret: body.clearPassphrase === true ? ''
+        : (typeof body.passphrase === 'string' && body.passphrase ? connectionSecrets.protect(body.passphrase) : existing?.passphraseSecret || ''),
+    }
+  }
+  const connection = safeConnection(draft)
+  if (!connection) throw new Error(kind === 'wsl' ? '请选择一个 WSL 发行版' : 'SSH 主机、用户名和私钥路径要填完整')
+  if (list.some((item) => item.id !== connection.id && sameConnectionTarget(item, connection))) {
+    throw new Error('已经有一个相同目标的连接')
+  }
+  const next = existing
+    ? list.map((item) => item.id === connection.id ? connection : item)
+    : [...list, connection]
+  await saveSettings({ connections: next })
+  CONNECTIONS = safeConnections(next)
+  // SSH 连接的主机/凭据/指纹变了：旧 core 和旧隧道不能继续用。
+  const sshChanged = connection.kind === 'ssh' && existing && ['host', 'port', 'username', 'authType', 'privateKeyPath', 'passwordSecret', 'passphraseSecret', 'hostKeyFingerprint']
+    .some((field) => (existing[field] || '') !== (connection[field] || ''))
+  if (sshChanged) await stopSshRemoteCore(connection.id)
+  await emitState()
+  return connection
+}
+
+async function removeConnectionById(id) {
+  const clean = safeConnectionId(id)
+  if (!clean) throw new Error('连接 id 不合法')
+  const stored = await loadSettings()
+  const list = safeConnections(stored.connections)
+  if (!list.some((item) => item.id === clean)) throw new Error('这个连接已不存在')
+  const used = safeLaunchPresets(stored.launchPresets).filter((item) => item.connectionId === clean)
+  if (used.length) throw new Error(`还有 ${used.length} 个启动项在用这个连接，先把它们改到别的连接或删掉`)
+  const live = liveInstanceList().filter((proc) => proc.connectionId === clean)
+  if (live.length) throw new Error('这个连接还有实例在跑，先停止再删除')
+  const ports = { ...safeSshPorts(stored.sshPorts) }
+  delete ports[clean]
+  await saveSettings({ connections: list.filter((item) => item.id !== clean), sshPorts: ports })
+  CONNECTIONS = safeConnections(list.filter((item) => item.id !== clean))
+  SSH_PORTS = ports
+  CONNECTION_TESTS.delete(clean)
+  CONNECTION_RUNTIME.delete(clean)
+  CONNECTION_PREPARES.delete(clean)
+  await stopSshRemoteCore(clean)
+  await emitState()
+}
+
+// ---- 连接准备：连接远端、识别设备、确认安装、启动 core ----
+const PREPARE_LOG_LIMIT = 120
+
+class PrepareCancelledError extends Error {
+  constructor() {
+    super('连接已取消')
+    this.name = 'PrepareCancelledError'
+  }
+}
+
+function connectionPrepareTarget(connection) {
+  if (connection.kind === 'wsl') {
+    return {
+      kind: 'wsl',
+      label: ['WSL', connection.wslDistro, connection.wslUser].filter(Boolean).join(' · '),
+      distro: connection.wslDistro,
+      ...(connection.wslUser ? { user: connection.wslUser } : {}),
+    }
+  }
+  return {
+    kind: 'ssh',
+    label: `${connection.username}@${connection.host}:${connection.port || 22}`,
+    host: connection.host,
+    port: connection.port || 22,
+    username: connection.username,
+  }
+}
+
+function newConnectionPrepare(connection) {
+  const target = connectionPrepareTarget(connection)
+  const channelTitle = connection.kind === 'wsl' ? '正在启动并连接发行版' : '连接远端主机'
+  return {
+    connectionId: connection.id,
+    requestId: `cp-${Date.now().toString(36)}-${randomBytes(3).toString('hex')}`,
+    kind: connection.kind,
+    name: connection.name,
+    target,
+    status: 'running',
+    steps: [
+      { id: 'channel', title: channelTitle, status: 'pending', detail: '', startedAt: 0, endedAt: 0, progress: null },
+      { id: 'identify', title: '识别设备', status: 'pending', detail: '', startedAt: 0, endedAt: 0, progress: null },
+      { id: 'deploy', title: '安装 dsh-x-core', status: 'pending', detail: '', startedAt: 0, endedAt: 0, progress: null },
+      { id: 'handshake', title: '启动并检查兼容性', status: 'pending', detail: '', startedAt: 0, endedAt: 0, progress: null },
+    ],
+    install: null,
+    logs: [],
+    error: '',
+    errorCode: '',
+    hostname: '',
+    osUser: '',
+    remoteHome: '',
+    cancelled: false,
+    confirmInstall: null,
+    startedAt: Date.now(),
+    endedAt: 0,
+  }
+}
+
+function publicPrepare(session) {
+  return {
+    connectionId: session.connectionId,
+    requestId: session.requestId,
+    kind: session.kind,
+    name: session.name,
+    target: session.target,
+    status: session.status,
+    steps: session.steps.map((step) => ({ ...step })),
+    install: session.install,
+    logs: session.logs.slice(-PREPARE_LOG_LIMIT),
+    error: session.error,
+    errorCode: session.errorCode,
+    hostname: session.hostname,
+    osUser: session.osUser,
+    remoteHome: session.remoteHome,
+    startedAt: session.startedAt,
+    endedAt: session.endedAt,
+  }
+}
+
+function publicConnectionRuntime() {
+  return Object.fromEntries([...CONNECTION_RUNTIME].map(([id, value]) => [id, {
+    status: value.status || 'offline',
+    hostname: value.hostname || '',
+    osUser: value.osUser || '',
+    remoteHome: value.remoteHome || '',
+    installPath: value.installPath || '',
+    version: value.version || '',
+    error: value.error || '',
+    at: value.at || 0,
+    lastOnlineAt: value.lastOnlineAt || 0,
+  }]))
+}
+
+function setConnectionRuntime(id, patch) {
+  const previous = CONNECTION_RUNTIME.get(id) || {}
+  const next = { ...previous, ...patch, at: Date.now() }
+  if (patch.status === 'online') next.lastOnlineAt = Date.now()
+  CONNECTION_RUNTIME.set(id, next)
+}
+
+function emitPrepare(session) {
+  emit('connection', publicPrepare(session))
+}
+
+function prepareStep(session, id, patch) {
+  const step = session.steps.find((item) => item.id === id)
+  if (!step) return
+  Object.assign(step, patch)
+  const now = Date.now()
+  if (patch.status === 'running' && !step.startedAt) step.startedAt = now
+  if (['done', 'error', 'waiting', 'cancelled'].includes(patch.status)) step.endedAt = now
+  emitPrepare(session)
+}
+
+function prepareLog(session, message, level = 'info') {
+  const text = String(message || '')
+    .replace(/([?&]token=)[^\s&]+/gu, '$1***')
+    .replace(/(password|passphrase)\s*[:=]\s*\S+/giu, '$1=***')
+    .slice(0, 2000)
+  if (!text) return
+  session.logs.push({ at: Date.now(), level, message: text })
+  if (session.logs.length > PREPARE_LOG_LIMIT * 2) session.logs.splice(0, session.logs.length - PREPARE_LOG_LIMIT)
+  emitPrepare(session)
+}
+
+function localCoreTarballBytes(version) {
+  const candidates = [
+    String(process.env.DSH_CORE_TARBALL || '').trim(),
+    join(DATA, `dsh-x-core-${version}.tgz`),
+    join(process.cwd(), 'release', `dsh-x-core-${version}.tgz`),
+    join(tmpdir(), `dsh-x-core-${version}.tgz`),
+  ].filter(Boolean)
+  for (const candidate of candidates) {
+    try {
+      if (existsSync(candidate)) {
+        const info = statSync(candidate)
+        if (info.isFile()) return info.size
+      }
+    } catch { /* 读不到大小不影响安装 */ }
+  }
+  return null
+}
+
+async function runConnectionPrepare(session, connection) {
+  try {
+    const proxy = resolveProxy()
+    const stored = loadSettingsSync()
+    let core = null
+    let identity = null
+    let backend = null
+
+    // 1. 建链
+    prepareStep(session, 'channel', { status: 'running', detail: `正在连接 ${session.target.label}` })
+    prepareLog(session, `正在连接 ${session.target.label}`)
+    if (connection.kind === 'wsl') {
+      core = getWslRemoteCore({
+        distro: connection.wslDistro,
+        user: connection.wslUser || '',
+        version: APP_VERSION,
+        packageSpec: String(process.env.DSH_CORE_TARBALL || '').trim() || undefined,
+        proxy,
+      })
+      backend = core.backend
+    } else {
+      core = getSshRemoteCore({
+        connection,
+        version: APP_VERSION,
+        secrets: connectionSecretsFor(connection),
+        source: stored.downloadSource || 'official',
+        cacheDir: DATA,
+      })
+      backend = core.backend
+    }
+    identity = await backend.resolveIdentity()
+    if (session.cancelled) throw new PrepareCancelledError()
+    if (connection.kind === 'ssh') {
+      await rememberSshHostKey(connection, backend.hostKeyFingerprint)
+    }
+    session.osUser = identity.user || ''
+    session.remoteHome = resolveRemoteHome('~/.dsh', identity.home)
+    const hostProbe = await backend.exec('hostname', { timeoutMs: 10000 }).catch(() => null)
+    session.hostname = String(hostProbe?.stdout || '').trim() || (connection.kind === 'wsl' ? connection.wslDistro : connection.host)
+    prepareStep(session, 'channel', {
+      status: 'done',
+      detail: ['已连接', session.hostname, session.osUser].filter(Boolean).join(' · '),
+    })
+    prepareLog(session, `已连接 ${session.hostname}${session.osUser ? `（${session.osUser}）` : ''}`)
+
+    // 2. 识别设备 / 已安装状态
+    prepareStep(session, 'identify', { status: 'running', detail: '读取远端设备和安装状态' })
+    const inspected = await core.inspectInstall()
+    if (session.cancelled) throw new PrepareCancelledError()
+    core._installed = Boolean(inspected.installed)
+    session.install = {
+      needed: !inspected.installed,
+      version: APP_VERSION,
+      path: inspected.root,
+      sizeBytes: localCoreTarballBytes(APP_VERSION),
+      targetLabel: connection.kind === 'wsl'
+        ? [session.target.label, session.osUser].filter(Boolean).join(' · ')
+        : session.target.label,
+    }
+    prepareStep(session, 'identify', {
+      status: 'done',
+      detail: [session.hostname, session.osUser, inspected.installed ? `已安装 ${APP_VERSION}` : '尚未安装']
+        .filter(Boolean).join(' · '),
+    })
+    prepareLog(session, inspected.installed
+      ? `远端已安装 dsh-x-core ${APP_VERSION}，跳过安装`
+      : `远端尚未安装 dsh-x-core ${APP_VERSION}`)
+
+    // 3. 安装（首次需要用户确认）
+    if (!inspected.installed) {
+      prepareStep(session, 'deploy', { status: 'waiting', detail: '等待确认安装…' })
+      session.status = 'awaiting-install'
+      emitPrepare(session)
+      prepareLog(session, '需要安装 dsh-x-core，等待用户确认')
+      const approved = await new Promise((resolve) => { session.confirmInstall = resolve })
+      session.confirmInstall = null
+      if (!approved || session.cancelled) throw new PrepareCancelledError()
+      session.status = 'running'
+      prepareStep(session, 'deploy', { status: 'running', detail: `正在安装 dsh-x-core ${APP_VERSION}` })
+      prepareLog(session, `开始安装 dsh-x-core ${APP_VERSION} 到 ${inspected.root}`)
+      await core.install({
+        onProgress: (progress) => {
+          const step = session.steps.find((item) => item.id === 'deploy')
+          if (!step) return
+          step.progress = progress
+          if (progress?.label) step.detail = progress.label
+          emitPrepare(session)
+        },
+        onLog: (line) => prepareLog(session, line),
+      })
+      core._installed = true
+      prepareStep(session, 'deploy', { status: 'done', detail: `dsh-x-core ${APP_VERSION} 安装完成`, progress: { percent: 100, label: '安装完成' } })
+      prepareLog(session, `dsh-x-core ${APP_VERSION} 安装完成`)
+    } else {
+      prepareStep(session, 'deploy', { status: 'done', detail: `已安装 dsh-x-core ${APP_VERSION}` })
+    }
+    if (session.cancelled) throw new PrepareCancelledError()
+
+    // 4. 启动并检查
+    prepareStep(session, 'handshake', { status: 'running', detail: '启动 dsh-x-core 并检查兼容性' })
+    prepareLog(session, '正在启动 dsh-x-core…')
+    await core.start(connection.kind === 'wsl' ? { proxy } : {})
+    if (session.cancelled) {
+      await core.stop().catch(() => {})
+      throw new PrepareCancelledError()
+    }
+    await core.json('/api/state', { timeoutMs: 15000 })
+    const targetHome = session.remoteHome
+    if (targetHome && core.appliedHome !== targetHome) {
+      await core.json('/api/settings', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ dshHome: targetHome }),
+      })
+      core.appliedHome = targetHome
+    }
+    prepareStep(session, 'handshake', { status: 'done', detail: `已就绪 · ${targetHome || '~/.dsh'}` })
+    prepareLog(session, 'dsh-x-core 已就绪，兼容性检查通过')
+
+    setConnectionRuntime(connection.id, {
+      status: 'online',
+      hostname: session.hostname,
+      osUser: session.osUser,
+      remoteHome: targetHome,
+      installPath: inspected.root,
+      version: APP_VERSION,
+      error: '',
+    })
+    CONNECTION_TESTS.set(connection.id, {
+      ok: true,
+      at: Date.now(),
+      detail: {
+        kind: connection.kind,
+        user: session.osUser,
+        host: session.hostname,
+        home: targetHome,
+      },
+    })
+    session.status = 'ready'
+    session.endedAt = Date.now()
+    emitPrepare(session)
+    await emitState()
+  } catch (error) {
+    if (error instanceof PrepareCancelledError || session.cancelled) {
+      session.status = 'cancelled'
+      session.endedAt = Date.now()
+      for (const step of session.steps) {
+        if (step.status === 'running' || step.status === 'waiting') {
+          step.status = 'cancelled'
+          step.endedAt = Date.now()
+        }
+      }
+      prepareLog(session, '连接已取消', 'warn')
+      if (!CONNECTION_RUNTIME.get(connection.id)?.status || CONNECTION_RUNTIME.get(connection.id)?.status !== 'online') {
+        setConnectionRuntime(connection.id, { status: 'offline' })
+      }
+      emitPrepare(session)
+      await emitState().catch(() => {})
+      return
+    }
+    const message = error instanceof Error ? error.message : String(error)
+    session.status = 'error'
+    session.error = message
+    session.errorCode = error?.reasonCode || ''
+    session.endedAt = Date.now()
+    const active = session.steps.find((step) => step.status === 'running' || step.status === 'waiting')
+    if (active) {
+      active.status = 'error'
+      active.detail = message
+      active.endedAt = Date.now()
+    }
+    prepareLog(session, message, 'error')
+    setConnectionRuntime(connection.id, { status: 'error', error: message })
+    emitPrepare(session)
+    await emitState().catch(() => {})
+  }
+}
+
+function startConnectionPrepare(connection) {
+  const existing = CONNECTION_PREPARES.get(connection.id)
+  if (existing && (existing.status === 'running' || existing.status === 'awaiting-install')) return existing
+  const cutoff = Date.now() - 15 * 60 * 1000
+  for (const [id, session] of CONNECTION_PREPARES) {
+    if (['ready', 'error', 'cancelled'].includes(session.status) && (session.endedAt || 0) < cutoff) CONNECTION_PREPARES.delete(id)
+  }
+  const session = newConnectionPrepare(connection)
+  CONNECTION_PREPARES.set(connection.id, session)
+  setConnectionRuntime(connection.id, { status: 'preparing', error: '' })
+  emitPrepare(session)
+  void emitState().catch(() => {})
+  void runConnectionPrepare(session, connection)
+  return session
+}
+
+function confirmConnectionPrepare(id) {
+  const session = CONNECTION_PREPARES.get(id)
+  if (!session || session.status !== 'awaiting-install' || !session.confirmInstall) {
+    throw new Error('这个连接现在不在等待安装确认')
+  }
+  const confirm = session.confirmInstall
+  session.confirmInstall = null
+  session.status = 'running'
+  emitPrepare(session)
+  confirm(true)
+  return session
+}
+
+function cancelConnectionPrepare(id) {
+  const session = CONNECTION_PREPARES.get(id)
+  if (!session) throw new Error('这个连接没有正在进行的准备流程')
+  if (session.status === 'ready' || session.status === 'error' || session.status === 'cancelled') return session
+  session.cancelled = true
+  session.status = 'cancelled'
+  session.endedAt = Date.now()
+  for (const step of session.steps) {
+    if (step.status === 'running' || step.status === 'waiting') {
+      step.status = 'cancelled'
+      step.endedAt = Date.now()
+    }
+  }
+  const confirm = session.confirmInstall
+  session.confirmInstall = null
+  confirm?.(false)
+  prepareLog(session, '连接已取消', 'warn')
+  emitPrepare(session)
+  return session
+}
+
+async function testConnectionConfig(connection, secrets, { remember = false } = {}) {
+  if (connection.kind === 'wsl') {
+    const listed = await listWslDistros({ force: true })
+    if (!listed.available) throw remoteError(REMOTE_REASON.wslUnavailable, listed.error || '当前没有可用的 WSL 环境')
+    const picked = pickDistro(connection.wslDistro, listed.distros)
+    if (picked.missing) throw remoteError(REMOTE_REASON.distroMissing, `未找到名为 ${connection.wslDistro} 的 WSL 发行版`)
+    const backend = createWslBackend({ distro: picked.name || connection.wslDistro, user: connection.wslUser || '' })
+    const identity = await backend.resolveIdentity()
+    return { kind: 'wsl', distro: picked.name || connection.wslDistro, user: identity.user, home: identity.home }
+  }
+  const detail = await testSshConnection(connection, secrets)
+  if (remember && connection.id) await rememberSshHostKey(connection, detail.hostKeyFingerprint)
+  return detail
+}
+
+/** 未保存的表单也能测试：合并已有连接的字段和密码，只有显式输入的新密码才覆盖。 */
+function connectionDraftFromBody(body) {
+  const existing = body.id ? CONNECTIONS.find((item) => item.id === safeConnectionId(body.id)) || null : null
+  const kind = body.kind === 'ssh' ? 'ssh' : body.kind === 'wsl' ? 'wsl' : existing?.kind || ''
+  if (kind === 'wsl') {
+    const distro = safeWslDistro(body.wslDistro ?? existing?.wslDistro) || WSL_SETTINGS.defaultDistro
+    if (!distro) throw new Error('请选择一个 WSL 发行版')
+    const user = safeWslUser(body.wslUser ?? existing?.wslUser)
+    return { id: existing?.id || '', kind: 'wsl', wslDistro: distro, wslUser: user }
+  }
+  if (kind !== 'ssh') throw new Error('请选择连接类型')
+  const base = existing || {}
+  const host = safeSshHost(body.host ?? base.host)
+  const port = safeSshPort(body.port ?? base.port)
+  const username = safeSshUsername(body.username ?? base.username)
+  const authType = SSH_AUTH_TYPES.includes(body.authType) ? body.authType : base.authType || 'password'
+  const privateKeyPath = safeSshKeyPath(body.privateKeyPath ?? base.privateKeyPath)
+  if (!host || !username) throw new Error('SSH 主机和用户名要填完整')
+  if (authType === 'key' && !privateKeyPath) throw new Error('私钥路径不能为空')
+  return {
+    id: existing?.id || '', kind: 'ssh', host, port, username, authType,
+    ...(privateKeyPath ? { privateKeyPath } : {}),
+    hostKeyFingerprint: safeHostKeyFingerprint(body.hostKeyFingerprint ?? base.hostKeyFingerprint),
+  }
+}
+
+function connectionSecretsFromBody(body, connection) {
+  const existing = connection?.id ? CONNECTIONS.find((item) => item.id === connection.id) || null : null
+  const stored = existing ? connectionSecretsFor(existing) : { password: '', passphrase: '' }
+  return {
+    password: typeof body.password === 'string' && body.password ? body.password : stored.password,
+    passphrase: typeof body.passphrase === 'string' && body.passphrase ? body.passphrase : stored.passphrase,
+  }
+}
+
+async function markConnectionTest(id, result) {
+  CONNECTION_TESTS.set(id, result)
+  await emitState()
+}
+
 async function handleApi(req, res, url) {
   // 身份标记：端口被占用时我们要能分辨那是自己的另一个实例还是别人的程序
   if (url.pathname === '/api/ping') {
@@ -7459,11 +8283,199 @@ async function handleApi(req, res, url) {
     send(res, 200, await publicSettings())
     return
   }
+  if (req.method === 'GET' && url.pathname === '/api/connections') {
+    send(res, 200, { connections: publicConnections(), tests: Object.fromEntries(CONNECTION_TESTS) })
+    return
+  }
+  if (req.method === 'GET' && url.pathname === '/api/connections/ssh-config') {
+    send(res, 200, listSshConfigAliases())
+    return
+  }
+  if (req.method === 'GET' && url.pathname === '/api/connections/prepare') {
+    const id = safeConnectionId(url.searchParams.get('id') || '')
+    const session = id ? CONNECTION_PREPARES.get(id) : null
+    send(res, 200, { prepare: session ? publicPrepare(session) : null })
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/connections/prepare') {
+    try {
+      const payload = await readJson(req)
+      const connection = remoteConnectionById(payload.id)
+      const session = startConnectionPrepare(connection)
+      send(res, 202, { ok: true, prepare: publicPrepare(session) })
+    } catch (error) {
+      send(res, 400, { error: error instanceof Error ? error.message : String(error) })
+    }
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/connections/prepare/confirm') {
+    try {
+      const payload = await readJson(req)
+      const session = confirmConnectionPrepare(safeConnectionId(payload.id || ''))
+      send(res, 200, { ok: true, prepare: publicPrepare(session) })
+    } catch (error) {
+      send(res, 400, { error: error instanceof Error ? error.message : String(error) })
+    }
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/connections/prepare/cancel') {
+    try {
+      const payload = await readJson(req)
+      const session = cancelConnectionPrepare(safeConnectionId(payload.id || ''))
+      send(res, 200, { ok: true, prepare: publicPrepare(session) })
+    } catch (error) {
+      send(res, 400, { error: error instanceof Error ? error.message : String(error) })
+    }
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/connections/prepare/clear') {
+    try {
+      const payload = await readJson(req)
+      const id = safeConnectionId(payload.id || '')
+      const removable = (session) => ['ready', 'error', 'cancelled'].includes(session.status)
+      if (id) {
+        const session = CONNECTION_PREPARES.get(id)
+        if (session && removable(session)) {
+          CONNECTION_PREPARES.delete(id)
+          if (session.status === 'error') setConnectionRuntime(id, { status: 'offline', error: '' })
+        }
+      } else {
+        for (const [key, session] of CONNECTION_PREPARES) {
+          if (!removable(session)) continue
+          CONNECTION_PREPARES.delete(key)
+          if (session.status === 'error') setConnectionRuntime(key, { status: 'offline', error: '' })
+        }
+      }
+      await emitState()
+      send(res, 200, { ok: true })
+    } catch (error) {
+      send(res, 400, { error: error instanceof Error ? error.message : String(error) })
+    }
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/connections/remote') {
+    try {
+      const payload = await readJson(req)
+      const connection = remoteConnectionById(payload.id)
+      const action = payload.action === 'restart' ? 'restart' : payload.action === 'disconnect' ? 'disconnect' : 'stop'
+      const stop = async () => {
+        if (connection.kind === 'wsl') await stopWslRemoteCore({ distro: connection.wslDistro, user: connection.wslUser || '', version: APP_VERSION })
+        else await stopSshRemoteCore(connection.id)
+      }
+      // 断开只撤掉本机这侧的在线状态，远端 core 和任务继续跑；停止/重启才真的动远端 core。
+      if (action !== 'disconnect') await stop()
+      setConnectionRuntime(connection.id, { status: action === 'restart' ? 'preparing' : 'offline', error: '' })
+      if (action === 'restart') {
+        if (connection.kind === 'wsl') await remoteCoreForTarget({ distro: connection.wslDistro, user: connection.wslUser || '', home: '~/.dsh' })
+        else await remoteCoreForSsh(connection, '~/.dsh')
+      }
+      await emitState()
+      send(res, 200, { ok: true })
+    } catch (error) {
+      send(res, 400, { error: error instanceof Error ? error.message : String(error) })
+    }
+    return
+  }
+  if (req.method === 'GET' && url.pathname === '/api/remote/inspect') {
+    try {
+      const connection = remoteConnectionById(url.searchParams.get('connectionId'))
+      const home = safeWslPath(url.searchParams.get('home') || '', '远端用户目录') || '~/.dsh'
+      const state = connection.kind === 'wsl'
+        ? (await remoteCoreForTarget({ distro: connection.wslDistro, user: connection.wslUser || '', home })).core.json('/api/state')
+        : (await remoteCoreForSsh(connection, home)).core.json('/api/state')
+      const resolved = await state
+      const installed = (Array.isArray(resolved.installed) ? resolved.installed : []).filter(Boolean)
+        .sort((a, b) => cmpVer(parseVer(b) ?? parseVer('0'), parseVer(a) ?? parseVer('0')))
+      send(res, 200, {
+        ok: true,
+        connectionId: connection.id,
+        kind: connection.kind,
+        home: resolved.dshHome || home,
+        version: installed[0] || '',
+        installed,
+        profiles: Array.isArray(resolved.profiles) ? resolved.profiles : [],
+        webProfiles: Array.isArray(resolved.webProfiles) ? resolved.webProfiles : [],
+      })
+    } catch (error) {
+      send(res, 400, { error: error instanceof Error ? error.message : String(error), ...remoteErrorFields(error) })
+    }
+    return
+  }
+  if (req.method === 'GET' && url.pathname === '/api/remote/profile') {
+    try {
+      const connection = remoteConnectionById(url.searchParams.get('connectionId'))
+      const home = safeWslPath(url.searchParams.get('home') || '', '远端用户目录') || '~/.dsh'
+      const profile = safeProfile(url.searchParams.get('profile') || '')
+      const result = connection.kind === 'wsl'
+        ? await readWslProfile(connection.wslDistro, home, profile, { user: connection.wslUser || '' })
+        : await withRemoteBackend(connection, (backend) => readRemoteProfile(backend, home, profile))
+      send(res, 200, result)
+    } catch (error) {
+      send(res, 400, { error: error instanceof Error ? error.message : String(error), ...remoteErrorFields(error) })
+    }
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/remote/profile/remove') {
+    try {
+      const body = await readJson(req)
+      const connection = remoteConnectionById(body.connectionId)
+      const home = safeWslPath(body.home || '', '远端用户目录') || '~/.dsh'
+      const profile = safeProfile(body.profile || '')
+      const result = connection.kind === 'wsl'
+        ? await removeWslProfile(connection.wslDistro, home, profile, { user: connection.wslUser || '' })
+        : await withRemoteBackend(connection, (backend) => removeRemoteProfile(backend, home, profile))
+      // 删完让探测缓存失效，下一次列表能看到结果。
+      invalidateWslCache()
+      send(res, 200, result)
+    } catch (error) {
+      send(res, 400, { error: error instanceof Error ? error.message : String(error), ...remoteErrorFields(error) })
+    }
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/connections') {
+    try {
+      const body = await readJson(req)
+      const connection = await saveConnectionFromBody(body)
+      send(res, 200, { ok: true, connection: redactedConnection(connection) })
+    } catch (error) {
+      send(res, 400, { error: error instanceof Error ? error.message : String(error) })
+    }
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/connections/remove') {
+    try {
+      const body = await readJson(req)
+      await removeConnectionById(body.id)
+      send(res, 200, { ok: true })
+    } catch (error) {
+      send(res, 400, { error: error instanceof Error ? error.message : String(error) })
+    }
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/connections/test') {
+    let id = ''
+    try {
+      const body = await readJson(req)
+      id = safeConnectionId(body.id)
+      const connection = body.kind ? connectionDraftFromBody(body) : CONNECTIONS.find((item) => item.id === id) || null
+      if (!connection) throw new Error('这个连接已不存在')
+      const detail = await testConnectionConfig(connection, connectionSecretsFromBody(body, connection), { remember: Boolean(connection.id) })
+      if (connection.id) await markConnectionTest(connection.id, { status: 'ok', at: Date.now(), detail })
+      send(res, 200, { ok: true, detail })
+    } catch (error) {
+      if (id) await markConnectionTest(id, { status: 'error', at: Date.now(), error: error instanceof Error ? error.message : String(error) })
+      send(res, 400, { error: error instanceof Error ? error.message : String(error), ...remoteErrorFields(error) })
+    }
+    return
+  }
   if (req.method === 'GET' && url.pathname === '/api/wsl') {
     // 发行版列表 + 指定发行版的探测结果（dsh 版本、profile、默认 HOME）。
     try {
       const refresh = url.searchParams.get('refresh') === '1'
       const listed = await listWslDistros({ force: refresh })
+      const hidden = safeWslHiddenDistros(loadSettingsSync().wslHiddenDistros)
+      const showAll = url.searchParams.get('all') === '1'
+      const distros = listed.distros.filter((item) => showAll || !hidden.includes(item.name))
       const distro = String(url.searchParams.get('distro') || '').trim()
       const user = safeWslUser(url.searchParams.get('user') || '')
       let inspect = null
@@ -7499,7 +8511,7 @@ async function handleApi(req, res, url) {
           } catch { /* 远端 core 起不来时保留原来的 dsh-missing 说明 */ }
         }
       }
-      send(res, 200, { available: listed.available, distros: listed.distros, error: listed.error || '', reasonCode: listed.reasonCode || '', retryable: listed.retryable ?? null, defaults: safeWslSettings(WSL_SETTINGS), inspect })
+      send(res, 200, { available: listed.available, distros, hidden, error: listed.error || '', reasonCode: listed.reasonCode || '', retryable: listed.retryable ?? null, defaults: safeWslSettings(WSL_SETTINGS), inspect })
     } catch (error) {
       send(res, 400, { error: error instanceof Error ? error.message : String(error) })
     }
@@ -7705,6 +8717,26 @@ async function handleApi(req, res, url) {
   }
 
   const body = req.method === 'POST' ? await readJson(req) : {}
+  if (req.method === 'POST' && url.pathname === '/api/wsl/hide') {
+    // 从选择窗里移除一个 WSL 发行版：只记忽略名单，不碰发行版和文件。
+    try {
+      const distro = safeWslDistro(body.distro)
+      if (!distro) throw new Error('先选择一个 WSL 发行版')
+      const hide = body.hidden !== false
+      const stored = loadSettingsSync()
+      if (hide && safeLaunchPresets(stored.launchPresets).some((item) => item.backend === 'wsl'
+        && (item.wslDistro || WSL_SETTINGS.defaultDistro) === distro)) {
+        throw new Error('这个 WSL 发行版还有启动项在用，先改启动项')
+      }
+      const current = safeWslHiddenDistros(stored.wslHiddenDistros)
+      const next = hide ? [...new Set([...current, distro])] : current.filter((name) => name !== distro)
+      await saveSettings({ wslHiddenDistros: next })
+      send(res, 200, { hidden: next })
+    } catch (error) {
+      send(res, 400, { error: error instanceof Error ? error.message : String(error) })
+    }
+    return
+  }
   if (req.method === 'GET' && url.pathname === '/api/wsl/profile') {
     // 目录选择窗右栏：WSL 侧没有 /api/packs，读 Profile 的 package.json 回来看装了什么。
     try {
@@ -9071,9 +10103,7 @@ export async function startServer() {
         if (launchId) {
           const entry = safeLaunchPresets(loadSettingsSync().launchPresets).find((item) => item.id === launchId)
           if (!entry) { send(res, 400, { error: '启动项已不存在，请刷新后重试' }); return }
-          const scope = entry.backend === 'wsl'
-            ? { backend: 'wsl', home: wslHomeKey(entry.wslDistro || WSL_SETTINGS.defaultDistro, entry.wslHome || WSL_SETTINGS.defaultHome), wslDistro: entry.wslDistro || WSL_SETTINGS.defaultDistro, wslHome: entry.wslHome || WSL_SETTINGS.defaultHome, wslWorkdir: entry.wslWorkdir || '', wslUser: entry.wslUser || '' }
-            : { home: entry.dshHome || defaultHome() }
+          const scope = presetScope(entry)
           await launchScope.run({ ...scope, launchId }, () => handleApi(req, res, url))
         } else if (req.headers['x-dsh-home']) {
           // 设置页按目录管理 Profile，不依赖可能被删除的启动项；中文路径用 URI 编码传输。
@@ -9081,7 +10111,25 @@ export async function startServer() {
           try { home = decodeURIComponent(req.headers['x-dsh-home']) } catch { home = '' }
           const wslKey = parseWslHomeKey(home)
           if (wslKey) {
-            await launchScope.run({ backend: 'wsl', home, wslDistro: wslKey.distro, wslHome: wslKey.home }, () => handleApi(req, res, url))
+            // 页面按「目录」作用域操作 Profile / 兼容性时也会带上启动项里的 WSL 用户。
+            let wslUser = ''
+            try { wslUser = safeWslUser(decodeURIComponent(req.headers['x-dsh-wsl-user'] || '')) } catch { wslUser = '' }
+            const connectionId = safeConnectionId(req.headers['x-dsh-connection-id'])
+            const connection = connectionId ? CONNECTIONS.find((item) => item.id === connectionId) || null : null
+            await launchScope.run({
+              backend: 'wsl', home,
+              wslDistro: connection?.kind === 'wsl' ? connection.wslDistro : wslKey.distro,
+              wslHome: wslKey.home,
+              wslUser: connection?.kind === 'wsl' ? connection.wslUser || '' : wslUser,
+              ...(connection?.kind === 'wsl' ? { connectionId: connection.id } : {}),
+            }, () => handleApi(req, res, url))
+            return
+          }
+          const sshKey = parseSshHomeKey(home)
+          if (sshKey) {
+            const connection = CONNECTIONS.find((item) => item.id === sshKey.connectionId)
+            if (!connection || connection.kind !== 'ssh') { send(res, 400, { error: 'SSH 连接已不存在，请刷新后重新选择' }); return }
+            await launchScope.run({ backend: 'ssh', home, connectionId: connection.id, remoteHome: sshKey.home }, () => handleApi(req, res, url))
             return
           }
           try { home = safeDshHome(home) } catch (error) {
@@ -9221,6 +10269,7 @@ export async function stopAll() {
   }))
   instances.clear()
   if (typeof stopAllRemoteCores === 'function') await stopAllRemoteCores().catch(() => {})
+  if (typeof stopAllSshRemoteCores === 'function') await stopAllSshRemoteCores().catch(() => {})
   logWriter.flush()
   flushLogEvents()
   for (const res of clients) {

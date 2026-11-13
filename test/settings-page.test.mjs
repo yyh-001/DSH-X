@@ -16,11 +16,11 @@ const inlineScripts = () => {
 }
 
 test('设置页有版本目录入口，用整行的设置项样式，旁边是目录选择按钮', () => {
-  // 版本目录是长路径，用 .set-row.stacked 占一整行，输入框铺满并带「浏览…」按钮；profile / 端口仍是窄行
+  // 版本目录是长路径，用 .set-row.stacked 占一整行，输入框铺满并带文件夹图标按钮；profile / 端口仍是窄行
   // 标签上带着 data-i18n（静态文案走的是 t() 那条线），所以只认标签文字，不管属性
   assert.match(
     html,
-    /<div class="set-row stacked">[\s\S]{0,600}?<input id="dataDir" type="text" \/>[\s\S]{0,200}?<button class="ghost" id="pickDir"/,
+    /<div class="set-row stacked">[\s\S]{0,600}?<input id="dataDir" type="text" \/>[\s\S]{0,200}?<button class="ghost browse-btn" id="pickDir"/,
     '版本目录单独占一行（.set-row.stacked），旁边有目录选择按钮',
   )
   assert.match(html, /post\('\/api\/pick-dir'/, '浏览按钮走 /api/pick-dir')

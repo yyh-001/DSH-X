@@ -1,0 +1,87 @@
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import test from 'node:test'
+
+const page = readFileSync(new URL('../src/public/index.html', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+const css = readFileSync(new URL('../src/public/launcher.css', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+
+test('连接远端：步骤、安装确认、日志和后台/取消都在一个弹窗里', () => {
+  assert.match(page, /id="connectionProgressDialog"/)
+  assert.match(page, /id="connectionProgressSteps"/)
+  assert.match(page, /id="connectionProgressLogToggle"/)
+  assert.match(page, /id="connectionProgressLogLines"/)
+  assert.match(page, /id="connectionProgressBackground"[^>]*data-i18n="在后台继续"/)
+  assert.match(page, /id="connectionProgressCancel"[^>]*data-i18n="取消连接"/)
+  assert.match(page, /function renderConnectionProgress\(\)/)
+  assert.match(page, /data-prepare-confirm/)
+  assert.match(page, /data-prepare-cancel/)
+  assert.match(page, /需要安装 dsh-x-core/)
+  assert.match(page, /安装包占用空间/)
+  assert.match(page, /function startConnectionPrepare\(connectionId\)/)
+  assert.match(page, /post\('\/api\/connections\/prepare'/)
+  assert.match(page, /post\('\/api\/connections\/prepare\/confirm'/)
+  assert.match(page, /post\('\/api\/connections\/prepare\/cancel'/)
+  assert.match(css, /\.connection-progress-step\[data-status="running"\]/)
+  assert.match(css, /\.connection-progress-bar\.is-indeterminate/)
+  assert.match(css, /\.connection-install-confirm/)
+})
+
+test('连接成功弹出「本地离线，任务照常运行」介绍', () => {
+  assert.match(page, /id="remoteReadyDialog"/)
+  assert.match(page, /id="remoteReadyOk"[^>]*data-i18n="知道了"/)
+  assert.match(page, /data-i18n="本地离线，任务照常运行"/)
+  assert.match(page, /data-i18n="关闭 DSH-X 或休眠本机，远程任务继续运行。"/)
+  assert.match(page, /function openRemoteReadyDialog\(\)/)
+  assert.match(css, /\.ask-card\.remote-ready-card \{ display: grid;/)
+})
+
+test('环境栏右上角是创建项目，底部不再放新建连接', () => {
+  const head = page.slice(page.indexOf('id="profilePickHomes"') - 900, page.indexOf('id="profilePickHomes"'))
+  assert.match(head, /id="pickerCreateProject"/, '创建项目在环境栏头部')
+  assert.match(head, /class="ghost icon-btn profile-pick-tool" id="pickerCreateProject"/, '创建项目是环境栏右上角的图标按钮')
+  assert.doesNotMatch(page, /id="pickerNewConnection"/)
+})
+
+test('设备下拉在握手后显示机器名·用户、远端路径和在线绿点', () => {
+  assert.match(page, /id="projectDeviceTrigger"/)
+  assert.match(page, /id="projectDevicePanel"/)
+  assert.match(page, /id="projectDeviceStatus"/)
+  assert.match(page, /projectDeviceRuntime\(connection\)/)
+  assert.match(page, /runtime\.hostname/)
+  assert.match(page, /runtime\.osUser/)
+  assert.match(page, /projectDevicePath\(connection\)/)
+  assert.match(page, /connectionRuntime\[connection\.id\]\?\.status !== 'online'/)
+  assert.match(css, /\.project-device-dot\.is-online/)
+  assert.match(css, /\.project-device-option-text small/)
+})
+
+test('环境行的铅笔打开项目编辑，不再直接改连接', () => {
+  assert.match(page, /data-project-edit="\$\{escapeHtml\(row\.connection\.id\)\}"/)
+  assert.doesNotMatch(page, /data-connection-edit="\$\{escapeHtml\(row\.connection\.id\)\}"/)
+  assert.match(page, /function openProjectDialog\(project = null, options = \{\}\)/)
+  assert.match(page, /editingProject = project \|\| null/)
+  assert.match(page, /projectDialogTitleEl\.textContent = t\(title\)/)
+  assert.match(page, /openProjectDialog\(project, \{ connectionId: connection\.id \}\)/)
+})
+
+test('设置里有独立的远程页：列表、搜索、新建和未完成连接', () => {
+  assert.match(page, /data-pane="remote"/)
+  assert.match(page, /id="pane-remote"/)
+  assert.match(page, /id="remoteDeviceList"/)
+  assert.match(page, /id="remoteDeviceSearch"/)
+  assert.match(page, /id="remoteDeviceAdd"/)
+  assert.match(page, /id="remoteDeviceIncomplete"/)
+  assert.match(page, /function paintRemoteSettings\(\)/)
+  assert.match(page, /function openRemoteSettingsPage\(\)/)
+  assert.match(page, /data-remote-action="restart"/)
+  assert.match(page, /data-remote-copy-id=/)
+  assert.match(page, /data-remote-connect=/)
+  assert.match(page, /最近在线 \{time\}/, '离线设备显示最近在线时间')
+  assert.match(css, /\.remote-device-connect/)
+  assert.match(page, /data-remote-remove="\$\{escapeHtml\(connection\.id\)\}"/)
+  assert.match(page, /MANAGE_CONNECTIONS/)
+  assert.match(page, /管理连接…/)
+  assert.match(css, /\.remote-device-card/)
+  assert.match(css, /\.remote-device-chip\.is-online/)
+  assert.doesNotMatch(page, /id="connectionsManagerDialog"/, '独立弹窗已被设置页取代')
+})

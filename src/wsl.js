@@ -56,6 +56,13 @@ const WSL_EXE = (() => {
 })()
 const HELPER_DISTRO_RE = /^(?:docker-desktop(?:-data)?|rancher-desktop(?:-data)?|podman-machine-.*|wslenv)$/i
 const DEFAULT_HOME = '~/.dsh'
+/** dsh --version 的第一行必须长这样；不是版本号（例如 Windows shim 的 exec error）就当没装。 */
+const DSH_VERSION_RE = /^[0-9][0-9A-Za-z._+-]*$/
+/** WSL 会把 Windows PATH 带进来；远端 core/探测只认 Linux 里的 dsh，先滤掉 /mnt。 */
+const LINUX_PATH_FILTER = [
+  'PATH=$(printf "%s" "$PATH" | tr ":" "\\n" | grep -v "^/mnt/" | paste -sd: -)',
+  'export PATH',
+].join('\n')
 /** wsl.exe 自己会在 stderr 写一条「localhost 代理没镜像到 WSL」的警告；它不是执行失败的原因。 */
 const WSL_PROXY_WARNING_RE = /localhost.*代理|localhost proxy/i
 
@@ -569,6 +576,7 @@ export async function inspectWslDistro(distro, home, options = {}) {
   info.user = identity.user
   info.home = identity.home
   const command = [
+    LINUX_PATH_FILTER,
     'dsh_cmd=' + shellQuote(wantedCommand),
     'home=' + shellQuote(wantedHome),
     'case "$home" in',
@@ -603,6 +611,13 @@ export async function inspectWslDistro(distro, home, options = {}) {
     else if (inProfiles && line.trim()) info.profiles.push(line.trim())
   }
   info.raw = decodeWslOutput(result.stdout).slice(0, 4000)
+  // --version 的输出必须是版本号；Windows PATH 里的 dsh shim 会输出 exec error，
+  // 不能把它当成一个「已安装的 dsh」。
+  if (info.version && !DSH_VERSION_RE.test(info.version)) {
+    info.version = ''
+    info.dshPath = ''
+    info.missing = true
+  }
   if (!result.ok) {
     info.error = wslFailureMessage(result)
     info.reasonCode = wslReasonFromResult(result)

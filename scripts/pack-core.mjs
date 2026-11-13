@@ -46,7 +46,8 @@ export async function buildCorePackage({ appDir = DEFAULT_APP, version, outDir =
       if (!existsSync(shim) || (statSync(shim).mode & 0o111) === 0) throw new Error(`核心层的 POSIX 包装不可执行：${shim}`)
     }
   }
-  const pkgVersion = String(version || JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version)
+  const rootPkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
+  const pkgVersion = String(version || rootPkg.version)
   const electron = String(electronVersion || JSON.parse(readFileSync(join(ROOT, 'node_modules', 'electron', 'package.json'), 'utf8')).version)
   const packageName = String(name || corePackageName())
   const staging = join(outDir, `.core-pack-${process.pid}`)
@@ -66,6 +67,9 @@ export async function buildCorePackage({ appDir = DEFAULT_APP, version, outDir =
     bin: { 'dsh-x-core': 'start.js' },
     engines: { node: '>=22.18.0' },
     files: ['**/*'],
+    // SSH transport 的依赖必须随核心包走：npm pack 默认不带 node_modules。
+    dependencies: rootPkg.dependencies || {},
+    bundleDependencies: ['ssh2'],
     // 核心按哪个 Electron 版本构建；外壳发现不一致就让用户更新外壳
     dshX: { electron },
   }, null, 2)}\n`)

@@ -538,7 +538,7 @@ test('「版本类型」标签用 for 指着开关，英文是 Version type', ()
   assert.equal(pageTranslator('en')('版本类型'), 'Version type', '英文界面叫 Version type')
 })
 
-test('开关和版本下拉在同一行：共同的行容器里没有目录字段，两者都在目录字段之前', () => {
+test('开关和版本下拉在同一行：共同的行容器里没有目录字段；目录字段排在版本之前', () => {
   const { dialog, control, picker, trigger, home, label, row } = dialogParts()
   assert.ok(containsNode(picker, trigger), '版本下拉的触发按钮在 #versionPicker 里')
   // 「同一行」的结构含义：两者最近的共同容器只装这一行。旧版开关独占一行时，两者的共同容器是整张表单，里面也有目录字段。
@@ -546,8 +546,9 @@ test('开关和版本下拉在同一行：共同的行容器里没有目录字�
   assert.ok(!containsNode(row, home), '开关与版本下拉的共同行容器里不能还装着 dsh 用户目录字段')
   assert.ok(label && containsNode(row, label), '「版本类型」标签跟开关在同一行')
   const order = [...walk(dialog)]
-  assert.ok(order.indexOf(picker) < order.indexOf(home), '版本下拉在目录字段之前')
-  assert.ok(order.indexOf(control) < order.indexOf(home), '开关在目录字段之前')
+  // 先选启动环境（目录 / WSL），再选版本。
+  assert.ok(order.indexOf(home) < order.indexOf(picker), '目录字段在版本下拉之前')
+  assert.ok(order.indexOf(home) < order.indexOf(control), '目录字段在开关之前')
 })
 
 test('这一行的标记里最多只有一个档名是可见文字（不再在开关下面排三个刻度）', () => {
