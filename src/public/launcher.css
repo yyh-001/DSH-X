@@ -774,6 +774,11 @@ html.reduce-motion .launch-enhance-tip { transition: none; }
 .launch-guide { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .launch-guide[hidden] { display: none; }
 .launch-guide-dir[hidden] { display: none; }
+/* 新建 Profile 的用户目录列表：本机目录 + 连接行，点一行就定下建到哪。 */
+.launch-guide-dirs-field { gap: 6px; }
+.launch-guide-dirs-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.launch-guide-dirs-title { font-size: 12.5px; color: var(--muted); }
+.launch-guide-dirs { min-height: 120px; max-height: 240px; }
 /* 目标目录下拉也是 createUiSelect 包出来的，而 .ui-select 默认只有 148px 宽（给设置页那种小行用），
    放在这里会缩成一小截；让它跟下面的输入框一样占满。 */
 .launch-guide .ui-select { width: 100%; }
@@ -1848,6 +1853,8 @@ html.reduce-motion #launchLogDialog .launch-log-card[data-log-panel][data-dir]:n
 .connection-import-search svg { flex: none; width: 14px; height: 14px; }
 .connection-import-search input { flex: 1 1 auto; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: 12.5px; }
 .connection-import-panel .connection-import-search input { height: 100%; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+#connectionSshImportSearch:focus, #connectionSshImportSearch:focus-visible,
+#remoteDeviceSearch:focus, #remoteDeviceSearch:focus-visible { outline: none; box-shadow: none; }
 .connection-import-search input::placeholder { color: var(--muted); }
 .connection-import-list { display: grid; align-content: start; gap: 2px; min-height: 0; padding: 4px 0 2px; overflow-y: auto; scrollbar-width: thin; }
 .connection-import-option { display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 8px; border: 0; border-radius: 8px; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
@@ -1924,7 +1931,6 @@ html.reduce-motion .connection-import-caret { transition: none; }
 .remote-device-card { overflow: visible; border: 1px solid var(--line); border-radius: 11px; background: var(--card); }
 .remote-device-row { display: flex; align-items: center; gap: 4px; }
 .remote-device-hit { display: flex; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0; padding: 10px 12px; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
-.remote-device-hit:hover { background: var(--accent-soft); }
 .remote-device-icon { display: inline-grid; place-items: center; flex: 0 0 30px; width: 30px; height: 30px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); }
 .remote-device-icon svg { width: 16px; height: 16px; }
 .remote-device-identity { display: flex; align-items: baseline; gap: 9px; min-width: 0; flex: 1 1 auto; }
@@ -1951,7 +1957,8 @@ html[data-color-scheme="dark"] .remote-device-chip.is-error { color: #ff858c; bo
 .remote-device-menu > summary { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 7px; color: var(--muted); font-size: 16px; line-height: 1; cursor: pointer; list-style: none; }
 .remote-device-menu > summary::-webkit-details-marker { display: none; }
 .remote-device-menu > summary:hover { background: var(--accent-soft); color: var(--text); }
-.remote-device-menu-panel { position: fixed; z-index: 80; top: 0; left: 0; display: grid; min-width: 260px; max-width: 320px; max-height: min(420px, calc(100dvh - 24px)); overflow-y: auto; padding: 5px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); box-shadow: 0 10px 26px rgba(0, 0, 0, .26); scrollbar-width: thin; }
+.remote-device-menu-panel { position: fixed; z-index: 80; top: 0; left: 0; display: grid; min-width: 260px; max-width: 320px; max-height: min(420px, calc(100dvh - 24px)); overflow-y: auto; padding: 5px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); box-shadow: 0 10px 26px rgba(0, 0, 0, .26); scrollbar-width: thin; visibility: hidden; opacity: 0; }
+.remote-device-menu-panel.is-positioned { visibility: visible; opacity: 1; }
 .remote-device-menu-panel button { display: flex; align-items: flex-start; gap: 8px; padding: 8px 9px; border: 0; border-radius: 7px; background: transparent; color: var(--text); font: inherit; font-size: 12px; line-height: 1.4; text-align: left; cursor: pointer; }
 .remote-device-menu-panel button:hover { background: var(--accent-soft); }
 .remote-device-menu-panel button svg { flex: none; width: 14px; height: 14px; margin-top: 1px; color: var(--muted); }
@@ -1967,6 +1974,13 @@ html[data-color-scheme="dark"] .remote-device-chip.is-error { color: #ff858c; bo
 .remote-device-detail dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 16px; margin: 0; font-size: 11.5px; }
 .remote-device-detail dt { color: var(--muted); }
 .remote-device-detail dd { margin: 0; overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+.remote-device-logs { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+.remote-device-logs > summary { display: flex; align-items: center; gap: 6px; width: fit-content; color: var(--muted); font-size: 11.5px; cursor: pointer; list-style: none; }
+.remote-device-logs > summary::-webkit-details-marker { display: none; }
+.remote-device-logs > summary svg { width: 13px; height: 13px; transition: transform 140ms ease; }
+.remote-device-logs[open] > summary svg { transform: rotate(90deg); }
+.remote-device-logs pre { max-height: 160px; margin: 7px 0 0; padding: 8px 10px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10.5px; line-height: 1.65; white-space: pre-wrap; }
+html.reduce-motion .remote-device-logs > summary svg { transition: none; }
 .remote-device-empty { display: grid; place-content: center; justify-items: center; gap: 5px; min-height: 200px; padding: 24px; color: var(--muted); text-align: center; }
 .remote-device-empty svg { width: 26px; height: 26px; opacity: .55; }
 .remote-device-empty strong { font-size: 13px; font-weight: 500; }
@@ -2102,32 +2116,6 @@ html.reduce-motion .connection-progress-log-toggle svg { transition: none; }
 .connection-progress-error { padding: 9px 11px; border: 1px solid #f0a6ad; border-radius: 9px; background: #fff1f2; color: #a52834; font-size: 12px; line-height: 1.55; }
 html[data-color-scheme="dark"] .connection-progress-error { border-color: #6d3138; background: #361d21; color: #ff858c; }
 
-/* ---- 远程连接成功介绍 ---- */
-.ask-card.remote-ready-card { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); padding: 0; overflow: hidden; }
-.remote-ready-visual { display: flex; flex-direction: column; justify-content: center; gap: 22px; padding: 28px; background: var(--accent-soft); }
-.remote-ready-device { display: flex; align-items: center; gap: 12px; color: var(--muted); }
-.remote-ready-icon { position: relative; display: inline-grid; place-items: center; flex: 0 0 42px; width: 42px; height: 42px; border-radius: 12px; background: var(--card); color: var(--muted); }
-.remote-ready-icon svg { width: 20px; height: 20px; }
-.remote-ready-device.is-online { color: var(--text); }
-.remote-ready-device.is-online .remote-ready-icon { background: #e8f8ee; color: #1f8a45; }
-.remote-ready-icon i { position: absolute; top: -3px; right: -3px; width: 9px; height: 9px; border: 2px solid var(--accent-soft); border-radius: 50%; background: #35b467; }
-.remote-ready-device strong { display: block; font-size: 13px; font-weight: 600; }
-.remote-ready-device small { display: block; margin-top: 2px; font-size: 11.5px; }
-.remote-ready-device.is-online small { color: #1f8a45; }
-html[data-color-scheme="dark"] .remote-ready-device.is-online .remote-ready-icon { background: #163423; color: #75d89a; }
-html[data-color-scheme="dark"] .remote-ready-device.is-online small { color: #75d89a; }
-.remote-ready-copy { display: flex; flex-direction: column; justify-content: center; gap: 12px; padding: 30px 32px; }
-.remote-ready-eyebrow { display: inline-flex; align-items: center; gap: 7px; color: #1f8a45; font-size: 12px; font-weight: 600; }
-.remote-ready-eyebrow i { width: 7px; height: 7px; border-radius: 50%; background: #35b467; }
-html[data-color-scheme="dark"] .remote-ready-eyebrow { color: #75d89a; }
-.remote-ready-copy h2 { margin: 0; font-size: 21px; line-height: 1.35; }
-.remote-ready-copy p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
-.remote-ready-copy .primary { align-self: flex-end; width: auto; margin-top: 6px; min-width: 96px; }
-@media (max-width: 640px) {
-  .remote-ready-card { grid-template-columns: 1fr; }
-  .remote-ready-visual { flex-direction: row; justify-content: flex-start; padding: 20px; }
-  .remote-ready-copy { padding: 22px; }
-}
 #connectionSshFields { display: grid; gap: 14px; }
 #connectionSshFields[hidden] { display: none; }
 #connectionSshKeyFields { display: grid; gap: 14px; }
@@ -2471,6 +2459,9 @@ html.reduce-motion #connectionWslFields, html.reduce-motion #connectionSshFields
 .ask-card[data-dialog-size=large] { --dialog-width: 840px; }
 /* 三栏选择窗（目录 / Profile / 插件）要更宽：三栏各自留得下名字和一行说明 */
 .ask-card[data-dialog-size=xlarge] { --dialog-width: 1040px; }
+/* 更新确认弹窗固定尺寸：版本说明长短、加载中/加载完都不再改变卡片大小，正文在卡片内滚动。
+   小窗口仍由 max-height 兜底，不会超出视口。 */
+#ask .ask-card { width: min(840px, 100%); height: 560px; }
 /* 标题和操作区保持可见，只有正文滚动；正文子项不能被 flex 压扁。 */
 .ask-card > * { flex-shrink: 0; }
 .ask-card > .launch-modal-fields { flex: 1 1 auto; }
@@ -2495,7 +2486,7 @@ html.reduce-motion #connectionWslFields, html.reduce-motion #connectionSshFields
 .ask-notes {
   margin: 11px 0 2px;
   padding: 11px 13px;
-  max-height: 210px;
+  max-height: 320px;
   overflow-y: auto;
   background: var(--accent-soft);
   border-radius: 10px;
@@ -2511,6 +2502,11 @@ html.reduce-motion #connectionWslFields, html.reduce-motion #connectionSshFields
 .ask-notes .note-empty { margin: 0; color: var(--muted); font-size: 13px; }
 .ask-notes a { color: var(--accent); font-size: 12.5px; }
 .ask-notes .note-more { display: inline-block; margin-top: 8px; }
+/* 更新内容还在拉取：一行转圈 + 文字，拉回来就整块替换成正文 */
+.ask-notes-loading { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+.ask-notes-spinner { flex: 0 0 auto; width: 13px; height: 13px; border: 2px solid var(--line); border-top-color: var(--muted); border-radius: 50%; animation: spin 900ms linear infinite; }
+html.reduce-motion .ask-notes-spinner { animation: none; }
+@media (prefers-reduced-motion: reduce) { .ask-notes-spinner { animation: none; } }
 /* 升级风险：摆在更新内容上面，先看到风险再决定 */
 .ask-risk {
   margin: 11px 0 0;

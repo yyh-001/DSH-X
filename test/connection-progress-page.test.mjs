@@ -26,13 +26,11 @@ test('连接远端：步骤、安装确认、日志和后台/取消都在一个�
   assert.match(css, /\.connection-install-confirm/)
 })
 
-test('连接成功弹出「本地离线，任务照常运行」介绍', () => {
-  assert.match(page, /id="remoteReadyDialog"/)
-  assert.match(page, /id="remoteReadyOk"[^>]*data-i18n="知道了"/)
-  assert.match(page, /data-i18n="本地离线，任务照常运行"/)
-  assert.match(page, /data-i18n="关闭 DSH-X 或休眠本机，远程任务继续运行。"/)
-  assert.match(page, /function openRemoteReadyDialog\(\)/)
-  assert.match(css, /\.ask-card\.remote-ready-card \{ display: grid;/)
+test('连接成功只收掉进度弹窗，不再弹介绍窗', () => {
+  assert.doesNotMatch(page, /id="remoteReadyDialog"/)
+  assert.doesNotMatch(page, /function openRemoteReadyDialog/)
+  assert.match(page, /连接成功只收掉进度弹窗/)
+  assert.doesNotMatch(css, /\.ask-card\.remote-ready-card/)
 })
 
 test('环境栏右上角是创建项目，底部不再放新建连接', () => {
@@ -64,20 +62,23 @@ test('环境行的铅笔打开项目编辑，不再直接改连接', () => {
   assert.match(page, /openProjectDialog\(project, \{ connectionId: connection\.id \}\)/)
 })
 
-test('设置里有独立的远程页：列表、搜索、新建和未完成连接', () => {
+test('设置里有独立的远程页：列表、搜索、新建', () => {
   assert.match(page, /data-pane="remote"/)
   assert.match(page, /id="pane-remote"/)
   assert.match(page, /id="remoteDeviceList"/)
   assert.match(page, /id="remoteDeviceSearch"/)
   assert.match(page, /id="remoteDeviceAdd"/)
-  assert.match(page, /id="remoteDeviceIncomplete"/)
+  assert.doesNotMatch(page, /id="remoteDeviceIncomplete"/, '未完成连接区块已移除')
   assert.match(page, /function paintRemoteSettings\(\)/)
   assert.match(page, /function openRemoteSettingsPage\(\)/)
   assert.match(page, /data-remote-action="restart"/)
   assert.match(page, /data-remote-copy-id=/)
   assert.match(page, /data-remote-connect=/)
+  assert.match(page, /data-remote-logs=/)
+  assert.match(page, /getJson\(`\/api\/connections\/logs\?id=/)
   assert.match(page, /最近在线 \{time\}/, '离线设备显示最近在线时间')
   assert.match(css, /\.remote-device-connect/)
+  assert.match(css, /\.remote-device-logs/)
   assert.match(page, /data-remote-remove="\$\{escapeHtml\(connection\.id\)\}"/)
   assert.match(page, /MANAGE_CONNECTIONS/)
   assert.match(page, /管理连接…/)

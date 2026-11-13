@@ -252,11 +252,6 @@
               <div class="remote-device-section-head"><div class="remote-device-section-title"><h2 data-i18n="设备">设备</h2><span class="remote-device-count" id="remoteDeviceCount"></span></div><label class="remote-device-search"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-search"/></svg><input id="remoteDeviceSearch" type="search" autocomplete="off" spellcheck="false" placeholder="搜索设备名、地址或项目" data-placeholder-i18n="搜索设备名、地址或项目" aria-label="搜索设备名、地址或项目" data-i18n-aria-label="搜索设备名、地址或项目" /></label></div>
               <div class="remote-device-list" id="remoteDeviceList"></div>
             </section>
-            <details class="remote-device-incomplete" id="remoteDeviceIncomplete" hidden>
-              <summary><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-chevron-right"/></svg><span data-i18n="未完成的连接">未完成的连接</span><span class="remote-device-count" id="remoteDeviceIncompleteCount"></span></summary>
-              <div class="remote-device-incomplete-list" id="remoteDeviceIncompleteList"></div>
-              <div class="remote-device-incomplete-actions"><button class="ghost" id="remoteDeviceClearIncomplete" type="button" data-i18n="清理全部">清理全部</button></div>
-            </details>
           </div>
         </section>
         <section class="pane" id="pane-settings">
@@ -609,7 +604,7 @@
     </div>
   </main>
   <div class="ask" id="ask" hidden>
-    <div class="ask-card" role="dialog" aria-modal="true" aria-labelledby="askTitle" data-dialog-size="medium">
+    <div class="ask-card" role="dialog" aria-modal="true" aria-labelledby="askTitle" data-dialog-size="large">
       <button type="button" class="ask-close" id="askClose" title="关闭" aria-label="关闭" data-i18n-title="关闭" data-i18n-aria-label="关闭">×</button>
       <h2 class="ask-title" id="askTitle" data-i18n="检测到新版本">检测到新版本</h2>
       <div class="ask-items" id="askItems"></div>
@@ -848,6 +843,9 @@
   <div class="project-device-panel" id="projectDevicePanel" hidden>
     <div class="project-device-list" id="projectDeviceList" role="listbox" aria-label="设备" data-i18n-aria-label="设备"></div>
   </div>
+  <div class="project-device-panel" id="launchGuideDirPanel" hidden>
+    <div class="project-device-list" id="launchGuideDirList" role="listbox" aria-label="用户目录" data-i18n-aria-label="用户目录"></div>
+  </div>
   <div class="ask" id="connectionProgressDialog" hidden>
     <div class="ask-card connection-progress-card" role="dialog" aria-modal="true" aria-labelledby="connectionProgressTitle" data-dialog-size="medium" tabindex="-1">
       <div class="connection-progress-head">
@@ -870,26 +868,6 @@
       <div class="connection-progress-actions">
         <button class="ghost" id="connectionProgressBackground" type="button" data-i18n="在后台继续">在后台继续</button>
         <button class="ghost" id="connectionProgressCancel" type="button" data-i18n="取消连接">取消连接</button>
-      </div>
-    </div>
-  </div>
-  <div class="ask" id="remoteReadyDialog" hidden>
-    <div class="ask-card remote-ready-card" role="dialog" aria-modal="true" aria-labelledby="remoteReadyTitle" data-dialog-size="large" tabindex="-1">
-      <div class="remote-ready-visual">
-        <div class="remote-ready-device">
-          <span class="remote-ready-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-app-window"/></svg></span>
-          <span><strong data-i18n="本地电脑">本地电脑</strong><small data-i18n="已休眠 / 已关闭">已休眠 / 已关闭</small></span>
-        </div>
-        <div class="remote-ready-device is-online">
-          <span class="remote-ready-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-server"/></svg><i></i></span>
-          <span><strong data-i18n="远程任务">远程任务</strong><small data-i18n="持续运行中">持续运行中</small></span>
-        </div>
-      </div>
-      <div class="remote-ready-copy">
-        <span class="remote-ready-eyebrow"><i></i><span data-i18n="新版远程连接">新版远程连接</span></span>
-        <h2 id="remoteReadyTitle" data-i18n="本地离线，任务照常运行">本地离线，任务照常运行</h2>
-        <p data-i18n="关闭 DSH-X 或休眠本机，远程任务继续运行。">关闭 DSH-X 或休眠本机，远程任务继续运行。</p>
-        <button class="primary" id="remoteReadyOk" type="button" data-i18n="知道了">知道了</button>
       </div>
     </div>
   </div>
@@ -929,33 +907,6 @@
                会话隔离那档的目标目录留在 tab 上面——它说的是「建到哪」，跟「Profile 从哪来」
                是两件事，切 tab 也得一直看得见。第三档「自定义」整块藏起来。 -->
           <div class="launch-guide" id="launchGuideField">
-            <!-- 运行位置：本机的引导会在 Windows 目录里建 Profile/目录；WSL 的同一套引导
-                 交给远端 core 在发行版里建。默认本机，切到 WSL 才露出发行版和用户。 -->
-            <div class="home-field launch-guide-target" id="launchGuideTargetField">
-              <label data-i18n="运行位置">运行位置</label>
-              <div class="launch-isolation-tabs" id="launchGuideBackendTabs" role="radiogroup" aria-label="运行位置" data-i18n-aria-label="运行位置" data-active="local">
-                <button class="launch-isolation-tab" type="button" role="radio" data-guide-backend="local" aria-checked="true" data-i18n="本机">本机</button>
-                <button class="launch-isolation-tab" type="button" role="radio" data-guide-backend="wsl" aria-checked="false" data-i18n="WSL">WSL</button>
-              </div>
-              <div class="home-pickers" id="launchGuideWslFields" hidden>
-                <div class="home-field">
-                  <label for="launchGuideWslDistro" data-i18n="WSL 发行版">WSL 发行版</label>
-                  <select id="launchGuideWslDistro"></select>
-                </div>
-                <div class="home-field">
-                  <label for="launchGuideWslUser" data-i18n="WSL 用户（选填）">WSL 用户（选填）</label>
-                  <input id="launchGuideWslUser" type="text" autocomplete="off" spellcheck="false" data-placeholder-i18n="默认登录用户；例如 root" />
-                </div>
-              </div>
-              <div class="home-field" id="launchGuideWslHomeField" hidden>
-                <label for="launchGuideWslHome" data-i18n="WSL 用户目录">WSL 用户目录</label>
-                <input id="launchGuideWslHome" type="text" autocomplete="off" spellcheck="false" placeholder="~/.dsh" />
-              </div>
-              <p class="hint" id="launchGuideTargetHint" hidden></p>
-            </div>
-            <div class="launch-guide-dir" id="launchGuideDirField">
-              <select id="launchHomeCustom" aria-label="dsh 用户目录" data-i18n-aria-label="dsh 用户目录"></select>
-            </div>
             <div class="launch-isolation-tabs launch-isolation-tabs--pair" id="launchSourceTabs" role="tablist" aria-label="Profile 来源" data-i18n-aria-label="Profile 来源" data-active="name">
               <button class="launch-isolation-tab launch-source-tab" type="button" role="tab" data-source="name" aria-selected="true" aria-controls="launchSourceNamePanel" data-i18n="新建 Profile">新建 Profile</button>
               <button class="launch-isolation-tab launch-source-tab" type="button" role="tab" data-source="copy" aria-selected="false" aria-controls="launchSourceCopyPanel" data-i18n="从已有 Profile 复制">从已有 Profile 复制</button>
@@ -971,6 +922,28 @@
               </div>
             </div>
             <div class="launch-source-panel" id="launchSourceNamePanel" role="tabpanel">
+              <!-- 新建 Profile 落在哪个设备：设备列表（本机 / 已保存的 WSL、SSH 连接）。
+                   复制档不用选，来源那栏的三级菜单已经把设备和目录一起选掉了。 -->
+              <!-- 用户目录：本机目录 + 已保存的 WSL / SSH 连接收进一个下拉，点一行就定下新建到哪 -->
+              <div class="home-field launch-guide-dirs-field" id="launchGuideDeviceField">
+                <div class="project-device-control">
+                  <button class="project-device-trigger" id="launchGuideDirTrigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="launchGuideDirPanel" aria-label="用户目录" data-i18n-aria-label="用户目录">
+                    <svg class="project-device-kind-icon" id="launchGuideDirIcon" viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-folder"/></svg>
+                    <span class="project-device-label" id="launchGuideDirLabel">此电脑</span>
+                    <span class="project-device-status" id="launchGuideDirStatus" hidden></span>
+                    <svg class="project-device-caret" viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-chevron-down"/></svg>
+                  </button>
+                  <select id="launchGuideDevice" hidden></select>
+                </div>
+              </div>
+              <div class="launch-guide-dir" id="launchGuideDirField" hidden>
+                <select id="launchHomeCustom" aria-label="dsh 用户目录" data-i18n-aria-label="dsh 用户目录"></select>
+              </div>
+              <div class="home-field" id="launchGuideWslHomeField" hidden>
+                <label for="launchGuideWslHome" data-i18n="用户目录（选填）">用户目录（选填）</label>
+                <input id="launchGuideWslHome" type="text" autocomplete="off" spellcheck="false" placeholder="~/.dsh" />
+              </div>
+              <p class="hint" id="launchGuideTargetHint" hidden></p>
               <!-- 新 Profile 的名字两档都要：自己起名时留空由页面代算，复制档预填「来源-copy」并可改。
                    两个输入各给一档用：插件隔离在全局目录里新建，会话隔离给新目录里的 Profile 取名。
                    占位符就是自动会取的名字，填了就按填的来（见 paintLaunchIsolation） -->
@@ -1404,6 +1377,13 @@
   "等待安装确认": "Waiting for install confirmation",
   "管理 WSL 和 SSH 主机；测试、编辑或删除连接。": "Manage WSL and SSH hosts; test, edit, or remove connections.",
   "未连接": "Not connected",
+  "用户目录（选填）": "User directory (optional)",
+  "先选择一个设备。": "Choose a device first.",
+  "{device} 还没连接，先在设置 → 远程里连上。": "{device} is not connected. Connect it in Settings → Remote first.",
+  "只能从同一个设备里的 Profile 复制": "Profiles can only be copied within the same device.",
+  "读不到远端里的 Profile：{error}": "Could not read profiles on the remote: {error}",
+  "将在 {device} 的 {home} 里新建 Profile「{name}」：会话与记忆共享，插件与配置独立。": "A new profile “{name}” will be created in {home} on {device}: sessions and memory are shared; plugins and settings are isolated.",
+  "将在 {device} 新建独立目录 {home}：会话、记忆、插件与配置全部独立。": "A separate directory {home} will be created on {device}: sessions, memory, plugins and settings are all isolated.",
   "新建一个 WSL 或 SSH 连接后，就能在这里管理。": "Add a WSL or SSH connection to manage it here.",
   "删除连接「{name}」？（不会卸载远端，也不会删除远端文件）": "Remove connection “{name}”? (The remote side and its files are left untouched.)",
   "本机目录，或已保存连接里的目录。": "A local directory, or one inside a saved connection.",
@@ -1515,7 +1495,6 @@
   "SSH 远端目录不能在本机文件管理器里打开。": "SSH remote directories cannot be opened in the local file manager.",
   "连接信息不完整": "Connection information is incomplete.",
   "删除{kind}「{name}」里的 Profile「{profile}」？其中的插件和配置会一并移除，会话与记忆保留。此操作无法撤销。": "Delete profile “{profile}” from {kind} “{name}”? Its plugins and config will be removed; sessions and memories are kept. This cannot be undone.",
-  "项目目录（选填）": "Project directory (optional)",
   "当前设备检测到 {n} 个发行版。": "{n} distros detected on this device.",
   "SSH 远端目录请直接填路径（例如 /root/projects/demo）。": "Enter the SSH remote path directly (e.g. /root/projects/demo).",
   "连不上 SSH 主机：检查地址、端口和网络": "Cannot reach the SSH host: check the address, port and network.",
@@ -2734,10 +2713,14 @@
     // 引导块：会话隔离的目标目录 + 两档 tab（自己起名 / 照抄一份）
     const launchGuideFieldEl = document.getElementById('launchGuideField')
     const launchGuideDirFieldEl = document.getElementById('launchGuideDirField')
-    const launchGuideBackendTabsEl = document.getElementById('launchGuideBackendTabs')
-    const launchGuideWslFieldsEl = document.getElementById('launchGuideWslFields')
-    const launchGuideWslDistroEl = document.getElementById('launchGuideWslDistro')
-    const launchGuideWslUserEl = document.getElementById('launchGuideWslUser')
+    const launchGuideDeviceFieldEl = document.getElementById('launchGuideDeviceField')
+    const launchGuideDeviceEl = document.getElementById('launchGuideDevice')
+    const launchGuideDirTriggerEl = document.getElementById('launchGuideDirTrigger')
+    const launchGuideDirIconEl = document.getElementById('launchGuideDirIcon')
+    const launchGuideDirLabelEl = document.getElementById('launchGuideDirLabel')
+    const launchGuideDirStatusEl = document.getElementById('launchGuideDirStatus')
+    const launchGuideDirPanelEl = document.getElementById('launchGuideDirPanel')
+    const launchGuideDirListEl = document.getElementById('launchGuideDirList')
     const launchGuideWslHomeFieldEl = document.getElementById('launchGuideWslHomeField')
     const launchGuideWslHomeEl = document.getElementById('launchGuideWslHome')
     const launchGuideTargetHintEl = document.getElementById('launchGuideTargetHint')
@@ -2827,13 +2810,9 @@
     const connectionProgressLogLinesEl = document.getElementById('connectionProgressLogLines')
     const connectionProgressBackgroundEl = document.getElementById('connectionProgressBackground')
     const connectionProgressCancelEl = document.getElementById('connectionProgressCancel')
-    const remoteReadyDialogEl = document.getElementById('remoteReadyDialog')
     const remoteDeviceListEl = document.getElementById('remoteDeviceList')
     const remoteDeviceCountEl = document.getElementById('remoteDeviceCount')
     const remoteDeviceSearchEl = document.getElementById('remoteDeviceSearch')
-    const remoteDeviceIncompleteEl = document.getElementById('remoteDeviceIncomplete')
-    const remoteDeviceIncompleteListEl = document.getElementById('remoteDeviceIncompleteList')
-    const remoteDeviceIncompleteCountEl = document.getElementById('remoteDeviceIncompleteCount')
     const connectionAuthTabsEl = document.getElementById('connectionAuthTabs')
     const connectionSshPasswordFieldEl = document.getElementById('connectionSshPasswordField')
     const connectionSshPasswordEl = document.getElementById('connectionSshPassword')
@@ -3207,7 +3186,7 @@
       })
       syncUiSelect(select)
     }
-    for (const select of document.querySelectorAll('#launchDshHome, #launchHomeCustom, #launchProfile, #launchCopyHome, #launchCopyProfile, #pluginHome, #uiLang, #webBind, #downloadSource, #proxyMode, #nodeRuntime, #versionInstallSelect, #openMode, #mcpTransport, #marketSort, #skillRoot, #skillInstallRoot, #pickHomeWslDistro, #connectionWslDistro, #launchGuideWslDistro')) createUiSelect(select)
+    for (const select of document.querySelectorAll('#launchDshHome, #launchHomeCustom, #launchProfile, #launchCopyHome, #launchCopyProfile, #pluginHome, #uiLang, #webBind, #downloadSource, #proxyMode, #nodeRuntime, #versionInstallSelect, #openMode, #mcpTransport, #marketSort, #skillRoot, #skillInstallRoot, #pickHomeWslDistro, #connectionWslDistro')) createUiSelect(select)
     document.addEventListener('pointerdown', (event) => {
       if (openUiSelect && !openUiSelect.root.contains(event.target) && !openUiSelect.panel.contains(event.target)) closeUiSelect()
       // 环境详情的「更多操作」下拉同理：点外面就合上
@@ -4800,7 +4779,7 @@
 
     /** 测试桩里可能没有 WSL 表单，launchBackend 也不在作用域里；读不到就按本机处理。 */
     function launchBackendIsWsl() {
-      // 引导模式没有「启动环境」选择器，运行位置只看引导里的本机 / WSL tab；
+      // 引导模式没有「启动环境」选择器，运行位置只看引导里的设备下拉；
       // 自定义和编辑仍看表单里的后端（选择窗选出来的）。
       if (launchIsGuided()) return launchGuideBackend === 'wsl'
       return typeof launchBackend !== 'undefined' && launchBackend === 'wsl'
@@ -4812,12 +4791,12 @@
     }
 
     function launchBackendIsRemote() {
-      if (launchIsGuided()) return launchGuideBackend === 'wsl'
+      if (launchIsGuided()) return launchGuideBackend !== 'local'
       return typeof launchBackend !== 'undefined' && (launchBackend === 'wsl' || launchBackend === 'ssh')
     }
 
     function launchBackendKind() {
-      if (launchIsGuided()) return launchGuideBackend === 'wsl' ? 'wsl' : 'local'
+      if (launchIsGuided()) return launchGuideBackend
       return typeof launchBackend !== 'undefined' && launchBackend === 'ssh' ? 'ssh' : launchBackend === 'wsl' ? 'wsl' : 'local'
     }
 
@@ -5067,19 +5046,14 @@
       const remote = kind !== 'local'
       const wsl = kind === 'wsl'
       const creating = !editingLaunchId
-      // 连接是唯一真相源：WSL / SSH 的隐藏字段和项目目录跟着后端走。
+      // 连接是唯一真相源：WSL / SSH 的隐藏字段跟着后端走。
       launchWslLocationFieldsEl.hidden = !remote
       // 用户属于连接，不属于启动项；这一栏保留 DOM 兼容但不再显示。
       if (typeof launchWslUserFieldEl !== 'undefined' && launchWslUserFieldEl) launchWslUserFieldEl.hidden = true
       if (typeof launchWslHintEl !== 'undefined' && launchWslHintEl) launchWslHintEl.hidden = !remote
-      launchWslWorkdirFieldEl.hidden = !remote
-      if (typeof pickLaunchWslWorkdirEl !== 'undefined' && pickLaunchWslWorkdirEl) pickLaunchWslWorkdirEl.hidden = kind === 'ssh'
-      const workdirLabel = launchWslWorkdirFieldEl.querySelector('label')
-      if (workdirLabel) {
-        const text = kind === 'ssh' ? '项目目录（选填）' : 'WSL 项目目录（选填）'
-        workdirLabel.textContent = t(text)
-        workdirLabel.dataset.i18n = text
-      }
+      // SSH 的实例由远端 core 按远端 HOME 拉起，启动项里的项目目录不会生效；
+      // 环境（连接 + Profile）已经决定在哪跑，这一栏只留给 WSL（它真的会 cd 进去）。
+      launchWslWorkdirFieldEl.hidden = !wsl
       if (launchConnectionIdEl) launchConnectionIdEl.value = options.connectionId || entry?.connectionId || ''
       if (launchRemoteHomeEl) launchRemoteHomeEl.value = options.remoteHome ?? entry?.remoteHome ?? entry?.wslHome ?? ''
       // 版本选择对远端也要露出来：数据源换成远端 core，UI 仍用本机这套。
@@ -5225,7 +5199,6 @@
     let prepareLogsOpen = false
     let prepareMinimized = false
     let prepareTicker = null
-    let readyDialogShownFor = ''
     let pickerAwaitingConnection = ''
     let connectionTrustNewHostKey = false
 
@@ -5556,7 +5529,6 @@
 
     async function startConnectionPrepare(connectionId) {
       if (!connectionId) return
-      readyDialogShownFor = ''
       try {
         const data = await post('/api/connections/prepare', { id: connectionId })
         if (data?.prepare) {
@@ -5566,10 +5538,6 @@
       } catch (error) {
         notify(error.message, t('连接'))
       }
-    }
-
-    function openRemoteReadyDialog() {
-      showPackDialog(remoteReadyDialogEl, document.getElementById('remoteReadyOk'))
     }
 
     function closeConnectionProgress() {
@@ -5589,7 +5557,7 @@
             ? 'error'
             : prepare.status === 'cancelled'
               ? 'offline'
-              : 'preparing',
+              : prepare.status === 'awaiting-install' ? 'awaiting-install' : 'preparing',
         hostname: prepare.hostname || connectionRuntime[prepare.connectionId]?.hostname || '',
         osUser: prepare.osUser || connectionRuntime[prepare.connectionId]?.osUser || '',
         remoteHome: prepare.remoteHome || connectionRuntime[prepare.connectionId]?.remoteHome || '',
@@ -5597,25 +5565,16 @@
         error: prepare.error || '',
       }
       if (prepare.status === 'ready') {
-        const target = prepare.hostname || prepare.target?.label || prepare.name || ''
-        const progressVisible = !connectionProgressDialogEl.hidden
         if (pickerAwaitingConnection && connectionForHomeKey(pickerAwaitingConnection)?.id === prepare.connectionId) {
           const home = pickerAwaitingConnection
           pickerAwaitingConnection = ''
           if (!profilePickDialogEl.hidden) void selectPickerHome(home)
         }
+        // 连接成功只收掉进度弹窗，不再弹成功介绍。
         if (activePrepareId === prepare.connectionId) {
           stopPrepareTicker()
-          if (progressVisible) void forceHidePackDialog(connectionProgressDialogEl)
-          if (readyDialogShownFor !== prepare.connectionId) {
-            readyDialogShownFor = prepare.connectionId
-            openRemoteReadyDialog()
-          } else if (!progressVisible) {
-            notify(t('已连接 {device}', { device: target }), t('连接'))
-          }
+          if (!connectionProgressDialogEl.hidden) void forceHidePackDialog(connectionProgressDialogEl)
           activePrepareId = ''
-        } else {
-          notify(t('已连接 {device}', { device: target }), t('连接'))
         }
       } else if (prepare.status === 'error' || prepare.status === 'cancelled') {
         if (pickerAwaitingConnection && connectionForHomeKey(pickerAwaitingConnection)?.id === prepare.connectionId) {
@@ -5677,8 +5636,6 @@
         notify(t('复制失败，请手动选择日志'), t('连接'))
       }
     })
-    document.getElementById('remoteReadyOk')?.addEventListener('click', () => void forceHidePackDialog(remoteReadyDialogEl))
-    trapPackDialog(remoteReadyDialogEl, () => void forceHidePackDialog(remoteReadyDialogEl))
     trapPackDialog(connectionProgressDialogEl, closeConnectionProgress)
 
     /** 表单 → 保存/测试共用的请求体；测试未保存的连接也走这一份。 */
@@ -5999,6 +5956,7 @@
     function remoteDeviceStatus(connection) {
       const status = connectionRuntime[connection.id]?.status
       if (status === 'online') return { className: 'is-online', text: t('已连接') }
+      if (status === 'awaiting-install') return { className: 'is-preparing', text: t('需要处理 · 需要安装') }
       if (status === 'preparing') return { className: 'is-preparing', text: t('连接中') }
       if (status === 'error') return { className: 'is-error', text: t('连接失败') }
       return { className: '', text: t('未连接') }
@@ -6053,7 +6011,7 @@
             ? ''
             : `<button class="remote-device-connect" type="button" data-remote-connect="${escapeHtml(connection.id)}"${status.className === 'is-preparing' ? ' disabled' : ''}>${escapeHtml(status.className === 'is-preparing' ? t('连接中') : t('连接'))}</button>`
           const expanded = remoteExpanded.has(connection.id)
-          const detail = `<div class="remote-device-detail"${expanded ? '' : ' hidden'}><dl><dt>${escapeHtml(t('远端目录'))}</dt><dd>${escapeHtml(runtime.remoteHome || '~/.dsh')}</dd><dt>${escapeHtml(t('安装位置'))}</dt><dd>${escapeHtml(runtime.installPath || t('暂无法获取'))}</dd><dt>${escapeHtml(t('版本'))}</dt><dd>${escapeHtml(runtime.version || t('暂无法获取'))}</dd><dt>${escapeHtml(t('项目'))}</dt><dd>${projects.length ? projects.map((entry) => escapeHtml(entry.name)).join('、') : escapeHtml(t('还没有项目'))}</dd></dl><details class="remote-device-logs" data-remote-logs="${escapeHtml(connection.id)}"><summary><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-chevron-right"/></svg><span>${escapeHtml(t('查看最近日志'))}</span></summary><pre data-remote-logs-body>${escapeHtml(t('展开后读取…'))}</pre></details></div>`
+          const detail = `<div class="remote-device-detail"${expanded ? '' : ' hidden'}><dl><dt>${escapeHtml(t('远端目录'))}</dt><dd>${escapeHtml(runtime.remoteHome || '~/.dsh')}</dd><dt>${escapeHtml(t('安装位置'))}</dt><dd>${escapeHtml(runtime.installPath || t('暂无法获取'))}</dd><dt>${escapeHtml(t('版本'))}</dt><dd>${escapeHtml(runtime.version || t('暂无法获取'))}</dd><dt>${escapeHtml(t('项目'))}</dt><dd>${projects.length ? projects.map((entry) => escapeHtml(entry.name)).join('、') : escapeHtml(t('还没有项目'))}</dd></dl><details class="remote-device-logs" data-remote-logs="${escapeHtml(connection.id)}"><summary><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-chevron-right"/></svg><span>${escapeHtml(t('查看最近日志'))}</span></summary><pre data-remote-logs-body>${escapeHtml(t('加载中…'))}</pre></details></div>`
           const infoRows = [
             [t('版本'), runtime.version || '—'],
             [t('主机名'), runtime.hostname || (connection.kind === 'wsl' ? connection.wslDistro : connection.host) || '—'],
@@ -6109,7 +6067,6 @@
             await post('/api/connections/remote', { id, action })
             applyState(await getJson('/api/state'))
             paintRemoteSettings()
-            notify(t(action === 'restart' ? '正在重启远端服务' : action === 'disconnect' ? '已断开连接' : '已停止远端服务'), t('连接'))
           } catch (error) {
             notify(error.message, t('连接'))
           } finally {
@@ -6129,13 +6086,14 @@
       }
       for (const menu of remoteDeviceListEl.querySelectorAll('.remote-device-menu')) {
         menu.addEventListener('toggle', () => {
-          if (!menu.open) return
+          const summary = menu.querySelector('summary')
+          const panel = menu.querySelector('.remote-device-menu-panel')
+          if (!panel) return
+          panel.classList.remove('is-positioned')
+          if (!menu.open || !summary) return
           for (const other of remoteDeviceListEl.querySelectorAll('.remote-device-menu[open]')) {
             if (other !== menu) other.open = false
           }
-          const summary = menu.querySelector('summary')
-          const panel = menu.querySelector('.remote-device-menu-panel')
-          if (!summary || !panel) return
           const rect = summary.getBoundingClientRect()
           const width = Math.min(280, window.innerWidth - 24)
           const left = Math.max(12, Math.min(rect.right - width, window.innerWidth - width - 12))
@@ -6143,13 +6101,12 @@
           panel.style.width = `${width}px`
           panel.style.left = `${left}px`
           panel.style.top = `${top}px`
-          requestAnimationFrame(() => {
-            if (!menu.open) return
-            if (top + panel.offsetHeight > window.innerHeight - 12) {
-              top = Math.max(12, rect.top - panel.offsetHeight - 6)
-              panel.style.top = `${top}px`
-            }
-          })
+          // 先量高度再显示，避免弹层先在左上角画一帧再跳过来。
+          if (top + panel.offsetHeight > window.innerHeight - 12) {
+            top = Math.max(12, rect.top - panel.offsetHeight - 6)
+            panel.style.top = `${top}px`
+          }
+          panel.classList.add('is-positioned')
         })
       }
       for (const details of remoteDeviceListEl.querySelectorAll('[data-remote-logs]')) {
@@ -6184,53 +6141,6 @@
         }
       }
 
-      const pending = Object.values(connectionPrepares).filter((prepare) => ['running', 'awaiting-install', 'error'].includes(prepare.status))
-      remoteDeviceIncompleteEl.hidden = !pending.length
-      remoteDeviceIncompleteCountEl.textContent = String(pending.length)
-      remoteDeviceIncompleteListEl.innerHTML = pending.map((prepare) => {
-        const connection = connectionById(prepare.connectionId)
-        const statusText = prepare.status === 'running'
-          ? t('连接中')
-          : prepare.status === 'awaiting-install' ? t('需要处理 · 需要安装') : t('连接失败')
-        const statusClass = prepare.status === 'error' ? 'is-error' : prepare.status === 'awaiting-install' ? 'is-preparing' : ''
-        const detail = prepare.error || (prepare.status === 'awaiting-install' ? t('远端尚未安装 dsh-x-core') : (prepare.steps?.find((step) => step.status === 'running' || step.status === 'waiting')?.detail || ''))
-        const logs = (prepare.logs || []).slice(-6).map((line) => `${new Date(line.at || Date.now()).toLocaleTimeString('zh-CN', { hour12: false })} [${String(line.level || 'info').toUpperCase()}] ${line.message}`).join('\n')
-        const actions = [
-          prepare.status === 'awaiting-install'
-            ? `<button class="ghost" type="button" data-remote-install="${escapeHtml(prepare.connectionId)}">${escapeHtml(t('安装并连接'))}</button>`
-            : prepare.status === 'error'
-              ? `<button class="ghost" type="button" data-remote-retry="${escapeHtml(prepare.connectionId)}">${escapeHtml(t('重试'))}</button>`
-              : `<button class="ghost" type="button" data-remote-open="${escapeHtml(prepare.connectionId)}">${escapeHtml(t('查看'))}</button>`,
-          connection ? `<button class="ghost" type="button" data-remote-edit="${escapeHtml(connection.id)}">${escapeHtml(t('编辑'))}</button>` : '',
-          connection ? `<button class="ghost danger" type="button" data-remote-remove="${escapeHtml(connection.id)}">${escapeHtml(t('移除连接'))}</button>` : '',
-        ].filter(Boolean).join('')
-        return `<div class="remote-device-incomplete-row" data-remote-prepare-row="${escapeHtml(prepare.connectionId)}"><div class="remote-device-incomplete-main"><span class="remote-device-incomplete-kind is-${escapeHtml(prepare.kind)}">${escapeHtml(prepare.kind === 'ssh' ? 'SSH' : 'WSL')}</span><span class="remote-device-chip ${statusClass}">${escapeHtml(statusText)}</span><strong>${escapeHtml(remoteDeviceDisplayName(connection) || prepare.name || prepare.connectionId)}</strong><small>${escapeHtml(prepare.target?.label || '')}</small><span class="remote-device-incomplete-error">${escapeHtml(detail)}</span><span class="remote-device-incomplete-actions">${actions}</span></div><details class="remote-device-incomplete-logs"><summary>${escapeHtml(t('查看最近日志'))}</summary><pre>${escapeHtml(logs || t('还没有日志'))}</pre></details></div>`
-      }).join('')
-      const openPrepare = (id) => {
-        const prepare = prepareById(id)
-        if (!prepare) return
-        activePrepareId = prepare.connectionId
-        openConnectionProgress(prepare.connectionId)
-      }
-      for (const button of remoteDeviceIncompleteListEl.querySelectorAll('[data-remote-open]')) {
-        button.onclick = () => openPrepare(button.dataset.remoteOpen)
-      }
-      for (const button of remoteDeviceIncompleteListEl.querySelectorAll('[data-remote-retry]')) {
-        button.onclick = () => { void startConnectionPrepare(button.dataset.remoteRetry) }
-      }
-      for (const button of remoteDeviceIncompleteListEl.querySelectorAll('[data-remote-install]')) {
-        button.onclick = async () => {
-          button.disabled = true
-          try {
-            await post('/api/connections/prepare/confirm', { id: button.dataset.remoteInstall })
-            openPrepare(button.dataset.remoteInstall)
-          } catch (error) {
-            notify(error.message, t('连接'))
-          } finally {
-            button.disabled = false
-          }
-        }
-      }
     }
 
     function openRemoteSettingsPage() {
@@ -6242,15 +6152,6 @@
 
     document.getElementById('remoteDeviceAdd')?.addEventListener('click', () => void openConnectionDialog())
     remoteDeviceSearchEl?.addEventListener('input', paintRemoteSettings)
-    document.getElementById('remoteDeviceClearIncomplete')?.addEventListener('click', async () => {
-      try {
-        await post('/api/connections/prepare/clear', {})
-        applyState(await getJson('/api/state'))
-        paintRemoteSettings()
-      } catch (error) {
-        notify(error.message, t('连接'))
-      }
-    })
     document.addEventListener('click', (event) => {
       if (event.target.closest?.('.remote-device-menu')) return
       for (const menu of document.querySelectorAll('.remote-device-menu[open]')) menu.open = false
@@ -6322,7 +6223,9 @@
         updateLaunchEntry(data.entry)
         editingProject = null
         void forceHidePackDialog(projectDialogEl)
+        // 创建成功仍按独立流程收尾：选择窗和它下面的启动项表单一起收掉，别挂着旧表单。
         if (!profilePickDialogEl.hidden) void forceHidePackDialog(profilePickDialogEl)
+        if (!launchDialogEl.hidden) void forceHidePackDialog(launchDialogEl)
         render()
       } catch (error) {
         projectErrorEl.textContent = error.message
@@ -6367,12 +6270,7 @@
     projectDialogEl?.addEventListener('click', (event) => { if (event.target === projectDialogEl) closeProjectDialog() })
     trapPackDialog(projectDialogEl, closeProjectDialog)
     document.getElementById('pickerCreateProject').onclick = () => {
-      // 创建项目是独立流程：先把选择窗和启动项表单收掉，别让新项目后面还挂着旧表单。
-      editingLaunchId = ''
-      launchDialogClosing = false
-      if (launchFormEl) launchFormEl.inert = false
-      void forceHidePackDialog(profilePickDialogEl)
-      void forceHidePackDialog(launchDialogEl)
+      // 创建项目从选择窗里弹出：选择窗留在下面当父层，取消/关闭后回到它，而不是直接掉回主页。
       openProjectDialog()
     }
 
@@ -6404,6 +6302,8 @@
     let launchIsolation = 'profile'
     // 引导模式建到哪：本机（Windows 目录）或 WSL（远端 core）。每次打开新建弹窗复位到本机。
     let launchGuideBackend = 'local'
+    // 引导里设备下拉选中的连接；空串 = 本机。
+    let launchGuideConnectionId = ''
     // 上次新建启动项选的档（设置里存着，开局加载）；下次打开「添加启动项」直接停在这一档
     let launchIsolationSaved = 'profile'
     // 引导模式代填的启动项名：用户自己改过就不再覆盖，切档时保留手填的名字。
@@ -6430,7 +6330,7 @@
 
     /**插件隔离的默认名字：挑一个没被占用的，重名往后顺延。 */
     function suggestIsolatedProfile(seed = '') {
-      const source = guideTargetIsWsl() ? launchWslProfiles : state.profiles
+      const source = guideTargetIsRemote() ? launchWslProfiles : state.profiles
       const taken = new Set((Array.isArray(source) ? source : []).map((name) => String(name).toLowerCase()))
       const base = String(seed || '').trim().toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^[-.]+|[-.]+$/g, '')
       for (const name of [base, 'work', 'home']) if (name && !taken.has(name)) return name
@@ -6441,7 +6341,7 @@
     /** 引导模式代填的启动项名：Profile 档用 Profile 名，会话隔离档用目录的最后一段。 */
     function guidedLaunchName() {
       if (launchIsolation === 'home') {
-        const home = guideTargetIsWsl() ? guideWslHomeValue() : suggestIsolatedHome()
+        const home = guideTargetIsRemote() ? guideRemoteHomeValue() : suggestIsolatedHome()
         const tail = String(home || '').replace(/[\\/]+$/, '').split(/[\\/]/).pop() || 'dsh'
         return tail.slice(0, 32) || 'dsh'
       }
@@ -6492,7 +6392,7 @@
         launchCopyNameAuto[launchIsolation] = ''
         return
       }
-      const auto = suggestCopyProfile(copy.profile, copyTargetExisting() ?? (guideTargetIsWsl() ? launchWslProfiles : state.profiles))
+      const auto = suggestCopyProfile(copy.profile, copyTargetExisting() ?? (guideTargetIsRemote() ? launchWslProfiles : state.profiles))
       if (!el.value.trim() || el.value === launchCopyNameAuto[launchIsolation]) el.value = auto
       launchCopyNameAuto[launchIsolation] = auto
     }
@@ -6504,7 +6404,7 @@
      * refreshCopyTargetProfiles 会再刷一次建议名。选「自动新建」时新目录里不会有同名，返回空列表。
      */
     function copyTargetExisting() {
-      if (guideTargetIsWsl()) return launchWslProfiles
+      if (guideTargetIsRemote()) return launchWslProfiles
       if (launchIsolation !== 'home') return state.profiles
       const picked = String(launchHomeCustomEl?.value || '').trim()
       if (!picked) return []
@@ -6546,6 +6446,8 @@
       }
       // 名字那块两档都露着（复制档要能改目标名），只有来源选择跟着 tab 走
       if (launchSourceCopyPanelEl) launchSourceCopyPanelEl.hidden = launchSourceMode !== 'copy'
+      // 复制档不再单独选设备：来源三级菜单已经把它选掉了。
+      paintGuideTarget()
     }
 
     /** 切第二排 tab：换面板 + 重画说明行（选了复制要说清复制的是谁）。 */
@@ -6572,113 +6474,252 @@
       if (box) box.onchange = () => syncLaunchAutoLaunch(box.checked)
     }
 
-    // ---- 引导模式的目标位置：本机，或 WSL 远端 ----
+    // ---- 引导模式的目标位置：设备下拉（本机 / 已保存的 WSL、SSH 连接） ----
     function guideTargetIsWsl() {
-      return launchGuideBackend === 'wsl' && launchIsolation !== 'custom' && !editingLaunchId
+      return launchIsGuided() && launchGuideBackend === 'wsl'
     }
 
-    /** 草稿里的 WSL 目标：引导模式读引导字段，自定义/编辑读表单里的隐藏真相源。 */
+    function guideTargetIsSsh() {
+      return launchIsGuided() && launchGuideBackend === 'ssh'
+    }
+
+    function guideTargetIsRemote() {
+      return guideTargetIsWsl() || guideTargetIsSsh()
+    }
+
+    /** 引导里选中的连接；选本机时返回 null。 */
+    function guideConnection() {
+      return connectionById(launchGuideConnectionId)
+    }
+
+    /** 草稿里的 WSL 目标：引导模式读设备下拉选中的连接，自定义/编辑读表单里的隐藏真相源。 */
     function draftWslDistroValue() {
-      if (guideTargetIsWsl()) return guideWslDistroValue()
+      if (guideTargetIsWsl()) return guideConnection()?.wslDistro || ''
       return typeof launchWslDistroEl !== 'undefined' && launchWslDistroEl ? String(launchWslDistroEl.value || '').trim() : ''
     }
 
     function draftWslHomeValue() {
-      if (guideTargetIsWsl()) return guideWslHomeValue()
+      if (guideTargetIsRemote()) return guideRemoteHomeValue()
       return typeof launchWslHomeEl !== 'undefined' && launchWslHomeEl ? launchWslHomeEl.value.trim() : ''
     }
 
     function draftWslUserValue() {
-      if (guideTargetIsWsl()) return guideWslUserValue()
+      if (guideTargetIsRemote()) return guideConnection()?.wslUser || ''
       return typeof launchWslUserEl !== 'undefined' && launchWslUserEl ? launchWslUserEl.value.trim() : ''
     }
 
-    /** 引导里 WSL 的发行版下拉：所有装了的发行版（包括从目录列表移除过的）。 */
-    function guideWslDistros() {
-      const visible = state.wsl?.available === false ? [] : (state.wsl?.distros || [])
-      const hidden = (state.wsl?.hidden || []).filter((name) => !visible.some((item) => item.name === name))
-      return [...visible.map((item) => ({ name: item.name, version: item.version, default: item.default })), ...hidden.map((name) => ({ name }))]
-    }
-
-    function guideWslDistroValue() {
-      if (typeof launchGuideWslDistroEl === 'undefined' || !launchGuideWslDistroEl) return ''
-      const picked = String(launchGuideWslDistroEl.value || '').trim()
-      if (picked) return picked
-      return guideWslDistros()[0]?.name || ''
-    }
-
-    function guideWslUserValue() {
-      return typeof launchGuideWslUserEl !== 'undefined' && launchGuideWslUserEl ? launchGuideWslUserEl.value.trim() : ''
-    }
-
-    /** 会话隔离在 WSL 里的默认新目录：~/.dsh-<名字>，同发行版里撞名字就顺延。 */
-    function guideWslHomeDefault() {
+    /** 会话隔离在远端的新目录：~/.dsh-<名字>，同一连接里撞名字就顺延。 */
+    function guideRemoteHomeDefault() {
       const base = String(guidedProfileNameEl()?.value || '').trim() || suggestIsolatedProfile()
       const slug = base.toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^[-.]+|[-.]+$/g, '') || 'dsh'
-      const distro = guideWslDistroValue()
-      const taken = new Set(launchEntries().filter((entry) => entry.backend === 'wsl' && (entry.wslDistro || '') === distro)
-        .map((entry) => String(entry.wslHome || '')))
+      const connection = guideConnection()
+      const taken = new Set(launchEntries().filter((entry) => connection && entry.connectionId === connection.id)
+        .map((entry) => String(entry.remoteHome || entry.wslHome || '')))
       let home = `~/.dsh-${slug}`
       for (let n = 2; taken.has(home); n += 1) home = `~/.dsh-${slug}-${n}`
       return home
     }
 
-    /** 引导要用的 WSL 用户目录：插件隔离固定 ~/.dsh，会话隔离用输入框（留空用建议值）。 */
-    function guideWslHomeValue() {
-      if (!guideTargetIsWsl() || launchIsolation !== 'home') return '~/.dsh'
-      return String(launchGuideWslHomeEl?.value || '').trim() || guideWslHomeDefault()
+    /** 选中的环境自己的 dsh 目录（连接默认 ~/.dsh，或选择窗里挑的其它目录）。 */
+    function guideEnvHome() {
+      return String(launchRemoteHomeEl?.value || '').trim() || '~/.dsh'
     }
 
-    /** 引导里的 WSL 目标写成目录合成键，版本/Profile/兼容性都靠它定位远端 core。 */
-    function guideWslHomeKey() {
-      const distro = guideWslDistroValue()
-      return distro ? wslHomeKeyOf(distro, guideWslHomeValue()) : ''
+    /** 引导要用的远端用户目录：插件隔离沿用环境的目录，会话隔离用输入框（留空用建议值）。 */
+    function guideRemoteHomeValue() {
+      if (!guideTargetIsRemote()) return '~/.dsh'
+      if (launchIsolation !== 'home') return guideEnvHome()
+      return String(launchGuideWslHomeEl?.value || '').trim() || guideRemoteHomeDefault()
+    }
+
+    /** 引导里的目标写成目录合成键，版本/Profile/兼容性都靠它定位远端 core。 */
+    function guideRemoteHomeKey() {
+      const connection = guideConnection()
+      return connection ? connectionHomeKey(connection, guideRemoteHomeValue()) : ''
     }
 
     /** 把引导里的选择写回隐藏的真相源：自定义表单、版本作用域、保存逻辑都读它们。 */
     function syncGuideWslFields() {
-      if (!guideTargetIsWsl() || typeof launchWslDistroEl === 'undefined' || !launchWslDistroEl) return
-      const distro = guideWslDistroValue()
-      if (distro) launchWslDistroEl.value = distro
-      if (typeof launchWslUserEl !== 'undefined' && launchWslUserEl) launchWslUserEl.value = guideWslUserValue()
-      if (typeof launchWslHomeEl !== 'undefined' && launchWslHomeEl) launchWslHomeEl.value = guideWslHomeValue()
+      if (!guideTargetIsRemote()) return
+      const connection = guideConnection()
+      if (!connection) return
+      if (connection.kind === 'wsl' && typeof launchWslDistroEl !== 'undefined' && launchWslDistroEl) launchWslDistroEl.value = connection.wslDistro || ''
+      if (connection.kind === 'wsl' && typeof launchWslUserEl !== 'undefined' && launchWslUserEl) launchWslUserEl.value = connection.wslUser || ''
+      if (typeof launchConnectionIdEl !== 'undefined' && launchConnectionIdEl) launchConnectionIdEl.value = connection.id
+      if (typeof launchRemoteHomeEl !== 'undefined' && launchRemoteHomeEl) launchRemoteHomeEl.value = guideRemoteHomeValue()
+      if (typeof launchWslHomeEl !== 'undefined' && launchWslHomeEl) launchWslHomeEl.value = guideRemoteHomeValue()
     }
 
     function paintGuideTarget() {
-      if (typeof launchGuideBackendTabsEl === 'undefined' || !launchGuideBackendTabsEl) return
-      const wsl = guideTargetIsWsl()
-      launchGuideBackendTabsEl.dataset.active = launchGuideBackend
-      for (const tab of launchGuideBackendTabsEl.querySelectorAll('[data-guide-backend]')) {
-        tab.setAttribute('aria-checked', String(tab.dataset.guideBackend === launchGuideBackend))
+      if (typeof launchGuideDirListEl === 'undefined' || !launchGuideDirListEl) return
+      const copyMode = launchSourceMode === 'copy'
+      const connection = guideConnection()
+      const localHome = launchDshHomeEl?.value.trim() || ''
+      const folderIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-folder"/></svg>'
+      const serverIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-server"/></svg>'
+      const check = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-check"/></svg>'
+      const rows = []
+      const localHomes = ['']
+      for (const [home] of homeOptions(localHome)) if (!localHomes.includes(home)) localHomes.push(home)
+      for (const home of localHomes) {
+        const selected = !connection && (home || '') === localHome
+        const real = home || state.dshHome || '~/.dsh'
+        const name = pluginHomeName(real, '') || folderBaseName(real) || t('本机')
+        rows.push(`<button class="project-device-option${selected ? ' is-selected' : ''}" type="button" role="option" aria-selected="${selected}" data-guide-home="${escapeHtml(home)}"><span class="project-device-option-icon">${folderIcon}</span><span class="project-device-option-text"><strong>${escapeHtml(name)}</strong><small>${escapeHtml(real)}</small></span><span class="project-device-option-state">${selected ? `<span class="project-device-check">${check}</span>` : ''}</span></button>`)
       }
-      if (launchGuideWslFieldsEl) launchGuideWslFieldsEl.hidden = !wsl
-      if (launchGuideWslHomeFieldEl) launchGuideWslHomeFieldEl.hidden = !wsl || launchIsolation !== 'home'
-      if (launchGuideDirFieldEl) launchGuideDirFieldEl.hidden = wsl || launchIsolation !== 'home'
-      if (launchGuideWslDistroEl) {
-        const distros = guideWslDistros()
-        const current = guideWslDistroValue()
-        launchGuideWslDistroEl.disabled = !distros.length
-        launchGuideWslDistroEl.innerHTML = distros.length
-          ? distros.map((item) => `<option value="${escapeHtml(item.name)}">${escapeHtml(item.name)}${item.version ? ` · WSL ${escapeHtml(String(item.version))}` : ''}${item.default ? ` · ${escapeHtml(t('默认'))}` : ''}</option>`).join('')
-          : `<option value="">${escapeHtml(t('没有检测到 WSL 发行版'))}</option>`
-        launchGuideWslDistroEl.value = distros.some((item) => item.name === current) ? current : (distros[0]?.name || '')
-        syncUiSelect(launchGuideWslDistroEl)
+      for (const item of connectionsList()) {
+        const selected = launchGuideConnectionId === item.id
+        const status = connectionRuntime[item.id]?.status || 'offline'
+        rows.push(`<button class="project-device-option${selected ? ' is-selected' : ''}" type="button" role="option" aria-selected="${selected}" data-guide-conn="${escapeHtml(item.id)}"><span class="project-device-option-icon">${serverIcon}</span><span class="project-device-option-text"><strong>${escapeHtml(folderBaseName('~/.dsh') || item.name)}</strong><small>${escapeHtml(connectionTarget(item))}</small></span><span class="project-device-option-state">${projectDeviceStatusMark(status)}${selected ? `<span class="project-device-check">${check}</span>` : ''}</span></button>`)
       }
+      rows.push(`<button class="project-device-option is-add" type="button" role="option" data-guide-create><span class="project-device-option-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-folder-plus"/></svg></span><span class="project-device-option-text"><strong>${escapeHtml(t('创建项目'))}</strong></span></button>`)
+      launchGuideDirListEl.innerHTML = rows.join('')
+      launchGuideDeviceEl.innerHTML = [
+        `<option value="local">${escapeHtml(t('此电脑'))}</option>`,
+        ...connectionsList().map((item) => `<option value="conn:${escapeHtml(item.id)}">${escapeHtml(projectDeviceLabel(item))}</option>`),
+      ].join('')
+      launchGuideDeviceEl.value = launchGuideConnectionId ? `conn:${launchGuideConnectionId}` : 'local'
+
+      const real = connection ? (launchRemoteHomeEl?.value.trim() || '~/.dsh') : (localHome || state.dshHome || '~/.dsh')
+      const label = connection
+        ? `${folderBaseName('~/.dsh') || '.dsh'} · ${connectionTarget(connection)}`
+        : (pluginHomeName(real, '') || folderBaseName(real) || t('本机')) + (real && real !== (pluginHomeName(real, '') || folderBaseName(real)) ? ` · ${real}` : '')
+      launchGuideDirLabelEl.textContent = label
+      launchGuideDirIconEl.querySelector('use')?.setAttribute('href', connection ? '/icons.svg#lucide-server' : '/icons.svg#lucide-folder')
+      const pickedStatus = connection ? connectionRuntime[connection.id]?.status : ''
+      launchGuideDirStatusEl.hidden = !pickedStatus || pickedStatus === 'offline'
+      launchGuideDirStatusEl.className = `project-device-status project-device-dot${pickedStatus === 'online' ? ' is-online' : pickedStatus === 'preparing' ? ' is-preparing' : pickedStatus === 'error' ? ' is-error' : ''}`
+
+      const remote = guideTargetIsRemote()
+      if (launchGuideDeviceFieldEl) launchGuideDeviceFieldEl.hidden = copyMode || launchIsolation === 'home'
+      if (launchGuideWslHomeFieldEl) launchGuideWslHomeFieldEl.hidden = copyMode || !remote || launchIsolation !== 'home'
+      if (launchGuideDirFieldEl) launchGuideDirFieldEl.hidden = copyMode || remote || launchIsolation !== 'home'
       if (launchGuideTargetHintEl) {
-        const hint = wsl ? (state.wsl?.error || (guideWslDistros().length ? '' : t('没有检测到 WSL 发行版。'))) : ''
+        const hint = !copyMode && remote && !connection
+          ? t('先选择一个用户目录。')
+          : !copyMode && remote && connectionRuntime[connection.id]?.status !== 'online'
+            ? t('{device} 还没连接，先在设置 → 远程里连上。', { device: connectionTarget(connection) })
+            : ''
         launchGuideTargetHintEl.hidden = !hint
         launchGuideTargetHintEl.textContent = hint
       }
-      if (launchGuideWslHomeEl && wsl && launchIsolation === 'home') {
-        launchGuideWslHomeEl.placeholder = guideWslHomeDefault()
+      if (launchGuideWslHomeEl && !copyMode && remote && launchIsolation === 'home') {
+        launchGuideWslHomeEl.placeholder = guideRemoteHomeDefault()
       }
       syncGuideWslFields()
     }
 
+    /** 面板和触发器同宽：布局晚一拍变过（滚动条出现/消失）也要再对齐一次。 */
+    function alignLaunchGuideDirPanel() {
+      if (!launchGuideDirPanelEl || !launchGuideDirTriggerEl) return
+      const rect = launchGuideDirTriggerEl.getBoundingClientRect()
+      const width = Math.min(Math.max(320, rect.width || 320), window.innerWidth - 24)
+      launchGuideDirPanelEl.style.width = `${width}px`
+      launchGuideDirPanelEl.style.left = `${Math.max(12, Math.min(rect.left, window.innerWidth - width - 12))}px`
+      launchGuideDirPanelEl.style.top = `${rect.bottom + 6}px`
+      requestAnimationFrame(() => {
+        if (!launchGuideDirPanelEl || launchGuideDirPanelEl.hidden) return
+        alignLaunchGuideDirPanel()
+        const panel = launchGuideDirPanelEl.getBoundingClientRect()
+        if (panel.bottom > window.innerHeight - 12) launchGuideDirPanelEl.style.top = `${Math.max(12, rect.top - panel.height - 6)}px`
+      })
+    }
+
+    let launchGuideDirResize = null
+    function openLaunchGuideDirPanel() {
+      if (!launchGuideDirPanelEl || !launchGuideDirPanelEl.hidden) return
+      paintGuideTarget()
+      launchGuideDirPanelEl.hidden = false
+      launchGuideDirTriggerEl?.setAttribute('aria-expanded', 'true')
+      alignLaunchGuideDirPanel()
+      if (typeof ResizeObserver === 'function' && launchGuideDirTriggerEl && !launchGuideDirResize) {
+        launchGuideDirResize = new ResizeObserver(() => {
+          if (launchGuideDirPanelEl && !launchGuideDirPanelEl.hidden) alignLaunchGuideDirPanel()
+        })
+        launchGuideDirResize.observe(launchGuideDirTriggerEl)
+      }
+    }
+
+    function closeLaunchGuideDirPanel() {
+      if (!launchGuideDirPanelEl || launchGuideDirPanelEl.hidden) return
+      launchGuideDirPanelEl.hidden = true
+      launchGuideDirTriggerEl?.setAttribute('aria-expanded', 'false')
+      launchGuideDirResize?.disconnect()
+      launchGuideDirResize = null
+    }
+
+    function selectGuideLocalHome(home) {
+      launchGuideConnectionId = ''
+      launchGuideBackend = 'local'
+      if (launchDshHomeEl) launchDshHomeEl.value = String(home || '')
+      if (launchConnectionIdEl) launchConnectionIdEl.value = ''
+      if (launchRemoteHomeEl) launchRemoteHomeEl.value = ''
+      versionScopeState = null
+      launchWslProfiles = []
+      paintGuideTarget()
+      fillGuidedLaunchName()
+      paintLaunchIsolation()
+    }
+
+    launchGuideDirTriggerEl?.addEventListener('click', (event) => {
+      event.stopPropagation()
+      if (launchGuideDirPanelEl?.hidden) openLaunchGuideDirPanel()
+      else closeLaunchGuideDirPanel()
+    })
+    launchGuideDirListEl?.addEventListener('click', (event) => {
+      const create = event.target.closest?.('[data-guide-create]')
+      if (create) { closeLaunchGuideDirPanel(); openProjectDialog(); return }
+      const local = event.target.closest?.('[data-guide-home]')
+      if (local) { selectGuideLocalHome(local.dataset.guideHome); closeLaunchGuideDirPanel(); return }
+      const remote = event.target.closest?.('[data-guide-conn]')
+      if (!remote) return
+      setLaunchGuideDevice(`conn:${remote.dataset.guideConn}`)
+      closeLaunchGuideDirPanel()
+      const connection = connectionById(remote.dataset.guideConn)
+      if (connection && connectionRuntime[connection.id]?.status !== 'online') {
+        void startConnectionPrepare(connection.id)
+        // 连接 / 安装可能还要用户确认：连上后自动把远端 Profile 和版本读回来，不用再选一次。
+        void (async () => {
+          const startedAt = Date.now()
+          while (Date.now() - startedAt < 180000) {
+            await new Promise((resolve) => setTimeout(resolve, 800))
+            if (launchGuideConnectionId !== connection.id) return
+            const status = connectionRuntime[connection.id]?.status
+            if (status === 'online') { reloadGuideScope(); return }
+            if (!['preparing', 'awaiting-install'].includes(status)) return
+          }
+        })()
+      }
+    })
+    document.addEventListener('click', (event) => {
+      if (!launchGuideDirPanelEl || launchGuideDirPanelEl.hidden) return
+      if (launchGuideDirPanelEl.contains(event.target) || launchGuideDirTriggerEl?.contains(event.target)) return
+      closeLaunchGuideDirPanel()
+    })
+    window.addEventListener('resize', () => { if (launchGuideDirPanelEl && !launchGuideDirPanelEl.hidden) alignLaunchGuideDirPanel() })
+
+    function setLaunchGuideDevice(value) {
+      const picked = String(value || '')
+      const connection = picked.startsWith('conn:') ? connectionById(picked.slice(5)) : null
+      launchGuideConnectionId = connection?.id || ''
+      launchGuideBackend = connection?.kind === 'ssh' ? 'ssh' : connection?.kind === 'wsl' ? 'wsl' : 'local'
+      if (!connection) {
+        // 切回本机：远端 state 不再参与自动版本和兼容性检查。
+        versionScopeState = null
+        launchWslProfiles = []
+      }
+      paintGuideTarget()
+      reloadGuideScope()
+      fillGuidedLaunchName()
+      paintLaunchIsolation()
+    }
+
     let guideScopeTimer = 0
-    /** 引导里的发行版 / 用户 / 目录变了：重读远端 state 和 Profile 列表，再刷新建议名。 */
+    /** 引导里的设备 / 目录变了：重读远端 state 和 Profile 列表，再刷新建议名。 */
     function reloadGuideScope() {
-      if (!guideTargetIsWsl()) return
+      if (!guideTargetIsRemote()) return
+      const connection = guideConnection()
+      if (!connection || connectionRuntime[connection.id]?.status !== 'online') return
       syncGuideWslFields()
       clearTimeout(guideScopeTimer)
       guideScopeTimer = setTimeout(() => {
@@ -6687,7 +6728,7 @@
           paintLaunchIsolation()
           if (!launchDialogEl.hidden) render()
         })
-        void refreshWslProfiles(true).then(() => {
+        void refreshRemoteProfiles(true).then(() => {
           fillCopyProfileName()
           fillGuidedLaunchName()
           paintLaunchHint()
@@ -6695,33 +6736,6 @@
       }, 200)
     }
 
-    function setLaunchGuideBackend(mode) {
-      launchGuideBackend = mode === 'wsl' ? 'wsl' : 'local'
-      if (launchGuideBackend === 'wsl') {
-        void ensureWslInfo().then(() => {
-          paintGuideTarget()
-          reloadGuideScope()
-        })
-      } else {
-        // 切回本机：远端 state 不再参与自动版本和兼容性检查。
-        versionScopeState = null
-      }
-      paintGuideTarget()
-      fillGuidedLaunchName()
-      paintLaunchIsolation()
-    }
-    if (typeof launchGuideBackendTabsEl !== 'undefined' && launchGuideBackendTabsEl) {
-      launchGuideBackendTabsEl.onclick = (event) => {
-        const tab = event.target.closest?.('[data-guide-backend]')
-        if (tab) setLaunchGuideBackend(tab.dataset.guideBackend)
-      }
-    }
-    if (typeof launchGuideWslDistroEl !== 'undefined' && launchGuideWslDistroEl) {
-      launchGuideWslDistroEl.onchange = () => { reloadGuideScope(); paintGuideTarget() }
-    }
-    if (typeof launchGuideWslUserEl !== 'undefined' && launchGuideWslUserEl) {
-      launchGuideWslUserEl.onchange = () => reloadGuideScope()
-    }
     if (typeof launchGuideWslHomeEl !== 'undefined' && launchGuideWslHomeEl) {
       launchGuideWslHomeEl.onchange = () => { syncGuideWslFields(); reloadGuideScope() }
       launchGuideWslHomeEl.oninput = () => { syncGuideWslFields() }
@@ -6734,17 +6748,18 @@
      */
     function setLaunchIsolation(mode, creating = true) {
       launchIsolation = mode === 'home' || mode === 'custom' ? mode : 'profile'
+      // 会话隔离就是新建一个本机目录，用户目录下拉在这档没有作用；从远端切过来时落回本机。
+      if (creating && launchIsolation === 'home' && launchGuideBackend !== 'local') setLaunchGuideDevice('local')
       const guided = creating && launchIsolation !== 'custom'
       launchIsolationFieldEl.hidden = !creating
       launchIsolationHeadEl.hidden = !creating
       launchCustomFieldsEl.hidden = guided
       // 引导块跟档走：前两档露出来，里面按档藏名字输入（值留着，切走再切回来不用重填）
       if (launchGuideFieldEl) launchGuideFieldEl.hidden = !guided
-      // 目标目录只有会话隔离那档有：插件隔离沿用全局目录，没得挑。WSL 的目标目录由引导里
-      // 的发行版 / WSL 用户目录代替，本机目录下拉跟着藏。
-      if (launchGuideDirFieldEl) launchGuideDirFieldEl.hidden = guideTargetIsWsl() || launchIsolation !== 'home'
-      if (launchGuideWslFieldsEl) launchGuideWslFieldsEl.hidden = !guideTargetIsWsl()
-      if (launchGuideWslHomeFieldEl) launchGuideWslHomeFieldEl.hidden = !guideTargetIsWsl() || launchIsolation !== 'home'
+      // 目标目录只有会话隔离那档有：插件隔离沿用全局目录，没得挑。远端的目标目录由
+      // 「用户目录」输入代替，本机目录下拉跟着藏。
+      if (launchGuideDirFieldEl) launchGuideDirFieldEl.hidden = guideTargetIsRemote() || launchIsolation !== 'home'
+      if (launchGuideWslHomeFieldEl) launchGuideWslHomeFieldEl.hidden = !guideTargetIsRemote() || launchIsolation !== 'home'
       if (launchProfileCustomEl) launchProfileCustomEl.hidden = launchIsolation !== 'profile'
       if (launchHomeProfileEl) launchHomeProfileEl.hidden = launchIsolation !== 'home'
       if (guided) {
@@ -6771,21 +6786,23 @@
         // 说清复制的是 Profile，不是整个环境：技能、Prompt 和会话都不跟过来，别让人以为搬完就完工
         hint = t('把「{profile}」复制成新的 Profile「{name}」：插件与配置跟过来，技能、Prompt 管理和会话不跟。', {
           profile: copy.profile,
-          name: typedName || suggestCopyProfile(copy.profile, copyTargetExisting() ?? (guideTargetIsWsl() ? launchWslProfiles : state.profiles)) || t('（待定）'),
+          name: typedName || suggestCopyProfile(copy.profile, copyTargetExisting() ?? (guideTargetIsRemote() ? launchWslProfiles : state.profiles)) || t('（待定）'),
         })
       } else if (copying) {
         // 停在复制那档还没选来源：说清下一步，别让人以为直接保存就复制了
         hint = t('先选一份要复制的 Profile：左边挑用户目录，右边挑 Profile；复制出来的环境从空白会话开始。')
       } else if (launchIsolation === 'profile') {
-        hint = guideTargetIsWsl()
-          ? t('将在 WSL「{distro}」的 {home} 里新建 Profile「{name}」：会话与记忆共享，插件与配置独立。', {
-            distro: guideWslDistroValue() || t('（未选择发行版）'), home: guideWslHomeValue(), name: typedName || suggestIsolatedProfile(),
+        const device = guideConnection()
+        hint = device
+          ? t('将在 {device} 的 {home} 里新建 Profile「{name}」：会话与记忆共享，插件与配置独立。', {
+            device: connectionLabel(device), home: guideRemoteHomeValue(), name: typedName || suggestIsolatedProfile(),
           })
           : t('将自动新建 Profile「{name}」：沿用全局 dsh 目录，会话与记忆共享，插件与配置独立。', { name: typedName || suggestIsolatedProfile() })
       } else if (launchIsolation === 'home') {
-        hint = guideTargetIsWsl()
-          ? t('将在 WSL「{distro}」新建独立目录 {home}：会话、记忆、插件与配置全部独立。', {
-            distro: guideWslDistroValue() || t('（未选择发行版）'), home: guideWslHomeValue(),
+        const device = guideConnection()
+        hint = device
+          ? t('将在 {device} 新建独立目录 {home}：会话、记忆、插件与配置全部独立。', {
+            device: connectionLabel(device), home: guideRemoteHomeValue(),
           })
           : t('将自动新建独立目录：会话、记忆、插件与配置全部独立。')
       } else {
@@ -6876,7 +6893,8 @@
       if (launchHomeCustomEl.value === PLUGIN_HOME_MANAGE) {
         launchHomeCustomEl.value = ''
         paintLaunchHomeCustom()
-        openPluginHomesDialog()
+        // 管理 / 挑选目录统一走三栏选择窗（用户目录 / Profile / 内容），不再用旧的管理目录弹窗。
+        void openProfilePicker('form')
         return
       }
       // 换了目标目录：复制建议名要按这个目录里已有的 Profile 重算（见 refreshCopyTargetProfiles）
@@ -6903,6 +6921,8 @@
     let pickerHome = ''
     let pickerProfile = ''
     let pickerRows = []
+    // 会话隔离要挑的是一个本机目录：这时的三栏选择窗只列本机目录，不混入远端连接。
+    let pickerLocalOnly = false
     // 详情栏上一次画的是哪份 Profile：换了才重播淡入
     let pickerDetailName = ''
     // 按目录缓存 { profiles, webProfiles, packs }：切来切去不重复问服务端，增删改只失效那一份
@@ -6960,10 +6980,10 @@
      * 全局目录的 Profile 清单页面早就有了（state.profiles / webProfiles），不用再问服务端。
      */
     function defaultCopySource() {
-      if (guideTargetIsWsl()) {
+      if (guideTargetIsRemote()) {
         const profiles = Array.isArray(launchWslProfiles) ? launchWslProfiles : []
         const profile = profiles.includes('web') ? 'web' : (profiles[0] || '')
-        return profile ? { home: guideWslHomeKey(), profile } : null
+        return profile ? { home: guideRemoteHomeKey(), profile } : null
       }
       const web = (Array.isArray(state.webProfiles) && state.webProfiles.length ? state.webProfiles : (state.profiles || [])).map(String)
       const profile = web.includes('web') ? 'web' : (web[0] || '')
@@ -7028,7 +7048,7 @@
       }
       // 连接是另一类「用户目录」：挑启动环境/复制来源时都能直接选已保存的 WSL / SSH 主机。
       const remoteRows = []
-      for (const connection of connectionsList()) remoteRows.push({
+      if (!pickerLocalOnly) for (const connection of connectionsList()) remoteRows.push({
         home: connectionHomeKey(connection, '~/.dsh'),
         name: folderBaseName('~/.dsh') || connection.name,
         path: connectionTarget(connection),
@@ -7178,7 +7198,7 @@
         const selected = row.name === pickerProfile
         const blocked = row.web ? '' : ' is-blocked'
         const count = row.pack ? (row.pack.pluginCount ?? (row.pack.plugins || []).length) : null
-        const note = row.wsl ? t('WSL 里的 Profile') : row.web
+        const note = row.wsl ? t(row.ssh ? 'SSH 里的 Profile' : 'WSL 里的 Profile') : row.web
           ? (count === null ? t('还没初始化') : t('{n} 个插件', { n: count }))
           : t('不能起网页')
         // 没初始化的本地 Profile 没有 package.json，改名/删除都会被服务端拒；
@@ -7380,7 +7400,7 @@
           const data = await getJson(`/api/remote/inspect?connectionId=${encodeURIComponent(connection.id)}&home=${encodeURIComponent(remoteHome)}`)
           if (revision !== pickerRevision) return
           pickerWslInfo = { ok: true, version: data.version || '', profiles: data.profiles || [], home: data.home || remoteHome }
-          pickerRows = (data.profiles || []).map((name) => ({ name, web: true, pack: null, wsl: true }))
+          pickerRows = (data.profiles || []).map((name) => ({ name, web: true, pack: null, wsl: true, ssh: connection.kind === 'ssh' }))
           if (!pickerRows.some((row) => row.name === pickerProfile)) {
             pickerProfile = pickerRows.find((row) => row.name === 'web')?.name || pickerRows[0]?.name || ''
           }
@@ -7426,11 +7446,16 @@
       if (!profilePickDialogEl.hidden) return
       closeProjectDevicePanel()
       pickerMode = mode === 'form' ? 'form' : 'copy'
+      pickerLocalOnly = pickerMode === 'form' && launchIsolation === 'home' && launchIsGuided()
       const homeCaption = pickerMode === 'form' ? '环境' : '用户目录'
       profilePickHomeCaptionEl.textContent = t(homeCaption)
       profilePickHomeCaptionEl.dataset.i18n = homeCaption
       profilePickHomesEl.setAttribute('aria-label', t(homeCaption))
       if (pickerMode === 'form') {
+        if (launchIsGuided() && launchIsolation === 'home') {
+          const target = String(launchHomeCustomEl?.value || '').trim()
+          if (target && target !== PLUGIN_HOME_MANAGE) launchDshHomeEl.value = target
+        }
         const connection = connectionById(launchConnectionIdEl?.value || '')
         pickerHome = connection
           ? connectionHomeKey(connection, launchRemoteHomeEl?.value || launchWslHomeEl.value || '~/.dsh')
@@ -7458,6 +7483,7 @@
     }
 
     async function closeProfilePicker() {
+      pickerLocalOnly = false
       launchCopyPickEl.setAttribute('aria-expanded', 'false')
       launchEnvPickEl.setAttribute('aria-expanded', 'false')
       await hidePackDialog(profilePickDialogEl)
@@ -7514,6 +7540,10 @@
       if (launchBackendIsRemote()) setLaunchBackend('local')
       paintLaunchHomes(home)
       launchDshHomeEl.value = home
+      if (launchIsGuided() && launchIsolation === 'home') {
+        launchHomeCustomEl.value = home
+        paintLaunchHomeCustom()
+      }
       await refreshLaunchHomeProfiles()
       launchProfile = profile
       paintLaunchProfiles()
@@ -7819,17 +7849,29 @@
     }
 
     /**
-     * WSL 的引导式新建：Profile 和目录都建在远端 core 里，页面只负责把选择翻译成作用域请求。
-     * 建完把隐藏的 WSL 字段同步好，保存启动项时仍走同一条 /api/launch-presets。
+     * 远端引导式新建：Profile 和目录都建在远端 core（WSL / SSH）里，页面只负责把选择翻译成
+     * 作用域请求。建完把隐藏字段同步好，保存启动项时仍走同一条 /api/launch-presets。
      */
-    async function prepareGuidedLaunchWsl() {
-      const distro = guideWslDistroValue()
-      if (!distro) throw new Error(t('先选择一个 WSL 发行版'))
-      const user = guideWslUserValue()
-      const home = guideWslHomeValue()
-      const key = wslHomeKeyOf(distro, home)
+    async function prepareGuidedLaunchRemote() {
       const copy = selectedCopy()
       if (launchSourceMode === 'copy' && !copy) throw new Error(t('先选一份要复制的 Profile'))
+      let connection = guideConnection()
+      let home = guideRemoteHomeValue()
+      let key = connection ? connectionHomeKey(connection, home) : ''
+      // 复制档不单独选设备：来源三级菜单里的目录就是目标环境，复制到同一个目录下。
+      if (copy) {
+        const src = parseSshHomeKey(copy.home) || parseWslHomeKey(copy.home)
+        if (!src) throw new Error(t('只能从同一个设备里的 Profile 复制'))
+        key = copy.home
+        home = src.home
+        connection = src.connectionId
+          ? connectionById(src.connectionId)
+          : connectionsList().find((item) => item.kind === 'wsl' && item.wslDistro === src.distro) || null
+        if (!connection) throw new Error(t('这个设备已经不存在，重新选一份要复制的 Profile'))
+        launchGuideConnectionId = connection.id
+        launchGuideBackend = connection.kind
+      }
+      if (!connection) throw new Error(t('先选择一个启动环境'))
       const typed = String(guidedProfileNameEl()?.value || '').trim()
       const lower = typed.toLowerCase()
       if (typed && (lower === 'node_modules' || (copy && RESERVED_PROFILE_NAMES.has(lower)))) {
@@ -7837,45 +7879,54 @@
       }
       let data
       try {
-        data = await getJson('/api/state', { home: key, launchId: '', wslUser: user })
+        data = await getJson('/api/state', { home: key, launchId: '' })
         versionScopeState = data
       } catch (error) {
-        throw new Error(t('读不到 WSL 里的 Profile：{error}', { error: error.message }))
+        throw new Error(t('读不到远端里的 Profile：{error}', { error: error.message }))
       }
       const profiles = Array.isArray(data.profiles) ? data.profiles : []
       const webProfiles = Array.isArray(data.webProfiles) ? data.webProfiles : []
       const suggested = copy ? suggestCopyProfile(copy.profile, profiles) : ''
       const name = typed || suggested || (profiles.includes('web') ? 'web' : 'work')
       if (copy) {
-        const src = parseWslHomeKey(copy.home)
-        if (!src || src.distro !== distro) throw new Error(t('只能从同一个 WSL 发行版里的 Profile 复制'))
+        const src = parseSshHomeKey(copy.home) || parseWslHomeKey(copy.home)
+        if (!src) throw new Error(t('只能从同一个设备里的 Profile 复制'))
+        const sameDevice = connection.kind === 'ssh'
+          ? src.connectionId === connection.id
+          : (src.distro || '') === (connection.wslDistro || '')
+        if (!sameDevice) throw new Error(t('只能从同一个设备里的 Profile 复制'))
         if (profiles.includes(name)) throw new Error(t('这个目录里已经有「{profile}」，换个名字再复制。', { profile: name }))
-        if (src.home === home && name === copy.profile) throw new Error(t('目标名字不能和来源「{profile}」一样，换一个 Profile 名称。', { profile: copy.profile }))
+        if (copy.profile === name && copy.home === key) throw new Error(t('目标名字不能和来源「{profile}」一样，换一个 Profile 名称。', { profile: copy.profile }))
         // 同目录复制来源留空（远端按当前作用域算）；跨目录要把 ~ 换成远端实际 HOME。
-        let sourceHome = src.home === home ? '' : src.home
+        let sourceHome = copy.home === key ? '' : src.home
         if (sourceHome && !sourceHome.startsWith('/')) {
           try {
-            const srcState = await getJson('/api/state', { home: copy.home, launchId: '', wslUser: user })
+            const srcState = await getJson('/api/state', { home: copy.home, launchId: '' })
             sourceHome = String(srcState?.dshHome || '')
           } catch { sourceHome = '' }
         }
         if (sourceHome && !sourceHome.startsWith('/')) throw new Error(t('从「{home}」复制需要绝对路径；先在该目录里把 Profile 建好再复制。', { home: src.home }))
-        await post('/api/profiles/copy', { profile: name, source: copy.profile, sourceHome }, { home: key, launchId: '', wslUser: user })
+        await post('/api/profiles/copy', { profile: name, source: copy.profile, sourceHome }, { home: key, launchId: '' })
       } else {
         if (typed && profiles.includes(typed) && !webProfiles.includes(typed)) throw new Error(t('这个 Profile 不能启动网页，换一个名称'))
-        if (!profiles.includes(name)) await post('/api/profiles/create', { profile: name }, { home: key, launchId: '', wslUser: user })
+        if (!profiles.includes(name)) await post('/api/profiles/create', { profile: name }, { home: key, launchId: '' })
       }
-      launchWslDistroEl.value = distro
-      launchWslUserEl.value = user
-      launchWslHomeEl.value = home
       launchProfile = name
-      await refreshWslProfiles(true)
+      syncGuideWslFields()
+      await refreshRemoteProfiles(true)
       launchProfile = name
-      // 引导里选的发行版/用户也收进连接模型：下次在目录下拉里能直接选到。
-      const connectionId = await ensureWslConnection(distro, user)
-      if (launchConnectionIdEl) launchConnectionIdEl.value = connectionId
+      if (connection.kind === 'wsl') {
+        launchWslDistroEl.value = connection.wslDistro
+        launchWslUserEl.value = connection.wslUser || ''
+        launchWslHomeEl.value = home
+      }
+      if (launchConnectionIdEl) launchConnectionIdEl.value = connection.id
       if (launchRemoteHomeEl) launchRemoteHomeEl.value = home
-      return { name: (name || 'work').slice(0, 32), profile: name, wslDistro: distro, wslHome: home, wslUser: user, connectionId, remoteHome: home }
+      return {
+        name: (name || 'work').slice(0, 32), profile: name,
+        connectionId: connection.id, remoteHome: home,
+        ...(connection.kind === 'wsl' ? { wslDistro: connection.wslDistro, wslHome: home, wslUser: connection.wslUser || '' } : {}),
+      }
     }
 
     /**
@@ -7883,7 +7934,12 @@
      * 都走现有接口（建 Profile 由服务端 ensureProfile 完成），页面不用先建环境再存启动项。
      */
     async function prepareGuidedLaunch() {
-      if (guideTargetIsWsl()) return prepareGuidedLaunchWsl()
+      const earlyCopy = selectedCopy()
+      if (guideTargetIsRemote()) return prepareGuidedLaunchRemote()
+      // 复制档没有设备下拉：来源是远端目录时，目标环境就跟着来源走。
+      if (launchSourceMode === 'copy' && earlyCopy && (parseSshHomeKey(earlyCopy.home) || parseWslHomeKey(earlyCopy.home))) {
+        return prepareGuidedLaunchRemote()
+      }
       // 复制来源只在「从已有 Profile 复制」那档有效；来源目录空串 = 默认目录，服务端按当前作用域算
       const copy = selectedCopy()
       // 停在那档却没选来源：保存不会静默变成「新建空白」，直接把下一步说出来
@@ -8168,7 +8224,8 @@
       // 按它去等实例会永远等不到（服务端启动时才探测 WSL 里真正装的版本）。
       const bootVersion = entry?.backend === 'wsl' && entry.version === 'auto' ? 'auto' : version || ''
       const params = new URLSearchParams({ version: bootVersion, profile: profile || '' })
-      const home = entry?.backend === 'wsl' ? launchHomeOf(entry) : entry?.dshHome || state.dshHome || ''
+      // 远端实例的 home 是合成键（wsl:// / ssh://）；按本机路径传会让进度页永远等不到它。
+      const home = entry?.backend === 'wsl' || entry?.backend === 'ssh' ? launchHomeOf(entry) : entry?.dshHome || state.dshHome || ''
       if (home) params.set('home', home)
       if (launchId) params.set('launch', launchId)
       if (entry?.name) params.set('name', entry.name)
@@ -9482,9 +9539,9 @@
       // 第二排 tab 回到「新建 Profile」：新建每次从自己起名开始；编辑时引导块整个藏着，顺手复位
       launchSourceMode = 'name'
       paintLaunchSource()
-      // 运行位置每次新建从本机开始；WSL 的发行版/用户/目录输入也跟着清。
+      // 设备每次新建从本机开始；引导里的用户目录输入也跟着清。
       launchGuideBackend = 'local'
-      if (launchGuideWslUserEl) launchGuideWslUserEl.value = ''
+      launchGuideConnectionId = ''
       if (launchGuideWslHomeEl) launchGuideWslHomeEl.value = ''
       // 编辑老启动项只走自定义档（它的目录/Profile 组合可能本来就不在引导范围里），新建才从引导开始。
       setLaunchIsolation(entry ? 'custom' : launchIsolationSaved, !entry)
@@ -9756,16 +9813,17 @@
     async function startLaunchInstance(version, profile, presetPort, launchId, task) {
       const entry = launchId ? launchEntries().find((item) => item.id === launchId) : null
       const wsl = entry?.backend === 'wsl'
-      // WSL 的 dsh 是发行版自己那份，版本只能由 WSL 探测；auto 时别带上次用过的旧版本，
-      // 否则 WSL 升级后服务端会把它当成钉死的版本，启动记录和实际进程对不上。
-      if (wsl && entry?.version === 'auto') version = 'auto'
+      const remote = wsl || entry?.backend === 'ssh'
+      // 远端的 dsh 由远端 core 管；auto 时别带上次用过的旧版本，
+      // 否则远端升级后服务端会把它当成钉死的版本，启动记录和实际进程对不上。
+      if (remote && entry?.version === 'auto') version = 'auto'
       task.phase = 'start'
       // 进度页和启动请求并行发：那张页只是展示，不能把真正的启动往后拖一个 await。
       // 它自己轮询实例状态，dsh 就绪后跳进去；首次启动的安装进度也在那张页上看。
       const bootPage = openBootPage(version, profile, launchId)
-      // WSL 的 version 可能是 auto：服务端按启动项里的 port 兜底，这里别用 auto 去写端口表。
-      if (presetPort !== null && !(wsl && version === 'auto')) await post('/api/instance-port', { version, profile, port: presetPort }, { launchId })
-      if (!wsl && !installedList().includes(version)) {
+      // 远端的版本/端口由远端 core 自己管，本机不写本地端口表、也不预先装本地版本。
+      if (!remote && presetPort !== null) await post('/api/instance-port', { version, profile, port: presetPort }, { launchId })
+      if (!remote && !installedList().includes(version)) {
         task.phase = 'install'
         render()
         // 两个环境首次用同一版本时共用一次下载，安装完成后各自启动。
@@ -10824,11 +10882,12 @@
      */
     function homeOptions(current) {
       const homes = new Map()
-      // WSL 的 home 是合成键，由选择窗单独列成「WSL · 发行版」行；别再当成本机目录混进来。
+      // WSL / SSH 的 home 是合成键，由选择窗单独列成连接行；别再当成本机目录混进来。
       const add = (home, name) => {
         if (!home || home === state.dshHome || homes.has(home)) return
         // 老测试桩只装了本机这段：没有解析函数时就当普通目录。
         if (typeof parseWslHomeKey === 'function' && parseWslHomeKey(home)) return
+        if (typeof parseSshHomeKey === 'function' && parseSshHomeKey(home)) return
         homes.set(home, name)
       }
       for (const entry of state.launchPresets || []) add(entry.dshHome, entry.name)

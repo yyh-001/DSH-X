@@ -62,7 +62,8 @@ test('远端也用本机版本选择器：版本组露出，数据源切到远�
   assert.match(page, /post\('\/api\/install', \{ version \}, versionScopeOptions\(\)\)/, '安装走远端 core 代理')
   assert.match(page, /post\('\/api\/uninstall', \{ version \}, versionScopeOptions\(\)\)/, '卸载走远端 core 代理')
   assert.match(page, /version: versionValue \|\| 'auto'/, '远端启动项保存选中的版本')
-  assert.match(page, /launchWslWorkdirFieldEl\.hidden = !remote/)
+  assert.match(page, /launchWslWorkdirFieldEl\.hidden = !wsl/, 'SSH 的项目目录不会生效，这一栏只留给 WSL')
+  assert.doesNotMatch(page, /kind === 'ssh' \? '项目目录（选填）'/, 'SSH 启动项不再显示项目目录')
   assert.match(page, /launchWslLocationFieldsEl\.hidden = !remote/)
   assert.match(page, /if \(launchBackendIsRemote\(\)\) setLaunchBackend\('local'\)/, '选择本机目录时切回本机')
   assert.match(page, /launch-tag launch-tag-wsl/, '启动项卡片上有 WSL 标签')
@@ -136,31 +137,29 @@ test('WSL 和本机一样有版本类型与兼容性检查', () => {
   assert.match(page, /versionScopeState\?\.channelPlans\?\.\[channel\]/, '自动选版本读远端 state 的通道计划')
 })
 
-test('WSL 引导也有隔离方式：运行位置切到 WSL 后由远端建 Profile / 目录', () => {
-  assert.match(page, /id="launchGuideBackendTabs"/)
-  assert.match(page, /data-guide-backend="local"/)
-  assert.match(page, /data-guide-backend="wsl"/)
-  assert.match(page, /id="launchGuideWslDistro"/)
-  assert.match(page, /id="launchGuideWslUser"/)
-  assert.match(page, /id="launchGuideWslHome"/)
-  assert.match(page, /function setLaunchGuideBackend\(/)
-  assert.match(page, /async function prepareGuidedLaunchWsl\(/)
-  assert.match(page, /getJson\('\/api\/state', \{ home: key, launchId: '', wslUser: user \}\)/)
-  assert.match(page, /post\('\/api\/profiles\/create', \{ profile: name \}, \{ home: key, launchId: '', wslUser: user \}\)/)
-  assert.match(page, /post\('\/api\/profiles\/copy', \{ profile: name, source: copy\.profile, sourceHome \}, \{ home: key, launchId: '', wslUser: user \}\)/)
-  assert.match(page, /launchIsolationFieldEl\.hidden = !creating/, '隔离方式不再因为 WSL 整块藏掉')
-  assert.match(page, /launchBackendIsWsl\(\)[\s\S]{0,300}?launchGuideBackend === 'wsl'/, '引导里的运行位置参与后端判定')
+test('引导里的用户目录列表：本机 + 连接，WSL / SSH 都能直接建 Profile / 目录', () => {
+  assert.match(page, /id="launchGuideDirTrigger"/)
+  assert.match(page, /id="launchGuideDirPanel"/)
+  assert.doesNotMatch(page, /id="launchGuideBackendTabs"/, '运行位置不再用分段按钮')
+  assert.doesNotMatch(page, /id="launchGuideWslDistro"/, '发行版由连接决定，不再单独选')
+  assert.match(page, /id="launchGuideWslHome"/, '会话隔离仍然能填远端用户目录')
+  assert.match(page, /function setLaunchGuideDevice\(/)
+  assert.match(page, /async function prepareGuidedLaunchRemote\(/)
+  assert.match(page, /getJson\('\/api\/state', \{ home: key, launchId: '' \}\)/)
+  assert.match(page, /post\('\/api\/profiles\/create', \{ profile: name \}, \{ home: key, launchId: '' \}\)/)
+  assert.match(page, /post\('\/api\/profiles\/copy', \{ profile: name, source: copy\.profile, sourceHome \}, \{ home: key, launchId: '' \}\)/)
+  assert.match(page, /launchIsolationFieldEl\.hidden = !creating/, '隔离方式不再因为远端整块藏掉')
+  assert.match(page, /launchBackendIsRemote\(\)[\s\S]{0,300}?launchGuideBackend !== 'local'/, '引导里的设备参与后端判定')
 })
 
-test('连接弹窗用紧凑分段按钮，引导里的两档浮块按 1/2 平分', () => {
+test('连接弹窗用紧凑分段按钮，引导里的用户目录列表走应用内选择器', () => {
   assert.match(css, /\.connection-kind-tabs button\[aria-selected="true"\], \.connection-auth-tabs button\[aria-selected="true"\]/)
   assert.match(css, /\.connection-kind-tabs, \.connection-auth-tabs \{ display: inline-flex;/)
-  assert.match(css, /#launchGuideBackendTabs::after \{ width: calc\(\(100% - 10px\) \/ 2\); \}/)
-  assert.match(css, /#launchGuideBackendTabs\[data-active="wsl"\]::after/)
+  assert.match(page, /id="launchGuideDirTrigger"/, '用户目录下拉是应用内富选择器')
 })
 
 test('WSL 发行版也走应用内下拉，不弹系统原生菜单', () => {
-  assert.match(page, /#connectionWslDistro, #launchGuideWslDistro/, '发行版下拉包成 ui-select')
+  assert.match(page, /id="launchGuideDirTrigger"/, '用户目录下拉是应用内富选择器')
   assert.doesNotMatch(page, /#connectionSshImport, #connectionWslDistro/, 'SSH 导入有自己的富选择面板，不再走通用 ui-select')
 })
 
@@ -190,6 +189,8 @@ test('SSH config 导入是带搜索的富下拉：别名 + 用户@主机:端口'
   assert.match(page, /\[item\.username, item\.host\]\.filter\(Boolean\)\.join\('@'\)/, '副标题是 user@host:port')
   assert.match(css, /\.connection-import-panel \{[\s\S]{0,200}?position: fixed/)
   assert.match(css, /\.connection-import-option\.is-selected \{[^}]*background: var\(--accent-soft\)/)
+  assert.doesNotMatch(page, /connectionSshImportSearchEl\?\.focus\(\)/, '展开时不自动聚焦搜索框')
+  assert.match(css, /#connectionSshImportSearch:focus-visible[\s\S]{0,80}?outline: none/, '聚焦不画高亮框')
 })
 
 test('目录栏不单独标注远程连接：就绪的连接只用绿点表示', () => {
@@ -225,4 +226,16 @@ test('选择窗的切换 / 增删动效：方向推入、删除淡出、新增�
   assert.match(page, /async function fadePickerRowOut\(row\)/)
   assert.match(page, /pickerNewRow = `home:\$\{added\}`/, '新增目录高亮')
   assert.match(page, /pickerNewRow = `profile:\$\{data\.createdProfile\}`/, '新建 Profile 高亮')
+})
+
+test('SSH 连接的 Profile 行标注 SSH，不写成 WSL', () => {
+  assert.match(page, /wsl: true, ssh: connection\.kind === 'ssh'/, '远端 Profile 要记住连接类型')
+  assert.match(page, /row\.ssh \? 'SSH 里的 Profile' : 'WSL 里的 Profile'/, 'SSH 连接不能显示「WSL 里的 Profile」')
+})
+
+test('复制档不选设备：目标环境跟着来源三级菜单走', () => {
+  assert.match(page, /function guideTargetIsSsh\(/)
+  assert.match(page, /if \(copy\) \{[\s\S]{0,500}?key = copy\.home/, '复制目标目录来自来源')
+  assert.match(page, /launchSourceMode === 'copy' && earlyCopy && \(parseSshHomeKey\(earlyCopy\.home\) \|\| parseWslHomeKey\(earlyCopy\.home\)\)/, '来源是远端时走远端建 Profile')
+  assert.match(page, /connectionHomeKey\(connection, guideRemoteHomeValue\(\)\)/, 'WSL / SSH 都按连接 home 键定位远端目录')
 })

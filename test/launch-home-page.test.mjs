@@ -34,11 +34,12 @@ function editor(getJson = async () => ({ home: 'D:/isolated', profiles: ['web'],
   return { context, elements, calls }
 }
 
-test('WSL 自动版本的启动请求始终带 auto，不带上一次用过的旧版本', () => {
+test('WSL / SSH 自动版本的启动请求始终带 auto，不带上一次用过的旧版本', () => {
   const start = section('    async function startLaunchInstance(', '    async function startVersion(')
-  assert.match(start, /if \(wsl && entry\?\.version === 'auto'\) version = 'auto'/, '在打开进度页前把版本改回 auto')
+  assert.match(start, /if \(remote && entry\?\.version === 'auto'\) version = 'auto'/, '在打开进度页前把版本改回 auto')
   assert.match(start, /const bootPage = openBootPage\(version, profile, launchId\)/, '进度页用纠正后的版本')
   assert.match(start, /post\('\/api\/start', \{ version, profile \}, \{ launchId \}\)/, '启动请求用纠正后的版本')
+  assert.doesNotMatch(start, /if \(!wsl && !installedList\(\)\.includes\(version\)\)/, 'SSH 远端不能先跑本地安装')
 })
 
 test('目录下拉：第一项是本机，已保存的独立目录仍留在选项里', () => {
@@ -271,4 +272,21 @@ test('编辑 Profile…：还没初始化过的 Profile 只提示怎么让它出
   assert.equal(opened, '', '没卡片时不能凭空打开详情')
   assert.match(calls.at(-1), /Profile「qa」还没初始化/)
   assert.match(page, /"编辑 Profile…": "Edit profile…"/, '英文文案跟着补')
+})
+
+test('目录候选列表不把 SSH / WSL 合成键当成 Windows 目录', () => {
+  const context = vm.createContext({
+    state: {
+      dshHome: 'C:/global',
+      dshHomes: ['D:/extra'],
+      launchPresets: [{ id: 'remote', name: '远端', dshHome: 'ssh://abc/~%2F.dsh' }],
+      instances: [{ home: 'ssh://abc/~%2F.dsh' }, { home: 'wsl://Debian/~%2F.dsh' }],
+    },
+    parseWslHomeKey: (home) => home.startsWith('wsl://') ? { distro: 'Debian', home: '~/.dsh' } : null,
+    parseSshHomeKey: (home) => home.startsWith('ssh://') ? { connectionId: 'abc', home: '~/.dsh' } : null,
+    pluginHomeName: (home, fallback) => fallback,
+  })
+  vm.runInContext(homeList, context)
+  const homes = [...context.homeOptions('ssh://abc/~%2F.dsh').keys()]
+  assert.deepEqual(homes, ['D:/extra'], '远端的合成目录键只能以连接行的形式出现，不能混进本机目录')
 })

@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
-import { createWriteStream, existsSync } from 'node:fs'
+import { accessSync, constants as fsConstants, createWriteStream, existsSync, statSync } from 'node:fs'
 import { cp, mkdir, open, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { delimiter, dirname, join } from 'node:path'
@@ -261,15 +261,26 @@ export function withRuntimeNode(pathValue, options = {}) {
     dir = LOCAL_NODE,
     runtime = RUNTIME_NODE,
     inElectron = IN_ELECTRON,
+    isWindows = IS_WINDOWS,
     sep = delimiter,
     exists = existsSync,
+    executable = (file) => {
+      try {
+        accessSync(file, fsConstants.X_OK)
+        return statSync(file).isFile()
+      } catch {
+        return false
+      }
+    },
   } = options
   // Electron 本体所在目录里没有 node.exe，只有 node/ 那个包装目录能当兜底。
   // node.exe 只可能是 ≤0.1.19 安装包留下的：它只作为 PATH 兜底目录存在，不再被选成
   // 跑 dsh 的运行时（那条优先判断已在 platform.js 去掉，见 #89）。
-  const bundled = IS_WINDOWS
+  // POSIX 的 node/ 里是给外壳用的 shell 包装，tar 解出来可能没有执行位；这种不能算
+  // 可用兜底，否则 postinstall 里的裸 `node` 会解析到它、报 Permission denied。
+  const bundled = isWindows
     ? exists(join(dir, 'node.cmd')) || exists(join(dir, 'node.exe'))
-    : exists(join(dir, 'node'))
+    : exists(join(dir, 'node')) && executable(join(dir, 'node'))
   const fallback = bundled ? dir : inElectron ? '' : dirname(runtime)
   const parts = String(pathValue || '').split(sep).filter(Boolean)
   if (!fallback || parts.includes(fallback)) return pathValue

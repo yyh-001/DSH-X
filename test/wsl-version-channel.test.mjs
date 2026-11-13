@@ -38,3 +38,12 @@ test('WSL 自动版本：一个都没装时返回空串，通道仍按远端发�
   assert.equal(result.version, '')
   assert.equal(result.channel, 'rc')
 })
+
+test('WSL 自动版本：远端状态里混进 auto 时不能把它当版本号传下去', () => {
+  const result = pick({
+    channel: 'rc',
+    installed: ['auto', '0.2.1-rc.1'],
+    instances: [{ version: 'auto', profile: 'web', status: 'running' }],
+  })
+  assert.equal(result.version, '0.2.1-rc.1')
+})

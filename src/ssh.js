@@ -49,7 +49,7 @@ export function createSshBackend(connection, { password = '', passphrase = '' } 
     hostKeyFingerprint: String(connection.hostKeyFingerprint || ''),
     capturedFingerprint: '',
     hostKeyChanged: null,
-    tunnel: null,
+    tunnels: new Map(),
   }
   const owned = new Set()
 
@@ -261,13 +261,14 @@ export function createSshBackend(connection, { password = '', passphrase = '' } 
    * 远端 core 的 cookie/HTTP 客户端因此完全不用改。
    */
   async function openTunnel(remotePort) {
-    if (state.tunnel) return state.tunnel
+    const target = Number(remotePort)
+    if (state.tunnels.has(target)) return state.tunnels.get(target)
     const client = await connect()
     const sockets = new Set()
     const server = createServer((socket) => {
       sockets.add(socket)
       socket.once('close', () => sockets.delete(socket))
-      client.forwardOut('127.0.0.1', 0, '127.0.0.1', Number(remotePort), (error, stream) => {
+      client.forwardOut('127.0.0.1', 0, '127.0.0.1', target, (error, stream) => {
         if (error) { socket.destroy(); return }
         socket.pipe(stream).pipe(socket)
         stream.once('close', () => socket.destroy())
@@ -278,20 +279,21 @@ export function createSshBackend(connection, { password = '', passphrase = '' } 
       server.once('error', reject)
       server.listen(0, '127.0.0.1', () => resolve(server.address().port))
     })
-    state.tunnel = {
+    const tunnel = {
       port,
       close: () => {
         for (const socket of sockets) { try { socket.destroy() } catch { /* 已关闭 */ } }
         try { server.close() } catch { /* 已关闭 */ }
-        state.tunnel = null
+        state.tunnels.delete(target)
       },
     }
-    return state.tunnel
+    state.tunnels.set(target, tunnel)
+    return tunnel
   }
 
   function dispose() {
-    state.tunnel?.close()
-    state.tunnel = null
+    for (const tunnel of state.tunnels.values()) tunnel.close()
+    state.tunnels.clear()
     for (const channel of owned) { try { channel.close() } catch { /* 已关闭 */ } }
     owned.clear()
     const client = state.client

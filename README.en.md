@@ -38,6 +38,7 @@
 ## Features
 
 - 🚀 **Launch entries and multiple instances** — choose a home directory, profile, version and port per entry; start entries concurrently and add entries while DSH is running.
+- 🌐 **WSL and SSH remotes** — manage connections under Settings → Remote; launch entries can run on a WSL distro or SSH host, with dsh-x-core installed automatically and dsh versions, profiles and plugins managed remotely; pages open locally through an SSH tunnel. Creating or copying a profile can target a remote user directory too.
 - 📦 **Version management** — a dedicated manager for detecting new releases, manually installing, removing, checking disk usage and assigning versions to launch entries.
 - 🧩 **Plugins and packs** — install, uninstall, toggle and update plugins by environment (npm package names, local paths or Git URLs) and configure default indexes for the official custom plugin market; browse, search and sort the masonry-style community market, or import and export packs.
 - 🖥️ **Desktop enhancements** — tick it when adding a launch item to install two first-party plugins (native notifications, sidebar browser) into that environment; add missing ones later by editing the launch item, then toggle or update them individually on the Plugins page.
@@ -115,7 +116,9 @@ Pick an **isolation mode** first; it decides how far the new environment is from
 | Session isolation | A new user directory under `homes/<name>` in the data directory | Nothing: sessions, skills and plugins are all separate |
 | Custom | A user directory + profile + port of your choice | Whatever that environment already has |
 
-In the first two modes, then pick where the **profile** comes from:
+In the first two modes, pick a **user directory** first: a local directory, or a saved WSL / SSH connection. Remote profiles and directories are created automatically, and dsh-x-core is installed on first launch.
+
+Then pick where the **profile** comes from:
 
 - **New profile**: leave the name empty to have one generated (collisions get a suffix), or type your own.
 - **Copy an existing profile**: choose the source (directory on the left, profile in the middle); the new name defaults to `source-copy` and can be changed.

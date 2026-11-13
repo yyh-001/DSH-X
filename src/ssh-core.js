@@ -18,7 +18,7 @@ import { VERSION_RE } from './settings.js'
 
 const DEFAULT_INSTALL_ROOT = '~/.dsh-x/ssh-core'
 const DEFAULT_CONFIG_ROOT = '~/.dsh-x/core-config'
-const REMOTE_NODE_VERSION = '22.18.0'
+const REMOTE_NODE_VERSION = '24.22.3'
 
 function resolveRemoteHomePath(value, home) {
   const text = String(value || '').trim() || '~/.dsh'
@@ -52,13 +52,13 @@ async function resolveLocalCoreTarball(version, { cacheDir = tmpdir(), source = 
   return candidates[0]
 }
 
-/** 远端 node 版本 ≥22 就用系统 node；否则下载固定版本到 ~/.dsh-x/node。 */
+/** 远端 node 满足 dsh 的 engines（>=24.9）就用系统 node；否则下载固定版本到 ~/.dsh-x/node。 */
 async function ensureRemoteNode(backend) {
   const probe = await backend.exec('command -v node >/dev/null 2>&1 && node -p "process.versions.node" || true', { timeoutMs: 10000 })
   const version = String(probe.stdout || '').trim()
   if (version) {
-    const major = Number(version.split('.')[0])
-    if (major >= 22) return { node: 'node', version, downloaded: false }
+    const [major, minor] = version.split('.').map((part) => Number(part) || 0)
+    if (major > 24 || (major === 24 && minor >= 9)) return { node: 'node', version, downloaded: false }
   }
   const identity = await backend.resolveIdentity()
   const home = identity.home
@@ -122,6 +122,9 @@ export class SshRemoteCore {
     this.output = ''
     this.starting = null
     this._installed = false
+    this.logListeners = new Set()
+    this.logFollowing = false
+    this.logRequest = null
   }
 
   get running() {
@@ -308,7 +311,101 @@ export class SshRemoteCore {
     return response.text ? JSON.parse(response.text) : {}
   }
 
+  /**
+   * 订阅远端 core 的日志流（SSE）。dsh 的 stdout/stderr 只落在远端 core 的
+   * manager.log 里，本机启动项日志要看到它就得从这条流抄回来。
+   * 返回取消订阅函数；core 退出时内部会自己收尾。
+   */
+  followLogs(listener) {
+    if (typeof listener !== 'function') return () => {}
+    this.logListeners.add(listener)
+    this.followCoreLogs()
+    return () => { this.logListeners.delete(listener) }
+  }
+
+  async followCoreLogs() {
+    if (this.logFollowing || !this.running) return
+    this.logFollowing = true
+    const loop = async () => {
+      while (this.logFollowing) {
+        try {
+          await this.streamLogs()
+        } catch {
+          // core 可能刚好在重启/退出，下一轮再连；真退了 running 会变 false。
+        }
+        if (!this.logFollowing) break
+        if (!this.baseUrl) break
+        await new Promise((resolve) => setTimeout(resolve, 1500))
+      }
+    }
+    void loop()
+  }
+
+  async streamLogs() {
+    await this.ensureCookie()
+    if (!this.logFollowing || !this.baseUrl) return
+    await new Promise((resolve, reject) => {
+      let settled = false
+      const done = (error) => {
+        if (settled) return
+        settled = true
+        if (this.logRequest === req) this.logRequest = null
+        if (error) reject(error)
+        else resolve()
+      }
+      const req = httpRequest(`${this.baseUrl}/api/events`, {
+        method: 'GET',
+        headers: {
+          host: `127.0.0.1:${this.port}`,
+          cookie: this.cookie,
+          accept: 'text/event-stream',
+          'cache-control': 'no-cache',
+        },
+      }, (res) => {
+        if (res.statusCode !== 200) {
+          if (res.statusCode === 401) this.cookie = ''
+          res.resume()
+          done(new Error(`远端 core 日志流 HTTP ${res.statusCode}`))
+          return
+        }
+        res.setEncoding('utf8')
+        let buffer = ''
+        let firstLogBatch = true
+        res.on('data', (chunk) => {
+          buffer += chunk
+          let index
+          while ((index = buffer.indexOf('\n\n')) >= 0) {
+            const frame = buffer.slice(0, index)
+            buffer = buffer.slice(index + 2)
+            const event = /^event:\s*(.+)$/m.exec(frame)?.[1]?.trim()
+            if (event !== 'log') continue
+            // 连上时的第一批是最近 120 行历史；启动前发生的行没必要再灌进启动项日志。
+            if (firstLogBatch) { firstLogBatch = false; continue }
+            const data = frame.split('\n').filter((line) => line.startsWith('data:')).map((line) => line.slice(5).trim()).join('\n')
+            if (!data) continue
+            let parsed
+            try { parsed = JSON.parse(data) } catch { continue }
+            for (const line of Array.isArray(parsed?.lines) ? parsed.lines : []) {
+              for (const listener of [...this.logListeners]) {
+                try { listener(String(line)) } catch { /* 单个订阅者出错不影响其它 */ }
+              }
+            }
+          }
+        })
+        res.on('end', () => done(null))
+        res.on('error', done)
+      })
+      req.on('error', done)
+      this.logRequest = req
+      req.end()
+    })
+  }
+
   async stop() {
+    this.logFollowing = false
+    try { this.logRequest?.destroy() } catch { /* 已经断开 */ }
+    this.logRequest = null
+    this.logListeners.clear()
     try {
       if (this.running) {
         await this.request('/api/quit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}', timeoutMs: 5000 })

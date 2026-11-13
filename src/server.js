@@ -273,6 +273,8 @@ const CONNECTION_TESTS = new Map()
 const CONNECTION_RUNTIME = new Map()
 // 正在进行的「连接远端」流程（安装确认、进度、日志）；同一连接只保留一个。
 const CONNECTION_PREPARES = new Map()
+// 每个连接最近一次连接/运维日志，展开设备详情时按需读取；只放内存。
+const CONNECTION_LOGS = new Map()
 let WSL_SETTINGS = safeWslSettings(loadSettingsSync().wsl)
 // 界面语言（system / zh / en）：settings.json 为准；system（默认）跟随系统语言。
 // 没选过（旧设置的空值）仍先用 lang.txt（旧安装器写的）初始化，两者都没有时跟随系统。
@@ -382,9 +384,37 @@ function dropLaunchLog(id) {
   }
 }
 
-/** 记一次启动的阶段耗时（最近 20 次，新的在前），给日志弹窗画分段条。 */
-function recordLaunchRun(id, run) {
+/** 远端 core 里的 dsh 输出通过 SSE 抄回本机：直接写进对应启动项的日志文件。 */
+function appendLaunchLogLine(id, text) {
   if (!id || !LAUNCH_ID_RE.test(id)) return
+  launchLogWriter(id).append(`[${new Date().toISOString()}] ${redact(String(text || '').replace(/\s+$/, ''), secretValues)}\n`)
+}
+
+/**
+ * 每个远端 core 一条日志订阅；按 `[版本/profile]` 前缀路由到对应启动项的日志。
+ * 路由只保留「这条远端实例属于哪个启动项」，同一组合再次启动时覆盖。
+ */
+const REMOTE_LOG_ROUTES = new WeakMap()
+
+function attachRemoteLogRoute(core, route) {
+  if (!core || typeof core.followLogs !== 'function' || !route?.launchId || !route?.version) return
+  let state = REMOTE_LOG_ROUTES.get(core)
+  if (!state) {
+    state = { routes: new Map(), unsubscribe: null }
+    state.unsubscribe = core.followLogs((line) => {
+      const match = /^\[([^/\]\s]+)\/([^\]\s]+)\]\s?([\s\S]*)$/.exec(String(line || ''))
+      if (!match) return
+      const target = state.routes.get(`${match[1]}\0${match[2]}`)
+      if (!target) return
+      appendLaunchLogLine(target.launchId, `[远端] ${match[3] || line}`)
+    })
+    REMOTE_LOG_ROUTES.set(core, state)
+  }
+  state.routes.set(`${route.version}\0${route.profile}`, { launchId: route.launchId, version: route.version, profile: route.profile })
+}
+
+/** 记一次启动的阶段耗时（最近 20 次，新的在前），给日志弹窗画分段条。 */
+function recordLaunchRun(id, run) {  if (!id || !LAUNCH_ID_RE.test(id)) return
   const file = join(LAUNCH_LOG_DIR, `launch-${id}.json`)
   let runs = []
   try {
@@ -6457,9 +6487,15 @@ async function remoteCoreForTarget({ distro, user = '', home = '' }) {
     && item.wslDistro === distro
     && (item.wslUser || '') === (user || ''))
   if (known) {
+    const previous = CONNECTION_RUNTIME.get(known.id) || {}
     setConnectionRuntime(known.id, {
-      status: 'online', hostname: distro, osUser: identity.user, remoteHome: targetHome, version: APP_VERSION,
+      status: 'online',
+      hostname: previous.hostname || distro,
+      osUser: previous.osUser || identity.user,
+      remoteHome: targetHome,
+      version: APP_VERSION,
     })
+    if (previous.status !== 'online') appendConnectionLog(known.id, 'info', `已连接 WSL ${distro}${identity.user ? ` · ${identity.user}` : ''}`)
     void emitState().catch(() => {})
   }
   return { core, home: targetHome, identity }
@@ -6487,9 +6523,15 @@ async function remoteCoreForSsh(connection, home = '') {
     })
     core.appliedHome = targetHome
   }
+  const previousRuntime = CONNECTION_RUNTIME.get(connection.id) || {}
   setConnectionRuntime(connection.id, {
-    status: 'online', hostname: connection.host, osUser: identity.user, remoteHome: targetHome, version: APP_VERSION,
+    status: 'online',
+    hostname: previousRuntime.hostname || connection.host,
+    osUser: previousRuntime.osUser || identity.user,
+    remoteHome: targetHome,
+    version: APP_VERSION,
   })
+  if (previousRuntime.status !== 'online') appendConnectionLog(connection.id, 'info', `已连接 ${connection.host}${identity.user ? ` · ${identity.user}` : ''}`)
   void emitState().catch(() => {})
   return { core, home: targetHome, identity }
 }
@@ -6530,8 +6572,11 @@ async function proxyToRemoteCore(req, res, url, body) {
     ...(req.method === 'POST' ? { body: JSON.stringify(body ?? {}) } : {}),
     timeoutMs: 15 * 60 * 1000,
   })
-  const contentType = response.headers.get('content-type') || 'application/json; charset=utf-8'
-  const text = await response.text()
+  const headerValue = (name) => typeof response.headers?.get === 'function'
+    ? response.headers.get(name)
+    : response.headers?.[name]
+  const contentType = headerValue('content-type') || 'application/json; charset=utf-8'
+  const text = typeof response.text === 'function' ? await response.text() : String(response.text || '')
   send(res, response.status, text, contentType)
 }
 
@@ -6545,14 +6590,17 @@ async function proxyToRemoteCore(req, res, url, body) {
  */
 export function resolveWslAutoVersion({ requested, profile = '', channel = DEFAULT_UPDATE_CHANNEL, installed = [], instances = [], check = null }) {
   const known = [...installed, ...(Array.isArray(check?.versions) ? check.versions : [])]
+    .filter((version) => version && version !== 'auto')
   const activeChannel = effectiveChannel(channel, known)
   const live = (Array.isArray(instances) ? instances : [])
-    .filter((item) => item.profile === profile && ['running', 'starting', 'stopping'].includes(item.status)
+    .filter((item) => item.profile === profile && item.version && item.version !== 'auto'
+      && ['running', 'starting', 'stopping'].includes(item.status)
       && versionInChannel(activeChannel, item.version))
     .sort((a, b) => cmpVer(parseVer(b.version) ?? parseVer('0'), parseVer(a.version) ?? parseVer('0')))[0]
-  const highest = installed.filter((version) => versionInChannel(activeChannel, version))
+  const highest = installed.filter((version) => version && version !== 'auto' && versionInChannel(activeChannel, version))
     .sort((a, b) => cmpVer(parseVer(b) ?? parseVer('0'), parseVer(a) ?? parseVer('0')))[0] || ''
-  return { version: requested === 'auto' ? (live?.version || highest) : requested, channel: activeChannel }
+  const version = requested === 'auto' ? (live?.version || highest) : requested
+  return { version: version === 'auto' ? '' : version, channel: activeChannel }
 }
 
 async function startRemoteViaCore({ requested, profile, channel = DEFAULT_UPDATE_CHANNEL, onStarted }) {
@@ -6561,7 +6609,7 @@ async function startRemoteViaCore({ requested, profile, channel = DEFAULT_UPDATE
   const { core, home } = await ensureRemoteCoreForScope()
   // 远端 core 的 /api/start 只认具体版本；auto 在这里按远端已装版本和启动项的版本类型解析。
   const remoteState = await core.json('/api/state')
-  let remoteInstalled = Array.isArray(remoteState.installed) ? remoteState.installed.filter(Boolean) : []
+  let remoteInstalled = Array.isArray(remoteState.installed) ? remoteState.installed.filter((version) => version && version !== 'auto') : []
   let check = null
   if (requested === 'auto') {
     try { check = await core.json('/api/versions/check') } catch { /* 读不到远端列表就只按已装版本算 */ }
@@ -6587,6 +6635,9 @@ async function startRemoteViaCore({ requested, profile, channel = DEFAULT_UPDATE
     remoteInstalled = Array.isArray(refreshed.installed) ? refreshed.installed.filter(Boolean) : []
     if (!remoteInstalled.includes(effective)) throw new Error(`远端 core 安装 dsh ${effective} 后仍没有读到这个版本`)
   }
+  // dsh 的输出只在远端 core 的日志里：在发启动请求前就连上它的日志流，
+  // 按版本/profile 把启动阶段的输出抄回这个启动项（首批历史行由订阅端跳过）。
+  attachRemoteLogRoute(core, { version: effective, profile, launchId: launchScope.getStore()?.launchId || '' })
   const started = await core.json('/api/start', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -6604,12 +6655,28 @@ async function startRemoteViaCore({ requested, profile, channel = DEFAULT_UPDATE
   const key = instanceKey(version, profile)
   const existing = instances.get(key)
   if (existing?.url) return { url: existing.url }
+  // SSH 上的 dsh 只监听远端回环，页面在本机打开要走一条新的端口转发；
+  // token/路径原样保留，只把 host 换成这条隧道的本地端口。
+  let localUrl = started.url
+  let instanceTunnel = null
+  if (kind === 'ssh') {
+    try {
+      const parsed = new URL(started.url)
+      instanceTunnel = await core.backend.openTunnel(Number(parsed.port))
+      parsed.port = String(instanceTunnel.port)
+      localUrl = parsed.toString()
+    } catch (error) {
+      throw new Error(`远端 dsh 已启动，但建立 SSH 端口转发失败：${error instanceof Error ? error.message : error}`)
+    }
+  }
   const proc = {
     key,
     version,
     profile,
     home: homeDir(),
-    url: started.url,
+    url: localUrl,
+    remoteUrl: kind === 'ssh' ? started.url : '',
+    tunnel: instanceTunnel,
     status: 'running',
     backend: kind,
     ...(kind === 'wsl' ? {
@@ -6639,12 +6706,14 @@ async function startRemoteViaCore({ requested, profile, channel = DEFAULT_UPDATE
   pushLog(kind === 'ssh'
     ? `远端 core 已启动 dsh ${version}/${profile}（SSH ${connection?.name || connection?.host || ''}）`
     : `远端 core 已启动 dsh ${version}/${profile}（WSL ${launchDistro()}${launchWslUser() ? ` · 用户 ${launchWslUser()}` : ''}）`)
+  void recordLaunchUse(launchScope.getStore()?.launchId || '', version)
   onStarted?.(proc)
   await emitState()
-  return { url: started.url }
+  return { url: localUrl }
 }
 
 async function stopRemoteCoreInstance(proc) {
+  pushLog(`停止远端 dsh ${proc.version}/${proc.profile}`)
   try {
     await proc.remoteCore?.json('/api/stop', {
       method: 'POST',
@@ -6654,8 +6723,29 @@ async function stopRemoteCoreInstance(proc) {
   } catch (error) {
     pushLog(`远端 core 停止 ${proc.version}/${proc.profile} 失败：${error instanceof Error ? error.message : error}`)
   }
+  try { proc.tunnel?.close() } catch { /* 已关闭 */ }
   instances.delete(proc.key)
   return true
+}
+
+/**
+ * 远端 core 被本机主动停止/重启/换凭据后，本地这些影子实例指向的隧道已经死了。
+ * 不撤掉的话卡片还会显示「打开」，点它只是打开一条断掉的地址，看起来就是「启动不了」。
+ */
+function dropRemoteShadowInstances(connection) {
+  if (!connection) return 0
+  let removed = 0
+  for (const [key, proc] of [...instances]) {
+    const same = connection.kind === 'wsl'
+      ? proc.backend === 'wsl' && proc.distro === connection.wslDistro
+      : proc.backend === 'ssh' && proc.connectionId === connection.id
+    if (!same) continue
+    try { proc.tunnel?.close() } catch { /* 已关闭 */ }
+    instances.delete(key)
+    removed += 1
+  }
+  if (removed) lastHealth = null
+  return removed
 }
 
 /**
@@ -7730,7 +7820,10 @@ async function saveConnectionFromBody(body) {
   // SSH 连接的主机/凭据/指纹变了：旧 core 和旧隧道不能继续用。
   const sshChanged = connection.kind === 'ssh' && existing && ['host', 'port', 'username', 'authType', 'privateKeyPath', 'passwordSecret', 'passphraseSecret', 'hostKeyFingerprint']
     .some((field) => (existing[field] || '') !== (connection[field] || ''))
-  if (sshChanged) await stopSshRemoteCore(connection.id)
+  if (sshChanged) {
+    dropRemoteShadowInstances(connection)
+    await stopSshRemoteCore(connection.id)
+  }
   await emitState()
   return connection
 }
@@ -7753,6 +7846,7 @@ async function removeConnectionById(id) {
   CONNECTION_TESTS.delete(clean)
   CONNECTION_RUNTIME.delete(clean)
   CONNECTION_PREPARES.delete(clean)
+  CONNECTION_LOGS.delete(clean)
   await stopSshRemoteCore(clean)
   await emitState()
 }
@@ -7871,12 +7965,25 @@ function prepareStep(session, id, patch) {
   emitPrepare(session)
 }
 
+const CONNECTION_LOG_LIMIT = 120
+
+function appendConnectionLog(connectionId, level, message) {
+  const id = safeConnectionId(connectionId)
+  const text = String(message || '').trim()
+  if (!id || !text) return
+  const logs = CONNECTION_LOGS.get(id) || []
+  logs.push({ at: Date.now(), level: level === 'error' || level === 'warn' ? level : 'info', message: text.slice(0, 2000) })
+  if (logs.length > CONNECTION_LOG_LIMIT) logs.splice(0, logs.length - CONNECTION_LOG_LIMIT)
+  CONNECTION_LOGS.set(id, logs)
+}
+
 function prepareLog(session, message, level = 'info') {
   const text = String(message || '')
     .replace(/([?&]token=)[^\s&]+/gu, '$1***')
     .replace(/(password|passphrase)\s*[:=]\s*\S+/giu, '$1=***')
     .slice(0, 2000)
   if (!text) return
+  appendConnectionLog(session.connectionId, level, text)
   session.logs.push({ at: Date.now(), level, message: text })
   if (session.logs.length > PREPARE_LOG_LIMIT * 2) session.logs.splice(0, session.logs.length - PREPARE_LOG_LIMIT)
   emitPrepare(session)
@@ -8298,6 +8405,11 @@ async function handleApi(req, res, url) {
     send(res, 200, { prepare: session ? publicPrepare(session) : null })
     return
   }
+  if (req.method === 'GET' && url.pathname === '/api/connections/logs') {
+    const id = safeConnectionId(url.searchParams.get('id') || '')
+    send(res, 200, { logs: id ? (CONNECTION_LOGS.get(id) || []) : [] })
+    return
+  }
   if (req.method === 'POST' && url.pathname === '/api/connections/prepare') {
     try {
       const payload = await readJson(req)
@@ -8364,12 +8476,17 @@ async function handleApi(req, res, url) {
         else await stopSshRemoteCore(connection.id)
       }
       // 断开只撤掉本机这侧的在线状态，远端 core 和任务继续跑；停止/重启才真的动远端 core。
-      if (action !== 'disconnect') await stop()
+      if (action !== 'disconnect') {
+        const dropped = dropRemoteShadowInstances(connection)
+        if (dropped) pushLog(`停止远端服务前撤掉本机 ${dropped} 个影子实例（${connection.name || connection.id}）`)
+        await stop()
+      }
       setConnectionRuntime(connection.id, { status: action === 'restart' ? 'preparing' : 'offline', error: '' })
       if (action === 'restart') {
         if (connection.kind === 'wsl') await remoteCoreForTarget({ distro: connection.wslDistro, user: connection.wslUser || '', home: '~/.dsh' })
         else await remoteCoreForSsh(connection, '~/.dsh')
       }
+      appendConnectionLog(connection.id, 'info', action === 'restart' ? '重启远端服务' : action === 'disconnect' ? '断开连接' : '停止远端服务')
       await emitState()
       send(res, 200, { ok: true })
     } catch (error) {

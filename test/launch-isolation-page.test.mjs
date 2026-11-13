@@ -111,9 +111,11 @@ test('前两档下面挂一条两档 tab：自己起名 / 从已有 Profile 复�
   // 名字输入两档各一个：插件隔离改 Profile 名，会话隔离给新目录里的 Profile 取名
   assert.match(isolation, /id="launchProfileCustom"[^>]*aria-label="Profile 名称"/, '没有可见 label，读屏靠 aria-label')
   assert.match(isolation, /id="launchHomeProfile"[^>]*aria-label="Profile 名称"/)
-  // 会话隔离的目标目录在 tab 上面：它说的是「建到哪」，跟「Profile 从哪来」是两件事
-  assert.match(isolation, /id="launchGuideDirField">\s*<select id="launchHomeCustom" aria-label="dsh 用户目录"[^>]*><\/select>/)
-  assert.ok(isolation.indexOf('id="launchHomeCustom"') < isolation.indexOf('id="launchSourceTabs"'), '目录在 tab 上面')
+  // 新建 Profile 落在哪：设备列表放在「新建 Profile」面板里
+  assert.match(isolation, /id="launchSourceNamePanel"[\s\S]*id="launchGuideDirTrigger"/, '新建 Profile 面板里有用户目录列表')
+  assert.ok(isolation.indexOf('id="launchSourceTabs"') < isolation.indexOf('id="launchGuideDeviceField"'), '用户目录列表在来源 tab 下面')
+  const copyPanel = isolation.slice(isolation.indexOf('id="launchSourceCopyPanel"'), isolation.indexOf('id="launchSourceNamePanel"'))
+  assert.ok(!copyPanel.includes('launchGuideDevice'), '复制档不选设备：三级菜单已经把环境选掉了')
   // 复制来源不再用两串下拉：一行按钮打开两栏选择窗（见下面专门的用例）
   assert.match(isolation, /id="launchSourceCopyPanel"[\s\S]*id="launchCopyPick" aria-haspopup="dialog"[\s\S]*id="launchCopyPickValue"/)
   assert.ok(!isolation.includes('id="launchCopyHome"'), '来源目录不再是下拉')
@@ -186,6 +188,7 @@ function isolationHarness() {
     paintLaunchIsolation: () => { calls.paint += 1 },
     guidedLaunchName: () => { calls.autoNames += 1; return 'auto-name' },
     guideTargetIsWsl: () => false,
+    guideTargetIsRemote: () => false,
     paintGuideTarget: () => {},
     launchIsolationFieldEl: { hidden: false },
     launchIsolationHeadEl: { hidden: false },
@@ -199,6 +202,8 @@ function isolationHarness() {
     launchNameEl: { value: '', required: true },
     launchNameAuto: '',
     launchRecoverEl: { hidden: false },
+    launchGuideBackend: 'local',
+    setLaunchGuideDevice: () => {},
     state: { profiles: [] },
   })
   vm.runInContext(
@@ -270,6 +275,9 @@ function guidedHarness({ mode, dataDir = 'C:\\data', dshHomes = [], profiles = [
   const context = vm.createContext({
     t: (text) => text,
     guideTargetIsWsl: () => false,
+    guideTargetIsRemote: () => false,
+    parseSshHomeKey: () => null,
+    parseWslHomeKey: () => null,
     state: { dataDir, dshHome: 'C:\\global', dshHomes, profiles, webProfiles },
     launchEntries: () => [],
     launchProfile: 'web',
@@ -384,7 +392,7 @@ test('引导接线：说明行/占位符随档刷新、目录下拉由登记目�
   assert.match(homePaint, /options\.push\(`<option value="\$\{PLUGIN_HOME_MANAGE\}">/, '管理目录放最后')
   assert.match(homePaint, /syncUiSelect\(launchHomeCustomEl\)/, '重铺后要同步 ui-select 触发器')
   const manage = section('    launchHomeCustomEl.onchange = () => {', '    /**')
-  assert.match(manage, /openPluginHomesDialog\(\)/, '选「管理目录…」打开目录管理弹窗')
+  assert.match(manage, /openProfilePicker\('form'\)/, '选「管理目录…」打开三栏选择窗')
   const open = section('    function openLaunchEditor(entry) {', '    async function closeLaunchEditor()')
   assert.match(open, /launchProfileCustomEl\.value = ''/, '每次打开都清掉上次引导里填的值')
   assert.match(open, /launchHomeCustomEl\.value = ''/)
@@ -504,7 +512,7 @@ test('选 Profile 是三栏选择窗：目录 / Profile / 插件，两档用途�
   assert.match(dialog, /id="profilePickCreate" type="button"/)
   assert.match(dialog, /id="profilePickCopy" type="button"[^>]*disabled/)
   // 复制来源那行：一个按钮打开弹窗，不再是两串下拉；自定义档同样换了触发器
-  const panel = section('id="launchSourceCopyPanel"', 'launch-auto-launch')
+  const panel = section('id="launchSourceCopyPanel"', 'id="launchSourceNamePanel"')
   assert.match(panel, /id="launchCopyPick" aria-haspopup="dialog"/)
   assert.ok(!panel.includes('<select'), '面板里不再有下拉')
 
@@ -640,11 +648,13 @@ test('两档 tab 的 vm：切档只翻来源面板，复制档把目标名填成
     launchNameAuto: '',
     launchCopyNameAuto: { profile: '', home: '' },
     guideTargetIsWsl: () => false,
+    guideTargetIsRemote: () => false,
     state: { profiles: ['web', 'ios-dev'] },
     defaultCopySource: () => { calls.defaults += 1; return { home: '', profile: 'ios-dev' } },
     guidedLaunchName: () => { calls.names += 1; return context.launchProfileCustomEl.value || 'auto-name' },
     document: { querySelectorAll: () => tabs },
     paintLaunchIsolation: () => { calls.paint += 1 },
+    paintGuideTarget: () => {},
   })
   vm.runInContext(
     [
@@ -825,6 +835,7 @@ function copyNameHarness({ target = '', targetProfiles = null, globalProfiles = 
   const context = vm.createContext({
     t: (text) => text,
     guideTargetIsWsl: () => false,
+    guideTargetIsRemote: () => false,
     state: { dshHome: 'C:\\global', profiles: globalProfiles, profilesByHome: {} },
     launchHomeCustomEl: { value: target },
     launchHomeProfileEl: { value: '' },
@@ -865,4 +876,13 @@ test('复制预填名也按目标目录算：目标里已有 web-copy 时预填 
 test('复制来源的目录不能留空（留空会被服务端当成目标目录）', () => {
   assert.match(page, /return profile \? \{ home: state\.dshHome \|\| '', profile \} : null/, '默认来源写成真实路径')
   assert.match(page, /pickerMode === 'form' \? pickerHome : \(pickerHome \|\| state\.dshHome \|\| ''\)/, '选择窗确认时把默认目录写实')
+})
+
+test('从选择窗创建项目：取消回到选择窗，而不是掉回主页', () => {
+  const start = page.indexOf("document.getElementById('pickerCreateProject').onclick")
+  assert.ok(start >= 0)
+  const handler = page.slice(start, page.indexOf('\n    }', start))
+  assert.ok(!/forceHidePackDialog\(profilePickDialogEl\)/.test(handler), '打开创建项目时不能先把选择窗收掉')
+  assert.match(handler, /openProjectDialog\(\)/, '创建项目叠在选择窗上面，取消后自然回到它')
+  assert.match(page, /if \(!profilePickDialogEl\.hidden\) void forceHidePackDialog\(profilePickDialogEl\)[\s\S]{0,160}?if \(!launchDialogEl\.hidden\) void forceHidePackDialog\(launchDialogEl\)/, '创建成功后仍按独立流程收尾')
 })
