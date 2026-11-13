@@ -314,7 +314,8 @@ let UPDATE_SOURCE = updateSourceForDownload(loadSettingsSync().downloadSource)
 let OPEN_MODE = safeOpenMode(loadSettingsSync().openMode)
 // 是否把 dsh 的 shim 目录写进用户 PATH（默认关，改了要新开终端才生效）
 let SYSTEM_PATH = loadSettingsSync().systemPath === true
-// 右键菜单 / 浏览器控制这两个开关已撤：插件由设置里的「桌面增强 → 一键安装」装，
+// 右键菜单 / 浏览器控制这两个开关已撤：右键菜单不再由 DSH-X 管——dsh 0.2.2 起自带，
+// 插件也从桌面增强里撤了（issue #110）；侧栏浏览器由设置里的「桌面增强 → 一键安装」装，
 // 装完在 dsh 插件页单独开关；侧栏 Browser 始终放开。
 
 /** 安装目录里的 lang.txt（安装程序写的），只认 zh / en。 */
@@ -4878,7 +4879,7 @@ async function removePlugin(version, name, { profile = PROFILE_NAME } = {}) {
   }
 }
 
-// ---- 桌面增强：设置里一键装三个首方插件 ----
+// ---- 桌面增强：设置里一键装首方插件 ----
 /**
  * 这个 profile 还缺哪些桌面增强插件。
  *
@@ -4899,7 +4900,7 @@ function desktopEnhanceMissing(profile = PROFILE_NAME) {
   return DESKTOP_PLUGINS.filter((plugin) => !Object.hasOwn(dependencies, plugin.name))
 }
 
-/** 桌面增强的安装进度摘要（启动项弹窗用）：装了几个 / 共三个。 */
+/** 桌面增强的安装进度摘要（启动项弹窗用）：装了几个 / 共几个。 */
 function desktopEnhanceSummary(profile = PROFILE_NAME) {
   return {
     installed: DESKTOP_PLUGINS.length - desktopEnhanceMissing(profile).length,
@@ -4911,7 +4912,7 @@ function desktopEnhanceSummary(profile = PROFILE_NAME) {
  * 把缺的桌面增强插件装进 profile。调用方负责把它放进目标 home 的 launchScope 里，
  * 否则 profileDirOf 会读到启动器自己的 DSH_HOME。
  *
- * 单个插件失败只记下来、不往外抛：三个插件互不依赖，一个装不上不该拦住另外两个；
+ * 单个插件失败只记下来、不往外抛：这几个插件互不依赖，一个装不上不该拦住其它几个；
  * 缺的那个下次保存启动项 / 点安装时还会再试。`version` 由调用方先解析好时传进来，
  * 省一次版本探测；没传就自己按这个 profile 解析，解析不出来也算这三个都失败。
  *
@@ -5197,7 +5198,7 @@ function packsPayload() {
     }
     const thirdParty = plugins.filter((plugin) => !plugin.official)
     const realRecords = state.packs.filter((record) => record.profile === profile)
-    // 桌面增强的三个插件在插件页里也当成一组「整合包」显示；它不是真实安装记录，
+    // 桌面增强的插件在插件页里也当成一组「整合包」显示；它不是真实安装记录，
     // 只借 groupPackPlugins 的分组，卸载 / 安装走设置页那一套。
     const hasDesktop = DESKTOP_PLUGINS.some((one) => plugins.some((plugin) => plugin.name === one.name))
     const records = hasDesktop
@@ -5266,7 +5267,7 @@ function packPluginSelection(profile, plugins, selector) {
     return { names: plugins.filter((plugin) => !plugin.official && !owned.has(plugin.name)).map((plugin) => plugin.name), group: 'other' }
   }
   if (selector?.pack === DESKTOP_ENHANCE_ID) {
-    // 桌面增强不是真实安装记录：整组开关就是这三个插件里装了的那些。
+    // 桌面增强不是真实安装记录：整组开关就是这几个插件里装了的那些。
     const names = DESKTOP_PLUGINS.map((plugin) => plugin.name)
       .filter((name) => byName.has(name) && !byName.get(name).official)
     return { names, group: 'pack', pack: DESKTOP_ENHANCE_ID }
@@ -9083,7 +9084,7 @@ async function handleApi(req, res, url) {
   }
   if (req.method === 'POST' && url.pathname === '/api/launch-presets') {
     const saved = await saveLaunchPreset(body)
-    // 桌面增强跟着启动项走：启动项落盘之后（写锁已经放掉）再补装缺的三个，
+    // 桌面增强跟着启动项走：启动项落盘之后（写锁已经放掉）再补装缺的，
     // 装插件慢也不会卡住别的启动项编辑。失败只带回结果，启动项本身已经保存成功。
     if (body.desktopEnhance === true && saved?.entry?.profile) {
       const home = saved.entry.dshHome || defaultHome()
@@ -9247,7 +9248,7 @@ async function handleApi(req, res, url) {
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/desktop-enhance/uninstall') {
-    // 「一键卸载」：只卸桌面增强这三个包（pnpm remove + 从层栈摘掉），会话、记忆和别的插件不动。
+    // 「一键卸载」：只卸桌面增强这几个包（pnpm remove + 从层栈摘掉），会话、记忆和别的插件不动。
     const profile = safeProfile(String(body.profile || '') || PROFILE_NAME)
     let manifest = null
     try {

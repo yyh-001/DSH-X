@@ -38,11 +38,16 @@ test('清单和仓库里的插件对得上：包名、版本、命名都在', ()
     const range = String(manifest.dsh?.compatibility?.dsh ?? '')
     assert.ok(range.length > 0, `${plugin.name} 缺 dsh.compatibility.dsh`)
     assert.ok(range.includes(plugin.minDsh), `${plugin.name} 的 compatibility 下限与 ${plugin.minDsh} 不一致`)
-    // 插件页的名字来自 meta.title（locale 覆盖）；三个包都填了才不会显示裸包名
+    // 插件页的名字来自 meta.title（locale 覆盖）；每个包都填了才不会显示裸包名
     assert.ok(manifest.meta?.title, `${plugin.name} 缺 meta.title`)
     for (const lang of ['zh', 'en']) {
       const locale = JSON.parse(readFileSync(join(dir, 'locale', `${lang}.json`), 'utf8'))
       assert.ok(locale.meta?.title, `${plugin.name} 缺 locale/${lang}.json 的 meta.title`)
     }
   }
+})
+
+test('右键菜单插件不再随桌面增强装：dsh 0.2.2 起自带菜单（issue #110）', () => {
+  assert.ok(!DESKTOP_PLUGINS.some((plugin) => plugin.name === 'dsh-x-context-menu'))
+  assert.deepEqual(DESKTOP_PLUGINS.map((plugin) => plugin.name), ['dsh-x-desktop-notify', 'dsh-x-sidebar-browser'])
 })

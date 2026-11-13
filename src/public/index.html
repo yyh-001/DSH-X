@@ -1075,14 +1075,14 @@
           </label>
         </div>
         <!-- /launch-custom-fields -->
-        <!-- 桌面增强：三个官方插件跟着启动项走。新建时按上次的选择回显；编辑时显示这个 profile
+        <!-- 桌面增强：官方插件跟着启动项走。新建时按上次的选择回显；编辑时显示这个 profile
              实际装了几个，勾选保存只补装缺的（取消勾选不会卸载）。 -->
         <div class="launch-desktop-enhance" id="launchDesktopEnhanceField">
           <div class="toggle launch-auto-launch">
             <span class="launch-enhance-label">
               <label for="launchDesktopEnhance" data-i18n="桌面增强">桌面增强</label>
               <span class="launch-enhance-help" id="launchDesktopEnhanceHelp" tabindex="0" role="note" aria-label="桌面增强说明" aria-describedby="launchDesktopEnhanceTip">?</span>
-              <span class="launch-enhance-tip" id="launchDesktopEnhanceTip" role="tooltip" data-i18n="保存时把三个官方插件（原生通知、右键菜单、侧栏浏览器）装进这个环境；下次启动时加载，正在运行的环境重启后生效。">保存时把三个官方插件（原生通知、右键菜单、侧栏浏览器）装进这个环境；下次启动时加载，正在运行的环境重启后生效。</span>
+              <span class="launch-enhance-tip" id="launchDesktopEnhanceTip" role="tooltip" data-i18n="保存时把官方插件（原生通知、侧栏浏览器）装进这个环境；下次启动时加载，正在运行的环境重启后生效。">保存时把官方插件（原生通知、侧栏浏览器）装进这个环境；下次启动时加载，正在运行的环境重启后生效。</span>
             </span>
             <input id="launchDesktopEnhance" type="checkbox" aria-describedby="launchDesktopEnhanceTip" />
           </div>
@@ -2018,7 +2018,7 @@
   "右键菜单": "Context menu",
   "浏览器": "Browser",
   "桌面增强": "Desktop enhancements",
-  "保存时把三个官方插件（原生通知、右键菜单、侧栏浏览器）装进这个环境；下次启动时加载，正在运行的环境重启后生效。": "Installs the three official plugins (native notifications, context menu, sidebar browser) into this environment when you save; they load on the next start, and a running environment picks them up after a restart.",
+  "保存时把官方插件（原生通知、侧栏浏览器）装进这个环境；下次启动时加载，正在运行的环境重启后生效。": "Installs the official plugins (native notifications, sidebar browser) into this environment when you save; they load on the next start, and a running environment picks them up after a restart.",
   "正在保存并安装桌面增强…": "Saving and installing desktop enhancements…",
   "启动项已保存，但桌面增强有 {n} 个没装上：{error}": "Launch item saved, but {n} desktop enhancement plugin(s) failed: {error}",
   "操作失败：{error}": "Action failed: {error}",
@@ -2208,7 +2208,7 @@
   "已安装。可更新到 {latest}。": "Installed. {latest} is available.",
   "更新到 {latest}": "Update to {latest}",
   "更新 {latest}": "Update {latest}",
-  "升级会先停掉正在运行的 dsh，再下载安装新版本。插件由第三方维护、通常滞后于 dsh，新版本可能让插件失效或页面打不开（插件市场就出过这种情况）。已装的其他版本会保留，随时可以切回。": "Upgrading stops the running dsh, then downloads and installs the new version. Plugins are maintained by third parties and usually lag behind dsh, so a new version can break them or stop a page from opening (that happened to the plugin market). Other installed versions are kept, so you can switch back any time.",
+  "升级会停掉 dsh 再安装新版本。插件可能不兼容而失效、甚至页面打不开；旧版本会保留，随时可切回。": "Upgrading stops dsh and installs the new version. Plugins may break or pages may fail to open; older versions are kept, so you can switch back anytime.",
   "更新启动器": "Update launcher",
   "手动下载": "Download manually",
   "到 GitHub 发布页自己挑安装包下载（自动更新不管用时用这个）": "Pick the installer yourself from the GitHub releases page (use this when the automatic update does not work)",
@@ -5364,7 +5364,6 @@
       if (connectionSshImportSearchEl) connectionSshImportSearchEl.value = ''
       paintSshImportList()
       positionSshImportPanel()
-      connectionSshImportSearchEl?.focus()
     }
 
     function closeSshImportPanel() {
@@ -6054,7 +6053,7 @@
             ? ''
             : `<button class="remote-device-connect" type="button" data-remote-connect="${escapeHtml(connection.id)}"${status.className === 'is-preparing' ? ' disabled' : ''}>${escapeHtml(status.className === 'is-preparing' ? t('连接中') : t('连接'))}</button>`
           const expanded = remoteExpanded.has(connection.id)
-          const detail = `<div class="remote-device-detail"${expanded ? '' : ' hidden'}><dl><dt>${escapeHtml(t('远端目录'))}</dt><dd>${escapeHtml(runtime.remoteHome || '~/.dsh')}</dd><dt>${escapeHtml(t('安装位置'))}</dt><dd>${escapeHtml(runtime.installPath || t('暂无法获取'))}</dd><dt>${escapeHtml(t('版本'))}</dt><dd>${escapeHtml(runtime.version || t('暂无法获取'))}</dd><dt>${escapeHtml(t('项目'))}</dt><dd>${projects.length ? projects.map((entry) => escapeHtml(entry.name)).join('、') : escapeHtml(t('还没有项目'))}</dd></dl></div>`
+          const detail = `<div class="remote-device-detail"${expanded ? '' : ' hidden'}><dl><dt>${escapeHtml(t('远端目录'))}</dt><dd>${escapeHtml(runtime.remoteHome || '~/.dsh')}</dd><dt>${escapeHtml(t('安装位置'))}</dt><dd>${escapeHtml(runtime.installPath || t('暂无法获取'))}</dd><dt>${escapeHtml(t('版本'))}</dt><dd>${escapeHtml(runtime.version || t('暂无法获取'))}</dd><dt>${escapeHtml(t('项目'))}</dt><dd>${projects.length ? projects.map((entry) => escapeHtml(entry.name)).join('、') : escapeHtml(t('还没有项目'))}</dd></dl><details class="remote-device-logs" data-remote-logs="${escapeHtml(connection.id)}"><summary><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-chevron-right"/></svg><span>${escapeHtml(t('查看最近日志'))}</span></summary><pre data-remote-logs-body>${escapeHtml(t('展开后读取…'))}</pre></details></div>`
           const infoRows = [
             [t('版本'), runtime.version || '—'],
             [t('主机名'), runtime.hostname || (connection.kind === 'wsl' ? connection.wslDistro : connection.host) || '—'],
@@ -6151,6 +6150,22 @@
               panel.style.top = `${top}px`
             }
           })
+        })
+      }
+      for (const details of remoteDeviceListEl.querySelectorAll('[data-remote-logs]')) {
+        details.addEventListener('toggle', async () => {
+          if (!details.open || details.dataset.loaded) return
+          details.dataset.loaded = '1'
+          const body = details.querySelector('[data-remote-logs-body]')
+          try {
+            const data = await getJson(`/api/connections/logs?id=${encodeURIComponent(details.dataset.remoteLogs)}`)
+            const logs = Array.isArray(data.logs) ? data.logs : []
+            body.textContent = logs.length
+              ? logs.map((line) => `${new Date(line.at || Date.now()).toLocaleTimeString('zh-CN', { hour12: false })} [${String(line.level || 'info').toUpperCase()}] ${line.message}`).join('\n')
+              : t('还没有日志')
+          } catch (error) {
+            body.textContent = error.message
+          }
         })
       }
       for (const button of remoteDeviceListEl.querySelectorAll('[data-remote-remove]')) {
@@ -7781,7 +7796,7 @@
 
 
     /**
-     * 编辑启动项时回显桌面增强：三个官方插件在这个 profile 里装齐了就勾上并锁住，
+     * 编辑启动项时回显桌面增强：官方插件在这个 profile 里装齐了就勾上并锁住，
      * 缺的保持不勾（要装就自己勾）。
      * 装了几个不写在界面上——开关本身就是状态；数据目录可能不是全局那份，
      * 用 x-dsh-home 把请求限定过去，读不到就按未装处理，保存时照常会再试一次。
@@ -9568,7 +9583,7 @@
         const target = guided ? await prepareGuidedLaunch() : null
         // 手填目录后直接按回车也要先刷新 Profile，不能沿用上一份目录的环境列表。
         if (!guided && !await refreshLaunchHomeProfiles(true)) return
-        // 勾了就先把说明换成「正在装」：装三个插件要跑 pnpm，保存请求会等它
+        // 勾了就先把说明换成「正在装」：装插件要跑 pnpm，保存请求会等它
         if (launchDesktopEnhanceEl.checked && !launchDesktopEnhanceEl.disabled) {
           launchDesktopEnhanceHintEl.textContent = t('正在保存并安装桌面增强…')
         }
@@ -10576,7 +10591,12 @@
       // 更新内容直接摊开显示，不用再点一次
       const notes = document.createElement('div')
       notes.className = 'ask-notes'
-      notes.textContent = t('正在读取更新内容…')
+      const notesSpinner = document.createElement('span')
+      notesSpinner.className = 'ask-notes-spinner'
+      const notesLoading = document.createElement('div')
+      notesLoading.className = 'ask-notes-loading'
+      notesLoading.append(notesSpinner, t('正在读取更新内容…'))
+      notes.append(notesLoading)
       getJson(`/api/changelog?kind=${kind}&version=${encodeURIComponent(to)}`)
         .then((data) => renderNotes(notes, data))
         .catch((error) => { notes.textContent = t('读取更新内容失败：{message}', { message: error.message }) })
@@ -10628,7 +10648,7 @@
             pendingUpdateTarget = update.dsh.target || null
             await updateToLatest(update.dsh.latest)
           },
-          t('升级会先停掉正在运行的 dsh，再下载安装新版本。插件由第三方维护、通常滞后于 dsh，新版本可能让插件失效或页面打不开（插件市场就出过这种情况）。已装的其他版本会保留，随时可以切回。'),
+          t('升级会停掉 dsh 再安装新版本。插件可能不兼容而失效、甚至页面打不开；旧版本会保留，随时可切回。'),
         ))
       }
       const shell = update.shell || (shellActive() ? selfState.shell : null)

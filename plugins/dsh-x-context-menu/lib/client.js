@@ -1,8 +1,13 @@
-// dsh-x-context-menu —— 浏览器端插件：给 dsh 网页界面加一套右键菜单。
+// dsh-x-context-menu —— 浏览器端插件：给 dsh 网页界面补右键菜单。
 //
-// 五个面：左侧会话行、工作区行、对话正文里的选中文字、正文里的链接、输入框。
-// 菜单是自绘的（用 dsh 自己的 --dsw-alias-* 设计令牌，跟界面同色），因为 DSH-X 不用
-// 系统原生菜单：原生菜单不能跟主题一起变，而且 Windows 上会闪一下系统样式。
+// dsh 0.2.2 起自带右键菜单（`contextMenus` 服务，会话行/工作区行都挂好了触发器），
+// 所以行上的菜单**不再自绘**：本插件只往官方菜单里加官方没做的动作（复制标题/工作目录、
+// 在资源管理器中打开、工作区的新建会话/复制名称/路径）。两套菜单同时画出来就是 #110。
+// 官方没有这个服务的老 dsh 上，行菜单退回自绘，功能一个不少。
+//
+// 剩下的几个面官方没有对应触发器，仍然自绘：正文里的选中文字、正文里的链接、输入框。
+// 自绘菜单用 dsh 自己的 --dsw-alias-* 设计令牌，跟界面同色——不用系统原生菜单：原生菜单
+// 不能跟主题一起变，而且 Windows 上会闪一下系统样式。
 //
 // 动作分两类：
 // - 官方公开能力：uiWorkspace.archiveSession / pinSession / unpinSession / forkSession /
@@ -111,7 +116,7 @@ window.__ModuleLoader__.load({
 			copyTitle: "复制会话标题",
 			copySessionId: "复制会话 ID",
 			copyCwd: "复制工作目录",
-			reveal: "在资源管理器中打开",
+			reveal: "在文件夹显示",
 			newSession: "新建会话",
 			copyName: "复制工作区名称",
 			copyPath: "复制工作区路径",
@@ -136,6 +141,7 @@ window.__ModuleLoader__.load({
 			pinned: "已置顶",
 			unpinned: "已取消置顶",
 			forked: "已分叉",
+			revealFailed: "无法在文件夹中显示",
 			save: "保存",
 			cancel: "取消",
 			clipboardUnavailable: "剪贴板不可用",
@@ -155,7 +161,7 @@ window.__ModuleLoader__.load({
 			copyTitle: "Copy session title",
 			copySessionId: "Copy session ID",
 			copyCwd: "Copy working directory",
-			reveal: "Show in file manager",
+			reveal: "Show in folder",
 			newSession: "New session",
 			copyName: "Copy workspace name",
 			copyPath: "Copy workspace path",
@@ -180,6 +186,7 @@ window.__ModuleLoader__.load({
 			pinned: "Pinned",
 			unpinned: "Unpinned",
 			forked: "Forked",
+			revealFailed: "Could not show the folder",
 			save: "Save",
 			cancel: "Cancel",
 			clipboardUnavailable: "Clipboard unavailable",
@@ -338,6 +345,35 @@ window.__ModuleLoader__.load({
 				}
 			};
 
+			/**
+			 * dsh 自带的右键菜单服务。0.2.2 起才有；老版本返回 null，行菜单退回自绘。
+			 * 只认有 register 的那种：别的同名字段（若有）不能当扩展点用。
+			 */
+			const nativeMenus = () => {
+				const menus = service("contextMenus");
+				return menus && typeof menus.register === "function" ? menus : null;
+			};
+
+			/** 反馈统一走官方 toast（跟官方动作同一处出现）；没有这个服务时用自家 toast。 */
+			const notify = (text, success = false) => {
+				const menus = nativeMenus();
+				if (menus && typeof menus.notify === "function") {
+					try {
+						menus.notify(text, success);
+						return;
+					} catch {
+						// 服务已卸载/版本不同：退回自家 toast。
+					}
+				}
+				toasts.show(text);
+			};
+
+			/** 官方菜单里的复制动作：剪贴板失败直接抛，交给官方菜单的 failureLabel 提示。 */
+			const copyInto = (text, message) => async () => {
+				if (!(await writeClipboard(text))) throw new Error(t("clipboardUnavailable"));
+				notify(message, true);
+			};
+
 			const sessionSummary = (id) => {
 				try {
 					return service("sessions")?.list?.getSnapshot()?.byId?.[id] ?? null;
@@ -440,11 +476,11 @@ window.__ModuleLoader__.load({
 
 			const reveal = async (path) => {
 				await postJson("/api/x-context-menu/reveal", { path });
-				toasts.show(t("revealed"));
+				notify(t("revealed"), true);
 			};
 			const openUrl = async (url) => {
 				await postJson("/api/x-context-menu/open-url", { url });
-				toasts.show(t("opened"));
+				notify(t("opened"), true);
 			};
 
 			/** 打开外链：只放行 http/https，其余当普通文本。 */
@@ -458,6 +494,102 @@ window.__ModuleLoader__.load({
 				if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error(raw);
 				await openUrl(url.toString());
 			}
+
+			// ---- 官方菜单里的动作（会话行 / 工作区行）----
+			//
+			// 只加官方没做的：官方的会话菜单已经有置顶、重命名、分叉、复制 Session ID、
+			// 在应用中打开、归档，工作区菜单已经有重命名、在资源管理器中打开、删除。
+			// 复制到这里就是第二个同名菜单项，所以一行都不重复。
+			//
+			// 服务晚到也能生效：ctx.inject 等 `contextMenus` 就位再注册；老 dsh 上没有这个
+			// 服务时回调根本不跑，行菜单继续由下面的自绘实现负责。
+			ctx.inject(["contextMenus"], (menusCtx) => {
+				const menus = menusCtx.contextMenus ?? menusCtx.get?.("contextMenus");
+				if (!menus || typeof menus.register !== "function") return;
+
+				// 官方菜单一打开就把自家菜单收掉，反之亦然（见 onContextMenu）：
+				// 两个 popup 叠在一起就是 #110 里那张截图。
+				menusCtx.effect(() => {
+					const active = menus.active;
+					if (typeof active?.subscribe !== "function") return () => {};
+					return active.subscribe((target) => {
+						if (target !== null) close();
+					});
+				}, "dsh-x-context-menu: follow official menu");
+
+				menusCtx.effect(() => menus.register({
+					id: "x-context-menu.session",
+					target: "session",
+					// 官方：置顶 100、重命名 200、分叉 300、复制 Session ID 450、在应用中打开 500、
+					// 归档 600。460 让复制类动作贴着「复制 Session ID」，归档仍在最后。
+					order: 460,
+					observe: () => {
+						const list = service("sessions")?.list;
+						return typeof list?.subscribe === "function" ? [list] : [];
+					},
+					resolve: ({ sessionId, displayTitle }) => {
+						const summary = sessionSummary(sessionId);
+						const cwd = summary?.cwd || workspaceOfSession(sessionId)?.path || "";
+						const title = displayTitle || summary?.title || "";
+						const actions = [];
+						if (title !== "") {
+							actions.push({
+								id: "copy-title", label: t("copyTitle"),
+								run: copyInto(title, t("copiedTitle")), failureLabel: t("clipboardUnavailable"),
+							});
+						}
+						if (cwd !== "") {
+							actions.push({
+								id: "copy-cwd", label: t("copyCwd"),
+								run: copyInto(cwd, t("copiedCwd")), failureLabel: t("clipboardUnavailable"),
+							});
+							actions.push({
+								id: "reveal", label: t("reveal"), separatorBefore: true,
+								run: () => reveal(cwd), failureLabel: t("revealFailed"),
+							});
+						}
+						return actions;
+					},
+				}), "dsh-x-context-menu: session actions");
+
+				// 官方工作区菜单：重命名 100、在资源管理器中打开 200、删除 300。
+				// 新建会话是主操作，排最前面；复制名称/路径贴着官方那两项的后面。
+				menusCtx.effect(() => menus.register({
+					id: "x-context-menu.workspace-start",
+					target: "workspace",
+					order: 50,
+					resolve: ({ workspaceId }) => (
+						workspaceId && typeof uiWorkspace()?.startSession === "function"
+							? [{
+								id: "new-session", label: t("newSession"),
+								run: () => startSessionIn(workspaceId), failureLabel: t("sessionUnavailable"),
+							}]
+							: []
+					),
+				}), "dsh-x-context-menu: workspace new session");
+
+				menusCtx.effect(() => menus.register({
+					id: "x-context-menu.workspace-copy",
+					target: "workspace",
+					order: 250,
+					resolve: ({ path, displayTitle }) => {
+						const actions = [];
+						if (displayTitle) {
+							actions.push({
+								id: "copy-name", label: t("copyName"),
+								run: copyInto(displayTitle, t("copiedName")), failureLabel: t("clipboardUnavailable"),
+							});
+						}
+						if (path) {
+							actions.push({
+								id: "copy-path", label: t("copyPath"),
+								run: copyInto(path, t("copiedPath")), failureLabel: t("clipboardUnavailable"),
+							});
+						}
+						return actions;
+					},
+				}), "dsh-x-context-menu: workspace copy actions");
+			});
 
 			// ---- 菜单装配 ----
 			let itemSeq = 0;
@@ -527,8 +659,9 @@ window.__ModuleLoader__.load({
 				const name = workspace?.title || rowText(target.row);
 				const items = [];
 
-				if (typeof uiWorkspace()?.startSession === "function") {
-					items.push(item(t("newSession"), () => startSessionIn(workspace?.workspaceId ?? groupKey)));
+				// 「未分组」不是真工作区（没有 workspaceId），没地方新建会话。
+				if (workspace?.workspaceId && typeof uiWorkspace()?.startSession === "function") {
+					items.push(item(t("newSession"), () => startSessionIn(workspace.workspaceId)));
 					items.push(separator());
 				}
 				if (name !== "") items.push(item(t("copyName"), () => copy(name, t("copiedName"))));
@@ -596,8 +729,7 @@ window.__ModuleLoader__.load({
 			}
 
 			/** 右键 → 菜单；没有可做的面就返回 null，让浏览器/外壳保持默认行为。 */
-			function buildMenu(event) {
-				const target = targetOf(event);
+			function buildMenu(target, event) {
 				if (!target) return null;
 				let built;
 				if (target.surface === "session") built = buildSessionItems(target);
@@ -610,13 +742,50 @@ window.__ModuleLoader__.load({
 				return { kind: "menu", x: event.clientX, y: event.clientY, title: built.title, items: built.items };
 			}
 
+			/**
+			 * 这一面是不是官方菜单负责的。
+			 *
+			 * 会话行/工作区行官方都挂了触发器，必须让给官方：再自绘一套就是 #110 里两个
+			 * 菜单同时出现。但官方的触发器是按数据条件挂的——空白会话（`blank`，行标题
+			 * 固定显示占位文案）传 undefined，没有路径的「未分组」工作区也没有——这些行
+			 * 官方菜单根本不会打开，继续由本插件负责，否则右键就只剩浏览器自带菜单了。
+			 */
+			const nativeOwnsRow = (target) => {
+				if (nativeMenus() === null) return false;
+				if (target.surface === "session") {
+					return sessionSummary(target.sessionId)?.blank !== true;
+				}
+				if (target.surface === "workspace") {
+					const workspace = workspaceByGroupKey(target.groupKey);
+					return Boolean(workspace?.workspaceId && workspace?.path);
+				}
+				return false;
+			};
+
 			// ---- 事件 ----
 			const onContextMenu = (event) => {
 				if (event.defaultPrevented) return;
-				const menu = buildMenu(event);
+				const target = targetOf(event);
+				if (!target) return;
+				if (nativeOwnsRow(target)) {
+					// 不拦默认行为，官方菜单照常打开；自家覆盖层不能留在旁边。
+					close();
+					return;
+				}
+				const menu = buildMenu(target, event);
 				if (!menu) return;
 				event.preventDefault();
 				event.stopPropagation();
+				// 官方菜单可能已经开着（Shift+F10、行尾按钮先点开过）。官方自己的关闭逻辑只认
+				// 没被 preventDefault 的 contextmenu，这里不主动关就会叠成两层。
+				const menus = nativeMenus();
+				if (menus) {
+					try {
+						menus.close();
+					} catch {
+						// 服务卸载中：没有菜单要关。
+					}
+				}
 				store.set(menu);
 			};
 

@@ -697,7 +697,7 @@ html.reduce-motion .launch-status.is-working::before { animation: none; }
 .toggle.launch-auto-launch { margin: 0; font-size: 12px; }
 /* 引导块里的自动启动开关：跟上面两档 tab 的面板拉开一点，别贴着输入框 */
 .launch-guide .launch-auto-launch { margin-top: 2px; }
-/* 桌面增强：三种档位共用一个开关；说明收进「?」，下面那行只给编辑时的安装状态（已装 x/3） */
+/* 桌面增强：三种档位共用一个开关；说明收进「?」，下面那行只给编辑时的安装状态（已装 x/2） */
 .launch-desktop-enhance { display: grid; gap: 6px; }
 .launch-desktop-enhance .hint { margin: 0; }
 #launchDesktopEnhanceHint:empty { display: none; }

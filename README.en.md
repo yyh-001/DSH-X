@@ -40,7 +40,7 @@
 - 🚀 **Launch entries and multiple instances** — choose a home directory, profile, version and port per entry; start entries concurrently and add entries while DSH is running.
 - 📦 **Version management** — a dedicated manager for detecting new releases, manually installing, removing, checking disk usage and assigning versions to launch entries.
 - 🧩 **Plugins and packs** — install, uninstall, toggle and update plugins by environment (npm package names, local paths or Git URLs) and configure default indexes for the official custom plugin market; browse, search and sort the masonry-style community market, or import and export packs.
-- 🖥️ **Desktop enhancements** — tick it when adding a launch item to install three first-party plugins (native notifications, context menu, sidebar browser) into that environment; add missing ones later by editing the launch item, then toggle or update them individually on the Plugins page.
+- 🖥️ **Desktop enhancements** — tick it when adding a launch item to install two first-party plugins (native notifications, sidebar browser) into that environment; add missing ones later by editing the launch item, then toggle or update them individually on the Plugins page.
 - 🛠️ **MCP and skills** — configure MCP servers and import, manage and toggle skills.
 - 🪟 **Opening modes** — tabs inside DSH-X, a system browser tab, a standalone browser window or a desktop window.
 - 🎨 **Appearance** — light / dark themes, transparency, opening and launch-entry animations, and separate background and Big Fish switches.
@@ -228,10 +228,9 @@ Run `node scripts/make-pack.mjs` to build a `.dspack`, then import it as a local
 
 ## Desktop enhancements
 
-Tick "Install desktop enhancements" when adding a launch item; saving installs three first-party plugins into that item's profile (from npm, not bundled with the installer). Edit the launch item later to see how many are installed and add the missing ones; unticking never uninstalls.
+Tick "Install desktop enhancements" when adding a launch item; saving installs the first-party plugins into that item's profile (from npm, not bundled with the installer). Edit the launch item later to see how many are installed and add the missing ones; unticking never uninstalls.
 
 - [Native notifications](https://www.npmjs.com/package/dsh-x-desktop-notify) — system notifications when a turn ends or waits for confirmation, plus desktop capabilities for other plugins
-- [Context menu](https://www.npmjs.com/package/dsh-x-context-menu) — right-click menus for sessions, workspaces, selected text, links and inputs; a pure web plugin with no desktop shell
 - [Sidebar browser](https://www.npmjs.com/package/dsh-x-sidebar-browser) — drive dsh's official right-sidebar Browser: snapshot, click, type, screenshot
 
 ## Wallpaper
