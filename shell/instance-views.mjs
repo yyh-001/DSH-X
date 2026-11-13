@@ -96,14 +96,15 @@ export class InstanceViews {
   }
 
   // 整个移交同步完成，不在摘出与附加之间让出事件循环；失败原样回挂，绝不重建页面。
-  transferView(viewId, destination, { index, activate = true } = {}) {
+  transferView(viewId, destination, { index, activate = true, preservePage = false, focus = true } = {}) {
     const record = this.views.get(viewId)
     if (!record || record.pendingClose || record.moving) throw new Error('页面正在关闭或移动')
     if (record.host === destination) {
-      if (activate) destination.reveal(record)
+      if (activate && focus) destination.reveal(record)
       return record
     }
     const source = record.host
+    const destinationSelection = destination.selected
     let position
     record.moving = true
     record.epoch++
@@ -111,21 +112,28 @@ export class InstanceViews {
       position = source?.detach(record)
       destination.attach(record, { index, activate })
       record.host = destination
+      // 标题/聚焦失败也必须回挂；只有新宿主完成呈现后，才能释放旧的空窗口。
+      destination.changed?.(record)
+      if (activate && focus) destination.reveal(record)
+      else if (activate) destination.present(destination.presentation)
     } catch (error) {
       destination.detach(record)
+      if (destinationSelection !== undefined) {
+        destination.selected = destinationSelection
+        destination.render?.(true)
+      }
       destination.disposeEmpty?.()
       if (source) {
-        source.attach(record, { ...position, rollback: true })
         record.host = source
+        source.attach(record, { ...position, rollback: true })
       }
       throw error
     } finally {
       record.moving = false
     }
     source?.disposeEmpty?.()
-    if (record.localUrl) this.load(record, this.placeholder(record), true)
-    destination.changed?.(record)
-    if (activate) destination.reveal(record)
+    // 显式拖出承诺保留整张页面，停止页也不例外；普通打开方式切换仍沿用本地页桥更新。
+    if (record.localUrl && !preservePage) this.load(record, this.placeholder(record), true)
     return record
   }
 
@@ -142,7 +150,9 @@ export class InstanceViews {
     this.views.delete(viewId)
     record.host?.detach(record)
     record.host?.disposeEmpty?.()
-    if (record.view && !record.view.webContents.isDestroyed()) record.view.webContents.close()
+    // Electron 退出时先发 destroyed，再清理宿主；此时视图的 webContents getter 可能已为空。
+    const contents = record.view?.webContents
+    if (contents && !contents.isDestroyed()) contents.close()
   }
 
   dispose() {

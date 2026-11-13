@@ -211,6 +211,36 @@ export function parseTabAction(body) {
   }
   if (!value || typeof value !== 'object') return null
   switch (value.action) {
+    case 'tab-drag': {
+      const grab = value.grab
+      if (grab !== undefined && (!grab || !['x', 'y', 'width', 'height', 'clientX', 'clientY'].every((key) =>
+        Number.isFinite(grab[key]) && Math.abs(grab[key]) <= 1000000)
+        || grab.width <= 0 || grab.height <= 0 || grab.x < 0 || grab.x > grab.width || grab.y < 0 || grab.y > grab.height)) return null
+      return typeof value.id === 'string' && typeof value.active === 'boolean'
+        && (value.cancel === undefined || typeof value.cancel === 'boolean')
+        && (value.live === undefined || typeof value.live === 'boolean')
+        ? { action: value.action, id: value.id, active: value.active,
+          ...(value.live === undefined ? {} : { live: value.live }), ...(value.cancel === undefined ? {} : { cancel: value.cancel }),
+          ...(grab === undefined ? {} : { grab: { x: grab.x, y: grab.y, width: grab.width, height: grab.height, clientX: grab.clientX, clientY: grab.clientY } }) } : null
+    }
+    case 'tab-strip': {
+      const coordinate = (number) => Number.isFinite(number) && Math.abs(number) <= 1000000
+      const rect = value.rect
+      if (!rect || !['left', 'right', 'top', 'bottom'].every((key) => coordinate(rect[key]))
+        || rect.right < rect.left || rect.bottom < rect.top || !Array.isArray(value.tabs) || value.tabs.length > 1000) return null
+      if (!value.tabs.every((tab) => tab && typeof tab.id === 'string' && coordinate(tab.left) && coordinate(tab.right) && tab.right >= tab.left)) return null
+      if (!value.tabs.every((tab) => tab.top === undefined && tab.bottom === undefined
+        || coordinate(tab.top) && coordinate(tab.bottom) && tab.bottom >= tab.top)) return null
+      return { action: value.action, rect: { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom },
+        tabs: value.tabs.map(({ id, left, right, top, bottom }) => ({ id, left, right, ...(top === undefined ? {} : { top, bottom }) })) }
+    }
+    case 'detach-tab':
+      return typeof value.id === 'string' && value.id && isRequestSerial(value.request)
+        && ['drag', 'menu'].includes(value.source)
+        ? { action: value.action, id: value.id, request: value.request, source: value.source } : null
+    case 'tab-menu':
+      return typeof value.id === 'string' && value.id && isRequestSerial(value.request)
+        ? { action: value.action, id: value.id, request: value.request } : null
     case 'select':
       if (typeof value.id !== 'string') return null
       if (!('request' in value)) return { action: 'select', id: value.id }
@@ -225,6 +255,7 @@ export function parseTabAction(body) {
     }
     case 'reload':
     case 'next':
+    case 'previous':
     case 'close-active':
       return { action: value.action }
     case 'layout': {

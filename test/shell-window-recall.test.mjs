@@ -51,12 +51,12 @@ test('主屏比默认窗口小时按工作区夹一下', () => {
 
 test('唤出窗口先退出最小化，显示之后再兜摆位', () => {
   const main = read('shell/main.mjs')
-  assert.match(main, /function revealWindow\(window, size\)/, '叫窗口收成一个函数')
+  assert.match(main, /function revealWindow\(window, size, \{ preserveBounds = false \} = \{\}\)/, '普通召回默认仍兜摆位，拖动松手可保留用户位置')
   assert.match(main, /if \(window\.isMinimized\(\)\) window\.restore\(\)[\s\S]{0,200}?window\.show\(\)/, '先退出最小化再显示')
   assert.match(main, /window\.show\(\)[\s\S]{0,200}?recenterBounds\(window\.getBounds\(\)/, '显示之后按实际摆位兜底')
   assert.match(main, /function showManager\(\)[\s\S]{0,300}?revealWindow\(mainWindow, MAIN_WINDOW\)/, '托盘 / 二次启动走同一条路')
-  assert.match(main, /reveal: \(\) => revealWindow\(mainWindow, MAIN_WINDOW\)/, '标签宿主叫同一个函数')
-  assert.match(main, /reveal: \(target\) => revealWindow\(target, DSH_WINDOW\)/, '每个独立窗口同样兜底')
+  assert.match(main, /reveal: \(options\) => revealWindow\(mainWindow, MAIN_WINDOW, options\)/, '标签宿主叫同一个函数')
+  assert.match(main, /reveal: \(target, options\) => revealWindow\(target, DSH_WINDOW, options\)/, '每个独立窗口同样兜底')
 })
 
 test('点程序坞图标只叫回窗口，停在原来的内部标签上', () => {

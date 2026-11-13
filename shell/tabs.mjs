@@ -37,6 +37,8 @@ export class BrowserTabs {
     this.renderedSelection = ''
     this.selectionRequest = null
     this.orderRequest = null
+    this.detachResult = null
+    this.stripLayout = null
     // 关闭当前标签时先保留旧画面，替代页面显示后再释放原生视图。
     this.retired = []
     // 管理页有弹窗开着：原生标签页总叠在管理页之上，弹窗画不过它，只能先把标签页收起来。
@@ -45,7 +47,7 @@ export class BrowserTabs {
 
   /** 菜单栏里是不是正显示着标签条（管理页的快捷键只在这时接管 ⌘W / ⌃Tab）。 */
   get active() {
-    return this.enabled || this.tabs.length > 0
+    return this.enabled || this.tabs.length > 0 || !!this.dragSource
   }
 
   preferences(enabled, lang, theme) {
@@ -87,7 +89,9 @@ export class BrowserTabs {
 
   tabBounds() {
     const { width, height } = this.window.getContentBounds()
-    return { x: 0, y: this.headerHeight, width, height: Math.max(0, height - this.headerHeight) }
+    // 管理页报告 CSS 像素，原生视图使用 DIP；页面缩放不能让内容层盖住标签栏。
+    const top = Math.round(this.headerHeight * (this.manager.getZoomFactor?.() || 1))
+    return { x: 0, y: top, width, height: Math.max(0, height - top) }
   }
 
   layout() {
@@ -99,6 +103,7 @@ export class BrowserTabs {
   }
 
   present(serial) {
+    if (this.window.isDestroyed()) return
     // 快速连点产生的旧绘制回执不能把页面切回去。只响应最新一次选择。
     if (serial !== this.presentation) return
     // 弹窗开着时按「选中管理页」呈现：露出完整弹窗，在任何标签下都能直接关掉；弹窗关了原样放回。
@@ -117,8 +122,12 @@ export class BrowserTabs {
     }
     for (const item of this.retired) this.destroy(item)
     this.retired = []
-    if (shown) tab?.view.webContents.focus()
-    else this.manager.focus()
+    if (this.window.isDestroyed()) return
+    // 拖出后管理页还会回传 present；后台窗口的绘制回执只能更新画面，不能抢回焦点。
+    if (!this.dragHold && this.window.isFocused?.() !== false) {
+      if (shown) tab?.view.webContents.focus()
+      else this.manager.focus()
+    }
     // 页面刚显示出来才画得准：采一次它的底色，给选中的标签用（标签要和下面那块页面同色才连得起来）。
     if (tab) this.sampleSurface(tab)
   }
@@ -203,10 +212,10 @@ export class BrowserTabs {
     return { index, selected }
   }
 
-  reveal(tab) {
+  reveal(tab, options) {
     this.selected = tab.target.id
     this.render(true)
-    this.hooks.reveal()
+    this.hooks.reveal(options)
   }
 
   changed() {
@@ -230,9 +239,13 @@ export class BrowserTabs {
       case 'close-active':
         this.close(this.selected)
         break
-      case 'next': {
-        const index = this.tabs.findIndex((tab) => tab.target.id === this.selected)
-        this.selected = this.tabs[index + 1]?.target.id ?? ''
+      case 'next':
+      case 'previous': {
+        // 管理首页只属于启动器窗口；独立窗口正反循环都只在自己的标签之间切换。
+        const ids = this.tabs.map((tab) => tab.target.id)
+        if (this.kind === 'internal') ids.unshift('')
+        const index = ids.indexOf(this.selected)
+        this.selected = ids[(index + (request.action === 'previous' ? -1 : 1) + ids.length) % ids.length] ?? ''
         break
       }
       case 'reload': {
@@ -244,6 +257,9 @@ export class BrowserTabs {
       case 'layout':
         this.headerHeight = request.height
         this.layout()
+        return
+      case 'tab-strip':
+        this.stripLayout = request
         return
       case 'present':
         this.present(request.serial)
@@ -276,6 +292,7 @@ export class BrowserTabs {
 
   render(force) {
     if (this.window.isDestroyed()) return
+    this.hooks.changed?.()
     if (force || this.presentation === 0 || this.renderedSelection !== this.selected || this.retired.length) {
       this.presentation += 1
       this.renderedSelection = this.selected
@@ -284,9 +301,15 @@ export class BrowserTabs {
       active: this.selected,
       lang: this.lang,
       theme: this.theme,
+      standalone: this.kind === 'window',
+      dragging: this.dragSource || null,
+      floating: this.dragFloating || null,
+      reduceMotion: this.hooks.reducedMotion?.() === true,
       presentation: this.presentation,
       request: this.selectionRequest,
       orderRequest: this.orderRequest,
+      detach: this.hooks.detach?.() || { supported: false, drag: false },
+      detachResult: this.detachResult,
       enabled: this.active,
       // 选中那块页面顶部的底色：管理页拿它画选中的标签，标签才和下面的页面连成一片。
       surface: this.tabs.find((tab) => tab.target.id === this.selected)?.surface || '',
