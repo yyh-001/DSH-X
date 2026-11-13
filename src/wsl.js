@@ -220,7 +220,8 @@ export async function listWslDistros(options = {}) {
   const exe = options.exe || WSL_EXE
   const run = options.run || ((args, opts) => runProcess(exe, args, opts))
   const cacheable = !options.run
-  if (!wslAvailable(exe)) {
+  // 测试/调用方注入 run 时不再探本机的 wsl.exe：跨平台纯函数测试也会走这条。
+  if (!options.run && !wslAvailable(exe)) {
     return { available: false, distros: [], error: '当前不是 Windows，或找不到 wsl.exe', reasonCode: REMOTE_REASON.wslUnavailable, retryable: false }
   }
   if (!options.force && cacheable && distroCache.value && Date.now() - distroCache.at < 10000) return distroCache.value

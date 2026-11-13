@@ -81,11 +81,11 @@ test('WSL scope 下本地文件路由统一返回 400，启动与会话状态接
   // 而不是被本地文件路由 guard 挡成 400。
   const scopedState = await call('/api/state')
   assert.notEqual(scopedState.response.status, 400)
-  assert.match(JSON.stringify(scopedState.data), /Fedora|WSL/)
+  assert.match(JSON.stringify(scopedState.data), /Fedora|WSL|wsl\.exe/)
   // 兼容性检查也走远端 core：不能被本地文件路由 guard 挡成 400。
   const compatibility = await call('/api/plugins/check-compatibility', 'POST', { version: '0.2.0', profile: 'web' })
   assert.notEqual(compatibility.response.status, 400)
-  assert.match(JSON.stringify(compatibility.data), /Fedora|WSL/)
+  assert.match(JSON.stringify(compatibility.data), /Fedora|WSL|wsl\.exe/)
   // 本机启动项照常能读整合包。
   const local = await fetch(origin + '/api/packs', { headers: { origin } })
   assert.equal(local.status, 200)

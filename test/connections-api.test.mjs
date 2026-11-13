@@ -70,16 +70,18 @@ test('连接 API：保存/脱敏/删除保护，SSH 密码只存密文', async (
   assert.equal(failed.response.status, 400)
   assert.equal(failed.data.code, 'ssh-unreachable')
 
-  // 有启动项引用时不能删连接
-  const preset = await call('/api/launch-presets', 'POST', {
-    name: 'WSL 连接项', version: 'auto', profile: 'web', port: 0,
-    backend: 'wsl', connectionId: wslId, remoteHome: '~/.dsh',
-  })
-  assert.equal(preset.response.status, 200)
-  const blocked = await call('/api/connections/remove', 'POST', { id: wslId })
-  assert.equal(blocked.response.status, 400)
-  assert.match(blocked.data.error, /启动项/)
-  await call('/api/launch-presets/remove', 'POST', { id: preset.data.entry.id })
-  const removed = await call('/api/connections/remove', 'POST', { id: wslId })
-  assert.equal(removed.response.status, 200)
+  // 有启动项引用时不能删连接（保存 WSL 启动项要真的探测发行版，只在 Windows 上验）
+  if (process.platform === 'win32') {
+    const preset = await call('/api/launch-presets', 'POST', {
+      name: 'WSL 连接项', version: 'auto', profile: 'web', port: 0,
+      backend: 'wsl', connectionId: wslId, remoteHome: '~/.dsh',
+    })
+    assert.equal(preset.response.status, 200)
+    const blocked = await call('/api/connections/remove', 'POST', { id: wslId })
+    assert.equal(blocked.response.status, 400)
+    assert.match(blocked.data.error, /启动项/)
+    await call('/api/launch-presets/remove', 'POST', { id: preset.data.entry.id })
+    const removed = await call('/api/connections/remove', 'POST', { id: wslId })
+    assert.equal(removed.response.status, 200)
+  }
 })
