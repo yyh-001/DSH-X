@@ -19,6 +19,7 @@ function ui({ installed = ['0.1.0'], instances = [], homes = false } = {}) {
   const calls = [], notices = [], list = { innerHTML: '', querySelectorAll: () => [], insertAdjacentElement() {} }
   const context = vm.createContext({
     state: { dshHome: 'home', instances, installed, launchPresets: entries, installing: null }, action: '', launchProfile: 'web',
+    instanceWindowsAvailable: true,
     launchEntries: () => entries, installedList: () => installed, resolveLaunchVersion: (entry) => entry.version,
     render() {}, openInstance: async () => {}, notify: (message) => notices.push(message),
     post(path, body, scope) {
@@ -118,6 +119,8 @@ test('界面只锁住忙碌项，运行时添加、编辑和其他环境启动�
   h.context.paintLaunchHome()
   assert.equal(h.context.launchAddEl.disabled, false)
   assert.doesNotMatch(h.list.innerHTML, /data-edit-id="a"[^>]*disabled/)
+  assert.doesNotMatch(h.list.innerHTML, /data-window-id="a"[^>]*disabled/)
+  assert.match(h.list.innerHTML, /data-window-id="b"[^>]*disabled/)
   const starting = h.context.startVersion('0.1.0', 'work', null, 'b')
   h.context.paintLaunchHome()
   assert.doesNotMatch(h.list.innerHTML, /data-launch-id="a"[^>]*disabled/)

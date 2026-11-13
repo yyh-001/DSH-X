@@ -1,17 +1,22 @@
 // 必须是第一个 import：它在核心（server.js）求值之前补好 PATH 和外壳标记（见 env.mjs）
 import './env.mjs'
-import { BrowserWindow, Menu, Notification, Tray, WebContentsView, app, clipboard, dialog, ipcMain, nativeImage, nativeTheme, net, powerSaveBlocker, screen, session, shell } from 'electron'
+import { BrowserWindow, Menu, Notification, Tray, WebContentsView, app, clipboard, dialog, ipcMain, nativeImage, nativeTheme, net, powerSaveBlocker, screen, session, shell, systemPreferences } from 'electron'
 import { existsSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { BrowserTabs } from './tabs.mjs'
+import { InstanceViews, instanceWindowTitle, launchForView, legacyWindowTarget } from './instance-views.mjs'
+import { InstanceWindow } from './instance-window.mjs'
+import { TabDetacher, TabDragFeedback, detachedBounds, draggedBounds, tabGrabOffset, managerTabSender, tabDragSupported, tabDropTarget } from './tab-detach.mjs'
+import { LiveTabDrag, outsideTabStrip } from './tab-live-drag.mjs'
+import { WindowFade } from './window-fade.mjs'
 import { BROWSER_IPC, DesktopBrowserGuests } from './browser-guests.mjs'
 import { createCoreRecovery, isEnvironmentStartupError } from './core-recovery.mjs'
 import { corePackageName, channelOf, coreRegistries, fetchCoreMetadata, installCore, pickCoreRelease, tarballFor } from './core-fetch.mjs'
 import { createUpdater } from './updater.mjs'
 import { readPrefs } from './prefs.mjs'
-import { coreSetupPage, coreSetupPaintScript, dataUrl, errorPage, idlePage, resolveDark, tabBaseColor } from './pages.mjs'
+import { coreSetupPage, coreSetupPaintScript, dataUrl, errorPage, resolveDark, tabBaseColor, tabWindowFallbackPage } from './pages.mjs'
 import { clickTarget, dialogOptions, notificationDecision, notifyThrottled } from './desktop.mjs'
 import {
   LAUNCH_ACTIONS,
@@ -79,20 +84,13 @@ const IPC_CHANNEL = 'dsh-x:ipc'
 /** 外壳 → 管理页：退出前的询问（preload.cjs 的 onMessage 收这条）。 */
 const SHELL_CHANNEL = 'dsh-x:shell'
 /**
- * 管理页的 window 查询参数：macOS 用它切到红绿灯排版（public/index.html 的 macWindow），
- * Windows 则固定用 '1'——和 Rust/wry 外壳一致，页面据此画自绘的最小化/最大化/关闭按钮。
+ * 各平台均选择页面自绘的窗口按钮，和独立标签窗口保持一致。
  */
-const WINDOW_QUERY = IS_MAC ? 'mac' : '1'
+const WINDOW_QUERY = '1'
 /** 首次出现的窗口尺寸（逻辑像素），和 Rust 外壳一致。 */
 const MAIN_WINDOW = { width: 1100, height: 760, minWidth: 720, minHeight: 520 }
 const DSH_WINDOW = { width: 1180, height: 820, minWidth: 720, minHeight: 520 }
 const ERROR_WINDOW = { width: 560, height: 300, logHeight: 420 }
-/**
- * 红绿灯的位置（逻辑像素，左上角为原点）：Rust 外壳给 tao 的 inset 是 (18, 29)，tao 把它当成
- * 「按钮左边距、标题栏高度 = 按钮高 + 29」，按钮因此竖直居中在 (14 + 29) / 2 ≈ 21.5 上。
- * Electron 的 trafficLightPosition 是按钮左上角，换算后 y = 21.5 - 7 ≈ 15，和页面顶栏的竖直中线对齐。
- */
-const TRAFFIC_LIGHTS = { x: 18, y: 15 }
 /** 托盘轮询 /api/tray 的间隔：和 Rust 外壳一致。 */
 const TRAY_POLL_MS = 1500
 const TRAY_REQUEST_TIMEOUT_MS = 2000
@@ -123,7 +121,10 @@ let server = null
 let managerBase = ''
 let mainWindow = null
 let tabs = null
-let dshWindow = null
+let instanceViews = null
+let tabDetacher = null
+let tabDrag = null
+let windowFocusSerial = 0
 let tray = null
 let trayMenuKey = ''
 let state = parseTrayState('')
@@ -615,7 +616,10 @@ async function start() {
   installDownloadHandler()
   installBrowserGuestIpc()
   // 系统深浅色在运行中变了（控制中心切换）：停止页跟着重画（#58）
-  nativeTheme.on('updated', () => tabs?.systemThemeChanged())
+  nativeTheme.on('updated', () => {
+    tabs?.systemThemeChanged()
+    instanceViews?.preferences(state.lang, resolveDark(state.theme, nativeTheme.shouldUseDarkColors))
+  })
 
   // 默认是 Electron 本体（process.execPath）；设置里选了系统 Node 或显式 DSH_RUNTIME_NODE 时可能落空。
   if (!RUNTIME_NODE || (app.isPackaged && !existsSync(RUNTIME_NODE))) {
@@ -677,6 +681,8 @@ async function start() {
     onWake: async () => showManager(),
     openTab: (target) => openInternalTab(target),
     openWindow: (url) => openDshWindow(url),
+    presentInstance: (target, options) => instanceViews.presentInstance(target, options),
+    onStateChanged: () => applyState(parseTrayState(server.trayStateText())),
     exit: (code) => exitApp(code),
     // 核心更新后重启：AppImage 重启 APPIMAGE 本身，其他平台用 app.relaunch()
     relaunch: relaunchApp,
@@ -739,11 +745,10 @@ function createMainWindow() {
     ...MAIN_WINDOW,
     title: 'DSH-X',
     show: false,
-    // macOS 留着系统红绿灯（用户对它们的肌肉记忆比风格统一更重要），标题栏透明、页面铺满整个窗口；
-    // Windows 没有红绿灯：无边框，最小化/最大化/关闭由页面画（.app-window 的 win-controls）
-    ...(IS_MAC
-      ? { titleBarStyle: 'hidden', trafficLightPosition: TRAFFIC_LIGHTS }
-      : { frame: false, icon: ICON_FILE, backgroundColor: '#15171c' }),
+    // 各窗口共用 DSH-X 顶栏，平台只保留自己的菜单栏和窗口行为。
+    frame: false,
+    ...(IS_WINDOWS ? { icon: ICON_FILE } : {}),
+    backgroundColor: '#15171c',
     webPreferences: managerPreferences(),
   })
   mainWindow.once('ready-to-show', () => mainWindow.show())
@@ -756,8 +761,29 @@ function createMainWindow() {
     else void quit()
   })
   mainWindow.on('resize', () => tabs?.layout())
+  mainWindow.on('focus', () => { if (tabs) tabs.focusOrder = ++windowFocusSerial; syncTabDetachMenu() })
+  mainWindow.on('blur', syncTabDetachMenu)
   guardManager(mainWindow.webContents)
-  tabs = new BrowserTabs(mainWindow, { createView: createTabView })
+  tabs = new BrowserTabs(mainWindow, {
+    retire: (record) => instanceViews.retire(record),
+    dispose: (id) => instanceViews.disposeView(id),
+    reveal: (options) => revealWindow(mainWindow, MAIN_WINDOW, options),
+    systemDark: () => nativeTheme.shouldUseDarkColors,
+    detach: () => ({ supported: true, drag: canDragTabs(), merge: true, live: canDragTabs() }),
+    reducedMotion: () => prefs.reduceMotion,
+    changed: syncTabDetachMenu,
+  })
+  instanceViews = new InstanceViews({
+    createView: createTabView,
+    createHost: (kind) => kind === 'internal' ? tabs : createDshWindow(),
+    bootUrl: (target) => {
+      if (!target.home || !target.profile || !target.version) return ''
+      const params = new URLSearchParams({ home: target.home, profile: target.profile, version: target.home.startsWith('wsl://') ? 'auto' : target.version, name: target.title })
+      return `${managerUrl()}booting?${params}`
+    },
+  })
+  tabDetacher = createTabDetacher(tabs)
+  tabs.detacher = tabDetacher
   mainWindow.loadURL(managerPageUrl())
 }
 
@@ -770,7 +796,171 @@ function managerPageUrl() {
   return authenticated || `${managerUrl()}?window=${WINDOW_QUERY}`
 }
 
-/** 管理页和独立窗口那张本地页：只有它们装预加载、拿得到 window.ipc。 */
+// 宿主来自统一页面登记器，不再维护另一份窗口/页面对应表。
+function tabHosts() {
+  return [...new Set([tabs, ...(tabDrag?.live?.saved.keys() || []), ...[...(instanceViews?.views.values() || [])].map((record) => record.host)])]
+    .filter((host) => host && !host.window.isDestroyed())
+}
+
+function createTabDetacher(host) {
+  return new TabDetacher(instanceViews, host, {
+    quitting: () => quitting,
+    dragSupported: canDragTabs,
+    dropTarget: () => tabDropTarget(screen.getCursorScreenPoint(), host, tabHosts()),
+    createHost: (source) => {
+      if (source !== 'drag') return createDshWindow()
+      const point = screen.getCursorScreenPoint()
+      const display = screen.getDisplayNearestPoint(point)
+      return createDshWindow(detachedBounds(point, display.workArea, DSH_WINDOW))
+    },
+    // 错误正文可能带导航地址，日志只保留错误类型；用户侧统一显示可重试提示。
+    failed: (error, request) => {
+      console.warn('标签移到新窗口失败：', error?.name || 'Error')
+      // 旧核心不认识结果回执；外壳原生入口的失败由原生对话框显示。
+      if ((request === null || host.chromeFallback) && !host.window.isDestroyed()) void dialog.showMessageBox(host.window, {
+        type: 'error', message: state.lang === 'en' ? 'Could not move the tab. Please try again.' : '无法移到新窗口，请重试。',
+      })
+    },
+  })
+}
+
+function canDragTabs() {
+  return tabDragSupported(process.platform, app.commandLine.getSwitchValue('ozone-platform'), process.env)
+}
+
+function syncTabDetachMenu() {
+  const item = Menu.getApplicationMenu()?.getMenuItemById('detach-tab')
+  if (!item) return
+  item.label = state.lang === 'en' ? 'Move Tab to New Window' : '移到新窗口'
+  const host = tabHosts().find((host) => host.window.isFocused())
+  item.enabled = !!host?.detacher?.canCreateWindow(host.selected)
+}
+
+function showTabMenu({ id, request = null }, activeLabel = false, host = tabs) {
+  if (!host?.detacher?.available(id)) {
+    if (host && request !== null) {
+      host.detachResult = { id, request, status: 'cancelled' }
+      host.render(false)
+    }
+    return
+  }
+  let chosen = false
+  const en = state.lang === 'en'
+  const move = (destination) => {
+    chosen = true
+    host.detacher.detach({ id, request, source: 'menu', destination })
+  }
+  const destinations = tabHosts().filter((target) => target !== host)
+  Menu.buildFromTemplate([{
+    label: activeLabel ? (en ? 'Move Active Tab to New Window' : '将当前标签移到新窗口') : (en ? 'Move to New Window' : '移到新窗口'),
+    enabled: host.detacher.canCreateWindow(id),
+    click: () => move(),
+  }, ...destinations.map((destination) => ({
+    label: destination === tabs ? (en ? 'Move to Launcher Window' : '移到启动器窗口')
+      : `${en ? 'Move to' : '移到'} ${destination.window.getTitle()}`,
+    click: () => move(destination),
+  }))]).popup({ window: host.window, callback: () => {
+    if (chosen || request === null) return
+    host.detachResult = { id, request, status: 'cancelled' }
+    host.render(false)
+  } })
+}
+
+function stopTabDrag(cancel = true) {
+  if (!tabDrag) return
+  const ended = tabDrag
+  tabDrag = null
+  clearInterval(ended.timer)
+  ended.feedback.clear()
+  try { ended.live?.finish(cancel) } catch {
+    // 回挂失败也不重建页面；它仍归最后一个有效宿主，错误只显示固定文案。
+    console.warn('标签拖动结束失败')
+    if (!ended.host.window.isDestroyed()) ended.host.manager.executeJavaScript(`window.notifyError?.(new Error(${JSON.stringify(state.lang === 'en' ? 'Could not restore the tab. Check its current window.' : '无法恢复标签位置，请检查当前承载它的窗口。')}))`).catch(() => {})
+  }
+}
+
+function startTabDrag(host, id, live = false, grab) {
+  stopTabDrag()
+  if (!canDragTabs() || !host.detacher.available(id)) return
+  const feedback = new TabDragFeedback((target, value) => {
+    if (!target.window.isDestroyed() && !target.manager.isDestroyed()) {
+      target.manager.executeJavaScript(`window.updateTabDrop?.(${JSON.stringify(value)})`).catch(() => {})
+    }
+  })
+  const update = () => {
+    const current = tabDrag
+    if (!current || current.host !== host) return
+    if (host.window.isDestroyed() || !host.window.isVisible() || quitting) return stopTabDrag()
+    try {
+      const point = screen.getCursorScreenPoint()
+      if (current.live) {
+        if (!current.live.valid()) return stopTabDrag()
+        const drop = tabDropTarget(point, null, tabHosts().filter((item) => item !== current.live.floating), id)
+        const outside = current.live.record.host === current.live.floating || outsideTabStrip(point, current.live.record.host)
+        current.live.update(point, drop, outside)
+        feedback.update(host, drop?.host !== host ? drop : null)
+      } else {
+        if (!host.detacher.available(id)) return stopTabDrag()
+        feedback.update(host, tabDropTarget(point, host, tabHosts()))
+      }
+    } catch {
+      stopTabDrag()
+      if (!host.window.isDestroyed()) host.manager.executeJavaScript(`window.notifyError?.(new Error(${JSON.stringify(state.lang === 'en' ? 'Could not move the tab. Please try again.' : '无法移动标签，请重试。')}))`).catch(() => {})
+    }
+  }
+  const sourceBounds = host.window.getBounds()
+  const sourceContent = host.window.getContentBounds()
+  const sourceZoom = host.manager.getZoomFactor()
+  const startPoint = screen.getCursorScreenPoint()
+  const sourceTab = host.stripLayout?.tabs.find((tab) => tab.id === id)
+  if (!grab) {
+    // 兼容已加载的旧顶栏：没有按下坐标时，从当前标签和原生鼠标位置推导，不回退到窗口中心。
+    const rect = host.stripLayout?.rect || { top: 0, bottom: 44 }
+    const width = Math.max(1, (sourceTab?.right ?? sourceBounds.width / sourceZoom) - (sourceTab?.left ?? 0))
+    const height = Math.max(1, (sourceTab?.bottom ?? rect.bottom) - (sourceTab?.top ?? rect.top))
+    const clientX = (startPoint.x - sourceContent.x) / sourceZoom, clientY = (startPoint.y - sourceContent.y) / sourceZoom
+    grab = { x: Math.max(0, Math.min(width, clientX - (sourceTab?.left ?? 0))),
+      y: Math.max(0, Math.min(height, clientY - (sourceTab?.top ?? rect.top))), width, height, clientX, clientY }
+  }
+  const sourceOffset = { x: sourceContent.x - sourceBounds.x + grab.clientX * sourceZoom,
+    y: sourceContent.y - sourceBounds.y + grab.clientY * sourceZoom }
+  const sourceSingle = host.kind === 'window' && host.tabs.length === 1
+  const normal = host.window.isMaximized() || host.window.isFullScreen() ? host.window.getNormalBounds() : sourceBounds
+  const size = { width: normal.width, height: normal.height }
+  let waitingSince = 0
+  const position = (target, point) => {
+    const outer = target.window.getBounds(), content = target.window.getContentBounds()
+    const zoom = target.manager.getZoomFactor()
+    let offset
+    if (target === host && sourceSingle) {
+      offset = { x: content.x - outer.x + grab.clientX * zoom, y: content.y - outer.y + grab.clientY * zoom }
+    } else {
+      const tab = target.stripLayout?.tabs.find((item) => item.id === id)
+      if (!tab) {
+        // 先等新顶栏报告真实布局再显示，避免先居中出现、下一帧又跳回标签抓取点。
+        waitingSince ||= Date.now()
+        if (Date.now() - waitingSince > 5000) throw new Error('标签栏未就绪')
+        return false
+      }
+      waitingSince = 0
+      offset = tabGrabOffset(grab, { ...tab, top: tab.top ?? target.stripLayout.rect.top,
+        bottom: tab.bottom ?? target.stripLayout.rect.bottom }, zoom, { x: content.x - outer.x, y: content.y - outer.y })
+    }
+    const bounds = draggedBounds(point, size, offset)
+    const key = JSON.stringify(bounds)
+    if (target.dragBounds !== key) {
+      target.dragBounds = key
+      target.window.setBounds(bounds, false)
+    }
+  }
+  const session = live ? new LiveTabDrag(instanceViews, host, id, {
+    createHost: (point) => createDshWindow(draggedBounds(point, size, sourceOffset)), position,
+  }) : null
+  tabDrag = { host, id, feedback, live: session, update, timer: setInterval(update, live ? 16 : 40) }
+  update()
+}
+
+/** 管理页的预加载；实例占位页的窄化桥由 remotePreferences 那份预加载提供。 */
 function managerPreferences() {
   return { preload: PRELOAD, sandbox: true, contextIsolation: true, nodeIntegration: false, spellcheck: false }
 }
@@ -794,23 +984,30 @@ function remotePreferences() {
  * 选了内部标签 / 桌面窗口时，「运行地址」要进外壳而不是浏览器。就地导航会把窗口导走、
  * 连红绿灯旁边的顶栏一起弄丢，所以一律拦下。
  */
-function guardManager(contents) {
+function guardManager(contents, getHost = () => tabs) {
+  // 旧核心没有菜单按钮：在顶栏右键仍能移动当前标签；新核心会 preventDefault 并传准确 id。
+  contents.on('context-menu', (_event, params) => {
+    const host = getHost()
+    if (params.y < host?.headerHeight && !params.isEditable) showTabMenu({ id: host.selected }, true, host)
+  })
   contents.setWindowOpenHandler(({ url }) => {
     openLink(url)
     return { action: 'deny' }
   })
   contents.on('will-navigate', (event, url) => {
-    if (url.startsWith(managerUrl())) return
+    const host = getHost()
+    if (host?.kind === 'window' ? url === host.chromeUrl : url.startsWith(managerUrl())) return
     event.preventDefault()
     if (isWebUrl(url)) openLink(url)
   })
   contents.on('before-input-event', (event, input) => {
     // ⌘W / ⌃Tab 在显示标签条时归标签页（和 Rust 外壳注入的 keydown 脚本同一组快捷键）
-    if (!tabs?.active) return
+    const host = getHost()
+    if (!host?.active) return
     const action = shortcutAction(input, false)
     if (action) {
       event.preventDefault()
-      tabs.action({ action })
+      host.action({ action })
     }
   })
   contents.on('render-process-gone', (_event, details) => {
@@ -826,7 +1023,7 @@ function guardManager(contents) {
 function shortcutAction(input, inTab) {
   if (input.type !== 'keyDown' || !(input.meta || input.control)) return null
   const key = input.key.toLowerCase()
-  if (key === 'tab') return 'next'
+  if (key === 'tab') return input.shift ? 'previous' : 'next'
   if (key === 'w') return 'close-active'
   if (key === 'r' && inTab) return 'reload'
   return null
@@ -838,9 +1035,12 @@ function createTabView(id) {
   // 右侧栏浏览器：这块 WebContents 是 guest 的唯一 owner，页面销毁时租约自己释放。
   browserGuests.bind(contents)
   browserGuestOwners.add(contents)
-  contents.on('destroyed', () => browserGuestOwners.delete(contents))
+  contents.on('destroyed', () => {
+    browserGuestOwners.delete(contents)
+    instanceViews?.disposeView(id)
+  })
   contents.setWindowOpenHandler(({ url }) => {
-    if (!tabs.link(id, url)) openLink(url)
+    if (!instanceViews.link(id, url)) openLink(url)
     return { action: 'deny' }
   })
   contents.on('will-navigate', (event, url) => {
@@ -849,30 +1049,41 @@ function createTabView(id) {
     event.preventDefault()
     shell.openExternal(url)
   })
-  contents.on('page-title-updated', (_event, title) => tabs.title(id, title))
+  contents.on('page-title-updated', (_event, title) => instanceViews.title(id, title))
   // 页面画完再采一次底色：present 那次可能还停在加载屏上（采到的是加载页的颜色），
   // 采完选中的标签才和它下面那块页面同色。
-  contents.on('did-stop-loading', () => tabs.resample(id))
+  contents.on('did-stop-loading', () => {
+    const record = instanceViews.views.get(id)
+    record?.host?.resample(record.target.id)
+  })
   contents.on('before-input-event', (event, input) => {
     const action = shortcutAction(input, true)
     if (action) {
       event.preventDefault()
-      tabs.action({ action })
+      const record = instanceViews.views.get(id)
+      if (!record || record.pendingClose) return
+      record.host.action({ action })
     }
   })
-  // 页面进程崩了只剩一块空白：由外壳重新认证装回（见 BrowserTabs.recover）
+  // 页面进程崩了只恢复这一页，登记器沿用当前实例的认证地址。
   contents.on('render-process-gone', (_event, details) => {
-    if (!CLEAN_EXITS.has(details.reason)) tabs.recover(id)
+    if (!CLEAN_EXITS.has(details.reason)) instanceViews.recover(id)
   })
   return view
 }
 
 /** 管理页和本地页发来的消息（window.ipc.postMessage）。按发送方分派，别的 webContents 发的一律不认。 */
 ipcMain.on(IPC_CHANNEL, (event, message) => {
-  if (mainWindow && event.sender === mainWindow.webContents) return handleManagerMessage(message)
-  // 独立窗口里远端 dsh 页面也带着这个预加载（同一块 webContents 换页，预加载改不了）：
-  // 只认外壳自己那张 data: 本地页发的消息
-  if (dshWindow && event.sender === dshWindow.webContents && event.senderFrame?.url.startsWith('data:')) return handleIdleMessage(message)
+  if (typeof message !== 'string' || message.length > 64 * 1024) return
+  // 移空源窗口和退出时仍可能收到已排队的呈现回执；销毁后的原生对象连 getter 也会抛错。
+  if (quitting || event.sender.isDestroyed() || !event.senderFrame) return
+  const manager = mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents : null
+  if (managerTabSender(event, manager, managerUrl())) return handleManagerMessage(message)
+  const host = tabHosts().find((host) => host !== tabs && host.manager === event.sender
+    && event.senderFrame === event.sender.mainFrame && event.senderFrame.url === host.chromeUrl)
+  if (host) return handleTabMessage(host, message)
+  const record = instanceViews?.localSender(event)
+  if (record) return handleIdleMessage(record, message)
 })
 
 function handleManagerMessage(message) {
@@ -886,7 +1097,7 @@ function handleManagerMessage(message) {
     }
   }
   switch (message) {
-    // macOS 用系统红绿灯：最小化 / 最大化 / 关闭按钮页面不画（.mac-window 隐藏了），这里照样接住
+    // 三个平台的自绘窗口按钮共用原生窗口操作。
     case 'minimize': mainWindow.minimize(); return
     case 'maximize': toggleMaximize(mainWindow); return
     // 走 close() 让窗口的 close 处理决定「隐藏到托盘还是退出」（Windows 的自绘关闭按钮也走这里）
@@ -894,11 +1105,38 @@ function handleManagerMessage(message) {
     // 拖窗口走 CSS 的 -webkit-app-region（public/launcher.css 的 .electron-window header）：Chromium 没有
     // 「从页面里发起一次系统拖动」的接口，页面在 mousedown 时发的 drag 这里无事可做
     case 'drag': return
-    case 'internal-tabs-ready': tabs.render(true); return
-    default: {
-      const action = parseTabAction(message)
-      if (action) tabs.action(action)
+    default: return handleTabMessage(tabs, message)
+  }
+}
+
+function handleTabMessage(host, message) {
+  switch (message) {
+    case 'minimize': host.window.minimize(); return
+    case 'maximize': toggleMaximize(host.window); return
+    case 'close': host.window.close(); return
+    case 'manager': showManager(); return
+    case 'internal-tabs-ready':
+      if (tabDrag?.host === host) stopTabDrag()
+      host.detacher.lastRequest = -1
+      host.detachResult = null
+      host.render(true)
+      return
+  }
+  const action = parseTabAction(message)
+  if (action?.action === 'tab-drag') {
+    if (action.active) startTabDrag(host, action.id, action.live === true, action.grab)
+    else if (tabDrag?.host === host && tabDrag.id === action.id) {
+      if (action.cancel !== true) tabDrag.update()
+      stopTabDrag(action.cancel === true)
     }
+  } else if (action?.action === 'detach-tab') {
+    host.detacher.detach(action)
+    stopTabDrag()
+  } else if (action?.action === 'tab-menu') showTabMenu(action, false, host)
+  else if (action) {
+    // 实时移交后源顶栏仍负责接收鼠标，它的旧排序回执不能再改动当前容器。
+    if (action.action === 'reorder' && tabDrag?.host === host && tabDrag.live?.moved) return
+    host.action(action)
   }
 }
 
@@ -911,11 +1149,12 @@ function toggleMaximize(window) {
  * 把窗口叫到前面。两步都不能省：最小化的窗口直接 show() 会停在最小化状态；摆位跑出屏幕时
  * show() 只是把它显示在屏幕外，用户看到的就是"点了没反应"（判断见 model.mjs 的 recenterBounds）。
  */
-function revealWindow(window, size) {
+function revealWindow(window, size, { preserveBounds = false } = {}) {
   if (!window || window.isDestroyed()) return
   if (window.isMinimized()) window.restore()
   window.show()
-  const bounds = recenterBounds(window.getBounds(), screen.getAllDisplays(), screen.getPrimaryDisplay(), size)
+  // 松手后的拖动窗口已由用户定位；不能再把屏幕边缘的落点当成丢失窗口而居中。
+  const bounds = preserveBounds ? null : recenterBounds(window.getBounds(), screen.getAllDisplays(), screen.getPrimaryDisplay(), size)
   if (bounds) window.setBounds(bounds)
   window.focus()
 }
@@ -932,8 +1171,7 @@ function openInternalTab(target) {
     shell.openExternal(target.url)
     return
   }
-  tabs.open(target)
-  revealWindow(mainWindow, MAIN_WINDOW)
+  instanceViews.presentInstance(target, { presentation: 'internal', explicit: true })
 }
 
 /**
@@ -958,78 +1196,81 @@ function openLink(url) {
   if (isWebUrl(url)) shell.openExternal(url)
 }
 
-/** 独立 DSH 窗口：按需创建，关窗口只是藏起来（和主窗口一个口径）。 */
+/** 旧核心的 URL 入口：识别已有身份后与新协议共用登记器。 */
 function openDshWindow(url) {
-  if (!dshWindow) createDshWindow()
-  dshWindow.instanceId = null
-  followDshWindow(url)
-  revealWindow(dshWindow, DSH_WINDOW)
+  instanceViews.presentInstance(legacyWindowTarget(url, managerUrl(), state.instances), { presentation: 'window', explicit: true })
 }
 
-function createDshWindow() {
-  dshWindow = new BrowserWindow({
+function createDshWindow(bounds) {
+  const window = new BrowserWindow({
     ...DSH_WINDOW,
+    ...(bounds ? { ...bounds, minWidth: Math.min(DSH_WINDOW.minWidth, bounds.width), minHeight: Math.min(DSH_WINDOW.minHeight, bounds.height) } : {}),
     title: 'DSH',
     show: false,
+    frame: false,
     ...(IS_WINDOWS ? { icon: ICON_FILE } : {}),
-    // 本地那张「没在跑」的页要 window.ipc；远端 dsh 页面的预加载只暴露 postMessage，
-    // 而 handleIdleMessage 只认 launch / manager 两个词，dsh 页面发什么都没有效果。
-    // --dsh-host-paths 只给这个窗口装 __DSH_HOST_PATHS__（拖拽文件取真实路径），管理页不装。
-    webPreferences: { ...managerPreferences(), additionalArguments: ['--dsh-host-paths'] },
+    backgroundColor: tabBaseColor(resolveDark(state.theme, nativeTheme.shouldUseDarkColors)),
+    // 这张本地顶栏只得到窗口/标签命令，DSH 内容仍只在原可迁移视图里。
+    webPreferences: managerPreferences(),
   })
-  dshWindow.page = null
-  dshWindow.instanceId = null
-  dshWindow.on('close', (event) => {
-    if (quitting) return
-    event.preventDefault()
-    dshWindow.hide()
+  const host = new InstanceWindow(window, {
+    quitting: () => quitting,
+    dispose: (id) => instanceViews.disposeView(id),
+    retire: (record) => instanceViews.retire(record),
+    reveal: (target, options) => revealWindow(target, DSH_WINDOW, options),
+    titles: syncInstanceTitles,
+    changed: syncTabDetachMenu,
+    systemDark: () => nativeTheme.shouldUseDarkColors,
+    detach: () => ({ supported: true, drag: canDragTabs(), merge: true, live: canDragTabs() }),
+    reducedMotion: () => prefs.reduceMotion,
+    hidden: () => {
+      if (!tray && !BrowserWindow.getAllWindows().some((item) => item.isVisible())) showManager()
+    },
   })
-  const contents = dshWindow.webContents
-  contents.setWindowOpenHandler(({ url }) => {
-    openLink(url)
-    return { action: 'deny' }
-  })
-  contents.on('will-navigate', (event, url) => {
-    if (!isExternalWebUrl(url)) return
-    event.preventDefault()
-    shell.openExternal(url)
-  })
-  // 网页标题同步到窗口标题：否则窗口菜单里永远只有一个「DSH」
-  contents.on('page-title-updated', (event, title) => {
-    event.preventDefault()
-    dshWindow.setTitle(title.trim() || 'DSH')
-  })
-  contents.on('render-process-gone', (_event, details) => {
-    if (CLEAN_EXITS.has(details.reason) || !dshWindow.page) return
-    const url = dshWindow.page
-    dshWindow.page = null
-    followDshWindow(url)
-  })
+  host.detacher = createTabDetacher(host)
+  host.fade = new WindowFade(host, { enabled: () => {
+    const animation = systemPreferences.getAnimationSettings()
+    return !prefs.reduceMotion && !animation.prefersReducedMotion && animation.shouldRenderRichAnimation && !quitting
+  } })
+  host.chromeUrl = `${managerUrl()}tab-window.html`
+  host.preferences(true, state.lang, state.theme)
+  window.on('focus', () => { host.focusOrder = ++windowFocusSerial; syncTabDetachMenu() })
+  window.on('blur', syncTabDetachMenu)
+  window.on('closed', () => { if (tabDrag?.host === host) stopTabDrag() })
+  guardManager(window.webContents, () => host)
+  const fallback = () => {
+    if (window.isDestroyed() || host.chromeUrl.startsWith('data:')) return
+    host.chromeUrl = dataUrl(tabWindowFallbackPage())
+    host.chromeFallback = true
+    window.loadURL(host.chromeUrl).catch(() => {})
+  }
+  window.webContents.on('did-navigate', (_event, url, status) => { if (url === host.chromeUrl && status >= 400) fallback() })
+  window.loadURL(host.chromeUrl).catch(fallback)
+  return host
 }
 
-/** 让独立窗口跟上 dsh 的当前地址；地址没变不刷新（别把用户正在看的页面刷掉），空地址换本地页。 */
-function followDshWindow(url) {
-  if (dshWindow.isDestroyed()) return
-  const page = url || ''
-  // 窗口自己的底色在页面画出第一帧前露出来，不设就是白的（深色下打开独立窗口那一下白屏）：
-  // 换页前先铺目标页的底色。本地那张「没在跑」的页固定是深色，不管主题。
-  dshWindow.setBackgroundColor(page ? tabBaseColor(resolveDark(state.theme, nativeTheme.shouldUseDarkColors)) : '#15171c')
-  if (dshWindow.page === page) return
-  dshWindow.page = page
-  const target = page || dataUrl(idlePage(state.lang))
-  dshWindow.webContents.loadURL(target).catch(() => {})
+function syncInstanceTitles() {
+  const records = [...instanceViews.targets.values()].filter((record) => record.host?.kind === 'window')
+  for (const record of records) {
+    if (record.host.selected !== record.target.id) continue
+    const duplicates = records.some((other) => other !== record && other.target.title === record.target.title)
+    const title = instanceWindowTitle(record, duplicates)
+    // 旧核心没有目录显示名时加窗口序号，避免系统窗口菜单里出现完全相同的标题。
+    const suffix = duplicates && !record.target.homeName ? ` · ${record.viewId.split('-').at(-1)}` : ''
+    record.host.window.setTitle(title + suffix)
+  }
 }
 
-function handleIdleMessage(message) {
-  // 只有本地那张页会发这两个；dsh 自己的页面发什么都不管
+function handleIdleMessage(record, message) {
   if (message === 'manager') {
     showManager()
     return
   }
   if (message !== 'launch') return
-  const row = state.launches.find((item) => item.instanceId && item.instanceId === dshWindow.instanceId)
-  if (row) trayAction({ id: row.id, instanceId: row.instanceId, action: 'start', targetId: '' })
-  // 原来的入口已被删除时，返回启动器选择，不能误启动另一项
+  const row = launchForView(record, state.launches)
+  const request = row && launchActionRequest(row, 'start')
+  if (request) void trayAction(request)
+  // 入口已被删除或改指其他实例时，不能误启动另一项。
   else showManager()
 }
 
@@ -1057,6 +1298,11 @@ function appMenu() {
       submenu: [
         { role: 'minimize' },
         { role: 'togglefullscreen' },
+        { id: 'detach-tab', label: '移到新窗口', enabled: false,
+          click: (_item, window) => {
+            const host = tabHosts().find((host) => host.window === window)
+            if (host?.detacher.canCreateWindow(host.selected)) host.detacher.detach({ id: host.selected })
+          } },
         { label: 'Close Window', accelerator: 'Command+W', click: (_item, window) => closeWindow(window) },
       ],
     },
@@ -1070,8 +1316,7 @@ function appMenu() {
  */
 function closeWindow(window) {
   if (!window) return
-  if (window === mainWindow) window.close()
-  else window.hide()
+  window.close()
 }
 
 /**
@@ -1154,20 +1399,10 @@ async function pollTray() {
 function applyState(next) {
   state = next
   syncTrayMenu()
-  // dsh 重启后地址（端口、token）会变：独立窗口跟着选中的实例换页，不能被后来启动的另一项抢走
-  if (dshWindow) {
-    if (!dshWindow.instanceId && dshWindow.page) {
-      dshWindow.instanceId = state.instances.find((target) => sameOrigin(target.url, dshWindow.page))?.id || null
-    }
-    if (dshWindow.instanceId) {
-      const target = state.instances.find((item) => item.id === dshWindow.instanceId)
-      followDshWindow(target?.url || '')
-    }
-  }
-  if (tabs) {
-    tabs.preferences(internalMode(state), state.lang, state.theme)
-    tabs.follow(state.instances)
-  }
+  instanceViews?.preferences(state.lang, resolveDark(state.theme, nativeTheme.shouldUseDarkColors))
+  instanceViews?.follow(state.instances, state.launches)
+  tabs?.preferences(internalMode(state), state.lang, state.theme)
+  for (const host of tabHosts()) if (host !== tabs) host.preferences(true, state.lang, state.theme)
 }
 
 /** 托盘的启动项操作：后台请求，失败就把管理页叫出来、用页面自己的提示说明原因。 */
@@ -1383,6 +1618,7 @@ function liveInstanceCount() {
 /** 管理服务收尾之后（退出 / 自更新）真正退出：先放行窗口的 close，再让 Electron 退。 */
 function exitApp(code = 0) {
   quitting = true
+  instanceViews?.dispose()
   app.exit(code)
 }
 
@@ -1397,4 +1633,5 @@ app.on('before-quit', (event) => {
 })
 // 窗口全关了也不退：托盘还在（默认行为在 macOS 上本来就不退，这里写明白）
 app.on('window-all-closed', () => {})
+app.on('will-quit', () => instanceViews?.dispose())
 

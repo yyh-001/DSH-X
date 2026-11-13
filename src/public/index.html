@@ -1649,6 +1649,9 @@
   "DSH-X 已退出": "DSH-X has exited",
   "停止": "Stop",
   "打开": "Open",
+  "在新窗口打开": "Open in new window",
+  "更多打开方式": "More opening options",
+  "在新窗口打开 {name}": "Open {name} in a new window",
   "访问链接": "Access link",
   "复制链接": "Copy link",
   "链接已复制": "Link copied",
@@ -5973,11 +5976,13 @@
       return t('局域网访问没能开启（{address}），详见日志。', { address: error.address })
     }
 
-    async function openInstance(url) {
+    async function openInstance(url, presentation) {
       if (!url) return
       try {
-        await post('/api/open', { url })
-      } catch {
+        await post('/api/open', { url, ...(presentation ? { presentation } : {}) })
+      } catch (error) {
+        // 显式开窗失败不能偷偷另开浏览器，否则迁移失败会看起来像成功。
+        if (presentation) { notifyError(error); return }
         window.open(url, '_blank', 'noopener')
       }
     }
@@ -6677,11 +6682,13 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-rotate-cw"/></svg></button>
           <button class="icon-btn launch-action" type="button" data-stop-id="${entry.id}" title="${escapeHtml(t('停止'))}" aria-label="${escapeHtml(t('停止'))}" ${action || ownAction || busy ? 'disabled' : ''}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-square"/></svg></button>` : ''}
-          <span class="launch-open"><button class="primary icon-btn launch-primary${busy || ownAction ? ' loading' : ''}" type="button" data-launch-id="${entry.id}" title="${escapeHtml(live?.status === 'running' && live.url ? '' : label)}" aria-label="${escapeHtml(label)}" ${!version || action || ownAction || installBlocked || busy || (live?.status === 'running' && !live.url) ? 'disabled' : ''}>
+          <span class="launch-open-group${instanceWindowsAvailable ? ' has-menu' : ''}"><span class="launch-open"><button class="primary icon-btn launch-primary${busy || ownAction ? ' loading' : ''}" type="button" data-launch-id="${entry.id}" title="${escapeHtml(live?.status === 'running' && live.url ? '' : label)}" aria-label="${escapeHtml(label)}" ${!version || action || ownAction || installBlocked || busy || (live?.status === 'running' && !live.url) ? 'disabled' : ''}>
             <span class="spin" aria-hidden="true"></span>${live?.status === 'running'
               ? '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-external-link"/></svg>'
               : '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5a1 1 0 0 1 1.5-.86l10 6.5a1 1 0 0 1 0 1.72l-10 6.5A1 1 0 0 1 8 18.5Z"/></svg>'}</button>
-          ${live?.status === 'running' && live.url ? `<span class="launch-link-popover" role="group" aria-label="${escapeHtml(t('访问链接'))}"><span class="launch-link-head"><span>${escapeHtml(t('访问链接'))}</span><button class="launch-link-copy" type="button" data-copy-launch-link title="${escapeHtml(t('复制链接'))}" aria-label="${escapeHtml(t('复制链接'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-copy"/></svg></button></span><a class="launch-link-value" href="${escapeHtml(live.url)}" data-copy-url="${escapeHtml(live.lanUrl || live.url)}" target="_blank" rel="noopener">${escapeHtml(live.lanUrl || live.url)}</a>${live.lanError ? `<span class="launch-link-note">${escapeHtml(lanErrorText(live.lanError))}</span>` : ''}</span>` : ''}</span></span>
+          ${live?.status === 'running' && live.url ? `<span class="launch-link-popover" role="group" aria-label="${escapeHtml(t('访问链接'))}"><span class="launch-link-head"><span>${escapeHtml(t('访问链接'))}</span><button class="launch-link-copy" type="button" data-copy-launch-link title="${escapeHtml(t('复制链接'))}" aria-label="${escapeHtml(t('复制链接'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-copy"/></svg></button></span><a class="launch-link-value" href="${escapeHtml(live.url)}" data-copy-url="${escapeHtml(live.lanUrl || live.url)}" target="_blank" rel="noopener">${escapeHtml(live.lanUrl || live.url)}</a>${live.lanError ? `<span class="launch-link-note">${escapeHtml(lanErrorText(live.lanError))}</span>` : ''}</span>` : ''}</span>
+          ${instanceWindowsAvailable ? `<button class="primary launch-open-toggle" type="button" data-open-menu="${entry.id}" popovertarget="launch-open-menu-${entry.id}" aria-haspopup="menu" aria-expanded="false" aria-label="${escapeHtml(t('更多打开方式'))}" title="${escapeHtml(t('更多打开方式'))}" ${action || ownAction || busy || live?.status !== 'running' || !live?.url ? 'disabled' : ''}><span class="launch-menu-chevron" aria-hidden="true"></span></button><span class="launch-open-menu" id="launch-open-menu-${entry.id}" popover role="menu" aria-label="${escapeHtml(t('更多打开方式'))}"><button type="button" role="menuitem" data-window-id="${entry.id}" ${action || ownAction || busy || live?.status !== 'running' || !live?.url ? 'disabled' : ''}><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-external-link"/></svg>${escapeHtml(t('在新窗口打开'))}</button></span>` : ''}
+          </span></span>
         </div>`
       }).join('')
       // 状态推送很频繁；内容没变就保留节点，避免悬停动效和键盘焦点反复重置。
@@ -6708,6 +6715,41 @@
           if (!wsl && state.installing && !installedList().includes(version) && !versionInstalls.has(version)) return
           try { await startVersion(wsl ? (version || 'auto') : version, entry.profile, entry.port, entry.id) }
           catch (error) { notifyError(error) }
+        }
+      })
+      launchPresetsEl.querySelectorAll('[data-open-menu]').forEach((button) => {
+        const panel = document.getElementById(button.getAttribute('popovertarget'))
+        const position = () => {
+          const rect = button.getBoundingClientRect()
+          const width = panel.offsetWidth || 180, height = panel.offsetHeight || 48
+          const above = rect.bottom + height + 6 > innerHeight - 12
+          panel.style.left = `${Math.max(12, Math.min(rect.right - width, innerWidth - width - 12))}px`
+          panel.style.top = `${Math.max(12, above ? rect.top - height - 6 : rect.bottom + 6)}px`
+          panel.style.transformOrigin = above ? 'bottom right' : 'top right'
+          panel.style.setProperty('--menu-enter-y', above ? '4px' : '-4px')
+        }
+        panel.onbeforetoggle = (event) => { if (event.newState === 'open') position() }
+        panel.ontoggle = () => {
+          const open = panel.matches(':popover-open')
+          button.setAttribute('aria-expanded', String(open))
+          if (open) { position(); panel.querySelector('button:not(:disabled)')?.focus() }
+        }
+        button.onkeydown = (event) => {
+          if (event.key === 'ArrowDown' && !button.disabled) { event.preventDefault(); if (!panel.matches(':popover-open')) button.click() }
+        }
+        panel.onkeydown = (event) => {
+          if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+            event.preventDefault(); panel.querySelector('button:not(:disabled)')?.focus()
+          }
+        }
+      })
+      launchPresetsEl.querySelectorAll('[data-window-id]').forEach((button) => {
+        button.onclick = async () => {
+          button.closest('[popover]').hidePopover()
+          button.closest('.launch-open-group').querySelector('[data-open-menu]').focus()
+          const entry = launchEntries().find((item) => item.id === button.dataset.windowId)
+          const live = entry && runningInfoForEntry(entry)
+          if (!button.disabled && live?.status === 'running' && live.url) await openInstance(live.url, 'window')
         }
       })
       launchPresetsEl.querySelectorAll('.launch-open').forEach((wrap) => {
@@ -8764,6 +8806,8 @@
     const openModeEl = document.getElementById('openMode')
     const openModeHint = document.getElementById('openModeHint')
     let internalTabsAvailable = false
+    // SSE 会整体替换 state；外壳能力只来自设置接口，不能随实例快照一起丢掉。
+    let instanceWindowsAvailable = false
     const describeOpenMode = (mode) => mode === 'internal' && !internalTabsAvailable
       ? t('内部标签页需使用新版 DSH-X 桌面端；当前使用浏览器标签页。')
       : ''
@@ -8962,6 +9006,8 @@
         showNodeRuntimeSettings(data)
       }
       if ('openMode' in data) {
+        instanceWindowsAvailable = data.instanceWindows === true
+        paintLaunchHome()
         internalTabsAvailable = data.openModeInternal === true
         const modes = Array.isArray(data.openModes) && data.openModes.length
           ? data.openModes

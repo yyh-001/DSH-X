@@ -18,7 +18,7 @@ const read = (path) => readFileSync(fileURLToPath(new URL(`../${path}`, import.m
  * @param {string} file 预加载路径
  * @param {{ protocol?: string, hostname?: string, argv?: string[], pathForFile?: (file: unknown) => string }} [options]
  */
-function runPreload(file, { protocol = 'http:', hostname = '127.0.0.1', argv = [], pathForFile } = {}) {
+function runPreload(file, { protocol = 'http:', hostname = '127.0.0.1', argv = [], pathForFile, sent = [] } = {}) {
   const exposed = {}
   const electron = {
     contextBridge: {
@@ -27,7 +27,7 @@ function runPreload(file, { protocol = 'http:', hostname = '127.0.0.1', argv = [
         exposed[name] = value
       },
     },
-    ipcRenderer: { on() {}, invoke: () => Promise.resolve(), send() {} },
+    ipcRenderer: { on() {}, invoke: () => Promise.resolve(), send(...args) { sent.push(args) } },
     webUtils: { getPathForFile: pathForFile ?? ((value) => `/real/${value?.name ?? 'unknown'}`) },
   }
   const sandbox = {
@@ -80,31 +80,30 @@ test('pathFor 遇到构造出来的 File（拿不到磁盘路径）返回空串�
   assert.equal(exposed.__DSH_HOST_PATHS__.pathFor({ name: 'made-up.txt' }), '')
 })
 
-test('独立桌面窗口：带标记的 dsh 页面才有桥，管理页没有', () => {
+test('管理页保留管理 IPC，独立窗口与标签共用远端桥', () => {
   const manager = runPreload('shell/preload.cjs')
   assert.ok(manager.ipc, '管理页照旧拿 ipc')
   assert.equal(manager.__DSH_HOST_PATHS__, undefined, '管理页不装文件路径桥')
 
-  const dshWindow = runPreload('shell/preload.cjs', { argv: ['--dsh-host-paths'] })
-  assert.ok(dshWindow.__DSH_HOST_PATHS__, '带 --dsh-host-paths 的独立窗口要装桥')
+  const dshWindow = runPreload('shell/preload-browser.cjs')
+  assert.equal(dshWindow.ipc, undefined, '远端页面没有管理 IPC')
   assert.equal(dshWindow.__DSH_HOST_PATHS__.pathFor({ name: 'ws.md' }), '/real/ws.md')
 })
 
-test('独立桌面窗口：标记只对回环地址生效', () => {
-  const remote = runPreload('shell/preload.cjs', {
-    argv: ['--dsh-host-paths'],
-    protocol: 'https:',
-    hostname: 'dsh.example.com',
-  })
-  assert.equal(remote.__DSH_HOST_PATHS__, undefined)
+test('本地占位页桥只发送启动与返回管理页，不开放管理消息', () => {
+  const sent = []
+  const local = runPreload('shell/preload-browser.cjs', { protocol: 'data:', sent })
+  for (const message of ['launch', 'manager', 'close', '{"action":"quit-confirm","ok":true}']) local.ipc.postMessage(message)
+  assert.deepEqual(sent, [['dsh-x:ipc', 'launch'], ['dsh-x:ipc', 'manager']])
+  assert.equal(local.ipc.onMessage, undefined)
 })
 
 test('外壳把两份预加载各装到该装的地方，右侧栏 webview 的 guest 拿不到', () => {
   const main = read('shell/main.mjs')
   assert.match(main, /const BROWSER_PRELOAD = join\(HERE, 'preload-browser\.cjs'\)/)
   assert.match(main, /function remotePreferences\(\)[\s\S]*?preload: BROWSER_PRELOAD/, '内部标签页用浏览器预加载')
-  assert.match(main, /webPreferences: \{ \.\.\.managerPreferences\(\), additionalArguments: \['--dsh-host-paths'\] \}/,
-    '独立桌面窗口带路径桥标记，管理页不带')
+  assert.match(main, /new WebContentsView\(\{ webPreferences: remotePreferences\(\) \}\)/,
+    '两种宿主共用带路径桥的视图预加载，迁移不更换预加载')
 
   // guest 的 webPreferences 在主进程里清空，只剩 Electron 自己的 disablePopups：
   // 页面给 <webview> 塞什么 preload 都传不进去，这个桥不会漏到侧栏浏览器里。
