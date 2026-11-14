@@ -99,6 +99,19 @@ function sign(secret, body) {
   return createHmac('sha256', secret).update(body).digest()
 }
 
+/** 只对本机回环放行兼容跳转：局域网访客仍然必须用带 token 的地址。 */
+function isLoopbackAuthority(authority) {
+  const host = String(authority || '').replace(/:\d+$/, '').replace(/^\[|\]$/g, '').toLowerCase()
+  return host === '127.0.0.1' || host === 'localhost' || host === '::1'
+}
+
+/** 顶层页面导航（浏览器 / Electron 窗口），不是页面里的 fetch / 脚本请求。 */
+function isTopLevelNavigation(req) {
+  const mode = String(req.headers?.['sec-fetch-mode'] || '').toLowerCase()
+  const dest = String(req.headers?.['sec-fetch-dest'] || '').toLowerCase()
+  return mode === 'navigate' || (!mode && dest === 'document')
+}
+
 export class ManagerAuth {
   /**
    * @param {Buffer} secret 持久化的签名密钥
@@ -135,7 +148,23 @@ export class ManagerAuth {
   exchange(req, res, url) {
     if (req.method !== 'GET' || url.pathname !== '/') return false
     const tokens = url.searchParams.getAll(TOKEN_PARAM)
-    if (!tokens.length) return false
+    if (!tokens.length) {
+      // 兼容旧外壳：它只会打开不带 token 的根地址。新版核心不能把人锁在门外：
+      // 本机顶层导航先 303 到带 launch token 的同一地址，再由下面的 exchange 种 cookie。
+      // 只在回环地址、顶层导航时放行；局域网访客和页面里的 fetch 仍然要 token。
+      const authority = requestAuthority(req)
+      if (!authority || !isLoopbackAuthority(authority) || !isTopLevelNavigation(req)) return false
+      const rest = new URLSearchParams(url.searchParams)
+      rest.set(TOKEN_PARAM, this.launchToken)
+      res.writeHead(303, {
+        'cache-control': 'no-store',
+        connection: 'close',
+        location: `/?${rest.toString()}`,
+        'referrer-policy': 'no-referrer',
+      })
+      res.end()
+      return true
+    }
     if (tokens.length !== 1 || !sameSecret(tokens[0], this.launchToken)) {
       this.unauthorized(res)
       return true
