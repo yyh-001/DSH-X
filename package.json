@@ -1,7 +1,7 @@
 {
   "name": "dsh-x",
   "productName": "DSH",
-  "version": "0.1.27-rc.2",
+  "version": "0.1.27-rc.3",
   "private": true,
   "type": "module",
   "description": "DeepSeek Harness 桌面启动器：启动项与多实例，版本、插件、整合包、MCP 和技能管理。",
