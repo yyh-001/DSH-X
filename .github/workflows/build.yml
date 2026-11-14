@@ -391,6 +391,11 @@ jobs:
     needs: [prepare, windows, linux]
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # npm trusted publishing：用 OIDC 换一次性发布凭据，不再依赖 NPM_TOKEN。
+    # job 级 permissions 会覆盖顶层的 contents: write，checkout 需要显式给 contents: read。
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -398,6 +403,10 @@ jobs:
         with:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
+
+      # trusted publishing 要 npm 11.5.1+，Node 22 自带的 npm 10 不够
+      - name: 升级 npm（OIDC 发布要求 11.5.1+）
+        run: npm install -g npm@latest
 
       # 只要 node_modules/electron/package.json 里的版本号（写进核心包的 dshX.electron），
       # 不需要 Electron 本体，跳过它的下载脚本
@@ -415,10 +424,8 @@ jobs:
       - name: 发布核心到 npm
         if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          if [ -z "$NODE_AUTH_TOKEN" ]; then echo "没有 NPM_TOKEN，跳过 npm 发布"; exit 0; fi
+          # 不要设 NODE_AUTH_TOKEN：只要它在，npm 就走 token 认证，trusted publishing 的 OIDC 不会生效
           VERSION="$(node -p "require('./package.json').version")"
           # version.js 已随运行时源码收进 src/，别再 import 根目录。
           TAG="$(node --input-type=module -e "import { versionChannel } from './src/version.js'; import { readFileSync } from 'node:fs'; const v=JSON.parse(readFileSync('package.json','utf8')).version; console.log({official:'latest',rc:'rc',alpha:'alpha'}[versionChannel(v)] || 'latest')")"
@@ -438,6 +445,10 @@ jobs:
     needs: [windows, macos, linux, core-package]
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    # 同 core-package：@yyh001/dsh-x 也要在 npm 上单独配一个 trusted publisher
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -446,14 +457,16 @@ jobs:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
 
+      - name: 升级 npm（OIDC 发布要求 11.5.1+）
+        run: npm install -g npm@latest
+
       - name: 打包并发布 dsh-x npm 包
         shell: bash
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          if [ -z "$NODE_AUTH_TOKEN" ] || ! [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+          # 不要设 NODE_AUTH_TOKEN：只要它在，npm 就走 token 认证，trusted publishing 的 OIDC 不会生效
+          if ! [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             node scripts/pack-npm.mjs
-            echo "没有 NPM_TOKEN 或不是 tag，只打包不发布"
+            echo "不是 tag，只打包不发布"
             exit 0
           fi
           node scripts/pack-npm.mjs --publish

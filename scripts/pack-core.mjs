@@ -59,6 +59,8 @@ export async function buildCorePackage({ appDir = DEFAULT_APP, version, outDir =
     productName: 'DSH',
     version: pkgVersion,
     private: false,
+    // npm trusted publishing 要求包里的 repository.url 和 GitHub 仓库完全一致，否则 OIDC 发布会被拒
+    repository: rootPkg.repository,
     type: 'module',
     // 核心由外壳用 server.js 启动，不是 Electron 入口
     main: 'server.js',
