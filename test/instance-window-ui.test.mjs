@@ -6,9 +6,27 @@ import vm from 'node:vm'
 const html = readFileSync(new URL('../src/public/index.html', import.meta.url), 'utf8')
 const openSource = html.slice(html.indexOf('    async function openInstance('), html.indexOf('\n    }', html.indexOf('    async function openInstance(')) + 6)
 
-test('显式窗口失败展示错误，普通打开失败仍按原来的浏览器回退', async () => {
+test('服务端拒绝普通或显式打开时展示原错误，不再弹窗重试', async () => {
+  const postSource = html.match(/    const post =[\s\S]*?\r?\n    \}\)\r?\n/)[0]
+  for (const presentation of [undefined, 'window']) {
+    const errors = [], browser = [], requests = []
+    const message = '当前平台暂不支持已有页面跨窗迁移，请先关闭此标签后重新打开'
+    const context = vm.createContext({
+      fetch: async (...args) => { requests.push(args); return { ok: false, status: 400, json: async () => ({ error: message }) } },
+      apiScopeHeaders: () => ({}), notifyError: error => errors.push(error), window: { open: (...args) => browser.push(args) },
+    })
+    vm.runInContext(postSource + '\n' + openSource, context)
+    await vm.runInContext(`openInstance("http://127.0.0.1:1234/", ${JSON.stringify(presentation)})`, context)
+    assert.equal(requests.length, 1)
+    assert.equal(errors.length, 1)
+    assert.equal(errors[0].message, message)
+    assert.equal(browser.length, 0)
+  }
+})
+
+test('仅网络失败的普通打开保留浏览器回退，显式打开仍展示错误', async () => {
   const calls = [], errors = [], browser = []
-  const failure = Error('迁移失败')
+  const failure = TypeError('Failed to fetch')
   const context = vm.createContext({
     post: async (...args) => { calls.push(args); throw failure },
     notifyError: (error) => errors.push(error), window: { open: (...args) => browser.push(args) },

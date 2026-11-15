@@ -16,7 +16,7 @@ import { createCoreRecovery, isEnvironmentStartupError } from './core-recovery.m
 import { corePackageName, channelOf, coreRegistries, fetchCoreMetadata, installCore, pickCoreRelease, tarballFor } from './core-fetch.mjs'
 import { createUpdater } from './updater.mjs'
 import { readPrefs } from './prefs.mjs'
-import { restartLinuxBackend, shellRelaunchOptions } from './linux-backend.mjs'
+import { shellRelaunchOptions } from './relaunch.mjs'
 import { coreSetupPage, coreSetupPaintScript, dataUrl, errorPage, resolveDark, tabBaseColor, tabWindowFallbackPage, tabDragPreviewPage } from './pages.mjs'
 import { clickTarget, dialogOptions, notificationDecision, notifyThrottled } from './desktop.mjs'
 import {
@@ -54,7 +54,6 @@ import {
  * 关窗口 ≠ 退出：托盘还在、dsh 照常跑；⌘Q、托盘「退出」才真正退出。
  */
 
-const restartingBackend = restartLinuxBackend(app)
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(HERE, '..')
 const PRELOAD = join(HERE, 'preload.cjs')
@@ -581,7 +580,7 @@ async function downloadShellUpdate() {
 app.setPath('userData', join(APP_DIR, 'electron'))
 
 /** 先占单实例锁：第二次打开只把已有实例的窗口叫出来（对应 Rust 外壳的 find_manager + /api/wake）。 */
-if (restartingBackend || !app.requestSingleInstanceLock()) {
+if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
   app.on('second-instance', () => showManager())
@@ -775,6 +774,7 @@ function createMainWindow() {
     changed: syncTabDetachMenu,
   })
   instanceViews = new InstanceViews({
+    canTransfer: canMigrateTabs,
     createView: createTabView,
     createHost: (kind) => kind === 'internal' ? tabs : createDshWindow(),
     bootUrl: (target) => {
@@ -1243,21 +1243,26 @@ function openInternalTab(target) {
  * 其余 http(s) 交给系统浏览器。data:/blob: 不是能给系统打开的地址，宁可不理。
  */
 function openLink(url) {
-  if (sameOrigin(url, managerUrl())) {
-    showManager()
-    return
+  try {
+    if (sameOrigin(url, managerUrl())) {
+      showManager()
+      return
+    }
+    const own = state.instances.find((target) => target.url && sameOrigin(url, target.url))
+    if (internalMode(state) && own) {
+      openInternalTab(own)
+      return
+    }
+    if (windowMode(state) && own) {
+      // 本机链接可能没有 token，使用这个实例自己的完整认证地址
+      openDshWindow(own.url)
+      return
+    }
+    if (isWebUrl(url)) shell.openExternal(url)
+  } catch (error) {
+    // 链接/弹窗入口没有 HTTP 响应接收错误；迁移被拒绝时提示原因，仍由调用方拦下导航。
+    dialog.showErrorBox(state.lang === 'en' ? 'Could not open page' : '无法打开页面', error.message)
   }
-  const own = state.instances.find((target) => target.url && sameOrigin(url, target.url))
-  if (internalMode(state) && own) {
-    openInternalTab(own)
-    return
-  }
-  if (windowMode(state) && own) {
-    // 本机链接可能没有 token，使用这个实例自己的完整认证地址
-    openDshWindow(own.url)
-    return
-  }
-  if (isWebUrl(url)) shell.openExternal(url)
 }
 
 /** 旧核心的 URL 入口：识别已有身份后与新协议共用登记器。 */

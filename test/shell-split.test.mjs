@@ -81,7 +81,7 @@ test('外壳版本和核心版本分开：shell/package.json + 关于页显示�
 test('npm CLI 带着外壳启动，核心目录通过 DSH_CORE_DIR 传入', () => {
   const bin = read('npm-package/bin/dsh-x.mjs')
   assert.match(bin, /DSH_CORE_DIR: core\.dir/)
-  assert.match(bin, /spawn\(electron, \[appRoot, \.\.\.launch\.args\]/)
+  assert.match(bin, /spawn\(electron, \[appRoot, \.\.\.args\]/)
   const pack = read('scripts/pack-npm.mjs')
   assert.match(pack, /join\(ROOT, 'shell'\)/)
   assert.match(pack, /shell\/main\.mjs/)

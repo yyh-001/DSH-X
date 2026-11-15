@@ -1,6 +1,6 @@
 # 实例页面与窗口
 
-一个受管理实例默认对应一个页面，由主窗口标签或独立窗口承载。关闭独立窗口只隐藏，停止实例仍由核心负责。改变打开设置不自动搬动现有页面；再次普通打开遵循当前设置，必要时迁移原视图。「在新窗口打开」只影响这次打开。
+一个受管理实例默认对应一个页面，由主窗口标签或独立窗口承载。关闭独立窗口只隐藏，停止实例仍由核心负责。改变打开设置不自动搬动现有页面；再次普通打开遵循当前设置，必要时迁移原视图。「在新窗口打开」只影响这次打开。Linux 当前禁止已有页面跨窗迁移：切换打开方式时提示先关闭标签再重新打开，首次直接开独立窗口不受影响。
 
 ## 核心与外壳
 
@@ -19,7 +19,7 @@
 ## 标签拆分与合并
 
 - 鼠标移动 5 CSS px 后开始拖动。门槛前由原按钮捕获，保留普通单击选择；开始拖动才交给稳定列表，捕获交接不取消手势，取消后的迟到 click 不再激活标签。同窗排序保留让位动画；其他窗口标签栏显示插入标记，离开源标签栏上下或窗口左右 24 CSS px 显示标题预览。上下回到栏边8px内、左右回到视口内才退出拆窗候选，提示与主进程按同一采样和迟滞契约判定。源页面和窗口保持原位，真正 pointerup 时只提交最终落点一次。
-- Windows/macOS 使用无修饰键拖出与回并；Linux 还要求实际后端是 X11 且 Electron 44.7.1 以上。Linux Wayland 桌面有 `DISPLAY` 且未显式选择 Ozone 后端时，默认请求 XWayland，不因桌面会话为 Wayland 而禁用，是否生效以实际后端为准。Linux 迁移需要带有原生视图重挂载修复的 Electron 44.7.1；当前固定 44.7.0（dsh 原生模块只认那张指纹表，见下），所以 Linux 上迁移能力位整体为 false，只剩同窗排序，等原生模块支持 44.7.1 后再开放。新版顶栏按显示帧发送源页面局部坐标，主进程根据源窗口内容原点及页面缩放换成 DIP，再做受管窗口命中。
+- Windows/macOS 开放无修饰键拖出与回并。当前固定 Electron 44.7.0，Linux（包括 X11/XWayland/Wayland）暂不交付跨窗拆合，能力位 `supported/drag/merge/deferred` 均关闭，标签菜单与原生菜单也不能搬动页面，登记器再次拒绝已有视图重挂载。同窗排序与首次独立开窗保留。Linux 迁移沿用 `tabMigrationSupported()` 的运行时门槛（44.7.1），拖动另要求实际 X11 后端；升级前仍须通过 DSH 原生模块兼容及产品验收。新版顶栏按显示帧发送源页面局部坐标，主进程根据源窗口内容原点及页面缩放换成 DIP，再做受管窗口命中。
 - 普通独立窗口的唯一标签拖到桌面时复用原窗口，松手才按原抓取偏移改变位置；多标签、最大化或全屏窗口在松手时创建目标宿主。新窗口按显示器工作区保护可见性，不等待目标顶栏完成布局。
 - Escape、blur、pointercancel、失去捕获与页面关闭取消手势。取消不需要反向迁移。主进程在 hide/minimize/close/closed、顶栏导航/崩溃/销毁和退出时使事务失效，并请求顶栏释放 pointer capture；顶栏另监听 visibilitychange，show 时再次清理隐藏期间的捕获。原生 hide→show 后能否重新拖动必须单独验收，不能由令牌清零推断。
 - 被拖页面的内容 renderer 退出时先取消该页手势，再按原策略恢复崩溃页；其他页的退出回调不直接取消当前页会话，但恢复若造成顶栏真实失焦，仍安全取消，用户需重新拖动。正常迁移不重新导航；崩溃恢复本身会重载，不承诺崩溃前草稿保持。
@@ -37,17 +37,17 @@
 
 ## Linux 启动后端
 
-安装版、源码外壳与 npm CLI 共用 `shell/linux-backend.mjs`。Electron 44 在执行应用脚本前已创建 Ozone 后端，不能在 `ready` 前简单 `appendSwitch` 后就宣称切换成功：安装/源码入口必要时先带 `--ozone-platform=x11` 重启一次，再取单实例锁、启动核心和建窗；npm CLI 在 spawn 前传入这个参数。AppImage 重启外层文件，普通核心重启保留原始参数。二次启动只唤出现有实例，切换后端须先退出启动器。
+不再为了标签拆合自动请求 XWayland，也不在启动时为此重启。安装版、源码外壳按 Electron 默认选择后端；npm CLI 原样透传启动参数。普通核心重启保留原始参数，AppImage 仍重启外层文件。二次启动只唤出现有实例，切换后端须先退出启动器。
 
-显式 `--ozone-platform=x11` / `wayland` 原样保留；其他值及旧 `--ozone-platform-hint` 也不擅自改写，其有效性由当前 Electron 决定。Electron 44 已移除旧 hint/`ELECTRON_OZONE_PLATFORM_HINT` 支持，请使用 `--ozone-platform`；本功能不增加持久设置或系统配置。原生 Wayland 不提供这里需要的全局坐标，仍为 `drag=false`，保留同窗排序及菜单拆分/合并，不将 XWayland 通过记为原生 Wayland 通过。
+显式 `--ozone-platform=x11` / `wayland` 原样保留，其有效性和连接由 Electron 处理；本功能不增加持久设置或修改系统配置。选择 X11 也不会重新开放跨窗迁移。
 
-`DISPLAY` 只用于请求连接，不证明 XWayland 可用。缺少它时不自动切换并输出诊断；存在但 socket/认证失效时，X11 初始化可能在应用 JS 执行前退出，原生错误与启动前提示用于排查，安装入口不承诺此时弹出 JS 错误框。npm CLI 自动请求 X11 后若子进程失败，会保留退出码并补充诊断。可完全退出后用 `DSH --ozone-platform=wayland`、`npm run electron -- --ozone-platform=wayland` 或 `dsh-x --ozone-platform=wayland` 使用原生后端；可用的 XWayland 则可显式指定 `x11`。
+Electron 保持仓库基线 44.7.0：44.7.1 虽修复 Linux 迁移后的原生视图不绘制，但 DSH 当前原生模块不支持该运行时，不能仅为窗口效果升级。未来恢复 Linux 拆合需同时通过原生模块兼容、打包态真实 DSH 启动及迁移后内容呈现验收。
 
 ## 验证
 
-Electron 固定 44.7.0：官方 `@deepseek-ai/dsh@0.2.2-rc.1`～`rc.3` 都依赖 `node-addon-require-builtin@^0.1.9`，而 0.1.9 用「Node 24.21.0 + V8 版本」精确匹配运行时指纹（表里只有 43.0.0 / 44.0.0 / 44.7.0 / 45.0.0-alpha.6）。44.7.1 的 V8 是 `15.2.124.37-electron.0`，不在表里，`ELECTRON_RUN_AS_NODE=1` 下调用 `requireBuiltin('internal/modules/cjs/loader')` 报 `unsupported Electron runtime fingerprint`，实例起不来（#115）。升级 Electron 前先确认上游 `runtime_profile.cc` 的表里有新版本，再过 `test/electron-native-compat.test.mjs`，并在打包态真启动一个实例——本地页面/guest 验收不能替代真实 DSH 启动。代价是 Linux 跨窗迁移在 44.7.0 下迁移后内容不绘制：`tabMigrationSupported()` 对 Linux 且 Electron < 44.7.1 返回 false，`detach.supported/merge/drag/deferred` 全关，Linux 只保留同窗排序；能升回 44.7.1 时自动恢复。
+原生兼容对照：官方 `@deepseek-ai/dsh@0.2.2-rc.1`～`rc.3` 依赖 `node-addon-require-builtin@^0.1.9`，而 0.1.9 用 Node + V8 精确指纹匹配运行时（表里只有 43.0.0 / 44.0.0 / 44.7.0 / 45.0.0-alpha.6）。Windows x64、`ELECTRON_RUN_AS_NODE=1` 调用其 `requireBuiltin('internal/modules/cjs/loader')`：44.7.1 实际报 `unsupported Electron runtime fingerprint`；回退 44.7.0 后返回有效的 `Module` 函数。此对照验证原生接口，不代表完整 DSH 或安装包验收。升级前须确认上游 `runtime_profile.cc` 支持新版本，并通过打包态真实 DSH 启动；`test/electron-native-compat.test.mjs` 锁住支持列表与打包兜底版本。
 
-`instance-views.test.mjs` 覆盖唯一归属、回滚、关闭、重启及 IPC；`instance-window-api.test.mjs` 和 `instance-window-ui.test.mjs` 覆盖新旧协议及界面能力。`tab-drag-session.test.mjs` 覆盖一次性事务、epoch 失效和失败回挂；`tab-drag-regressions.test.mjs` 将真实顶栏消息接到主进程函数，检查提交、取消与生命周期（DOM/假原生对象）。`internal-tabs-drag.test.mjs` 和 `tab-detach.test.mjs` 覆盖输入脚本、协议及坐标规则；`linux-backend.test.mjs` 覆盖后端选择、单次重启、参数保留、缺少/失效 DISPLAY 的诊断及 CLI 真实入口（替身进程边界，不等于 XWayland 连接或 OS 手势验收）。`electron-native-compat.test.mjs` 锁住 Electron 版本与 dsh 原生模块指纹表、打包兜底版本的一致性。
+`instance-views.test.mjs` 覆盖唯一归属、回滚、关闭、重启及 IPC，并检查禁用迁移时不摘出视图、不创建空目标。`instance-window-api.test.mjs` 和 `instance-window-ui.test.mjs` 覆盖新旧协议及界面能力。`tab-drag-session.test.mjs` 覆盖一次性事务、epoch 失效和失败回挂；`tab-drag-regressions.test.mjs` 将真实顶栏消息接到主进程函数，检查提交、取消与生命周期（DOM/假原生对象）。`internal-tabs-drag.test.mjs` 和 `tab-detach.test.mjs` 覆盖输入脚本、平台门控及坐标规则；`platform-launch.test.mjs` 检查主入口不自动切换后端、CLI 参数透传、重启参数保留及两类宿主能力与迁移门控的接线。
 
 `electron scripts/verify-tab-detach.mjs` 使用本地页面、真实预加载/IPC/WCV/guest，断言页面身份、租约、草稿、滚动、历史和失败回挂；数据与结果在 `.paseo-local/runtime/tab-detach-native`，不启动 DSH。合成指针不代表系统捕获通过。
 

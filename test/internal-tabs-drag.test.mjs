@@ -4,6 +4,14 @@ import { internalTabs } from './helpers/internal-tabs-dom.mjs'
 
 const actions = (h, name) => h.sent.filter((message) => message.action === name)
 
+test('Linux 禁用全部跨窗能力后仍能同窗排序，不发送迁移或目标发现消息', () => {
+  const h = internalTabs()
+  h.update({ active:'a', detach:{ supported:false,drag:false,merge:false,deferred:false } })
+  h.tick(); h.down('a'); h.move('a',{clientX:550}); h.releaseClick('a',{clientX:550})
+  assert.equal(actions(h,'reorder').length,1)
+  for (const name of ['tab-drag','tab-drag-move','detach-tab','tab-layout']) assert.equal(actions(h,name).length,0)
+})
+
 test('未达拖动门槛的原生捕获 click 激活原标签，新旧外壳能力与鼠标修饰键均保留一次选择', () => {
   for (const capability of [{}, { live:true }, { deferred:true }, { drag:false }, { supported:false }]) {
     for (const modifiers of [{}, { ctrlKey:true }, { metaKey:true }, { shiftKey:true }, { altKey:true }]) {

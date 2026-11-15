@@ -40,7 +40,6 @@ await writeFile(join(STAGE, 'lib', 'core.mjs'), [
   "export * from '../shell/core-fetch.mjs'",
   '',
 ].join('\n'))
-await writeFile(join(STAGE, 'lib', 'launch.mjs'), "export { linuxBackendLaunch } from '../shell/linux-backend.mjs'\n")
 await mkdir(join(STAGE, 'assets'), { recursive: true })
 for (const icon of ['icon.png', 'tray.ico', 'tray.png']) {
   await cp(join(ROOT, 'src', 'assets', icon), join(STAGE, 'assets', icon))
