@@ -38,6 +38,42 @@ test('新协议按稳定身份传递等待页，显式窗口不改变打开设�
   assert.equal((await env.call('/api/settings')).data.openMode, 'internal')
 })
 
+test('管理服务回环别名保留每个 profile 的受管身份与原始等待地址', async () => {
+  env.server.setHost({
+    presentInstance: (target, options) => calls.push({ target, options }),
+    openTab: () => assert.fail('管理服务等待页不能降级成非受管标签'),
+  })
+  const ids = new Map()
+  for (const hostname of ['127.0.0.1', 'localhost', '[::1]']) {
+    for (const profile of ['one', 'two']) {
+      const url = new URL(waiting)
+      url.hostname = hostname
+      url.searchParams.set('profile', profile)
+      assert.ok((await env.call('/api/open', { url: url.href })).ok)
+      const { target } = calls.pop()
+      assert.equal(target.managed, true)
+      assert.equal(target.status, 'starting')
+      assert.equal(target.url, url.href)
+      assert.deepEqual(JSON.parse(target.id), [env.home, '1.2.3', profile])
+      if (ids.has(profile)) assert.equal(target.id, ids.get(profile))
+      ids.set(profile, target.id)
+    }
+  }
+  assert.notEqual(ids.get('one'), ids.get('two'))
+})
+
+test('等待页回环别名不扩展到其他协议、端口或主机', () => {
+  for (const change of [
+    { protocol: 'https:' }, { port: '1' }, { hostname: 'example.com' },
+    { hostname: 'localhost.example.com' }, { hostname: '127.0.0.2' },
+  ]) {
+    const url = new URL(waiting)
+    Object.assign(url, change)
+    assert.equal(env.server.instanceTargetFromUrl(url.href, env.origin, []), null)
+  }
+  assert.equal(env.server.instanceTargetFromUrl(waiting.href, 'http://example.com:' + waiting.port, []), null)
+})
+
 test('WSL 等待页身份不随 auto 变更；其他服务的同名路径不算等待页', async () => {
   const wsl = new URL(waiting)
   wsl.searchParams.set('home', 'wsl://Fedora/~%2F.dsh')

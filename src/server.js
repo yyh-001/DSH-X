@@ -7479,7 +7479,14 @@ export function openRoute(mode, shellWindow, internalTabs = false) {
 /** 只有管理服务自己的等待页可以提前声明实例身份；运行页始终从当前实例解析。 */
 export function instanceTargetFromUrl(url, manager, instances, nameOf = () => '') {
   const parsed = new URL(url)
-  if (parsed.origin === new URL(manager).origin && ['/booting', '/booting/'].includes(parsed.pathname)) {
+  const managerUrl = new URL(manager)
+  // 等待页沿用浏览器的 localhost/IPv6 地址；只接受同协议同端口的受信回环别名，
+  // 不能让另一个本机服务的 /booting 声明受管实例身份。
+  const sameManager = parsed.origin === managerUrl.origin || (
+    parsed.protocol === managerUrl.protocol && parsed.port === managerUrl.port &&
+    LOCAL_HOSTS.has(parsed.hostname) && LOCAL_HOSTS.has(managerUrl.hostname)
+  )
+  if (sameManager && ['/booting', '/booting/'].includes(parsed.pathname)) {
     const home = parsed.searchParams.get('home') || ''
     const profile = parsed.searchParams.get('profile') || ''
     const version = parsed.searchParams.get('version') || ''

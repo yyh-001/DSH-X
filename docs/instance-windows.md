@@ -45,6 +45,8 @@
 
 ## 验证
 
+当前 Electron 44.7.1 升级仍被 DSH 原生模块兼容性阻塞：官方 `@deepseek-ai/dsh@0.2.2-rc.1` 依赖 `node-addon-require-builtin@^0.1.9`，已发布的 0.1.9 在 Windows x64、44.7.1 的 `ELECTRON_RUN_AS_NODE=1` 进程调用 `requireBuiltin('internal/modules/cjs/loader')` 时实际报 `unsupported Electron runtime fingerprint`（Node 24.21.0 / V8 15.2.124.37-electron.0）。加载 `.node` 成功不代表内部接口可用。以下本地页面/guest 验收不能替代真实 DSH 启动；解决原生模块兼容性并在打包态启动真实实例之前，不能将此升级视为可发布。回退 44.7.0 又会恢复已观察到的 Linux 迁移后不绘制问题，需要一并处理。
+
 `instance-views.test.mjs` 覆盖唯一归属、回滚、关闭、重启及 IPC；`instance-window-api.test.mjs` 和 `instance-window-ui.test.mjs` 覆盖新旧协议及界面能力。`tab-drag-session.test.mjs` 覆盖一次性事务、epoch 失效和失败回挂；`tab-drag-regressions.test.mjs` 将真实顶栏消息接到主进程函数，检查提交、取消与生命周期（DOM/假原生对象）。`internal-tabs-drag.test.mjs` 和 `tab-detach.test.mjs` 覆盖输入脚本、协议及坐标规则；`linux-backend.test.mjs` 覆盖后端选择、单次重启、参数保留、缺少/失效 DISPLAY 的诊断及 CLI 真实入口（替身进程边界，不等于 XWayland 连接或 OS 手势验收）。
 
 `electron scripts/verify-tab-detach.mjs` 使用本地页面、真实预加载/IPC/WCV/guest，断言页面身份、租约、草稿、滚动、历史和失败回挂；数据与结果在 `.paseo-local/runtime/tab-detach-native`，不启动 DSH。合成指针不代表系统捕获通过。
