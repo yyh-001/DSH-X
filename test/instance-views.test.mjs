@@ -42,7 +42,7 @@ function view() {
   return { webContents: contents, setBackgroundColor() {}, setVisible(value) { this.visible = value }, setBounds(value) { this.bounds = value } }
 }
 
-function setup() {
+function setup({ canTransfer } = {}) {
   let registry
   const windows = []
   let hidden = 0
@@ -58,9 +58,28 @@ function setup() {
     windows.push(host)
     return host
   }
-  registry = new InstanceViews({ createView: view, createHost, bootUrl: (target) => `http://127.0.0.1:3000/booting?profile=${target.profile}` })
+  registry = new InstanceViews({ createView: view, createHost, canTransfer, bootUrl: (target) => `http://127.0.0.1:3000/booting?profile=${target.profile}` })
   return { registry, tabs, windows, createHost, hidden: () => hidden }
 }
+test('禁用跨窗迁移时仍可首次独立开窗，但切换已有页面不得摘出或创建空窗口', () => {
+  const { registry, tabs, windows } = setup({ canTransfer: () => false })
+  const record = registry.presentInstance(target(), { presentation: 'window' })
+  const original = record.host, wc = record.view.webContents
+  const loads = wc.loads.length
+  assert.equal(windows.length, 1)
+  assert.throws(() => registry.presentInstance(target(), { presentation: 'internal', explicit: true }), /跨窗/)
+  assert.throws(() => registry.transferView(record.viewId, tabs), /跨窗/)
+  assert.equal(registry.transferView(record.viewId, original), record, '同宿主不属于迁移')
+  const internal = registry.presentInstance(target('second'))
+  assert.throws(() => registry.presentInstance(target('second'), { presentation: 'window', explicit: true }), /跨窗/)
+  assert.equal(windows.length, 1, '拒绝必须发生在创建空窗口之前')
+  assert.equal(record.host, original)
+  assert.equal(internal.host, tabs)
+  assert.equal(record.view.webContents, wc)
+  assert.equal(wc.loads.length, loads)
+  assert.equal(wc.closed, 0)
+})
+
 const target = (profile = 'web', home = 'C:/home', version = '1.2.3') => ({
   id: JSON.stringify([home, version, profile]), home, version, profile, homeName: home,
   title: profile, status: 'running', managed: true, url: `http://127.0.0.1:${profile === 'web' ? 4000 : 4001}/?token=fake`,
@@ -403,7 +422,7 @@ test('目标构造、附加、标题或聚焦失败均恢复原顺序、选中�
   }
 })
 
-test('重复或过期拆窗请求、关闭中页面和禁用手势不能创建窗口；Wayland 菜单可用', () => {
+test('仅禁用手势时菜单仍可用，重复或过期请求及关闭中页面不能创建窗口', () => {
   const { registry, tabs, createHost, windows } = setup()
   const record = registry.presentInstance(target())
   const detacher = new TabDetacher(registry, tabs, { quitting: () => false, dragSupported: () => false,
@@ -418,6 +437,20 @@ test('重复或过期拆窗请求、关闭中页面和禁用手势不能创建�
   tabs.action({ action: 'close-tab', id: record.target.id })
   assert.equal(detacher.detach({ id: record.target.id, request: 3 }).status, 'error')
   assert.equal(windows.length, 1)
+})
+
+test('平台禁用迁移时菜单与旧 detach IPC 均拒绝，页面保持原宿主', () => {
+  const { registry, tabs, createHost, windows } = setup({ canTransfer: () => false })
+  const record = registry.presentInstance(target())
+  const detacher = new TabDetacher(registry, tabs, { supported: () => false, quitting: () => false,
+    dragSupported: () => false, createHost: () => createHost('window') })
+  assert.equal(detacher.available(record.target.id), false)
+  assert.equal(detacher.canCreateWindow(record.target.id), false)
+  for (const source of ['menu', 'drag']) {
+    assert.equal(detacher.detach({ id: record.target.id, source }).status, 'error')
+  }
+  assert.equal(windows.length, 0)
+  assert.equal(record.host, tabs)
 })
 
 test('标签栏布局将页面缩放的 CSS 高度转成原生 DIP，不被内容层遮挡', () => {

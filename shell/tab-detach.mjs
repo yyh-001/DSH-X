@@ -1,9 +1,8 @@
 /** 拖出只协调一次用户操作；页面、宿主与生命周期始终归 InstanceViews。 */
-export function tabDragSupported(platform, ozonePlatform = '') {
-  if (platform !== 'linux') return true
-  // ready 后读 Chromium 启动时解析的后端；桌面会话是 Wayland 也可以实际运行在 XWayland。
-  // 未知后端不猜测全局坐标，保留排序和菜单入口。
-  return ozonePlatform === 'x11'
+export function tabDragSupported(platform) {
+  // DSH 原生模块要求保留 44.7.0；该版本 Linux WCV 重挂载会停止绘制，
+  // 菜单迁移与拖动一样受影响，不能只关 Wayland 的拖动能力。
+  return platform !== 'linux'
 }
 
 export function detachedBounds(point, workArea, size) {
@@ -83,7 +82,7 @@ export class TabDetacher {
 
   available(id) {
     const record = this.registry.targets.get(id)
-    return !!record && record.host === this.tabs && this.tabs.tabs.includes(record)
+    return this.hooks.supported?.() !== false && !!record && record.host === this.tabs && this.tabs.tabs.includes(record)
       && !record.pendingClose && !record.moving && !this.tabs.overlay && !this.hooks.quitting()
       && !this.tabs.window.isDestroyed()
   }

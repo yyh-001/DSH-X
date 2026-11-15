@@ -80,6 +80,8 @@ export class InstanceViews {
       }
     } else {
       if (explicit && record.host.kind !== presentation) {
+        // 在创建目标前拒绝，避免不可迁移的平台留下空窗口；首次直接开窗不受影响。
+        if (this.hooks.canTransfer?.() === false) throw new Error('当前平台暂不支持已有页面跨窗迁移，请先关闭此标签后重新打开')
         this.transferView(record.viewId, this.hooks.createHost(presentation), { activate: false })
       }
       this.update(record, target)
@@ -104,6 +106,8 @@ export class InstanceViews {
       return record
     }
     const source = record.host
+    // 统一拦住菜单、拖动和旧协议的重挂载；首次附加与同宿主操作仍然可用。
+    if (source && this.hooks.canTransfer?.() === false) throw new Error('当前平台暂不支持已有页面跨窗迁移')
     const destinationSelection = destination.selected
     let position
     record.moving = true

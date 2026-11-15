@@ -129,15 +129,15 @@ test('管理 IPC 同时验证 WebContents、顶层 frame 和管理页来源', ()
   assert.equal(allowed(event), false)
 })
 
-test('按实际 Ozone 后端启用拖出，Wayland 桌面上的 X11 可用，未知后端不猜坐标', () => {
+test('44.7.0 暂停所有 Linux 后端的跨窗拆合，Windows/macOS 保持可用', () => {
   assert.equal(tabDragSupported('win32'), true)
   assert.equal(tabDragSupported('darwin'), true)
   assert.equal(tabDragSupported('linux', '', {}), false)
   assert.equal(tabDragSupported('linux', 'wayland'), false)
   assert.equal(tabDragSupported('linux', 'auto', { XDG_SESSION_TYPE: 'wayland' }), false)
   assert.equal(tabDragSupported('linux', '', { WAYLAND_DISPLAY: 'wayland-0' }), false)
-  assert.equal(tabDragSupported('linux', 'x11', { WAYLAND_DISPLAY: 'wayland-0' }), true)
-  assert.equal(tabDragSupported('linux', 'x11', { XDG_SESSION_TYPE: 'wayland' }), true)
+  assert.equal(tabDragSupported('linux', 'x11', { WAYLAND_DISPLAY: 'wayland-0' }), false)
+  assert.equal(tabDragSupported('linux', 'x11', { XDG_SESSION_TYPE: 'wayland' }), false)
   assert.equal(tabDragSupported('linux', 'headless'), false)
 })
 

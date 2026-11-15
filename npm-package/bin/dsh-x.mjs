@@ -15,7 +15,6 @@ import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ensureCore, installedCore } from '../lib/core.mjs'
-import { linuxBackendLaunch } from '../lib/launch.mjs'
 
 const require = createRequire(import.meta.url)
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -61,9 +60,7 @@ async function launch() {
   // Electron 跑的是这个 npm 包的根目录（外壳，package.json 的 main 指向 shell/main.mjs），
   // 核心目录通过 DSH_CORE_DIR 传给外壳；外壳启动时优先加载它。
   const appRoot = join(HERE, '..')
-  const launch = linuxBackendLaunch(args, process.env)
-  if (launch.message) console.warn(launch.message)
-  const child = spawn(electron, [appRoot, ...launch.args], {
+  const child = spawn(electron, [appRoot, ...args], {
     stdio: 'inherit',
     env: { ...process.env, DSH_NPM: '1', DSH_CORE_DIR: core.dir, DSH_ELECTRON_BIN: electron },
     windowsHide: false,
@@ -72,7 +69,6 @@ async function launch() {
   process.on('SIGINT', () => forward('SIGINT'))
   process.on('SIGTERM', () => forward('SIGTERM'))
   child.on('exit', (code, signal) => {
-    if (launch.preferX11 && (signal || code !== 0)) console.error('DSH-X: X11/XWayland 进程退出失败。请检查上方原生错误及 DISPLAY/认证；可用 --ozone-platform=wayland 启动。')
     if (signal) process.exitCode = 1
     else process.exitCode = code ?? 0
   })

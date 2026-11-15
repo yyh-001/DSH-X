@@ -16,7 +16,7 @@ import { createCoreRecovery, isEnvironmentStartupError } from './core-recovery.m
 import { corePackageName, channelOf, coreRegistries, fetchCoreMetadata, installCore, pickCoreRelease, tarballFor } from './core-fetch.mjs'
 import { createUpdater } from './updater.mjs'
 import { readPrefs } from './prefs.mjs'
-import { restartLinuxBackend, shellRelaunchOptions } from './linux-backend.mjs'
+import { shellRelaunchOptions } from './relaunch.mjs'
 import { coreSetupPage, coreSetupPaintScript, dataUrl, errorPage, resolveDark, tabBaseColor, tabWindowFallbackPage, tabDragPreviewPage } from './pages.mjs'
 import { clickTarget, dialogOptions, notificationDecision, notifyThrottled } from './desktop.mjs'
 import {
@@ -54,7 +54,6 @@ import {
  * 关窗口 ≠ 退出：托盘还在、dsh 照常跑；⌘Q、托盘「退出」才真正退出。
  */
 
-const restartingBackend = restartLinuxBackend(app)
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(HERE, '..')
 const PRELOAD = join(HERE, 'preload.cjs')
@@ -581,7 +580,7 @@ async function downloadShellUpdate() {
 app.setPath('userData', join(APP_DIR, 'electron'))
 
 /** 先占单实例锁：第二次打开只把已有实例的窗口叫出来（对应 Rust 外壳的 find_manager + /api/wake）。 */
-if (restartingBackend || !app.requestSingleInstanceLock()) {
+if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
   app.on('second-instance', () => showManager())
@@ -770,11 +769,12 @@ function createMainWindow() {
     dispose: (id) => instanceViews.disposeView(id),
     reveal: (options) => revealWindow(mainWindow, MAIN_WINDOW, options),
     systemDark: () => nativeTheme.shouldUseDarkColors,
-    detach: () => ({ supported: true, drag: canDragTabs(), merge: true, deferred: canDragTabs() }),
+    detach: () => ({ supported: canDragTabs(), drag: canDragTabs(), merge: canDragTabs(), deferred: canDragTabs() }),
     reducedMotion: () => prefs.reduceMotion,
     changed: syncTabDetachMenu,
   })
   instanceViews = new InstanceViews({
+    canTransfer: canDragTabs,
     createView: createTabView,
     createHost: (kind) => kind === 'internal' ? tabs : createDshWindow(),
     bootUrl: (target) => {
@@ -806,6 +806,7 @@ function tabHosts() {
 
 function createTabDetacher(host) {
   return new TabDetacher(instanceViews, host, {
+    supported: canDragTabs,
     quitting: () => quitting,
     dragSupported: canDragTabs,
     dropTarget: () => tabDropTarget(screen.getCursorScreenPoint(), host, tabHosts()),
@@ -827,7 +828,7 @@ function createTabDetacher(host) {
 }
 
 function canDragTabs() {
-  return tabDragSupported(process.platform, app.commandLine.getSwitchValue('ozone-platform'))
+  return tabDragSupported(process.platform)
 }
 
 function syncTabDetachMenu() {
@@ -1280,7 +1281,7 @@ function createDshWindow(bounds) {
     titles: syncInstanceTitles,
     changed: syncTabDetachMenu,
     systemDark: () => nativeTheme.shouldUseDarkColors,
-    detach: () => ({ supported: true, drag: canDragTabs(), merge: true, deferred: canDragTabs() }),
+    detach: () => ({ supported: canDragTabs(), drag: canDragTabs(), merge: canDragTabs(), deferred: canDragTabs() }),
     reducedMotion: () => prefs.reduceMotion,
     hidden: () => {
       if (!tray && !tabHosts().some((item) => item.window.isVisible())) showManager()
