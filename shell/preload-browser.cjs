@@ -16,6 +16,16 @@ const IPC = {
   openRequested: 'dsh-x:browser-open-requested',
 }
 
+// 迁移视图使用同一份预加载。只有本地占位页获得两个短命令，主进程还会核对
+// WebContents、顶层 frame 和完整占位页 URL；远端 dsh 文档没有这个桥。
+if (location.protocol === 'data:') {
+  contextBridge.exposeInMainWorld('ipc', {
+    postMessage(message) {
+      if (message === 'launch' || message === 'manager') ipcRenderer.send('dsh-x:ipc', message)
+    },
+  })
+}
+
 /** Lease-scoped browser operations and one main-process event subscription per window. */
 function createDesktopBrowserBridge() {
   const listeners = new Map()

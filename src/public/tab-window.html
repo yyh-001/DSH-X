@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN" class="app-window electron-window internal-tabs has-tabs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DSH-X</title>
+  <link rel="stylesheet" href="/launcher.css">
+  <link rel="stylesheet" href="/theme.css">
+</head>
+<body>
+  <header>
+    <div class="brand-block"><button type="button" class="brand-home" id="windowHome" title="打开启动器" aria-label="打开启动器">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-house"/></svg>
+    </button></div>
+    <div class="internal-tabs-area" id="internalTabsArea">
+      <div class="internal-tab-list" id="internalTabList" role="tablist" aria-label="DSH-X"></div>
+      <button type="button" class="gear-btn internal-tab-reload" id="internalTabReload" title="刷新页面" aria-label="刷新页面">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-rotate-cw"/></svg>
+      </button>
+    </div>
+    <div class="header-right"><div class="win-controls">
+      <button type="button" class="win-btn" id="winMin" title="最小化" aria-label="最小化"><svg viewBox="0 0 10 10" aria-hidden="true"><path d="M0 5.5h10" stroke="currentColor" stroke-width="1.1" fill="none"/></svg></button>
+      <button type="button" class="win-btn" id="winMax" title="最大化" aria-label="最大化"><svg viewBox="0 0 10 10" aria-hidden="true"><rect x=".7" y=".7" width="8.6" height="8.6" fill="none" stroke="currentColor" stroke-width="1.1"/></svg></button>
+      <button type="button" class="win-btn close" id="winClose" title="关闭窗口" aria-label="关闭窗口"><svg viewBox="0 0 10 10" aria-hidden="true"><path d="M.7.7l8.6 8.6M9.3.7L.7 9.3" stroke="currentColor" stroke-width="1.1" fill="none"/></svg></button>
+    </div></div>
+  </header>
+  <div id="windowNotice" role="status" hidden></div>
+  <script src="/internal-tabs.js"></script>
+  <script>
+    const send = (message) => window.ipc?.postMessage(message)
+    for (const [id, action] of [['winMin','minimize'], ['winMax','maximize'], ['winClose','close'], ['windowHome','manager']]) {
+      document.getElementById(id).onclick = () => send(action)
+    }
+    const systemDark = matchMedia('(prefers-color-scheme: dark)')
+    let currentTheme = 'system'
+    const theme = () => { document.documentElement.dataset.colorScheme = currentTheme === 'system' ? (systemDark.matches ? 'dark' : 'light') : currentTheme }
+    systemDark.addEventListener('change', theme)
+    const update = window.updateInternalTabs
+    window.updateInternalTabs = (state) => {
+      currentTheme = state.theme || 'system'; theme()
+      const en = state.lang === 'en'
+      for (const [id, zh, english] of [['winMin','最小化','Minimize'], ['winMax','最大化','Maximize'], ['winClose','关闭窗口','Close window'], ['windowHome','打开启动器','Open launcher']]) {
+        const button = document.getElementById(id)
+        button.title = en ? english : zh; button.setAttribute('aria-label', button.title)
+      }
+      update?.(state)
+    }
+    window.notifyError = (error) => {
+      const notice = document.getElementById('windowNotice')
+      notice.textContent = error.message; notice.hidden = false
+      setTimeout(() => { notice.hidden = true }, 5000)
+    }
+    // 重新请求一次，避免顶栏脚本先发 ready、外壳回执先于主题包装器安装。
+    send('internal-tabs-ready')
+  </script>
+</body>
+</html>

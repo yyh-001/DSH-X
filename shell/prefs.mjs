@@ -24,6 +24,8 @@ export const PREF_DEFAULTS = Object.freeze({
   closeToTray: true,
   // 阻止系统空闲休眠
   keepAwake: false,
+  // 独立窗口也跟随已有的「减少动画」设置，不再单独查询管理服务。
+  reduceMotion: false,
   // 内置浏览器：管 agent 插件（dsh-x-sidebar-browser）的补装与停用，主要是核心在用；
   // 外壳保留这个键只是为了两边默认值一致，不拿它拦侧栏 Browser 本身
   // 内置浏览器忽略 HTTPS 证书错误（自签名站点）
@@ -40,6 +42,7 @@ export function parsePrefs(stored) {
     notificationSound: source.notificationSound !== false,
     closeToTray: source.closeToTray !== false,
     keepAwake: source.keepAwake === true,
+    reduceMotion: source.reduceMotion === true,
     browserIgnoreCertificate: source.browserIgnoreCertificate === true,
   }
 }

@@ -2162,6 +2162,7 @@ async function publicSettings() {
     // 选了独立桌面窗口但当前没有原生外壳（源码运行）时，页面要如实说明会落到标签页
     openModeWindow: openRoute(OPEN_MODE, shellWindowHost()) === 'window',
     openModeInternal: internalTabsHost(),
+    instanceWindows: shellWindowHost() && typeof host.presentInstance === 'function',
     openModes: [
       { id: 'tab', label: '浏览器标签页' },
       { id: 'app', label: '浏览器独立窗口' },
@@ -2346,6 +2347,7 @@ export function trayStateText() {
   // 保留旧外壳的标量字段；新外壳按命名启动项操作，不再把单项停止变成停止全部。
   const running = primaryInstance()
   const launches = trayLaunches()
+  const homeNames = safeDshHomeNames(loadSettingsSync().dshHomeNames)
   return [
     `status=${running?.status || 'stopped'}`,
     `url=${running?.url || ''}`,
@@ -2357,8 +2359,8 @@ export function trayStateText() {
     `shell=${shellWindowHost() ? 1 : 0}`,
     `theme=${THEME}`,
     // 原生标签页要跟随所有实例，不能用「最近启动的实例」去覆盖用户正在看的其他页面。
-    `instances=${JSON.stringify(instanceList().map((proc) => internalTabTarget(proc, launches.find((row) => row.proc === proc)?.name)))}`,
-    `launches=${JSON.stringify(launches.map(({ id, instanceId, name, version, profile, status, busy, installed, target }) => ({ id, instanceId, name, version, profile, status, busy, installed, target })))}`,
+    `instances=${JSON.stringify(instanceList().map((proc) => internalTabTarget({ ...proc, homeName: homeNames[proc.home] }, launches.find((row) => row.proc === proc)?.name)))}`,
+    `launches=${JSON.stringify(launches.map(({ id, instanceId, viewId, name, version, profile, status, busy, installed, target }) => ({ id, instanceId, viewId, name, version, profile, status, busy, installed, target })))}`,
   ].join('\n')
 }
 
@@ -2387,7 +2389,8 @@ function trayLaunches() {
   return rows.map((row) => {
     const key = JSON.stringify([row.home, row.version, row.profile])
     const pending = trayActions.get(key)
-    return { ...row, key, instanceId: key, status: pending?.status || row.proc?.status || 'stopped', busy: Boolean(pending), installed: row.preset?.backend === 'wsl' || row.preset?.backend === 'ssh' ? true : versions.includes(row.version), target: row.proc ? internalTabTarget(row.proc, row.name) : null }
+    const viewId = internalTabTarget({ ...row, backend: row.home.startsWith('wsl://') ? 'wsl' : 'local' }).id
+    return { ...row, key, instanceId: key, viewId, status: pending?.status || row.proc?.status || 'stopped', busy: Boolean(pending), installed: row.preset?.backend === 'wsl' || row.preset?.backend === 'ssh' ? true : versions.includes(row.version), target: row.proc ? internalTabTarget(row.proc, row.name) : null }
   })
 }
 
@@ -2908,6 +2911,9 @@ async function saveManagerSettings(body) {
 }
 
 async function emitState() {
+  // stopping 可能短于托盘轮询周期，及时通知同进程外壳撤离旧端口。
+  // 窗口已经销毁之类的 UI 错误不能中断停止/恢复进程的业务。
+  try { host.onStateChanged?.() } catch { pushLog('桌面窗口状态刷新失败，稍后重试') }
   const snap = await snapshot()
   emit('state', snap)
 }
@@ -7447,6 +7453,10 @@ function internalTabsHost() {
  */
 export function internalTabTarget(instance, name = '') {
   return {
+    home: instance.home || '',
+    profile: instance.profile || '',
+    version: instance.version || '',
+    homeName: instance.homeName || instance.home || '',
     // WSL 实例的 home 是 wsl://发行版/路径，本身已经唯一；version 在启动等待阶段
     // 还可能是 auto（实际版本由 WSL 里的 dsh 决定），带进 id 会让等待页和实例页
     // 变成两张标签，所以 WSL 的标签身份不包含版本。
@@ -7466,6 +7476,30 @@ export function openRoute(mode, shellWindow, internalTabs = false) {
   return mode === 'window' && shellWindow ? 'window' : 'browser'
 }
 
+/** 只有管理服务自己的等待页可以提前声明实例身份；运行页始终从当前实例解析。 */
+export function instanceTargetFromUrl(url, manager, instances, nameOf = () => '') {
+  const parsed = new URL(url)
+  const managerUrl = new URL(manager)
+  // 等待页沿用浏览器的 localhost/IPv6 地址；只接受同协议同端口的受信回环别名，
+  // 不能让另一个本机服务的 /booting 声明受管实例身份。
+  const sameManager = parsed.origin === managerUrl.origin || (
+    parsed.protocol === managerUrl.protocol && parsed.port === managerUrl.port &&
+    LOCAL_HOSTS.has(parsed.hostname) && LOCAL_HOSTS.has(managerUrl.hostname)
+  )
+  if (sameManager && ['/booting', '/booting/'].includes(parsed.pathname)) {
+    const home = parsed.searchParams.get('home') || ''
+    const profile = parsed.searchParams.get('profile') || ''
+    const version = parsed.searchParams.get('version') || ''
+    if (!home || !profile || !version) return null
+    return internalTabTarget({
+      home, profile, version, backend: home.startsWith('wsl://') ? 'wsl' : 'local',
+      url, status: 'starting',
+    }, parsed.searchParams.get('name') || '')
+  }
+  const instance = instances.find((proc) => proc.url && new URL(proc.url).origin === parsed.origin)
+  return instance ? internalTabTarget(instance, nameOf(instance)) : null
+}
+
 /**
  * 交给系统默认程序打开。openMode 为 app 时优先用 Chromium 的应用窗口（更像个 App、
  * 没有地址栏），找不到 Chrome/Edge 就安静退回默认浏览器；为 window 时交给原生外壳
@@ -7477,37 +7511,26 @@ export function openRoute(mode, shellWindow, internalTabs = false) {
  * 原样看待的字符——够用（本机地址就是 `http://127.0.0.1:端口/路径?k=v`），
  * 其余一律拒绝，比在字符串上做转义可靠。
  */
-function openExternal(target, mode = OPEN_MODE) {
+function openExternal(target, mode = OPEN_MODE, presentation) {
   const url = String(target)
-  if (openRoute(mode, shellWindowHost(), internalTabsHost()) === 'internal') {
-    // 启动等待页占的正是这个实例的标签位（id 与 internalTabTarget 同一套拼法）：
-    // 页面自己跳到 dsh 之后就是实例页，标签条上不会先多出一个「DSH」再被实例页挤掉。
-    const booting = new URL(url)
-    if (booting.pathname === '/booting') {
-      const version = booting.searchParams.get('version') || ''
-      const profile = booting.searchParams.get('profile') || ''
-      const home = booting.searchParams.get('home') || ''
-      // WSL 等待页的 version 是 auto，实际实例版本要等探测后才知道；标签身份只认 home/profile。
-      const tabVersion = home.startsWith('wsl://') ? '' : version
-      host.openTab({
-        id: JSON.stringify([home, tabVersion, profile]),
-        title: booting.searchParams.get('name') || [profile, version].filter(Boolean).join(' · ') || 'DSH',
-        url,
-        status: 'starting',
-        managed: true,
-      })
-      return
+  if (presentation !== undefined && presentation !== 'window') throw new Error('未知窗口打开方式')
+  const explicit = presentation === 'window'
+  const capable = shellWindowHost() && typeof host.presentInstance === 'function'
+  if (explicit && !capable) throw new Error('独立实例窗口需要更新 DSH-X 桌面端')
+  const route = explicit ? 'window' : openRoute(mode, shellWindowHost(), internalTabsHost())
+  if (route === 'internal' || route === 'window') {
+    const instanceTarget = instanceTargetFromUrl(url, `http://127.0.0.1:${PORT}/`, instanceList(), launchNameOf)
+    if (explicit && !instanceTarget) throw new Error('无法识别此实例，请刷新启动器后重试')
+    if (capable && instanceTarget) {
+      instanceTarget.homeName = safeDshHomeNames(loadSettingsSync().dshHomeNames)[instanceTarget.home] || instanceTarget.homeName
+      // 每次打开都遵循这次选中的方式；临时开窗不能把普通「打开」永久锁在独立窗口。
+      return host.presentInstance(instanceTarget, { presentation: route, explicit: true })
     }
-    const instance = instanceList().find((proc) => proc.url && new URL(proc.url).origin === new URL(url).origin)
-    const tab = instance ? internalTabTarget(instance, launchNameOf(instance)) : { id: new URL(url).origin, title: 'DSH', url, status: 'running', managed: false }
-    // 认证地址只在本机管道或同进程调用中传递；标题和实例身份都不包含 token，也不写入日志或设置。
-    host.openTab(tab)
-    return
-  }
-  // 内嵌窗口：地址交给原生外壳自己的窗口，连浏览器进程都不起（见 OPEN_SIGNAL）
-  if (openRoute(mode, shellWindowHost()) === 'window') {
-    host.openWindow(url)
-    return
+    // 外壳和核心独立更新：保留旧 hook 的参数形状，未知本机地址仍按旧协议打开。
+    if (route === 'internal') {
+      return host.openTab(instanceTarget || { id: new URL(url).origin, title: 'DSH', url, status: 'running', managed: false })
+    }
+    return host.openWindow(url)
   }
   if (mode === 'app' && /^https?:/i.test(url)) {
     if (openInAppWindow(url)) return
@@ -7517,8 +7540,8 @@ function openExternal(target, mode = OPEN_MODE) {
   void fileManager.openUrl(url).catch((error) => pushLog(`打开地址失败：${error?.message || error}`))
 }
 
-function openLocalUrl(target) {
-  openExternal(assertLocalUrl(target))
+function openLocalUrl(target, presentation) {
+  return openExternal(assertLocalUrl(target), OPEN_MODE, presentation)
 }
 
 /**
@@ -10118,8 +10141,12 @@ async function handleApi(req, res, url) {
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/open') {
-    openLocalUrl(body.url)
-    send(res, 200, { ok: true })
+    try {
+      await openLocalUrl(body.url, body.presentation)
+      send(res, 200, { ok: true })
+    } catch (error) {
+      send(res, 400, { error: error.message })
+    }
     return
   }
   send(res, 404, { error: 'not found' })

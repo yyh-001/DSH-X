@@ -26,7 +26,7 @@ function run(command, args, cwd = ROOT) {
 const rootPkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
 const shellPkg = JSON.parse(readFileSync(join(ROOT, 'shell', 'package.json'), 'utf8'))
 const version = shellPkg.version
-const electron = String(rootPkg.devDependencies?.electron || '').replace(/^[~^]/, '') || '44.7.0'
+const electron = String(rootPkg.devDependencies?.electron || '').replace(/^[~^]/, '') || '44.7.1'
 
 await rm(STAGE, { recursive: true, force: true })
 await mkdir(STAGE, { recursive: true })
@@ -40,6 +40,7 @@ await writeFile(join(STAGE, 'lib', 'core.mjs'), [
   "export * from '../shell/core-fetch.mjs'",
   '',
 ].join('\n'))
+await writeFile(join(STAGE, 'lib', 'launch.mjs'), "export { linuxBackendLaunch } from '../shell/linux-backend.mjs'\n")
 await mkdir(join(STAGE, 'assets'), { recursive: true })
 for (const icon of ['icon.png', 'tray.ico', 'tray.png']) {
   await cp(join(ROOT, 'src', 'assets', icon), join(STAGE, 'assets', icon))

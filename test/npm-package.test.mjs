@@ -17,6 +17,12 @@ test('npm 包元数据：有 bin、平台限制和 electron 依赖', () => {
   assert.ok(PKG.dependencies['electron-updater'], '外壳 updater 的依赖也要带上')
   assert.ok(PKG.files.includes('bin') && PKG.files.includes('lib'))
   assert.ok(PKG.files.includes('shell'), 'npm 版带着外壳代码')
+  const root = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+  const lock = JSON.parse(readFileSync(new URL('../package-lock.json', import.meta.url), 'utf8'))
+  assert.match(root.devDependencies.electron, /^\d+\.\d+\.\d+$/, '安装版和CLI都钉同一个精确运行时')
+  assert.equal(PKG.dependencies.electron, root.devDependencies.electron)
+  assert.equal(lock.packages[''].devDependencies.electron, root.devDependencies.electron)
+  assert.equal(lock.packages['node_modules/electron'].version, root.devDependencies.electron)
 })
 
 test('npm CLI 的 --version / --core 不联网也能用', () => {

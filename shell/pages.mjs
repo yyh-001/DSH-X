@@ -7,8 +7,35 @@ function escapeHtml(text) {
   return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
+/** 预览仅显示本地标签标题，不加载实例页面，也不承接输入。 */
+export function tabDragPreviewPage(title, dark, en) {
+  return `<!doctype html><meta charset="utf-8"><style>
+    *{box-sizing:border-box}body{margin:0;padding:9px 12px;font:13px system-ui;color:${dark ? '#eee' : '#222'};background:${dark ? '#292b30' : '#f8f9fb'};border:1px solid ${dark ? '#555' : '#b7bdc7'};height:64px}
+    strong{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}small{display:block;margin-top:5px;opacity:.7;font-size:11px}
+    </style><strong>${escapeHtml(title)}</strong><small>${en ? 'Release to move · Esc to cancel' : '松手移动 · Esc 取消'}</small>`
+}
+
 export function dataUrl(html) {
   return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`
+}
+
+/** 旧核心没有独立顶栏资源时，仍提供选页和窗口控制；不冒充支持新拖动协议。 */
+export function tabWindowFallbackPage() {
+  return `<!doctype html><meta charset="utf-8"><style>
+    :root{color-scheme:light dark}body{margin:0;font:13px system-ui;background:light-dark(#eef3fd,#18181b)}
+    header{height:44px;display:flex;align-items:center;gap:4px;padding:0 8px;-webkit-app-region:drag}
+    button{-webkit-app-region:no-drag;border:0;border-radius:6px;padding:6px 10px;cursor:pointer}
+    #tabs{display:flex;flex:1;min-width:0;overflow:auto;gap:4px}#tabs button{white-space:nowrap}
+    [aria-selected=true]{background:#3b6fe0;color:white}
+    </style><header><button onclick="send('manager')">DSH-X</button><div id="tabs"></div>
+    <button aria-label="标签操作" onclick="send({action:'tab-menu',id:active,request:++serial})">⋯</button>
+    <button aria-label="最小化" onclick="send('minimize')">−</button><button aria-label="最大化" onclick="send('maximize')">□</button><button aria-label="关闭" onclick="send('close')">×</button></header>
+    <script>
+    let active='',serial=Date.now();const send=v=>ipc.postMessage(typeof v==='string'?v:JSON.stringify(v));
+    window.updateInternalTabs=s=>{active=s.active;const tabs=document.getElementById('tabs');tabs.replaceChildren();
+      for(const tab of s.tabs){const b=document.createElement('button');b.textContent=tab.title;b.setAttribute('aria-selected',String(tab.id===active));b.onclick=()=>send({action:'select',id:tab.id});tabs.append(b)}
+      send({action:'present',serial:s.presentation})};send('internal-tabs-ready');send({action:'layout',height:44});
+    </script>`
 }
 
 /**
@@ -115,8 +142,8 @@ export function idlePage(lang) {
   const en = lang === 'en'
   const title = en ? 'dsh is not running' : 'dsh 没在运行'
   const hint = en ? 'Start it here, or go back to the launcher page.' : '可以在这里直接启动，或者回到启动器管理页。'
-  const start = en ? 'Start dsh' : '启动 dsh'
-  const manager = en ? 'Open launcher' : '打开管理页'
+  const start = en ? 'Start this instance' : '启动此实例'
+  const manager = en ? 'Open launcher' : '打开启动器'
   return `<!doctype html>
 <html lang="${en ? 'en' : 'zh-CN'}"><head><meta charset="utf-8"><title>${title}</title><style>
   :root { color-scheme: dark; }
