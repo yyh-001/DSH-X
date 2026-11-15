@@ -26,7 +26,8 @@ export function harness({ animation = false } = {}) {
   class Window extends EventEmitter {
     constructor(manager = {}) {
       super(); this.visible = true; this.destroyed = false
-      this.webContents = { executeJavaScript: async () => 0, focus() {}, getZoomFactor: () => 1, ...manager }
+      this.webContents = Object.assign(new EventEmitter(), { executeJavaScript: async () => 0, isDestroyed: () => this.destroyed,
+        focus() {}, getZoomFactor: () => 1, ...manager })
       this.contentView = { addChildView() {}, removeChildView() {} }
       this.bounds = { x: 0, y: 0, width: 1000, height: 700 }
     }
@@ -43,11 +44,11 @@ export function harness({ animation = false } = {}) {
     setOpacity(value) { this.opacity = value }
     setSkipTaskbar(value) { this.skipTaskbar = value }
     showInactive() { this.visible = true }
-    hide() { this.visible = false }
+    hide() { this.visible = false; this.emit('hide') }
     destroy() { this.destroyed = true; this.emit('closed') }
   }
   let registry
-  const hooks = { retire: record => registry.retire(record), dispose: id => registry.disposeView(id), reveal() {}, titles() {}, quitting: () => false, hidden() {}, detach: () => ({ supported: true, drag: true, merge: true, live: true }) }
+  const hooks = { retire: record => registry.retire(record), dispose: id => registry.disposeView(id), reveal() {}, titles() {}, quitting: () => false, hidden() {}, detach: () => ({ supported: true, drag: true, merge: true, deferred: true }) }
   const source = new BrowserTabs(new Window({ executeJavaScript: async script => {
     const match = script.match(/^window.updateInternalTabs\?\.\((.*)\)$/)
     if (match) states.push(JSON.parse(match[1]))
@@ -60,7 +61,7 @@ export function harness({ animation = false } = {}) {
   const records = ['a','b','c'].map(id => registry.presentInstance({ id, title: id, url: `http://127.0.0.1:4444/${id}`, managed: false, status: 'running' }))
   let processed = 0
   // 仅传输真实 BrowserTabs.render 产生的 state；布局命令经真实 parser/action 送回宿主。
-  const flush = () => {
+  const flush = (dispatch) => {
     let n = 0
     while (states.length) { if (++n > 100) throw Error('unexpected render loop'); ui.update(states.shift()) }
     const commands = []
@@ -68,7 +69,8 @@ export function harness({ animation = false } = {}) {
       const message = ui.sent[processed++]
       const action = parseTabAction(typeof message === 'string' ? message : JSON.stringify(message))
       if (!action) continue
-      if (['tab-strip','layout','present','overlay'].includes(action.action)) source.action(action)
+      if (dispatch) dispatch(action)
+      else if (['tab-strip','layout','present','overlay'].includes(action.action)) source.action(action)
       else commands.push(action)
     }
     return commands

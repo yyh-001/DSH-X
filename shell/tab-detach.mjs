@@ -1,9 +1,9 @@
 /** 拖出只协调一次用户操作；页面、宿主与生命周期始终归 InstanceViews。 */
-export function tabDragSupported(platform, ozonePlatform = '', env = {}) {
+export function tabDragSupported(platform, ozonePlatform = '') {
   if (platform !== 'linux') return true
-  if (ozonePlatform === 'x11') return true
-  // Wayland 不提供全局鼠标坐标；auto/未指定时宁可保留菜单入口，也不猜落点。
-  return ozonePlatform !== 'wayland' && env.XDG_SESSION_TYPE !== 'wayland' && !env.WAYLAND_DISPLAY
+  // ready 后读 Chromium 启动时解析的后端；桌面会话是 Wayland 也可以实际运行在 XWayland。
+  // 未知后端不猜测全局坐标，保留排序和菜单入口。
+  return ozonePlatform === 'x11'
 }
 
 export function detachedBounds(point, workArea, size) {
@@ -21,14 +21,6 @@ export function draggedBounds(point, size, offset) {
   return { x: Math.round(point.x - offset.x), y: Math.round(point.y - offset.y), width: size.width, height: size.height }
 }
 
-/** 标签压缩或页面缩放后，仍抓住同一相对位置；所有返回值为 Electron DIP。 */
-export function tabGrabOffset(grab, tab, zoom, inset = { x: 0, y: 0 }) {
-  return {
-    x: inset.x + (tab.left + (tab.right - tab.left) * grab.x / grab.width) * zoom,
-    y: inset.y + (tab.top + (tab.bottom - tab.top) * grab.y / grab.height) * zoom,
-  }
-}
-
 export function managerTabSender(event, manager, managerUrl) {
   try {
     if (!manager || manager.isDestroyed?.() || event.sender !== manager || !event.senderFrame || event.senderFrame !== manager.mainFrame) return false
@@ -37,11 +29,11 @@ export function managerTabSender(event, manager, managerUrl) {
   } catch { return false }
 }
 
-/** 从前到后的应用窗口中，只接受最上面一扇的标签区域；不穿透源窗口或遮挡窗口。 */
+/** 按受管窗口的焦点记录选目标，不穿透源/拒绝区域；此近似不能判断外部应用的遮挡。 */
 export function tabDropTarget(point, source, hosts, excludeId = '') {
   for (const host of [...hosts].sort((a, b) => (b.focusOrder || 0) - (a.focusOrder || 0))) {
     const win = host.window
-    if (host.dragHidden || win.isDestroyed() || !win.isVisible() || win.isMinimized()) continue
+    if (win.isDestroyed() || !win.isVisible() || win.isMinimized()) continue
     const bounds = win.getBounds()
     if (point.x < bounds.x || point.x >= bounds.x + bounds.width || point.y < bounds.y || point.y >= bounds.y + bounds.height) continue
     if (host === source || host.overlay || !host.stripLayout) return null
@@ -121,7 +113,7 @@ export class TabDetacher {
       const entering = !destination.window.isVisible() && !destination.tabs.length
       if (entering) destination.fade?.prepareEnter()
       this.registry.transferView(record.viewId, destination, { index: index ?? drop?.index, preservePage: true })
-      if (entering) destination.fade?.to(1)
+      if (entering) destination.fade?.enter()
       result = { id, request, status: 'success' }
     } catch (error) {
       destination?.disposeEmpty?.()
@@ -134,4 +126,16 @@ export class TabDetacher {
     this.tabs.render(false)
     return result
   }
+}
+/** 与核心 detachCandidate 保持同一 CSS 契约；独立分发不能跨层 import，用整链路回归锁定。 */
+export function outsideTabStrip(point, host, detached = false) {
+  if (!host.stripLayout || host.window.isDestroyed()) return false
+  const bounds = host.window.getContentBounds(), zoom = host.manager.getZoomFactor?.() || 1
+  const x = (point.x - bounds.x) / zoom, y = (point.y - bounds.y) / zoom
+  const rect = host.stripLayout.rect
+  const width = bounds.width / zoom
+  const outside = y < rect.top - 24 || y > rect.bottom + 24 || x < -24 || x > width + 24
+  // 上下退回8px内、左右退回视口内才退出；迟滞带不能把仍显示拆窗的手势变成排序。
+  const inside = y >= rect.top - 8 && y <= rect.bottom + 8 && x >= 0 && x <= width
+  return outside || detached && !inside
 }

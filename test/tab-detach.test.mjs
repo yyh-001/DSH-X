@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { detachedBounds, draggedBounds, tabGrabOffset, managerTabSender, tabDragSupported, tabDropTarget, TabDragFeedback } from '../shell/tab-detach.mjs'
+import { detachedBounds, draggedBounds, managerTabSender, tabDragSupported, tabDropTarget, TabDragFeedback } from '../shell/tab-detach.mjs'
 import { parseTabAction } from '../shell/model.mjs'
 
 test('跨窗口提示只通知受影响窗口，静止不重复发送，结束释放全部提示引用', () => {
@@ -32,7 +32,7 @@ test('拖出消息只接受非空身份、请求编号和支持的入口，不�
   assert.deepEqual(parse({ ...input, action: 'tab-menu' }), { action: 'tab-menu', id: 'page-a', request: 5 })
 })
 
-test('跨窗口命中使用 DIP 与 CSS 缩放，保留插入索引，不穿透遮挡窗口', () => {
+test('跨窗口命中使用 DIP 与 CSS 缩放；受管窗口按焦点记录优先且拒绝区域不穿透', () => {
   const host = (x, focusOrder = 1, zoom = 1) => ({ focusOrder, manager: { getZoomFactor: () => zoom },
     window: { isDestroyed: () => false, isVisible: () => true, isMinimized: () => false,
       getBounds: () => ({ x, y: -100, width: 600, height: 400 }), getContentBounds: () => ({ x, y: -100 }) },
@@ -45,19 +45,29 @@ test('跨窗口命中使用 DIP 与 CSS 缩放，保留插入索引，不穿透�
   assert.equal(hit.marker, 100)
   assert.equal(tabDropTarget({ x: -650, y: 0 }, source, [source, target]), null)
   const covered = host(-800, 5)
+  assert.equal(tabDropTarget({ x: -650, y: -70 }, source, [source, target, covered]).host,covered)
   covered.overlay = true
   assert.equal(tabDropTarget({ x: -650, y: -70 }, source, [source, target, covered]), null)
-  covered.dragHidden = true
-  assert.equal(tabDropTarget({ x: -650, y: -70 }, source, [source, target, covered]).host, target, '透明捕获空壳不遮挡目标')
+  covered.window.isVisible = () => false
+  assert.equal(tabDropTarget({ x: -650, y: -70 }, source, [source, target, covered]).host, target, '隐藏窗口不遮挡目标')
+  covered.window.isVisible = () => true
+  covered.window.isMinimized = () => true
+  assert.equal(tabDropTarget({ x: -650, y: -70 }, source, [target,covered]).host,target)
+  covered.window.isMinimized = () => false
+  covered.window.isDestroyed = () => true
+  assert.equal(tabDropTarget({ x: -650, y: -70 }, source, [target,covered]).host,target)
+  covered.window.isDestroyed = () => false
+  covered.overlay = false
+  covered.stripLayout = null
+  assert.equal(tabDropTarget({ x: -650, y: -70 }, source, [target,covered]),null,'未上报栏区域不穿透')
+  assert.equal(tabDropTarget({ x: -650, y: -70 }, covered, [target,covered]),null,'源宿主挡住后方目标')
   target.window.isVisible = () => false
   assert.equal(tabDropTarget({ x: -650, y: -70 }, source, [source, target]), null)
 })
 
-test('拖动保持标签抓取比例和 DIP 偏移，跨屏不夹边或改变窗口尺寸', () => {
-  const grab = { x: 40, y: 12, width: 200, height: 40 }
+test('复用窗口的松手位置保留 DIP 抓取偏移，跨屏不夹边或改变窗口尺寸', () => {
   for (const zoom of [1, 1.25, 1.5, 2]) {
-    const offset = tabGrabOffset(grab, { left: 60, right: 360, top: 4, bottom: 44 }, zoom, { x: 2, y: 1 })
-    assert.deepEqual(offset, { x: 2 + 120 * zoom, y: 1 + 16 * zoom })
+    const offset = { x: 2 + 120 * zoom, y: 1 + 16 * zoom }
     for (const point of [{ x: -1900, y: -400 }, { x: 1, y: 1 }, { x: 1919, y: 1079 }]) {
       const bounds = draggedBounds(point, { width: 900, height: 600 }, offset)
       assert.ok(Math.abs(bounds.x + offset.x - point.x) <= 0.5)
@@ -66,6 +76,17 @@ test('拖动保持标签抓取比例和 DIP 偏移，跨屏不夹边或改变窗
       assert.equal(bounds.height, 600)
     }
   }
+})
+
+test('延迟拖动协议只传局部有限坐标与唯一排序，拒绝不完整和伪造对象字段', () => {
+  const parse = value => parseTabAction(JSON.stringify(value))
+  const value = { action:'tab-drag',id:'a',active:false,deferred:true,point:{ x:-100,y:800 },order:['b','a'],request:7 }
+  assert.deepEqual(parse({ ...value, destination:1,url:'https://untrusted/',outside:true,detached:true }),value)
+  for (const patch of [{ point:null }, { point:{x:1e9,y:0} }, { point:{x:'2',y:0} }, { order:['a','a'] }, { order:[''] }, { request:-1 }, { deferred:1 }]) {
+    assert.equal(parse({ ...value,...patch }),null)
+  }
+  assert.deepEqual(parse({ action:'tab-drag-move',id:'a',point:{x:1,y:2},windowId:3 }), { action:'tab-drag-move',id:'a',point:{x:1,y:2} })
+  assert.equal(parse({action:'tab-drag-move',id:'a'}),null)
 })
 
 test('抓取点协议兼容旧消息，只接收有限且位于标签内的 CSS 坐标', () => {
@@ -108,14 +129,16 @@ test('管理 IPC 同时验证 WebContents、顶层 frame 和管理页来源', ()
   assert.equal(allowed(event), false)
 })
 
-test('Wayland 和 auto 下保留菜单能力但禁用坐标拖出，显式 X11 可用', () => {
+test('按实际 Ozone 后端启用拖出，Wayland 桌面上的 X11 可用，未知后端不猜坐标', () => {
   assert.equal(tabDragSupported('win32'), true)
   assert.equal(tabDragSupported('darwin'), true)
-  assert.equal(tabDragSupported('linux', '', {}), true)
+  assert.equal(tabDragSupported('linux', '', {}), false)
   assert.equal(tabDragSupported('linux', 'wayland'), false)
   assert.equal(tabDragSupported('linux', 'auto', { XDG_SESSION_TYPE: 'wayland' }), false)
   assert.equal(tabDragSupported('linux', '', { WAYLAND_DISPLAY: 'wayland-0' }), false)
   assert.equal(tabDragSupported('linux', 'x11', { WAYLAND_DISPLAY: 'wayland-0' }), true)
+  assert.equal(tabDragSupported('linux', 'x11', { XDG_SESSION_TYPE: 'wayland' }), true)
+  assert.equal(tabDragSupported('linux', 'headless'), false)
 })
 
 test('落点使用 DIP：负坐标副屏、小屏和工作区边缘均可见，不重复乘 DPI', () => {

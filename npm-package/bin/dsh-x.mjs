@@ -15,11 +15,13 @@ import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ensureCore, installedCore } from '../lib/core.mjs'
+import { linuxBackendLaunch } from '../lib/launch.mjs'
 
 const require = createRequire(import.meta.url)
 const HERE = dirname(fileURLToPath(import.meta.url))
 const pkg = JSON.parse(readFileSync(join(HERE, '..', 'package.json'), 'utf8'))
 const args = process.argv.slice(2)
+const commandArgs = args.slice(0, args.indexOf('--') < 0 ? args.length : args.indexOf('--'))
 
 function help() {
   console.log(`dsh-x ${pkg.version}
@@ -29,6 +31,8 @@ function help() {
   dsh-x --update     更新核心到 npm 最新版
   dsh-x --version    打印版本
   dsh-x --core       打印核心目录
+  dsh-x --ozone-platform=wayland  使用原生 Wayland（排序和菜单拆分/合并）
+  其他启动参数原样传给 Electron；Linux Wayland 桌面默认优先 XWayland
 
 环境变量：
   DSH_CORE_REGISTRY  覆盖 npm registry（默认 npmmirror，失败退回 npmjs）
@@ -57,7 +61,9 @@ async function launch() {
   // Electron 跑的是这个 npm 包的根目录（外壳，package.json 的 main 指向 shell/main.mjs），
   // 核心目录通过 DSH_CORE_DIR 传给外壳；外壳启动时优先加载它。
   const appRoot = join(HERE, '..')
-  const child = spawn(electron, [appRoot], {
+  const launch = linuxBackendLaunch(args, process.env)
+  if (launch.message) console.warn(launch.message)
+  const child = spawn(electron, [appRoot, ...launch.args], {
     stdio: 'inherit',
     env: { ...process.env, DSH_NPM: '1', DSH_CORE_DIR: core.dir, DSH_ELECTRON_BIN: electron },
     windowsHide: false,
@@ -66,24 +72,25 @@ async function launch() {
   process.on('SIGINT', () => forward('SIGINT'))
   process.on('SIGTERM', () => forward('SIGTERM'))
   child.on('exit', (code, signal) => {
+    if (launch.preferX11 && (signal || code !== 0)) console.error('DSH-X: X11/XWayland 进程退出失败。请检查上方原生错误及 DISPLAY/认证；可用 --ozone-platform=wayland 启动。')
     if (signal) process.exitCode = 1
     else process.exitCode = code ?? 0
   })
 }
 
 async function main() {
-  if (args.includes('--help') || args.includes('-h')) return help()
-  if (args.includes('--version') || args.includes('-v')) {
+  if (commandArgs.includes('--help') || commandArgs.includes('-h')) return help()
+  if (commandArgs.includes('--version') || commandArgs.includes('-v')) {
     const installed = installedCore()
     console.log(`dsh-x ${pkg.version}${installed ? ` · 核心 ${installed.version}` : ' · 核心未安装'}`)
     return
   }
-  if (args.includes('--core')) {
+  if (commandArgs.includes('--core')) {
     const installed = installedCore()
     console.log(installed ? installed.dir : '核心未安装')
     return
   }
-  if (args.includes('--update')) {
+  if (commandArgs.includes('--update')) {
     const electronVersion = (() => { try { return require('electron/package.json').version } catch { return '' } })()
     const core = await ensureCore({ force: true, electronVersion })
     console.log(`核心已更新：${core.version}（${core.dir}）`)

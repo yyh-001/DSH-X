@@ -37,6 +37,17 @@ test('挑核心：跳过 Electron 对不上的 dist-tag 头部，往下找兼容
   assert.equal(picked.integrity, 'sha512-b')
 })
 
+test('Electron patch 升级仍精确匹配核心，旧外壳回溯兼容版本而新外壳不误用旧核心', () => {
+  // patch 版本也有原生视图行为差异；不能因为同属44.7就跳过核心的运行时声明。
+  const release = (electron) => ({ dist: { tarball: `https://example.test/${electron}.tgz` }, dshX: { electron } })
+  const versions = { '0.1.28': release('44.7.0'), '0.1.29': release('44.7.1') }
+  const metadata = { 'dist-tags': { latest: '0.1.29' }, versions }
+  assert.equal(pickCoreRelease(metadata, { electron: '44.7.0' }).version, '0.1.28')
+  assert.equal(pickCoreRelease(metadata, { electron: '44.7.1' }).version, '0.1.29')
+  assert.equal(pickCoreRelease({ versions: { '0.1.28': versions['0.1.28'] } }, { electron: '44.7.1' }), null)
+  assert.equal(pickCoreRelease({ versions: { '0.1.29': versions['0.1.29'] } }, { electron: '44.7.0' }), null)
+})
+
 test('挑核心：rc 外壳优先 rc，没有 rc 版本时退回正式版', () => {
   const rc = pickCoreRelease(metadata, { electron: '44.7.0', channel: 'rc' })
   assert.equal(rc.version, '0.1.31-rc.1')

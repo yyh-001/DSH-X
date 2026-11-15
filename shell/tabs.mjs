@@ -47,7 +47,7 @@ export class BrowserTabs {
 
   /** 菜单栏里是不是正显示着标签条（管理页的快捷键只在这时接管 ⌘W / ⌃Tab）。 */
   get active() {
-    return this.enabled || this.tabs.length > 0 || !!this.dragSource
+    return this.enabled || this.tabs.length > 0
   }
 
   preferences(enabled, lang, theme) {
@@ -302,8 +302,6 @@ export class BrowserTabs {
       lang: this.lang,
       theme: this.theme,
       standalone: this.kind === 'window',
-      dragging: this.dragSource || null,
-      floating: this.dragFloating || null,
       reduceMotion: this.hooks.reducedMotion?.() === true,
       presentation: this.presentation,
       request: this.selectionRequest,

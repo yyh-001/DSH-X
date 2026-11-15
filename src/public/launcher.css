@@ -365,6 +365,11 @@ html.internal-tabs.has-tabs header {
 }
 @keyframes tab-hint-in { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: translateY(0); } }
 .internal-tab-hint[hidden] { display: none; }
+.internal-tab-drop-marker {
+  position: fixed; z-index: 100; width: 3px; border-radius: 2px;
+  background: var(--accent, #5b8cff); pointer-events: none;
+}
+.internal-tab-drop-marker[hidden] { display: none; }
 .internal-tab.detach-ready { opacity: .78; }
 .internal-tab[aria-busy="true"] .internal-tab-menu { opacity: .35; }
 #windowNotice { position: fixed; top: 4px; left: 50%; transform: translateX(-50%); z-index: 8; max-width: 60%; padding: 6px 12px; border-radius: 8px; background: var(--card); color: var(--text); box-shadow: 0 2px 10px #0002; font-size: 12px; }

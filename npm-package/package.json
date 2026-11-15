@@ -24,7 +24,7 @@
     "linux"
   ],
   "dependencies": {
-    "electron": "44.7.0",
+    "electron": "44.7.1",
     "electron-updater": "^6.8.11"
   },
   "keywords": [

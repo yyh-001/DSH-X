@@ -16,6 +16,11 @@
   detachHint.setAttribute('aria-atomic', 'true')
   detachHint.hidden = true
   area.append(detachHint)
+  const dropMarker = document.createElement('span')
+  dropMarker.className = 'internal-tab-drop-marker'
+  dropMarker.setAttribute('aria-hidden', 'true')
+  dropMarker.hidden = true
+  area.append(dropMarker)
   const items = new Map()
   let lastHeight = 0
   let selected = ''
@@ -142,6 +147,13 @@
 
   window.updateTabDrop = (value) => {
     merging = value?.merging === true
+    dropMarker.hidden = !Number.isFinite(value?.marker)
+    if (!dropMarker.hidden) {
+      const bounds = list.getBoundingClientRect()
+      dropMarker.style.left = `${value.marker}px`
+      dropMarker.style.top = `${bounds.top + 4}px`
+      dropMarker.style.height = `${Math.max(4, bounds.height - 8)}px`
+    }
     if (drag?.detach) paintDragHint()
   }
 
@@ -162,6 +174,7 @@
   const detachCandidate = () => {
     if (!drag?.started) return false
     const bounds = list.getBoundingClientRect()
+    // 与外壳 outsideTabStrip 同一契约：上下24/8迟滞，左右退出需回视口内。
     const outside = drag.y < bounds.top - 24 || drag.y > bounds.bottom + 24
       || drag.x < -24 || drag.x > window.innerWidth + 24
     const inside = drag.y >= bounds.top - 8 && drag.y <= bounds.bottom + 8
@@ -175,6 +188,11 @@
 
   const moveDrag = () => {
     if (!drag?.started) return
+    if (drag.deferred) {
+      // 布局/滚动可能刚发生变化；先发送本帧几何，再发坐标，避免外壳按旧边界决定动作。
+      reportStrip()
+      send({ action: 'tab-drag-move', id: drag.id, point: { x: drag.x, y: drag.y } })
+    }
     // 跨窗后由外壳维护当前位置；源顶栏只保留指针捕获，不再对旧节点做排序。
     if (drag.remote) { detachHint.hidden = false; paintDragHint(); return }
     if (detachCandidate()) return
@@ -220,8 +238,18 @@
     merging = false
     ended.item.style.removeProperty('transform')
     try { ended.capture.releasePointerCapture(ended.pointer) } catch {}
+    // 尚未越过门槛也可能被 Esc/失焦取消，随后到达的原生 click 不能再激活标签。
+    if (ended.started || cancel) suppressedClick = { item: ended.item, pointer: ended.pointer }
     if (ended.started) {
-      suppressedClick = { item: ended.item, until: Date.now() + 400 }
+      if (ended.deferred) {
+        const ids = order()
+        if (cancel || ended.detach) arrange(ended.original, true)
+        else glide(ended.item, ended.offset)
+        // 排序和跨窗提交共用松手消息，主进程按最终落点只选择其中一项。
+        send({ action: 'tab-drag', id: ended.id, active: false, deferred: true, cancel,
+          point: { x: ended.x, y: ended.y }, order: ids, request: ++nextRequest })
+        return
+      }
       if (ended.live) {
         // 移交后由主进程排序/撤销；回源松手不能先把 DOM 恢复到手势开始的顺序。
         if (!ended.remote) {
@@ -240,19 +268,25 @@
         glide(ended.item, ended.offset)
         if (order().join('\0') !== ended.original.join('\0')) commitOrder()
       }
-      if (detach.merge && (cancel || !ended.detach)) send({ action: 'tab-drag', id: ended.item.dataset.id, active: false })
+      if (detach.merge && (cancel || !ended.detach)) send({ action: 'tab-drag', id: ended.item.dataset.id, active: false, cancel })
     }
   }
+  // hide/minimize 不保证产生 pointercancel；外壳主动撤销时必须释放 Chromium 捕获。
+  window.cancelTabDrag = () => finishDrag(true)
+  document.addEventListener('visibilitychange', () => { if (document.hidden) finishDrag(true) })
   list.addEventListener('pointerdown', (event) => {
-    if (event.button !== 0 || event.isPrimary === false || drag || pendingDetach) return
+    if (event.button !== 0 || event.isPrimary === false) return
+    // 新的一次物理按下（包括关闭/菜单按钮）不属于上次取消留下的 click。
+    suppressedClick = null
+    if (drag || pendingDetach) return
     const item = event.target.closest('.internal-tab')
     if (!item || event.target.closest('.internal-tab-close, .internal-tab-menu')) return
-    suppressedClick = null
     const bounds = item.getBoundingClientRect()
     const live = detach.live && (!event.pointerType || event.pointerType === 'mouse')
-    // 实时移交会删除源标签节点，所以捕获挂在不随标签变化的列表上。
-    const capture = live ? list : event.target.closest('.internal-tab-label') || item
-    drag = { item, id: item.dataset.id, live, remote: false, capture, pointer: event.pointerId, x: event.clientX, y: event.clientY, start: event.clientX, startY: event.clientY,
+    const deferred = detach.deferred && (!event.pointerType || event.pointerType === 'mouse')
+    // pointerup 时的捕获目标也决定随后 click 的目标；未开始拖动前保留原按钮的原生点击。
+    const capture = event.target.closest('.internal-tab-label') || item
+    drag = { item, id: item.dataset.id, live, deferred, remote: false, capture, pointer: event.pointerId, x: event.clientX, y: event.clientY, start: event.clientX, startY: event.clientY,
       grab: event.clientX - bounds.left,
       windowGrab: { x: event.clientX - bounds.left, y: event.clientY - bounds.top, width: bounds.width, height: bounds.height,
         clientX: event.clientX, clientY: event.clientY },
@@ -267,10 +301,18 @@
     drag.y = event.clientY
     if (!drag.started && Math.hypot(drag.x - drag.start, drag.y - drag.startY) < 5) return
     if (!drag.started) {
+      if (drag.live || drag.deferred) {
+        // 真正拖动才交给不会随排序/移交消失的列表，发送开始 IPC 前先接好捕获。
+        const previous = drag.capture
+        drag.capture = list
+        try { list.setPointerCapture(drag.pointer) } catch { drag.capture = previous }
+      }
       drag.started = true
       list.classList.add('dragging')
       drag.item.classList.add('dragging')
-      if (detach.merge && drag.mouse && detach.drag) send({ action: 'tab-drag', id: drag.id, active: true, ...(drag.live ? { live: true, grab: drag.windowGrab } : {}) })
+      if (detach.merge && drag.mouse && detach.drag) send({ action: 'tab-drag', id: drag.id, active: true,
+        ...(drag.live ? { live: true, grab: drag.windowGrab } : {}),
+        ...(drag.deferred ? { deferred: true, grab: drag.windowGrab, point: { x: drag.x, y: drag.y } } : {}) })
     }
     event.preventDefault()
     // 高频鼠标事件只记最新坐标，每个显示帧最多计算一次排序；松手时另行同步最后位置。
@@ -284,10 +326,13 @@
     finishDrag()
   })
   document.addEventListener('pointercancel', (event) => { if (event.pointerId === drag?.pointer) finishDrag(true) })
-  list.addEventListener('lostpointercapture', (event) => { if (event.pointerId === drag?.pointer) finishDrag(true) })
+  // label → list 的捕获交接会冒泡旧 label 的 lostcapture；只有当前捕获者丢失才取消。
+  list.addEventListener('lostpointercapture', (event) => { if (event.pointerId === drag?.pointer && event.target === drag.capture) finishDrag(true) })
   window.addEventListener('blur', () => finishDrag(true))
   list.addEventListener('click', (event) => {
-    if (suppressedClick && Date.now() < suppressedClick.until && suppressedClick.item.contains(event.target)) {
+    // 键盘激活的 detail=0 是新操作；物理松手可能很迟，不能以固定毫秒数把旧 click 当成新选择。
+    if (event.detail !== 0 && suppressedClick && (event.pointerId === undefined || event.pointerId === suppressedClick.pointer)
+      && suppressedClick.item.contains(event.target)) {
       event.preventDefault()
       event.stopImmediatePropagation()
       suppressedClick = null
@@ -331,7 +376,8 @@
     standalone = state.standalone === true
     if (standalone) root.classList.toggle('reduce-motion', state.reduceMotion === true)
     detach = { supported: state.detach?.supported === true, drag: state.detach?.supported === true && state.detach?.drag === true,
-      merge: state.detach?.merge === true, live: state.detach?.supported === true && state.detach?.drag === true && state.detach?.merge === true && state.detach?.live === true }
+      merge: state.detach?.merge === true, live: state.detach?.supported === true && state.detach?.drag === true && state.detach?.merge === true && state.detach?.live === true,
+      deferred: state.detach?.supported === true && state.detach?.drag === true && state.detach?.merge === true && state.detach?.deferred === true }
     root.classList.toggle('tab-detach-enabled', detach.supported)
     const result = state.detachResult
     if (pendingDetach && result?.request === pendingDetach.request && result.id === pendingDetach.id) {

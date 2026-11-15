@@ -211,7 +211,15 @@ export function parseTabAction(body) {
   }
   if (!value || typeof value !== 'object') return null
   switch (value.action) {
+    case 'tab-drag-move':
     case 'tab-drag': {
+      const point = value.point
+      if (point !== undefined && (!point || !['x', 'y'].every(key => Number.isFinite(point[key]) && Math.abs(point[key]) <= 1000000))) return null
+      if (value.action === 'tab-drag-move') return typeof value.id === 'string' && value.id && point
+        ? { action: value.action, id: value.id, point: { x: point.x, y: point.y } } : null
+      const order = value.order
+      if (order !== undefined && (!Array.isArray(order) || order.length > 1000 || !order.every(id => typeof id === 'string' && id)
+        || new Set(order).size !== order.length || !isRequestSerial(value.request))) return null
       const grab = value.grab
       if (grab !== undefined && (!grab || !['x', 'y', 'width', 'height', 'clientX', 'clientY'].every((key) =>
         Number.isFinite(grab[key]) && Math.abs(grab[key]) <= 1000000)
@@ -219,8 +227,12 @@ export function parseTabAction(body) {
       return typeof value.id === 'string' && typeof value.active === 'boolean'
         && (value.cancel === undefined || typeof value.cancel === 'boolean')
         && (value.live === undefined || typeof value.live === 'boolean')
+        && (value.deferred === undefined || typeof value.deferred === 'boolean')
         ? { action: value.action, id: value.id, active: value.active,
           ...(value.live === undefined ? {} : { live: value.live }), ...(value.cancel === undefined ? {} : { cancel: value.cancel }),
+          ...(value.deferred === undefined ? {} : { deferred: value.deferred }),
+          ...(point === undefined ? {} : { point: { x: point.x, y: point.y } }),
+          ...(order === undefined ? {} : { order, request: value.request }),
           ...(grab === undefined ? {} : { grab: { x: grab.x, y: grab.y, width: grab.width, height: grab.height, clientX: grab.clientX, clientY: grab.clientY } }) } : null
     }
     case 'tab-strip': {

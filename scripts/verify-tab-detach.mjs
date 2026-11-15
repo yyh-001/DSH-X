@@ -3,17 +3,21 @@ import { app, BrowserWindow, WebContentsView, ipcMain } from 'electron'
 import assert from 'node:assert/strict'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
-import { resolve } from 'node:path'
+import { resolve, relative, isAbsolute } from 'node:path'
 import { once } from 'node:events'
 import { InstanceViews } from '../shell/instance-views.mjs'
 import { InstanceWindow } from '../shell/instance-window.mjs'
 import { BrowserTabs } from '../shell/tabs.mjs'
 import { DesktopBrowserGuests, BROWSER_IPC } from '../shell/browser-guests.mjs'
 import { TabDetacher, managerTabSender } from '../shell/tab-detach.mjs'
-import { LiveTabDrag } from '../shell/tab-live-drag.mjs'
+import { TabDragSession } from '../shell/tab-drag-session.mjs'
 import { parseTabAction } from '../shell/model.mjs'
 
-const root = resolve(import.meta.dirname, '../.paseo-local/runtime/tab-detach-native')
+const local = resolve(import.meta.dirname, '../.paseo-local')
+const outputIndex = process.argv.indexOf('--output-dir')
+const root = outputIndex < 0 ? resolve(local, 'runtime/tab-detach-native') : resolve(process.argv[outputIndex + 1] || '')
+const within = relative(local, root)
+assert.ok(within && !within.startsWith('..') && !isAbsolute(within), '验收输出必须位于工作区 .paseo-local 内')
 mkdirSync(root, { recursive: true })
 writeFileSync(resolve(root, 'result.json'), JSON.stringify({ passed: false, phase: 'starting' }))
 app.setPath('userData', root)
@@ -72,12 +76,12 @@ try {
   const main = new BrowserWindow({ show: false, width: 1000, height: 700,
     webPreferences: { preload: resolve(import.meta.dirname, '../shell/preload.cjs'), sandbox: true, contextIsolation: true } })
   windows.push(main)
-  const tabs = new BrowserTabs(main, { retire: (r) => registry.retire(r), dispose: (id) => registry.disposeView(id), reveal() {},
+  const tabs = new BrowserTabs(main, { retire: (r) => registry.retire(r), dispose: (id) => registry.disposeView(id), reveal() { main.showInactive() },
     detach: () => ({ supported: true, drag: true }) })
   const createHost = () => {
     const window = new BrowserWindow({ show: false, width: 1000, height: 700 })
     windows.push(window)
-    return new InstanceWindow(window, { quitting: () => false, hidden() {}, titles() {}, dispose: (id) => registry.disposeView(id), reveal() {} })
+    return new InstanceWindow(window, { quitting: () => false, hidden() {}, titles() {}, dispose: (id) => registry.disposeView(id), reveal: window => window.showInactive() })
   }
   registry = new InstanceViews({ createHost: (kind) => kind === 'internal' ? tabs : createHost(), createView() {
     const view = new WebContentsView({ webPreferences: { preload: resolve(import.meta.dirname, '../shell/preload-browser.cjs'), sandbox: true, contextIsolation: true, webviewTag: true } })
@@ -150,21 +154,28 @@ try {
   assert.ok(broken.window.isDestroyed())
   assert.equal(await contents.executeJavaScript('draft.value'), 'unsent draft')
   assert.equal(await lease.guest.executeJavaScript('guestDraft.value'), 'guest draft!')
-  const live = new LiveTabDrag(registry, tabs, record.target.id, {})
-  const liveTarget = createHost(), liveOther = createHost()
-  live.update({}, { host: liveTarget, index: 0 }, false)
-  live.update({}, { host: liveOther, index: 0 }, false)
-  assert.equal(record.host, liveOther)
+  const gesture = new TabDragSession(registry), destination = createHost()
+  const cancelled = gesture.begin(tabs, record.target.id)
+  assert.ok(cancelled)
+  gesture.cancel(tabs, cancelled)
+  assert.equal(record.host, tabs)
+  const token = gesture.begin(tabs, record.target.id)
+  assert.equal(gesture.drop(destination, token, 0, { newWindow: true }), true)
+  assert.equal(gesture.drop(tabs, token, 0), false)
+  gesture.clear()
+  assert.equal(record.host, destination)
   assert.equal(record.view.webContents.id, before.webContentsId)
   assert.equal(lease.guest.id, before.guestId)
-  live.finish(true)
+  const returning = gesture.begin(destination, record.target.id)
+  assert.equal(gesture.drop(tabs, returning, 0), true)
+  gesture.clear()
   assert.equal(record.host, tabs)
   assert.equal(guests.leases.get(before.lease), lease)
   assert.equal(await contents.executeJavaScript('draft.value'), 'unsent draft')
   assert.equal(await lease.guest.executeJavaScript('guestDraft.value'), 'guest draft!')
   assert.equal(navigations, 0)
   const result = { electron: process.versions.electron, before, state, guestState, navigations,
-    rendererToIpc: true, nativeRollback: true, guestInputAndLinks: true, liveRoundTrip: true, passed: true }
+    rendererToIpc: true, nativeRollback: true, guestInputAndLinks: true, singleCommitRoundTrip: true, passed: true }
   writeFileSync(resolve(root, 'result.json'), JSON.stringify(result, null, 2))
   console.log(JSON.stringify(result))
 } catch (error) {

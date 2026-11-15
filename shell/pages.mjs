@@ -7,6 +7,14 @@ function escapeHtml(text) {
   return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
+/** 预览仅显示本地标签标题，不加载实例页面，也不承接输入。 */
+export function tabDragPreviewPage(title, dark, en) {
+  return `<!doctype html><meta charset="utf-8"><style>
+    *{box-sizing:border-box}body{margin:0;padding:9px 12px;font:13px system-ui;color:${dark ? '#eee' : '#222'};background:${dark ? '#292b30' : '#f8f9fb'};border:1px solid ${dark ? '#555' : '#b7bdc7'};height:64px}
+    strong{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}small{display:block;margin-top:5px;opacity:.7;font-size:11px}
+    </style><strong>${escapeHtml(title)}</strong><small>${en ? 'Release to move · Esc to cancel' : '松手移动 · Esc 取消'}</small>`
+}
+
 export function dataUrl(html) {
   return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`
 }

@@ -8,15 +8,16 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { BrowserTabs } from './tabs.mjs'
 import { InstanceViews, instanceWindowTitle, launchForView, legacyWindowTarget } from './instance-views.mjs'
 import { InstanceWindow } from './instance-window.mjs'
-import { TabDetacher, TabDragFeedback, detachedBounds, draggedBounds, tabGrabOffset, managerTabSender, tabDragSupported, tabDropTarget } from './tab-detach.mjs'
-import { LiveTabDrag, outsideTabStrip } from './tab-live-drag.mjs'
+import { TabDetacher, TabDragFeedback, detachedBounds, draggedBounds, managerTabSender, tabDragSupported, tabDropTarget, outsideTabStrip } from './tab-detach.mjs'
+import { TabDragSession } from './tab-drag-session.mjs'
 import { WindowFade } from './window-fade.mjs'
 import { BROWSER_IPC, DesktopBrowserGuests } from './browser-guests.mjs'
 import { createCoreRecovery, isEnvironmentStartupError } from './core-recovery.mjs'
 import { corePackageName, channelOf, coreRegistries, fetchCoreMetadata, installCore, pickCoreRelease, tarballFor } from './core-fetch.mjs'
 import { createUpdater } from './updater.mjs'
 import { readPrefs } from './prefs.mjs'
-import { coreSetupPage, coreSetupPaintScript, dataUrl, errorPage, resolveDark, tabBaseColor, tabWindowFallbackPage } from './pages.mjs'
+import { restartLinuxBackend, shellRelaunchOptions } from './linux-backend.mjs'
+import { coreSetupPage, coreSetupPaintScript, dataUrl, errorPage, resolveDark, tabBaseColor, tabWindowFallbackPage, tabDragPreviewPage } from './pages.mjs'
 import { clickTarget, dialogOptions, notificationDecision, notifyThrottled } from './desktop.mjs'
 import {
   LAUNCH_ACTIONS,
@@ -53,6 +54,7 @@ import {
  * 关窗口 ≠ 退出：托盘还在、dsh 照常跑；⌘Q、托盘「退出」才真正退出。
  */
 
+const restartingBackend = restartLinuxBackend(app)
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(HERE, '..')
 const PRELOAD = join(HERE, 'preload.cjs')
@@ -197,8 +199,7 @@ function resolveCoreDir() {
 
 /** 重启外壳：AppImage 要重启 APPIMAGE 本身，process.execPath 是挂载目录里的临时二进制。 */
 function relaunchApp() {
-  if (process.env.APPIMAGE) app.relaunch({ execPath: process.env.APPIMAGE })
-  else app.relaunch()
+  app.relaunch(shellRelaunchOptions(process.argv.slice(1), process.env))
   app.exit(0)
 }
 
@@ -580,7 +581,7 @@ async function downloadShellUpdate() {
 app.setPath('userData', join(APP_DIR, 'electron'))
 
 /** 先占单实例锁：第二次打开只把已有实例的窗口叫出来（对应 Rust 外壳的 find_manager + /api/wake）。 */
-if (!app.requestSingleInstanceLock()) {
+if (restartingBackend || !app.requestSingleInstanceLock()) {
   app.quit()
 } else {
   app.on('second-instance', () => showManager())
@@ -769,7 +770,7 @@ function createMainWindow() {
     dispose: (id) => instanceViews.disposeView(id),
     reveal: (options) => revealWindow(mainWindow, MAIN_WINDOW, options),
     systemDark: () => nativeTheme.shouldUseDarkColors,
-    detach: () => ({ supported: true, drag: canDragTabs(), merge: true, live: canDragTabs() }),
+    detach: () => ({ supported: true, drag: canDragTabs(), merge: true, deferred: canDragTabs() }),
     reducedMotion: () => prefs.reduceMotion,
     changed: syncTabDetachMenu,
   })
@@ -784,6 +785,7 @@ function createMainWindow() {
   })
   tabDetacher = createTabDetacher(tabs)
   tabs.detacher = tabDetacher
+  guardTabDrag(tabs)
   mainWindow.loadURL(managerPageUrl())
 }
 
@@ -798,7 +800,7 @@ function managerPageUrl() {
 
 // 宿主来自统一页面登记器，不再维护另一份窗口/页面对应表。
 function tabHosts() {
-  return [...new Set([tabs, ...(tabDrag?.live?.saved.keys() || []), ...[...(instanceViews?.views.values() || [])].map((record) => record.host)])]
+  return [...new Set([tabs, tabDrag?.host, ...[...(instanceViews?.views.values() || [])].map((record) => record.host)])]
     .filter((host) => host && !host.window.isDestroyed())
 }
 
@@ -825,7 +827,7 @@ function createTabDetacher(host) {
 }
 
 function canDragTabs() {
-  return tabDragSupported(process.platform, app.commandLine.getSwitchValue('ozone-platform'), process.env)
+  return tabDragSupported(process.platform, app.commandLine.getSwitchValue('ozone-platform'))
 }
 
 function syncTabDetachMenu() {
@@ -866,43 +868,113 @@ function showTabMenu({ id, request = null }, activeLabel = false, host = tabs) {
   } })
 }
 
-function stopTabDrag(cancel = true) {
+/** 轻量标题卡不进入页面登记器，不抢焦点，也不挡住投放目标。 */
+function createTabPreview(title) {
+  const window = new BrowserWindow({ width: 240, height: 64, show: false, frame: false, resizable: false,
+    focusable: false, skipTaskbar: true, alwaysOnTop: true,
+    webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false } })
+  window.setIgnoreMouseEvents(true)
+  let ready = false, visible = false
+  window.once('ready-to-show', () => { ready = true; if (visible && !window.isDestroyed()) window.showInactive() })
+  window.loadURL(dataUrl(tabDragPreviewPage(title, resolveDark(state.theme, nativeTheme.shouldUseDarkColors), state.lang === 'en'))).catch(() => {})
+  return {
+    update(point, show) {
+      if (window.isDestroyed()) return
+      visible = show
+      if (!show) { window.hide(); return }
+      window.setPosition(Math.round(point.x + 16), Math.round(point.y + 20), false)
+      if (ready && !window.isVisible()) window.showInactive()
+    },
+    destroy() { visible = false; if (!window.isDestroyed()) window.destroy() },
+  }
+}
+
+function stopTabDrag(cancel = true, action = {}) {
   if (!tabDrag) return
   const ended = tabDrag
   tabDrag = null
   clearInterval(ended.timer)
   ended.feedback.clear()
-  try { ended.live?.finish(cancel) } catch {
-    // 回挂失败也不重建页面；它仍归最后一个有效宿主，错误只显示固定文案。
+  ended.preview?.destroy()
+  if (cancel && !ended.host.manager.isDestroyed()) {
+    ended.host.manager.executeJavaScript('window.cancelTabDrag?.()').catch(() => {})
+  }
+  let destination
+  let status = 'cancelled'
+  try {
+    if (cancel || !ended.session.valid()) return
+    const { host, point, drop, outside, session, token } = ended
+    if (drop) {
+      if (!session.drop(drop.host, token, drop.index)) throw new Error('目标窗口不可用')
+    } else if (outside) {
+      const record = session.session.record
+      // 单标签普通窗口不另开外壳；整段拖动保持原窗口不动，松手才应用最终位置。
+      const reusable = host.kind === 'window' && host.tabs.length === 1 && !host.retired.length
+        && !host.window.isMaximized() && !host.window.isFullScreen()
+      if (reusable) {
+        const before = host.window.getBounds()
+        try {
+          host.window.setBounds(draggedBounds(point, ended.size, ended.offset), false)
+          host.reveal(record, { preserveBounds: true })
+        } catch (error) { host.window.setBounds(before, false); throw error }
+      } else {
+        destination = createDshWindow(detachedBounds(point, screen.getDisplayNearestPoint(point).workArea, ended.size))
+        if (!session.drop(destination, token, 0, { newWindow: true })) throw new Error('目标窗口不可用')
+      }
+    } else if (action.order) {
+      host.action({ action: 'reorder', ids: action.order, request: action.request })
+    }
+    status = 'success'
+  } catch {
+    status = 'error'
+    destination?.disposeEmpty?.()
     console.warn('标签拖动结束失败')
-    if (!ended.host.window.isDestroyed()) ended.host.manager.executeJavaScript(`window.notifyError?.(new Error(${JSON.stringify(state.lang === 'en' ? 'Could not restore the tab. Check its current window.' : '无法恢复标签位置，请检查当前承载它的窗口。')}))`).catch(() => {})
+    if (!ended.host.window.isDestroyed()) ended.host.manager.executeJavaScript(`window.notifyError?.(new Error(${JSON.stringify(state.lang === 'en' ? 'Could not move the tab. Please try again.' : '无法移动标签，请重试。')}))`).catch(() => {})
+  } finally {
+    // 旧核心使用 detach-tab 的请求回执解锁菜单；兼容路径也必须结束 pendingDetach。
+    if (action.action === 'detach-tab' && !ended.host.window.isDestroyed()) {
+      ended.host.detachResult = { id: ended.id, request: action.request, status }
+      ended.host.render(false)
+    }
+    ended.session.clear()
   }
 }
 
-function startTabDrag(host, id, live = false, grab) {
+/** 隐藏窗口不保证 DOM 发 cancel/lost；两端主动收尾，show 再释放一次隐藏期间的捕获。 */
+function guardTabDrag(host) {
+  const cancel = () => {
+    if (tabDrag?.host === host) stopTabDrag()
+    if (!host.manager.isDestroyed()) host.manager.executeJavaScript('window.cancelTabDrag?.()').catch(() => {})
+  }
+  for (const name of ['close', 'hide', 'minimize', 'closed', 'show']) host.window.on(name, cancel)
+  for (const name of ['render-process-gone', 'destroyed', 'did-start-navigation']) host.manager.on(name, cancel)
+}
+
+function startTabDrag(host, id, deferred = false, grab, initialPoint) {
   stopTabDrag()
   if (!canDragTabs() || !host.detacher.available(id)) return
+  const session = new TabDragSession(instanceViews, { quitting: () => quitting })
   const feedback = new TabDragFeedback((target, value) => {
     if (!target.window.isDestroyed() && !target.manager.isDestroyed()) {
       target.manager.executeJavaScript(`window.updateTabDrop?.(${JSON.stringify(value)})`).catch(() => {})
     }
   })
-  const update = () => {
+  const update = (localPoint) => {
     const current = tabDrag
     if (!current || current.host !== host) return
     if (host.window.isDestroyed() || !host.window.isVisible() || quitting) return stopTabDrag()
     try {
-      const point = screen.getCursorScreenPoint()
-      if (current.live) {
-        if (!current.live.valid()) return stopTabDrag()
-        const drop = tabDropTarget(point, null, tabHosts().filter((item) => item !== current.live.floating), id)
-        const outside = current.live.record.host === current.live.floating || outsideTabStrip(point, current.live.record.host)
-        current.live.update(point, drop, outside)
-        feedback.update(host, drop?.host !== host ? drop : null)
-      } else {
-        if (!host.detacher.available(id)) return stopTabDrag()
-        feedback.update(host, tabDropTarget(point, host, tabHosts()))
-      }
+      if (!session.valid()) return stopTabDrag()
+      const content = host.window.getContentBounds(), zoom = host.manager.getZoomFactor()
+      const point = localPoint ? { x: content.x + localPoint.x * zoom, y: content.y + localPoint.y * zoom }
+        : screen.getCursorScreenPoint()
+      current.point = point
+      current.drop = tabDropTarget(point, host, tabHosts(), id)
+      current.outside = outsideTabStrip(point, host, current.outside)
+      feedback.update(host, current.drop)
+      const show = current.outside && !current.drop
+      if (show && !current.preview) current.preview = createTabPreview(session.session.record.target.title)
+      current.preview?.update(point, show)
     } catch {
       stopTabDrag()
       if (!host.window.isDestroyed()) host.manager.executeJavaScript(`window.notifyError?.(new Error(${JSON.stringify(state.lang === 'en' ? 'Could not move the tab. Please try again.' : '无法移动标签，请重试。')}))`).catch(() => {})
@@ -911,7 +983,8 @@ function startTabDrag(host, id, live = false, grab) {
   const sourceBounds = host.window.getBounds()
   const sourceContent = host.window.getContentBounds()
   const sourceZoom = host.manager.getZoomFactor()
-  const startPoint = screen.getCursorScreenPoint()
+  const startPoint = initialPoint ? { x: sourceContent.x + initialPoint.x * sourceZoom, y: sourceContent.y + initialPoint.y * sourceZoom }
+    : screen.getCursorScreenPoint()
   const sourceTab = host.stripLayout?.tabs.find((tab) => tab.id === id)
   if (!grab) {
     // 兼容已加载的旧顶栏：没有按下坐标时，从当前标签和原生鼠标位置推导，不回退到窗口中心。
@@ -924,40 +997,15 @@ function startTabDrag(host, id, live = false, grab) {
   }
   const sourceOffset = { x: sourceContent.x - sourceBounds.x + grab.clientX * sourceZoom,
     y: sourceContent.y - sourceBounds.y + grab.clientY * sourceZoom }
-  const sourceSingle = host.kind === 'window' && host.tabs.length === 1
   const normal = host.window.isMaximized() || host.window.isFullScreen() ? host.window.getNormalBounds() : sourceBounds
   const size = { width: normal.width, height: normal.height }
-  let waitingSince = 0
-  const position = (target, point) => {
-    const outer = target.window.getBounds(), content = target.window.getContentBounds()
-    const zoom = target.manager.getZoomFactor()
-    let offset
-    if (target === host && sourceSingle) {
-      offset = { x: content.x - outer.x + grab.clientX * zoom, y: content.y - outer.y + grab.clientY * zoom }
-    } else {
-      const tab = target.stripLayout?.tabs.find((item) => item.id === id)
-      if (!tab) {
-        // 先等新顶栏报告真实布局再显示，避免先居中出现、下一帧又跳回标签抓取点。
-        waitingSince ||= Date.now()
-        if (Date.now() - waitingSince > 5000) throw new Error('标签栏未就绪')
-        return false
-      }
-      waitingSince = 0
-      offset = tabGrabOffset(grab, { ...tab, top: tab.top ?? target.stripLayout.rect.top,
-        bottom: tab.bottom ?? target.stripLayout.rect.bottom }, zoom, { x: content.x - outer.x, y: content.y - outer.y })
-    }
-    const bounds = draggedBounds(point, size, offset)
-    const key = JSON.stringify(bounds)
-    if (target.dragBounds !== key) {
-      target.dragBounds = key
-      target.window.setBounds(bounds, false)
-    }
-  }
-  const session = live ? new LiveTabDrag(instanceViews, host, id, {
-    createHost: (point) => createDshWindow(draggedBounds(point, size, sourceOffset)), position,
-  }) : null
-  tabDrag = { host, id, feedback, live: session, update, timer: setInterval(update, live ? 16 : 40) }
-  update()
+  const token = session.begin(host, id)
+  if (!token) return
+  // 新顶栏按显示帧发源页面坐标，不常驻轮询；旧核心仍以低频原生坐标兼容。
+  tabDrag = { host, id, deferred, feedback, session, token, update, size, offset: sourceOffset,
+    timer: deferred ? null : setInterval(update, 40) }
+  // deferred 的首次 move 可能在绘制前被后续点覆盖；只消费与顶栏实际判定相同的帧/松手采样。
+  if (!deferred) update(initialPoint)
 }
 
 /** 管理页的预加载；实例占位页的窄化桥由 remotePreferences 那份预加载提供。 */
@@ -1003,6 +1051,7 @@ function guardManager(contents, getHost = () => tabs) {
   contents.on('before-input-event', (event, input) => {
     // ⌘W / ⌃Tab 在显示标签条时归标签页（和 Rust 外壳注入的 keydown 脚本同一组快捷键）
     const host = getHost()
+    if (tabDrag && input.key === 'Escape' && input.type === 'keyDown') { event.preventDefault(); stopTabDrag(); return }
     if (!host?.active) return
     const action = shortcutAction(input, false)
     if (action) {
@@ -1057,6 +1106,7 @@ function createTabView(id) {
     record?.host?.resample(record.target.id)
   })
   contents.on('before-input-event', (event, input) => {
+    if (tabDrag && input.key === 'Escape' && input.type === 'keyDown') { event.preventDefault(); stopTabDrag(); return }
     const action = shortcutAction(input, true)
     if (action) {
       event.preventDefault()
@@ -1067,6 +1117,9 @@ function createTabView(id) {
   })
   // 页面进程崩了只恢复这一页，登记器沿用当前实例的认证地址。
   contents.on('render-process-gone', (_event, details) => {
+    // 崩溃恢复会重新导航；先结束这一页的手势，不能让旧捕获在恢复后继续提交。
+    // 按 viewId 而不是宿主匹配，不直接取消其他页会话；恢复造成真实失焦仍由顶栏安全取消。
+    if (tabDrag?.session.session?.record.viewId === id) stopTabDrag()
     if (!CLEAN_EXITS.has(details.reason)) instanceViews.recover(id)
   })
   return view
@@ -1124,18 +1177,24 @@ function handleTabMessage(host, message) {
   }
   const action = parseTabAction(message)
   if (action?.action === 'tab-drag') {
-    if (action.active) startTabDrag(host, action.id, action.live === true, action.grab)
+    if (action.active) startTabDrag(host, action.id, action.deferred === true, action.grab, action.point)
     else if (tabDrag?.host === host && tabDrag.id === action.id) {
-      if (action.cancel !== true) tabDrag.update()
-      stopTabDrag(action.cancel === true)
+      // 旧非实时顶栏只有 detach-tab 表示肯定松手；普通 end 也可能是 Escape。
+      if (!tabDrag.deferred && !action.live) { stopTabDrag(); return }
+      if (action.cancel !== true) tabDrag.update(action.point)
+      stopTabDrag(action.cancel === true, action)
     }
+  } else if (action?.action === 'tab-drag-move') {
+    if (tabDrag?.host === host && tabDrag.id === action.id) tabDrag.update(action.point)
   } else if (action?.action === 'detach-tab') {
-    host.detacher.detach(action)
-    stopTabDrag()
+    if (action.source === 'drag' && tabDrag?.host === host && tabDrag.id === action.id) {
+      tabDrag.update()
+      stopTabDrag(false, action)
+    } else { host.detacher.detach(action); stopTabDrag() }
   } else if (action?.action === 'tab-menu') showTabMenu(action, false, host)
   else if (action) {
-    // 实时移交后源顶栏仍负责接收鼠标，它的旧排序回执不能再改动当前容器。
-    if (action.action === 'reorder' && tabDrag?.host === host && tabDrag.live?.moved) return
+    if (tabDrag?.host === host && (action.action === 'overlay' && action.open
+      || action.action === 'close-tab' && action.id === tabDrag.id)) stopTabDrag()
     host.action(action)
   }
 }
@@ -1221,13 +1280,14 @@ function createDshWindow(bounds) {
     titles: syncInstanceTitles,
     changed: syncTabDetachMenu,
     systemDark: () => nativeTheme.shouldUseDarkColors,
-    detach: () => ({ supported: true, drag: canDragTabs(), merge: true, live: canDragTabs() }),
+    detach: () => ({ supported: true, drag: canDragTabs(), merge: true, deferred: canDragTabs() }),
     reducedMotion: () => prefs.reduceMotion,
     hidden: () => {
-      if (!tray && !BrowserWindow.getAllWindows().some((item) => item.isVisible())) showManager()
+      if (!tray && !tabHosts().some((item) => item.window.isVisible())) showManager()
     },
   })
   host.detacher = createTabDetacher(host)
+  guardTabDrag(host)
   host.fade = new WindowFade(host, { enabled: () => {
     const animation = systemPreferences.getAnimationSettings()
     return !prefs.reduceMotion && !animation.prefersReducedMotion && animation.shouldRenderRichAnimation && !quitting
@@ -1236,7 +1296,6 @@ function createDshWindow(bounds) {
   host.preferences(true, state.lang, state.theme)
   window.on('focus', () => { host.focusOrder = ++windowFocusSerial; syncTabDetachMenu() })
   window.on('blur', syncTabDetachMenu)
-  window.on('closed', () => { if (tabDrag?.host === host) stopTabDrag() })
   guardManager(window.webContents, () => host)
   const fallback = () => {
     if (window.isDestroyed() || host.chromeUrl.startsWith('data:')) return
@@ -1618,6 +1677,7 @@ function liveInstanceCount() {
 /** 管理服务收尾之后（退出 / 自更新）真正退出：先放行窗口的 close，再让 Electron 退。 */
 function exitApp(code = 0) {
   quitting = true
+  stopTabDrag()
   instanceViews?.dispose()
   app.exit(code)
 }
@@ -1633,5 +1693,5 @@ app.on('before-quit', (event) => {
 })
 // 窗口全关了也不退：托盘还在（默认行为在 macOS 上本来就不退，这里写明白）
 app.on('window-all-closed', () => {})
-app.on('will-quit', () => instanceViews?.dispose())
+app.on('will-quit', () => { stopTabDrag(); instanceViews?.dispose() })
 

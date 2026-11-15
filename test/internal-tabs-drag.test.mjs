@@ -4,6 +4,150 @@ import { internalTabs } from './helpers/internal-tabs-dom.mjs'
 
 const actions = (h, name) => h.sent.filter((message) => message.action === name)
 
+test('未达拖动门槛的原生捕获 click 激活原标签，新旧外壳能力与鼠标修饰键均保留一次选择', () => {
+  for (const capability of [{}, { live:true }, { deferred:true }, { drag:false }, { supported:false }]) {
+    for (const modifiers of [{}, { ctrlKey:true }, { metaKey:true }, { shiftKey:true }, { altKey:true }]) {
+      const h = internalTabs()
+      h.update({ active:'c', detach:{ supported:true,drag:true,merge:true,...capability } })
+      h.tick(); h.down('a',modifiers); h.move('a',{clientX:153,...modifiers})
+      const click = h.releaseClick('a',{clientX:153,...modifiers})
+      assert.equal(click.target,h.item('a').querySelector('.internal-tab-label'))
+      assert.deepEqual(actions(h,'select').map(action=>action.id),['a'])
+      assert.equal(actions(h,'tab-drag').length,0)
+      assert.equal(actions(h,'reorder').length,0)
+      assert.equal(h.captureTarget(),null)
+    }
+  }
+})
+
+test('真正开始拖动才交给稳定列表捕获，旧按钮 lostcapture 不取消；松手 click 不选中或关闭标签', () => {
+  for (const capability of [{live:true},{deferred:true}]) {
+    const h = internalTabs()
+    h.update({active:'c',detach:{supported:true,drag:true,merge:true,...capability}})
+    h.down('a')
+    assert.equal(h.captureTarget(),h.item('a').querySelector('.internal-tab-label'))
+    h.move('a',{clientX:156})
+    assert.equal(h.captureTarget(),h.list)
+    assert.equal(actions(h,'tab-drag').filter(action=>action.active).length,1)
+    assert.equal(actions(h,'tab-drag').some(action=>action.cancel),false)
+    const click = h.releaseClick('a',{clientX:156})
+    assert.equal(click.target,h.list)
+    assert.equal(actions(h,'select').length,0)
+    assert.equal(actions(h,'close-tab').length,0)
+    assert.equal(actions(h,'tab-drag').filter(action=>action.active===false).length,1)
+  }
+})
+
+test('门槛前取消也阻止迟到 click 选择，门槛后仍安全取消并允许下一次普通点击', () => {
+  for (const started of [false,true]) {
+    for (const kind of ['Escape','blur','pointercancel','lostpointercapture','hide']) {
+      const h = internalTabs()
+      h.update({active:'c',detach:{supported:true,drag:true,merge:true,deferred:true}})
+      h.down('a'); if(started)h.move('a',{clientX:156})
+      if(kind==='Escape')h.document.emit('keydown',h.event('a',{key:'Escape'}))
+      else if(kind==='blur')h.window.emit('blur',{})
+      else if(kind==='pointercancel')h.document.emit('pointercancel',h.event('a'))
+      else if(kind==='hide')h.window.cancelTabDrag()
+      else h.list.emit('lostpointercapture',h.event('a',{target:h.captureTarget()}))
+      h.advanceTime(1_000); h.releaseClick('a')
+      assert.equal(actions(h,'select').length,0,`${kind}, started=${started}`)
+      assert.equal(actions(h,'tab-drag').filter(action=>action.active===false&&!action.cancel).length,0)
+      h.down('b',{clientX:350}); h.releaseClick('b',{clientX:350})
+      assert.deepEqual(actions(h,'select').map(action=>action.id),['b'])
+    }
+  }
+})
+
+test('菜单/关闭按钮不进入标签捕获，触摸与笔保持普通点击和仅排序，键盘激活不依赖指针', () => {
+  for (const selector of ['.internal-tab-close','.internal-tab-menu']) {
+    const h = internalTabs()
+    h.update({detach:{supported:true,drag:true,merge:true,deferred:true}})
+    const target=h.item('b').querySelector(selector)
+    h.down('b',{target}); assert.equal(h.captureTarget(),null)
+    h.releaseClick('b',{target})
+    assert.equal(actions(h,'select').length,0)
+    assert.equal(actions(h,selector.endsWith('close')?'close-tab':'tab-menu').length,1)
+  }
+  for(const pointerType of ['touch','pen']) {
+    const h=internalTabs()
+    h.update({active:'c',detach:{supported:true,drag:true,merge:true,deferred:true}})
+    h.down('a',{pointerType}); h.releaseClick('a',{pointerType})
+    assert.deepEqual(actions(h,'select').map(action=>action.id),['a'])
+    h.down('b',{pointerType}); h.move('b',{pointerType,clientX:650}); h.releaseClick('b',{pointerType,clientX:650})
+    assert.equal(actions(h,'select').length,1)
+    assert.equal(actions(h,'detach-tab').length,0)
+    assert.equal(actions(h,'tab-drag').some(action=>action.active),false)
+    assert.equal(actions(h,'reorder').length,1)
+  }
+  const h=internalTabs()
+  h.activate('b')
+  assert.deepEqual(actions(h,'select').map(action=>action.id),['b'])
+})
+
+test('取消后键盘仍可激活，迟到物理 click 不重复选择；新按下的关闭/菜单按钮不被旧取消吞掉', () => {
+  for(const selector of ['.internal-tab-close','.internal-tab-menu']) {
+    const h=internalTabs()
+    h.update({active:'c',detach:{supported:true,drag:true,merge:true,deferred:true}})
+    h.down('a'); h.document.emit('keydown',h.event('a',{key:'Escape'}))
+    h.advanceTime(1_000); h.activate('a'); h.releaseClick('a')
+    assert.deepEqual(actions(h,'select').map(action=>action.id),['a'])
+    h.down('b'); h.window.cancelTabDrag()
+    const target=h.item('b').querySelector(selector)
+    h.down('b',{target}); h.releaseClick('b',{target})
+    assert.equal(actions(h,selector.endsWith('close')?'close-tab':'tab-menu').length,1)
+    assert.equal(actions(h,'select').length,1)
+  }
+})
+
+test('旧核心拖出等待回执且未生成拖后 click 时，新的关闭按钮仍可用但不再开启拖动', () => {
+  const h=internalTabs()
+  h.update({detach:{supported:true,drag:true,merge:true}})
+  h.down('a'); h.move('a',{clientY:100}); h.up('a',{clientY:100})
+  assert.equal(actions(h,'detach-tab').length,1)
+  const target=h.item('a').querySelector('.internal-tab-close')
+  h.down('a',{target}); h.releaseClick('a',{target})
+  assert.deepEqual(actions(h,'close-tab').map(action=>action.id),['a'])
+  assert.equal(actions(h,'select').length,0)
+  h.down('b'); h.move('b',{clientY:100}); h.up('b',{clientY:100})
+  assert.equal(actions(h,'detach-tab').length,1,'等待旧回执时仍拒绝新拖动')
+})
+
+test('延迟提交顶栏按帧上报局部坐标，最终排序和跨窗只发送一条松手命令', () => {
+  const h = internalTabs()
+  h.update({ detach: { supported:true, drag:true, merge:true, deferred:true } })
+  h.tick(); h.down('a')
+  for (let i = 0; i < 50; i++) h.move('a', { clientX:600+i }, false)
+  assert.equal(actions(h,'tab-drag-move').length,0)
+  h.tick()
+  assert.equal(actions(h,'tab-drag-move').length,1)
+  h.up('a', { clientX:650,clientY:25 })
+  const end = actions(h,'tab-drag').at(-1)
+  assert.deepEqual(end.order,['b','c','a'])
+  assert.deepEqual(end.point,{ x:650,y:25 })
+  assert.equal(end.deferred,true)
+  assert.equal(end.cancel,false)
+  assert.equal(h.list.pointer,null)
+  assert.equal(actions(h,'reorder').length,0)
+  assert.equal(actions(h,'detach-tab').length,0)
+})
+
+test('外壳显式取消释放列表捕获；隐藏后的迟到 up 不重复提交且可再次开始', () => {
+  const h = internalTabs()
+  h.update({ detach: { supported:true,drag:true,merge:true,deferred:true } })
+  h.down('a'); h.move('a', { clientY:100 })
+  h.window.cancelTabDrag()
+  assert.equal(h.list.pointer,null)
+  assert.equal(actions(h,'tab-drag').at(-1).cancel,true)
+  const count = actions(h,'tab-drag').length
+  h.up('a', { clientY:100 })
+  assert.equal(actions(h,'tab-drag').length,count)
+  h.down('b'); h.move('b', { clientY:100 })
+  assert.equal(h.list.pointer,1)
+  h.document.hidden = true; h.document.emit('visibilitychange',{})
+  assert.equal(h.list.pointer,null)
+  assert.equal(actions(h,'tab-drag').at(-1).cancel,true)
+})
+
 test('实时拖动捕获列表，标签移走仍继续接收鼠标，松手只提交事务', () => {
   const h = internalTabs()
   h.update({ detach: { supported: true, drag: true, merge: true, live: true } })
@@ -29,7 +173,7 @@ test('实时移交后 Escape、blur 和捕获丢失均向原事务发送撤销',
     h.update({ dragging: 'a', tabs: [] })
     if (kind === 'keydown') h.document.emit(kind, h.event('a', { key: 'Escape' }))
     else if (kind === 'blur') h.window.emit(kind, {})
-    else h.list.emit(kind, h.event('a'))
+    else h.list.emit(kind, h.event('a', { target: h.list }))
     assert.equal(actions(h, 'tab-drag').at(-1).cancel, true)
     assert.equal(actions(h, 'detach-tab').length, 0)
     assert.equal(h.list.pointer, null)

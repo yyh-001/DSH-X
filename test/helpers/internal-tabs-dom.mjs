@@ -4,13 +4,14 @@ import vm from 'node:vm'
 // 执行实际页面脚本；仅替代 DOM/动画，不复制拖动状态机。
 export function internalTabs({ reducedMotion = true } = {}) {
   const sent = [], errors = [], frames = new Map(), timers = new Map()
+  const captures = new Map(), downTargets = new Map()
   const metrics = { reads: 0, animations: 0 }
-  let serial = 0, document
+  let serial = 0, document, now = 0
   class Node {
     constructor(className = '') {
       this.children = []; this.dataset = {}; this.attributes = {}; this.listeners = {}; this.scrollLeft = 0
       this.scrollTop = 0; this.clientLeft = 0; this.clientTop = 0
-      this.textContent = ''; this.hidden = false; this.disabled = false
+      this.textContent = ''; this.hidden = false; this.disabled = false; this.pointer = null
       const classes = new Set(className.split(' ').filter(Boolean))
       this.classList = {
         add: (...names) => names.forEach((name) => classes.add(name)),
@@ -65,8 +66,20 @@ export function internalTabs({ reducedMotion = true } = {}) {
     removeAttribute(name) { delete this.attributes[name] }
     addEventListener(name, listener) { (this.listeners[name] ||= []).push(listener) }
     emit(name, event) { for (const listener of this.listeners[name] || []) listener(event) }
-    setPointerCapture(id) { this.pointer = id }
-    releasePointerCapture() { this.pointer = null }
+    setPointerCapture(id) {
+      const previous = captures.get(id)
+      if (previous === this) return
+      captures.set(id, this); this.pointer = id
+      if (previous) {
+        previous.pointer = null
+        if (list.contains(previous)) list.emit('lostpointercapture', { target: previous, pointerId: id })
+      }
+    }
+    releasePointerCapture(id) {
+      if (captures.get(id) !== this) return
+      captures.delete(id); this.pointer = null
+      if (list.contains(this)) list.emit('lostpointercapture', { target: this, pointerId: id })
+    }
     focus() { document.activeElement = this }
     scrollIntoView() {}
     animate() { metrics.animations++; return { cancel() {}, finished: new Promise(() => {}) } }
@@ -86,7 +99,7 @@ export function internalTabs({ reducedMotion = true } = {}) {
   const window = Object.assign(new Node(), { innerWidth: 1000, ipc: { postMessage(message) {
     sent.push(message.startsWith('{') ? JSON.parse(message) : message)
   } }, notifyError: (error) => errors.push(error.message) })
-  const context = vm.createContext({ window, document, matchMedia: () => ({ matches: reducedMotion }),
+  const context = vm.createContext({ window, document, Date: { now: () => now }, matchMedia: () => ({ matches: reducedMotion }),
     ResizeObserver: class { observe() {} }, MutationObserver: class { observe() {} },
     requestAnimationFrame: (fn) => { frames.set(++serial, fn); return serial }, cancelAnimationFrame: (id) => frames.delete(id),
     setTimeout: (fn) => { timers.set(++serial, fn); return serial }, clearTimeout: (id) => timers.delete(id),
@@ -100,12 +113,35 @@ export function internalTabs({ reducedMotion = true } = {}) {
   const item = (id) => list.children.find((node) => node.dataset.id === id)
   const event = (id, patch = {}) => ({ target: item(id)?.querySelector('.internal-tab-label'), button: 0, isPrimary: true,
     pointerId: 1, pointerType: 'mouse', clientX: 150, clientY: 25,
-    preventDefault() { this.prevented = true }, stopImmediatePropagation() {}, ...patch })
+    preventDefault() { this.prevented = true }, stopImmediatePropagation() { this.stopped = true }, ...patch })
+  // 浏览器按 pointerup 当时的捕获目标派发 click，之后释放捕获也不会把 click 还给原按钮。
+  // 独立模拟平台派发边界；不在夹具里补 select，真正处理仍由实际页面脚本的点击监听器完成。
+  const activate = (id, patch = {}) => {
+    const click = event(id, { detail:0, ...patch })
+    if (list.contains(click.target)) list.emit('click', click)
+    for (let node = click.target; node && !click.stopped; node = node.parentNode) node.onclick?.(click)
+    return click
+  }
+  const releaseClick = (id, patch = {}) => {
+    const up = event(id, patch), captured = captures.get(up.pointerId)
+    document.emit('pointerup', { ...up, target: captured || up.target })
+    captures.get(up.pointerId)?.releasePointerCapture(up.pointerId)
+    let target = captured || up.target
+    if (!captured) {
+      const down = downTargets.get(up.pointerId)
+      while (target && !target.contains(down)) target = target.parentNode
+    }
+    const click = activate(id, { ...patch, target, detail:1 })
+    downTargets.delete(up.pointerId)
+    return click
+  }
   const tick = () => { const next = [...frames.values()]; frames.clear(); for (const fn of next) fn() }
   return { list, window, document, state, update, item, event, sent, errors, metrics,
     pendingFrames: () => frames.size,
     ids: () => list.children.map((node) => node.dataset.id),
-    down(id, patch) { list.emit('pointerdown', event(id, patch)) },
+    captureTarget: (id = 1) => captures.get(id) || null,
+    releaseClick, activate, advanceTime: ms => { now += ms },
+    down(id, patch) { const down = event(id, patch); downTargets.set(down.pointerId, down.target); list.emit('pointerdown', down) },
     move(id, patch, paint = true) { document.emit('pointermove', event(id, patch)); if (paint) tick() },
     up(id, patch) { document.emit('pointerup', event(id, patch)) },
     tick,

@@ -34,6 +34,6 @@ export class InstanceWindow extends BrowserTabs {
   }
 
   disposeEmpty() {
-    if (!this.dragHold && !this.fadeHold && !this.tabs.length && !this.retired.length && !this.window.isDestroyed()) this.window.destroy()
+    if (!this.dragHold && !this.tabs.length && !this.retired.length && !this.window.isDestroyed()) this.window.destroy()
   }
 }

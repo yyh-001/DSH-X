@@ -1,5 +1,5 @@
 // electron scripts/verify-tab-groups.mjs：真实外壳/核心入口，全部数据和测试页面留在隔离目录。
-import { app, BrowserWindow, Menu, systemPreferences } from 'electron'
+import { app, BrowserWindow, Menu } from 'electron'
 import assert from 'node:assert/strict'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
@@ -42,8 +42,7 @@ process.on('uncaughtException', (error) => {
   process.exit(1)
 })
 const menus = [], servers = []
-// 自动验收只替换全局鼠标坐标，仍执行实际顶栏脚本、IPC 和原生视图迁移；不冒充系统捕获验收。
-let cursorOverride = null
+// Electron 注入源页面局部指针坐标；不冒充 OS 跨窗口捕获验收。
 const buildMenu = Menu.buildFromTemplate
 Menu.buildFromTemplate = function (template) {
   const menu = buildMenu.call(this, template)
@@ -70,8 +69,7 @@ const stripPoint = async (window) => {
   const point = await window.webContents.executeJavaScript(`(() => {const r=document.getElementById('internalTabList').getBoundingClientRect();return {x:r.left+24,y:r.top+8}})()`)
   return { x: bounds.x + point.x * zoom, y: bounds.y + point.y * zoom }
 }
-const startLive = async (window) => {
-  cursorOverride = await stripPoint(window)
+const startPointer = async (window) => {
   const point = await window.webContents.executeJavaScript(`(() => {
     const r=document.querySelector('.internal-tab-label').getBoundingClientRect();
     return window.dragFixture={x:Math.round(r.left+20),y:Math.round(r.top+10)};
@@ -81,7 +79,14 @@ const startLive = async (window) => {
   await until(() => window.webContents.executeJavaScript(`document.getElementById('internalTabList').hasPointerCapture(1)`))
   return point
 }
-const endLive = async (window, cancel = false) => {
+const movePointer = async (window, globalPoint) => {
+  const bounds = window.getContentBounds(), zoom = window.webContents.getZoomFactor()
+  const point = { x:Math.round((globalPoint.x-bounds.x)/zoom), y:Math.round((globalPoint.y-bounds.y)/zoom) }
+  await window.webContents.executeJavaScript(`window.dragFixture=${JSON.stringify(point)}`)
+  window.webContents.sendInputEvent({ type:'mouseMove', ...point, modifiers:['leftButtonDown'] })
+  await new Promise(done => setTimeout(done,100))
+}
+const endPointer = async (window, cancel = false) => {
   const point = await window.webContents.executeJavaScript('dragFixture')
   if (cancel) {
     window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
@@ -100,9 +105,6 @@ async function run() {
   try {
     // screen 的 ESM 导出等待 ready；入口顶层导入会阻塞 Electron 完成入口加载。
     await app.whenReady()
-    const { screen } = await import('electron')
-    const cursorPoint = screen.getCursorScreenPoint
-    screen.getCursorScreenPoint = () => cursorOverride || cursorPoint.call(screen)
     // 管理服务的同端口探测会唤醒另一个 DSH-X，即使数据目录不同；测试显式选择空闲端口。
     const reservation = createServer()
     reservation.listen(0, '127.0.0.1'); await once(reservation, 'listening')
@@ -171,7 +173,6 @@ async function run() {
         writeFileSync(join(root, `header-${theme}-${width}.png`), (await one.webContents.capturePage({ x: 0, y: 0, width, height: 60 })).toPNG())
       }
     }
-    cursorOverride = await stripPoint(one)
     const gesture = await one.webContents.executeJavaScript(`(async () => {
       const label = document.querySelector('.internal-tab-label'), list = document.getElementById('internalTabList');
       const box = label.getBoundingClientRect(), before = list.getBoundingClientRect().width;
@@ -189,7 +190,6 @@ async function run() {
     assert.ok(parseFloat(gesture.duration) <= 0.001)
     await settings({ reduceMotion: false })
     await until(() => one.webContents.executeJavaScript(`!document.documentElement.classList.contains('reduce-motion')`))
-    cursorOverride = null
     if (realDrag) {
       main.setBounds({ x: 30, y: 30, width: 900, height: 600 })
       main.show(); main.hide(); main.show()
@@ -198,7 +198,7 @@ async function run() {
       console.log('READY: drag the first DSH tab from the lower window into the empty tab strip of the upper launcher')
       await until(async () => await count(main) === 1 && await count(one) === 1, 4000)
       assert.ok(main.contentView.children.includes(views[0]))
-      // 实时合并先于松手完成；等源捕获释放后才能验证下一次菜单迁移。
+      // 松手迁移结束后，再验证下一次菜单操作。
       await until(() => one.webContents.executeJavaScript(`!document.getElementById('internalTabList').hasPointerCapture(1)`), 4000)
       await invokeMenu(main, urls[0], `移到 ${one.getTitle()}`)
       await until(async () => await count(one) === 2)
@@ -209,75 +209,53 @@ async function run() {
     main.setBounds({ x: 30, y: 30, width: 900, height: 600 }); main.showInactive()
     one.setBounds({ x: 50, y: 250, width: 900, height: 600 }); one.showInactive()
     two.setBounds({ x: 970, y: 250, width: 900, height: 600 }); two.show(); two.focus()
-    const fadeValues = []
-    const setOpacity = two.setOpacity.bind(two)
-    two.setOpacity = (value) => { fadeValues.push(value); setOpacity(value) }
-    await startLive(two)
-    cursorOverride = await stripPoint(main)
-    await until(async () => await count(main) === 1 && await count(two) === 0)
-    assert.ok(!two.isDestroyed(), '按住期间源顶栏保留捕获')
-    if (process.platform !== 'linux') await until(() => two.getOpacity() === 0)
-    assert.ok(await two.webContents.executeJavaScript(`document.getElementById('internalTabList').hasPointerCapture(1)`))
-    assert.ok(main.contentView.children.includes(views[0]), '未发 pointerup 已迁移原视图')
-    await endLive(two, true)
-    await until(async () => await count(main) === 0 && await count(two) === 1)
-    assert.equal(two.getOpacity(), 1, '撤销恢复原窗口显示')
-    const grabPoint = await startLive(two)
-    const windowCount = BrowserWindow.getAllWindows().length
-    for (const point of [{ x: -5, y: 950 }, { x: 1900, y: 950 }]) {
-      cursorOverride = point
-      await until(() => Math.abs(two.getContentBounds().x + grabPoint.x - point.x) <= 1
-        && Math.abs(two.getContentBounds().y + grabPoint.y - point.y) <= 1)
-      assert.equal(two.getBounds().width, 900)
-      assert.equal(two.getBounds().height, 600)
-    }
-    assert.equal(BrowserWindow.getAllWindows().length, windowCount, '单标签拆出不新建第二扇窗口')
+    const before = two.getBounds()
+    await startPointer(two)
+    await movePointer(two, await stripPoint(main))
+    assert.equal(await count(main), 0, '按住期间目标不拥有页面')
+    assert.equal(await count(two), 1)
     assert.ok(two.contentView.children.includes(views[0]))
-    assert.ok(await two.webContents.executeJavaScript(`document.getElementById('internalTabList').hasPointerCapture(1)`), '移动原窗口后继续捕获')
-    cursorOverride = await stripPoint(main)
-    await until(async () => await count(main) === 1)
-    cursorOverride = await stripPoint(one)
-    await until(async () => await count(one) === 2 && await count(main) === 0)
-    cursorOverride = { x: 1900, y: 950 }
-    await until(() => two.contentView.children.includes(views[0]))
-    assert.equal(BrowserWindow.getAllWindows().length, windowCount, '连续拆合仍复用原窗口')
-    await until(() => two.getOpacity() === 1)
-    cursorOverride = await stripPoint(main)
-    await until(async () => await count(main) === 1)
-    await endLive(two)
+    assert.deepEqual(two.getBounds(), before)
+    await endPointer(two, true)
+    assert.equal(await count(two), 1)
+    assert.deepEqual(two.getBounds(), before, '取消不需要恢复窗口')
+    const grab = await startPointer(two)
+    const point = { x:1900,y:950 }
+    await movePointer(two, point)
+    assert.deepEqual(two.getBounds(), before, '仅预览，原窗口不跟随')
+    await endPointer(two)
+    await until(() => Math.abs(two.getContentBounds().x + grab.x - point.x) <= 1)
+    assert.equal(two.getBounds().width, 900)
+    assert.equal(two.getBounds().height, 600)
+    assert.ok(two.contentView.children.includes(views[0]), '单标签复用原窗口')
+    await startPointer(two)
+    for (const target of [main,one,main]) {
+      await movePointer(two, await stripPoint(target))
+      assert.ok(two.contentView.children.includes(views[0]), '跨窗悬停不迁移')
+    }
+    await endPointer(two)
     await until(() => two.isDestroyed())
-    cursorOverride = null
+    assert.ok(main.contentView.children.includes(views[0]))
     await invokeMenu(one, urls[1], '移到启动器窗口')
     await until(() => one.isDestroyed())
     await until(async () => await count(main) === 2)
-    const sourceTab = await main.webContents.executeJavaScript(`(() => {const r=document.querySelector('.internal-tab').getBoundingClientRect();return {left:r.left,top:r.top,width:r.width,height:r.height}})()`)
-    const newGrab = await startLive(main)
-    cursorOverride = { x: 1900, y: 950 }
-    const detached = await until(() => BrowserWindow.getAllWindows().find((window) => window !== main))
+    await startPointer(main)
+    await movePointer(main, { x:1900,y:950 })
+    assert.ok(main.contentView.children.includes(views[0]))
+    await endPointer(main)
+    const detached = await until(() => BrowserWindow.getAllWindows().find(window => window !== main && window.contentView.children.includes(views[0])))
     await until(() => detached.isVisible())
-    await until(() => detached.getOpacity() === 1)
-    const detachedTab = await detached.webContents.executeJavaScript(`(() => {const r=document.querySelector('.internal-tab').getBoundingClientRect();return {left:r.left,top:r.top,width:r.width,height:r.height}})()`)
-    const content = detached.getContentBounds()
-    assert.ok(Math.abs(content.x + detachedTab.left + (newGrab.x - sourceTab.left) / sourceTab.width * detachedTab.width - cursorOverride.x) <= 1)
-    assert.ok(Math.abs(content.y + detachedTab.top + (newGrab.y - sourceTab.top) / sourceTab.height * detachedTab.height - cursorOverride.y) <= 1)
-    const droppedBounds = detached.getBounds()
-    await endLive(main)
-    await until(() => detached.isFocused())
-    assert.deepEqual(detached.getBounds(), droppedBounds, '松手聚焦不会重新居中用户指定的屏幕边缘落点')
+    assert.equal(await count(main), 1)
     await invokeMenu(detached, urls[0], '移到启动器窗口')
     await until(() => detached.isDestroyed())
-    cursorOverride = null
     for (const [index, view] of views.entries()) {
       assert.equal(view.webContents.id, contentsIds[index])
       assert.ok(main.contentView.children.includes(view))
       assert.deepEqual(await view.webContents.executeJavaScript('({draft:draft.value,scroll:scrollY})'), { draft: `draft-${index}`, scroll: 300 })
     }
-    const animationSettings = systemPreferences.getAnimationSettings()
-    const nativeFadeIntermediateFrames = fadeValues.filter((value) => value > 0 && value < 1).length
-    if (process.platform !== 'linux' && animationSettings.shouldRenderRichAnimation && !animationSettings.prefersReducedMotion) {
-      assert.ok(nativeFadeIntermediateFrames > 0, '启用动画时必须观察到原生透明度中间帧')
-    }
-    const result = { passed: true, electron: process.versions.electron, nativeMenuMerge: true, splitAndReturn: true, emptyWindowClosed: true, customChrome: true, keyboardCycle: true, lightDarkLayouts: true, stableDragLayout: gesture, liveMergeBeforeRelease: true, liveCancel: true, liveRedetach: true, singleWindowReused: true, grabAnchorPreserved: true, unconstrainedDrag: true, nativeFadeIntermediateFrames, animationSettings, realDrag, contentsIds }
+    const result = { passed:true, electron:process.versions.electron, nativeMenuMerge:true, splitAndReturn:true,
+      emptyWindowClosed:true, customChrome:true, keyboardCycle:true, lightDarkLayouts:true, stableDragLayout:gesture,
+      deferredMerge:true, cancelWithoutTransfer:true, singleWindowReused:true, realDrag, inputLayer:'Electron sendInputEvent (optional manual merge)', contentsIds }
     writeFileSync(join(root, 'result.json'), JSON.stringify(result, null, 2))
     console.log(JSON.stringify(result))
   } catch (error) {
