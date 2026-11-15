@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { detachedBounds, draggedBounds, managerTabSender, tabDragSupported, tabDropTarget, TabDragFeedback } from '../shell/tab-detach.mjs'
+import { TabDetacher, detachedBounds, draggedBounds, managerTabSender, tabDragSupported, tabDropTarget, tabMigrationSupported, TabDragFeedback } from '../shell/tab-detach.mjs'
 import { parseTabAction } from '../shell/model.mjs'
 
 test('跨窗口提示只通知受影响窗口，静止不重复发送，结束释放全部提示引用', () => {
@@ -132,13 +132,36 @@ test('管理 IPC 同时验证 WebContents、顶层 frame 和管理页来源', ()
 test('按实际 Ozone 后端启用拖出，Wayland 桌面上的 X11 可用，未知后端不猜坐标', () => {
   assert.equal(tabDragSupported('win32'), true)
   assert.equal(tabDragSupported('darwin'), true)
-  assert.equal(tabDragSupported('linux', '', {}), false)
-  assert.equal(tabDragSupported('linux', 'wayland'), false)
-  assert.equal(tabDragSupported('linux', 'auto', { XDG_SESSION_TYPE: 'wayland' }), false)
-  assert.equal(tabDragSupported('linux', '', { WAYLAND_DISPLAY: 'wayland-0' }), false)
-  assert.equal(tabDragSupported('linux', 'x11', { WAYLAND_DISPLAY: 'wayland-0' }), true)
-  assert.equal(tabDragSupported('linux', 'x11', { XDG_SESSION_TYPE: 'wayland' }), true)
-  assert.equal(tabDragSupported('linux', 'headless'), false)
+  assert.equal(tabDragSupported('linux', '', '44.7.1'), false)
+  assert.equal(tabDragSupported('linux', 'wayland', '44.7.1'), false)
+  assert.equal(tabDragSupported('linux', 'auto', '44.7.1'), false)
+  assert.equal(tabDragSupported('linux', 'headless', '44.7.1'), false)
+  assert.equal(tabDragSupported('linux', 'x11', '44.7.1'), true)
+  assert.equal(tabDragSupported('linux', 'x11', '45.0.0-alpha.6'), true)
+  assert.equal(tabDragSupported('linux', 'x11', '44.7.0'), false)
+})
+
+test('跨窗迁移只在带原生视图重挂载修复的 Electron 上开放，Windows/macOS 不受限', () => {
+  assert.equal(tabMigrationSupported('win32', '44.7.0'), true)
+  assert.equal(tabMigrationSupported('darwin', '44.7.0'), true)
+  assert.equal(tabMigrationSupported('linux', '44.7.1'), true)
+  assert.equal(tabMigrationSupported('linux', '44.9.0'), true)
+  assert.equal(tabMigrationSupported('linux', '44.7.0'), false)
+  assert.equal(tabMigrationSupported('linux', ''), false)
+})
+
+test('运行时没有迁移能力时，菜单入口与拖动都不搬页面', () => {
+  const record = { id: 'page-a', pendingClose: false, moving: false }
+  const tabs = { kind: 'window', tabs: [record], overlay: false, detachResult: null,
+    window: { isDestroyed: () => false }, present() {}, render() {} }
+  record.host = tabs
+  let transfers = 0
+  const registry = { targets: new Map([['page-a', record]]), transferView() { transfers += 1 } }
+  const detacher = new TabDetacher(registry, tabs, { quitting: () => false, migrationSupported: () => false })
+  assert.equal(detacher.canCreateWindow('page-a'), false)
+  assert.equal(detacher.detach({ id: 'page-a', request: 1 }).status, 'error')
+  assert.equal(transfers, 0)
+  assert.equal(record.host, tabs)
 })
 
 test('落点使用 DIP：负坐标副屏、小屏和工作区边缘均可见，不重复乘 DPI', () => {

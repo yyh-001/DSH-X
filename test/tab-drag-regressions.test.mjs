@@ -297,7 +297,7 @@ test('旧核心 fallback 数字菜单请求遭 overlay 拒绝时弹出可见错�
   fallback.render(true)
   let popup, dialogs = 0
   const context = vm.createContext({ instanceViews: registry, TabDetacher, tabs: source, quitting: false,
-    canDragTabs: () => true, tabHosts: () => [source, fallback], state: { lang: 'zh' }, console: { warn() {} },
+    canDragTabs: () => true, canMigrateTabs: () => true, tabHosts: () => [source, fallback], state: { lang: 'zh' }, console: { warn() {} },
     dialog: { showMessageBox(window, options) { assert.equal(window, fallback.window); assert.match(options.message, /无法/); dialogs++ } },
     Menu: { buildFromTemplate: template => ({ popup() { popup = template } }) },
   })
@@ -321,7 +321,7 @@ test('Window 菜单与 popup 均禁止单标签重复开窗，指定目标合并
   source.window.isFocused = () => false
   let applicationMenu, popup, created = 0
   const context = vm.createContext({ TabDetacher, tabDropTarget, instanceViews: registry, tabs: source, quitting: false,
-    state: { lang: 'zh' }, canDragTabs: () => true, tabHosts: () => [source, original],
+    state: { lang: 'zh' }, canDragTabs: () => true, canMigrateTabs: () => true, tabHosts: () => [source, original],
     createDshWindow: () => { created++; return createHost() }, console: { warn() {} }, dialog: { showMessageBox() {} },
     Menu: { buildFromTemplate: template => ({ popup() { popup = template },
       getMenuItemById: id => template.flatMap(row => row.submenu || []).find(row => row.id === id) }),

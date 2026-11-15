@@ -26,7 +26,7 @@ function run(command, args, cwd = ROOT) {
 const rootPkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
 const shellPkg = JSON.parse(readFileSync(join(ROOT, 'shell', 'package.json'), 'utf8'))
 const version = shellPkg.version
-const electron = String(rootPkg.devDependencies?.electron || '').replace(/^[~^]/, '') || '44.7.1'
+const electron = String(rootPkg.devDependencies?.electron || '').replace(/^[~^]/, '') || '44.7.0'
 
 await rm(STAGE, { recursive: true, force: true })
 await mkdir(STAGE, { recursive: true })

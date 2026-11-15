@@ -57,8 +57,10 @@ test('缺少 DISPLAY 明确诊断且不重启；存在但失效的 DISPLAY 只�
 
 test('已解析为 X11 的后端不因桌面是 Wayland 再重启；未知后端不开放拖动', () => {
   assert.equal(boot(['/app'], 'x11').restarting, false)
-  assert.equal(tabDragSupported('linux', 'x11', wayland), true)
-  for (const backend of ['', 'auto', 'wayland', 'headless']) assert.equal(tabDragSupported('linux', backend, wayland), false)
+  assert.equal(tabDragSupported('linux', 'x11', '44.7.1'), true)
+  for (const backend of ['', 'auto', 'wayland', 'headless']) assert.equal(tabDragSupported('linux', backend, '44.7.1'), false)
+  // 44.7.0 的跨窗迁移后内容不绘制，锁回该版本时不能开放拖动。
+  assert.equal(tabDragSupported('linux', 'x11', '44.7.0'), false)
 })
 
 test('Windows、macOS 与普通 X11 会话启动参数不变、零重启、无新增诊断', () => {
