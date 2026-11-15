@@ -8,7 +8,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { BrowserTabs } from './tabs.mjs'
 import { InstanceViews, instanceWindowTitle, launchForView, legacyWindowTarget } from './instance-views.mjs'
 import { InstanceWindow } from './instance-window.mjs'
-import { TabDetacher, TabDragFeedback, detachedBounds, draggedBounds, managerTabSender, tabDragSupported, tabDropTarget, outsideTabStrip } from './tab-detach.mjs'
+import { TabDetacher, TabDragFeedback, detachedBounds, draggedBounds, managerTabSender, tabDragSupported, tabDropTarget, tabMigrationSupported, outsideTabStrip } from './tab-detach.mjs'
 import { TabDragSession } from './tab-drag-session.mjs'
 import { WindowFade } from './window-fade.mjs'
 import { BROWSER_IPC, DesktopBrowserGuests } from './browser-guests.mjs'
@@ -769,12 +769,12 @@ function createMainWindow() {
     dispose: (id) => instanceViews.disposeView(id),
     reveal: (options) => revealWindow(mainWindow, MAIN_WINDOW, options),
     systemDark: () => nativeTheme.shouldUseDarkColors,
-    detach: () => ({ supported: canDragTabs(), drag: canDragTabs(), merge: canDragTabs(), deferred: canDragTabs() }),
+    detach: () => ({ supported: canMigrateTabs(), drag: canDragTabs(), merge: canMigrateTabs(), deferred: canDragTabs() }),
     reducedMotion: () => prefs.reduceMotion,
     changed: syncTabDetachMenu,
   })
   instanceViews = new InstanceViews({
-    canTransfer: canDragTabs,
+    canTransfer: canMigrateTabs,
     createView: createTabView,
     createHost: (kind) => kind === 'internal' ? tabs : createDshWindow(),
     bootUrl: (target) => {
@@ -806,9 +806,9 @@ function tabHosts() {
 
 function createTabDetacher(host) {
   return new TabDetacher(instanceViews, host, {
-    supported: canDragTabs,
     quitting: () => quitting,
     dragSupported: canDragTabs,
+    migrationSupported: canMigrateTabs,
     dropTarget: () => tabDropTarget(screen.getCursorScreenPoint(), host, tabHosts()),
     createHost: (source) => {
       if (source !== 'drag') return createDshWindow()
@@ -828,7 +828,11 @@ function createTabDetacher(host) {
 }
 
 function canDragTabs() {
-  return tabDragSupported(process.platform)
+  return tabDragSupported(process.platform, app.commandLine.getSwitchValue('ozone-platform'), process.versions.electron)
+}
+
+function canMigrateTabs() {
+  return tabMigrationSupported(process.platform, process.versions.electron)
 }
 
 function syncTabDetachMenu() {
@@ -1286,7 +1290,7 @@ function createDshWindow(bounds) {
     titles: syncInstanceTitles,
     changed: syncTabDetachMenu,
     systemDark: () => nativeTheme.shouldUseDarkColors,
-    detach: () => ({ supported: canDragTabs(), drag: canDragTabs(), merge: canDragTabs(), deferred: canDragTabs() }),
+    detach: () => ({ supported: canMigrateTabs(), drag: canDragTabs(), merge: canMigrateTabs(), deferred: canDragTabs() }),
     reducedMotion: () => prefs.reduceMotion,
     hidden: () => {
       if (!tray && !tabHosts().some((item) => item.window.isVisible())) showManager()

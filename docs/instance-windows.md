@@ -19,7 +19,7 @@
 ## 标签拆分与合并
 
 - 鼠标移动 5 CSS px 后开始拖动。门槛前由原按钮捕获，保留普通单击选择；开始拖动才交给稳定列表，捕获交接不取消手势，取消后的迟到 click 不再激活标签。同窗排序保留让位动画；其他窗口标签栏显示插入标记，离开源标签栏上下或窗口左右 24 CSS px 显示标题预览。上下回到栏边8px内、左右回到视口内才退出拆窗候选，提示与主进程按同一采样和迟滞契约判定。源页面和窗口保持原位，真正 pointerup 时只提交最终落点一次。
-- Windows/macOS 开放无修饰键拖出与回并。Linux（包括 X11/XWayland/Wayland）暂不交付跨窗拆合，能力位 `supported/drag/merge/deferred` 均关闭，标签菜单与原生菜单也不能搬动页面，登记器再次拒绝已有视图重挂载。同窗排序与首次独立开窗保留。新版顶栏按显示帧发送源页面局部坐标，主进程根据源窗口内容原点及页面缩放换成 DIP，再做受管窗口命中。
+- Windows/macOS 开放无修饰键拖出与回并。当前固定 Electron 44.7.0，Linux（包括 X11/XWayland/Wayland）暂不交付跨窗拆合，能力位 `supported/drag/merge/deferred` 均关闭，标签菜单与原生菜单也不能搬动页面，登记器再次拒绝已有视图重挂载。同窗排序与首次独立开窗保留。Linux 迁移沿用 `tabMigrationSupported()` 的运行时门槛（44.7.1），拖动另要求实际 X11 后端；升级前仍须通过 DSH 原生模块兼容及产品验收。新版顶栏按显示帧发送源页面局部坐标，主进程根据源窗口内容原点及页面缩放换成 DIP，再做受管窗口命中。
 - 普通独立窗口的唯一标签拖到桌面时复用原窗口，松手才按原抓取偏移改变位置；多标签、最大化或全屏窗口在松手时创建目标宿主。新窗口按显示器工作区保护可见性，不等待目标顶栏完成布局。
 - Escape、blur、pointercancel、失去捕获与页面关闭取消手势。取消不需要反向迁移。主进程在 hide/minimize/close/closed、顶栏导航/崩溃/销毁和退出时使事务失效，并请求顶栏释放 pointer capture；顶栏另监听 visibilitychange，show 时再次清理隐藏期间的捕获。原生 hide→show 后能否重新拖动必须单独验收，不能由令牌清零推断。
 - 被拖页面的内容 renderer 退出时先取消该页手势，再按原策略恢复崩溃页；其他页的退出回调不直接取消当前页会话，但恢复若造成顶栏真实失焦，仍安全取消，用户需重新拖动。正常迁移不重新导航；崩溃恢复本身会重载，不承诺崩溃前草稿保持。
@@ -45,7 +45,7 @@ Electron 保持仓库基线 44.7.0：44.7.1 虽修复 Linux 迁移后的原生�
 
 ## 验证
 
-原生兼容对照：官方 `@deepseek-ai/dsh@0.2.2-rc.1` 依赖 `node-addon-require-builtin@^0.1.9`。Windows x64、`ELECTRON_RUN_AS_NODE=1` 调用其 `requireBuiltin('internal/modules/cjs/loader')`：44.7.1 实际报 `unsupported Electron runtime fingerprint`；回退 44.7.0 后返回有效的 `Module` 函数。此对照验证原生接口，不代表完整 DSH 或安装包验收。
+原生兼容对照：官方 `@deepseek-ai/dsh@0.2.2-rc.1`～`rc.3` 依赖 `node-addon-require-builtin@^0.1.9`，而 0.1.9 用 Node + V8 精确指纹匹配运行时（表里只有 43.0.0 / 44.0.0 / 44.7.0 / 45.0.0-alpha.6）。Windows x64、`ELECTRON_RUN_AS_NODE=1` 调用其 `requireBuiltin('internal/modules/cjs/loader')`：44.7.1 实际报 `unsupported Electron runtime fingerprint`；回退 44.7.0 后返回有效的 `Module` 函数。此对照验证原生接口，不代表完整 DSH 或安装包验收。升级前须确认上游 `runtime_profile.cc` 支持新版本，并通过打包态真实 DSH 启动；`test/electron-native-compat.test.mjs` 锁住支持列表与打包兜底版本。
 
 `instance-views.test.mjs` 覆盖唯一归属、回滚、关闭、重启及 IPC，并检查禁用迁移时不摘出视图、不创建空目标。`instance-window-api.test.mjs` 和 `instance-window-ui.test.mjs` 覆盖新旧协议及界面能力。`tab-drag-session.test.mjs` 覆盖一次性事务、epoch 失效和失败回挂；`tab-drag-regressions.test.mjs` 将真实顶栏消息接到主进程函数，检查提交、取消与生命周期（DOM/假原生对象）。`internal-tabs-drag.test.mjs` 和 `tab-detach.test.mjs` 覆盖输入脚本、平台门控及坐标规则；`platform-launch.test.mjs` 检查主入口不自动切换后端、CLI 参数透传、重启参数保留及两类宿主能力与迁移门控的接线。
 

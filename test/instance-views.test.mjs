@@ -442,9 +442,9 @@ test('仅禁用手势时菜单仍可用，重复或过期请求及关闭中页�
 test('平台禁用迁移时菜单与旧 detach IPC 均拒绝，页面保持原宿主', () => {
   const { registry, tabs, createHost, windows } = setup({ canTransfer: () => false })
   const record = registry.presentInstance(target())
-  const detacher = new TabDetacher(registry, tabs, { supported: () => false, quitting: () => false,
+  const detacher = new TabDetacher(registry, tabs, { migrationSupported: () => false, quitting: () => false,
     dragSupported: () => false, createHost: () => createHost('window') })
-  assert.equal(detacher.available(record.target.id), false)
+  assert.equal(detacher.migrationSupported(), false)
   assert.equal(detacher.canCreateWindow(record.target.id), false)
   for (const source of ['menu', 'drag']) {
     assert.equal(detacher.detach({ id: record.target.id, source }).status, 'error')

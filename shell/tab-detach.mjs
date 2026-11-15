@@ -1,8 +1,29 @@
+/** 跨窗迁移依赖 Electron 44.7.1 的原生视图重挂载修复；44.7.0 下 Linux 迁移后内容不绘制。 */
+export function tabMigrationSupported(platform, electronVersion = '') {
+  if (platform !== 'linux') return true
+  return versionAtLeast(electronVersion, '44.7.1')
+}
+
 /** 拖出只协调一次用户操作；页面、宿主与生命周期始终归 InstanceViews。 */
-export function tabDragSupported(platform) {
-  // DSH 原生模块要求保留 44.7.0；该版本 Linux WCV 重挂载会停止绘制，
-  // 菜单迁移与拖动一样受影响，不能只关 Wayland 的拖动能力。
-  return platform !== 'linux'
+export function tabDragSupported(platform, ozonePlatform = '', electronVersion = '') {
+  if (platform !== 'linux') return true
+  // ready 后读 Chromium 启动时解析的后端；桌面会话是 Wayland 也可以实际运行在 XWayland。
+  // 未知后端不猜测全局坐标，保留排序和菜单入口。
+  return ozonePlatform === 'x11' && tabMigrationSupported(platform, electronVersion)
+}
+
+/** 只比较三段数字；Electron 的 `-alpha.N` 预览标签按补丁位 0 处理，够用且不会误判 44.10 < 44.7。 */
+function versionAtLeast(value, minimum) {
+  const parse = (text) => {
+    const match = /^(\d+)\.(\d+)\.(\d+)/.exec(String(text))
+    return match ? match.slice(1).map(Number) : null
+  }
+  const current = parse(value), floor = parse(minimum)
+  if (!current || !floor) return false
+  for (let index = 0; index < 3; index += 1) {
+    if (current[index] !== floor[index]) return current[index] > floor[index]
+  }
+  return true
 }
 
 export function detachedBounds(point, workArea, size) {
@@ -82,13 +103,18 @@ export class TabDetacher {
 
   available(id) {
     const record = this.registry.targets.get(id)
-    return this.hooks.supported?.() !== false && !!record && record.host === this.tabs && this.tabs.tabs.includes(record)
+    return !!record && record.host === this.tabs && this.tabs.tabs.includes(record)
       && !record.pendingClose && !record.moving && !this.tabs.overlay && !this.hooks.quitting()
       && !this.tabs.window.isDestroyed()
   }
 
   canCreateWindow(id) {
-    return this.available(id) && (this.tabs.kind !== 'window' || this.tabs.tabs.length > 1)
+    return this.migrationSupported() && this.available(id) && (this.tabs.kind !== 'window' || this.tabs.tabs.length > 1)
+  }
+
+  /** 菜单与拖动共用同一能力判断；页面把 supported=false 当作没有这个功能。 */
+  migrationSupported() {
+    return this.hooks.migrationSupported?.() !== false
   }
 
   detach({ id, source = 'menu', request = null, destination: chosenHost, index }) {
@@ -101,6 +127,7 @@ export class TabDetacher {
     let result
     try {
       if (!this.available(id)) throw new Error('该标签现在无法移到新窗口')
+      if (!this.migrationSupported()) throw new Error('当前运行时不支持跨窗口迁移')
       // 唯一标签已经在独立窗口；仅禁止重复开窗，仍允许它合并到指定宿主。
       if (source === 'menu' && !chosenHost && !this.canCreateWindow(id)) throw new Error('该标签已在独立窗口')
       if (source === 'drag' && !this.hooks.dragSupported()) throw new Error('当前桌面请使用标签菜单移到新窗口')
