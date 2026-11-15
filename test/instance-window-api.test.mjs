@@ -98,3 +98,25 @@ test('运行页面按核心实例认领，使用最新认证地址，版本和�
   assert.notEqual(get({ ...proc, home: env.home + '-other' }).id, target.id)
   assert.equal(env.server.instanceTargetFromUrl('http://127.0.0.1:12346/', env.origin, [proc]), null)
 })
+
+test('普通打开按当前打开方式请求迁移，被拒绝时返回原提示且不改走旧入口', async () => {
+  const message = '当前平台暂不支持已有页面跨窗迁移，请先关闭此标签后重新打开'
+  for (const mode of ['internal', 'window']) {
+    let attempts = 0
+    env.server.setHost({
+      presentInstance: (_target, options) => {
+        attempts++
+        assert.equal(options.presentation, mode)
+        assert.equal(options.explicit, true)
+        throw Error(message)
+      },
+      openTab: () => assert.fail('拒绝迁移后不能再开标签'),
+      openWindow: () => assert.fail('拒绝迁移后不能再开窗口'),
+    })
+    await env.call('/api/settings', { openMode: mode })
+    const result = await env.call('/api/open', { url: waiting.href })
+    assert.equal(result.status, 400)
+    assert.equal(result.data.error, message)
+    assert.equal(attempts, 1)
+  }
+})

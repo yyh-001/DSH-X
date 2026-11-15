@@ -4371,6 +4371,8 @@
       const data = await res.json()
       if (!res.ok) {
         const error = new Error(data.error || res.statusText)
+        // 区分服务端明确拒绝与网络中断；前者不能换个入口重试同一动作。
+        error.status = res.status
         // 启动失败时服务端会把 dsh 的输出尾巴一起带回来（见 showFailure）
         if (data.failure) error.failure = data.failure
         if (data.repairRecord) {
@@ -8199,8 +8201,8 @@
       try {
         await post('/api/open', { url, ...(presentation ? { presentation } : {}) })
       } catch (error) {
-        // 显式开窗失败不能偷偷另开浏览器，否则迁移失败会看起来像成功。
-        if (presentation) { notifyError(error); return }
+        // 普通打开也可能请求迁移；服务端拒绝时保留提示，不能再用弹窗重试。
+        if (presentation || error.status) { notifyError(error); return }
         window.open(url, '_blank', 'noopener')
       }
     }
