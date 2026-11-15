@@ -78,6 +78,18 @@ test('WSL 自动版本在进度页保持 auto，并带合成目录', () => {
   assert.equal(url.searchParams.get('home'), 'wsl://Fedora/~%2F.dsh')
 })
 
+test('SSH 启动项的进度页也带合成目录，不能传本机路径', () => {
+  const { context } = bootPageSandbox({
+    state: {
+      dshHome: 'C:/Users/me/.dsh',
+      launchPresets: [{ id: 'ssh', name: 'hermes', profile: 'web', backend: 'ssh', connectionId: 'abc', remoteHome: '~/.dsh' }],
+    },
+  })
+  context.launchHomeOf = () => 'ssh://abc/~%2F.dsh'
+  const url = new URL(context.bootPageUrl('0.2.2-rc.3', 'web', 'ssh'))
+  assert.equal(url.searchParams.get('home'), 'ssh://abc/~%2F.dsh', 'SSH 实例的 home 是合成键；传本机目录会让进度页一直停在「准备启动」')
+})
+
 test('全局目录的启动项不写 dshHome，换成默认目录', () => {
   const { context } = bootPageSandbox()
   const url = new URL(context.bootPageUrl('1.2.3', 'web', ''))

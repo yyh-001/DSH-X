@@ -1,7 +1,7 @@
 {
   "name": "dsh-x-context-menu",
-  "version": "0.1.1",
-  "description": "给 dsh 网页界面加一套右键菜单：会话行、工作区行、正文选中文字、链接、输入框。重命名/置顶/分叉/归档/新建会话走官方服务，在资源管理器中打开和打开外链走本插件的环回路由；不依赖任何桌面壳。Right-click menus for the dsh web UI — sessions, workspaces, selected text, links and inputs — on top of the official services, with no desktop shell required.",
+  "version": "0.1.2",
+  "description": "给 dsh 网页界面的右键菜单做两件事：在 dsh 自带菜单里补上官方没有的动作（复制会话标题/工作目录、在文件夹显示、工作区的新建会话/复制名称与路径），官方没有右键菜单的老版本上则自绘一套会话行/工作区行菜单；正文选中文字、链接和输入框始终自绘。重命名/置顶/分叉/归档/新建会话走官方服务，在资源管理器中打开和打开外链走本插件的环回路由；不依赖任何桌面壳。Extends the dsh built-in context menu with the actions it does not ship (copy session title/cwd, show in folder, new session and copy name/path on workspaces) and falls back to drawing its own row menus on older dsh versions; selected text, links and inputs are always drawn by this plugin. No desktop shell required.",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -23,7 +23,7 @@
   ],
   "meta": {
     "title": "右键菜单",
-    "description": "给会话行、工作区行、选中文字、链接和输入框加一套右键菜单。"
+    "description": "在 dsh 自带右键菜单里补上复制会话标题/工作目录、在文件夹显示等动作；老版本 dsh 上自绘会话行/工作区行菜单。"
   },
   "scripts": {
     "test": "node --test"
@@ -57,7 +57,7 @@
   "dshhub": {
     "schemaVersion": 1,
     "displayName": "DSH-X Context Menu",
-    "summary": "右键会话行：重命名、置顶、分叉、归档、复制标题/ID/工作目录、在资源管理器中打开；右键工作区行：新建会话、复制名称/路径；正文选中文字与链接、输入框也各有一套。菜单自绘，跟 dsh 主题同色。",
+    "summary": "接在 dsh 自带右键菜单上：会话行补复制标题/工作目录、在文件夹显示，工作区行补新建会话、复制名称/路径；重命名、置顶、分叉、归档等官方已有的动作不重复。正文选中文字、链接和输入框另有一套自绘菜单，跟 dsh 主题同色。",
     "categories": [
       "界面",
       "桌面"

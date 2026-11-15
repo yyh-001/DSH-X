@@ -1,7 +1,7 @@
 {
   "name": "dsh-x",
   "productName": "DSH",
-  "version": "0.1.27-rc.1",
+  "version": "0.1.27-rc.3",
   "private": true,
   "type": "module",
   "description": "DeepSeek Harness 桌面启动器：启动项与多实例，版本、插件、整合包、MCP 和技能管理。",
@@ -46,5 +46,8 @@
     "electron": "44.7.1",
     "electron-builder": "^26.18.0",
     "electron-updater": "^6.8.11"
+  },
+  "dependencies": {
+    "ssh2": "^1.17.0"
   }
 }

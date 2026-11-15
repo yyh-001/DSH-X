@@ -37,17 +37,15 @@
 
 ## Features
 
-- 🚀 **Launch entries and multiple instances** — choose a home directory, profile, version and port per entry; start entries concurrently and add entries while DSH is running.
-- 📦 **Version management** — a dedicated manager for detecting new releases, manually installing, removing, checking disk usage and assigning versions to launch entries.
-- 🧩 **Plugins and packs** — install, uninstall, toggle and update plugins by environment (npm package names, local paths or Git URLs) and configure default indexes for the official custom plugin market; browse, search and sort the masonry-style community market, or import and export packs.
-- 🖥️ **Desktop enhancements** — tick it when adding a launch item to install three first-party plugins (native notifications, context menu, sidebar browser) into that environment; add missing ones later by editing the launch item, then toggle or update them individually on the Plugins page.
-- 🛠️ **MCP and skills** — configure MCP servers and import, manage and toggle skills.
-- 🪟 **Opening modes** — tabs inside DSH-X, a system browser tab, a standalone browser window or a desktop window.
-- 🎨 **Appearance** — light / dark themes, transparency, opening and launch-entry animations, and separate background and Big Fish switches.
-- 🔄 **Updates and recovery** — self-update, profile recovery, profile backups and rollback, plus configurable old-version retention; each launch entry's current and previous versions are kept additionally.
-- 🔍 **Startup troubleshooting** — the launch log has three tabs (raw log / time breakdown / disk usage) and plugin diagnostics on the raw log page: startup time and dependencies rolled up per plugin, native/GC detail, and disk usage split into plugin code, dependencies, runtime and config/data; the log icon turns red when a plugin errors.
-- ⚙️ **Desktop system switches** — hardware acceleration, automatic update download (install manually), task notifications and sound, hide to tray on close, and keep-awake.
-- 💻 **Windows / macOS / Linux** — installers for all three platforms, tray / menu bar operation and launch at login, plus bundled npm / pnpm wrappers.
+- 🚀 **Launch entries and multiple instances** — choose a user directory, profile, version and port per entry; start concurrently and add entries while DSH runs.
+- 📦 **Version management** — detect, install, remove and clean up dsh versions; pin a version per entry and inspect disk usage.
+- 🧩 **Plugins and packs** — install, remove, toggle and update plugins per environment; browse and import/export packs.
+- 🌐 **WSL and SSH remotes** — manage connections under Settings → Remote; launch entries can run on a WSL distro or SSH host, with dsh-x-core installed automatically and pages opened locally through an SSH tunnel.
+- 🔍 **Startup troubleshooting** — raw log / time breakdown / disk usage tabs, startup time and dependencies grouped per plugin, and a red log icon on plugin errors.
+- 🔄 **Updates and recovery** — self-update, recovery, profile backups and rollback, and old-version cleanup.
+- 🪟 **Opening modes and appearance** — internal tabs, system browser or standalone window; light/dark themes, transparency, background and animations.
+- 🛠️ **MCP, skills and desktop enhancements** — configure MCP servers and skills; one-click install of first-party plugins such as native notifications and the sidebar browser.
+- ⚙️ **Cross-platform and system switches** — Windows / macOS / Linux installers; hardware acceleration, update download, tray and launch at login.
 
 ## Getting started
 
@@ -115,7 +113,9 @@ Pick an **isolation mode** first; it decides how far the new environment is from
 | Session isolation | A new user directory under `homes/<name>` in the data directory | Nothing: sessions, skills and plugins are all separate |
 | Custom | A user directory + profile + port of your choice | Whatever that environment already has |
 
-In the first two modes, then pick where the **profile** comes from:
+In the first two modes, pick a **user directory** first: a local directory, or a saved WSL / SSH connection. Remote profiles and directories are created automatically, and dsh-x-core is installed on first launch.
+
+Then pick where the **profile** comes from:
 
 - **New profile**: leave the name empty to have one generated (collisions get a suffix), or type your own.
 - **Copy an existing profile**: choose the source (directory on the left, profile in the middle); the new name defaults to `source-copy` and can be changed.
@@ -228,10 +228,9 @@ Run `node scripts/make-pack.mjs` to build a `.dspack`, then import it as a local
 
 ## Desktop enhancements
 
-Tick "Install desktop enhancements" when adding a launch item; saving installs three first-party plugins into that item's profile (from npm, not bundled with the installer). Edit the launch item later to see how many are installed and add the missing ones; unticking never uninstalls.
+Tick "Install desktop enhancements" when adding a launch item; saving installs the first-party plugins into that item's profile (from npm, not bundled with the installer). Edit the launch item later to see how many are installed and add the missing ones; unticking never uninstalls.
 
 - [Native notifications](https://www.npmjs.com/package/dsh-x-desktop-notify) — system notifications when a turn ends or waits for confirmation, plus desktop capabilities for other plugins
-- [Context menu](https://www.npmjs.com/package/dsh-x-context-menu) — right-click menus for sessions, workspaces, selected text, links and inputs; a pure web plugin with no desktop shell
 - [Sidebar browser](https://www.npmjs.com/package/dsh-x-sidebar-browser) — drive dsh's official right-sidebar Browser: snapshot, click, type, screenshot
 
 ## Wallpaper

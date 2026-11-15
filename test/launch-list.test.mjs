@@ -169,9 +169,13 @@ function editor({ fail = false, confirm = true, wsl = false, entries = [{ id: 'a
   const posts = []
   const context = vm.createContext({
     launchBackendIsWsl: () => wsl,
+    launchBackendIsRemote: () => wsl,
+    launchBackendKind: () => wsl ? 'wsl' : 'local',
+    launchConnectionIdEl: { value: '' }, launchRemoteHomeEl: { value: '~/dsh-ui-test' },
     launchWslDistroEl: { value: 'Fedora' }, launchWslHomeEl: { value: '~/dsh-ui-test' }, launchWslWorkdirEl: { value: '' },
     launchWslUserEl: { value: 'root' },
     refreshWslProfiles: async () => true,
+    refreshRemoteProfiles: async () => true,
     launchFormEl: {}, launchSaveEl: { disabled: false }, launchDeleteEl: { disabled: false },
     editingLaunchId: savedEntry.id === 'c' ? 'b' : savedEntry.id, DEFAULT_LAUNCH_ID: 'a', state: { launchPresets: entries },
     launchNameEl: { value: '新增项' }, launchIcon: 'terminal', versionValue: 'auto', launchProfile: 'web',
@@ -201,9 +205,11 @@ test('WSL 启动项保存只带 WSL 字段，并在关窗前解除保存按钮�
   assert.ok(body, '应当发保存请求')
   assert.equal(body.backend, 'wsl')
   assert.equal(body.version, 'auto')
+  assert.equal(body.remoteHome, '~/dsh-ui-test')
   assert.equal(body.wslDistro, 'Fedora')
   assert.equal(body.wslHome, '~/dsh-ui-test')
   assert.equal(body.wslUser, 'root')
+  assert.equal(body.workdir, '')
   assert.equal(body.dshHome, undefined, 'WSL 分支不写 Windows 侧目录')
   assert.equal(body.ensureProfile, undefined, 'WSL 分支不走本机 Profile 引导')
   assert.ok(h.calls.includes('close'))

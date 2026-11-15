@@ -53,6 +53,10 @@ export function buildRemoteCoreInstallScript(options = {}) {
   const spec = wslPackageSpec(String(options.packageSpec || `dsh-x-core@${version}`))
   return [
     'set -eu',
+    // WSL 会把 Windows 的 PATH 带进来（/mnt/c/...），里面有 DSH-X 的 Windows dsh shim；
+    // 远端 core 只认 Linux 里的 dsh，先过滤掉 /mnt 路径，避免把 Windows 的 dsh 当成系统 dsh。
+    'PATH=$(printf "%s" "$PATH" | tr ":" "\\n" | grep -v "^/mnt/" | paste -sd: -)',
+    'export PATH',
     `root=${shellPath(root)}`,
     'target="$root/node_modules/dsh-x-core/start.js"',
     'if [ -f "$target" ]; then printf \'__DSHX_CORE_READY__\\n\'; exit 0; fi',
@@ -76,6 +80,9 @@ export function buildRemoteCoreStartScript(options = {}) {
   const exports = buildExportsScript(options.env || {})
   return [
     exports,
+    // 同上：远端 core 只看 Linux PATH，别让 /mnt/c 里的 Windows npm/dsh 混进来。
+    'PATH=$(printf "%s" "$PATH" | tr ":" "\\n" | grep -v "^/mnt/" | paste -sd: -)',
+    'export PATH',
     `cd ${shellPath(root)}`,
     `XDG_CONFIG_HOME=${shellPath(configRoot)} PORT=${port} DSH_NO_OPEN=1 exec node node_modules/dsh-x-core/start.js`,
   ].filter(Boolean).join('\n')
@@ -86,6 +93,17 @@ export function parseRemoteCoreReady(text) {
   const match = CORE_READY_RE.exec(String(text || ''))
   if (!match) return null
   return { port: Number(match[1]), token: match[2] }
+}
+
+/** 把 `$HOME/...` / `~/...` 的安装目录展开成远端绝对路径，供探测和确认框展示。 */
+export function resolveWslInstallRoot(root, home) {
+  const value = String(root || '').trim()
+  const who = String(home || '').replace(/\/+$/, '')
+  if (!who) return value
+  if (value === '$HOME' || value === '~') return who
+  if (value.startsWith('$HOME/')) return `${who}/${value.slice(6)}`
+  if (value.startsWith('~/')) return `${who}/${value.slice(2)}`
+  return value
 }
 
 /**
@@ -118,7 +136,16 @@ export class WslRemoteCore {
     return Boolean(this.child && this.baseUrl)
   }
 
-  async install() {
+  async inspectInstall() {
+    const identity = await this.backend.resolveIdentity()
+    const root = resolveWslInstallRoot(this.installRoot, identity.home)
+    const target = `${root}/node_modules/dsh-x-core/start.js`
+    const result = await this.backend.exec(`test -f ${shellQuote(target)} && printf yes || printf no`, { timeoutMs: 10000 })
+    if (!result.ok) throw new Error(`检查 WSL 里的 dsh-x-core 失败：${(result.stderr || result.stdout || '').slice(0, 400)}`)
+    return { installed: String(result.stdout || '').trim() === 'yes', root, identity }
+  }
+
+  async install(options = {}) {
     const identity = await this.backend.resolveIdentity()
     const proxy = await this.backend.resolveRuntimeProxy(this.proxy?.url ?? this.proxy ?? '')
     const env = proxy.via === 'unreachable' || proxy.via === 'none'
@@ -129,10 +156,18 @@ export class WslRemoteCore {
       installRoot: this.installRoot,
       packageSpec: this.packageSpec,
     })
-    const result = await this.backend.exec([buildExportsScript(env), script].filter(Boolean).join('\n'), {
-      identity,
-      timeoutMs: 15 * 60 * 1000,
-    })
+    options.onProgress?.({ label: '正在安装依赖…' })
+    options.onLog?.(`开始安装 dsh-x-core ${this.version}`)
+    const heartbeat = setInterval(() => options.onLog?.(`仍在安装 dsh-x-core ${this.version}…`), 10000)
+    let result
+    try {
+      result = await this.backend.exec([buildExportsScript(env), script].filter(Boolean).join('\n'), {
+        identity,
+        timeoutMs: 15 * 60 * 1000,
+      })
+    } finally {
+      clearInterval(heartbeat)
+    }
     if (!result.ok) {
       // wsl.exe 的 localhost 代理警告和 npm 的真实错误可能分别落在 stderr/stdout；
       // 两边都取，过滤掉警告，别让「找不到原因」只显示一行警告。
@@ -145,6 +180,8 @@ export class WslRemoteCore {
         .join('\n')
       throw new Error(`在 WSL 里安装 dsh-x-core ${this.version} 失败：${text || '没有输出'}`)
     }
+    options.onProgress?.({ percent: 100, label: '安装完成' })
+    options.onLog?.(`dsh-x-core ${this.version} 安装完成`)
     return { ok: true, installed: String(result.stdout || '').includes('__DSHX_CORE_INSTALLED__') }
   }
 
@@ -301,4 +338,14 @@ export async function stopAllRemoteCores() {
   const list = [...cores.values()]
   cores.clear()
   await Promise.allSettled(list.map((core) => core.stop()))
+}
+
+/** 停掉某个 WSL 目标上的 core（设置页断开/停止远端服务用）。 */
+export async function stopWslRemoteCore({ distro, user = '', version } = {}) {
+  const key = `${String(distro || '').trim()}\0${String(user || '').trim()}\0${String(version || '').trim()}`
+  const core = cores.get(key)
+  if (!core) return false
+  cores.delete(key)
+  await core.stop()
+  return true
 }

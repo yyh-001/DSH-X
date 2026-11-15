@@ -1,5 +1,5 @@
 /**
- * DSH-X 桌面增强：设置 → 常规 里「一键安装」装进当前 profile 的三个首方插件。
+ * DSH-X 桌面增强：设置 → 常规 里「一键安装」装进当前 profile 的首方插件。
  *
  * 它们是普通的 dsh 插件（host / client 分开），不在安装包里、也不随启动自动补装：
  * 用户在设置里点一下才装。装法复用插件页那条链路（`dsh plugin add` + 写
@@ -10,7 +10,11 @@
  */
 
 /**
- * 三个首方插件。
+ * 首方插件清单。
+ *
+ * 右键菜单插件已经从这一组撤掉：dsh 0.2.2 起自带右键菜单（`contextMenus` 服务），
+ * 再装一套只会两套菜单同时出现（issue #110）。包里不再引用它，装过的用户在插件页
+ * 单独卸载即可；以后也不再挂回来。
  *
  * `spec` 钉精确版本：核心的 safeSpec 不接受 `^`；也不用 `latest`——新包首发会先出一个
  * `0.0.0-stage` 占位版本，`@latest` 在那段时间装到的是空壳。升级交给插件页（它按
@@ -18,13 +22,12 @@
  *
  * `minDsh` 是插件 dsh.compatibility.dsh 的下限；同一版本的预发布（0.2.1-rc.4）算满足。
  */
-/** 插件页里把这三个插件当成一组「整合包」显示时用的 id / 名字（没有真实安装记录）。 */
+/** 插件页里把这一组装成「整合包」显示时用的 id / 名字（没有真实安装记录）。 */
 export const DESKTOP_ENHANCE_ID = 'dsh-x-desktop-enhance'
 export const DESKTOP_ENHANCE_NAME = '桌面增强'
 
 export const DESKTOP_PLUGINS = Object.freeze([
   { name: 'dsh-x-desktop-notify', spec: '0.1.1', label: '原生通知', minDsh: '0.2.0' },
-  { name: 'dsh-x-context-menu', spec: '0.1.1', label: '右键菜单', minDsh: '0.2.0' },
   { name: 'dsh-x-sidebar-browser', spec: '0.1.1', label: '侧栏浏览器', minDsh: '0.2.1-rc.2' },
 ])
 

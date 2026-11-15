@@ -42,6 +42,8 @@ function editor(post = async () => ({ version: TARGET, plugins: [], incompatible
   const c = vm.createContext({ ...nodes,
     launchCompatibility: { request: 0, key: '', busy: false }, launchDialogRevision: 1,
     launchDialogEl: { hidden: false }, launchDialogClosing: false, versionValue: TARGET, draftLaunchChannel: () => 'rc', selected: () => c.launchVersionEl.value, editingLaunchId: 'saved-id', launchPluginScope: 'saved-id',
+    versionTargetIsWsl: () => false,
+    parseWslHomeKey: () => null,
     launchVersionEl: element(TARGET), launchVersion: TARGET, launchProfileEl: element('draft-profile'), launchProfile: 'draft-profile',
     launchDshHomeEl: element(DRAFT),
     state: { dshHome: '/global', profile: 'web', local: ['0.2.0'], versions: ['0.2.0'], launchPresets: [{ id: 'saved-id', version: '0.2.0', profile: 'web', dshHome: '/saved' }] },

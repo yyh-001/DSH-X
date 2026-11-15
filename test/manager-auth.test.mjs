@@ -178,3 +178,26 @@ test('管理服务：页面要 cookie，本机无 Origin 的 API 调用照旧', 
     }
   })
 })
+
+test('旧外壳打开不带 token 的根地址：本机顶层导航 303 到带 token 的地址', () => {
+  const auth = new ManagerAuth(Buffer.alloc(32, 7))
+  const url = new URL('http://127.0.0.1:3780/?window=1')
+  const res = fakeRes()
+  const req = { method: 'GET', url: url.href, headers: { host: '127.0.0.1:3780', 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' } }
+  assert.equal(auth.exchange(req, res, url), true)
+  assert.equal(res.status, 303)
+  const location = new URL(res.headers.location, 'http://127.0.0.1:3780')
+  assert.equal(location.pathname, '/')
+  assert.equal(location.searchParams.get('token'), auth.launchToken)
+  assert.equal(location.searchParams.get('window'), '1', '原有参数原样保留')
+})
+
+test('兼容跳转只给本机顶层导航：局域网和脚本请求仍然要 token', () => {
+  const auth = new ManagerAuth(Buffer.alloc(32, 7))
+  const lan = new URL('http://192.168.1.20:3780/')
+  assert.equal(auth.exchange({ method: 'GET', url: lan.href, headers: { host: '192.168.1.20:3780', 'sec-fetch-mode': 'navigate' } }, fakeRes(), lan), false, '局域网必须带 token')
+  const local = new URL('http://127.0.0.1:3780/')
+  assert.equal(auth.exchange(request(local.href), fakeRes(), local), false, '脚本请求（没有顶层导航头）不放行')
+  const api = new URL(`http://127.0.0.1:3780/api/state?token=${auth.launchToken}`)
+  assert.equal(auth.exchange(request(api.href), fakeRes(), api), false, '兼容跳转只处理根地址')
+})

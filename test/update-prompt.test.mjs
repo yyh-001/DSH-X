@@ -9,7 +9,7 @@ const start = readFileSync(fileURLToPath(new URL('../src/start.js', import.meta.
 const shellMain = readFileSync(fileURLToPath(new URL('../shell/main.mjs', import.meta.url)), 'utf8')
 
 // dsh 是第三方插件的宿主：新版本可能让插件失效（插件市场就出过），所以升级必须先确认。
-const RISK = '升级会先停掉正在运行的 dsh，再下载安装新版本。插件由第三方维护、通常滞后于 dsh，新版本可能让插件失效或页面打不开（插件市场就出过这种情况）。已装的其他版本会保留，随时可以切回。'
+const RISK = '升级会停掉 dsh 再安装新版本。插件可能不兼容而失效、甚至页面打不开；旧版本会保留，随时可切回。'
 
 test('启动时不再自动弹更新弹窗', () => {
   // 页面不再读 /api/pending：那个接口是「启动时先问一句」的老路
@@ -35,9 +35,20 @@ test('首页的更新按钮只弹确认，不直接升级', () => {
 
 test('dsh 升级确认里写明了风险', () => {
   assert.ok(html.includes(`'${RISK}'`), '风险说明要作为 dsh 那一行的提示传进去')
-  assert.ok(html.includes('"Upgrading stops the running dsh'), '英文界面要有对应文案')
+  assert.ok(html.includes('"Upgrading stops dsh and installs the new version.'), '英文界面要有对应文案')
   assert.match(css, /\.ask-risk \{/, '风险块要有自己的样式')
   assert.match(html, /t\('更新到 \{latest\}', \{ latest: update\.dsh\.latest \}\)/, '按钮文案用「更新到 x」')
+})
+
+test('更新内容拉取期间显示转圈', () => {
+  // 读取 release notes 要走网络，空白或一行静态文字看着像卡死
+  assert.match(html, /notesSpinner\.className = 'ask-notes-spinner'/, '加载态要有转圈元素')
+  assert.match(html, /className = 'ask-notes-loading'/, '转圈和文字排成一行')
+  assert.match(html, /notes\.append\(notesLoading\)/, '加载行先摆进更新内容块')
+  assert.match(html, /\.then\(\(data\) => renderNotes\(notes, data\)\)/, '内容回来就整块替换')
+  assert.match(css, /\.ask-notes-spinner \{[^}]*animation: spin/, '转圈复用 spin 关键帧')
+  assert.match(css, /html\.reduce-motion \.ask-notes-spinner \{ animation: none; \}/, '减动效时停转')
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{ \.ask-notes-spinner \{ animation: none; \} \}/, '系统减动效时停转')
 })
 
 test('启动器自更新仍然点按钮才弹', () => {
@@ -95,4 +106,9 @@ test('更新按钮跟字标垂直居中，入场只淡入不位移', () => {
   assert.match(boot, /\.brand-block \.self-update \{ animation: launcher-module-fade-in/, '按钮只淡入')
   assert.doesNotMatch(boot, /\.brand-block \.self-update[^}]*launcher-module-in/, '不再跟着版本号一起上滑')
   assert.match(boot, /@keyframes launcher-module-fade-in/, '淡入关键帧存在')
+})
+
+test('更新确认弹窗固定尺寸，版本说明长短不再改变卡片大小', () => {
+  assert.match(css, /#ask \.ask-card \{[^}]*height: 560px/, '弹窗高度要固定')
+  assert.match(css, /\.ask-items \{[^}]*overflow-y: auto/, '正文在卡片内滚动，不能把弹窗撑长')
 })

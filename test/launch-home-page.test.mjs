@@ -5,7 +5,7 @@ import vm from 'node:vm'
 
 const page = readFileSync(new URL('../src/public/index.html', import.meta.url), 'utf8')
 const section = (from, to) => page.slice(page.indexOf(from), page.indexOf(to, page.indexOf(from)))
-const homes = section('    function paintLaunchHomePath()', '    function allVersionList()')
+const homes = section('    function paintLaunchHomePath()', '    // ---- 连接管理')
 // 目录下拉的候选列表和「环境」页共用一份实现，一起装进沙箱。
 const homeList = section('    function homeOptions(current)', '    function paintPluginHomes()')
 const recovery = section('    function recoveryOptions()', '    function renderRecovery()')
@@ -28,24 +28,26 @@ function editor(getJson = async () => ({ home: 'D:/isolated', profiles: ['web'],
     getJson, post: async (...args) => { calls.push(args); return {} },
     launchEntries: () => context.state.launchPresets,
     PLUGIN_HOME_MANAGE: '__manage__', openPluginHomesDialog() {},
+    parseWslHomeKey: (key) => String(key).startsWith('wsl://') ? { distro: 'Debian', home: '~/.dsh' } : null,
   })
   vm.runInContext(homeList + recovery + homes, context)
   return { context, elements, calls }
 }
 
-test('WSL 自动版本的启动请求始终带 auto，不带上一次用过的旧版本', () => {
+test('WSL / SSH 自动版本的启动请求始终带 auto，不带上一次用过的旧版本', () => {
   const start = section('    async function startLaunchInstance(', '    async function startVersion(')
-  assert.match(start, /if \(wsl && entry\?\.version === 'auto'\) version = 'auto'/, '在打开进度页前把版本改回 auto')
+  assert.match(start, /if \(remote && entry\?\.version === 'auto'\) version = 'auto'/, '在打开进度页前把版本改回 auto')
   assert.match(start, /const bootPage = openBootPage\(version, profile, launchId\)/, '进度页用纠正后的版本')
   assert.match(start, /post\('\/api\/start', \{ version, profile \}, \{ launchId \}\)/, '启动请求用纠正后的版本')
+  assert.doesNotMatch(start, /if \(!wsl && !installedList\(\)\.includes\(version\)\)/, 'SSH 远端不能先跑本地安装')
 })
 
-test('目录下拉：第一项是沿用全局目录，已保存的独立目录仍留在选项里', () => {
+test('目录下拉：第一项是本机，已保存的独立目录仍留在选项里', () => {
   const { context: c, elements } = editor()
   c.paintLaunchHomes('D:/isolated')
   assert.equal(c.launchDshHomeEl.value, 'D:/isolated')
   assert.equal(elements.launchDshHomeTrigger.title, 'D:/isolated', '完整路径挂在触发器上')
-  assert.match(c.launchDshHomeEl.innerHTML, /<option value="">沿用全局目录（C:\/global）<\/option>/, '空值项写清继承的是哪个目录')
+  assert.match(c.launchDshHomeEl.innerHTML, /<option value="">本机（C:\/global）<\/option>/, '空值项写清继承的是哪个目录')
   assert.match(c.launchDshHomeEl.innerHTML, /<option value="D:\/isolated">D:\/isolated<\/option>/, '启动项自己的目录不能从列表里消失')
   assert.equal(elements.launchRecover.disabled, false)
   assert.equal(c.recoveryOptions().launchId, 'work')
@@ -59,6 +61,16 @@ test('目录下拉：第一项是沿用全局目录，已保存的独立目录�
   assert.equal(c.launchDshHomeEl.value, '')
   assert.equal(elements.launchDshHomeTrigger.title, 'C:/global')
   assert.equal(c.recoveryOptions().launchId, '')
+})
+
+test('WSL 合成键不会当成本机目录出现在下拉里，也不会重复成两行', () => {
+  const { context: c } = editor()
+  c.state.instances = [{ version: '1.0.0', profile: 'web', home: 'wsl://Debian/~%2F.dsh' }]
+  c.state.launchPresets.push({ id: 'wsl', profile: 'web', dshHome: 'wsl://Debian/~%2F.dsh' })
+  c.paintLaunchHomes('')
+  assert.doesNotMatch(c.launchDshHomeEl.innerHTML, /wsl:\/\//, 'WSL 行由选择窗单独渲染')
+  c.paintLaunchHomes('wsl://Debian/~%2F.dsh')
+  assert.doesNotMatch(c.launchDshHomeEl.innerHTML, /wsl:\/\//, '当前值也不能把合成键塞回本机目录')
 })
 
 test('目录的迟到响应不能覆盖另一次选择，目录检查后按新目录刷新 Profile', async () => {
@@ -260,4 +272,21 @@ test('编辑 Profile…：还没初始化过的 Profile 只提示怎么让它出
   assert.equal(opened, '', '没卡片时不能凭空打开详情')
   assert.match(calls.at(-1), /Profile「qa」还没初始化/)
   assert.match(page, /"编辑 Profile…": "Edit profile…"/, '英文文案跟着补')
+})
+
+test('目录候选列表不把 SSH / WSL 合成键当成 Windows 目录', () => {
+  const context = vm.createContext({
+    state: {
+      dshHome: 'C:/global',
+      dshHomes: ['D:/extra'],
+      launchPresets: [{ id: 'remote', name: '远端', dshHome: 'ssh://abc/~%2F.dsh' }],
+      instances: [{ home: 'ssh://abc/~%2F.dsh' }, { home: 'wsl://Debian/~%2F.dsh' }],
+    },
+    parseWslHomeKey: (home) => home.startsWith('wsl://') ? { distro: 'Debian', home: '~/.dsh' } : null,
+    parseSshHomeKey: (home) => home.startsWith('ssh://') ? { connectionId: 'abc', home: '~/.dsh' } : null,
+    pluginHomeName: (home, fallback) => fallback,
+  })
+  vm.runInContext(homeList, context)
+  const homes = [...context.homeOptions('ssh://abc/~%2F.dsh').keys()]
+  assert.deepEqual(homes, ['D:/extra'], '远端的合成目录键只能以连接行的形式出现，不能混进本机目录')
 })

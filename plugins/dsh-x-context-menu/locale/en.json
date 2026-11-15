@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Context menu",
-    "description": "Right-click menus for session rows, workspaces, selected text, links and inputs."
+    "description": "Adds copy title/cwd and show-in-folder actions to the dsh built-in context menu; draws its own row menus on older dsh versions."
   }
 }
