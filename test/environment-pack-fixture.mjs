@@ -9,10 +9,11 @@
  * 只用 zip.js 这种纯字节层；用例文件要先隔离 HOME 再动态导入业务模块。
  */
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { createServer as createHttpServer } from 'node:http'
 import { createServer as createHttpsServer } from 'node:https'
 import { connect as netConnect } from 'node:net'
+import { tmpdir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { gunzipSync, gzipSync } from 'node:zlib'
@@ -183,6 +184,11 @@ export function writePluginDir(dir, { name, version, extra = {} }) {
  * requests 记下每次请求的解码路径。
  */
 export async function startNpmRegistry(packages) {
+  // 每只假 registry 配一个自己的 npm 缓存：假包每次跑字节都一样，npm 的缓存按内容寻址，共用缓存时第二次跑
+  // 直接从缓存装、根本不来这里下载，「tarball 下不到」那种用例就测不出来了。npm test 会把 npm_config_cache
+  // 指向真的 ~/.npm 传给用例（单跑 node --test 时没有这个变量），所以必须在这里显式隔离；也免得假包落进用户的缓存
+  const cache = mkdtempSync(join(tmpdir(), 'dsh-fake-npm-cache-'))
+  process.env.npm_config_cache = cache
   const requests = []
   const table = new Map(Object.entries(packages).map(([name, value]) => [name.toLowerCase(), { name, tarballs: {}, ...value }]))
   let base = ''
@@ -235,7 +241,8 @@ export async function startNpmRegistry(packages) {
     publish(name, value) { table.set(name.toLowerCase(), { name, tarballs: {}, ...value }) },
     /** tarball 下载临时坏掉 / 恢复。 */
     setTarballsDown(down) { tarballsDown = Boolean(down) },
-    close: () => new Promise((resolve) => { server.closeAllConnections?.(); server.close(resolve) }),
+    close: () => new Promise((resolve) => { server.closeAllConnections?.(); server.close(resolve) })
+      .then(() => rmSync(cache, { recursive: true, force: true })),
   }
 }
 
