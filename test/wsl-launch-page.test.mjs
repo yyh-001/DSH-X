@@ -54,7 +54,9 @@ test('新增目录弹窗用两个页签区分本机 / 远程连接，远程页�
 })
 
 test('远端也用本机版本选择器：版本组露出，数据源切到远端 core', () => {
-  assert.match(page, /launchLocalVersionGroupEl\.hidden = false/, '远端不再藏掉版本组')
+  // 版本组还跟着「用哪个实例」：本机选了实例版本由实例定，远端或「自定义」才露出来（见 paintLaunchVersionGroup）
+  assert.match(page, /launchLocalVersionGroupEl\.hidden = launchBackend === 'local' && Boolean\(document\.getElementById\('launchEnvironment'\)\?\.value\)/, '远端不藏版本组，本机选了实例才藏')
+  assert.match(page, /function setLaunchBackend\([\s\S]{0,2000}?paintLaunchVersionGroup\(\)/, '切后端时重画版本组')
   assert.match(page, /document\.getElementById\('launchVersionField'\)\.hidden = false/, '版本下拉对连接可见')
   assert.match(page, /document\.getElementById\('launchManageVersions'\)\.hidden = false/, '管理版本按钮对连接可见')
   assert.match(page, /function versionTargetIsRemote\(\)/)

@@ -205,7 +205,7 @@ test('导出：结果晚到、弹窗已经重新打开过时，不往新弹窗�
 test('导入 / 导出入口在环境页：Profile 页撤掉了这两个按钮', () => {
   const envPane = slice('<section class="pane" id="pane-environments">', '<section class="pane fill" id="pane-mcp">')
   assert.match(envPane, /<button class="ghost" id="environmentImport" type="button"/, '环境页有「导入…」')
-  assert.match(envPane, /<button class="ghost" id="environmentExport" type="button"/, '环境详情有「导出…」')
+  assert.match(envPane, /<button class="ghost icon-btn pack-tool" id="environmentExport" type="button" title="导出实例" aria-label="导出实例"/, '实例详情页头有「导出实例」图标按钮')
   const profilePane = slice('<section class="pane" id="pane-plugins">', '<section class="pane" id="pane-environments">')
   assert.doesNotMatch(profilePane, /id="(?:environmentImport|environmentExport|packImport\w*|packExport\w*)"/, 'Profile 页里没有导入 / 导出按钮')
   assert.doesNotMatch(html, /data-pack-import|data-pack-export/, 'Profile 详情的工具栏里也不再画这两个按钮')
@@ -291,7 +291,7 @@ test('内置环境配方是环境页网格里的卡片：没导入过的才画�
     versionText: (env) => env.dshVersion, thirdParty: (env) => env.plugins,
     open() {}, inspectPack: (payload) => { inspected.push(JSON.parse(JSON.stringify(payload))) },
   })
-  new vm.Script(envSlice('  function tagsOf(', '  function versionOptions(')).runInContext(context)
+  new vm.Script(envSlice('  function tagsOf(', '  function paintVersionOptions(')).runInContext(context)
   context.renderGrid()
   assert.match(grid.innerHTML, /data-environment="env-a"/, '环境卡片照画')
   // 中文界面把这个对象叫「实例」：卡片按钮的读屏名称跟着说实例（配置页那张卡说「查看配置…」）
@@ -351,7 +351,7 @@ test('页面逻辑：一张卡就是一个 profile，点开进详情，开关/�
   // 弹窗高度固定，插件数量变化不改变卡片高度；右上「更多操作」菜单才有空间完整展开
   assert.match(css, /#launchPluginsCard \{[^}]*height: min\(680px, calc\(100dvh - var\(--dialog-safe-area\)\)\)/)
   assert.match(css, /\.pack-more-actions \{[^}]*max-height: min\(50vh, 380px\)/)
-  assert.match(html, /data-pack-check-updates/, '当前 Profile 详情可检查更新')
+  assert.doesNotMatch(html, /data-pack-check-updates/, '配置详情不再检查插件更新：升级插件在实例页')
   assert.match(html, /<details class="pack-advanced">/, '导入预览的技术清单可按需展开')
   assert.match(html, /packSourceTags\(item\)/, '来源是以标签形式标在卡片上的')
   // 撤销（有安装记录）与删除整个 profile（没有记录）是两种动作，各自要确认；确认弹窗用样式化的 appConfirm，不用原生 confirm
@@ -364,12 +364,14 @@ test('页面逻辑：一张卡就是一个 profile，点开进详情，开关/�
 
 // 设计稿第三期：「更新整合包 = 把里面的插件都升到最新」撤了，环境的更新只跟上游 release 走（环境页）。
 // Profile 页里只剩单个插件的「更新到 x」，整包 / 整组 / 「更新 N 个」这些批量入口都不该再有
-test('Profile 页没有整包更新：没有「更新 N 个」和分组更新按钮，不调 /api/packs/update；单个插件更新照旧', () => {
+test('Profile 页没有整包更新：没有「更新 N 个」和分组更新按钮，不调 /api/packs/update；插件升级在实例页', () => {
   assert.doesNotMatch(html + envPage, /\/api\/packs\/update/, '页面不再调整合包更新接口')
   assert.doesNotMatch(html, /data-pack-update|data-group-update/, '详情顶部的「更新 N 个」和分组头部的更新按钮都撤了')
   assert.doesNotMatch(html, /function updatePack\(/, '整包更新的处理函数也撤了')
   assert.doesNotMatch(html, /t\('更新 \{n\} 个'|t\('更新 \{name\} 的 \{n\} 个插件'/, '批量更新的文案不再画')
-  assert.match(html, /post\('\/api\/plugins\/update', \{ name, profile \}\)/, '单个插件更新按目标 Profile 走')
+  // 配置页只管开关和数据：单个插件的更新、添加、卸载都搬到实例页（升级插件 = 整个实例的插件一起升）
+  assert.doesNotMatch(html, /\/api\/plugins\/(?:update|add|remove)'/, '配置页不再更新 / 添加 / 卸载插件')
+  assert.match(envPage, /post\('\/api\/environments\/plugins\/upgrade', \{ id: env\.id \}\)/, '实例页的「升级插件」按实例走')
 })
 
 test('检查走环境导入接口，包里的配置默认不导；关闭后晚到的旧结果不能复活预览', async () => {
@@ -661,7 +663,7 @@ test('「实例」只指装好插件的 DSH、「配置」指 dsh profile：旧�
   for (const text of [
     '新建实例', '复制实例', '删除实例', '导入实例', '导出实例', '更新实例', '实例名称', '新实例名称', '社区实例', '实例详情',
     '搜索实例', '实例排序', '{n} 个实例', '用哪个实例', '返回实例列表',
-    '目录与配置', '选择目录与配置', '修复配置', '装进配置「{profile}」', '新建配置', '复制配置', '重命名配置', '删除配置',
+    '目录与配置', '选择目录与配置', '修复配置', '新建配置', '复制配置', '重命名配置', '删除配置',
     '配置名称', '选择配置', '配置备份与回退', '这个配置里有什么', '返回配置列表', '系统配置不能删除', '系统配置不能重命名',
   ]) {
     assert.ok(page.includes(text), `页面里要用「${text}」`)
@@ -711,7 +713,7 @@ test('英文词典：实例那组译成 Instance，配置那组仍叫 Profile，
   for (const zh of [
     '新建配置', '复制配置', '重命名配置', '删除配置', '配置名称', '选择配置', '修复配置', '配置备份与回退', '这个配置里有什么',
     '返回配置列表', '系统配置不能删除', '系统配置不能重命名', '目录与配置', '选择目录与配置', '选择目录与配置…', '配置来源',
-    '从已有配置复制', '编辑配置…', '装进配置「{profile}」', '现在装在配置：{names}', 'WSL 里的配置', '这个配置还没初始化',
+    '从已有配置复制', '编辑配置…', '现在装在配置：{names}。', 'WSL 里的配置', '这个配置还没初始化',
   ]) {
     assert.match(dict[zh] || '', /profile/i, `「${zh}」的英文仍叫 profile`)
     assert.doesNotMatch(dict[zh], /environment|instance/i, `「${zh}」说的是 profile，不是实例`)
@@ -727,12 +729,12 @@ test('改写过的四句说明：讲清「实例 = 装好插件的 DSH」，改�
     [intro]: 'An instance is DSH with its plugins installed. A launch entry picks one instance and one profile; plugin changes made here apply at the next launch.',
     '改动在下次用这个实例启动时生效。': 'Changes apply the next time something launches with this instance.',
     '实例「{name}」已更新到 {version}，下次用它启动时生效。': 'Instance “{name}” updated to {version}. It applies at the next launch.',
-    '现在装在配置：{names}': 'Currently installed in profiles: {names}',
+    '现在装在配置：{names}。': 'Currently installed in profiles: {names}.',
   }
   for (const [zh, en] of Object.entries(expected)) assert.equal(dict[zh], en, `「${zh}」的英文`)
   assert.match(envPage, /t\('改动在下次用这个实例启动时生效。'\)/)
   assert.match(envPage, /notify\(t\('实例「\{name\}」已更新到 \{version\}，下次用它启动时生效。'/, '跟随上游更新完的提示')
-  assert.match(envPage, /t\('现在装在配置：\{names\}', \{ names: written \}\)/)
+  assert.match(envPage, /t\('现在装在配置：\{names\}。', \{ names: written \}\)/)
   // 旧说法（「DSH 版本 + 插件清单」「写进 Profile」）不再显示
   for (const old of ['DSH 版本 + 插件清单。启动项选一个', '启动时写进 Profile', '现在写在 Profile']) {
     assert.ok(!uiSource(html).includes(old) && !uiSource(envPage).includes(old), `旧说法「${old}」不再出现`)
@@ -804,26 +806,33 @@ test('说新对象的地方不再叫整合包；旧版留下的整包安装记�
 test('实例详情底下的用法行：列出在用的启动项、现在装在哪几个配置，末尾说改动下次启动生效', () => {
   const plugins = { innerHTML: '', querySelectorAll: () => [] }
   const el = Object.fromEntries(['overview', 'view', 'checkUpdates', 'detailName', 'detailSub', 'usage', 'upgrade', 'exportButton',
-    'duplicate', 'name', 'spec', 'channel', 'remove'].map((key) => [key, {}]))
-  Object.assign(el, { plugins, version: { value: '1.0.0' }, editForm: { dataset: { environment: 'env-a' } } })
+    'duplicate', 'name', 'spec', 'channel', 'channelName', 'remove'].map((key) => [key, {}]))
+  Object.assign(el, {
+    plugins, version: { value: '1.0.0' }, editForm: { dataset: { environment: 'env-a' } },
+    checkCompatibility: { setAttribute(name, value) { this[name] = value } },
+  })
   const env = { id: 'env-a', name: '甲', dshVersion: '1.0.0', plugins: [], usedBy: [{ name: '工作' }], applied: [{ profile: 'web' }, { profile: 'work' }], following: false }
   const context = vm.createContext({
-    el, busy: false, checking: false, AUTO_VERSION: 'auto', opened: () => env,
-    paintUpstream() {}, paintHistory() {}, syncUiSelect() {}, byId: () => ({}), pluginRow: () => '',
+    el, busy: false, checking: false, AUTO_VERSION: 'auto', opened: () => env, compat: { busy: false },
+    paintUpstream() {}, paintHistory() {}, paintVersionOptions() {}, paintChannelSwitch() {}, resetCompatibility() {},
+    compatibilityTarget: (item) => (item.applied[0] ? { profile: item.applied[0].profile } : null),
+    syncUiSelect() {}, byId: () => ({}), pluginRow: () => '',
     versionText: (item) => item.dshVersion, thirdParty: (item) => item.plugins,
     t: (text, vars = {}) => text.replace(/\{(\w+)\}/g, (_, key) => String(vars[key] ?? '')), escapeHtml: (text) => String(text ?? ''),
   })
   new vm.Script(envSlice('  function renderView() {', '  function paint() {')).runInContext(context)
   context.renderView()
-  assert.equal(el.usage.textContent, '在用的启动项：工作 现在装在配置：web、work 改动在下次用这个实例启动时生效。')
-  assert.equal(plugins.innerHTML, '<p class="hint">这个实例还没有插件。</p>')
+  assert.equal(el.usage.textContent, '在用的启动项：工作 现在装在配置：web、work。 改动在下次用这个实例启动时生效。')
+  assert.equal(plugins.innerHTML, '<div class="plugin-empty">这个实例还没有插件。</div>', '空列表和配置页的空插件提示同一个样子')
   assert.equal(el.remove.title, '还有启动项在用，先给它们换一个实例', '有启动项在用时删除按钮说清为什么灰着')
+  assert.equal(el.checkCompatibility.title, '检查兼容性（查配置「web」里装好的插件）', '兼容性查的是装过这个实例的配置')
 
   env.usedBy = []
   env.applied = []
   context.renderView()
   assert.equal(el.usage.textContent, '还没有启动项用这个实例。 改动在下次用这个实例启动时生效。', '没装进任何配置时不写那一句')
-  assert.equal(el.remove.title, '')
+  assert.equal(el.remove.title, '删除实例', '图标按钮没字：能删时提示就是它的名字')
+  assert.equal(el.checkCompatibility.disabled, true, '还没有配置装过这个实例：没东西可查')
 })
 
 /** 配置页网格（主脚本的 renderPackGrid），卡片由共用的 gridCardHtml 画。 */
@@ -832,7 +841,7 @@ function profileGrid({ packs, openedPack = null, packBusy = false, tags = () => 
   const calls = []
   const context = cardContext({
     paintPluginHomes() {}, packSourceTags: tags,
-    packState: { packs }, openedPack, packBusy, pluginUpdating: '', pluginRemoving: '', pluginAdding: false, packGridEl: grid,
+    packState: { packs }, openedPack, packBusy, packGridEl: grid,
     document: { getElementById: () => ({}) },
     openPack: (profile) => calls.push(['open', profile]),
     openProfileBackups: (profile) => calls.push(['backups', profile]),
@@ -860,7 +869,7 @@ function instanceGrid({ environments, builtin = [], busy = false, confirm = true
     appConfirm: async (message, options) => { confirms.push([message, options?.title]); return confirm },
     openExportDialog: (env) => exported.push(env.id),
   })
-  new vm.Script(envSlice('  function tagsOf(', '  function versionOptions(')
+  new vm.Script(envSlice('  function tagsOf(', '  function paintVersionOptions(')
     + envSlice('  async function run(', '  function open(id) {')
     + envSlice('  function duplicateEnvironment(env) {', '  el.duplicate.onclick')).runInContext(context)
   context.renderGrid()
@@ -1029,8 +1038,8 @@ test('Profile 详情：导入过的配置单列一行，只有最近一条真实
     packViewEl: hidden(), pluginOverviewEl: hidden(), paneTopEl: hidden(), launchPluginsDialogEl: { hidden: true }, pluginLaunchEntry: null,
     packDetailNameEl: { textContent: '' }, packDetailSubEl: { textContent: '' }, launchPluginsCardEl: hidden(),
     packHeadEl: { innerHTML: '', querySelector: () => null }, packPluginListEl: list,
-    pluginDialogLoading: false, pluginChecking: false, pluginUpdating: '', pluginRemoving: '', pluginAdding: '', packBusy: false, pluginProgress: null,
-    pluginUpdates: {}, pluginGroupPending: new Map(), pluginTogglePending: new Set(), packMoreIcons: {},
+    pluginDialogLoading: false, packBusy: false, pluginProgress: null,
+    pluginGroupPending: new Map(), pluginTogglePending: new Set(), packMoreIcons: {},
     // 插件分组不是这里要看的：给一个空分组，正文只剩「没有插件」那句和配置记录
     groupPackPlugins: () => [], pluginRowHtml: () => '',
     removePack: (record) => { removed.push(JSON.parse(JSON.stringify(record))) },
@@ -1062,10 +1071,6 @@ test('Profile 详情：导入过的配置单列一行，只有最近一条真实
   buttons = show([legacy, config])
   assert.equal(buttons[0].disabled, true, '正在忙时不能撤')
   context.packBusy = false
-  context.pluginUpdating = 'dsh-x-sync'
-  buttons = show([legacy, config])
-  assert.equal(buttons[0].disabled, true, '正在更新插件时不能撤')
-  context.pluginUpdating = ''
 
   show([legacy])
   assert.doesNotMatch(list.innerHTML, /导入过的配置|data-config-undo/, '没有配置记录就不画这一块')
@@ -1157,7 +1162,7 @@ test('按整合包清单分组：共同插件只出现一次，别名可归类�
 test('删除 Profile 先确认，取消不发请求，确认后定向删除', async () => {
   const calls = []
   let approved = false
-  const context = { packBusy: false, pluginUpdating: '', pluginRemoving: '', pluginAdding: false, launchPluginScope: '', openedPack: null, pluginProfile: 'web', state: { profile: 'web' }, t: (s) => s,
+  const context = { packBusy: false, launchPluginScope: '', openedPack: null, pluginProfile: 'web', state: { profile: 'web' }, t: (s) => s,
     appConfirm: async () => approved, renderPackGrid() {}, renderPackView() {}, applyPluginPayload() {}, notify() {},
     post: async (...args) => { calls.push(args); return {} } }
   const source = html.match(/    async function removeProfileDir\(item\) \{[\s\S]*?\n    \}/)[0]
@@ -1175,7 +1180,7 @@ test('删除 Profile 先确认，取消不发请求，确认后定向删除', as
 
 test('从启动项弹窗删除最后一个 Profile 后关闭失效作用域', async () => {
   const calls = []
-  const context = { packBusy: false, pluginUpdating: '', pluginRemoving: '', pluginAdding: false, launchPluginScope: 'isolated-entry',
+  const context = { packBusy: false, launchPluginScope: 'isolated-entry',
     openedPack: { profile: 'web' }, pluginProfile: 'web', state: { profile: 'web' }, t: (s) => s,
     appConfirm: async () => true, renderPackGrid() {}, renderPackView() {}, notify() {},
     applyPluginPayload: (data) => { calls.push(['payload', data.packs.length]) },

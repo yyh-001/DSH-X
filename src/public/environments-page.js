@@ -1,4 +1,4 @@
-// 环境页（导航「环境」）：列出环境，新建 / 复制 / 删除，改名改版本，加入 / 移除 / 升级插件，
+// 环境页（导航「实例」）：列出环境，新建 / 复制 / 删除，改名改版本，加入 / 移除 / 升级插件、检查兼容性，
 // 导入（市场、文件、链接、GitHub、内置配方）和导出，跟随上游的检查更新 / 应用更新 / 切回旧版本。
 // 这里只改环境清单（服务端的 environment.json），不碰任何 profile 目录：下次用这个环境启动时，
 // 服务端才把清单写进 Profile 并装依赖（见 server.js 的 applyLaunchEnvironment）。
@@ -6,6 +6,8 @@
 // 单独一个文件，跑在主脚本之后，用主脚本的全局：t、post、getJson、escapeHtml、notify、appConfirm、
 // installedList、UPDATE_CHANNEL_NAMES、UPDATE_CHANNELS、paneLoaders、createUiSelect、syncUiSelect、
 // showPackDialog、hidePackDialog、trapPackDialog、packNotes，卡片和配置页共用 gridCardHtml、packMoreIcons，
+// 版本那行和启动项编辑框共用 switchChannel、paintChannelSwitch、openVersionManager、recommendedVersion、
+// paintCompatibilityResult，编辑框的版本组显隐交给 paintLaunchVersionGroup，
 // 导入导出复用主脚本的弹窗（openImportDialog、inspectPack、openExportDialog、environmentState、AUTO_VERSION）。
 (() => {
   const byId = (id) => document.getElementById(id)
@@ -28,6 +30,12 @@
     name: byId('environmentName'),
     version: byId('environmentVersion'),
     channel: byId('environmentChannel'),
+    channelName: byId('environmentChannelName'),
+    manageVersions: byId('environmentManageVersions'),
+    checkCompatibility: byId('environmentCheckCompatibility'),
+    compat: byId('environmentCompatibility'),
+    compatStatus: byId('environmentCompatibilityStatus'),
+    compatIssues: byId('environmentCompatibilityIssues'),
     addForm: byId('environmentAddForm'),
     spec: byId('environmentSpec'),
     plugins: byId('environmentPluginList'),
@@ -57,6 +65,8 @@
   // 正在确认的那次更新检查（服务端给的 token + 差别）；每次打开更新框加一，晚到的结果不画
   let updateCheck = null
   let updateRevision = 0
+  // 兼容性检查：每次发起或作废加一，晚到的结果不画；busy 时检查钮置灰
+  const compat = { request: 0, busy: false }
 
   const opened = () => environments.find((env) => env.id === openedId) || null
   const versionText = (env) => (env.dshVersion === AUTO_VERSION ? t('自动（{channel}）', { channel: t(UPDATE_CHANNEL_NAMES[env.updateChannel] || env.updateChannel) }) : env.dshVersion)
@@ -138,9 +148,64 @@
     })
   }
 
-  function versionOptions(current) {
-    const versions = [...new Set([AUTO_VERSION, ...installedList(), current].filter(Boolean))]
-    return versions.map((version) => `<option value="${escapeHtml(version)}">${escapeHtml(version === AUTO_VERSION ? t('自动最新版本') : version)}</option>`).join('')
+  /**
+   * 版本下拉：自动 + 已装版本 + 实例现在钉的那个。已装版本会变（实例页也能打开版本管理装 / 删），
+   * 所以每次重画都对一遍，选项变了才重建，并保住正在选的那个值。
+   */
+  function paintVersionOptions(env) {
+    const keep = el.editForm.dataset.environment === env.id ? el.version.value : env.dshVersion
+    const versions = [...new Set([AUTO_VERSION, ...installedList(), env.dshVersion, keep].filter(Boolean))]
+    const key = versions.join('\n')
+    if (el.version.dataset.options !== key) {
+      el.version.dataset.options = key
+      el.version.innerHTML = versions.map((version) => `<option value="${escapeHtml(version)}">${escapeHtml(version === AUTO_VERSION ? t('自动最新版本') : version)}</option>`).join('')
+    }
+    el.version.value = keep
+  }
+
+  /**
+   * 兼容性检查查谁：实例本身只是一份清单，插件装在用它启动过的配置里，所以查第一份装着它的配置
+   * （装的是上次用这个实例启动时的那份）。版本按表单上正在选的算，改版本前就能先查。
+   * 还没有配置装过它、或自动版本一个都解析不出来时返回 null。
+   */
+  function compatibilityTarget(env) {
+    const where = env.applied[0]
+    if (!where) return null
+    const version = el.version.value === AUTO_VERSION ? recommendedVersion(where.profile, where.home, switchChannel(el.channel)) : el.version.value
+    return version ? { ...where, version } : null
+  }
+
+  function resetCompatibility() {
+    compat.request += 1
+    compat.busy = false
+    el.compat.hidden = true
+    el.compat.classList.remove('is-compatible', 'is-incompatible')
+  }
+
+  async function checkCompatibility() {
+    const env = opened()
+    const target = env && compatibilityTarget(env)
+    if (!target || compat.busy) return
+    resetCompatibility()
+    const request = compat.request
+    compat.busy = true
+    el.compat.hidden = false
+    el.compatIssues.hidden = true
+    el.compatStatus.textContent = t('正在检查配置「{profile}」里装好的插件…', { profile: target.profile })
+    renderView()
+    try {
+      const result = await post('/api/plugins/check-compatibility', { version: target.version, profile: target.profile }, { launchId: '', home: target.home })
+      if (request === compat.request) paintCompatibilityResult(el.compat, el.compatStatus, el.compatIssues, result, target.version)
+    } catch (error) {
+      if (request !== compat.request) return
+      el.compat.classList.add('is-incompatible')
+      el.compatStatus.textContent = t('兼容性检查未完成') + ': ' + t(error.message)
+    } finally {
+      if (request === compat.request) {
+        compat.busy = false
+        renderView()
+      }
+    }
   }
 
   function pluginRow(plugin) {
@@ -151,7 +216,8 @@
       plugin.origin === LOCAL_ORIGIN ? t('本地改动') : '',
       plugin.bundle ? '' : t('不挂载'),
     ].filter(Boolean)
-    return `<div class="plugin-item"><div class="plugin-row">
+    // div 行（不是配置页那种开关 label）：.pack-row 给横排，「移除」贴在插件右边
+    return `<div class="plugin-item"><div class="plugin-row pack-row">
       <span class="plugin-main">
         <span class="plugin-head">
           <span class="plugin-name">${escapeHtml(plugin.name)}</span>
@@ -163,9 +229,9 @@
     </div></div>`
   }
 
-  /** 跟随上游那一行：有新版本、已是最新、检查失败、还没检查。 */
+  /** 跟随上游那一行：有新版本、已是最新、检查失败、还没检查；顶上的「更新实例」只给跟随上游的实例。 */
   function paintUpstream(env) {
-    el.upstream.hidden = !env.following
+    el.upstream.hidden = el.applyUpdate.hidden = !env.following
     if (!env.following) return
     const update = updates[env.id]
     const current = releaseLabel(env.source)
@@ -176,7 +242,11 @@
         : update?.available
           ? t('上游 {repo} 有新版本 {version}（现在是 {current}）', { repo: env.source.repo, version: releaseLabel(update.latest), current: current || t('未知') })
           : update ? t('已是上游 {repo} 的最新版本 {current}', { repo: env.source.repo, current }) : t('跟随上游 {repo}', { repo: env.source.repo })
-    el.applyUpdate.hidden = !update?.available
+    // 没有新版本也能点：更新框会直接说「上游没有比现在更新的版本」，不用先等检查结果
+    const title = update?.available ? t('更新实例（有新版本 {version}）', { version: releaseLabel(update.latest) }) : t('更新实例')
+    el.applyUpdate.title = title
+    el.applyUpdate.setAttribute('aria-label', title)
+    el.applyUpdate.classList.toggle('has-update', Boolean(update?.available))
     el.applyUpdate.disabled = busy
   }
 
@@ -209,14 +279,15 @@
     el.detailName.textContent = env.name
     el.detailSub.textContent = t('DSH {version} · {count} 个插件', { version: versionText(env), count: thirdParty(env).length })
     // 正在输入时别把用户敲了一半的名字冲掉：只在切换环境或刚保存后重填表单
+    paintVersionOptions(env)
     if (el.editForm.dataset.environment !== env.id) {
       el.editForm.dataset.environment = env.id
       el.name.value = env.name
-      el.version.innerHTML = versionOptions(env.dshVersion)
       el.version.value = env.dshVersion
-      el.channel.innerHTML = UPDATE_CHANNELS.map((channel) => `<option value="${channel}">${escapeHtml(t(UPDATE_CHANNEL_NAMES[channel]))}</option>`).join('')
-      el.channel.value = env.updateChannel
+      el.channel.value = String(Math.max(0, UPDATE_CHANNELS.indexOf(env.updateChannel)))
+      resetCompatibility()
     }
+    paintChannelSwitch(el.channel, el.channelName)
     el.plugins.innerHTML = env.plugins.map(pluginRow).join('') || `<div class="plugin-empty">${escapeHtml(t('这个实例还没有插件。'))}</div>`
     el.plugins.querySelectorAll('[data-remove-plugin]').forEach((button) => {
       button.onclick = () => run(() => post('/api/environments/plugins/remove', { id: env.id, name: button.dataset.removePlugin }))
@@ -225,7 +296,7 @@
     const written = env.applied.map((item) => item.profile).join('、')
     el.usage.textContent = [
       users ? t('在用的启动项：{names}', { names: users }) : t('还没有启动项用这个实例。'),
-      written ? t('现在装在配置：{names}', { names: written }) : '',
+      written ? t('现在装在配置：{names}。', { names: written }) : '',
       env.following ? t('跟随上游 {repo}：这里的改动记成本地改动，上游更新后会重放。', { repo: env.source.repo }) : '',
       t('改动在下次用这个实例启动时生效。'),
     ].filter(Boolean).join(' ')
@@ -233,9 +304,16 @@
     // 版本类型只对「自动最新版本」有意义；钉了具体版本时它不影响选哪个版本
     el.channel.disabled = busy || el.version.value !== AUTO_VERSION
     syncUiSelect(el.version)
-    syncUiSelect(el.channel)
+    const target = compatibilityTarget(env)
+    el.checkCompatibility.disabled = busy || compat.busy || !target
+    el.checkCompatibility.setAttribute('aria-busy', String(compat.busy))
+    const checkTitle = !env.applied.length ? t('还没有配置装过这个实例：用它启动一次后才能检查兼容性')
+      : target ? t('检查兼容性（查配置「{profile}」里装好的插件）', { profile: target.profile }) : t('检查兼容性')
+    el.checkCompatibility.title = checkTitle
+    el.checkCompatibility.setAttribute('aria-label', checkTitle)
     el.remove.disabled = busy || env.usedBy.length > 0
-    el.remove.title = env.usedBy.length ? t('还有启动项在用，先给它们换一个实例') : ''
+    // 图标按钮没字：不能删时说为什么，能删时就是它的名字
+    el.remove.title = env.usedBy.length ? t('还有启动项在用，先给它们换一个实例') : t('删除实例')
   }
 
   function paint() {
@@ -309,14 +387,21 @@
   }
 
   // 和页面上其他下拉一样换成自绘菜单（原生 select 仍存值、仍触发 change）
-  for (const select of [el.version, el.channel, el.history, byId('launchEnvironment')]) createUiSelect(select)
+  for (const select of [el.version, el.history, byId('launchEnvironment')]) createUiSelect(select)
   el.back.onclick = () => { openedId = ''; paint() }
   el.importButton.onclick = () => openImportDialog()
   el.exportButton.onclick = () => exportEnvironment(opened())
+  // 改版本 / 版本类型：上一次的兼容性结果是按旧版本查的，作废
   el.version.onchange = () => {
-    el.channel.disabled = el.version.value !== AUTO_VERSION
-    syncUiSelect(el.channel)
+    resetCompatibility()
+    renderView()
   }
+  el.channel.oninput = () => {
+    resetCompatibility()
+    renderView()
+  }
+  el.manageVersions.onclick = () => openVersionManager()
+  el.checkCompatibility.onclick = () => { void checkCompatibility() }
   el.createForm.onsubmit = (event) => {
     event.preventDefault()
     const name = el.newName.value.trim()
@@ -327,7 +412,7 @@
     event.preventDefault()
     const env = opened()
     if (!env) return
-    void run(() => post('/api/environments/update', { id: env.id, name: el.name.value, dshVersion: el.version.value, updateChannel: el.channel.value }), {
+    void run(() => post('/api/environments/update', { id: env.id, name: el.name.value, dshVersion: el.version.value, updateChannel: switchChannel(el.channel) }), {
       after: () => { el.editForm.dataset.environment = '' },
     })
   }
@@ -431,7 +516,7 @@
       el.updateGo.disabled = !data.ok
     } catch (error) {
       if (revision !== updateRevision) return
-      el.updateHint.textContent = error.message
+      el.updateHint.textContent = t(error.message)
     }
   }
 
@@ -477,9 +562,10 @@
     void checkUpdates()
   }
 
-  // ---- 启动项编辑框里的「环境」下拉 ----
-  // 编辑框在主脚本里；它打开时调 onLaunchEditorOpen，换环境时这里调 setLaunchVersion
-  // 让版本选择跟上（主脚本的变量只由主脚本自己改）。
+  // ---- 启动项编辑框里的「实例」下拉 ----
+  // 编辑框在主脚本里；它打开时调 onLaunchEditorOpen，换实例时这里调 setLaunchVersion
+  // 让版本选择跟上（主脚本的变量只由主脚本自己改），再调 paintLaunchVersionGroup：
+  // 选了实例，版本那一组整个藏起来；「自定义」（值为空）才露出来自己挑版本。
   const launchDialog = byId('launchDialog')
   const launchSelect = byId('launchEnvironment')
   const launchHint = byId('launchEnvironmentHint')
@@ -490,22 +576,21 @@
 
   function paintLaunchHint() {
     const env = environments.find((item) => item.id === launchSelect.value)
-    if (!env) {
-      launchHint.textContent = t('保存时按这个配置现有的插件找到或生成一个实例。')
-      return
-    }
-    const switched = launchSelect.value !== launchSelect.dataset.saved
-    launchHint.textContent = switched
-      ? t('DSH {version} · {count} 个插件。换实例时版本跟着这个实例；要改版本，先保存，再改。', { version: versionText(env), count: thirdParty(env).length })
-      : t('DSH {version} · {count} 个插件。版本跟着实例走，在这里改版本就是改这个实例。', { version: versionText(env), count: thirdParty(env).length })
+    launchHint.textContent = env
+      ? t('DSH {version} · {count} 个插件。版本和插件跟着实例走，要改去「实例」页。', { version: versionText(env), count: thirdParty(env).length })
+      : t('自己挑 DSH 版本；保存时按这个配置现有的插件找到或生成一个实例。')
+    paintLaunchVersionGroup()
   }
+
+  // 「自定义」排在实例后面：值为空，和老启动项迁移、新建时没选实例是同一条路
+  const customOption = () => `<option value="">${escapeHtml(t('自定义'))}</option>`
 
   async function fillLaunchEnvironments(entry) {
     const revision = ++launchRevision
     const current = entry?.environment || ''
     launchOriginal = { version: entry?.version || AUTO_VERSION, channel: launchChannel(entry) }
     // 先同步复位：上一次打开留下的选项和值，不能在列表回来之前被这次保存带上
-    launchSelect.innerHTML = `<option value="">${escapeHtml(t('自动：按配置的插件匹配或新建'))}</option>${current ? `<option value="${escapeHtml(current)}">${escapeHtml(t('读取中…'))}</option>` : ''}`
+    launchSelect.innerHTML = `${current ? `<option value="${escapeHtml(current)}">${escapeHtml(t('读取中…'))}</option>` : ''}${customOption()}`
     launchSelect.value = current
     launchSelect.dataset.saved = current
     syncUiSelect(launchSelect)
@@ -513,12 +598,12 @@
     try {
       await fetchEnvironments()
     } catch {
-      // 读不到就只留「自动」和原来的环境：保存时服务端按 Profile 接回原来的环境，不会丢
+      // 读不到就只留「自定义」和原来的实例：保存时服务端按 Profile 接回原来的实例，不会丢
     }
     if (revision !== launchRevision || launchDialog.hidden) return
     launchSelect.innerHTML = [
-      `<option value="">${escapeHtml(t('自动：按配置的插件匹配或新建'))}</option>`,
       ...environments.map((env) => `<option value="${escapeHtml(env.id)}">${escapeHtml(`${env.name} · ${versionText(env)}`)}</option>`),
+      customOption(),
     ].join('')
     launchSelect.value = environments.some((env) => env.id === current) ? current : ''
     launchSelect.dataset.saved = launchSelect.value

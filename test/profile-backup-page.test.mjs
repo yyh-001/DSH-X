@@ -91,7 +91,8 @@ test('页面逻辑：列备份、回退先确认、成功后刷新插件与恢�
   const restore = functionSource('restoreProfileBackup')
   assert.match(restore, /appConfirm\(/)
   assert.match(restore, /post\('\/api\/profile-backups\/restore'/)
-  assert.match(restore, /loadPlugins\(\{ checkUpdates: false \}\)/)
+  // 配置页不再查插件更新，重新加载就是 loadPlugins()，不再带「别顺便查更新」的参数
+  assert.match(restore, /loadPlugins\(\)/)
   assert.match(restore, /loadRecovery\(profile\)/)
   const load = functionSource('loadProfileBackups')
   assert.match(load, /\/api\/profile-backups\?profile=/)

@@ -557,24 +557,15 @@ test('选配置是三栏选择窗：目录 / 配置 / 插件，两档用途共�
   const details = section('    function paintPickerDetails() {', '    /** 一个目录的清单')
   assert.match(details, /row\.pack\.plugins/, '插件行来自 packs')
   assert.match(details, /还没初始化：先用它启动一次/, '没初始化的那份要说清')
-  // 右栏也是一个管理入口：右上角装插件，每行第三个按钮卸插件
-  assert.match(dialog, /id="profilePickPluginAdd" type="button"[^>]*disabled/, '右栏右上角有「添加插件」，没选中环境时是灰的')
-  assert.match(details, /profilePickPluginAddEl\.disabled = pickerBusy[^;]*parseWslHomeKey\(pickerHome\)[^;]*!row\?\.pack/, '只有本机、已初始化的 Profile 才能装')
-  assert.match(details, /data-plugin-remove="\$\{escapeHtml\(item\.name\)\}"/, '插件行带卸载入口')
-  assert.match(details, /item\.official \? '' :/, '官方组件不给卸载入口')
-  assert.match(css, /\.profile-pick \.profile-detail-action \{/, '右栏卸载钮有自己的小尺寸样式')
+  // 右栏只看这份配置装了什么：插件清单属于实例，装 / 卸都在实例页（配置只保留数据和插件设置）
+  assert.doesNotMatch(dialog, /id="profilePickPluginAdd"/, '右栏没有「添加插件」')
+  assert.doesNotMatch(details, /data-plugin-remove|profilePickPluginAddEl/, '插件行没有卸载钮，也不管添加按钮')
+  for (const name of ['removePickerPlugin', 'openPickerPluginAdd', 'openPluginAdd', 'closePluginAdd']) {
+    assert.doesNotMatch(page, new RegExp(`function ${name}\\(`), `${name} 跟着撤了`)
+  }
+  assert.doesNotMatch(page, /id="pluginAddDialog"|pluginAddFormEl/, '添加插件弹窗跟着撤了')
+  assert.doesNotMatch(css, /\.profile-detail-action/, '右栏卸载钮的样式跟着撤了')
   assert.match(css, /\.profile-pick-list \{ overflow-x: hidden; \}/, '三栏列表裁掉横向滚动：换目录的行滑入动画会临时溢出')
-  const removeInPicker = section('    async function removePickerPlugin(name) {', '    /** 右栏栏头的「+」')
-  assert.match(removeInPicker, /appConfirm\(/, '卸载前先确认')
-  assert.match(removeInPicker, /post\('\/api\/plugins\/remove', \{ name, profile \}, \{ home: pickerHome, launchId: '' \}\)/, '按选择窗挑的目录请求（空串 = 全局目录）')
-  assert.match(removeInPicker, /pickerCache\.delete\(pickerHome\)[\s\S]*selectPickerHome\(pickerHome\)/, '卸载后重读这个目录，插件数跟着变')
-  const add = section('    function openPickerPluginAdd() {', '    /** 一个目录的清单')
-  assert.match(add, /openPluginAdd\(\{ profile: row\.name, home: pickerHome, picker: true \}\)/, '「+」把插件装进右栏选中的 Profile')
-  const openAdd = section('    function openPluginAdd(target = null) {', '    function closePluginAdd() {')
-  assert.match(openAdd, /const next = target/, '添加弹窗可显式指定目标和目录')
-  const submitAdd = section('    pluginAddFormEl.onsubmit = async (event) => {', '    /** 卸载一个第三方插件')
-  assert.match(submitAdd, /post\('\/api\/plugins\/add', \{ spec, profile \}, target\.picker \? \{ home: target\.home, launchId: '' \} : \{\}\)/, '选择窗装的按目标目录请求，插件页仍用原来的作用域')
-  assert.match(submitAdd, /if \(target\.picker\) \{[\s\S]*pickerCache\.delete\(target\.home\)/, '选择窗里装的刷新三栏')
 
   // 选择窗里改 Profile：请求必须按它挑的目录走（空串 = 全局目录，不能落回环境页那份）
   const submit = section("document.getElementById('profileForm').onsubmit = async", '    // ---- Profile 备份与回退 ----')
@@ -608,7 +599,7 @@ test('三栏选择窗的文案：标题「选择配置」，中栏和右栏说�
   assert.doesNotMatch(dialog.replace(/<!--[\s\S]*?-->/g, ''), /(?:data-i18n|aria-label|title)="[^"]*Profile[^"]*"|>Profile</, '选择窗里的中文不再写 Profile')
 })
 
-test('右栏插件列表的 vm：第三方插件带卸载钮，官方组件没有；本机已初始化才能装', () => {
+test('右栏插件列表的 vm：列出插件、版本和关着的标记，官方组件也列；没有装 / 卸入口', () => {
   const plugin = (name, extra = {}) => ({ name, version: '1.0.0', enabled: true, official: false, ...extra })
   const context = vm.createContext({
     pickerRows: [{
@@ -618,13 +609,11 @@ test('右栏插件列表的 vm：第三方插件带卸载钮，官方组件没�
     pickerProfile: 'web',
     pickerHome: '',
     pickerBusy: false,
-    pickerPluginRemoving: '',
     pickerDetailName: '',
     pickerWslInfo: null,
     pickerWslProfileInfo: null,
     profilePickDetailsEl: { innerHTML: '', querySelectorAll: () => [] },
     profilePickMetaEl: { textContent: '' },
-    profilePickPluginAddEl: { disabled: true },
     parseWslHomeKey: () => null,
     t: (text, values = {}) => String(text).replace(/\{(\w+)\}/g, (_, key) => values[key] ?? `{${key}}`),
     escapeHtml: (value) => String(value),
@@ -634,23 +623,15 @@ test('右栏插件列表的 vm：第三方插件带卸载钮，官方组件没�
   context.paintPickerDetails()
 
   const html = context.profilePickDetailsEl.innerHTML
-  assert.match(html, /data-plugin-remove="dsh-a"/, '第三方插件带卸载入口')
-  assert.match(html, /data-plugin-remove="dsh-off"/, '关着的插件也能卸')
-  assert.ok(!html.includes('data-plugin-remove="@deepseek-ai/dsh-base"'), '官方组件没有卸载入口')
-  assert.equal(context.profilePickPluginAddEl.disabled, false, '本机已初始化可以装')
+  for (const name of ['dsh-a', '@deepseek-ai/dsh-base', 'dsh-off']) assert.match(html, new RegExp(`title="${name}"`), `${name} 列在右栏`)
+  assert.match(html, /<div class="profile-detail-row is-off"><span class="profile-detail-name" title="dsh-off">dsh-off<\/span><span class="profile-detail-version">1\.0\.0<\/span><span class="profile-detail-badge">已关闭<\/span>/, '关着的插件带「已关闭」')
+  assert.doesNotMatch(html, /<button|data-plugin-remove/, '右栏只看不改')
+  assert.equal(context.profilePickMetaEl.textContent, '3 个插件 · 2 个开着')
 
-  context.pickerBusy = true
-  vm.runInContext(functionSource('paintPickerDetails'), context)
+  // 没初始化的配置：说清先启动一次
+  context.pickerRows = [{ name: 'web', pack: null }]
   context.paintPickerDetails()
-  assert.equal(context.profilePickPluginAddEl.disabled, true, '置忙时不能装')
-  assert.match(context.profilePickDetailsEl.innerHTML, /data-plugin-remove="dsh-a"[^>]*disabled/, '置忙时卸载钮也灰掉')
-
-  context.pickerBusy = false
-  context.pickerHome = 'wsl://Debian/~/.dsh'
-  context.parseWslHomeKey = () => ({ distro: 'Debian', home: '~/.dsh' })
-  vm.runInContext(functionSource('paintPickerDetails'), context)
-  context.paintPickerDetails()
-  assert.equal(context.profilePickPluginAddEl.disabled, true, 'WSL 的环境不在这里装')
+  assert.match(context.profilePickDetailsEl.innerHTML, /还没初始化：先用它启动一次，dsh 会建好这个配置。/)
 })
 
 test('两档 tab 的 vm：切档只翻来源面板，复制档把目标名填成「来源-copy」，切走的值留着', () => {

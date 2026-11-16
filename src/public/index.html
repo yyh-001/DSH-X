@@ -222,16 +222,17 @@
                   <span class="pack-detail-name" id="environmentDetailName"></span>
                   <span class="pack-detail-sub" id="environmentDetailSub"></span>
                 </div>
+                <!-- 实例自己的动作，图标按钮同配置详情那排（pack-tool）。「更新实例」只给跟随上游的实例：
+                     从上游源拉新版本，本地实例没有源可更新，整个按钮不出现。 -->
                 <div class="pack-detail-actions">
-                  <button class="ghost" id="environmentUpgrade" type="button" data-i18n="全部升级">全部升级</button>
-                  <button class="ghost" id="environmentExport" type="button" data-i18n="导出…">导出…</button>
-                  <button class="ghost" id="environmentDuplicate" type="button" data-i18n="复制实例">复制实例</button>
-                  <button class="ghost danger" id="environmentDelete" type="button" data-i18n="删除实例">删除实例</button>
+                  <button class="ghost icon-btn pack-tool" id="environmentApplyUpdate" type="button" title="更新实例" aria-label="更新实例" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-download"/></svg></button>
+                  <button class="ghost icon-btn pack-tool" id="environmentExport" type="button" title="导出实例" aria-label="导出实例" data-i18n-title="导出实例" data-i18n-aria-label="导出实例"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-upload"/></svg></button>
+                  <button class="ghost icon-btn pack-tool" id="environmentDuplicate" type="button" title="复制实例" aria-label="复制实例" data-i18n-title="复制实例" data-i18n-aria-label="复制实例"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-copy"/></svg></button>
+                  <button class="ghost icon-btn pack-tool danger" id="environmentDelete" type="button" title="删除实例" aria-label="删除实例" data-i18n-title="删除实例" data-i18n-aria-label="删除实例"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-trash-2"/></svg></button>
                 </div>
               </div>
               <div class="environment-form" id="environmentUpstream" hidden>
                 <span class="hint" id="environmentUpstreamText" role="status" aria-live="polite"></span>
-                <button class="ghost" id="environmentApplyUpdate" type="button" data-i18n="更新…">更新…</button>
               </div>
               <div class="environment-form" id="environmentHistoryRow" hidden>
                 <select id="environmentHistory" aria-label="之前的版本" data-i18n-aria-label="之前的版本"></select>
@@ -240,14 +241,32 @@
               <form class="environment-form" id="environmentEditForm">
                 <input id="environmentName" type="text" autocomplete="off" required aria-label="实例名称" data-i18n-aria-label="实例名称" />
                 <select id="environmentVersion" aria-label="DSH 版本" data-i18n-aria-label="DSH 版本"></select>
-                <select id="environmentChannel" aria-label="版本类型" data-i18n-aria-label="版本类型"></select>
+                <!-- 版本类型、管理版本和启动项编辑框里是同一套控件（三档开关、版本管理弹窗） -->
+                <div class="launch-channel-control">
+                  <span class="launch-switch">
+                    <input class="channel-switch" id="environmentChannel" type="range" min="0" max="2" step="1" value="0" aria-label="版本类型" data-i18n-aria-label="版本类型" />
+                    <span class="launch-switch-knob" aria-hidden="true"></span>
+                  </span>
+                  <span class="channel-switch-name" id="environmentChannelName" aria-hidden="true"></span>
+                </div>
+                <button class="ghost icon-btn" id="environmentManageVersions" type="button" title="管理版本" aria-label="管理版本" data-i18n-title="管理版本" data-i18n-aria-label="管理版本"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-layout-list"/></svg></button>
                 <button class="ghost" id="environmentSave" type="submit" data-i18n="保存">保存</button>
               </form>
-              <form class="environment-form" id="environmentAddForm">
-                <input id="environmentSpec" type="text" autocomplete="off" spellcheck="false" aria-label="插件" data-i18n-aria-label="插件" data-placeholder-i18n="插件名，可带版本：dsh-x-memory@0.1.1" />
-                <button class="ghost" id="environmentAdd" type="submit" data-i18n="加入插件">加入插件</button>
-              </form>
-              <div class="plugin-list" id="environmentPluginList"></div>
+              <!-- 插件卡片顶上一栏放管插件的动作：加入、检查兼容性、升级插件（不跟随上游，逐个升到最新） -->
+              <div class="plugin-list environment-plugins">
+                <form class="environment-plugin-bar" id="environmentAddForm">
+                  <input id="environmentSpec" type="text" autocomplete="off" spellcheck="false" aria-label="插件" data-i18n-aria-label="插件" data-placeholder-i18n="插件名，可带版本：dsh-x-memory@0.1.1" />
+                  <button class="ghost" id="environmentAdd" type="submit" data-i18n="加入插件">加入插件</button>
+                  <button class="ghost icon-btn" id="environmentCheckCompatibility" type="button" title="检查兼容性" aria-label="检查兼容性" data-i18n-title="检查兼容性" data-i18n-aria-label="检查兼容性"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-shield-check"/></svg></button>
+                  <button class="ghost icon-btn" id="environmentUpgrade" type="button" title="升级插件" aria-label="升级插件" data-i18n-title="升级插件" data-i18n-aria-label="升级插件"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-arrow-up-to-line"/></svg></button>
+                </form>
+                <div class="launch-compatibility environment-compatibility" id="environmentCompatibility" aria-live="polite" hidden>
+                  <p class="hint compatibility-status" id="environmentCompatibilityStatus"></p>
+                  <ul class="compatibility-issues" id="environmentCompatibilityIssues" hidden></ul>
+                  <p class="hint" data-i18n="仅检查插件声明的版本要求，不保证运行时行为。">仅检查插件声明的版本要求，不保证运行时行为。</p>
+                </div>
+                <div id="environmentPluginList"></div>
+              </div>
               <p class="hint" id="environmentUsage"></p>
             </div>
           </div>
@@ -768,20 +787,6 @@
       </div>
     </div>
   </div>
-  <div class="ask" id="pluginAddDialog" hidden>
-    <form class="ask-card" id="pluginAddForm" role="dialog" aria-modal="true" aria-labelledby="pluginAddTitle" data-dialog-size="small">
-      <div class="dialog-heading"><h2 class="ask-title" id="pluginAddTitle" data-i18n="添加插件">添加插件</h2><button class="ghost icon-btn dialog-close" id="pluginAddClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
-      <div class="dialog-body">
-        <p class="dialog-subtitle" data-i18n="输入插件的 npm 包名、GitHub 地址或本地路径。">输入插件的 npm 包名、GitHub 地址或本地路径。</p>
-        <label class="mcp-field" for="pluginAddSpec"><span data-i18n="包名或地址">包名或地址</span><input id="pluginAddSpec" type="text" autocomplete="off" spellcheck="false" placeholder="dsh-plugin-whale-pet" /></label>
-        <p class="hint" data-i18n="例如 dsh-xxx、@作者/插件名、github:owner/repo，或本机目录。">例如 dsh-xxx、@作者/插件名、github:owner/repo，或本机目录。</p>
-        <p class="hint" id="pluginAddTarget"></p>
-        <p class="hint profile-error" id="pluginAddError" role="alert" hidden></p>
-        <div class="progress" id="pluginAddProgress" hidden><div class="progress-bar" id="pluginAddProgressBar"></div></div>
-      </div>
-      <div class="profile-dialog-actions"><button class="ghost" id="pluginAddCancel" type="button" data-i18n="取消">取消</button><button class="primary" id="pluginAddGo" type="submit"><span class="spin" aria-hidden="true"></span><span data-i18n="安装">安装</span></button></div>
-    </form>
-  </div>
   <div class="ask" id="projectDialog" hidden>
     <form class="ask-card" id="projectForm" role="dialog" aria-modal="true" aria-labelledby="projectDialogTitle" data-dialog-size="small">
       <div class="dialog-heading"><h2 class="ask-title" id="projectDialogTitle" data-i18n="创建项目">创建项目</h2><button class="ghost icon-btn dialog-close" id="projectDialogClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
@@ -1067,11 +1072,12 @@
               <input id="launchPort" type="number" min="1" max="65535" step="1" inputmode="numeric" />
             </div>
           </div>
-          <!-- 启动项 = 环境 × Profile：环境定 DSH 版本和插件，选项由 environments-page.js 填。
-               留空 = 按 Profile 现有的插件自动生成一个环境（老启动项迁移也是这么来的）。 -->
+          <!-- 启动项 = 实例 × 配置：实例定 DSH 版本和插件，选项由 environments-page.js 填。选了实例，下面的
+               版本那一组整个藏起来（版本跟着实例走）；「自定义」（值为空）才自己挑版本，保存时按配置现有的
+               插件和挑的版本找到或生成一个实例（老启动项迁移也是这么来的）。 -->
           <div class="home-field" id="launchEnvironmentField">
             <label for="launchEnvironment" data-i18n="用哪个实例">用哪个实例</label>
-            <select id="launchEnvironment"><option value="" data-i18n="自动：按配置的插件匹配或新建">自动：按配置的插件匹配或新建</option></select>
+            <select id="launchEnvironment"><option value="" data-i18n="自定义">自定义</option></select>
             <p class="hint" id="launchEnvironmentHint"></p>
           </div>
           <!-- 本机版本整组（下拉、版本类型、管理按钮、渠道提示）在 WSL 下一起藏掉，避免残留的版本类型说明串到 WSL 版本下面。 -->
@@ -1095,20 +1101,20 @@
               <label for="launchUpdateChannel" data-i18n="版本类型">版本类型</label>
               <div class="launch-channel-control">
                 <span class="launch-switch">
-                  <input id="launchUpdateChannel" type="range" min="0" max="2" step="1" value="0" />
+                  <input class="channel-switch" id="launchUpdateChannel" type="range" min="0" max="2" step="1" value="0" />
                   <!-- 原生 range 的圆钮没法用 CSS 过渡：位置由浏览器画，只能换值。所以藏掉原生圆钮，
                        用这个自己画的跟着 data-channel 走位，点击/键盘换档才有滑动动效；拖动时仍由原生控件接管 -->
                   <span class="launch-switch-knob" aria-hidden="true"></span>
                 </span>
-                <span id="launchUpdateChannelName" aria-hidden="true"></span>
+                <span class="channel-switch-name" id="launchUpdateChannelName" aria-hidden="true"></span>
               </div>
             </div>
             <!-- 管理版本是这一行的辅助动作，放到行尾单独站着；贴着版本下拉会把两个字段挤成三截 -->
             <button class="ghost icon-btn launch-manage-version" id="launchManageVersions" type="button" title="管理版本" aria-label="管理版本" data-i18n-title="管理版本" data-i18n-aria-label="管理版本"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-layout-list"/></svg></button>
             <p class="hint" id="launchUpdateChannelHint"></p>
             <div class="launch-compatibility" id="launchCompatibility" aria-live="polite" hidden>
-              <p class="hint" id="launchCompatibilityStatus"></p>
-              <ul id="launchCompatibilityIssues" hidden></ul>
+              <p class="hint compatibility-status" id="launchCompatibilityStatus"></p>
+              <ul class="compatibility-issues" id="launchCompatibilityIssues" hidden></ul>
               <div id="launchCompatibilityAgent" hidden>
                 <label for="launchCompatibilityPrompt" data-i18n="交给 agent 修复">交给 agent 修复</label>
                 <textarea id="launchCompatibilityPrompt" rows="6" readonly></textarea>
@@ -1190,7 +1196,7 @@
         <div class="profile-pick-col profile-pick-col--detail">
           <div class="profile-pick-head">
             <span class="profile-pick-caption" id="profilePickDetailCaption" data-i18n="这个配置里有什么">这个配置里有什么</span>
-            <span class="profile-pick-tools"><span class="profile-pick-meta" id="profilePickMeta"></span><button class="icon-btn profile-pick-tool" id="profilePickPluginAdd" type="button" title="添加插件" aria-label="添加插件" data-i18n-title="添加插件" data-i18n-aria-label="添加插件" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-plus"/></svg></button></span>
+            <span class="profile-pick-tools"><span class="profile-pick-meta" id="profilePickMeta"></span></span>
           </div>
           <div class="profile-pick-list profile-detail-list" id="profilePickDetails" role="region" aria-label="配置详情" data-i18n-aria-label="配置详情"></div>
         </div>
@@ -1707,7 +1713,6 @@
   "切换到这个环境": "Switch to this environment",
   "批量启用插件": "Enable plugins together",
   "全部启用": "Enable all",
-  "插件更新": "Plugin updates",
   "批量开关": "Bulk toggle",
   "有 {n} 个插件不支持开关：{names}": "{n} plugins can't be toggled: {names}",
   "全部禁用": "Disable all",
@@ -2293,13 +2298,11 @@
   "检查完成：插件都是最新的。": "Done: every plugin is up to date.",
   "（{n} 个查不到远程版本）": " ({n} could not be looked up)",
   "可更新": "Update available",
-  "查不到远程版本": "remote version unknown",
   "正在更新 {name}…": "Updating {name}…",
   "正在更新插件…": "Updating plugins…",
   "{name} 已更新到 {latest}，重启 dsh 后生效。": "{name} updated to {latest}; restart dsh to apply.",
   "{name} 已经是最新版本。": "{name} is already up to date.",
   "{ok} 个插件已更新，重启 dsh 后生效。": "{ok} plugin(s) updated; restart dsh to apply.",
-  "更新了 {ok} 个，{failed} 个失败（{names}），重启 dsh 后生效。": "Updated {ok}, {failed} failed ({names}); restart dsh to apply.",
   "更新启动器到 {latest}": "Update the launcher to {latest}",
   "更多版本…（还有 {n} 个）": "More versions… ({n} left)",
   "卸载 {version}？插件和数据会保留。": "Uninstall {version}? Plugins and data are kept.",
@@ -2495,20 +2498,8 @@
   "暂时无法获取最新版本": "The latest version is temporarily unavailable",
   "用于版本、插件、实例文件和启动器更新。": "Used for versions, plugins, instance files and launcher updates. ",
   "卸载整合包": "Uninstall pack",
-  "卸载": "Uninstall",
   "卸载 {name}": "Uninstall {name}",
-  "卸载插件": "Uninstall plugin",
   "卸载失败": "Uninstall failed",
-  "卸载「{name}」？卸载后它提供的功能会消失，重启 dsh 后生效。": "Uninstall \"{name}\"? Its features will disappear; restart dsh to apply.",
-  "从「{profile}」卸载「{name}」？卸载后它提供的功能会消失，重启 dsh 后生效。": "Uninstall \"{name}\" from \"{profile}\"? Its features will disappear; restart dsh to apply.",
-  "正在从「{profile}」卸载「{name}」…": "Uninstalling \"{name}\" from \"{profile}\"…",
-  "添加插件": "Add plugin",
-  "输入插件的 npm 包名、GitHub 地址或本地路径。": "Enter the plugin's npm package name, GitHub address or local path.",
-  "包名或地址": "Package name or address",
-  "例如 dsh-xxx、@作者/插件名、github:owner/repo，或本机目录。": "For example dsh-xxx, @author/plugin, github:owner/repo, or a local folder.",
-  "装进配置「{profile}」": "Install into \"{profile}\"",
-  "请填写插件包名或地址": "Enter a package name or address",
-  "已装好 {spec}，重启 dsh 后生效。": "Installed {spec}; restart dsh to apply.",
   "启用 {name}": "Enable {name}",
   "禁用 {name}": "Disable {name}",
   "请先卸载此后安装的整合包": "Uninstall packs installed after this one first",
@@ -2679,14 +2670,12 @@
   "实例 = 装好插件的 DSH。启动项选一个实例和一个配置；在这里改的插件，下次启动时生效。": "An instance is DSH with its plugins installed. A launch entry picks one instance and one profile; plugin changes made here apply at the next launch.",
   "新实例名称": "New instance name",
   "新建实例": "New instance",
-  "全部升级": "Upgrade all",
   "复制实例": "Duplicate",
   "删除实例": "Delete instance",
   "实例名称": "Instance name",
   "DSH 版本": "DSH version",
   "插件名，可带版本：dsh-x-memory@0.1.1": "Plugin name, optionally with a version: dsh-x-memory@0.1.1",
   "加入插件": "Add plugin",
-  "自动：按配置的插件匹配或新建": "Automatic: match or create from the profile's plugins",
   "自动（{channel}）": "Automatic ({channel})",
   "跟随 {repo}": "Follows {repo}",
   "来源：{source}": "Source: {source}",
@@ -2709,13 +2698,18 @@
   "升级结果": "Upgrade results",
   "{name} 副本": "{name} copy",
   "删除实例「{name}」？配置和里面已经装好的插件不受影响。": "Delete instance “{name}”? Profiles and the plugins already installed in them are not affected.",
-  "DSH {version} · {count} 个插件。版本跟着实例走，在这里改版本就是改这个实例。": "DSH {version} · {count} plugins. The version belongs to the instance: changing it here changes the instance.",
-  "保存时按这个配置现有的插件找到或生成一个实例。": "On save, an instance is matched or created from this profile's current plugins.",
   "返回配置列表": "Back to profiles",
-  "更新…": "Update…",
   "之前的版本": "Earlier versions",
   "切回这一份": "Switch back to this one",
   "更新实例": "Update instance",
+  "用哪个实例": "Instance",
+  "更新实例（有新版本 {version}）": "Update instance (new version {version})",
+  "升级插件": "Upgrade plugins",
+  "还没有配置装过这个实例：用它启动一次后才能检查兼容性": "No profile has used this instance yet: launch with it once before checking compatibility",
+  "检查兼容性（查配置「{profile}」里装好的插件）": "Check compatibility (plugins installed in profile \"{profile}\")",
+  "正在检查配置「{profile}」里装好的插件…": "Checking the plugins installed in profile \"{profile}\"…",
+  "DSH {version} · {count} 个插件。版本和插件跟着实例走，要改去「实例」页。": "DSH {version} · {count} plugins. Version and plugins come from the instance; change them on the Instances page.",
+  "自己挑 DSH 版本；保存时按这个配置现有的插件找到或生成一个实例。": "Pick the DSH version yourself; saving finds or creates an instance from this profile's current plugins.",
   "有新版本 {version}": "New version {version}",
   "正在检查上游 {repo}…": "Checking upstream {repo}…",
   "检查上游 {repo} 失败：{error}": "Could not check upstream {repo}: {error}",
@@ -2808,10 +2802,9 @@
   "随启动器发的实例配方": "Instance recipe shipped with the launcher",
   "内置 · 点开导入": "Built-in · open to import",
   "还没有实例。新建、导入一个，或者先保存一个启动项，启动器会按它的配置自动生成。": "No instances yet. Create or import one, or save a launch entry and the launcher derives one from its profile.",
-  "现在装在配置：{names}": "Currently installed in profiles: {names}",
-  "DSH {version} · {count} 个插件。换实例时版本跟着这个实例；要改版本，先保存，再改。": "DSH {version} · {count} plugins. Switching instances takes this instance's version; to change the version, save first, then change it.",
+  "现在装在配置：{names}。": "Currently installed in profiles: {names}.",
+  "上游没有比现在更新的版本": "Upstream has nothing newer than this version",
   "读取中…": "Loading…",
-  "用哪个实例": "Instance",
   "选择仓库目录…": "Choosing the repository folder…",
   "实例排序": "Sort instances",
   "搜索实例": "Search instances",
@@ -2926,7 +2919,6 @@
     const profilePickProfilesEl = document.getElementById('profilePickProfiles')
     const profilePickDetailsEl = document.getElementById('profilePickDetails')
     const profilePickMetaEl = document.getElementById('profilePickMeta')
-    const profilePickPluginAddEl = document.getElementById('profilePickPluginAdd')
     const pickHomeAddDialogEl = document.getElementById('pickHomeAddDialog')
     const pickHomeTabsEl = document.getElementById('pickHomeTabs')
     const pickHomeKindTabs = [...document.querySelectorAll('.pick-home-tab[data-pick-home-kind]')]
@@ -4748,22 +4740,6 @@
       paintProgress(document.getElementById('progress'), document.getElementById('progress-bar'), installProgress, busy)
     }
 
-    /** 进度跟着当前插件走；批量更新时服务端会逐个给出插件名。 */
-    function setPluginProgress(busy) {
-      const name = pluginProgress?.name?.replace(/@[^@/]+$/, '') || (pluginUpdating !== '*' ? pluginUpdating : '')
-      for (const row of document.querySelectorAll('[data-plugin-progress]')) {
-        const active = row.dataset.pluginProgress === name && row.dataset.profile === (pluginProgress?.profile || pluginUpdatingProfile)
-          && (busy || Boolean(pluginUpdating))
-        row.hidden = !active
-        paintProgress(row.querySelector('.progress'), row.querySelector('.progress-bar'), pluginProgress, active)
-        const button = row.previousElementSibling?.querySelector('[data-update]')
-        if (button) {
-          button.classList.toggle('loading', active)
-          button.setAttribute('aria-busy', String(active))
-        }
-      }
-    }
-
     function progressHint(prefix) {
       const total = Number(installProgress?.total) || 0
       const done = Number(installProgress?.done) || 0
@@ -5227,6 +5203,15 @@
      * WSL 版本、用户目录与项目目录；名称、Profile、端口、自动启动两边共用。切回本机时
      * 按当前是否新建把隔离引导恢复出来。
      */
+    /**
+     * 版本那一组（下拉、兼容性、版本类型、管理版本）：本机启动项选了实例，版本跟着实例走，要改去实例页，
+     * 这一组整个藏起来，「自定义」才露出。远端（WSL / SSH）启动项不接实例，版本走远端 core，这一组照样露出。
+     */
+    function paintLaunchVersionGroup() {
+      if (typeof launchLocalVersionGroupEl === 'undefined' || !launchLocalVersionGroupEl) return
+      launchLocalVersionGroupEl.hidden = launchBackend === 'local' && Boolean(document.getElementById('launchEnvironment')?.value)
+    }
+
     function setLaunchBackend(backend, entry = null, options = {}) {
       launchBackend = backend === 'ssh' ? 'ssh' : backend === 'wsl' ? 'wsl' : 'local'
       const kind = launchBackend
@@ -5245,8 +5230,8 @@
       if (launchRemoteHomeEl) launchRemoteHomeEl.value = options.remoteHome ?? entry?.remoteHome ?? entry?.wslHome ?? ''
       // 远端（WSL / SSH）启动项不接环境（Profile 目录在远端，启动器写不进去），环境下拉一起藏
       document.getElementById('launchEnvironmentField').hidden = remote
-      // 版本选择对远端也要露出来：数据源换成远端 core，UI 仍用本机这套。
-      if (typeof launchLocalVersionGroupEl !== 'undefined' && launchLocalVersionGroupEl) launchLocalVersionGroupEl.hidden = false
+      // 版本选择对远端也要露出来：数据源换成远端 core，UI 仍用本机这套；本机选了实例时整组藏（见 paintLaunchVersionGroup）
+      paintLaunchVersionGroup()
       document.getElementById('launchVersionField').hidden = false
       launchChannelFieldEl.hidden = false
       document.getElementById('launchManageVersions').hidden = false
@@ -7147,8 +7132,6 @@
     let pickerRevision = 0
     // 增删改进行中：列表里的动作按钮全灰掉，免得连点建出两个
     let pickerBusy = false
-    // 右栏正在卸载的插件名：那一行换成转圈，其余行跟着 pickerBusy 一起灰掉
-    let pickerPluginRemoving = ''
 
     /** 目录的显示名：全局那份叫「全局目录」，其余的优先用登记时起的名字。 */
     function copyHomeName(home) {
@@ -7449,18 +7432,13 @@
     function paintPickerDetails() {
       if (!profilePickDetailsEl) return
       const row = pickerRows.find((item) => item.name === pickerProfile)
-      const trash = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-trash-2"/></svg>'
-      // 装/卸都只能作用于已初始化、且在本机的 Profile；WSL 的包文件在发行版里，这里只管看
-      profilePickPluginAddEl.disabled = pickerBusy || Boolean(pickerPluginRemoving) || Boolean(parseWslHomeKey(pickerHome)) || !row?.pack
+      // 右栏只看这份配置装了什么：插件清单属于实例，装 / 卸都在实例页
       profilePickMetaEl.textContent = ''
       // 换了 Profile 才播一次淡入；同一份重复重画（比如置忙）不闪
       const changed = pickerDetailName !== (row?.name || '')
       pickerDetailName = row?.name || ''
       const render = (html) => {
         profilePickDetailsEl.innerHTML = html
-        for (const button of profilePickDetailsEl.querySelectorAll('[data-plugin-remove]')) {
-          button.onclick = () => void removePickerPlugin(button.dataset.pluginRemove)
-        }
         if (changed) replayListMotion(profilePickDetailsEl)
       }
       if (!row) return render(`<p class="profile-pick-note">${escapeHtml(t('先挑一个配置'))}</p>`)
@@ -7485,54 +7463,10 @@
       const on = plugins.filter((item) => item.enabled).length
       profilePickMetaEl.textContent = t('{n} 个插件 · {on} 个开着', { n: plugins.length, on })
       if (!plugins.length) return render(`<p class="profile-pick-note">${escapeHtml(t('这个配置里还没装插件'))}</p>`)
-      const busy = pickerBusy || Boolean(pickerPluginRemoving)
       render(plugins.map((item) => {
-        // 官方组件跟着 dsh 走，不给卸载入口（和插件页同一条保护线）
-        const action = item.official ? '' : `<button class="icon-btn profile-detail-action danger" type="button" data-plugin-remove="${escapeHtml(item.name)}" title="${escapeHtml(t('卸载 {name}', { name: item.name }))}" aria-label="${escapeHtml(t('卸载 {name}', { name: item.name }))}" ${busy ? 'disabled' : ''}>${pickerPluginRemoving === item.name ? '<span class="spin" aria-hidden="true"></span>' : trash}</button>`
         const badge = item.enabled ? '' : `<span class="profile-detail-badge">${escapeHtml(t('已关闭'))}</span>`
-        return `<div class="profile-detail-row${item.enabled ? '' : ' is-off'}"><span class="profile-detail-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span><span class="profile-detail-version">${escapeHtml(item.version || '')}</span>${badge}${action}</div>`
+        return `<div class="profile-detail-row${item.enabled ? '' : ' is-off'}"><span class="profile-detail-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span><span class="profile-detail-version">${escapeHtml(item.version || '')}</span>${badge}</div>`
       }).join(''))
-    }
-
-    /**
-     * 右栏的「卸载」：从选中的 Profile 里卸一个第三方插件。
-     * 和插件页走同一个接口，但请求必须带上选择窗挑的目录（pickerHome；空串 = 全局目录）。
-     */
-    async function removePickerPlugin(name) {
-      const profile = pickerProfile
-      const row = pickerRows.find((item) => item.name === profile)
-      const plugin = (row?.pack?.plugins || []).find((item) => item.name === name)
-      if (pickerBusy || pickerPluginRemoving || !plugin || plugin.official) return
-      const confirmed = await appConfirm(
-        t('从「{profile}」卸载「{name}」？卸载后它提供的功能会消失，重启 dsh 后生效。', { profile, name }),
-        { title: t('卸载插件'), okText: t('卸载'), parent: profilePickDialogEl },
-      )
-      if (!confirmed || pickerBusy) return
-      pickerPluginRemoving = name
-      setPickerBusy(true)
-      paintPickerDetails()
-      profilePickHintEl.textContent = t('正在从「{profile}」卸载「{name}」…', { profile, name })
-      try {
-        await post('/api/plugins/remove', { name, profile }, { home: pickerHome, launchId: '' })
-        profilePickHintEl.textContent = ''
-        pickerCache.delete(pickerHome)
-        // 插件数变了：中栏那行的「n 个插件」和右栏一起重读
-        await selectPickerHome(pickerHome)
-        if (profile === pluginProfile && sameHomePath(pickerHome || state.dshHome, pluginTargetHome() || state.dshHome)) void loadPlugins({ checkUpdates: false })
-      } catch (error) {
-        profilePickHintEl.textContent = t(error.message)
-      } finally {
-        pickerPluginRemoving = ''
-        setPickerBusy(false)
-        paintPickerDetails()
-      }
-    }
-
-    /** 右栏栏头的「+」：把插件装进选中的 Profile（WSL 和没初始化的不给装）。 */
-    function openPickerPluginAdd() {
-      const row = pickerRows.find((item) => item.name === pickerProfile)
-      if (!row?.pack || pickerBusy || pickerPluginRemoving || parseWslHomeKey(pickerHome)) return
-      openPluginAdd({ profile: row.name, home: pickerHome, picker: true })
     }
 
     /** 一个目录的清单：Profile 列表（含没初始化的）+ 能起网页的 + 插件卡（/api/packs）。按目录缓存。 */
@@ -7664,7 +7598,6 @@
       profilePickProfilesEl.innerHTML = ''
       profilePickDetailsEl.innerHTML = ''
       profilePickMetaEl.textContent = ''
-      profilePickPluginAddEl.disabled = true
       ;(pickerMode === 'form' ? launchEnvPickEl : launchCopyPickEl).setAttribute('aria-expanded', 'true')
       paintPickerHomes()
       showPackDialog(profilePickDialogEl, profilePickHomesEl.querySelector('.profile-pick-row.is-selected .profile-pick-hit') || profilePickHomesEl.querySelector('.profile-pick-hit'))
@@ -7958,7 +7891,6 @@
     launchCopyPickEl.onclick = () => void openProfilePicker('copy')
     launchEnvPickEl.onclick = () => void openProfilePicker('form')
     profilePickConfirmEl.onclick = confirmProfilePick
-    profilePickPluginAddEl.onclick = () => openPickerPluginAdd()
     document.getElementById('pickHomeAddClose').onclick = closePickHomeAddDialog
     document.getElementById('pickHomeAddCancel').onclick = closePickHomeAddDialog
     for (const tab of pickHomeKindTabs) tab.onclick = () => paintPickHomeKind(tab.dataset.pickHomeKind)
@@ -8278,19 +8210,31 @@
       return channelLatestVersion(launchChannel(entry))
     }
 
+    /** 三档开关（.channel-switch）指着的通道：启动项编辑框和实例页共用。 */
+    function switchChannel(input) {
+      return UPDATE_CHANNELS[Number(input.value)] || DEFAULT_UPDATE_CHANNEL
+    }
+
+    /** 按开关当前的档画档名和轨道色，返回这一档的通道。 */
+    function paintChannelSwitch(input, nameEl) {
+      const channel = switchChannel(input)
+      // 开关太短放不下三档刻度，只在旁边写当前档名；读屏读到的也是档名而不是 0/1/2
+      const name = t(UPDATE_CHANNEL_NAMES[channel])
+      input.setAttribute('aria-valuetext', name)
+      // 轨道色按档分（launcher.css）：range 没有 :checked 这类状态可选，只能把档写成属性
+      input.dataset.channel = channel
+      nameEl.textContent = name
+      return channel
+    }
+
     /** 编辑弹窗里三档开关指着的通道：保存前只是草稿，状态推送不会把它改回去。 */
     function draftLaunchChannel() {
-      return UPDATE_CHANNELS[Number(launchUpdateChannelEl.value)] || DEFAULT_UPDATE_CHANNEL
+      return switchChannel(launchUpdateChannelEl)
     }
 
     function paintLaunchChannel() {
-      const channel = draftLaunchChannel()
-      // 开关太短放不下三档刻度，只在旁边写当前档名；读屏读到的也是档名而不是 0/1/2
+      const channel = paintChannelSwitch(launchUpdateChannelEl, document.getElementById('launchUpdateChannelName'))
       const name = t(UPDATE_CHANNEL_NAMES[channel])
-      launchUpdateChannelEl.setAttribute('aria-valuetext', name)
-      // 轨道色按档分（launcher.css）：range 没有 :checked 这类状态可选，只能把档写成属性
-      launchUpdateChannelEl.dataset.channel = channel
-      document.getElementById('launchUpdateChannelName').textContent = name
       // 选的类型一个已知版本都没有、退到了更不稳定的一档：说明换成实际在用的那档，并讲清为什么，
       // 不然自动选出个 RC 像是出了错；只写选的那档会跟实际行为对不上。
       // WSL 的「已知版本」在远端 state 里，别拿本机的 channelPlans 冒充。
@@ -9361,6 +9305,8 @@
       if (!(await hideDialog(versionManageDialogEl)) || revision !== versionManageRevision) return
       versionManageDialogEl.classList.remove('is-child-dialog')
       if (versionManageReturnToEditor) launchFormEl.inert = false
+      // 实例页也能打开版本管理：它的版本下拉列的是已装版本，关掉后重画一次，刚装 / 删的版本才对得上
+      else void environmentState.reload?.()
       versionManageReturnToEditor = false
       const origin = versionManageOrigin
       versionManageOrigin = null
@@ -9626,6 +9572,25 @@
       return plugin.name + ' — ' + t('已安装 {version}；要求 {requirements}', { version: plugin.version, requirements })
     }
 
+    /**
+     * 把一次兼容性检查的结果画进「状态一行 + 问题列表」：启动项编辑框和实例页共用一套说法与配色。
+     * 返回是否全部兼容（没有不兼容、也没有没查完的）。
+     */
+    function paintCompatibilityResult(box, statusEl, issuesEl, result, version) {
+      const { incompatible, errors } = result
+      const complete = !errors.length && !incompatible.length
+      box.classList.toggle('is-compatible', complete)
+      box.classList.toggle('is-incompatible', !complete)
+      statusEl.textContent = t(incompatible.length ? '以下插件与 dsh {version} 不兼容：' : errors.length ? '兼容性检查未完成' : '所有插件均兼容', { version })
+      issuesEl.replaceChildren(...[...incompatible.map(formatCompatibilityPlugin), ...errors.map(item => item.name + ': ' + t(item.error))].map((text) => {
+        const row = document.createElement('li')
+        row.textContent = text
+        return row
+      }))
+      issuesEl.hidden = complete
+      return complete
+    }
+
     function buildCompatibilityPrompt(result, target) {
       const wsl = typeof parseWslHomeKey === 'function' ? parseWslHomeKey(target.home) : null
       const homeLabel = wsl ? `WSL · ${wsl.distro} · ${wsl.home}` : target.home
@@ -9655,20 +9620,9 @@
         if (versionTargetIsWsl()) scope.wslUser = draftWslUserValue()
         const result = await post('/api/plugins/check-compatibility', { version: target.version, profile: target.profile }, scope)
         if (!current()) return
-        const incompatible = result.incompatible
-        const errors = result.errors
-        const complete = !errors.length && !incompatible.length
-        compatibilityEl.classList.toggle('is-compatible', complete)
-        compatibilityEl.classList.toggle('is-incompatible', !complete)
-        compatibilityStatusEl.textContent = t(incompatible.length ? '以下插件与 dsh {version} 不兼容：' : errors.length ? '兼容性检查未完成' : '所有插件均兼容', { version: target.version })
-        for (const text of [...incompatible.map(formatCompatibilityPlugin), ...errors.map(item => item.name + ': ' + t(item.error))]) {
-          const row = document.createElement('li')
-          row.textContent = text
-          compatibilityIssuesEl.append(row)
-        }
-        compatibilityIssuesEl.hidden = complete
-        compatibilityAgentEl.hidden = !incompatible.length
-        if (incompatible.length) compatibilityPromptEl.value = buildCompatibilityPrompt(result, target)
+        paintCompatibilityResult(compatibilityEl, compatibilityStatusEl, compatibilityIssuesEl, result, target.version)
+        compatibilityAgentEl.hidden = !result.incompatible.length
+        if (result.incompatible.length) compatibilityPromptEl.value = buildCompatibilityPrompt(result, target)
       } catch (error) {
         if (!current()) return
         compatibilityEl.classList.add('is-incompatible')
@@ -9973,7 +9927,6 @@
       paintVersionTrigger()
       if (versionOpen) paintVersionPanel()
       setProgress(Boolean(state.installing) || action === 'install' || action === 'update')
-      setPluginProgress(Boolean(pluginProgress))
       paintBackupProgress()
       paintLaunchHome()
       hintEl.textContent = action === 'optimize' || installProgress?.phase === 'optimize' ? t('正在优化依赖…')
@@ -10347,8 +10300,6 @@
           const data = JSON.parse(event.data)
           if (data?.kind === 'plugin') {
             pluginProgress = !data || data.phase === 'idle' ? null : data
-            setPluginProgress(Boolean(pluginProgress))
-            paintPluginAddProgress()
             paintBackupProgress()
             return
           }
@@ -11158,7 +11109,7 @@
       const homes = pluginHomes()
       pluginHomeEl.innerHTML = `<option value="">${escapeHtml(homeOptionLabel(state.dshHome, pluginHomeName(state.dshHome, t('全局目录'))))}</option>` + [...homes].map(([home, name]) => `<option value="${escapeHtml(home)}">${escapeHtml(homeOptionLabel(home, name))}</option>`).join('') + `<option value="${PLUGIN_HOME_MANAGE}">${escapeHtml(t('管理目录…'))}</option>`
       pluginHomeEl.value = pluginHome
-      pluginHomeEl.disabled = Boolean(packBusy || pluginUpdating || pluginRemoving || pluginAdding || pluginTogglePending.size || pluginHomesBusy)
+      pluginHomeEl.disabled = Boolean(packBusy || pluginTogglePending.size || pluginHomesBusy)
       syncUiSelect(pluginHomeEl)
       if (!pluginHomesDialogEl.hidden) paintPluginHomesDialog()
     }
@@ -11210,7 +11161,7 @@
       showPackDialog(pluginHomesDialogEl, pluginHomesAddEl)
     }
     async function changePluginHomeList(action, home) {
-      if (pluginHomesBusy || packBusy || pluginUpdating || pluginRemoving || pluginAdding || pluginTogglePending.size || launchPluginScope) return
+      if (pluginHomesBusy || packBusy || pluginTogglePending.size || launchPluginScope) return
       pluginHomesBusy = true
       pluginHomesErrorEl.hidden = true
       paintPluginHomes()
@@ -11252,12 +11203,11 @@
       pluginProfile = ''
       openedPack = null
       packState = { packs: [], profiles: [], profile: '', home: pluginTargetHome() }
-      pluginUpdates = {}
       pluginsLoaded = false
       packPluginListEl.dataset.profile = ''
     }
     pluginHomeEl.onchange = () => {
-      if (packBusy || pluginUpdating || pluginRemoving || pluginAdding || pluginTogglePending.size || pluginHomesBusy || launchPluginScope) { paintPluginHomes(); return }
+      if (packBusy || pluginTogglePending.size || pluginHomesBusy || launchPluginScope) { paintPluginHomes(); return }
       if (pluginHomeEl.value === PLUGIN_HOME_MANAGE) {
         // 管理入口不是数据目录，打开弹窗前恢复所选环境，避免插件请求带上这个占位值。
         paintPluginHomes()
@@ -11923,14 +11873,6 @@
     const paneTopEl = pluginPanelEl.querySelector('.pane-top')
     const launchPluginsDialogEl = document.getElementById('launchPluginsDialog')
     const launchPluginsCardEl = document.getElementById('launchPluginsCard')
-    const pluginAddDialogEl = document.getElementById('pluginAddDialog')
-    const pluginAddFormEl = document.getElementById('pluginAddForm')
-    const pluginAddSpecEl = document.getElementById('pluginAddSpec')
-    const pluginAddTargetEl = document.getElementById('pluginAddTarget')
-    const pluginAddErrorEl = document.getElementById('pluginAddError')
-    const pluginAddGoEl = document.getElementById('pluginAddGo')
-    const pluginAddProgressEl = document.getElementById('pluginAddProgress')
-    const pluginAddProgressBarEl = document.getElementById('pluginAddProgressBar')
     let pluginLaunchEntry = null
     let pluginDialogLoading = false
     let pluginDialogRequest = 0
@@ -11944,7 +11886,6 @@
       launchPluginScope = entry.id
       resetPluginView()
       pluginProfile = entry.profile
-      pluginUpdates = {}
       paintPluginProfiles()
       openedPack = { profile: entry.profile }
       pluginDialogLoading = true
@@ -11979,14 +11920,12 @@
       if (!document.documentElement.classList.contains('reduce-motion') && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
         packPluginListEl.animate([{ opacity: 0, transform: 'translateY(5px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 180, easing: 'ease-out' })
       }
-      void refreshPluginUpdates({ quiet: true }).catch(() => {})
     }
 
     async function closeLaunchPlugins({ afterDelete = false } = {}) {
       if (launchPluginsDialogEl.hidden || launchPluginsDialogEl.dataset.dialogClosing) return
-      // 插件更新跑在服务端的 POST 里，关掉弹窗不会中断它：允许边更新边退出，回到启动项列表等它跑完。
-      // 其它 packBusy 操作（删 Profile、修复、还原）中途抽走列表会留下半截状态，照旧挡住。
-      if (!afterDelete && (pluginTogglePending.size || (packBusy && !pluginUpdating))) return
+      // packBusy 操作（删 Profile、修复、还原）中途抽走列表会留下半截状态，挡住不让关
+      if (!afterDelete && (pluginTogglePending.size || packBusy)) return
       ++pluginDialogRequest
       closeUiSelect()
       if (!(await hideDialog(launchPluginsDialogEl))) return
@@ -12000,7 +11939,7 @@
       resetPluginView()
       renderPackGrid()
       renderPackView()
-      await loadPlugins({ checkUpdates: false })
+      await loadPlugins()
       if (pluginDialogOrigin?.isConnected) pluginDialogOrigin.focus()
       else launchAddEl.focus()
     }
@@ -12015,125 +11954,7 @@
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
     }
 
-    // 添加弹窗这次装进哪个环境：插件页用 openedPack，选择窗用右栏选中的那行（home 带目录作用域）
-    let pluginAddTarget = null
-
-    /**
-     * 添加插件（官方做法：把 spec 交给 `dsh plugin add`，由 pnpm 解析）。
-     *
-     * 默认装进当前正在查看的环境；选择窗会显式传 { profile, home }，装进它右栏选中的那份。
-     * 关掉弹窗不会中断服务端的安装（进度走 SSE），只是看不到进度条了。
-     */
-    function openPluginAdd(target = null) {
-      if (packBusy || pluginUpdating || pluginRemoving || pluginAdding || pluginTogglePending.size) return
-      // 插件页不带 home（沿用 pluginHome / 启动项作用域）；选择窗的 target 才显式指定目录
-      const next = target || (openedPack?.profile ? { profile: openedPack.profile } : null)
-      if (!next?.profile) return
-      pluginAddTarget = next
-      pluginAddSpecEl.value = ''
-      pluginAddErrorEl.hidden = true
-      pluginAddTargetEl.textContent = t('装进配置「{profile}」', { profile: next.profile })
-      pluginAddGoEl.disabled = false
-      pluginAddGoEl.classList.remove('loading')
-      paintProgress(pluginAddProgressEl, pluginAddProgressBarEl, null, false)
-      showPackDialog(pluginAddDialogEl, pluginAddSpecEl)
-    }
-    function closePluginAdd() {
-      // 安装请求在服务端跑，关掉弹窗只是看不到进度；pluginAdding 会一直挡住重新打开，
-      // 直到请求结束，避免同一时间排进第二次安装。
-      void hidePackDialog(pluginAddDialogEl)
-    }
-    document.getElementById('pluginAddClose').onclick = closePluginAdd
-    document.getElementById('pluginAddCancel').onclick = closePluginAdd
-    pluginAddFormEl.onsubmit = async (event) => {
-      event.preventDefault()
-      if (pluginAdding || !pluginAddTarget?.profile) return
-      const spec = pluginAddSpecEl.value.trim()
-      pluginAddErrorEl.hidden = true
-      if (!spec) {
-        pluginAddErrorEl.textContent = t('请填写插件包名或地址')
-        pluginAddErrorEl.hidden = false
-        pluginAddSpecEl.focus()
-        return
-      }
-      const target = pluginAddTarget
-      const profile = target.profile
-      pluginAdding = true
-      pluginAddGoEl.disabled = true
-      pluginAddGoEl.classList.add('loading')
-      paintProgress(pluginAddProgressEl, pluginAddProgressBarEl, pluginProgress, Boolean(pluginProgress))
-      try {
-        const data = await post('/api/plugins/add', { spec, profile }, target.picker ? { home: target.home, launchId: '' } : {})
-        applyPluginPayload(data)
-        if (profile === pluginProfile) await loadPlugins({ checkUpdates: false })
-        await hidePackDialog(pluginAddDialogEl)
-        // 选择窗装的：左/中/右三栏的插件数一起刷新
-        if (target.picker) {
-          pickerCache.delete(target.home)
-          if (!profilePickDialogEl.hidden) {
-            profilePickHintEl.textContent = ''
-            await selectPickerHome(pickerHome)
-          }
-        }
-        notify(t('已装好 {spec}，重启 dsh 后生效。', { spec: data.name || spec }), t('添加插件'))
-      } catch (error) {
-        pluginAddErrorEl.textContent = error.message
-        pluginAddErrorEl.hidden = false
-        // 装的过程中弹窗可能已经被关掉：错误只写进隐藏的弹窗等于没报，改用通知
-        if (pluginAddDialogEl.hidden || pluginAddDialogEl.dataset.dialogClosing) notify(error.message, t('添加插件'))
-        else pluginAddSpecEl.focus()
-      } finally {
-        pluginAdding = false
-        pluginAddGoEl.disabled = false
-        pluginAddGoEl.classList.remove('loading')
-        paintProgress(pluginAddProgressEl, pluginAddProgressBarEl, null, false)
-      }
-    }
-
-    /** 卸载一个第三方插件：确认后才动 pnpm；官方组件没有入口，服务端也再挡一次。 */
-    async function removePlugin(name, profile = pluginProfile) {
-      if (!name || packBusy || pluginUpdating || pluginRemoving || pluginAdding || pluginTogglePending.size) return
-      const parent = launchPluginsDialogEl.hidden ? null : launchPluginsDialogEl
-      const confirmed = await appConfirm(
-        t('卸载「{name}」？卸载后它提供的功能会消失，重启 dsh 后生效。', { name }),
-        { title: t('卸载插件'), okText: t('卸载'), parent },
-      )
-      if (!confirmed) return
-      pluginRemoving = name
-      pluginUpdatingProfile = profile
-      pluginProgress = null
-      pluginButtons()
-      try {
-        const data = await post('/api/plugins/remove', { name, profile })
-        applyPluginPayload(data)
-        if (profile === pluginProfile) await loadPlugins({ checkUpdates: false })
-      } catch (error) {
-        notify(error.message, t('卸载失败'))
-        if (profile === pluginProfile) await loadPlugins({ checkUpdates: false })
-      } finally {
-        pluginRemoving = ''
-        pluginUpdatingProfile = ''
-        pluginProgress = null
-        pluginButtons()
-      }
-    }
-
-    /** 添加弹窗里的进度条：插件没有行可以挂进度，就在弹窗里画。 */
-    function paintPluginAddProgress() {
-      if (pluginAddDialogEl.hidden) return
-      const active = pluginAdding && pluginProgress && pluginProgress.profile === pluginAddTarget?.profile
-      paintProgress(pluginAddProgressEl, pluginAddProgressBarEl, pluginProgress, Boolean(active))
-    }
     let pluginsLoaded = false
-    // 插件更新：name → { current, latest, hasUpdate, error? }（服务端查 registry，页面上只做展示）
-    let pluginUpdates = {}
-    let pluginUpdating = ''
-    let pluginUpdatingProfile = ''
-    // 卸载一个插件时用它记名字：行里的进度条要知道自己显示「卸载」还是「更新」；
-    // pluginAdding 只负责锁住添加弹窗的重复提交。
-    let pluginRemoving = ''
-    let pluginAdding = false
-    let pluginChecking = false
     const pluginTogglePending = new Map()
     const pluginGroupPending = new Map()
     function markSwitchPending(control, enabled) {
@@ -12158,25 +11979,20 @@
     }
 
     /**
-     * 一行插件（环境详情里用）。
+     * 一行插件（配置详情里用）：配置只管数据和插件设置，所以一行只有开关；
+     * 装、卸、升级插件都在实例页（插件清单属于实例）。
      *
-     * profile 决定开关写到哪份 profile 上（空 = 当前 profile）；updates 是这一行的
-     * 远程版本信息，整合包在别的 profile 上时传空对象——那边没查过，别显示假状态。
+     * profile 决定开关写到哪份 profile 上（空 = 当前 profile）。
      */
-    function pluginRowHtml(plugin, { profile = '', updates = pluginUpdates, sharedPacks = [] } = {}) {
+    function pluginRowHtml(plugin, { profile = '', sharedPacks = [] } = {}) {
       const pending = pluginTogglePending.get(`${profile}:${plugin.name}`)
       const enabled = pending ? pending.enabled : plugin.enabled
-      const update = updates[plugin.name]
-      // 官方组件跟着 dsh 走，不给卸载入口（和开关同一条保护线）。
-      const removable = !plugin.official
-      const busy = packBusy || Boolean(pluginUpdating) || Boolean(pluginRemoving) || Boolean(pluginAdding)
-      const progressLabel = pluginRemoving === plugin.name ? t('正在卸载…') : t('正在更新…')
       const scoped = /^(@[^/]+\/)(.+)$/.exec(plugin.name)
       const nameHtml = scoped
         ? `<span class="plugin-scope">${escapeHtml(scoped[1])}</span>${escapeHtml(scoped[2])}`
         : escapeHtml(plugin.name)
       const details = [plugin.name, plugin.description, plugin.ids?.length ? t('行 {ids}', { ids: plugin.ids.join(', ') }) : '', plugin.toggleable ? '' : t(plugin.reason || '')].filter(Boolean).join('\n')
-      const status = enabled ? (update?.error ? t('查不到远程版本') : '') : t('已禁用')
+      const status = enabled ? '' : t('已禁用')
       return `<div class="plugin-item"><label class="toggle plugin-row${enabled ? '' : ' off'}" title="${escapeHtml(details)}">
         <span class="plugin-main">
           <span class="plugin-head">
@@ -12187,33 +12003,13 @@
           ${sharedPacks.length ? `<span class="plugin-source">${escapeHtml(t('同时包含于：{names}', { names: sharedPacks.join('、') }))}</span>` : ''}
           ${plugin.description ? `<span class="plugin-desc">${escapeHtml(plugin.description)}</span>` : ''}
         </span>
-        ${update?.hasUpdate ? `<button class="plugin-update" type="button" data-update="${escapeHtml(plugin.name)}" data-profile="${escapeHtml(profile)}" aria-label="${escapeHtml(`${plugin.name} ${t('更新到 {latest}', { latest: update.latest })}`)}" ${busy ? 'disabled' : ''}><span class="spin" aria-hidden="true"></span><span class="update-label">${escapeHtml(t('更新到 {latest}', { latest: update.latest }))}</span></button>` : ''}
-        ${removable ? `<button class="ghost icon-btn plugin-remove" type="button" data-remove="${escapeHtml(plugin.name)}" data-profile="${escapeHtml(profile)}" title="${escapeHtml(t('卸载 {name}', { name: plugin.name }))}" aria-label="${escapeHtml(t('卸载 {name}', { name: plugin.name }))}" ${busy ? 'disabled' : ''}>${packMoreIcons.trash}</button>` : ''}
-        <input type="checkbox" data-plugin="${escapeHtml(plugin.name)}" data-profile="${escapeHtml(profile)}" ${enabled ? 'checked' : ''} ${!plugin.toggleable || pending || busy ? 'disabled' : ''} ${pending ? 'class="is-switching" aria-busy="true"' : ''} />
-      </label><div class="plugin-row-progress" data-plugin-progress="${escapeHtml(plugin.name)}" data-profile="${escapeHtml(profile)}" hidden>
-        <span class="plugin-progress-label">${escapeHtml(progressLabel)}</span><div class="progress" role="progressbar" aria-label="${escapeHtml(`${plugin.name} ${progressLabel}`)}"><div class="progress-bar"></div></div>
-      </div></div>`
+        <input type="checkbox" data-plugin="${escapeHtml(plugin.name)}" data-profile="${escapeHtml(profile)}" ${enabled ? 'checked' : ''} ${!plugin.toggleable || pending || packBusy ? 'disabled' : ''} ${pending ? 'class="is-switching" aria-busy="true"' : ''} />
+      </label></div>`
     }
 
     function bindPluginRowEvents(root, profile = '') {
       root.querySelectorAll('input[data-plugin]').forEach((el) => {
         el.onchange = () => { void togglePlugin(el.dataset.plugin, el.checked, el.dataset.profile || profile, el) }
-      })
-      root.querySelectorAll('button[data-remove]').forEach((el) => {
-        el.onclick = (event) => {
-          // 整行是个 label（点哪都能开关），按钮的点击不能顺带把插件关掉
-          event.preventDefault()
-          event.stopPropagation()
-          void removePlugin(el.dataset.remove, el.dataset.profile || profile || pluginProfile)
-        }
-      })
-      root.querySelectorAll('button[data-update]').forEach((el) => {
-        el.onclick = (event) => {
-          // 整行是个 label（点哪都能开关），按钮的点击不能顺带把插件关掉
-          event.preventDefault()
-          event.stopPropagation()
-          void updatePlugin(el.dataset.update, el.dataset.profile || profile || pluginProfile)
-        }
       })
     }
 
@@ -12352,7 +12148,7 @@
     async function togglePlugin(name, enabled, profile = '', control = null) {
       profile = profile || pluginProfile
       const key = `${profile}:${name}`
-      if (packBusy || pluginUpdating || pluginRemoving || pluginAdding || pluginTogglePending.has(key)) return
+      if (packBusy || pluginTogglePending.has(key)) return
       pluginTogglePending.set(key, { enabled })
       paintPluginHomes()
       markSwitchPending(control, enabled)
@@ -12363,14 +12159,14 @@
         if (profile && profile !== pluginProfile) return
       } catch (error) {
         notify(error.message)
-        await loadPlugins({ checkUpdates: false })
+        await loadPlugins()
       } finally {
         pluginTogglePending.delete(key)
         renderPackView()
       }
     }
 
-    function loadPlugins({ checkUpdates = true } = {}) {
+    function loadPlugins() {
       paintPluginHomes()
       if (!pluginProfile) paintPluginProfiles()
       const profile = pluginProfile
@@ -12380,85 +12176,12 @@
         if (context !== pluginContextKey() || request !== pluginLoadRequest) return
         paintPluginProfiles(data.profiles || [])
         applyPluginPayload(data)
-        // 版本信息拿到后再查一次 registry：查不到（离线/私有包）就静默跳过，别打扰
-        if (checkUpdates) void refreshPluginUpdates({ quiet: true }).catch(() => {})
         const names = (data.autoFix?.plugins || []).map((item) => item.name || item.id).filter(Boolean)
         if (names.length) notify(t('上次启动自动禁用了：{names}（点开正在用的那张卡可以重新打开）。', { names: names.join('、') }), t('兼容模式'))
         pluginsLoaded = true
       }).catch((error) => { if (context === pluginContextKey() && request === pluginLoadRequest) notify(error.message) })
     }
 
-    function pluginButtons() {
-      // 检查结果会替换 DOM，必须按当前状态重画，不能只恢复发起操作的旧按钮。
-      renderPackGrid()
-      renderPackView()
-      setPluginProgress(Boolean(pluginProgress))
-    }
-
-    /** 拉一次更新检查结果；force=true 会绕过服务端 60s 缓存。 */
-    async function refreshPluginUpdates({ force = false, quiet = false } = {}) {
-      const profile = pluginProfile
-      const context = pluginContextKey()
-      const url = `/api/plugins/updates?profile=${encodeURIComponent(profile)}${force ? '&refresh=1' : ''}`
-      const data = await getJson(url)
-      if (context !== pluginContextKey()) return {}
-      pluginUpdates = data.plugins || {}
-      // 更新信息影响卡片上的「更新 N 个」与详情里的行，两处都重画
-      renderPackGrid()
-      renderPackView()
-      return pluginUpdates
-    }
-
-    async function updatePlugin(name, profile = pluginProfile) {
-      if (pluginUpdating || pluginRemoving || pluginAdding || packBusy) return
-      pluginUpdating = name
-      pluginUpdatingProfile = profile
-      pluginProgress = null
-      pluginButtons()
-      try {
-        const data = await post('/api/plugins/update', { name, profile })
-        if (profile !== pluginProfile) return
-        await loadPlugins({ checkUpdates: false })
-        await refreshPluginUpdates({ force: true, quiet: true })
-      } catch (error) {
-        notify(error.message)
-        if (profile === pluginProfile) await loadPlugins({ checkUpdates: false })
-      } finally {
-        pluginUpdating = ''
-        pluginUpdatingProfile = ''
-        pluginProgress = null
-        pluginButtons()
-      }
-    }
-
-    async function updateAllPlugins() {
-      if (pluginUpdating || pluginRemoving || pluginAdding || packBusy) return
-      const profile = pluginProfile
-      pluginUpdating = '*'
-      pluginUpdatingProfile = profile
-      pluginProgress = null
-      pluginButtons()
-      try {
-        const data = await post('/api/plugins/update', { all: true, profile })
-        if (profile !== pluginProfile) return
-        await loadPlugins({ checkUpdates: false })
-        await refreshPluginUpdates({ force: true, quiet: true })
-        const failed = data.failed || []
-        if (failed.length) notify(t('更新了 {ok} 个，{failed} 个失败（{names}），重启 dsh 后生效。', {
-          ok: (data.done || []).length,
-          failed: failed.length,
-          names: failed.map((item) => item.name).join('、'),
-        }), t('插件更新'))
-      } catch (error) {
-        notify(error.message)
-        if (profile === pluginProfile) await loadPlugins({ checkUpdates: false })
-      } finally {
-        pluginUpdating = ''
-        pluginUpdatingProfile = ''
-        pluginProgress = null
-        pluginButtons()
-      }
-    }
 
     // 翻译涉及后面声明的弹窗，统一在脚本末尾调用，避免未初始化的元素引用。
 
@@ -12583,7 +12306,7 @@
     }
 
     async function togglePluginGroup(item, group, enabled, control) {
-      if (packBusy || pluginUpdating || pluginRemoving || pluginAdding || pluginTogglePending.size || !group) return
+      if (packBusy || pluginTogglePending.size || !group) return
       packBusy = true
       const key = `${item.profile}:${group.key}`
       pluginGroupPending.set(key, enabled)
@@ -12605,7 +12328,7 @@
         if (data.failed?.length) notify(t('有 {n} 个插件不支持开关：{names}', { n: data.failed.length, names: data.failed.join('、') }))
       } catch (error) {
         notify(error.message)
-        await loadPlugins({ checkUpdates: false })
+        await loadPlugins()
       } finally {
         pluginGroupPending.delete(key)
         for (const name of names) pluginTogglePending.delete(`${item.profile}:${name}`)
@@ -12626,7 +12349,7 @@
     let profileDialogHome = ''
     let profileDialogFromPicker = false
     function openProfileDialog(source = '', mode = source ? 'copy' : 'create', options = {}) {
-      if (packBusy || pluginUpdating || pluginRemoving || pluginAdding || profileSaving) return
+      if (packBusy || profileSaving) return
       profileCopySource = source
       profileDialogMode = mode
       profileDialogHome = options.home || ''
@@ -12712,8 +12435,7 @@
           if (pluginProfile === profileCopySource) pluginProfile = data.renamedProfile
           if (openedPack?.profile === profileCopySource) openedPack = { ...openedPack, profile: data.renamedProfile }
           if (pluginLaunchEntry?.profile === profileCopySource) pluginLaunchEntry = { ...pluginLaunchEntry, profile: data.renamedProfile }
-          pluginUpdates = {}
-          pluginsLoaded = false
+              pluginsLoaded = false
           state.webProfilesByHome = { ...state.webProfilesByHome, [data.home]: data.webProfiles }
           applyState(data.state)
         }
@@ -12830,7 +12552,7 @@
       }
     }
     function openProfileBackups(profile) {
-      if (!profile || packBusy || pluginUpdating || pluginRemoving || pluginAdding) return
+      if (!profile || packBusy) return
       backupProfile = profile
       backupPhase = ''
       // 说明只留一行保留策略；补丁/清单这些细节挂 title，鼠标停一下就能看全
@@ -12864,7 +12586,7 @@
           notify(install?.ok === true && !install.skipped ? t('已回退并重装依赖。重启这个配置的实例后生效。') : t('已回退。重启这个配置的实例后生效。'), t('回退完成'))
         }
         await loadProfileBackups()
-        await loadPlugins({ checkUpdates: false })
+        await loadPlugins()
         loadRecovery(profile)
       } catch (error) {
         notify(error.message)
@@ -12913,7 +12635,7 @@
     function renderPackGrid() {
       paintPluginHomes()
       const list = Array.isArray(packState.packs) ? packState.packs : []
-      document.getElementById('profileAdd').disabled = Boolean(packBusy || pluginUpdating || pluginRemoving || pluginAdding)
+      document.getElementById('profileAdd').disabled = Boolean(packBusy)
       const cards = list.map((item) => {
         const removable = item.removable === true
         return gridCardHtml({
@@ -12926,9 +12648,9 @@
           selected: openedPack?.profile === item.profile,
           menu: `
           <button class="ghost" type="button" data-profile-backups="${escapeHtml(item.profile)}">${packMoreIcons.backup}${escapeHtml(t('备份与回退'))}</button>
-          <button class="ghost" type="button" data-profile-copy="${escapeHtml(item.profile)}" ${packBusy || pluginUpdating || pluginRemoving || pluginAdding ? 'disabled' : ''}>${packMoreIcons.copy}${escapeHtml(t('复制配置'))}</button>
-          <button class="ghost" type="button" data-profile-rename="${escapeHtml(item.profile)}" ${!removable || packBusy || pluginUpdating || pluginRemoving || pluginAdding ? 'disabled' : ''} ${!removable ? `title="${escapeHtml(t('系统配置不能重命名'))}"` : ''}>${packMoreIcons.rename}${escapeHtml(t('重命名配置'))}</button>
-          <button class="ghost danger" type="button" data-profile-delete="${escapeHtml(item.profile)}" ${!removable || packBusy || pluginUpdating || pluginRemoving || pluginAdding ? 'disabled' : ''} ${!removable ? `title="${escapeHtml(t('系统配置不能删除'))}"` : ''}>${packMoreIcons.trash}${escapeHtml(t('删除配置'))}</button>`,
+          <button class="ghost" type="button" data-profile-copy="${escapeHtml(item.profile)}" ${packBusy ? 'disabled' : ''}>${packMoreIcons.copy}${escapeHtml(t('复制配置'))}</button>
+          <button class="ghost" type="button" data-profile-rename="${escapeHtml(item.profile)}" ${!removable || packBusy ? 'disabled' : ''} ${!removable ? `title="${escapeHtml(t('系统配置不能重命名'))}"` : ''}>${packMoreIcons.rename}${escapeHtml(t('重命名配置'))}</button>
+          <button class="ghost danger" type="button" data-profile-delete="${escapeHtml(item.profile)}" ${!removable || packBusy ? 'disabled' : ''} ${!removable ? `title="${escapeHtml(t('系统配置不能删除'))}"` : ''}>${packMoreIcons.trash}${escapeHtml(t('删除配置'))}</button>`,
         })
       }).join('')
       // 安装整合包的入口在环境详情里（装进这个环境），网格里不再放独立的加卡
@@ -12983,10 +12705,8 @@
 
     /** 「更多操作」菜单的行首图标：stroke 风格跟顶栏按钮一套。 */
     const packMoreIcons = {
-      add: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-plus"/></svg>',
       rename: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-pencil"/></svg>',
       copy: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-copy"/></svg>',
-      refresh: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-refresh-cw"/></svg>',
       enable: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-circle-check"/></svg>',
       disable: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-ban"/></svg>',
       trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-trash-2"/></svg>',
@@ -13060,27 +12780,16 @@
       const latest = records.filter((record) => !record.synthetic).at(-1)
       // 顶部只剩一行：左上返回图标（在静态结构里），右上全部操作；批量启停收进「更多操作」
       packHeadEl.innerHTML = `
-        <button class="ghost icon-btn pack-tool" type="button" data-plugin-add="1" title="${escapeHtml(t('添加插件'))}" aria-label="${escapeHtml(t('添加插件'))}" ${packBusy || pluginUpdating || pluginRemoving || pluginAdding ? 'disabled' : ''}>${packMoreIcons.add}</button>
-        ${item.profile === packState.profile ? `<button class="ghost icon-btn pack-tool${pluginChecking ? ' is-checking' : ''}" type="button" data-pack-check-updates="1" title="${escapeHtml(t('检查更新'))}" aria-label="${escapeHtml(t('检查更新'))}" aria-busy="${pluginChecking}" ${pluginChecking || pluginUpdating || pluginRemoving || packBusy ? 'disabled' : ''}>${packMoreIcons.refresh}</button>` : ''}
         <details class="pack-more">
           <summary title="${escapeHtml(t('更多操作'))}" aria-label="${escapeHtml(t('更多操作'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-ellipsis"/></svg></summary>
           <div class="pack-more-actions">
-            <button class="ghost" type="button" data-profile-backups="1" ${packBusy || pluginUpdating || pluginRemoving || pluginAdding ? 'disabled' : ''}>${packMoreIcons.backup}${escapeHtml(t('备份与回退'))}</button>
-            <button class="ghost" type="button" data-profile-copy="1" ${packBusy || pluginUpdating || pluginRemoving ? 'disabled' : ''}>${packMoreIcons.copy}${escapeHtml(t('复制配置'))}</button>
-            ${item.removable ? `<button class="ghost" type="button" data-profile-rename="1" ${packBusy || pluginUpdating || pluginRemoving ? 'disabled' : ''}>${packMoreIcons.rename}${escapeHtml(t('重命名配置'))}</button>` : ''}
-            ${item.removable ? `<button class="ghost danger" type="button" data-pack-delete="1" ${packBusy || pluginUpdating || pluginRemoving ? 'disabled' : ''}>${packMoreIcons.trash}${escapeHtml(t('删除配置'))}</button>` : ''}
+            <button class="ghost" type="button" data-profile-backups="1" ${packBusy ? 'disabled' : ''}>${packMoreIcons.backup}${escapeHtml(t('备份与回退'))}</button>
+            <button class="ghost" type="button" data-profile-copy="1" ${packBusy ? 'disabled' : ''}>${packMoreIcons.copy}${escapeHtml(t('复制配置'))}</button>
+            ${item.removable ? `<button class="ghost" type="button" data-profile-rename="1" ${packBusy ? 'disabled' : ''}>${packMoreIcons.rename}${escapeHtml(t('重命名配置'))}</button>` : ''}
+            ${item.removable ? `<button class="ghost danger" type="button" data-pack-delete="1" ${packBusy ? 'disabled' : ''}>${packMoreIcons.trash}${escapeHtml(t('删除配置'))}</button>` : ''}
           </div>
         </details>`
       const actions = packHeadEl
-      actions.querySelector('[data-plugin-add]')?.addEventListener('click', () => openPluginAdd())
-      actions.querySelector('[data-pack-check-updates]')?.addEventListener('click', async () => {
-        if (pluginChecking) return
-        pluginChecking = true
-        renderPackView()
-        try { await refreshPluginUpdates({ force: true }) }
-        catch (error) { notify(error.message) }
-        finally { pluginChecking = false; renderPackView() }
-      })
       actions.querySelector('[data-profile-backups]')?.addEventListener('click', () => { actions.querySelector('.pack-more').open = false; openProfileBackups(item.profile) })
       actions.querySelector('[data-pack-delete]')?.addEventListener('click', () => { void removeProfileDir(item) })
       actions.querySelector('[data-profile-copy]')?.addEventListener('click', () => { actions.querySelector('.pack-more').open = false; openProfileDialog(item.profile) })
@@ -13097,13 +12806,11 @@
       const configRecords = records.filter((record) => record.configOnly)
       const configHtml = configRecords.length ? `<div class="plugin-config-records"><span class="pack-block-title">${escapeHtml(t('导入过的配置'))}</span>${configRecords.map((record) => `<div class="plugin-row">
           <span class="plugin-main"><span class="plugin-head"><span class="plugin-name">${escapeHtml(record.displayName || record.name)}</span><span class="plugin-version">${escapeHtml(record.version ? `v${record.version}` : '')}</span></span></span>
-          <button class="ghost" type="button" data-config-undo="${escapeHtml(record.name)}" title="${escapeHtml(record === latest ? t('撤销配置导入') : t('请先卸载此后安装的整合包'))}" ${packBusy || pluginUpdating || record !== latest ? 'disabled' : ''}>${escapeHtml(t('撤销'))}</button>
+          <button class="ghost" type="button" data-config-undo="${escapeHtml(record.name)}" title="${escapeHtml(record === latest ? t('撤销配置导入') : t('请先卸载此后安装的整合包'))}" ${packBusy || record !== latest ? 'disabled' : ''}>${escapeHtml(t('撤销'))}</button>
         </div>`).join('')}</div>` : ''
       packPluginListEl.innerHTML = (groups.length
         ? groups.map((group) => {
-          const rows = group.plugins.map(({ plugin, sharedPacks }) => pluginRowHtml(plugin, {
-            profile: item.profile, updates: item.profile === packState.profile ? pluginUpdates : {}, sharedPacks,
-          })).join('')
+          const rows = group.plugins.map(({ plugin, sharedPacks }) => pluginRowHtml(plugin, { profile: item.profile, sharedPacks })).join('')
           if (!grouped) return rows
           const members = group.key === 'other' ? group.plugins.map(({ plugin }) => plugin) : (item.plugins || []).filter((plugin) => group.members.has(plugin.name))
           const toggleable = members.filter((plugin) => plugin.toggleable)
@@ -13112,7 +12819,7 @@
           const enabled = switching ? pluginGroupPending.get(pendingKey) : toggleable.some((plugin) => plugin.enabled)
           const mixed = !switching && enabled && !toggleable.every((plugin) => plugin.enabled)
           const record = records.find((one) => group.key === `pack:${one.name}`)
-          const disabled = packBusy || pluginUpdating || pluginRemoving || pluginAdding || pluginTogglePending.size
+          const disabled = packBusy || pluginTogglePending.size
           return `<div class="plugin-group-card"><div class="plugin-group-tools">
             ${record && !record.synthetic ? `<button class="ghost icon-btn danger" type="button" data-group-remove="${escapeHtml(group.key)}" title="${escapeHtml(record === latest ? t('卸载 {name}', { name: group.name }) : t('请先卸载此后安装的整合包'))}" aria-label="${escapeHtml(t('卸载 {name}', { name: group.name }))}" ${disabled || record !== latest ? 'disabled' : ''}>${packMoreIcons.trash}</button>` : ''}
             <label class="toggle plugin-group-toggle" title="${escapeHtml([mixed ? t('部分启用') : '', t(enabled ? '禁用 {name}' : '启用 {name}', { name: group.name })].filter(Boolean).join(' · '))}"><input type="checkbox" data-group-toggle="${escapeHtml(group.key)}" aria-label="${escapeHtml(t(enabled ? '禁用 {name}' : '启用 {name}', { name: group.name }))}" ${enabled ? 'checked' : ''} ${switching ? 'class="is-switching" aria-busy="true"' : ''} ${disabled || !toggleable.length ? 'disabled' : ''}/></label>
@@ -13132,12 +12839,11 @@
       packPluginListEl.querySelectorAll('[data-group-remove]').forEach((el) => {
         el.onclick = () => { void removePack(records.find((record) => `pack:${record.name}` === el.dataset.groupRemove)) }
       })
-      setPluginProgress(Boolean(pluginProgress))
     }
 
     /** 删除的是整个 Profile，与整合包按安装顺序撤销是两种操作。 */
     async function removeProfileDir(item) {
-      if (!item || packBusy || pluginUpdating || pluginRemoving || pluginAdding) return
+      if (!item || packBusy) return
       if (!(await appConfirm(t('删除「{profile}」？其中的 {n} 个插件、配置和对应启动项会一并移除，会话与记忆保留。此操作无法撤销。', { profile: item.profile, n: item.pluginCount }), { title: t('删除配置') }))) return
       packBusy = true
       renderPackGrid()
@@ -13254,7 +12960,6 @@
     trapPackDialog(packDetailDialog, closeMarketDetail)
     trapPackDialog(packInstallDialog, closeInstallDialog)
     trapPackDialog(packExportDialog, closeExportDialog)
-    trapPackDialog(pluginAddDialogEl, closePluginAdd)
     document.getElementById('launchLogClose').onclick = () => closeLaunchLog()
     for (const button of launchLogTabButtons) {
       button.onclick = () => { launchLogTab = button.dataset.logTab; paintLaunchLogTabs() }

@@ -773,7 +773,7 @@ html.reduce-motion .launch-enhance-tip { transition: none; }
 .launch-channel-control { display: flex; align-items: center; justify-content: space-between; gap: 10px; height: 42px; padding: 0 12px; border: 1px solid var(--line); border-radius: 9px; background: #fff; }
 .launch-channel-control:focus-within { outline: 1px solid var(--accent); }
 /* 档名会在「正式版 / Official / RC / Alpha」间切换，留够最长那个的宽度、靠右，切档时整行不跟着晃 */
-#launchUpdateChannelName { min-width: 3em; margin-left: auto; text-align: right; color: var(--text); font-size: 13px; }
+.channel-switch-name { min-width: 3em; margin-left: auto; text-align: right; color: var(--text); font-size: 13px; }
 /* 说明要讲清三档各收哪些版本，开关旁边放不下，单独占满下一行；压成小一号的注释，不跟控件抢视线 */
 #launchUpdateChannelHint { flex-basis: 100%; margin: -2px 0 0; font-size: 11.5px; line-height: 1.65; }
 /* ---- 新建启动项的隔离方式 ---- */
@@ -957,16 +957,7 @@ html.reduce-motion .profile-pick-row { transition: none; animation: none; }
 .profile-detail-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .profile-detail-version { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12px; }
 .profile-detail-badge { flex: 0 0 auto; padding: 1px 6px; border-radius: 999px; background: var(--accent-soft); color: var(--muted); font-size: 10.5px; }
-/* 右栏每行的卸载钮：比栏头工具小一号，悬停才泛红；官方组件这枚不出现 */
-.profile-pick .profile-detail-action {
-  flex: 0 0 auto; width: 28px; height: 28px; padding: 6px; border: 0; border-radius: 8px;
-  background: transparent; color: var(--muted);
-}
-.profile-pick .profile-detail-action svg { width: 16px; height: 16px; }
-.profile-pick .profile-detail-action:hover:not(:disabled) { background: var(--accent-soft); color: var(--text); }
-.profile-pick .profile-detail-action.danger:hover:not(:disabled) { background: #fff1f2; color: #e5484d; }
-.profile-pick .profile-detail-action:disabled { opacity: .4; cursor: default; }
-/* 栏头右侧：插件数可以截断，别把旁边的「+」挤出去 */
+/* 栏头右侧：插件数可以截断 */
 .profile-pick .profile-pick-col--detail .profile-pick-tools { min-width: 0; }
 #profilePickMeta { min-width: 0; }
 /* 窄窗口（标签形态那一档，最窄 720）：三栏挤不下，详情折到下面通栏，两栏各留一半 */
@@ -992,16 +983,17 @@ html.reduce-motion #launchIsolationHint.isolation-hint-in { animation: none; }
    圆钮靠 data-channel 选 left（0/1/2 档），带 transition——原生 range 的圆钮没法过渡，只能自绘一个。 */
 .launch-switch { position: relative; display: inline-flex; flex: 0 0 auto; --knob: 20px; --inset: 3px; --travel: 18px; }
 .launch-switch-knob { position: absolute; top: var(--inset); left: var(--inset); width: var(--knob); height: var(--knob); border-radius: 50%; background: #fff; box-shadow: var(--switch-knob-shadow); pointer-events: none; transition: left 220ms cubic-bezier(.2, .8, .2, 1); }
-.launch-switch:has(#launchUpdateChannel[data-channel="rc"]) .launch-switch-knob { left: calc(var(--inset) + var(--travel)); }
-.launch-switch:has(#launchUpdateChannel[data-channel="alpha"]) .launch-switch-knob { left: calc(var(--inset) + var(--travel) * 2); }
+.launch-switch:has(.channel-switch[data-channel="rc"]) .launch-switch-knob { left: calc(var(--inset) + var(--travel)); }
+.launch-switch:has(.channel-switch[data-channel="alpha"]) .launch-switch-knob { left: calc(var(--inset) + var(--travel) * 2); }
 html.reduce-motion .launch-switch-knob { transition: none; }
 @media (prefers-reduced-motion: reduce) { .launch-switch-knob { transition: none; } }
 /* 三档开关：照 .toggle 的两档开关画（同一套轨道色、20px 圆钮、3px 内边、每档行程 18px），只是多一档；
    用 range 而不是三个单选，拖动、点轨道跳档、方向键都是原生的。
    控件盒子只有圆钮的行程那么大，外圈 3px 内边用同色阴影补出来：range 的内边距 Chromium 和 WebKit
    处理不一样，靠它缩行程会让圆钮停不准；margin 给阴影留位，换行贴到弹窗左边时不被裁掉。
-   三个小点标出能停的位置，圆钮压住的就是当前档。正式版算「关」（不收预发布），RC / Alpha 算「开」，轨道色按这个分。 */
-#launchUpdateChannel {
+   三个小点标出能停的位置，圆钮压住的就是当前档。正式版算「关」（不收预发布），RC / Alpha 算「开」，轨道色按这个分。
+   启动项编辑框和实例页共用（.channel-switch），按类挂样式。 */
+.channel-switch {
   --dot: radial-gradient(circle 2px, rgb(255 255 255 / 70%) 95%, transparent) no-repeat;
   --track: var(--switch-off);
   appearance: none;
@@ -1019,8 +1011,8 @@ html.reduce-motion .launch-switch-knob { transition: none; }
   cursor: pointer;
   transition: background-color 220ms ease, box-shadow 220ms ease;
 }
-#launchUpdateChannel:not([data-channel="official"]) { --track: var(--switch-on); }
-#launchUpdateChannel::-webkit-slider-thumb {
+.channel-switch:not([data-channel="official"]) { --track: var(--switch-on); }
+.channel-switch::-webkit-slider-thumb {
   -webkit-appearance: none;
   width: var(--knob);
   height: var(--knob);
@@ -1030,9 +1022,12 @@ html.reduce-motion .launch-switch-knob { transition: none; }
   /* 圆钮由 .launch-switch-knob 自绘（要位移动画）；原生圆钮只留命中区域 */
   opacity: 0;
 }
-#launchUpdateChannel:focus-visible { outline: 1px solid var(--accent); outline-offset: calc(var(--inset) + 2px); }
-html.reduce-motion #launchUpdateChannel { transition: none; }
-@media (prefers-reduced-motion: reduce) { #launchUpdateChannel { transition: none; } }
+.channel-switch:focus-visible { outline: 1px solid var(--accent); outline-offset: calc(var(--inset) + 2px); }
+/* 实例页钉了具体版本时版本类型不起作用，开关置灰 */
+.channel-switch:disabled { cursor: default; }
+.launch-channel-control:has(.channel-switch:disabled) { opacity: 0.5; }
+html.reduce-motion .channel-switch { transition: none; }
+@media (prefers-reduced-motion: reduce) { .channel-switch { transition: none; } }
 .launch-version-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
 .launch-version-tools[hidden] { display: none; }
 .launch-version-tools .hint { flex-basis: 100%; margin: 0; }
@@ -1734,7 +1729,7 @@ html.reduce-motion #launchLogDialog .launch-log-card[data-log-panel][data-dir]:n
 .plugin-row:hover { background: var(--accent-soft); }
 /* 整合包页的列表行是 div 不是 label：补上横向排版，按钮才会待在右端而不是掉到下一行 */
 .plugin-row.pack-row { display: flex; align-items: center; gap: 12px; }
-.plugin-row.pack-row .plugin-update, .plugin-row.pack-row .ghost { flex: 0 0 auto; }
+.plugin-row.pack-row .ghost { flex: 0 0 auto; }
 .plugin-row:focus-within { background: var(--accent-soft); }
 .plugin-row:last-child { border-bottom: 0; }
 .plugin-row.off .plugin-name { color: var(--muted); font-weight: 500; }
@@ -1770,10 +1765,6 @@ html.reduce-motion #launchLogDialog .launch-log-card[data-log-panel][data-dir]:n
 .plugin-item { border-bottom: 1px solid var(--line); }
 .plugin-item:last-child { border-bottom: 0; }
 .plugin-item > .plugin-row { border-bottom: 0; }
-.plugin-row-progress { padding: 0 16px 13px; animation: pack-view-in 180ms ease both; }
-.plugin-row-progress[hidden] { display: none; }
-.plugin-progress-label { display: block; margin-bottom: 7px; color: var(--muted); font-size: 11.5px; }
-.plugin-row-progress .progress { height: 3px; margin: 0; }
 .plugin-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 /* 顶栏里的 profile 下拉：和旁边的 ghost 按钮同高、同字号、同圆角，排成一行才齐。
    顶部按钮还有一条 .pane-top .ghost 的 4px 下移微调，这里得跟上，否则下拉比按钮高 2px */
@@ -1792,49 +1783,6 @@ html.reduce-motion #launchLogDialog .launch-log-card[data-log-panel][data-dir]:n
 .plugin-actions .ui-select { width: 104px; max-width: 170px; }
 .plugin-actions .ui-select .select-trigger { min-height: var(--control-height); height: var(--control-height); margin-top: 4px; padding: 0 var(--control-padding); border-radius: var(--control-radius); font-size: var(--control-font-size); }
 .plugin-actions .ui-select .select-caret { width: 10px; height: var(--control-height); }
-/* 行尾的卸载图标：平时淡着，悬停这一行才实心；触屏没有 hover 时半透明也点得到 */
-.plugin-remove {
-  flex: 0 0 auto;
-  width: 28px;
-  min-width: 28px;
-  height: 28px;
-  padding: 6px;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  opacity: 0.55;
-}
-.plugin-remove svg { width: 16px; height: 16px; }
-.plugin-row:hover .plugin-remove, .plugin-row:focus-within .plugin-remove { opacity: 1; }
-.plugin-remove:hover:not(:disabled) { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }
-.plugin-remove:disabled { opacity: 0.25; cursor: default; }
-/* 添加弹窗：包名/地址可能很长，输入框占满整行比和标签并排好读 */
-#pluginAddDialog .mcp-field { flex-direction: column; align-items: stretch; gap: 7px; }
-#pluginAddDialog .mcp-field input { width: 100%; }
-#pluginAddDialog .mcp-field > span { color: var(--text); }
-#pluginAddDialog #pluginAddTarget:empty { display: none; }
-#pluginAddDialog .progress { margin: 2px 0 0; }
-@media (max-width: 560px) {
-  .plugin-remove { width: 26px; min-width: 26px; height: 26px; padding: 5px; }
-}
-.plugin-update {
-  flex: 0 0 auto;
-  border: 1px solid #c7d8f7;
-  background: var(--accent-soft);
-  color: var(--accent);
-  font: inherit;
-  font-size: 12px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  cursor: pointer;
-  transition: background 140ms ease, border-color 140ms ease;
-}
-.plugin-update:hover:not(:disabled) { background: var(--accent-dim); border-color: #b9ccf0; }
-.plugin-update:disabled { opacity: 0.5; cursor: default; }
-/* 更新进行中：按钮里转圈加载，文字让位 */
-.plugin-update .spin { width: 14px; height: 14px; border-width: 2px; margin: 0 auto; }
-.plugin-update.loading .update-label { display: none; }
-.plugin-update.loading .spin { display: block; }
 @media (max-width: 760px) {
   #pane-plugins .pane-top { flex-wrap: wrap; }
   .plugin-actions { flex-wrap: wrap; margin-left: auto; justify-content: flex-end; }
@@ -1843,7 +1791,6 @@ html.reduce-motion #launchLogDialog .launch-log-card[data-log-panel][data-dir]:n
   #pane-plugins .pane-top > div:first-child { width: 100%; }
   .plugin-actions { width: 100%; justify-content: flex-start; }
   .plugin-row { padding: 11px 12px; gap: 9px; }
-  .plugin-update { font-size: 11px; padding: 4px 7px; }
   .plugin-version { display: none; }
 }
 /* ---- 整合包：卡片区 + 点入详情 + 装包/导出弹窗 ---- */
@@ -2263,10 +2210,23 @@ html.reduce-motion #connectionWslFields, html.reduce-motion #connectionSshFields
 .environment-form[hidden] { display: none; }
 /* 跟随上游那一行：说明占满左边，「更新…」贴右 */
 .environment-form > .hint { flex: 1 1 240px; margin: 0; }
-.environment-form input { flex: 1 1 180px; min-width: 0; }
+/* 只给文字框：版本类型那个 range 也在这行里，吃到 flex-basis 会被拉成 180px 宽 */
+.environment-form input[type=text] { flex: 1 1 180px; min-width: 0; }
 .environment-form select { flex: 0 1 auto; min-width: 0; }
+/* 下拉按内容放宽：默认 148px 放不下英文的「Latest version (auto)」，会被截成省略号 */
+.environment-form .ui-select { width: auto; min-width: 148px; }
+/* 实例页版本那行：三档开关借启动项编辑框的样子，高度跟这行的输入框走；图标钮缩到控件高 */
+.environment-form .launch-channel-control { flex: 0 0 150px; height: var(--control-height); }
+.environment-form .icon-btn, .environment-plugin-bar .icon-btn { flex: 0 0 var(--control-height); width: var(--control-height); height: var(--control-height); padding: 8px; border-radius: var(--control-radius); }
+.environment-form .icon-btn svg, .environment-plugin-bar .icon-btn svg { width: 18px; height: 18px; }
+/* 插件卡片顶上那栏：和下面的插件行同一套左右内边距与分隔线，输入框占满、按钮贴右 */
+.environment-plugin-bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+.environment-plugin-bar input[type=text] { flex: 1 1 180px; min-width: 0; }
+.environment-compatibility { padding: 2px 16px 8px; border-bottom: 1px solid var(--line); }
+/* 上游有新版本：「更新实例」右上角一个小圆点，标签上那句「有新版本」之外再给一眼能看到的提示 */
+.pack-tool.has-update::after { content: ''; position: absolute; top: 4px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
 /* 整行统一到控件高：.ghost 默认 30px、更新药丸 28px、返回键 36px，混着排上下沿对不齐 */
-.pack-detail-actions .ghost, .pack-detail-actions .plugin-update { height: var(--control-height); padding: 0 var(--control-padding); border-radius: var(--control-radius); font-size: var(--control-font-size); transition: border-color 0.12s ease, background 0.12s ease; }
+.pack-detail-actions .ghost { height: var(--control-height); padding: 0 var(--control-padding); border-radius: var(--control-radius); font-size: var(--control-font-size); transition: border-color 0.12s ease, background 0.12s ease; }
 .pack-detail-actions .ghost:hover:not(:disabled) { border-color: #b9ccf0; background: var(--accent-soft); }
 .pack-detail-actions .pack-tool { position: relative; width: 34px; min-width: 34px; height: 34px; padding: 7px; }
 .pack-tool svg { width: 18px; height: 18px; }
@@ -2440,7 +2400,6 @@ html.reduce-motion #connectionWslFields, html.reduce-motion #connectionSshFields
 .pack-detail .pack-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .pack-detail .pack-target { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .pack-detail .pack-target label { color: var(--muted); font-size: 12px; }
-.pack-detail .pack-target input { width: 170px; }
 .pack-actions .ghost.primary { border-color: #b9ccf0; background: var(--accent-soft); color: var(--accent); }
 /* 导出那一行里的小勾选：原生 checkbox，和旁边的输入框同高对齐 */
 .pack-check { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; white-space: nowrap; cursor: pointer; }
@@ -2777,7 +2736,6 @@ html.reduce-motion .ask-notes-spinner { animation: none; }
 /* MCP 行是 div 不是 label：横向排版和右侧开关都靠 .toggle 那套（和插件行一致） */
 #mcpList .plugin-row { display: flex; align-items: center; gap: 12px; }
 #mcpList .plugin-desc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#mcpList .plugin-actions .plugin-update { font-variant-numeric: normal; }
 
 #launchDialog .home-field:has(#versionPicker) { position: relative; }
 #launchDialog .launch-version-select-row { display: flex; align-items: center; gap: 8px; }
@@ -2785,8 +2743,8 @@ html.reduce-motion .ask-notes-spinner { animation: none; }
 /* 深色主题把通用 danger 改成灰白；预更新结果仍需明确的红/绿语义。 */
 .launch-compatibility { --compatibility-success: #16803c; --compatibility-warning: #d12838; flex: 1 0 100%; min-width: 0; font-size: 13px; overflow-wrap: anywhere; }
 html[data-color-scheme="dark"] .launch-compatibility { --compatibility-success: #75d89a; --compatibility-warning: #ff858c; }
-.launch-compatibility.is-compatible #launchCompatibilityStatus { color: var(--compatibility-success); }
-.launch-compatibility.is-incompatible #launchCompatibilityStatus, #launchCompatibilityIssues { color: var(--compatibility-warning); }
+.launch-compatibility.is-compatible .compatibility-status { color: var(--compatibility-success); }
+.launch-compatibility.is-incompatible .compatibility-status, .compatibility-issues { color: var(--compatibility-warning); }
 .launch-compatibility p { margin: 6px 0; }
 .launch-compatibility ul { margin: 6px 0 12px; padding-left: 20px; }
 #launchCompatibilityAgent { display: grid; gap: 8px; }
@@ -2904,7 +2862,6 @@ html[data-color-scheme="dark"] .skel-line::after { background: linear-gradient(9
 #packInstallDialog .pack-name { font-size: 16px; }
 .pack-install-summary { padding: 14px; border-radius: 9px; background: var(--accent-soft); font-size: 13px; }
 #packInstallDialog .pack-target { display: grid; grid-template-columns: 1fr; gap: 8px; }
-#packInstallDialog .pack-target input { width: 100%; height: var(--control-height); font-size: var(--control-font-size); box-sizing: border-box; }
 #packInstallDialog .pack-target .select-trigger { min-height: var(--control-height); padding: 0 var(--control-padding); border-radius: var(--control-radius); font-size: var(--control-font-size); }
 #packInstallDialog .pack-target .pack-meta { font-size: 11.5px; }
 /* 安装环境的候选面板在流内展开：弹窗本身可滚，绝对定位会被裁掉 */

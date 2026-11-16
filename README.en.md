@@ -130,7 +130,7 @@ The launch log dialog has three tabs, shown only when data was collected: **Raw 
 
 ### Plugins and profiles
 
-- The **+** button on the Plugins page adds a plugin by npm package name, local absolute path or Git URL; installing and removing keeps the bundle layer stack and dependencies in sync.
+- Plugins are installed on the **Instances** page: type an npm package name, local absolute path or Git URL in the bar above the plugin list; the Profiles page only holds switches and data.
 - The home plugin dialog's **More actions** menu has **Profile backups & rollback**: a config-layer snapshot is saved before each launch, and you can also click **Back up now**. Restoring reinstalls dependencies from the restored manifest and requires restarting that profile's instance to take effect.
 
 ## Screenshots

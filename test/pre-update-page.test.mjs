@@ -8,7 +8,8 @@ const page = readFileSync(new URL('../src/public/index.html', import.meta.url), 
 const css = readFileSync(new URL('../src/public/launcher.css', import.meta.url), 'utf8')
 const TARGET = '0.2.1-rc.3'
 const DRAFT = '/draft/未保存目录'
-const FUNCTIONS = ['compatibilityTarget', 'compatibilityKey', 'resetLaunchCompatibility', 'syncLaunchCompatibility', 'formatCompatibilityPlugin', 'buildCompatibilityPrompt', 'checkLaunchCompatibility', 'copyCompatibilityPrompt']
+// paintCompatibilityResult：结果怎么画抽成了共用函数（启动项弹窗和实例页的兼容性检查都用它）
+const FUNCTIONS = ['compatibilityTarget', 'compatibilityKey', 'resetLaunchCompatibility', 'syncLaunchCompatibility', 'formatCompatibilityPlugin', 'buildCompatibilityPrompt', 'paintCompatibilityResult', 'checkLaunchCompatibility', 'copyCompatibilityPrompt']
 const plain = (value) => JSON.parse(JSON.stringify(value))
 
 function functionSource(name) {
