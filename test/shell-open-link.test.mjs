@@ -17,7 +17,7 @@ for (const mode of ['internal', 'window']) {
     const target = { id: 'existing-page', url: 'http://127.0.0.1:1234/' }
     contents.setWindowOpenHandler = handler => { contents.popup = handler }
     const context = vm.createContext({
-      state: { lang: 'zh', instances: [target] }, mainWindow: {}, tabs: { kind: 'internal' },
+      state: { lang: 'zh', instances: [target] }, mainWindow: { isDestroyed: () => false }, tabs: { kind: 'internal', alive: true },
       managerUrl: () => 'http://127.0.0.1:4321/',
       sameOrigin: (a, b) => new URL(a).origin === new URL(b).origin,
       isWebUrl: url => /^https?:/.test(url), internalMode: () => mode === 'internal', windowMode: () => mode === 'window',

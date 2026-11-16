@@ -54,13 +54,13 @@ test('唤出窗口先退出最小化，显示之后再兜摆位', () => {
   assert.match(main, /function revealWindow\(window, size, \{ preserveBounds = false \} = \{\}\)/, '普通召回默认仍兜摆位，拖动松手可保留用户位置')
   assert.match(main, /if \(window\.isMinimized\(\)\) window\.restore\(\)[\s\S]{0,200}?window\.show\(\)/, '先退出最小化再显示')
   assert.match(main, /window\.show\(\)[\s\S]{0,200}?recenterBounds\(window\.getBounds\(\)/, '显示之后按实际摆位兜底')
-  assert.match(main, /function showManager\(\)[\s\S]{0,300}?revealWindow\(mainWindow, MAIN_WINDOW\)/, '托盘 / 二次启动走同一条路')
-  assert.match(main, /reveal: \(options\) => revealWindow\(mainWindow, MAIN_WINDOW, options\)/, '标签宿主叫同一个函数')
+  assert.match(main, /function showManager\(\)[\s\S]{0,600}?revealWindow\(mainWindow, MAIN_WINDOW\)/, '托盘 / 二次启动走同一条路')
+  assert.match(main, /reveal: \(options\) => revealWindow\((?:mainWindow|window), MAIN_WINDOW, options\)/, '标签宿主叫同一个函数')
   assert.match(main, /reveal: \(target, options\) => revealWindow\(target, DSH_WINDOW, options\)/, '每个独立窗口同样兜底')
 })
 
 test('点程序坞图标只叫回窗口，停在原来的内部标签上', () => {
   const main = read('shell/main.mjs')
   // 现场：开着内部标签页，点程序坞图标后被拽回了管理页（showManager 会先 select 管理页）
-  assert.match(main, /app\.on\('activate', \(\) => revealWindow\(mainWindow, MAIN_WINDOW\)\)/, '程序坞不切标签')
+  assert.match(main, /app\.on\('activate', \(\) => \{[\s\S]{0,300}?if \(!mainWindow \|\| mainWindow\.isDestroyed\(\)\) showManager\(\)[\s\S]{0,120}?else revealWindow\(mainWindow, MAIN_WINDOW\)/, '程序坞不切标签；窗口被系统销毁过时先重建')
 })

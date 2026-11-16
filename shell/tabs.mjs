@@ -50,6 +50,14 @@ export class BrowserTabs {
     return this.enabled || this.tabs.length > 0
   }
 
+  /**
+   * 原生窗口还在不在。休眠唤醒后系统可能把窗口连同里面的视图一起收走（#117），
+   * 这时对所有原生对象的调用都会抛 "Object has been destroyed"——包括 getter。
+   */
+  get alive() {
+    return !this.window.isDestroyed()
+  }
+
   preferences(enabled, lang, theme) {
     const langChanged = this.lang !== lang
     const themeChanged = this.theme !== theme
@@ -83,11 +91,14 @@ export class BrowserTabs {
    * 露出来的是这块白（深色模式下就是打开标签页那一下白屏）。换主题时也要跟着换。
    */
   paintBackgrounds() {
+    if (!this.alive) return
     const color = tabBaseColor(this.dark)
     for (const tab of [...this.tabs, ...this.retired]) tab.view.setBackgroundColor(color)
   }
 
   tabBounds() {
+    // 窗口已经销毁时没有布局可言：返回 null 让调用方跳过，别再碰原生对象（#117 的原生错误框）。
+    if (!this.alive) return null
     const { width, height } = this.window.getContentBounds()
     // 管理页报告 CSS 像素，原生视图使用 DIP；页面缩放不能让内容层盖住标签栏。
     const top = Math.round(this.headerHeight * (this.manager.getZoomFactor?.() || 1))
@@ -96,6 +107,7 @@ export class BrowserTabs {
 
   layout() {
     const bounds = this.tabBounds()
+    if (!bounds) return
     const geometry = JSON.stringify(bounds)
     if (geometry === this.geometry) return
     this.geometry = geometry
@@ -189,6 +201,8 @@ export class BrowserTabs {
   }
 
   attach(tab, { index = this.tabs.length, activate = true, selected, rollback = false } = {}) {
+    // 宿主窗口没了就挂不上去；明确报错，别把 null 传给原生 setBounds。
+    if (!this.alive) throw new Error('管理页窗口已销毁')
     tab.view.setVisible(false)
     tab.visible = false
     tab.view.setBounds(this.tabBounds())

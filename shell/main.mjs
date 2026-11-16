@@ -1,7 +1,7 @@
 // 必须是第一个 import：它在核心（server.js）求值之前补好 PATH 和外壳标记（见 env.mjs）
 import './env.mjs'
-import { BrowserWindow, Menu, Notification, Tray, WebContentsView, app, clipboard, dialog, ipcMain, nativeImage, nativeTheme, net, powerSaveBlocker, screen, session, shell, systemPreferences } from 'electron'
-import { existsSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { BrowserWindow, Menu, Notification, Tray, WebContentsView, app, clipboard, dialog, ipcMain, nativeImage, nativeTheme, net, powerMonitor, powerSaveBlocker, screen, session, shell, systemPreferences } from 'electron'
+import { appendFileSync, existsSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -203,6 +203,17 @@ function relaunchApp() {
 }
 
 // ---- 设置文件里的系统开关（硬件加速在文件顶部处理，其余在这里实时跟随）----
+
+/**
+ * 外壳自己的排障日志。安装版的 Windows 应用没有控制台，console.log 等于扔掉；
+ * 生命周期里的异常（窗口被系统销毁、休眠唤醒）只有写进核心那份 manager.log 才查得到。
+ * 只写低频事件，不参与核心的日志轮转也不影响运行。
+ */
+function shellLog(line) {
+  try {
+    appendFileSync(join(APP_DIR, 'manager.log'), `[${new Date().toISOString()}] [外壳] ${line}\n`)
+  } catch { /* 日志写不进去不影响运行 */ }
+}
 
 /** 保住系统不进入空闲休眠的 blocker 句柄；null = 没开。 */
 let powerBlocker = null
@@ -620,6 +631,12 @@ async function start() {
     tabs?.systemThemeChanged()
     instanceViews?.preferences(state.lang, resolveDark(state.theme, nativeTheme.shouldUseDarkColors))
   })
+  // 休眠 / 唤醒只记一笔：Windows 笔记本合盖后窗口被系统销毁过一次（#117），
+  // 下次再有人报「唤醒后启动器没了」，日志里能直接看出窗口是在挂起前还是唤醒后消失的。
+  powerMonitor.on('suspend', () => shellLog('系统挂起'))
+  powerMonitor.on('resume', () => {
+    shellLog(`系统唤醒；管理页窗口：${!mainWindow ? '不存在' : mainWindow.isDestroyed() ? '已销毁' : '还在'}`)
+  })
 
   // 默认是 Electron 本体（process.execPath）；设置里选了系统 Node 或显式 DSH_RUNTIME_NODE 时可能落空。
   if (!RUNTIME_NODE || (app.isPackaged && !existsSync(RUNTIME_NODE))) {
@@ -741,7 +758,7 @@ function showStartupError(title, message, detail) {
 }
 
 function createMainWindow() {
-  mainWindow = new BrowserWindow({
+  const window = new BrowserWindow({
     ...MAIN_WINDOW,
     title: 'DSH-X',
     show: false,
@@ -751,29 +768,44 @@ function createMainWindow() {
     backgroundColor: '#15171c',
     webPreferences: managerPreferences(),
   })
-  mainWindow.once('ready-to-show', () => mainWindow.show())
-  mainWindow.on('close', (event) => {
+  mainWindow = window
+  window.once('ready-to-show', () => { if (!window.isDestroyed()) window.show() })
+  window.on('close', (event) => {
     // 关窗口不退出：托盘还在、dsh 照常跑，需要时从托盘或程序坞再叫回来。
     // 设置里关掉「关闭窗口时隐藏到托盘」、或者托盘根本没建起来时，关窗口就是真退出。
     if (quitting) return
     event.preventDefault()
-    if (prefs.closeToTray && tray) mainWindow.hide()
+    if (prefs.closeToTray && tray) window.hide()
     else void quit()
   })
-  mainWindow.on('resize', () => tabs?.layout())
-  mainWindow.on('focus', () => { if (tabs) tabs.focusOrder = ++windowFocusSerial; syncTabDetachMenu() })
-  mainWindow.on('blur', syncTabDetachMenu)
-  guardManager(mainWindow.webContents)
-  tabs = new BrowserTabs(mainWindow, {
+  window.on('resize', () => tabs?.layout())
+  window.on('focus', () => { if (tabs) tabs.focusOrder = ++windowFocusSerial; syncTabDetachMenu() })
+  window.on('blur', syncTabDetachMenu)
+  // 窗口被系统销毁、而不是「关闭到托盘」：Windows 休眠唤醒后见过（#117）。
+  // 这里只清引用，托盘 / 二次启动再叫窗口时由 showManager 重建；
+  // 已销毁的原生对象连 getter 都会抛，绝不能让主进程带着它继续跑。
+  window.on('closed', () => {
+    if (mainWindow !== window) return
+    shellLog(`管理页窗口已销毁${quitting ? '（正在退出）' : ''}，下次唤出时重建`)
+    const host = tabs
+    mainWindow = null
+    tabs = null
+    tabDetacher = null
+    instanceViews?.dropHost(host)
+  })
+  guardManager(window.webContents)
+  const host = new BrowserTabs(window, {
     retire: (record) => instanceViews.retire(record),
     dispose: (id) => instanceViews.disposeView(id),
-    reveal: (options) => revealWindow(mainWindow, MAIN_WINDOW, options),
+    reveal: (options) => revealWindow(window, MAIN_WINDOW, options),
     systemDark: () => nativeTheme.shouldUseDarkColors,
     detach: () => ({ supported: canMigrateTabs(), drag: canDragTabs(), merge: canMigrateTabs(), deferred: canDragTabs() }),
     reducedMotion: () => prefs.reduceMotion,
     changed: syncTabDetachMenu,
   })
-  instanceViews = new InstanceViews({
+  tabs = host
+  // 登记器只建一次：窗口重建时独立窗口里的视图还归它管，不能换一份新的把它们丢掉。
+  instanceViews ??= new InstanceViews({
     canTransfer: canMigrateTabs,
     createView: createTabView,
     createHost: (kind) => kind === 'internal' ? tabs : createDshWindow(),
@@ -783,10 +815,10 @@ function createMainWindow() {
       return `${managerUrl()}booting?${params}`
     },
   })
-  tabDetacher = createTabDetacher(tabs)
-  tabs.detacher = tabDetacher
-  guardTabDrag(tabs)
-  mainWindow.loadURL(managerPageUrl())
+  tabDetacher = createTabDetacher(host)
+  host.detacher = tabDetacher
+  guardTabDrag(host)
+  window.loadURL(managerPageUrl())
 }
 
 /**
@@ -1224,14 +1256,22 @@ function revealWindow(window, size, { preserveBounds = false } = {}) {
 }
 
 function showManager() {
-  if (!mainWindow) return
+  // 管理页窗口被系统销毁过（休眠唤醒，#117）：重建一个再交给 ready-to-show，
+  // 不能对着已销毁的对象走 select / 摆位。
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    // 核心还没起来时不提前建窗口：start() 走到最后会自己建。
+    if (managerBase) createMainWindow()
+    return
+  }
   tabs?.action({ action: 'select', id: '' })
   revealWindow(mainWindow, MAIN_WINDOW)
 }
 
 /** 内部标签页：复用主窗口。主窗口不在（极少见）就退回系统浏览器，至少还能访问已经起来的实例。 */
 function openInternalTab(target) {
-  if (!mainWindow) {
+  // 窗口被销毁后重建：标签页要挂到新的管理页窗口上，不能退回系统浏览器。
+  if (!mainWindow || mainWindow.isDestroyed()) showManager()
+  if (!mainWindow || mainWindow.isDestroyed() || !tabs?.alive) {
     shell.openExternal(target.url)
     return
   }
@@ -1491,7 +1531,7 @@ async function trayAction(body) {
   }
   if (!error) return
   showManager()
-  mainWindow?.webContents.executeJavaScript(`notify(${JSON.stringify(error)})`).catch(() => {})
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.executeJavaScript(`notify(${JSON.stringify(error)})`).catch(() => {})
 }
 
 /**
@@ -1522,7 +1562,7 @@ function installPermissionHandlers() {
     const en = state.lang === 'en'
     const device = en ? (camera ? 'camera' : 'microphone') : (camera ? '摄像头' : '麦克风')
     const host = new URL(origin).origin
-    const owner = BrowserWindow.fromWebContents(contents) || mainWindow
+    const owner = BrowserWindow.fromWebContents(contents) || (mainWindow && !mainWindow.isDestroyed() ? mainWindow : null)
     dialog.showMessageBox(owner, {
       type: 'question',
       buttons: en ? ['Allow', 'Deny'] : ['允许', '拒绝'],
@@ -1694,7 +1734,11 @@ function exitApp(code = 0) {
 
 // 程序坞图标：只把窗口叫回来、不切标签。用户停在内部标签页上时点它是想回到刚才那一页，
 // 走 showManager 会先切回管理页（托盘「打开启动器」、通知这类入口要的才是那个）。
-app.on('activate', () => revealWindow(mainWindow, MAIN_WINDOW))
+app.on('activate', () => {
+  // 窗口被系统销毁过（#117）：程序坞也得能把它叫回来，重建后再显示。
+  if (!mainWindow || mainWindow.isDestroyed()) showManager()
+  else revealWindow(mainWindow, MAIN_WINDOW)
+})
 // 系统也能直接结束我们（程序坞右键「退出」、注销关机）：先让服务停掉 dsh，否则 dsh 子进程会留下来
 app.on('before-quit', (event) => {
   if (quitting || !server) return

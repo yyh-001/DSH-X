@@ -163,6 +163,19 @@ export class InstanceViews {
     for (const id of [...this.views.keys()]) this.disposeView(id)
   }
 
+  /**
+   * 宿主窗口被系统销毁（休眠唤醒后见过，#117）：它名下的视图已经随窗口一起没了，
+   * 这里只清登记，不能再对原生对象调 detach / setVisible / close。
+   */
+  dropHost(host) {
+    if (!host) return
+    for (const [viewId, record] of [...this.views]) {
+      if (record.host !== host) continue
+      this.retire(record)
+      this.views.delete(viewId)
+    }
+  }
+
   load(record, url, local = false) {
     record.surface = ''
     record.localUrl = local ? url : ''
