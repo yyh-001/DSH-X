@@ -3186,10 +3186,27 @@ async function migrateLegacyData() {
 }
 
 /**
+ * 模板 profile 第一次启动前还没有目录：先用 dsh 自己的命令按模板建好，这次启动就能把实例的插件装进去。
+ * 以前交给 dsh 启动时去建，第一次起来只有模板自带的插件，要到第二次启动才套上实例，看着像实例没生效。
+ * 用 `dsh plugin version-exemptions`：dsh 的插件命令见到没初始化的 profile 会先按模板初始化（和启动时
+ * loadProfile 用的是同一个 initProfile、同一份模板），这条只读豁免表、不起 pnpm，是最轻的一条。
+ * 只认模板名：自定义名没有 package.json 时 dsh 拒绝启动，插件命令却会按默认模板建一个，等于替用户新建了配置。
+ * @returns {Promise<boolean>} 目录建好了返回 true
+ */
+async function initTemplateProfile(version, profile) {
+  if (!TEMPLATE_PROFILES.includes(profile) || !existsSync(binPath(version))) return false
+  pushLog(`[实例] 配置「${profile}」还没初始化，先按模板建好，这次启动就套用实例`)
+  // 老版本 dsh 没有这条命令会当成 pnpm 命令报错；目录建没建好以读到的清单为准，建不好调用方退回老路
+  await runPluginCommand(version, ['version-exemptions'], 'dsh plugin version-exemptions', { profile })
+    .catch((error) => pushLog(`[实例] 按模板初始化配置「${profile}」失败：${errorText(error)}`))
+  return Boolean(readProfileManifest(homeDir(), profile))
+}
+
+/**
  * 启动项启动前把它的环境写进 profile 目录：清单一样就直接起，不一样才重写并装一次依赖。
  * 装失败按字节还原清单和锁文件、再把依赖装回去——只还原清单的话，清单换回来了、node_modules
  * 还是半截，dsh 照样起来但插件全没加载，用户看不出原因（第 0 步验证里见过）。
- * @returns {{baseline: string} | undefined} 目录还没初始化时返回环境 id：启动成功后要记下起点
+ * @returns {{baseline: string} | undefined} 目录没能提前建好时返回环境 id：启动成功后要记下起点
  */
 async function applyLaunchEnvironment(version, profile) {
   const launchId = launchScope.getStore()?.launchId
@@ -3198,8 +3215,8 @@ async function applyLaunchEnvironment(version, profile) {
   const preset = safeLaunchPresets(loadSettingsSync().launchPresets).find((item) => item.id === launchId)
   if (!preset?.environment || preset.profile !== profile) return undefined
   const home = homeDir()
-  if (!readProfileManifest(home, profile)) {
-    // 模板 profile 首次启动前还没有目录：让 dsh 按模板建好，起来以后把建好的清单记成起点。
+  if (!readProfileManifest(home, profile) && !(await initTemplateProfile(version, profile))) {
+    // 提前建不了（版本没装、不是模板名、dsh 命令失败）：让 dsh 启动时按模板建好，起来以后把建好的清单记成起点。
     pushLog(`[实例] 配置「${profile}」还没初始化，这次先由 dsh 按模板建好，下次启动再套用实例`)
     return { baseline: preset.environment }
   }
