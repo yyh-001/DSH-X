@@ -3577,6 +3577,14 @@ function forgetLaunchLinks(ids) {
 
 // 导入检查和上游更新检查共用 packInspectCache（下载的包都在 inbox，过期一起清），用 kind 区分是哪种检查
 const ENVIRONMENT_INSPECT = Object.freeze({ IMPORT: 'environment-import', UPDATE: 'environment-update' })
+// 导入框只认实例文件（含导出的仓库目录）和 GitHub 仓库：直链看不出出处、也跟随不了上游；
+// 实例市场先撤下，以后单独做。上游更新那条路不经过这里，市场来的旧实例照样能检查更新。
+const IMPORT_SOURCE_KINDS = new Set([ENVIRONMENT.SOURCE_KIND.FILE, ENVIRONMENT.SOURCE_KIND.DIR, ENVIRONMENT.SOURCE_KIND.GITHUB])
+// 页面按原文查英文翻译，改字要同步 index.html 的字典
+const IMPORT_SOURCE_ERROR = Object.freeze({
+  UNKNOWN: '找不到这个实例文件，也认不出是 GitHub 仓库：给文件路径，或者 owner/repo',
+  LINK: '只能从实例文件或 GitHub 仓库导入：下载链接请先下载成文件，或者填它的 GitHub 仓库（owner/repo）',
+})
 
 /** 随安装包发的环境配方：packs/ 下每个带 manifest.json 的目录（设计稿：两份内置配方变成内置环境）。 */
 function builtinRecipes() {
@@ -3617,15 +3625,18 @@ function marketPackSource(entry) {
   }
 }
 
-/** 请求体 → 来源：市场条目、内置配方，或用户填的路径 / 链接 / owner/repo。 */
+/** 请求体 → 来源：内置配方，或用户给的实例文件 / GitHub 仓库（见 IMPORT_SOURCE_KINDS）。 */
 function environmentImportSource(body) {
-  if (body.market) return marketPackSource(body.market)
   if (body.builtin) {
     const recipe = builtinRecipes().find((item) => item.name === String(body.builtin))
     if (!recipe) throw new Error('没有这个内置实例')
     return { kind: ENVIRONMENT.SOURCE_KIND.BUILTIN, path: recipe.path, value: `内置：${recipe.displayName}` }
   }
-  return String(body.source || '')
+  let source
+  // parsePackSource 的报错还在教人贴链接（整合包那条老路也用它），导入这里换成只说文件和仓库的
+  try { source = parsePackSource(String(body.source || '')) } catch { throw new Error(IMPORT_SOURCE_ERROR.UNKNOWN) }
+  if (!IMPORT_SOURCE_KINDS.has(source.kind)) throw new Error(IMPORT_SOURCE_ERROR.LINK)
+  return source
 }
 
 /** 检查过的包重新读一遍（导入那一步要离线文件的内容和配置，检查时没把它们留在内存里）。 */
@@ -3826,7 +3837,7 @@ function environmentImportPayload(token, opened, preview) {
 }
 
 async function inspectEnvironmentImport(body) {
-  const label = body.market ? String(body.market.displayName || body.market.name || '') : String(body.source || body.builtin || '')
+  const label = String(body.source || body.builtin || '')
   const { opened, preview } = await inspectEnvironmentPack(environmentImportSource(body), { label, kind: ENVIRONMENT_INSPECT.IMPORT })
   pushLog(`[实例] 检查实例文件：${preview.imported.name} ${preview.imported.packVersion || ''}（${Object.keys(preview.list.dependencies).length} 个依赖、${preview.imported.offline.length} 个离线文件）${preview.errors.length ? '，有问题' : ''}`)
   return environmentImportPayload(opened.token, opened, preview)

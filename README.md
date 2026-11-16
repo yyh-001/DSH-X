@@ -156,12 +156,6 @@ sha256sum DSH-X-<版本>-linux-x64.AppImage             # Linux
   <img src="docs/screenshots/screenshot-plugins-dark.jpg" alt="DSH-X v0.1.16 深色插件管理" width="820" />
 </p>
 
-**实例市场**
-
-<p align="center">
-  <img src="docs/screenshots/screenshot-market-dark.jpg" alt="DSH-X v0.1.16 深色实例市场" width="820" />
-</p>
-
 **常规设置**
 
 <p align="center">
@@ -191,12 +185,6 @@ sha256sum DSH-X-<版本>-linux-x64.AppImage             # Linux
   <img src="docs/screenshots/screenshot-plugins.jpg" alt="DSH-X 按配置管理插件" width="820" />
 </p>
 
-**实例市场**
-
-<p align="center">
-  <img src="docs/screenshots/screenshot-market.jpg" alt="DSH-X 实例市场" width="820" />
-</p>
-
 **常规设置**
 
 <p align="center">
@@ -215,7 +203,7 @@ sha256sum DSH-X-<版本>-linux-x64.AppImage             # Linux
 
 实例 = 装好插件的 DSH：一个 DSH 版本加上钉住版本的插件。配置就是 dsh 的 profile，只放设置和数据。启动项选一个实例和一个配置，启动前把实例的插件装进配置，插件清单变了才装依赖。格式沿用 [DSH-PackForge](https://github.com/DSH-PackForge/DSH-PackForge) 的 `.dspack`（manifest v5）。
 
-- **导入** — 社区市场、本地文件、目录、直链或 GitHub `owner/repo`；缺的 DSH 版本自动装。包里的配置默认不导，可勾选导进某个配置。
+- **导入** — 实例文件或 GitHub `owner/repo`；缺的 DSH 版本自动装。包里的配置默认不导，可勾选导进某个配置。
 - **导出** — DSH 精确版本 + 钉好的插件（npm 钉版本、github 钉提交、本地插件打成离线文件），不带配置和凭据；单个文件或可直接提交的仓库目录。
 - **跟随上游** — 来自 GitHub 仓库的实例会提示新 release；更新时本地改动照留，旧版本可以切回。
 

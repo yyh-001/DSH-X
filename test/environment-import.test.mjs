@@ -1,9 +1,11 @@
 /**
  * 导入环境文件（系统测试）：进程内真服务 + 隔离用户目录 + 离线假服务（npm registry 带真 tarball、直链站、市场索引、
- * 走代理的假 GitHub）。
+ * 走代理的假 GitHub）。直链站和市场索引现在只用来证明这两种来源被拒、什么都没去下载。
  *
  * 需求（只按需求写预期，不读实现）：
- *   R1 来源：本地 .dspack、本地目录、http(s) 直链、GitHub owner/repo（最新 release 里的 .dspack）、市场条目、内置配方都能导成环境
+ *   R1 来源：本地 .dspack、本地目录、GitHub owner/repo 或仓库页链接（最新 release 里的 .dspack）、内置配方都能导成环境；
+ *      别的都拒绝（400 + error，说只能从实例文件或 GitHub 仓库导入），不下载、不建环境：http(s) 直链（含 GitHub 的
+ *      releases/download 直链）、市场条目（实例市场先撤下）、认不出的输入
  *   R2 检查（inspect）只读：不存环境、不写任何 Profile；确认导入才建环境；token 只能用一次
  *   R3 DSH 版本：精确照用；范围取本机已装里满足的最高版本；本机没有就取已发布里满足的最高版本、导入时自动装
  *      （检查时 dshInstalled: false）；都不满足 → 检查报错、导入被拒；没写 → 跟随最新并给提醒；环境里记精确版本或跟随最新
@@ -13,8 +15,7 @@
  *   R6 配置（补丁层、overrides/、home/）默认跳过并在 profileData 里列出；带 profile 时走现有的备份 / 回滚写进去；
  *      不写 package.json / pnpm-lock.yaml / pnpm-workspace.yaml；没配置却要导配置 → 报错；Profile 有实例在跑 → 装任何东西之前拒绝；
  *      配置写失败时环境留着、config.error 说明原因
- *   R7 来源：GitHub / 带仓库的市场条目记下仓库并跟随；否则用清单里的 environment.repo；都没有就不跟随；
- *      记下 packId / packVersion；市场条目记 source.marketId，包版本成为环境的 packVersion
+ *   R7 来源：GitHub 记下仓库并跟随；否则用清单里的 environment.repo；都没有就不跟随；记下 packId / packVersion
  *
  * 第二轮需求（代码评审之后）：
  *   R4（变更）离线文件解到 files/<sha256 前 8 位>/<名>.tgz；R5（变更）本机路径依赖导入时连挂载一起去掉、点名提醒
@@ -28,7 +29,7 @@
  *      Profile 没有 package.json 而包里有补丁层 / overrides → config.error、环境照存；x-dsh-home 决定配置写到哪个用户目录
  *   N11 GET /api/environments 带 defaults: { packVersion: "1.0.0" }
  *
- * 设计：等价类（六种来源；DSH 版本写法：精确已装 / 精确未装 / 范围本机满足 / 范围远端满足 / 无人满足 / 没写）、
+ * 设计：等价类（来源：能导的四种 / 被拒的直链、市场条目、认不出的输入；DSH 版本写法：精确已装 / 精确未装 / 范围本机满足 / 范围远端满足 / 无人满足 / 没写）、
  * 边界值（范围端点含不含）、决策表（离线文件「声明完整 × 文件在 × 摘要对」；配置导入「包有没有配置 × 给没给 profile ×
  * Profile 忙不忙」）、状态迁移（检查 → 导入 → token 作废）。
  */
@@ -190,11 +191,37 @@ test('R1 本地目录形态的包：一样能导成环境', async () => {
   assert.deepEqual(view.bundles, [BASE, WEB, 'dsh-x-dir'])
 })
 
-test('R1 http 直链：下载后导成环境', async () => {
+/** 被拒的来源：400 + 说明只收文件和 GitHub 仓库，不去下载、不建环境。 */
+async function rejectedSource(body, why, path = '') {
+  const before = envDirs()
+  const { data } = await rejected('/api/environments/import/inspect', body, why)
+  assert.match(data.error, /实例文件/, `${why}：报错要说只能从实例文件或 GitHub 仓库导入`)
+  assert.match(data.error, /GitHub 仓库/, `${why}：报错要说只能从实例文件或 GitHub 仓库导入`)
+  if (path) assert.ok(!site.hits.includes(path), `${why}：不该去下载 ${path}`)
+  assert.deepEqual(envDirs(), before, `${why}：不该建环境`)
+}
+
+test('R1 http 直链：拒绝，不下载、不建环境', async () => {
   site.routes['/direct/linked.dspack'] = { body: packBuffer(baseManifest({ name: 'linked', dependencies: { 'dsh-x-linked-pack': '3.0.0' }, bundles: [BASE, WEB, 'dsh-x-linked-pack'] })) }
-  const { view } = await importSource({ source: `${site.url}/direct/linked.dspack` })
-  assert.ok(site.hits.includes('/direct/linked.dspack'), '真的去直链下载了')
-  assert.equal(specOf(view, 'dsh-x-linked-pack'), '3.0.0')
+  await rejectedSource({ source: `${site.url}/direct/linked.dspack` }, 'http 直链', '/direct/linked.dspack')
+  // GitHub 的 release 资产直链也是直链：要导就填仓库
+  await rejectedSource({ source: 'https://github.com/octo/env-pack/releases/download/v2.1.0/gh-pack-2.1.0.dspack' }, 'GitHub releases/download 直链')
+})
+
+test('R1 认不出的输入（不存在的路径、空串）：拒绝，报错也只说文件和 GitHub 仓库', async () => {
+  await rejectedSource({ source: join(PACKS, 'no-such-dir', 'missing.dspack') }, '不存在的路径')
+  await rejectedSource({ source: '' }, '空来源')
+  await rejectedSource({}, '没给来源')
+})
+
+test('R1 市场条目：拒绝（实例市场先撤下），不按条目下载', async () => {
+  const pack = packBuffer(baseManifest({ name: 'market-pack', version: '4.2.0' }))
+  site.routes['/market/market-pack-4.2.0.dspack'] = { body: pack }
+  const entry = {
+    manifestVersion: 5, id: 'octo.market-pack', name: 'market-pack', version: '4.2.0', owner: 'octo', repo: 'market-pack',
+    downloadUrl: `${site.url}/market/market-pack-4.2.0.dspack`, sha256: sha256(pack), size: pack.length,
+  }
+  await rejectedSource({ market: entry }, '市场条目', '/market/market-pack-4.2.0.dspack')
 })
 
 test('R1 + R7 GitHub owner/repo：取最新 release 里的 .dspack；记下仓库、算跟随，仓库以来源为准', async (t) => {
@@ -217,38 +244,11 @@ test('R1 + R7 GitHub owner/repo：取最新 release 里的 .dspack；记下仓�
   assert.equal(view.source?.repo, 'octo/env-pack', '记下的是来源仓库，不是清单里另写的那个')
   assert.equal(view.source?.packId, 'gh-pack')
   assert.equal(view.source?.packVersion, '2.1.0')
-})
 
-test('R1 + R7 市场条目：按条目下载；带 GitHub 仓库 → 跟随，记下 marketId，包版本成为环境的 packVersion', async (t) => {
-  const pack = packBuffer(baseManifest({ name: 'market-pack', version: '4.2.0', dependencies: { 'dsh-x-market': '1.0.0' }, bundles: [BASE, WEB, 'dsh-x-market'] }))
-  site.routes['/market/market-pack-4.2.0.dspack'] = { body: pack }
-  site.routes['/market/index.json'] = {
-    type: 'application/json',
-    body: {
-      schemaVersion: 2,
-      generatedAt: '2026-11-01T00:00:00Z',
-      modpacks: [{
-        manifestVersion: 5, type: 'profile', id: 'octo.market-pack', name: 'market-pack', version: '4.2.0',
-        displayName: { 'zh-CN': '市场环境', 'en-US': 'Market env' }, description: '来自市场',
-        owner: 'octo', repo: 'market-pack',
-        downloadUrl: `${site.url}/market/market-pack-4.2.0.dspack`, sha256: sha256(pack), size: pack.length,
-      }],
-    },
-  }
-  process.env.DSH_PACK_MARKET = `${site.url}/market/index.json`
-  t.after(() => { delete process.env.DSH_PACK_MARKET })
-  const market = await env.getJson('/api/packs/market?refresh=1')
-  const entry = (market.entries || []).find((item) => item.id === 'octo.market-pack')
-  assert.ok(entry, `市场里要有这个条目：${JSON.stringify(market).slice(0, 300)}`)
-
-  const { inspected, view } = await importSource({ market: entry })
-  assert.equal(inspected.environment.source?.marketId, 'octo.market-pack')
-  assert.equal(specOf(view, 'dsh-x-market'), '1.0.0')
-  assert.equal(view.following, true)
-  assert.equal(view.source?.repo, 'octo/market-pack')
-  assert.equal(view.source?.marketId, 'octo.market-pack')
-  assert.equal(view.packVersion, '4.2.0', '包版本成为环境的 packVersion')
-  assert.equal(view.source?.packVersion, '4.2.0')
+  // 仓库页链接（不是 releases/download 直链）和 owner/repo 是同一种来源
+  const linked = await okInspect({ source: 'https://github.com/octo/env-pack' })
+  assert.equal(linked.environment.source?.repo, 'octo/env-pack', '仓库页链接也按仓库取 release')
+  assert.equal(linked.environment.source?.following, true)
 })
 
 const recipes = readdirSync(join(REPO_ROOT, 'src', 'packs'), { withFileTypes: true })
@@ -629,23 +629,6 @@ test('R7 清单里的 environment.repo 写法不对（只有 owner、多一级�
     assert.equal(view.following, false, repo)
     assert.ok(!view.source?.repo, `${repo} 不该被记成仓库`)
   }
-})
-
-test('R7 市场条目没有 GitHub 仓库：不跟随，但 marketId 照记', async (t) => {
-  const pack = packBuffer(baseManifest({ name: 'market-norepo', version: '1.0.1' }))
-  site.routes['/market2/p.dspack'] = { body: pack }
-  site.routes['/market2/index.json'] = {
-    type: 'application/json',
-    body: { modpacks: [{ manifestVersion: 5, id: 'someone.norepo', name: 'market-norepo', version: '1.0.1', downloadUrl: `${site.url}/market2/p.dspack`, sha256: sha256(pack), size: pack.length }] },
-  }
-  process.env.DSH_PACK_MARKET = `${site.url}/market2/index.json`
-  t.after(() => { delete process.env.DSH_PACK_MARKET })
-  const entry = ((await env.getJson('/api/packs/market?refresh=1')).entries || []).find((item) => item.id === 'someone.norepo')
-  assert.ok(entry, '前置条件：市场里有这个条目')
-  const { view } = await importSource({ market: entry })
-  assert.equal(view.following, false)
-  assert.equal(view.source?.marketId, 'someone.norepo')
-  assert.equal(view.packVersion, '1.0.1')
 })
 
 // 市场里列的是实例（装好插件的 DSH），读不到时的报错也这么说；读不到不算页面出错，照旧回 ok: false + 空列表

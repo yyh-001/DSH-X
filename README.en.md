@@ -156,12 +156,6 @@ The launch log dialog has three tabs, shown only when data was collected: **Raw 
   <img src="docs/screenshots/screenshot-plugins-dark-en.jpg" alt="DSH-X v0.1.16 dark plugin management" width="820" />
 </p>
 
-**Instance market**
-
-<p align="center">
-  <img src="docs/screenshots/screenshot-market-dark-en.jpg" alt="DSH-X v0.1.16 dark instance market" width="820" />
-</p>
-
 **General settings**
 
 <p align="center">
@@ -191,12 +185,6 @@ The launch log dialog has three tabs, shown only when data was collected: **Raw 
   <img src="docs/screenshots/screenshot-plugins-en.jpg" alt="DSH-X plugins by profile" width="820" />
 </p>
 
-**Instance market**
-
-<p align="center">
-  <img src="docs/screenshots/screenshot-market-en.jpg" alt="DSH-X instance market" width="820" />
-</p>
-
 **General settings**
 
 <p align="center">
@@ -215,7 +203,7 @@ The launch log dialog has three tabs, shown only when data was collected: **Raw 
 
 An instance is DSH with its plugins installed: one DSH version plus version-pinned plugins. A profile keeps only settings and data. A launch entry picks one instance and one profile. Before launch the instance's plugins are installed into the profile, and dependencies are installed only when the plugin list changed. The format is the [DSH-PackForge](https://github.com/DSH-PackForge/DSH-PackForge) `.dspack` (manifest v5).
 
-- **Import** — the community market, a local file or folder, a direct link or GitHub `owner/repo`; a missing DSH version is installed automatically. Configuration inside a pack is skipped by default and can be imported into a chosen profile.
+- **Import** — an instance file or GitHub `owner/repo`; a missing DSH version is installed automatically. Configuration inside a pack is skipped by default and can be imported into a chosen profile.
 - **Export** — the exact DSH version plus pinned plugins (npm versions, github commits, local plugins as bundled files), without configuration or credentials; as one file or as a folder you can commit as is.
 - **Follow an upstream** — instances from a GitHub repository announce new releases; updating keeps your local changes, and the previous version can be restored.
 

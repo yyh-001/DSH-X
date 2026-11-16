@@ -1,5 +1,5 @@
 // 环境页（导航「实例」）：列出环境，新建 / 复制 / 删除，改名改版本，加入 / 移除 / 升级插件、检查兼容性，
-// 导入（市场、文件、链接、GitHub、内置配方）和导出，跟随上游的检查更新 / 应用更新 / 切回旧版本。
+// 导入（实例文件、GitHub 仓库、内置配方）和导出，跟随上游的检查更新 / 应用更新 / 切回旧版本。
 // 这里只改环境清单（服务端的 environment.json），不碰任何 profile 目录：下次用这个环境启动时，
 // 服务端才把清单写进 Profile 并装依赖（见 server.js 的 applyLaunchEnvironment）。
 //
@@ -321,14 +321,13 @@
     renderView()
   }
 
-  /** 拿一次最新列表：环境页和启动项编辑框共用，也同步给主脚本（市场卡片判断「已导入」）。 */
+  /** 拿一次最新列表：环境页和启动项编辑框共用；导出框的默认版本号同步给主脚本。 */
   async function fetchEnvironments() {
     const data = await getJson('/api/environments')
     environments = data.environments || []
     builtin = data.builtin || []
     nameMax = data.limits?.nameMax || nameMax
     if (nameMax) el.newName.maxLength = el.name.maxLength = nameMax
-    environmentState.list = environments
     environmentState.defaults = data.defaults || {}
   }
 

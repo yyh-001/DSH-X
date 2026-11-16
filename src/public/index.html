@@ -56,7 +56,6 @@
   </div>
   <script src="/launcher-boot.js?v=20261007e"></script>
   <script src="/launch-list.js?v=20261007"></script>
-  <script src="/market-layout.js?v=20261007"></script>
   <div class="backdrop" aria-hidden="true">
     <canvas class="water-surface" aria-hidden="true"></canvas>
     <div class="backdrop-character"></div>
@@ -722,32 +721,14 @@
     </div>
   </div>
   <div class="ask" id="packImportDialog" hidden>
-    <div class="ask-card market-browser" id="packMarketCard" role="dialog" aria-modal="true" aria-labelledby="packImportTitle" tabindex="-1" data-dialog-size="large">
+    <div class="ask-card pack-import-card" id="packImportCard" role="dialog" aria-modal="true" aria-labelledby="packImportTitle" tabindex="-1" data-dialog-size="medium">
       <div class="dialog-heading">
-        <h2 class="ask-title" id="packImportTitle" data-i18n="导入实例">导入实例</h2>
+        <div><h2 class="ask-title" id="packImportTitle" data-i18n="导入实例">导入实例</h2><p class="dialog-subtitle" data-i18n="从实例文件（.dspack）或 GitHub 仓库导入，检查之后才动文件。">从实例文件（.dspack）或 GitHub 仓库导入，检查之后才动文件。</p></div>
         <button type="button" class="ghost icon-btn dialog-close" id="packImportClose" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button>
       </div>
-      <div class="market-toolbar">
-        <div class="market-search"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-search"/></svg><input id="marketSearch" type="search" autocomplete="off" data-placeholder-i18n="搜索名称、作者或功能" aria-label="搜索实例" data-i18n-aria-label="搜索实例" /></div>
-        <select id="marketSort" aria-label="实例排序" data-i18n-aria-label="实例排序"><option value="updated" data-i18n="最近更新">最近更新</option><option value="stars" data-i18n="Star 最多">Star 最多</option><option value="name" data-i18n="按名称">按名称</option></select>
-      </div>
-      <div class="sr-only" id="packMarketTitle" data-i18n="社区实例">社区实例</div>
-      <div class="market-grid" id="packMarket"></div>
-      <details class="pack-import-source">
-        <summary data-i18n="从文件或链接导入">从文件或链接导入</summary>
-        <div class="pack-source"><input id="packSource" type="text" data-placeholder-i18n="文件路径、下载链接或 owner/repo" autocomplete="off" spellcheck="false" /><button class="ghost" id="packPick" type="button" data-i18n="选文件…">选文件…</button><button class="ghost" id="packCheck" type="button" data-i18n="继续">继续</button></div>
-      </details>
-      <div class="market-footer">
-        <span id="marketCount" role="status" aria-live="polite"></span>
-      </div>
-      <p class="hint" id="packMarketHint" role="status" aria-live="polite"></p>
-    </div>
-  </div>
-  <div class="ask" id="packDetailDialog" hidden>
-    <div class="ask-card market-detail-card" role="dialog" aria-modal="true" aria-labelledby="marketDetailTitle" data-dialog-size="medium">
-      <div class="dialog-heading"><h2 class="ask-title" id="marketDetailTitle" data-i18n="实例详情">实例详情</h2><button class="ghost icon-btn dialog-close" id="packDetailClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
-      <div class="market-detail" id="packMarketDetail"></div>
-      <div class="market-detail-actions" id="packMarketActions"></div>
+      <div class="pack-source"><input id="packSource" type="text" data-placeholder-i18n="文件路径或 GitHub 仓库（owner/repo）" aria-label="实例文件或 GitHub 仓库" data-i18n-aria-label="实例文件或 GitHub 仓库" autocomplete="off" spellcheck="false" /><button class="ghost" id="packPick" type="button" data-i18n="选文件…">选文件…</button><button class="ghost" id="packCheck" type="button" data-i18n="继续">继续</button></div>
+      <p class="hint" data-i18n="GitHub 仓库取它最新 Release 里的实例文件，导入后跟随它更新。">GitHub 仓库取它最新 Release 里的实例文件，导入后跟随它更新。</p>
+      <p class="hint pack-import-hint" id="packImportHint" role="status" aria-live="polite"></p>
     </div>
   </div>
   <div class="ask" id="packInstallDialog" hidden>
@@ -1685,7 +1666,6 @@
   "（{n} 个不支持开关）": " ({n} cannot be toggled)",
   "卸载整合包": "Remove modpack",
   "删除配置": "Delete profile",
-  "还没有装过插件：从文件、链接或市场里挑一个整合包": "Nothing installed yet — pick a modpack from a file, a link or the market",
   "这个环境里的插件没有可开关的加载行（客户端插件由插件市场管理）": "The plugins here have no toggleable loader rows (client plugins are managed by the plugin market)",
   "这份配置里没有已安装的插件。": "This profile has no installed plugins.",
   "正在更新 profile {name} 的插件…": "Updating the plugins in profile {name}…",
@@ -1723,7 +1703,6 @@
   "导出 profile": "Export profile",
   "返回插件": "Back to plugins",
   "这份 profile 里的插件": "Plugins in this profile",
-  "从来源（本地文件 / 链接 / owner/repo）或下面的社区市场里挑一个；检查之后才动文件。": "Pick one from a source (local file / link / owner/repo) or from the community market below. Nothing is written until you confirm after the check.",
   "启用": "enabled",
   "{n} 个插件": "{n} plugins",
   "正在{act}整合包 {name}…": "{act} modpack {name}…",
@@ -1731,7 +1710,6 @@
   "（{n} 个插件不支持开关）": " ({n} plugins cannot be toggled)",
   "整合包（{n}）": "Modpacks ({n})",
   "一次装好一批插件和它们的配置": "Install a batch of plugins and their config in one go",
-  "还没装过整合包：从文件、链接或市场里挑一个": "No modpacks yet — pick one from a file, a link or the market",
   "这个包里的插件没有可开关的加载行（客户端插件由插件市场管理）": "The plugins in this pack have no toggleable loader rows (client plugins are managed by the plugin market)",
   "这个包里的插件现在都不在这份 profile 的已装清单里（可能被手动卸掉了）。": "None of this pack's plugins are in that profile's installed list right now (they may have been removed by hand).",
   "正在更新整合包 {name}…": "Updating modpack {name}…",
@@ -1745,7 +1723,6 @@
   "一次装好一批插件和它们的配置；默认装进独立的 profile，和现有环境互不打扰。": "Install a batch of plugins and their config in one go. By default each modpack gets its own profile, so your current setup is left alone.",
   "装一个整合包": "Install a modpack",
   "选文件…": "Choose file…",
-  "认生态里的 .dspack 整合包（PackForge 的 manifest）：本地文件、直链，或 GitHub 的 owner/repo（取它最新 Release 里的包）。": "Works with ecosystem .dspack modpacks (PackForge manifests): a local file, a direct link, or a GitHub owner/repo (it takes the .dspack from the latest release).",
   "最近安装：{name} v{version}": "Latest install: {name} v{version}",
   "其他插件": "Other plugins",
   "同时包含于：{names}": "Also included in: {names}",
@@ -1757,15 +1734,9 @@
   "带上插件清单、补丁层与 profile 根下的配置文件（不含 node_modules、会话与凭据）。别人装这个包，就能得到同样的插件环境。": "Includes the plugin manifest, patch layer and config files at the profile root — never node_modules, sessions or credentials. Anyone installing the pack gets the same plugin setup.",
   "导出…": "Export…",
   "当前 profile：{profile} · 已装 {n} 个整合包": "Current profile: {profile} · {n} modpack(s) installed",
-  "还没装过整合包。从下面挑一个，或者贴一个 .dspack 链接。": "No modpacks installed yet. Pick one below, or paste a .dspack link.",
   "{bundles} 层 · {deps} 个依赖 · {time}": "{bundles} layers · {deps} dependencies · {time}",
   "切到这个 profile": "Switch to it",
-  "正在读市场…": "Reading the market…",
-  "市场没读到：{error}": "Could not read the market: {error}",
-  "不影响使用——把 .dspack 的链接或 owner/repo 贴在上面照样能装；直连 GitHub 不通时，把设置页的「更新下载源」改成「国内加速」。": "Everything else still works — paste a .dspack link or an owner/repo above. If GitHub is unreachable directly, switch \"Update download source\" to the mirror in Settings.",
-  "市场里现在没有条目。": "The market has no entries right now.",
   "{n} 个依赖": "{n} dependencies",
-  "需要 dsh {version}": "dsh {version} required",
   "{kb} KB": "{kb} KB",
   "问题（先解决这些）": "Problems (fix these first)",
   "要注意": "Things to know",
@@ -2574,28 +2545,17 @@
   "正在读取插件…": "Loading plugins…",
   "查看插件": "View plugins",
   "实验功能": "Experimental features",
-  "从文件或链接导入": "Import a file or link",
-  "文件路径、下载链接或 owner/repo": "File path, download link or owner/repo",
   "继续": "Continue",
   "返回列表": "Back to list",
-  "暂无说明": "No description",
   "搜索插件": "Search plugins",
   "没有匹配的插件": "No matching plugins",
   "暂无插件": "No plugins yet",
   "此 Profile 尚未安装插件。": "No plugins are installed in this profile yet.",
   "浏览整合包": "Browse modpacks",
-  "从社区市场、文件或链接安装": "Install from the community market, a file or a link",
-  "文件路径、下载链接或 owner/repo": "File path, download URL or owner/repo",
   "继续": "Continue",
   "为你的环境添加插件与功能": "Add plugins and features to your environment",
-  "搜索名称、作者或功能": "Search names, authors or features",
-  "最近更新": "Recently updated",
-  "Star 最多": "Most stars",
-  "按名称": "Name",
   "每页": "Per page",
   "组件": "Components",
-  "部分 Star 暂不可用，可按更新时间浏览。": "Some star counts are unavailable. You can still sort by update date.",
-  "Star 暂不可用，可按更新时间浏览。": "Star counts are unavailable. You can still sort by update date.",
   "将添加 {n} 个插件": "Add {n} plugins",
   "新建独立环境，现有启动项不变。": "Create a separate environment. Existing launch entries stay unchanged.",
   "版本类型": "Version type",
@@ -2744,13 +2704,10 @@
   "DSH {from} → {to}": "DSH {from} → {to}",
   "{name} {from} → {to}": "{name} {from} → {to}",
   "{name}：{from} → {to}": "{name}: {from} → {to}",
-  "已导入": "Imported",
   "撤销": "Undo",
   "导入过的配置": "Imported configuration",
   "本地插件打成离线文件带上（不勾的不进实例文件）": "Bundle local plugins as offline files (unchecked ones are left out of the file)",
   "这个实例跟着最新版本走：导出时写成现在会用的那个精确版本。": "This instance follows the latest version: the export records the exact version it would use right now.",
-  "{n} 个实例": "{n} instances",
-  "没有匹配的实例": "No matching instances",
   "包里要求 {range}": "pack asks for {range}",
   "跟随 {repo} 的 release：有新版本时实例页会提示": "Follows releases of {repo}: the Instances page tells you when a new one is out",
   "不跟随上游：之后不会提示更新": "Not following an upstream: no update notices",
@@ -2765,8 +2722,6 @@
   "挂载顺序（dsh 按顺序加载）": "Bundle order (dsh loads them in this order)",
   "包里的配置": "Configuration in the pack",
   "导入": "Import",
-  "正在读社区实例列表…": "Loading community instances…",
-  "市场里现在有 {n} 个实例。": "The market has {n} instances.",
   "正在读取实例文件…": "Reading the instance file…",
   "读取实例文件失败": "Could not read the instance file",
   "正在导入…": "Importing…",
@@ -2782,11 +2737,15 @@
   "撤销失败": "Undo failed",
   "已导出：DSH {version}、{n} 个插件{offline}": "Exported: DSH {version}, {n} plugins{offline}",
   "、{n} 个离线文件": ", {n} offline files",
-  "先给一个实例文件：本地文件、链接，或者 owner/repo": "Give an instance file first: a local file, a link, or owner/repo",
   "导入…": "Import…",
+  "从实例文件（.dspack）或 GitHub 仓库导入，检查之后才动文件。": "Import from an instance file (.dspack) or a GitHub repository. Nothing is written until you confirm after the check.",
+  "文件路径或 GitHub 仓库（owner/repo）": "File path or GitHub repository (owner/repo)",
+  "实例文件或 GitHub 仓库": "Instance file or GitHub repository",
+  "GitHub 仓库取它最新 Release 里的实例文件，导入后跟随它更新。": "A GitHub repository is imported from the instance file in its latest release, and the instance then follows it for updates.",
+  "先选一个实例文件，或者填 GitHub 仓库（owner/repo）": "Pick an instance file first, or enter a GitHub repository (owner/repo)",
+  "找不到这个实例文件，也认不出是 GitHub 仓库：给文件路径，或者 owner/repo": "Can't find that instance file, and it doesn't look like a GitHub repository either: give a file path or owner/repo",
+  "只能从实例文件或 GitHub 仓库导入：下载链接请先下载成文件，或者填它的 GitHub 仓库（owner/repo）": "Instances can only be imported from a file or a GitHub repository: download the link to a file first, or enter its GitHub repository (owner/repo)",
   "导入实例": "Import instance",
-  "社区实例": "Community instances",
-  "实例详情": "Instance details",
   "确认导入": "Confirm import",
   "看清要用的 DSH 版本和插件，确认后导入成一个实例。": "Check the DSH version and plugins, then import them as an instance.",
   "导出实例": "Export instance",
@@ -2806,8 +2765,6 @@
   "上游没有比现在更新的版本": "Upstream has nothing newer than this version",
   "读取中…": "Loading…",
   "选择仓库目录…": "Choosing the repository folder…",
-  "实例排序": "Sort instances",
-  "搜索实例": "Search instances",
 }
 
     function t(zh, vars) {
@@ -3362,7 +3319,7 @@
       })
       syncUiSelect(select)
     }
-    for (const select of document.querySelectorAll('#launchDshHome, #launchHomeCustom, #launchProfile, #launchCopyHome, #launchCopyProfile, #pluginHome, #uiLang, #webBind, #downloadSource, #proxyMode, #nodeRuntime, #versionInstallSelect, #openMode, #mcpTransport, #marketSort, #skillRoot, #skillInstallRoot, #pickHomeWslDistro, #connectionWslDistro')) createUiSelect(select)
+    for (const select of document.querySelectorAll('#launchDshHome, #launchHomeCustom, #launchProfile, #launchCopyHome, #launchCopyProfile, #pluginHome, #uiLang, #webBind, #downloadSource, #proxyMode, #nodeRuntime, #versionInstallSelect, #openMode, #mcpTransport, #skillRoot, #skillInstallRoot, #pickHomeWslDistro, #connectionWslDistro')) createUiSelect(select)
     document.addEventListener('pointerdown', (event) => {
       if (openUiSelect && !openUiSelect.root.contains(event.target) && !openUiSelect.panel.contains(event.target)) closeUiSelect()
       // 环境详情的「更多操作」下拉同理：点外面就合上
@@ -10236,8 +10193,6 @@
       if (!projectDialogEl.hidden) paintProjectDevices(projectDevicePicked)
       if (currentPane === 'remote') paintRemoteSettings()
       if (previouslyRunning !== launcherRunning()) {
-        if (!packImportDialog.hidden) renderPackMarket()
-        if (!packDetailDialog.hidden) renderMarketDetail()
         if (!packInstallDialog.hidden) renderPackInspect()
       }
       if (data.progress) installProgress = data.progress
@@ -12022,7 +11977,6 @@
         packState = { ...packState, ...data, profile: pluginProfile }
         renderPackGrid()
         renderPackView()
-        if (!packImportDialog.hidden) renderPackMarket()
       }
       if (data?.recovery && data.recovery.profile === launchProfile) {
         state.recovery = data.recovery
@@ -12187,7 +12141,7 @@
 
     // ---- Profile 视图 + 环境的导入 / 导出弹窗 ----
     // Profile 视图两层：上面是卡片（一个 profile 一张），点开一张进「这个 profile 里的插件」。
-    // 导入走弹窗（来源 + 市场 → 检查 → 导入成环境），检查过的包在服务端有一份 token，确认时不用再下一次；
+    // 导入走弹窗（文件或 GitHub 仓库 → 检查 → 导入成环境），检查过的包在服务端有一份 token，确认时不用再下一次；
     // 进度走 SSE 的 kind === 'pack' 事件。跟随上游的检查 / 更新在环境详情里（environments-page.js）。
     const packGridEl = document.getElementById('packGrid')
     const pluginOverviewEl = document.getElementById('pluginOverview')
@@ -12196,13 +12150,8 @@
     const packPluginListEl = document.getElementById('packPluginList')
     const packBackEl = document.getElementById('packBack')
     const packImportDialog = document.getElementById('packImportDialog')
-    const packDetailDialog = document.getElementById('packDetailDialog')
     const packInstallDialog = document.getElementById('packInstallDialog')
-    const packMarketHintEl = document.getElementById('packMarketHint')
-    const marketSearchEl = document.getElementById('marketSearch')
-    const marketSortEl = document.getElementById('marketSort')
     let packInstalling = false
-    let marketStatsRevision = 0
     const packImportCloseEl = document.getElementById('packImportClose')
     const packExportDialog = document.getElementById('packExportDialog')
     const packExportGoEl = document.getElementById('packExportGo')
@@ -12214,10 +12163,10 @@
     const packExportWorkflowEl = document.getElementById('packExportWorkflow')
     const packExportOfflineEl = document.getElementById('packExportOffline')
     const packExportHintEl = document.getElementById('packExportHint')
-    // 环境页（environments-page.js）和这里共用的环境列表：市场卡片要知道哪些已经导入过；
+    // 环境页（environments-page.js）和这里共用的状态：
     // 导入完要跳到环境页并打开新环境（pendingOpen 由环境页取数据后消费，reload 由环境页挂上）；
     // defaults 是服务端给的默认值（导出版本号的占位）
-    const environmentState = { list: [], pendingOpen: '', defaults: {}, reload: null }
+    const environmentState = { pendingOpen: '', defaults: {}, reload: null }
     // 和服务端 ENVIRONMENT.AUTO_VERSION 同义：跟着版本类型里的最新已装版本走
     const AUTO_VERSION = 'auto'
     let exportingEnvironment = null
@@ -12225,24 +12174,20 @@
     let exportRevision = 0
     let packConfigWanted = false
     const packInspectEl = document.getElementById('packInspect')
-    const packMarketEl = document.getElementById('packMarket')
-    const packMarketDetailEl = document.getElementById('packMarketDetail')
-    const packMarketActionsEl = document.getElementById('packMarketActions')
-    let marketDetailIndex = null
     const packSourceEl = document.getElementById('packSource')
     const packCheckEl = document.getElementById('packCheck')
     const packPickEl = document.getElementById('packPick')
     const packHintEl = document.getElementById('packHint')
+    // 导入框自己的提示行：空输入、选文件失败要说在导入框里，确认框的 packHint 这时还没弹出来
+    const packImportHintEl = document.getElementById('packImportHint')
     let packState = { packs: [], profile: '', profiles: [], busy: false }
     let packInspection = null
     // 导入时「配置导进哪个 Profile」的选择（只在包里有配置、用户勾了时才用）
     let packTargetProfile = ''
     let packInspectRequest = 0
     let packInspectAbort = null
-    let packMarket = null
     let packProgress = null
     let packBusy = false
-    let packMarketLoaded = false
     /** 现在查看的环境；不改变任何启动项的 profile。 */
     let openedPack = null
 
@@ -12873,7 +12818,7 @@
       if (!dialog.hidden && !dialog.dataset.dialogClosing) return
       closeUiSelect()
       // 启动项弹窗里的「管理目录…」也走这条线：它当父层，目录管理当子层，关掉后焦点回到下拉。
-      const parent = explicitParent || [profileDialogEl, packInstallDialog, packDetailDialog, packImportDialog, packExportDialog, launchPluginsDialogEl, pluginHomesDialogEl, pickHomeAddDialogEl, projectDialogEl, profilePickDialogEl, launchDialogEl, connectionDialogEl, connectionProgressDialogEl].find((one) => one !== dialog && !one.hidden && !one.dataset.dialogClosing && !one.classList.contains('is-underlay'))
+      const parent = explicitParent || [profileDialogEl, packInstallDialog, packImportDialog, packExportDialog, launchPluginsDialogEl, pluginHomesDialogEl, pickHomeAddDialogEl, projectDialogEl, profilePickDialogEl, launchDialogEl, connectionDialogEl, connectionProgressDialogEl].find((one) => one !== dialog && !one.hidden && !one.dataset.dialogClosing && !one.classList.contains('is-underlay'))
       packDialogContext.set(dialog, { parent, origin: document.activeElement })
       dialog.classList.toggle('is-child-dialog', Boolean(parent))
       if (parent) dialog.style.zIndex = Math.max(Number(getComputedStyle(dialog).zIndex), Number(getComputedStyle(parent).zIndex) + 2)
@@ -12938,10 +12883,6 @@
       })
       dialog.addEventListener('click', (event) => { if (event.target === dialog) close() })
     }
-    async function closeMarketDetail() {
-      await hidePackDialog(packDetailDialog)
-      if (packDetailDialog.hidden) marketDetailIndex = null
-    }
     function closeInstallDialog() {
       if (packInstalling) return
       packInspectRequest += 1
@@ -12951,13 +12892,10 @@
       packInspection = null
       hidePackDialog(packInstallDialog)
       renderPackInspect()
-      renderPackMarket()
       renderPackView()
     }
-    document.getElementById('packDetailClose').onclick = closeMarketDetail
     document.getElementById('packInstallClose').onclick = closeInstallDialog
     trapPackDialog(packImportDialog, closeImportDialog)
-    trapPackDialog(packDetailDialog, closeMarketDetail)
     trapPackDialog(packInstallDialog, closeInstallDialog)
     trapPackDialog(packExportDialog, closeExportDialog)
     document.getElementById('launchLogClose').onclick = () => closeLaunchLog()
@@ -12982,24 +12920,13 @@
     trapPackDialog(launchLogDialogEl, () => closeLaunchLog())
     trapPackDialog(profileDialogEl, closeProfileDialog)
     trapPackDialog(pluginHomesDialogEl, closePluginHomesDialog)
-    marketSearchEl.oninput = marketSortEl.onchange = () => {
-      renderPackMarket()
-      packMarketEl.scrollTop = 0
-    }
-
 
     function openImportDialog() {
-      showPackDialog(packImportDialog, document.getElementById('packMarketCard'))
-      window.launcherMarketLayout?.refresh(packMarketEl)
-      if (!packMarketLoaded) {
-        packMarketLoaded = true
-        renderPackMarket()
-        void loadMarket({ quiet: true })
-      }
+      showPackDialog(packImportDialog, packSourceEl)
     }
 
     function closeImportDialog() {
-      if (!packInstallDialog.hidden || !packDetailDialog.hidden) return
+      if (!packInstallDialog.hidden) return
       hidePackDialog(packImportDialog)
     }
 
@@ -13024,91 +12951,6 @@
 
     function closeExportDialog() {
       hidePackDialog(packExportDialog)
-    }
-
-    const marketCube = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-package"/></svg>'
-    const marketStar = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-star"/></svg>'
-    function marketDate(value) {
-      const date = new Date(value)
-      return Number.isFinite(date.getTime()) ? date.toISOString().slice(0, 10) : ''
-    }
-    function marketStars(entry) { return Number.isInteger(entry.stars) && entry.stars >= 0 ? String(entry.stars) : '—' }
-    function marketPackInstalled(entry) {
-      // 同一个市场条目的同一个版本已经导入成环境：再导一次只会多出一个一样的环境。
-      // 比来源里记的包版本：环境自己的 packVersion 导出时会被改成作者填的版本
-      return environmentState.list.some((env) => env.source?.marketId === entry.id && (!entry.version || env.source.packVersion === entry.version))
-    }
-    function renderMarketDetail() {
-      const entry = marketDetailIndex === null ? null : packMarket?.entries?.[marketDetailIndex]
-      if (!entry) return
-      const installed = marketPackInstalled(entry)
-      document.getElementById('marketDetailTitle').textContent = entry.displayName || entry.name
-      packMarketDetailEl.innerHTML = `<div class="market-detail-meta"><span class="pack-version">v${escapeHtml(entry.version)}</span><span>${escapeHtml(entry.author || '')}</span><span class="market-stars">${marketStar} ${marketStars(entry)}</span></div>
-        <div class="market-facts">
-          <div><strong>${entry.depCount || 0}</strong><span>${escapeHtml(t('插件'))}</span></div>
-          <div><strong>${entry.bundleCount || 0}</strong><span>${escapeHtml(t('组件'))}</span></div>
-          <div><strong>${escapeHtml(marketDate(entry.updatedAt) || '—')}</strong><span>${escapeHtml(t('最近更新'))}</span></div>
-          <div><strong>${Number.isInteger(entry.forks) ? entry.forks : '—'}</strong><span>Fork</span></div>
-        </div>
-        <p class="market-description">${escapeHtml(entry.description || t('暂无说明'))}</p>
-        ${entry.dshVersion ? `<p class="hint">${escapeHtml(t('需要 dsh {version}', { version: entry.dshVersion }))}</p>` : ''}`
-      // 详情可滚动，来源链接和安装入口始终留在卡片底部。
-      packMarketActionsEl.innerHTML = `${entry.repoUrl ? `<a class="ghost" href="${escapeHtml(entry.repoUrl)}" target="_blank" rel="noreferrer">GitHub</a>` : '<span></span>'}<button class="primary market-install" type="button" ${installed || packBusy ? 'disabled' : ''}>${escapeHtml(t(installed ? '已导入' : '导入'))}</button>`
-      packMarketActionsEl.querySelector('.market-install').onclick = () => inspectPack({ market: entry })
-    }
-    function openMarketDetail(index) {
-      marketDetailIndex = index
-      renderMarketDetail()
-      showPackDialog(packDetailDialog, document.getElementById('packDetailClose'))
-    }
-    function renderPackMarket() {
-      const all = packMarket?.entries || []
-      const query = marketSearchEl.value.trim().toLowerCase()
-      const list = all.map((entry, index) => ({ entry, index })).filter(({ entry }) => !query || `${entry.displayName} ${entry.name} ${entry.author} ${entry.description}`.toLowerCase().includes(query))
-      list.sort((a, b) => {
-        if (marketSortEl.value === 'stars') return (b.entry.stars ?? -1) - (a.entry.stars ?? -1) || a.index - b.index
-        if (marketSortEl.value === 'name') return (a.entry.displayName || a.entry.name).localeCompare(b.entry.displayName || b.entry.name)
-        return (marketDate(b.entry.updatedAt)).localeCompare(marketDate(a.entry.updatedAt)) || a.index - b.index
-      })
-      document.getElementById('marketCount').textContent = t('{n} 个实例', { n: list.length })
-      if (!packMarket || packMarket.error || !list.length) {
-        if (!packMarket) {
-          // 首次读取市场：骨架卡占位，扫光见 launcher.css 的 skel-sweep
-          const skeletonCard = '<div class="market-card is-skeleton" aria-hidden="true"><div class="market-card-info"><div class="market-card-heading"><span class="market-card-icon"></span><span class="skel-line skel-name"></span></div><span class="skel-line"></span><span class="skel-line skel-short"></span></div><div class="market-card-footer"><span class="skel-line skel-author"></span><span class="skel-line skel-pill"></span></div></div>'
-          packMarketEl.innerHTML = `${skeletonCard.repeat(4)}<span class="sr-only" role="status">${escapeHtml(t('正在读市场…'))}</span>`
-          window.launcherMarketLayout?.refresh(packMarketEl)
-          return
-        }
-        packMarketEl.innerHTML = `<div class="market-empty">${escapeHtml(packMarket.error ? t('市场没读到：{error}', { error: packMarket.error }) : t('没有匹配的实例'))}</div>`
-        window.launcherMarketLayout?.refresh(packMarketEl)
-        return
-      }
-      // 瀑布流一次展示全部筛选结果，浏览范围不再受旧分页偏好限制。
-      packMarketEl.innerHTML = list.map(({entry, index}) => {
-        const installed = marketPackInstalled(entry)
-        return `<article class="market-card">
-        <button class="market-card-info" type="button" data-market-detail="${index}">
-          <span class="market-card-heading"><span class="market-card-icon">${marketCube}</span><span class="market-card-name">${escapeHtml(entry.displayName || entry.name)}</span></span>
-          <span class="market-card-desc">${escapeHtml(entry.description || t('暂无说明'))}</span>
-        </button>
-        <div class="market-card-footer"><span class="market-card-author">${escapeHtml(entry.author || entry.name)}<small>${escapeHtml(entry.version ? `v${entry.version}` : '')}</small></span><span class="market-stars" title="GitHub Star">${marketStar} ${marketStars(entry)}</span><button class="ghost market-install" type="button" data-market="${index}" ${installed || packBusy ? 'disabled' : ''}>${escapeHtml(t(installed ? '已导入' : '导入'))}</button></div>
-      </article>`
-      }).join('')
-      window.launcherMarketLayout?.refresh(packMarketEl)
-      packMarketEl.querySelectorAll('[data-market-detail]').forEach((el) => { el.onclick = () => openMarketDetail(Number(el.dataset.marketDetail)) })
-      packMarketEl.querySelectorAll('button[data-market]').forEach((el) => { el.onclick = () => { const entry = all[Number(el.dataset.market)]; if (entry) void inspectPack({ market: entry }) } })
-    }
-    async function loadMarketStats() {
-      const revision = ++marketStatsRevision
-      try {
-        const data = await getJson('/api/packs/market/stats')
-        if (revision !== marketStatsRevision || !packMarket?.entries) return
-        const stats = new Map((data.entries || []).map((entry) => [entry.id, entry]))
-        packMarket.entries = packMarket.entries.map((entry) => ({ ...entry, ...stats.get(entry.id) }))
-        packMarketHintEl.textContent = packMarket.entries.some((entry) => entry.stars === null) || !data.ok ? t('部分 Star 暂不可用，可按更新时间浏览。') : ''
-        renderPackMarket()
-        if (!packDetailDialog.hidden) renderMarketDetail()
-      } catch { packMarketHintEl.textContent = t('Star 暂不可用，可按更新时间浏览。') }
     }
 
     function packRows(title, rows) {
@@ -13212,22 +13054,6 @@
       }
     }
 
-    async function loadMarket({ quiet = false, force = false } = {}) {
-      if (!quiet) packMarketHintEl.textContent = t('正在读社区实例列表…')
-      try {
-        packMarket = await getJson(`/api/packs/market${force ? '?refresh=1' : ''}`)
-      } catch (error) {
-        packMarket = { ok: false, entries: [], error: error.message }
-      }
-      renderPackMarket()
-      if (packMarket.ok) void loadMarketStats()
-      if (!quiet) {
-        packMarketHintEl.textContent = packMarket.ok
-          ? t('市场里现在有 {n} 个实例。', { n: packMarket.entries.length })
-          : t('市场没读到：{error}', { error: packMarket.error || '' })
-      }
-    }
-
     async function inspectPack(payload) {
       if (packBusy) return
       // 配置默认不导（设计稿第 10 条）；目标 Profile 预选当前在用的那个
@@ -13237,10 +13063,8 @@
       const controller = new AbortController()
       packInspectAbort = controller
       packBusy = true
-      openImportDialog()
-      // 保留详情作为返回目标；父层只留遮罩，屏幕上仍只显示当前卡片。
+      // 从导入框来的：导入框留在下面当返回目标（关掉确认框还能改来源）；内置实例卡片直接弹确认框。
       showPackDialog(packInstallDialog, document.getElementById('packInstallClose'))
-      renderPackMarket()
       packInspection = null
       renderPackInspect()
       packHintEl.textContent = t('正在读取实例文件…')
@@ -13254,17 +13078,18 @@
           : t('这个包有问题，先看上面的原因。')
       } catch (error) {
         if (request !== packInspectRequest) return
-        if (packInspection) packInspection = { ...packInspection, ok: false, errors: [error.message] }
-        packHintEl.textContent = error.message
-        notify(error.message, t('读取实例文件失败'))
+        // 服务端的固定报错（来源认不出、只收文件和仓库）在字典里有英文；带变量的原样显示
+        const message = t(error.message)
+        if (packInspection) packInspection = { ...packInspection, ok: false, errors: [message] }
+        packHintEl.textContent = message
+        notify(message, t('读取实例文件失败'))
       } finally {
         // 取消后可以立即重新打开；晚到的旧请求不能把新请求的 busy 状态清掉。
         if (request !== packInspectRequest) return
         packInspectAbort = null
         packBusy = false
-        // 详情卡里的「安装」要等 packBusy 复位后才画得成可用状态
+        // 确认框里的「导入」要等 packBusy 复位后才画得成可用状态
         renderPackInspect()
-        renderPackMarket()
       }
     }
 
@@ -13275,7 +13100,6 @@
       const env = packInspection.environment || {}
       packInstalling = true
       packBusy = true
-      renderPackMarket()
       renderPackInspect()
       packHintEl.textContent = env.dshInstalled ? t('正在导入…') : t('正在安装 DSH {version}，装好后导入…', { version: env.dshVersion })
       try {
@@ -13284,7 +13108,6 @@
         renderPackInspect()
         packHintEl.textContent = ''
         await hidePackDialog(packInstallDialog)
-        await closeMarketDetail()
         hidePackDialog(packImportDialog)
         if (data.config?.error) notify(data.config.error, t('实例已导入，配置没能写进配置'))
         environmentState.pendingOpen = data.environment.id
@@ -13297,7 +13120,6 @@
       } finally {
         packInstalling = false
         packBusy = false
-        renderPackMarket()
         renderPackInspect()
       }
     }
@@ -13414,12 +13236,14 @@
     packCheckEl.onclick = () => {
       const source = packSourceEl.value.trim()
       if (!source) {
-        packHintEl.textContent = t('先给一个实例文件：本地文件、链接，或者 owner/repo')
+        packImportHintEl.textContent = t('先选一个实例文件，或者填 GitHub 仓库（owner/repo）')
         packSourceEl.focus()
         return
       }
+      packImportHintEl.textContent = ''
       void inspectPack({ source })
     }
+    packSourceEl.oninput = () => { packImportHintEl.textContent = '' }
     packSourceEl.onkeydown = (event) => {
       if (event.key === 'Enter') packCheckEl.click()
     }
@@ -13429,12 +13253,13 @@
         const data = await pickFilePath('选择实例文件', [{ name: t('实例文件'), extensions: ['dspack', 'zip'] }, { name: t('所有文件'), extensions: ['*'] }])
         if (data.path) {
           packSourceEl.value = data.path
+          packImportHintEl.textContent = ''
           void inspectPack({ source: data.path })
         } else if (data.error) {
-          packHintEl.textContent = data.error
+          packImportHintEl.textContent = data.error
         }
       } catch (error) {
-        packHintEl.textContent = error.message
+        packImportHintEl.textContent = error.message
       } finally {
         packPickEl.disabled = false
       }

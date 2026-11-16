@@ -4,7 +4,8 @@
  *
  * 需求（整合包改成环境之后）：
  *   - 老的「整包装进 Profile」三条接口（/api/packs/inspect|install|export）下线，404
- *   - POST /api/environments/import/inspect { source | builtin | market }：只读，不建环境、不写任何 Profile 文件；
+ *   - POST /api/environments/import/inspect { source | builtin }：只读，不建环境、不写任何 Profile 文件；
+ *     source 只认实例文件 / 目录和 GitHub 仓库，http(s) 直链和市场条目一律拒绝、不下载；
  *     npm 范围 / tag 钉成此刻 registry 上满足它的最高精确版本，查不到的原样留着并提醒
  *   - POST /api/environments/import { token, name?, profile? }：存一个环境；带 profile 时才把包里的配置
  *     （补丁层 / overrides / home）写进那个 Profile，插件清单归环境，不写进 Profile；写进去的配置记成
@@ -538,7 +539,7 @@ test('环境文件与整合包接口', async (t) => {
     writeFileSync(bad, '这不是压缩包')
     const before = (await envs()).length
     assert.match(refused(await manager.call('/api/environments/import/inspect', { source: bad }), '坏包'), /不是 ZIP/)
-    assert.match(refused(await manager.call('/api/environments/import/inspect', { source: '不存在的路径' }), '不认识的来源'), /认不出这个来源/)
+    assert.match(refused(await manager.call('/api/environments/import/inspect', { source: '不存在的路径' }), '不认识的来源'), /找不到这个实例文件，也认不出是 GitHub 仓库/)
     refused(await manager.call('/api/environments/import/inspect', { builtin: 'no-such-recipe' }), '不认识的内置配方名')
     assert.equal((await envs()).length, before, '被拒的检查不留环境')
 
@@ -571,21 +572,17 @@ test('环境文件与整合包接口', async (t) => {
     assert.equal((await manager.get('/api/packs')).data.packs.filter((item) => item.profile === 'vanished').length, 0)
   })
 
-  await t.test('链接来源：检查时下载一次，导入复用那份下载，不再回源', async () => {
+  await t.test('链接来源：拒绝，不下载、不建环境', async () => {
     let downloads = 0
     const fake = createHttpServer((req, res) => { downloads += 1; res.end(readFileSync(packFile)) })
     await new Promise((resolve) => fake.listen(0, '127.0.0.1', resolve))
     t.after(() => fake.listening ? new Promise((resolve) => fake.close(resolve)) : undefined)
-    const data = await inspect({ source: `http://127.0.0.1:${fake.address().port}/demo.dspack` })
-    assert.equal(data.ok, true, JSON.stringify(data.errors))
-    assert.equal(downloads, 1)
-    // 远端关掉也能导：导入用的是检查时落下的那份
-    await new Promise((resolve) => fake.close(resolve))
-    const result = await manager.call('/api/environments/import', { token: data.token, name: '从链接导入' })
-    assert.equal(result.status, 200, result.data.error)
-    assert.equal(downloads, 1, '导入不再下载一次')
-    assert.deepEqual(depsOf((await envs()).find((item) => item.id === result.data.environment.id)), { 'dsh-cost-meter': '1.7.37' })
-    assert.ok(!existsSync(join(profilesDir, 'demo')), '导入不建配方里写的 profile')
+    const before = (await envs()).length
+    const result = await manager.call('/api/environments/import/inspect', { source: `http://127.0.0.1:${fake.address().port}/demo.dspack` })
+    assert.equal(result.status, 400, JSON.stringify(result.data))
+    assert.match(String(result.data.error), /实例文件或 GitHub 仓库/)
+    assert.equal(downloads, 0, '不该去下载')
+    assert.equal((await envs()).length, before, '不该建环境')
   })
 
   await t.test('老安装记录叠了两层：拒绝乱序撤销；还原失败保留记录供重试', async () => {

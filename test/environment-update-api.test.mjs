@@ -3,7 +3,8 @@
  * （带 releases 列表的假 GitHub、假市场索引、假 npm registry）。
  *
  * 需求（只按需求写预期，不读实现）：
- *   U1 检查更新 POST /api/environments/updates {force?}：只查跟随上游的环境；市场里有的（marketId 或同一个仓库）
+ *   U1 检查更新 POST /api/environments/updates {force?}：只查跟随上游的环境；市场里有的（marketId 或同一个仓库；
+ *      导入框已不收市场条目，marketId 只在老版本从市场导入的环境上有）
  *      读市场索引、不调 GitHub 接口，其余读 source.repo 的 releases 列表；按仓库缓存 10 分钟，force: true 绕过缓存；
  *      市场索引读不到时市场里的环境退回问 GitHub；只提示，永远不自动应用
  *   U2 哪个 release 算数：草稿不算；预发布只在装着的是预发布时才算（semver 预发布 tag 不看 GitHub 标记）；
@@ -374,11 +375,23 @@ function putMarketEntry(id, owner, repo, manifest) {
   writeMarket()
   return path
 }
+/**
+ * 市场来的环境：导入框已经不收市场条目（实例市场先撤下，以后单独做），但老版本从市场导入的环境还在，
+ * 检查更新照样认市场索引。这里照老版本留下的样子造一个：条目里的那个包当本地文件导进来（插件、版本都一样），
+ * 再把来源改成市场导入记下的那份（kind market + marketId + 条目的仓库 + 跟随）。
+ */
 async function importFromMarket(id) {
-  const market = await env.getJson('/api/packs/market?refresh=1')
-  const entry = (market.entries || []).find((item) => item.id === id)
-  assert.ok(entry, `前置条件：市场里有 ${id}：${JSON.stringify(market).slice(0, 300)}`)
-  return importBody({ market: entry })
+  const entry = MARKET.find((item) => item.id === id)
+  assert.ok(entry, `前置条件：市场里有 ${id}`)
+  seq += 1
+  const file = join(env.root, 'packs', `${entry.name}-market-${seq}.dspack`)
+  mkdirSync(join(env.root, 'packs'), { recursive: true })
+  writeFileSync(file, site.routes[new URL(entry.downloadUrl).pathname].body)
+  const imported = await importBody({ source: file })
+  const stored = readEnvFile(imported.id)
+  stored.source = { ...stored.source, kind: 'market', marketId: id, repo: `${entry.owner}/${entry.repo}`, following: true, label: `市场：${id}` }
+  writeFileSync(envFile(imported.id), `${JSON.stringify(stored, null, 2)}\n`)
+  return envById(imported.id)
 }
 
 test('U1 市场里的环境（按 marketId 对上）读市场索引，不调 GitHub 接口', async () => {

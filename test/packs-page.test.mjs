@@ -39,11 +39,14 @@ test('整合包已并进插件页：导航里没有独立入口，卡片区是�
   assert.match(html, /<button type="button" class="nav-item" data-pane="settings" data-category="appearance">/, '外观紧跟在插件页后面')
 })
 
-test('两个弹窗：导入（来源 + 市场）与导出（目标、离线文件、工作流、名称版本说明仓库），控件齐全', () => {
+test('两个弹窗：导入（实例文件或 GitHub 仓库）与导出（目标、离线文件、工作流、名称版本说明仓库），控件齐全', () => {
   const importDialog = slice('<div class="ask" id="packImportDialog"', '<div class="ask" id="packExportDialog"')
-  for (const id of ['packSource', 'packCheck', 'packPick', 'packInspect', 'packMarket', 'packProgress', 'packProgressBar', 'packHint', 'packImportClose']) {
+  for (const id of ['packSource', 'packCheck', 'packPick', 'packImportHint', 'packInspect', 'packProgress', 'packProgressBar', 'packHint', 'packImportClose']) {
     assert.match(importDialog, new RegExp(`id="${id}"`), `导入弹窗里要有 ${id}`)
   }
+  // 导入只收实例文件和 GitHub 仓库：输入框直接露在弹窗里，提示只说这两种
+  assert.match(importDialog, /<input id="packSource" type="text" data-placeholder-i18n="文件路径或 GitHub 仓库（owner\/repo）"/, '输入框只说文件和 GitHub 仓库')
+  assert.doesNotMatch(importDialog, /下载链接|直链/, '导入弹窗不再提下载链接')
   const exportDialog = slice('<div class="ask" id="packExportDialog"', '<div class="ask" id="launchDialog"')
   for (const id of ['packExportName', 'packExportVersion', 'packExportDescription', 'packExportRepo', 'packExportOffline', 'packExportWorkflow', 'packExportHint', 'packExportGo', 'packExportCancel']) {
     assert.match(exportDialog, new RegExp(`id="${id}"`), `导出弹窗里要有 ${id}`)
@@ -57,8 +60,12 @@ test('两个弹窗：导入（来源 + 市场）与导出（目标、离线文�
   assert.match(html, /getElementById\('packExportWorkflowRow'\)\.hidden = input\.value !== 'dir'/, '切到仓库目录才显示工作流')
   assert.ok(!/id="packExportHome"/.test(html), '环境不带用户目录里的东西，「连同用户目录一起导出」撤掉')
   assert.doesNotMatch(html, /id="packImportOpen"/, '撤去重复的顶栏装包入口')
-  assert.match(importDialog, /<details class="pack-import-source">/, '文件与链接导入默认折叠')
-  assert.match(importDialog, /id="packMarketDetail"/, '社区卡片可以查看完整详情')
+  // 实例市场先撤下，以后单独做：导入弹窗里没有市场网格、搜索排序，也没有市场详情弹窗
+  for (const id of ['packMarket', 'marketSearch', 'marketSort', 'marketCount', 'packMarketHint', 'packDetailDialog', 'packMarketDetail']) {
+    assert.doesNotMatch(html, new RegExp(`id="${id}"`), `${id} 应该已经撤掉`)
+  }
+  assert.doesNotMatch(importDialog, /<details class="pack-import-source">/, '来源输入不再折叠在市场下面')
+  assert.doesNotMatch(html, /market-layout\.js/, '市场的瀑布流脚本不再加载')
   assert.ok(!/id="packExportProfile"/.test(html), '没有「导出某个 Profile」的入口了')
   assert.ok(!/id="pluginCheckUpdates"/.test(html), '更新检查放到当前 Profile 详情')
 })
@@ -69,7 +76,7 @@ test('导出弹窗：本地插件逐个列成「带上离线文件」的勾选�
   const context = vm.createContext({
     exportingEnvironment: null, exportRevision: 0, AUTO_VERSION: 'auto',
     // 默认版本号来自 GET /api/environments 的 defaults.packVersion（环境页拉列表时存进 environmentState）
-    environmentState: { list: [], pendingOpen: '', defaults: { packVersion: '1.0.0' }, reload: null },
+    environmentState: { pendingOpen: '', defaults: { packVersion: '1.0.0' }, reload: null },
     packExportNameEl: node(), packExportVersionEl: node(), packExportDescriptionEl: node(), packExportRepoEl: node(),
     packExportOfflineEl: offline, packExportHintEl: { textContent: '' }, packExportDialog: {},
     showPackDialog() {}, t: (text) => text, escapeHtml: (text) => String(text ?? ''),
@@ -117,7 +124,7 @@ test('导出弹窗：本地插件逐个列成「带上离线文件」的勾选�
     packExportWorkflowEl: { checked: true },
     document: { getElementById: () => null },
     // 导出成功后让环境页重读列表：服务端刚把版本号和说明记回环境，再打开导出框才看得到
-    environmentState: { list: [], pendingOpen: '', defaults: {}, reload: async () => { reloads += 1 } },
+    environmentState: { pendingOpen: '', defaults: {}, reload: async () => { reloads += 1 } },
     t: (text) => text, escapeHtml: (text) => String(text ?? ''), notify: (...args) => notices.push(args), packNotes: () => '',
     post: async (path, body) => { posts.push({ path, body: JSON.parse(JSON.stringify(body)) }); return reply() },
   })
@@ -173,7 +180,7 @@ test('导出：结果晚到、弹窗已经重新打开过时，不往新弹窗�
     packExportNameEl: { value: '甲' }, packExportVersionEl: { value: '' }, packExportDescriptionEl: { value: '' }, packExportRepoEl: { value: '' },
     packExportWorkflowEl: { checked: false },
     document: { getElementById: () => null },
-    environmentState: { list: [], pendingOpen: '', defaults: {}, reload: async () => { reloads += 1 } },
+    environmentState: { pendingOpen: '', defaults: {}, reload: async () => { reloads += 1 } },
     t: (text) => text, escapeHtml: (text) => String(text ?? ''), notify: (...args) => notices.push(args), packNotes: () => '',
     post: () => new Promise((resolve, reject) => settle.push({ resolve, reject })),
   })
@@ -319,7 +326,7 @@ test('内置环境配方是环境页网格里的卡片：没导入过的才画�
   assert.equal(context.el.hint.textContent, '还没有实例。新建、导入一个，或者先保存一个启动项，启动器会按它的配置自动生成。', '空列表提示说实例和配置')
 
   assert.match(html, /<div class="pack-grid" id="environmentGrid"><\/div>/, '网格在环境页里')
-  const importDialog = slice('<div class="ask" id="packImportDialog"', '<div class="ask" id="packDetailDialog"')
+  const importDialog = slice('<div class="ask" id="packImportDialog"', '<div class="ask" id="packInstallDialog"')
   assert.doesNotMatch(importDialog, /data-builtin|id="[^"]*[Bb]uiltin[^"]*"/, '导入弹窗里不再有内置配方那一块')
   assert.doesNotMatch(html, /data-builtin/, '主脚本不再画内置配方卡片（只有环境页画）')
 })
@@ -339,7 +346,7 @@ test('页面逻辑：一张卡就是一个 profile，点开进详情，开关/�
   assert.doesNotMatch(html, /data-pack-import-here|function importIntoProfile\(|data-pack-import\b|data-pack-export\b/, 'Profile 详情里不再有导入 / 导出入口')
   assert.match(html, /post\('\/api\/packs\/pick-file'/, '选本地文件走 pick-file')
   assert.match(html, /post\('\/api\/packs\/reveal'/, '导出的文件能在文件夹里定位')
-  assert.match(html, /getJson\(`\/api\/packs\/market/, '市场列表由服务端读')
+  assert.doesNotMatch(html + envPage, /\/api\/packs\/market/, '实例市场先撤下：页面不再读市场列表')
   assert.match(html, /data\?\.kind === 'pack'/, '整合包进度走 SSE 的 pack 事件')
   assert.match(html, /function applyPluginPayload\(data\)/, '插件与整合包状态一次灌进页面')
   assert.match(html, /function openPack\(profile\)/, '点卡片进详情')
@@ -383,7 +390,7 @@ test('检查走环境导入接口，包里的配置默认不导；关闭后晚�
     packBusy: false, packInspection: null, packTargetProfile: '', packInspectRequest: 0, packConfigWanted: true,
     openedPack: null, pluginProfile: 'web', packState: {}, state: { profile: 'work' },
     packInstallDialog: {}, document: { getElementById: () => ({}) },
-    openImportDialog() {}, closeMarketDetail() {}, showPackDialog() {}, hidePackDialog() {}, renderPackMarket() {}, renderPackInspect() {}, renderPackView() {}, packInstalling: false,
+    showPackDialog() {}, hidePackDialog() {}, renderPackInspect() {}, renderPackView() {}, packInstalling: false,
     packHintEl: {}, t: (text) => text, notify() {},
     post: (path, body) => { calls.push({ path, body }); return new Promise((resolve) => { resolvePost = resolve }) },
   })
@@ -391,11 +398,11 @@ test('检查走环境导入接口，包里的配置默认不导；关闭后晚�
   const payload = { source: '/tmp/demo.dspack' }
   const pending = context.inspectPack(payload)
   assert.equal(calls[0].path, '/api/environments/import/inspect')
-  assert.equal(calls[0].body, payload, '来源原样交给服务端（文件、链接、owner/repo、市场条目、内置配方都是这一个口子）')
+  assert.equal(calls[0].body, payload, '来源原样交给服务端（实例文件、GitHub 仓库、内置配方都是这一个口子）')
   assert.equal(context.packConfigWanted, false, '包里的配置默认不导进 Profile')
   assert.equal(context.packInspection, null, '检查完成前没有可导入的结果')
   assert.equal(context.packBusy, true)
-  new vm.Script(slice('function closeInstallDialog()', "document.getElementById('packDetailClose')")).runInContext(context)
+  new vm.Script(slice('function closeInstallDialog()', "document.getElementById('packInstallClose').onclick")).runInContext(context)
   const signal = context.packInspectAbort.signal
   context.closeInstallDialog()
   assert.equal(signal.aborted, true, '关闭时中止下载，不等远端响应才恢复操作')
@@ -413,7 +420,7 @@ test('确认导入前必须有通过的检查结果；导入中关闭不清空�
   const context = vm.createContext({
     packBusy: false, packInspection: { ok: false, token: 'bad', environment: {}, errors: ['坏了'] }, packTargetProfile: 'web', packConfigWanted: false,
     post() { calls += 1 }, packInstalling: true,
-    hidePackDialog() { calls += 1 }, packInstallDialog: {}, renderPackInspect() {}, renderPackMarket() {}, renderPackView() {},
+    hidePackDialog() { calls += 1 }, packInstallDialog: {}, renderPackInspect() {}, renderPackView() {},
     document: { getElementById: () => null }, packHintEl: {}, t: (text) => text,
   })
   new vm.Script(slice('async function installPack()', 'async function removePack(')).runInContext(context)
@@ -423,7 +430,7 @@ test('确认导入前必须有通过的检查结果；导入中关闭不清空�
   context.packBusy = true
   await context.installPack()
   assert.equal(calls, 0, '上一个操作没结束不能再点导入')
-  new vm.Script(slice('function closeInstallDialog()', "document.getElementById('packDetailClose')")).runInContext(context)
+  new vm.Script(slice('function closeInstallDialog()', "document.getElementById('packInstallClose').onclick")).runInContext(context)
   context.closeInstallDialog()
   assert.equal(calls, 0)
   assert.equal(context.packInspection.ok, true, '导入期间的关闭操作不清空检查状态')
@@ -450,7 +457,7 @@ test('导入预览和忙碌重画只更新固定页脚按钮，正文滚动不�
     t: (text, vars = {}) => text.replace(/\{(\w+)\}/g, (_, key) => String(vars[key] ?? '')), escapeHtml: (text) => String(text ?? ''),
     installPack() {}, closeInstallDialog() {},
   })
-  new vm.Script(slice('function packRows(title, rows)', 'async function loadMarket(')).runInContext(context)
+  new vm.Script(slice('function packRows(title, rows)', 'async function inspectPack(')).runInContext(context)
   context.renderPackInspect()
   assert.match(node('packInspect').innerHTML, /一段较长的安装提示/)
   assert.doesNotMatch(node('packInspect').innerHTML, /自动最新版本/, '钉了版本就显示版本号')
@@ -483,7 +490,7 @@ test('导入成功跳到环境页打开新环境，真失败才弹「导入失�
     packInspection: { ok: true, token: 'checked', environment: { dshInstalled: true } },
     packHintEl: { textContent: '' }, packInstallDialog: installDialog, packImportDialog: importDialog,
     currentPane: 'control',
-    environmentState: { list: [], pendingOpen: '', defaults: {}, reload: async () => { reloads += 1 } },
+    environmentState: { pendingOpen: '', defaults: {}, reload: async () => { reloads += 1 } },
     // 配置导进哪个 Profile 只认 packTargetProfile；页面上的下拉框写着别的值也不能被拿去用
     document: { getElementById: (id) => (id === 'packProfile' ? { value: 'from-dom' } : null) },
     t: (text) => text,
@@ -493,9 +500,8 @@ test('导入成功跳到环境页打开新环境，真失败才弹「导入失�
       if (fail) throw new Error('依赖安装失败')
       return { ok: true, environment: { id: `env-${posts.length}` }, config: configError ? { profile: 'desktop', error: configError } : null }
     },
-    renderPackMarket() {}, renderPackInspect() {},
+    renderPackInspect() {},
     hidePackDialog: async (dialog) => closed.push(dialog?.name),
-    closeMarketDetail: async () => closed.push('detail'),
     showPane: async (pane) => panes.push(pane),
   })
   new vm.Script(slice('async function installPack()', 'async function removePack(')).runInContext(context)
@@ -506,7 +512,7 @@ test('导入成功跳到环境页打开新环境，真失败才弹「导入失�
   assert.equal(context.environmentState.pendingOpen, 'env-1', '环境页打开的是刚导入的那个')
   assert.deepEqual(panes, ['environments'], '不在环境页时导入完跳过去')
   assert.equal(reloads, 0, '跳过去时由环境页自己加载，不必再重读一次')
-  assert.ok(closed.includes('install') && closed.includes('detail') && closed.includes('import'), '确认、详情、导入弹窗都关掉')
+  assert.ok(closed.includes('install') && closed.includes('import'), '确认、导入弹窗都关掉')
   assert.equal(context.packInspection, null)
   assert.equal(context.packBusy, false)
   assert.equal(context.packInstalling, false)
@@ -535,65 +541,6 @@ test('导入成功跳到环境页打开新环境，真失败才弹「导入失�
   assert.deepEqual(notices, [['依赖安装失败', '导入失败']])
   assert.equal(context.packInstalling, false)
   assert.equal(context.packBusy, false)
-})
-
-test('市场卡片与详情按已导入的环境显示「已导入」：同一条目的同一版本才算，和当前看的 Profile 无关', () => {
-  const nodes = new Map()
-  const node = (id) => {
-    if (!nodes.has(id)) nodes.set(id, { textContent: '', disabled: false })
-    return nodes.get(id)
-  }
-  const panel = () => ({ innerHTML: '', querySelectorAll: () => [], querySelector: () => ({}) })
-  const entry = { id: 'author/smooth', name: 'smooth', displayName: '丝滑的DSH', version: '1.0.0' }
-  // 环境自己的 packVersion 导出时会改成作者填的版本，「导入的是哪一版」要看来源里记的 source.packVersion
-  const imported = { id: 'env-smooth', name: '丝滑的DSH', source: { kind: 'market', marketId: entry.id, packVersion: '1.0.0' }, packVersion: '3.0.0' }
-  const context = vm.createContext({
-    openedPack: { profile: 'desktop' }, pluginProfile: 'desktop', state: {},
-    // 「已导入」看的是主脚本共享的环境列表（environmentState）
-    environmentState: { list: [imported], pendingOpen: '' },
-    packState: { packs: [] },
-    packMarket: { entries: [entry] }, packBusy: false, launcherRunning: () => false,
-    marketDetailIndex: 0, marketSearchEl: { value: '' }, marketSortEl: { value: 'name' },
-    packMarketEl: panel(), packMarketDetailEl: panel(), packMarketActionsEl: panel(), document: { getElementById: node },
-    window: { launcherMarketLayout: { refresh() {} } },
-    t: (text) => text, escapeHtml: (text) => String(text ?? ''), marketStar: '', marketCube: '',
-  })
-  new vm.Script(slice('function marketDate(value)', 'async function loadMarketStats()')).runInContext(context)
-  const render = () => { context.renderPackMarket(); context.renderMarketDetail() }
-  const installed = (why) => {
-    for (const el of [context.packMarketEl, context.packMarketActionsEl]) assert.match(el.innerHTML, /class="[^"]*market-install"[^>]*disabled[^>]*>已导入<\/button>/, why)
-  }
-  const available = (why) => {
-    for (const el of [context.packMarketEl, context.packMarketActionsEl]) assert.match(el.innerHTML, /class="[^"]*market-install"(?![^>]*disabled)[^>]*>导入<\/button>/, why)
-  }
-  render()
-  installed('同一条目的同一版本已经导入成环境')
-  assert.doesNotMatch(context.packMarketDetailEl.innerHTML, /market-install/, '详情正文不包含导入按钮')
-  context.openedPack = { profile: 'web' }
-  render()
-  installed('环境不属于某个 Profile：换一个 Profile 看也是已导入')
-  entry.version = '2.0.0'
-  render()
-  available('市场上出了新版本，可以再导')
-  entry.version = '1.0.0'
-  render()
-  installed('回到同一版本')
-  context.environmentState.list = [{ ...imported, source: { kind: 'market', marketId: 'someone/else', packVersion: '1.0.0' } }]
-  render()
-  available('别的条目导入的环境不算')
-  context.environmentState.list = [{ ...imported, packVersion: '1.0.0', source: { kind: 'market', marketId: entry.id, packVersion: '0.9.0' } }]
-  render()
-  available('环境自己的 packVersion 碰巧对上不算：导入的是 0.9.0')
-  context.environmentState.list = [imported]
-  delete entry.version
-  render()
-  installed('条目没写版本：导入过同一条目就算')
-  entry.version = '1.0.0'
-  // 旧版的整合包安装记录（装进某个 Profile）不等于导入过环境
-  context.environmentState.list = []
-  context.packState.packs = [{ profile: 'web', records: [{ name: 'smooth', source: entry.id, version: '1.0.0' }] }]
-  render()
-  available('只有老安装记录、没有环境时仍可导入')
 })
 
 test('环境与 Profile 相关的中文文案都有英文', () => {
@@ -661,8 +608,7 @@ test('「实例」只指装好插件的 DSH、「配置」指 dsh profile：旧�
   const dict = enDict()
   const page = uiSource(html) + uiSource(envPage)
   for (const text of [
-    '新建实例', '复制实例', '删除实例', '导入实例', '导出实例', '更新实例', '实例名称', '新实例名称', '社区实例', '实例详情',
-    '搜索实例', '实例排序', '{n} 个实例', '用哪个实例', '返回实例列表',
+    '新建实例', '复制实例', '删除实例', '导入实例', '导出实例', '更新实例', '实例名称', '新实例名称', '用哪个实例', '返回实例列表',
     '目录与配置', '选择目录与配置', '修复配置', '新建配置', '复制配置', '重命名配置', '删除配置',
     '配置名称', '选择配置', '配置备份与回退', '这个配置里有什么', '返回配置列表', '系统配置不能删除', '系统配置不能重命名',
   ]) {
@@ -699,12 +645,11 @@ test('英文词典：实例那组译成 Instance，配置那组仍叫 Profile，
   const dict = enDict()
   const exact = {
     实例: 'Instances', 新建实例: 'New instance', 删除实例: 'Delete instance', 导入实例: 'Import instance',
-    导出实例: 'Export instance', 更新实例: 'Update instance', 社区实例: 'Community instances', '{n} 个实例': '{n} instances',
+    导出实例: 'Export instance', 更新实例: 'Update instance',
   }
   for (const [zh, en] of Object.entries(exact)) assert.equal(dict[zh], en, `「${zh}」的英文`)
   for (const zh of [
-    '实例名称', '新实例名称', '实例详情', '搜索实例', '实例排序', '用哪个实例', '返回实例列表', '没有匹配的实例',
-    '正在读社区实例列表…', '导入内置实例 {name}', '随启动器发的实例配方', '还有启动项在用，先给它们换一个实例',
+    '实例名称', '新实例名称', '用哪个实例', '返回实例列表', '导入内置实例 {name}', '随启动器发的实例配方', '还有启动项在用，先给它们换一个实例',
     '删除实例「{name}」？配置和里面已经装好的插件不受影响。', '实例已导入，配置没能写进配置',
   ]) {
     assert.match(dict[zh] || '', /instance/i, `「${zh}」的英文要说 instance`)
@@ -747,7 +692,7 @@ test('导入实例文件：选文件对话框的标题和筛选名、下载与�
   const requests = []
   const hint = { textContent: '' }
   const context = vm.createContext({
-    packPickEl: { disabled: false }, packSourceEl: { value: '' }, packHintEl: hint,
+    packPickEl: { disabled: false }, packSourceEl: { value: '' }, packImportHintEl: hint,
     pickPath: async (request) => { requests.push(request); return { canceled: true, path: '' } },
     inspectPack() {}, post: async () => ({}),
     t: (text, vars = {}) => text.replace(/\{(\w+)\}/g, (_, key) => String(vars[key] ?? '')),
@@ -1006,7 +951,8 @@ test('这次新加的文案有英文，返回按钮的提示可翻译，「修�
   const source = html.match(/const EN = (\{[\s\S]*?\n\})/)[1]
   const dict = new vm.Script(`(${source})`).runInNewContext()
   // 「复制来源目录 / 复制来源 Profile」那两个下拉已经换成两栏选择窗（见 launch-isolation-page），文案跟着撤了
-  for (const key of ['已导入', '撤销', '导入过的配置']) {
+  // 「已导入」是市场卡片上的按钮字，实例市场撤下后跟着撤了
+  for (const key of ['撤销', '导入过的配置']) {
     assert.equal(typeof dict[key], 'string', `「${key}」要有英文`)
     assert.ok(dict[key].trim() && !/[一-鿿]/.test(dict[key]), `「${key}」的英文不能空着或还是中文`)
   }
