@@ -828,7 +828,7 @@ export async function stopWslInstance(options) {
 export async function readWslProfile(distro, home, profile, options = null) {
   const name = String(profile || '').trim()
   if (!distro) throw new Error('先选择一个 WSL 发行版')
-  if (!name) throw new Error('Profile 名称不能为空')
+  if (!name) throw new Error('配置名称不能为空')
   const { run, user } = runnerOptions(options)
   const script = [
     'set -e',
@@ -841,11 +841,11 @@ export async function readWslProfile(distro, home, profile, options = null) {
   ].join(String.fromCharCode(10))
   const backend = createWslBackend({ distro, user, run })
   const result = await backend.exec(script, { timeoutMs: 10000 })
-  if (!result.ok) throw new Error(wslFailureMessage(result) || '读取 WSL Profile 失败')
+  if (!result.ok) throw new Error(wslFailureMessage(result) || '读取 WSL 配置失败')
   const text = decodeWslOutput(result.stdout).trim()
-  if (!text || text === '__DSHX_MISSING__') return { ok: false, profile: name, error: '这个 Profile 还没初始化' }
+  if (!text || text === '__DSHX_MISSING__') return { ok: false, profile: name, error: '这个配置还没初始化' }
   let manifest = null
-  try { manifest = JSON.parse(text) } catch { return { ok: false, profile: name, error: 'Profile 的 package.json 读不出来' } }
+  try { manifest = JSON.parse(text) } catch { return { ok: false, profile: name, error: '配置的 package.json 读不出来' } }
   const dependencies = manifest?.dependencies && typeof manifest.dependencies === 'object' ? manifest.dependencies : {}
   const bundles = Array.isArray(manifest?.dsh?.profile?.bundles) ? manifest.dsh.profile.bundles : null
   const plugins = Object.keys(dependencies).sort().map((plugin) => ({
@@ -863,7 +863,7 @@ export async function readWslProfile(distro, home, profile, options = null) {
 export async function removeWslProfile(distro, home, profile, options = null) {
   const name = String(profile || '').trim()
   if (!distro) throw new Error('先选择一个 WSL 发行版')
-  if (!name) throw new Error('Profile 名称不能为空')
+  if (!name) throw new Error('配置名称不能为空')
   const { run, user } = runnerOptions(options)
   const script = [
     'set -e',
@@ -877,9 +877,9 @@ export async function removeWslProfile(distro, home, profile, options = null) {
   ].join(String.fromCharCode(10))
   const backend = createWslBackend({ distro, user, run })
   const result = await backend.exec(script, { timeoutMs: 10000 })
-  if (!result.ok) throw new Error(wslFailureMessage(result) || '删除 WSL Profile 失败')
+  if (!result.ok) throw new Error(wslFailureMessage(result) || '删除 WSL 配置失败')
   const text = decodeWslOutput(result.stdout)
-  if (text.includes('__DSHX_MISSING__')) return { ok: false, profile: name, error: '这个 Profile 还没初始化' }
+  if (text.includes('__DSHX_MISSING__')) return { ok: false, profile: name, error: '这个配置还没初始化' }
   return { ok: true, profile: name }
 }
 

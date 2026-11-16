@@ -46,7 +46,7 @@ function functionSource(name) {
 test('弹窗结构：标题、提示、列表、立即备份/刷新和关闭按钮', () => {
   const dialog = section('id="backupDialog"', 'id="launchPluginsDialog"')
   assert.match(dialog, /role="dialog" aria-modal="true" aria-labelledby="backupDialogTitle"/)
-  assert.match(dialog, /id="backupDialogTitle" data-i18n="Profile 备份与回退">Profile 备份与回退</)
+  assert.match(dialog, /id="backupDialogTitle" data-i18n="配置备份与回退">配置备份与回退</)
   assert.match(dialog, /<p class="dialog-subtitle" id="backupDialogHint">/)
   assert.match(dialog, /<div class="backup-list" id="backupList">/)
   assert.match(dialog, /id="backupRefresh"[^>]*data-i18n="刷新"/)
@@ -136,7 +136,7 @@ test('打开弹窗：提示里带上配置名，先清空列表再拉取', () =>
   vm.createContext(sandbox)
   vm.runInContext(functionSource('openProfileBackups'), sandbox)
   vm.runInContext("openProfileBackups('work')", sandbox)
-  assert.match(sandbox.backupHintEl.textContent, /^Profile「work」的配置层快照/)
+  assert.match(sandbox.backupHintEl.textContent, /^配置「work」的配置层快照/)
   assert.equal(sandbox.painted.length, 1)
   assert.equal(sandbox.painted[0].length, 0)
   assert.equal(sandbox.shown.length, 1)
@@ -302,7 +302,7 @@ test('样式与英文文案：列表限高滚动、行内按钮不换行，文�
   assert.match(styles, /\.backup-progress \{[^}]*display: flex/)
   assert.match(styles, /\.backup-progress \.spin \{[^}]*display: block/)
   const en = page.slice(page.indexOf('const EN = {'), page.indexOf('\n}\n', page.indexOf('const EN = {')))
-  for (const key of ['备份与回退', 'Profile 备份与回退', 'Profile「{profile}」的配置层快照 · 最多保留 10 份 / 30 天', '回退到此备份', '删除这份备份', '删除这份备份？删除后不能再回退到它；当前配置不受影响。', '删除备份', '已删除备份。', '立即备份', '回退完成', '已生成新备份。', '配置没有变化，不需要新备份。', '备份', '正在回退配置…', '正在重装依赖…', '正在生成备份…']) {
+  for (const key of ['备份与回退', '配置备份与回退', '配置「{profile}」的配置层快照 · 最多保留 10 份 / 30 天', '回退到此备份', '删除这份备份', '删除这份备份？删除后不能再回退到它；当前配置不受影响。', '删除备份', '已删除备份。', '立即备份', '回退完成', '已生成新备份。', '配置没有变化，不需要新备份。', '备份', '正在回退配置…', '正在重装依赖…', '正在生成备份…']) {
     assert.ok(en.includes(`"${key}":`), `英文文案缺少「${key}」`)
   }
 })

@@ -77,6 +77,17 @@ test('常规设置里不再重复 WSL 默认值：发行版 / 用户目录都在
   assert.match(page, /WSL 的默认值不再单独占一块设置/)
 })
 
+test('远端启动项不接环境：切到 WSL / SSH 藏起环境下拉，远端那条保存路径不带 environment', () => {
+  // Profile 目录在远端（WSL / SSH 主机），启动器写不进插件清单也装不了依赖，所以远端启动项没有环境可选
+  const backend = at('function setLaunchBackend')
+  const body = page.slice(backend, page.indexOf('\n    }\n', backend))
+  assert.match(body, /document\.getElementById\('launchEnvironmentField'\)\.hidden = remote/, '切到远端藏起环境下拉，切回本机再露出来')
+  const submit = at('launchFormEl.onsubmit = async')
+  const remoteBranch = page.slice(page.indexOf('if (remote) {', submit), page.indexOf('\n        const guided = !editingLaunchId', submit))
+  assert.match(remoteBranch, /backend: launchBackendKind\(\)/, '这一段是远端的保存路径')
+  assert.doesNotMatch(remoteBranch, /environment/, '远端保存不带环境')
+})
+
 test('连接来自状态推送；新建 WSL 连接时才按需拉发行版列表', () => {
   assert.match(page, /connections: Array\.isArray\(data\.connections\)/, '/api/state 自带连接列表')
   const ensure = page.indexOf('async function ensureWslInfo')
@@ -86,10 +97,10 @@ test('连接来自状态推送；新建 WSL 连接时才按需拉发行版列表
   assert.doesNotMatch(page, /wslInfoLoaded/, '发行版列表不做跨会话缓存，靠服务端 10 秒缓存控成本')
 })
 
-test('远端 Profile 可以直接删除：请求走 /api/remote/profile/remove', () => {
+test('远端配置可以直接删除：请求走 /api/remote/profile/remove', () => {
   assert.match(page, /const canRemove = !pickerBusy && \(row\.wsl \|\| Boolean\(row\.pack\) && row\.pack\?\.removable !== false\)/, '远端行也允许删除')
   assert.match(page, /post\('\/api\/remote\/profile\/remove', \{ connectionId: connection\.id, home: parsed\.home, profile \}\)/)
-  assert.match(page, /删除\{kind\}「\{name\}」里的 Profile「\{profile\}」？/, '删除确认要说清是哪个连接里的哪一份')
+  assert.match(page, /删除\{kind\}「\{name\}」里的配置「\{profile\}」？/, '删除确认要说清是哪个连接里的哪一份')
   assert.match(page, /for \(const key of \[\.\.\.pickerWslProfileCache\.keys\(\)\]\)/, '删完清掉这份 Profile 的插件摘要缓存')
 })
 
@@ -228,9 +239,9 @@ test('选择窗的切换 / 增删动效：方向推入、删除淡出、新增�
   assert.match(page, /pickerNewRow = `profile:\$\{data\.createdProfile\}`/, '新建 Profile 高亮')
 })
 
-test('SSH 连接的 Profile 行标注 SSH，不写成 WSL', () => {
+test('SSH 连接的配置行标注 SSH，不写成 WSL', () => {
   assert.match(page, /wsl: true, ssh: connection\.kind === 'ssh'/, '远端 Profile 要记住连接类型')
-  assert.match(page, /row\.ssh \? 'SSH 里的 Profile' : 'WSL 里的 Profile'/, 'SSH 连接不能显示「WSL 里的 Profile」')
+  assert.match(page, /row\.ssh \? 'SSH 里的配置' : 'WSL 里的配置'/, 'SSH 连接不能显示「WSL 里的配置」')
 })
 
 test('复制档不选设备：目标环境跟着来源三级菜单走', () => {

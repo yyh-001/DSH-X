@@ -6,8 +6,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { readPackState, rememberPack } from '../src/packs.js'
+import { writeZip } from '../src/zip.js'
 
-test('环境操作保护：多实例、写锁、恢复目标与托盘状态', async (t) => {
+test('Profile 操作保护：多实例、写锁、恢复目标与托盘状态', async (t) => {
   const root = mkdtempSync(join(tmpdir(), 'dsh-profile-ops-'))
   const app = isolateUserHome(root)
   const home = join(root, 'home')
@@ -128,8 +129,19 @@ setTimeout(() => server.listen(0, '127.0.0.1', () => console.log('dsh web: http:
     await assert.rejects(api('/api/dsh-homes/rename', { home: ghost, name: '' }), /目录名称应为/)
   })
 
-  await t.test('默认选择之外，启动中与多版本运行的环境都不能删除或卸载', async () => {
+  await t.test('默认选择之外，启动中与多版本运行的 Profile 都不能删除、撤销或导入配置', async () => {
     rememberPack(data, { name: 'demo', profile: 'guarded', createdProfile: true, files: [] })
+    // 「装整合包进 Profile」已经撤掉，现在往 Profile 里写东西的是「导入环境时把包里的配置导进 Profile」。
+    // 检查是只读的，先在实例起来之前拿到 token；真正写 Profile 的那一步要被挡住。
+    const packFile = join(root, 'with-config.dspack')
+    writeFileSync(packFile, writeZip([
+      { name: 'dspack.json', data: '{"format":"dspack","version":3}\n' },
+      { name: 'manifest.json', data: JSON.stringify({ manifestVersion: 5, type: 'profile', name: 'with-config', version: '1.0.0', bundles: ['@deepseek-ai/dsh-base', 'demo-plugin'], dependencies: { 'demo-plugin': '1.0.0' } }) },
+      { name: 'overrides/cordis.patch.yml', data: '- id: demo\n  disabled: true\n' },
+    ]))
+    const inspected = await api('/api/environments/import/inspect', { source: packFile })
+    assert.equal(inspected.profileData?.available, true, '包里带了补丁层，可以选导进 Profile')
+    const patchBefore = readFileSync(join(guarded, 'cordis.patch.yml'), 'utf8')
     const launching = api('/api/start', { version: versions[0], profile: 'guarded' })
     // 等到子进程已注册但尚未就绪，确定性地覆盖 starting 分支。
     const deadline = Date.now() + 5000
@@ -142,7 +154,8 @@ setTimeout(() => server.listen(0, '127.0.0.1', () => console.log('dsh web: http:
     await api('/api/launch-presets', { ...added.entry, name: '可编辑入口' })
     await api('/api/launch-presets/remove', { id: added.entry.id })
     assert.ok((await api('/api/state')).instances.some((item) => item.profile === 'guarded'), '增删入口不停止正在启动的实例')
-    await assert.rejects(api('/api/packs/install', {}), /请先停止/)
+    await assert.rejects(api('/api/environments/import', { token: inspected.token, profile: 'guarded' }), /请先停止这个配置的全部实例/)
+    assert.equal(readFileSync(join(guarded, 'cordis.patch.yml'), 'utf8'), patchBefore, '被挡住的导入不能碰补丁层')
     await launching
     await api('/api/start', { version: versions[1], profile: 'guarded' })
     assert.equal((await api('/api/state')).profile, 'web')
@@ -175,7 +188,7 @@ setTimeout(() => server.listen(0, '127.0.0.1', () => console.log('dsh web: http:
       ['/api/mcp/remove', { serverName: 'demo' }],
       ['/api/skills/local', { enabled: true }],
     ]) {
-      await assert.rejects(api(path, body), /profile.*操作|profile.*锁/, path)
+      await assert.rejects(api(path, body), /配置.*操作|配置锁/, path)
       assert.equal(readFileSync(patch, 'utf8'), before)
       assert.equal(existsSync(lock), true)
     }
