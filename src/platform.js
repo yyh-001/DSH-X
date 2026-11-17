@@ -62,6 +62,13 @@ export const RUNTIME_NODE_ENV = runtimeNodeEnv()
 
 /** 每用户目录的名字（settings.json、manager.log、webview 数据都在它下面；旧 Rust 外壳里有同名常量）。 */
 export const APP_DIR_NAME = 'DSH'
+/**
+ * 整个换掉每用户目录的环境变量（绝对路径，全平台）：本机并排跑第二份 DSH-X（测试包）时，
+ * 设置、日志、核心、Electron 的 userData（单实例锁就在里面）一起挪走，不和正式版抢。
+ * mac 从访达打开的应用拿不到 shell 环境，测试包靠 Info.plist 的 LSEnvironment 带上它。
+ * 外壳的 shell/env.mjs 有同名常量：外壳不能 import 核心（拆包后互不存在）。
+ */
+export const APP_DIR_ENV = 'DSH_APP_DIR'
 
 /** macOS 包的名字和 bundle id：Info.plist、LaunchAgent、自更新都认它们。 */
 export const MAC_APP_NAME = 'DSH-X.app'

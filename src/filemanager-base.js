@@ -1,9 +1,9 @@
 import { execFile } from 'node:child_process'
 import { existsSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, isAbsolute, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { RUNTIME_NODE } from './platform.js'
+import { APP_DIR_ENV, RUNTIME_NODE } from './platform.js'
 
 /**
  * 文件管理这一摊的契约：每用户目录与安装布局、路径大小写、目录链接、系统文件
@@ -75,8 +75,19 @@ export class FileManager {
    */
   userAppDir() { return '' }
 
+  /**
+   * 实际生效的每用户目录：DSH_APP_DIR（见 platform.js 的 APP_DIR_ENV）优先，否则是平台位置。
+   * 相对路径不认——它会随进程的工作目录漂移；外壳那边同样只认绝对路径，两边才落在同一处。
+   * 要「每用户目录」的地方都走它（appDir、默认版本目录），别直接调 userAppDir：
+   * 并排跑的测试包会从那里漏回正式版的目录。
+   */
+  effectiveUserAppDir() {
+    const override = String(this.env[APP_DIR_ENV] || '').trim()
+    return override && isAbsolute(override) ? override : this.userAppDir()
+  }
+
   /** settings.json 与日志实际所在的目录。 */
-  get appDir() { return this.userAppDir() || join(this.root, 'data') }
+  get appDir() { return this.effectiveUserAppDir() || join(this.root, 'data') }
 
   /** 当前代码所在的应用包路径；不是从包里跑就返回空串（只有 macOS 有包）。 */
   appBundle() { return '' }

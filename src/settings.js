@@ -1043,7 +1043,7 @@ export function packagedUnderNodeModules(dir = ROOT) {
 export function fallbackDataDir() {
   const local = join(ROOT, 'data')
   if (hasInstall(local)) return local
-  const userDir = fileManager.userAppDir()
+  const userDir = fileManager.effectiveUserAppDir()
   if (userDir) {
     const roaming = join(userDir, 'data')
     if (hasInstall(roaming)) return roaming
