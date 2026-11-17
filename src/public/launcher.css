@@ -2133,8 +2133,16 @@ html.reduce-motion #connectionWslFields, html.reduce-motion #connectionSshFields
 .profile-card .profile-menu { position: absolute; top: 50%; right: 12px; transform: translateY(-50%); }
 .profile-card:has(.profile-menu[open]) { z-index: 3; }
 .profile-menu > summary { background: transparent; }
-.profile-add { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 9px; font-size: 12px; white-space: nowrap; }
-.profile-add svg { width: 15px; height: 15px; }
+/* 页头右上角的动作按钮：配置页「＋ 新建配置」和实例页那一排是同一种按钮，尺寸、圆角、图标大小只在这里定一次。 */
+.profile-add, .pane-action { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 9px; font-size: 12px; white-space: nowrap; }
+.profile-add svg, .pane-action svg { width: 15px; height: 15px; }
+.pane-action.icon-only { justify-content: center; width: 34px; padding: 0; color: var(--muted); }
+.pane-action.icon-only:hover:not(:disabled) { color: var(--text); }
+.pane-action.is-checking svg { animation: spin 900ms linear infinite; }
+.pane-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; margin-left: auto; }
+/* 窄窗口里标题说明先占满一行，按钮整排挪到下面靠右，不再一个个散开换行 */
+.pane-top:has(> .pane-actions) { flex-wrap: wrap; }
+.pane-top:has(> .pane-actions) > div:first-child { flex: 1 1 320px; min-width: 0; }
 .pack-card {
   display: flex;
   align-items: flex-start;

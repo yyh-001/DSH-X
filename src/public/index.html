@@ -203,12 +203,13 @@
                 <h1 class="pane-title" data-i18n="实例">实例</h1>
                 <p class="pane-sub" data-i18n="实例 = 装好插件的 DSH。启动项选一个实例和一个配置；在这里改的插件，下次启动时生效。">实例 = 装好插件的 DSH。启动项选一个实例和一个配置；在这里改的插件，下次启动时生效。</p>
               </div>
-              <form class="environment-form" id="environmentCreateForm">
-                <input id="environmentNewName" type="text" autocomplete="off" aria-label="新实例名称" data-i18n-aria-label="新实例名称" data-placeholder-i18n="新实例名称" />
-                <button class="ghost" id="environmentCreate" type="submit" data-i18n="新建实例">新建实例</button>
-                <button class="ghost" id="environmentImport" type="button" data-i18n="导入…">导入…</button>
-                <button class="ghost" id="environmentCheckUpdates" type="button" data-i18n="检查更新">检查更新</button>
-              </form>
+              <!-- 和配置页「＋ 新建配置」同一排、同一种按钮：最常用的放最右，检查更新退成图标。
+                   名字不再常驻输入框（标题旁一条空输入框比动作本身还抢眼），点「新建实例」才弹窗问。 -->
+              <div class="pane-actions">
+                <button class="ghost pane-action icon-only" id="environmentCheckUpdates" type="button" title="检查更新" aria-label="检查更新" data-i18n-title="检查更新" data-i18n-aria-label="检查更新"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-refresh-cw"/></svg></button>
+                <button class="ghost pane-action" id="environmentImport" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-download"/></svg><span data-i18n="导入…">导入…</span></button>
+                <button class="ghost pane-action" id="environmentCreate" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-plus"/></svg><span data-i18n="新建实例">新建实例</span></button>
+              </div>
             </div>
             <div id="environmentOverview">
               <div class="pack-grid" id="environmentGrid"></div>
@@ -925,6 +926,19 @@
         <button class="ghost" id="connectionProgressCancel" type="button" data-i18n="取消连接">取消连接</button>
       </div>
     </div>
+  </div>
+  <!-- 新建实例：和「新建配置」同一张小卡（profile-dialog-card 那套样式），只问名字；建好直接打开它的详情。 -->
+  <div class="ask" id="environmentCreateDialog" hidden>
+    <form class="ask-card profile-dialog-card" id="environmentCreateForm" role="dialog" aria-modal="true" aria-labelledby="environmentCreateTitle" data-dialog-size="small">
+      <div class="dialog-heading"><h2 class="ask-title" id="environmentCreateTitle" data-i18n="新建实例">新建实例</h2><button class="ghost icon-btn dialog-close" id="environmentCreateClose" type="button" title="关闭" aria-label="关闭" data-i18n-title="关闭" data-i18n-aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
+      <div class="dialog-body">
+        <label for="environmentNewName" data-i18n="实例名称">实例名称</label>
+        <input id="environmentNewName" type="text" autocomplete="off" />
+        <p class="dialog-subtitle" data-i18n="建好后会打开它的详情，在那里选 DSH 版本、加插件。">建好后会打开它的详情，在那里选 DSH 版本、加插件。</p>
+        <p class="hint profile-error" id="environmentCreateError" role="alert" hidden></p>
+      </div>
+      <div class="profile-dialog-actions"><button class="ghost" id="environmentCreateCancel" type="button" data-i18n="取消">取消</button><button class="primary" id="environmentCreateSave" type="submit" data-i18n="创建">创建</button></div>
+    </form>
   </div>
   <div class="ask" id="environmentUpdateDialog" hidden>
     <div class="ask-card" role="dialog" aria-modal="true" aria-labelledby="environmentUpdateTitle" data-dialog-size="medium">
@@ -2628,7 +2642,7 @@
   "编辑配置…": "Edit profile…",
   "配置「{profile}」还没初始化：先用它启动一次，dsh 会把它建好，之后就能在这里编辑。": "Profile「{profile}」 is not initialized yet. Launch it once and dsh will create it; then you can edit it here.",
   "实例 = 装好插件的 DSH。启动项选一个实例和一个配置；在这里改的插件，下次启动时生效。": "An instance is DSH with its plugins installed. A launch entry picks one instance and one profile; plugin changes made here apply at the next launch.",
-  "新实例名称": "New instance name",
+  "建好后会打开它的详情，在那里选 DSH 版本、加插件。": "Once created, its details open so you can pick a DSH version and add plugins.",
   "新建实例": "New instance",
   "复制实例": "Duplicate",
   "删除实例": "Delete instance",

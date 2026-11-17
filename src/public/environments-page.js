@@ -16,8 +16,14 @@
     hint: byId('environmentHint'),
     overview: byId('environmentOverview'),
     view: byId('environmentView'),
+    create: byId('environmentCreate'),
+    createDialog: byId('environmentCreateDialog'),
     createForm: byId('environmentCreateForm'),
     newName: byId('environmentNewName'),
+    createError: byId('environmentCreateError'),
+    createSave: byId('environmentCreateSave'),
+    createCancel: byId('environmentCreateCancel'),
+    createClose: byId('environmentCreateClose'),
     importButton: byId('environmentImport'),
     back: byId('environmentBack'),
     detailName: byId('environmentDetailName'),
@@ -273,6 +279,9 @@
     el.overview.hidden = Boolean(env)
     el.view.hidden = !env
     el.checkUpdates.disabled = busy || checking
+    // 检查更新只剩一个图标：查的时候让它转起来，不然点了看不出有没有在查
+    el.checkUpdates.classList.toggle('is-checking', checking)
+    el.createSave.disabled = busy
     if (!env) return
     paintUpstream(env)
     paintHistory(env)
@@ -401,11 +410,29 @@
   }
   el.manageVersions.onclick = () => openVersionManager()
   el.checkCompatibility.onclick = () => { void checkCompatibility() }
+  function openCreateDialog() {
+    // 每次打开都是空白的一张：上一次没建成的名字和报错不带过来
+    el.newName.value = ''
+    el.createError.hidden = true
+    showPackDialog(el.createDialog, el.newName)
+  }
+  /** 取消 / 关闭 / Esc：请求还在路上时不关，失败原因要留在框里给人看。 */
+  function closeCreateDialog() {
+    if (!busy) void hidePackDialog(el.createDialog)
+  }
+  trapPackDialog(el.createDialog, closeCreateDialog)
+  el.create.onclick = openCreateDialog
+  el.createCancel.onclick = el.createClose.onclick = closeCreateDialog
   el.createForm.onsubmit = (event) => {
     event.preventDefault()
     const name = el.newName.value.trim()
     if (!name) { el.newName.focus(); return }
-    void run(() => post('/api/environments/create', { name }), { after: (result) => { el.newName.value = ''; openedId = result.environment.id } })
+    el.createError.hidden = true
+    // 重名、名字太长这类错误跟着输入框走，不弹全局通知：人还在框里，改完直接再点创建
+    void run(() => post('/api/environments/create', { name }), {
+      after: (result) => { openedId = result.environment.id; void hidePackDialog(el.createDialog) },
+      onError: (error) => { el.createError.textContent = error.message; el.createError.hidden = false; el.newName.focus() },
+    })
   }
   el.editForm.onsubmit = (event) => {
     event.preventDefault()

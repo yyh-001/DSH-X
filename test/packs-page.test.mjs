@@ -211,7 +211,8 @@ test('导出：结果晚到、弹窗已经重新打开过时，不往新弹窗�
 
 test('导入 / 导出入口在环境页：Profile 页撤掉了这两个按钮', () => {
   const envPane = slice('<section class="pane" id="pane-environments">', '<section class="pane fill" id="pane-mcp">')
-  assert.match(envPane, /<button class="ghost" id="environmentImport" type="button"/, '环境页有「导入…」')
+  // 顶栏动作是图标加文字（pane-action），翻译标记挂在文字那个 span 上
+  assert.match(envPane, /<button class="ghost pane-action" id="environmentImport" type="button">[\s\S]*?<span data-i18n="导入…">导入…<\/span><\/button>/, '环境页有「导入…」')
   assert.match(envPane, /<button class="ghost icon-btn pack-tool" id="environmentExport" type="button" title="导出实例" aria-label="导出实例"/, '实例详情页头有「导出实例」图标按钮')
   const profilePane = slice('<section class="pane" id="pane-plugins">', '<section class="pane" id="pane-environments">')
   assert.doesNotMatch(profilePane, /id="(?:environmentImport|environmentExport|packImport\w*|packExport\w*)"/, 'Profile 页里没有导入 / 导出按钮')
@@ -607,8 +608,9 @@ test('「实例」只指装好插件的 DSH、「配置」指 dsh profile：旧�
   }
   const dict = enDict()
   const page = uiSource(html) + uiSource(envPage)
+  // 「新实例名称」随顶栏常驻输入框一起撤了：新建弹窗里的名字框用的就是「实例名称」
   for (const text of [
-    '新建实例', '复制实例', '删除实例', '导入实例', '导出实例', '更新实例', '实例名称', '新实例名称', '用哪个实例', '返回实例列表',
+    '新建实例', '复制实例', '删除实例', '导入实例', '导出实例', '更新实例', '实例名称', '用哪个实例', '返回实例列表',
     '目录与配置', '选择目录与配置', '修复配置', '新建配置', '复制配置', '重命名配置', '删除配置',
     '配置名称', '选择配置', '配置备份与回退', '这个配置里有什么', '返回配置列表', '系统配置不能删除', '系统配置不能重命名',
   ]) {
@@ -649,7 +651,7 @@ test('英文词典：实例那组译成 Instance，配置那组仍叫 Profile，
   }
   for (const [zh, en] of Object.entries(exact)) assert.equal(dict[zh], en, `「${zh}」的英文`)
   for (const zh of [
-    '实例名称', '新实例名称', '用哪个实例', '返回实例列表', '导入内置实例 {name}', '随启动器发的实例配方', '还有启动项在用，先给它们换一个实例',
+    '实例名称', '用哪个实例', '返回实例列表', '导入内置实例 {name}', '随启动器发的实例配方', '还有启动项在用，先给它们换一个实例',
     '删除实例「{name}」？配置和里面已经装好的插件不受影响。', '实例已导入，配置没能写进配置',
   ]) {
     assert.match(dict[zh] || '', /instance/i, `「${zh}」的英文要说 instance`)
@@ -750,8 +752,11 @@ test('说新对象的地方不再叫整合包；旧版留下的整包安装记�
 
 test('实例详情底下的用法行：列出在用的启动项、现在装在哪几个配置，末尾说改动下次启动生效', () => {
   const plugins = { innerHTML: '', querySelectorAll: () => [] }
-  const el = Object.fromEntries(['overview', 'view', 'checkUpdates', 'detailName', 'detailSub', 'usage', 'upgrade', 'exportButton',
-    'duplicate', 'name', 'spec', 'channel', 'channelName', 'remove'].map((key) => [key, {}]))
+  const el = Object.fromEntries(['overview', 'view', 'detailName', 'detailSub', 'usage', 'upgrade', 'exportButton',
+    'duplicate', 'name', 'spec', 'channel', 'channelName', 'remove', 'createSave'].map((key) => [key, {}]))
+  // 检查更新按钮要有能用的 classList：renderView 按检查状态切 is-checking
+  const classes = new Set()
+  el.checkUpdates = { classList: { toggle: (name, force = !classes.has(name)) => { force ? classes.add(name) : classes.delete(name); return force }, contains: (name) => classes.has(name) } }
   Object.assign(el, {
     plugins, version: { value: '1.0.0' }, editForm: { dataset: { environment: 'env-a' } },
     checkCompatibility: { setAttribute(name, value) { this[name] = value } },

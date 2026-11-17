@@ -12,7 +12,17 @@ function slice(from, to) {
   return source.slice(start, end)
 }
 function harness() {
-  const element = () => ({ dataset: {}, value: '', classList: { remove() {} }, setAttribute() {}, querySelectorAll: () => [] })
+  // classList 要和真元素一样能用：renderView 按检查状态切顶栏检查更新的 is-checking
+  const element = () => {
+    const classes = new Set()
+    const classList = {
+      add: (...names) => names.forEach((name) => classes.add(name)),
+      remove: (...names) => names.forEach((name) => classes.delete(name)),
+      contains: (name) => classes.has(name),
+      toggle: (name, force = !classes.has(name)) => { force ? classes.add(name) : classes.delete(name); return force },
+    }
+    return { dataset: {}, value: '', classList, setAttribute() {}, querySelectorAll: () => [] }
+  }
   const el = new Proxy({}, { get: (obj, key) => obj[key] ||= element() })
   let env = { id: 'a', name: '甲', dshVersion: '1.0.0', updateChannel: 'official', plugins: [], usedBy: [], applied: [{ profile: 'web', home: '/fake' }] }
   let fail = false
