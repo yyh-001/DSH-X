@@ -37,6 +37,7 @@ import { randomBytes } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import test from 'node:test'
+import { gzipSync } from 'node:zlib'
 import { expectedAuto, packumentOf, startChannelServer } from './update-channel-fixture.mjs'
 import { BASE, WEB, profileDir, profileManifest, recordingBin, seedProfile, waitFor } from './environments-fixture.mjs'
 import {
@@ -260,6 +261,19 @@ test('R9 有参考 Profile：npm 范围 / tag 钉成 Profile 里实装的版本�
   assert.equal(manifest.dshVersion, '1.0.0')
 })
 
+test('R9 本地解析不了的 npm 范围：保留原坐标并提醒，不能钉成范围外的实装版本', async () => {
+  for (const [profile, spec] of [['export-hyphen', '1.0.0 - 2.0.0'], ['export-spaced', '>= 1.0.0 < 2.0.0']]) {
+    seedProfile(env.home, profile, profileManifest(profile, { dependencies: { 'dsh-x-foo': spec }, bundles: [BASE, WEB, 'dsh-x-foo'] }))
+    const installedDir = join(profileDir(env.home, profile), 'node_modules', 'dsh-x-foo')
+    mkdirSync(installedDir, { recursive: true })
+    writeFileSync(join(installedDir, 'package.json'), JSON.stringify({ name: 'dsh-x-foo', version: '9.9.9' }))
+    const id = await applyFromProfile(profile, profile)
+    const { data, manifest } = await exportFile({ id })
+    assert.equal(manifest.dependencies['dsh-x-foo'], spec, '保留范围，而不是导出 9.9.9')
+    assert.ok(data.warnings.some((line) => line.includes('dsh-x-foo') && line.includes(spec)), '不能钉版时必须点名提醒')
+  }
+})
+
 test('R9 没有参考 Profile：范围 / tag 取已发布里满足的最高版本；解析不了的原样带并点名提醒；github 找不到提交原样带并提醒', async () => {
   // 只导入不启动：这个环境从没写进过任何 Profile
   const dir = writePackDir(join(env.root, 'packs', 'never-applied'), baseManifest({
@@ -294,6 +308,19 @@ test('R9 没有参考 Profile：范围 / tag 取已发布里满足的最高版�
   for (const name of ['dsh-x-foo', '@acme/dsh-bar', 'dsh-x-tagged', 'dsh-x-ghpinned']) {
     assert.ok(!data.warnings.some((line) => line.includes(name)), `${name} 钉好了，不该提醒`)
   }
+})
+
+test('R9 损坏的本地 tarball：导出提示无法检查凭据，服务仍能继续响应', async () => {
+  const header = Buffer.alloc(512)
+  header.write('package/file')
+  header.write('8', 124)
+  const path = join(PLUGINS, 'bad-size.tgz')
+  writeFileSync(path, gzipSync(header))
+  const created = await createEnv('损坏 tarball', '1.1.0', [`dsh-x-bad-tar@file:${path}`])
+  const { data, manifest } = await exportFile({ id: created.id })
+  assert.ok(data.warnings.some((line) => line.includes('dsh-x-bad-tar') && line.includes('没能检查里面有没有凭据')))
+  assert.ok(manifest.offline['dsh-x-bad-tar'], '沿用原有策略：原样导出，但不声称凭据检查成功')
+  assert.equal((await envById(created.id)).id, created.id)
 })
 
 test('R9 本地 tarball：原样带进 offline/，清单里有 file + sha256，坐标改写成 file:offline/…', async () => {

@@ -533,6 +533,12 @@
     await run(() => post('/api/environments/update/apply', { token: check.token, discard }), {
       after: () => {
         delete updates[check.environment.id]
+        // 上游可能换了版本和通道：成功后重填这份表单，免得稍后只改名却把旧版本写回。
+        // 更新期间若已切到另一实例，不冲掉那边尚未保存的输入；失败也照留原稿。
+        if (el.editForm.dataset.environment === check.environment.id) {
+          el.editForm.dataset.environment = ''
+          resetCompatibility()
+        }
         hideUpdateDialog()
         notify(t('实例「{name}」已更新到 {version}，下次用它启动时生效。', { name: check.environment.name, version: releaseLabel(check.latest) }))
       },

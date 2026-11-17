@@ -64,6 +64,8 @@ const LOCKED_COMMIT_RE = /(?:^|[/#])([0-9a-f]{40})(?=$|[/?#&)])/
 // npm: 别名的版本段（npm:pkg@^1.2.0 → ^1.2.0）
 const NPM_ALIAS_RE = /^npm:(?:@[^/@]+\/)?[^@]+@(.+)$/
 const GIT_SPEC_RE = /^(?:git\+|git:|git@)/i
+// 只肯定常见的 dist-tag 写法；不能把本地 semver 子集不认识的范围当成 tag 放行。
+const NPM_TAG_RE = /^[A-Za-z][0-9A-Za-z._-]*$/
 // tar 头：一块 512 字节，名字在 0–100、长度（八进制）在 124–136、类型在 156、前缀在 345–500
 const TAR_BLOCK = 512
 const TAR_TYPE_OFFSET = 156
@@ -157,7 +159,10 @@ export function pinnedGithubSpec(spec, lockText = '') {
  */
 export function installedSatisfies(installed, spec) {
   if (!isExactVersion(installed)) return false
-  return !isVersionRange(spec) || satisfiesRange(installed, spec, { includePrerelease: false })
+  const wanted = String(spec ?? '').trim()
+  if (isVersionRange(wanted)) return satisfiesRange(installed, wanted, { includePrerelease: false })
+  // 连字符范围、带空白的比较式等交回 registry / 警告路径，宁可保留原坐标也不钉错版本。
+  return NPM_TAG_RE.test(wanted)
 }
 
 /**
@@ -260,13 +265,21 @@ export function tarballFiles(buffer) {
   const files = []
   // 上一条 pax / GNU 长名记录给下一个文件的真名
   let longName = ''
-  for (let offset = 0; offset + TAR_BLOCK <= data.length;) {
+  for (let offset = 0; offset < data.length;) {
+    if (offset + TAR_BLOCK > data.length) throw new Error('tar 文件头不完整')
     const header = data.subarray(offset, offset + TAR_BLOCK)
     if (header.every((byte) => byte === 0)) break
     const text = (start, end) => header.subarray(start, end).toString('utf8').replace(NUL_TAIL_RE, '')
-    const size = parseInt(text(124, 136).trim() || '0', 8) || 0
+    const sizeText = text(124, 136).trim() || '0'
+    if (!/^[0-7]+$/.test(sizeText)) throw new Error('tar 文件长度不是非负八进制数')
+    const size = parseInt(sizeText, 8)
+    const nextOffset = offset + TAR_BLOCK + Math.ceil(size / TAR_BLOCK) * TAR_BLOCK
+    // 扫描跑在服务主线程里：负数可能让游标原地打转，截断长度也不能悄悄跳过凭据检查。
+    if (!Number.isSafeInteger(size) || !Number.isSafeInteger(nextOffset) || nextOffset <= offset || nextOffset > data.length) {
+      throw new Error('tar 文件长度越界或内容不完整')
+    }
     const body = data.subarray(offset + TAR_BLOCK, offset + TAR_BLOCK + size).toString('utf8')
-    offset += TAR_BLOCK + Math.ceil(size / TAR_BLOCK) * TAR_BLOCK
+    offset = nextOffset
     const type = String.fromCharCode(header[TAR_TYPE_OFFSET])
     if (type === TAR_TYPE.PAX) {
       longName = PAX_PATH_RE.exec(body)?.[1] || longName
