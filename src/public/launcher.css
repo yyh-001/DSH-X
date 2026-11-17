@@ -773,7 +773,7 @@ html.reduce-motion .launch-enhance-tip { transition: none; }
 .launch-channel-control { display: flex; align-items: center; justify-content: space-between; gap: 10px; height: 42px; padding: 0 12px; border: 1px solid var(--line); border-radius: 9px; background: #fff; }
 .launch-channel-control:focus-within { outline: 1px solid var(--accent); }
 /* 档名会在「正式版 / Official / RC / Alpha」间切换，留够最长那个的宽度、靠右，切档时整行不跟着晃 */
-#launchUpdateChannelName { min-width: 3em; margin-left: auto; text-align: right; color: var(--text); font-size: 13px; }
+.channel-switch-name { min-width: 3em; margin-left: auto; text-align: right; color: var(--text); font-size: 13px; }
 /* 说明要讲清三档各收哪些版本，开关旁边放不下，单独占满下一行；压成小一号的注释，不跟控件抢视线 */
 #launchUpdateChannelHint { flex-basis: 100%; margin: -2px 0 0; font-size: 11.5px; line-height: 1.65; }
 /* ---- 新建启动项的隔离方式 ---- */
@@ -957,16 +957,7 @@ html.reduce-motion .profile-pick-row { transition: none; animation: none; }
 .profile-detail-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .profile-detail-version { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12px; }
 .profile-detail-badge { flex: 0 0 auto; padding: 1px 6px; border-radius: 999px; background: var(--accent-soft); color: var(--muted); font-size: 10.5px; }
-/* 右栏每行的卸载钮：比栏头工具小一号，悬停才泛红；官方组件这枚不出现 */
-.profile-pick .profile-detail-action {
-  flex: 0 0 auto; width: 28px; height: 28px; padding: 6px; border: 0; border-radius: 8px;
-  background: transparent; color: var(--muted);
-}
-.profile-pick .profile-detail-action svg { width: 16px; height: 16px; }
-.profile-pick .profile-detail-action:hover:not(:disabled) { background: var(--accent-soft); color: var(--text); }
-.profile-pick .profile-detail-action.danger:hover:not(:disabled) { background: #fff1f2; color: #e5484d; }
-.profile-pick .profile-detail-action:disabled { opacity: .4; cursor: default; }
-/* 栏头右侧：插件数可以截断，别把旁边的「+」挤出去 */
+/* 栏头右侧：插件数可以截断 */
 .profile-pick .profile-pick-col--detail .profile-pick-tools { min-width: 0; }
 #profilePickMeta { min-width: 0; }
 /* 窄窗口（标签形态那一档，最窄 720）：三栏挤不下，详情折到下面通栏，两栏各留一半 */
@@ -992,16 +983,17 @@ html.reduce-motion #launchIsolationHint.isolation-hint-in { animation: none; }
    圆钮靠 data-channel 选 left（0/1/2 档），带 transition——原生 range 的圆钮没法过渡，只能自绘一个。 */
 .launch-switch { position: relative; display: inline-flex; flex: 0 0 auto; --knob: 20px; --inset: 3px; --travel: 18px; }
 .launch-switch-knob { position: absolute; top: var(--inset); left: var(--inset); width: var(--knob); height: var(--knob); border-radius: 50%; background: #fff; box-shadow: var(--switch-knob-shadow); pointer-events: none; transition: left 220ms cubic-bezier(.2, .8, .2, 1); }
-.launch-switch:has(#launchUpdateChannel[data-channel="rc"]) .launch-switch-knob { left: calc(var(--inset) + var(--travel)); }
-.launch-switch:has(#launchUpdateChannel[data-channel="alpha"]) .launch-switch-knob { left: calc(var(--inset) + var(--travel) * 2); }
+.launch-switch:has(.channel-switch[data-channel="rc"]) .launch-switch-knob { left: calc(var(--inset) + var(--travel)); }
+.launch-switch:has(.channel-switch[data-channel="alpha"]) .launch-switch-knob { left: calc(var(--inset) + var(--travel) * 2); }
 html.reduce-motion .launch-switch-knob { transition: none; }
 @media (prefers-reduced-motion: reduce) { .launch-switch-knob { transition: none; } }
 /* 三档开关：照 .toggle 的两档开关画（同一套轨道色、20px 圆钮、3px 内边、每档行程 18px），只是多一档；
    用 range 而不是三个单选，拖动、点轨道跳档、方向键都是原生的。
    控件盒子只有圆钮的行程那么大，外圈 3px 内边用同色阴影补出来：range 的内边距 Chromium 和 WebKit
    处理不一样，靠它缩行程会让圆钮停不准；margin 给阴影留位，换行贴到弹窗左边时不被裁掉。
-   三个小点标出能停的位置，圆钮压住的就是当前档。正式版算「关」（不收预发布），RC / Alpha 算「开」，轨道色按这个分。 */
-#launchUpdateChannel {
+   三个小点标出能停的位置，圆钮压住的就是当前档。正式版算「关」（不收预发布），RC / Alpha 算「开」，轨道色按这个分。
+   启动项编辑框和实例页共用（.channel-switch），按类挂样式。 */
+.channel-switch {
   --dot: radial-gradient(circle 2px, rgb(255 255 255 / 70%) 95%, transparent) no-repeat;
   --track: var(--switch-off);
   appearance: none;
@@ -1019,8 +1011,8 @@ html.reduce-motion .launch-switch-knob { transition: none; }
   cursor: pointer;
   transition: background-color 220ms ease, box-shadow 220ms ease;
 }
-#launchUpdateChannel:not([data-channel="official"]) { --track: var(--switch-on); }
-#launchUpdateChannel::-webkit-slider-thumb {
+.channel-switch:not([data-channel="official"]) { --track: var(--switch-on); }
+.channel-switch::-webkit-slider-thumb {
   -webkit-appearance: none;
   width: var(--knob);
   height: var(--knob);
@@ -1030,9 +1022,12 @@ html.reduce-motion .launch-switch-knob { transition: none; }
   /* 圆钮由 .launch-switch-knob 自绘（要位移动画）；原生圆钮只留命中区域 */
   opacity: 0;
 }
-#launchUpdateChannel:focus-visible { outline: 1px solid var(--accent); outline-offset: calc(var(--inset) + 2px); }
-html.reduce-motion #launchUpdateChannel { transition: none; }
-@media (prefers-reduced-motion: reduce) { #launchUpdateChannel { transition: none; } }
+.channel-switch:focus-visible { outline: 1px solid var(--accent); outline-offset: calc(var(--inset) + 2px); }
+/* 实例页钉了具体版本时版本类型不起作用，开关置灰 */
+.channel-switch:disabled { cursor: default; }
+.launch-channel-control:has(.channel-switch:disabled) { opacity: 0.5; }
+html.reduce-motion .channel-switch { transition: none; }
+@media (prefers-reduced-motion: reduce) { .channel-switch { transition: none; } }
 .launch-version-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
 .launch-version-tools[hidden] { display: none; }
 .launch-version-tools .hint { flex-basis: 100%; margin: 0; }
@@ -1734,7 +1729,7 @@ html.reduce-motion #launchLogDialog .launch-log-card[data-log-panel][data-dir]:n
 .plugin-row:hover { background: var(--accent-soft); }
 /* 整合包页的列表行是 div 不是 label：补上横向排版，按钮才会待在右端而不是掉到下一行 */
 .plugin-row.pack-row { display: flex; align-items: center; gap: 12px; }
-.plugin-row.pack-row .plugin-update, .plugin-row.pack-row .ghost { flex: 0 0 auto; }
+.plugin-row.pack-row .ghost { flex: 0 0 auto; }
 .plugin-row:focus-within { background: var(--accent-soft); }
 .plugin-row:last-child { border-bottom: 0; }
 .plugin-row.off .plugin-name { color: var(--muted); font-weight: 500; }
@@ -1757,7 +1752,6 @@ html.reduce-motion #launchLogDialog .launch-log-card[data-log-panel][data-dir]:n
 .plugin-group-tools .icon-btn svg { width: 16px; height: 16px; }
 .plugin-group-toggle { margin: 0 0 0 5px; align-self: center; }
 .plugin-group-toggle input { width: 44px; height: 26px; }
-.group-update.loading .pack-update-count { display: none; }
 .plugin-group > summary { display: flex; align-items: center; gap: 10px; height: 62px; min-height: 62px; padding: 10px 146px 10px 16px; color: var(--text); cursor: pointer; list-style: none; }
 .plugin-group > summary::-webkit-details-marker { display: none; }
 .plugin-group-chevron { width: 13px; height: 13px; flex: 0 0 auto; color: var(--muted); transition: transform 220ms ease; }
@@ -1771,10 +1765,6 @@ html.reduce-motion #launchLogDialog .launch-log-card[data-log-panel][data-dir]:n
 .plugin-item { border-bottom: 1px solid var(--line); }
 .plugin-item:last-child { border-bottom: 0; }
 .plugin-item > .plugin-row { border-bottom: 0; }
-.plugin-row-progress { padding: 0 16px 13px; animation: pack-view-in 180ms ease both; }
-.plugin-row-progress[hidden] { display: none; }
-.plugin-progress-label { display: block; margin-bottom: 7px; color: var(--muted); font-size: 11.5px; }
-.plugin-row-progress .progress { height: 3px; margin: 0; }
 .plugin-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 /* 顶栏里的 profile 下拉：和旁边的 ghost 按钮同高、同字号、同圆角，排成一行才齐。
    顶部按钮还有一条 .pane-top .ghost 的 4px 下移微调，这里得跟上，否则下拉比按钮高 2px */
@@ -1793,49 +1783,6 @@ html.reduce-motion #launchLogDialog .launch-log-card[data-log-panel][data-dir]:n
 .plugin-actions .ui-select { width: 104px; max-width: 170px; }
 .plugin-actions .ui-select .select-trigger { min-height: var(--control-height); height: var(--control-height); margin-top: 4px; padding: 0 var(--control-padding); border-radius: var(--control-radius); font-size: var(--control-font-size); }
 .plugin-actions .ui-select .select-caret { width: 10px; height: var(--control-height); }
-/* 行尾的卸载图标：平时淡着，悬停这一行才实心；触屏没有 hover 时半透明也点得到 */
-.plugin-remove {
-  flex: 0 0 auto;
-  width: 28px;
-  min-width: 28px;
-  height: 28px;
-  padding: 6px;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  opacity: 0.55;
-}
-.plugin-remove svg { width: 16px; height: 16px; }
-.plugin-row:hover .plugin-remove, .plugin-row:focus-within .plugin-remove { opacity: 1; }
-.plugin-remove:hover:not(:disabled) { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }
-.plugin-remove:disabled { opacity: 0.25; cursor: default; }
-/* 添加弹窗：包名/地址可能很长，输入框占满整行比和标签并排好读 */
-#pluginAddDialog .mcp-field { flex-direction: column; align-items: stretch; gap: 7px; }
-#pluginAddDialog .mcp-field input { width: 100%; }
-#pluginAddDialog .mcp-field > span { color: var(--text); }
-#pluginAddDialog #pluginAddTarget:empty { display: none; }
-#pluginAddDialog .progress { margin: 2px 0 0; }
-@media (max-width: 560px) {
-  .plugin-remove { width: 26px; min-width: 26px; height: 26px; padding: 5px; }
-}
-.plugin-update {
-  flex: 0 0 auto;
-  border: 1px solid #c7d8f7;
-  background: var(--accent-soft);
-  color: var(--accent);
-  font: inherit;
-  font-size: 12px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  cursor: pointer;
-  transition: background 140ms ease, border-color 140ms ease;
-}
-.plugin-update:hover:not(:disabled) { background: var(--accent-dim); border-color: #b9ccf0; }
-.plugin-update:disabled { opacity: 0.5; cursor: default; }
-/* 更新进行中：按钮里转圈加载，文字让位 */
-.plugin-update .spin { width: 14px; height: 14px; border-width: 2px; margin: 0 auto; }
-.plugin-update.loading .update-label { display: none; }
-.plugin-update.loading .spin { display: block; }
 @media (max-width: 760px) {
   #pane-plugins .pane-top { flex-wrap: wrap; }
   .plugin-actions { flex-wrap: wrap; margin-left: auto; justify-content: flex-end; }
@@ -1844,7 +1791,6 @@ html.reduce-motion #launchLogDialog .launch-log-card[data-log-panel][data-dir]:n
   #pane-plugins .pane-top > div:first-child { width: 100%; }
   .plugin-actions { width: 100%; justify-content: flex-start; }
   .plugin-row { padding: 11px 12px; gap: 9px; }
-  .plugin-update { font-size: 11px; padding: 4px 7px; }
   .plugin-version { display: none; }
 }
 /* ---- 整合包：卡片区 + 点入详情 + 装包/导出弹窗 ---- */
@@ -2187,8 +2133,16 @@ html.reduce-motion #connectionWslFields, html.reduce-motion #connectionSshFields
 .profile-card .profile-menu { position: absolute; top: 50%; right: 12px; transform: translateY(-50%); }
 .profile-card:has(.profile-menu[open]) { z-index: 3; }
 .profile-menu > summary { background: transparent; }
-.profile-add { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 9px; font-size: 12px; white-space: nowrap; }
-.profile-add svg { width: 15px; height: 15px; }
+/* 页头右上角的动作按钮：配置页「＋ 新建配置」和实例页那一排是同一种按钮，尺寸、圆角、图标大小只在这里定一次。 */
+.profile-add, .pane-action { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 9px; font-size: 12px; white-space: nowrap; }
+.profile-add svg, .pane-action svg { width: 15px; height: 15px; }
+.pane-action.icon-only { justify-content: center; width: 34px; padding: 0; color: var(--muted); }
+.pane-action.icon-only:hover:not(:disabled) { color: var(--text); }
+.pane-action.is-checking svg { animation: spin 900ms linear infinite; }
+.pane-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; margin-left: auto; }
+/* 窄窗口里标题说明先占满一行，按钮整排挪到下面靠右，不再一个个散开换行 */
+.pane-top:has(> .pane-actions) { flex-wrap: wrap; }
+.pane-top:has(> .pane-actions) > div:first-child { flex: 1 1 320px; min-width: 0; }
 .pack-card {
   display: flex;
   align-items: flex-start;
@@ -2258,14 +2212,33 @@ html.reduce-motion #connectionWslFields, html.reduce-motion #connectionSshFields
 .pack-detail-heading { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .pack-detail-top .pack-detail-name { font-size: 17px; font-weight: 700; color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pack-detail-sub { color: var(--muted); font-size: 12px; line-height: 1.4; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 环境页的几行表单（新建 / 改名改版本 / 加插件）：一行排开，输入框吃掉剩余宽度，窄屏换行 */
+.environment-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+/* display:flex 会盖掉 hidden 属性：不跟随上游 / 没有历史的实例，那两行要真的藏起来 */
+.environment-form[hidden] { display: none; }
+/* 跟随上游那一行：说明占满左边，「更新…」贴右 */
+.environment-form > .hint { flex: 1 1 240px; margin: 0; }
+/* 只给文字框：版本类型那个 range 也在这行里，吃到 flex-basis 会被拉成 180px 宽 */
+.environment-form input[type=text] { flex: 1 1 180px; min-width: 0; }
+.environment-form select { flex: 0 1 auto; min-width: 0; }
+/* 下拉按内容放宽：默认 148px 放不下英文的「Latest version (auto)」，会被截成省略号 */
+.environment-form .ui-select { width: auto; min-width: 148px; }
+/* 实例页版本那行：三档开关借启动项编辑框的样子，高度跟这行的输入框走；图标钮缩到控件高 */
+.environment-form .launch-channel-control { flex: 0 0 150px; height: var(--control-height); }
+.environment-form .icon-btn, .environment-plugin-bar .icon-btn { flex: 0 0 var(--control-height); width: var(--control-height); height: var(--control-height); padding: 8px; border-radius: var(--control-radius); }
+.environment-form .icon-btn svg, .environment-plugin-bar .icon-btn svg { width: 18px; height: 18px; }
+/* 插件卡片顶上那栏：和下面的插件行同一套左右内边距与分隔线，输入框占满、按钮贴右 */
+.environment-plugin-bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+.environment-plugin-bar input[type=text] { flex: 1 1 180px; min-width: 0; }
+.environment-compatibility { padding: 2px 16px 8px; border-bottom: 1px solid var(--line); }
+/* 上游有新版本：「更新实例」右上角一个小圆点，标签上那句「有新版本」之外再给一眼能看到的提示 */
+.pack-tool.has-update::after { content: ''; position: absolute; top: 4px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
 /* 整行统一到控件高：.ghost 默认 30px、更新药丸 28px、返回键 36px，混着排上下沿对不齐 */
-.pack-detail-actions .ghost, .pack-detail-actions .plugin-update { height: var(--control-height); padding: 0 var(--control-padding); border-radius: var(--control-radius); font-size: var(--control-font-size); transition: border-color 0.12s ease, background 0.12s ease; }
+.pack-detail-actions .ghost { height: var(--control-height); padding: 0 var(--control-padding); border-radius: var(--control-radius); font-size: var(--control-font-size); transition: border-color 0.12s ease, background 0.12s ease; }
 .pack-detail-actions .ghost:hover:not(:disabled) { border-color: #b9ccf0; background: var(--accent-soft); }
 .pack-detail-actions .pack-tool { position: relative; width: 34px; min-width: 34px; height: 34px; padding: 7px; }
 .pack-tool svg { width: 18px; height: 18px; }
 .pack-tool.is-checking svg { animation: spin 900ms linear infinite; }
-.pack-update-count { position: absolute; top: -5px; right: -5px; min-width: 16px; height: 16px; display: grid; place-items: center; padding: 0 3px; border-radius: 8px; background: var(--accent); color: var(--bg); font-size: 9px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.pack-update.loading .pack-update-count { display: none; }
 /* 进环境详情：整块自下而上淡入（包络两端归零、不回弹）；作用域只在主页面，弹窗里另有开卡动画 */
 @keyframes pack-view-in {
   from { opacity: 0; transform: translateY(8px); }
@@ -2274,10 +2247,11 @@ html.reduce-motion #connectionWslFields, html.reduce-motion #connectionSshFields
 #pane-plugins #packView { animation: pack-view-in 0.28s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
 /* 进环境详情后页顶标题整条让位（pane-top 是 flex，hidden 属性会被盖掉） */
 #pluginPanel .pane-top[hidden] { display: none; }
-#pluginPanel .plugin-overview-top { align-items: center; flex-wrap: wrap; }
-#pluginPanel .plugin-overview-top > div:first-child { width: auto; flex-shrink: 0; }
-#pluginPanel .plugin-overview-top .ghost { margin-top: 0; }
+/* 标题下有一行说明，排法同实例页：左栏（标题 + 说明）能收窄换行，右边的目录下拉和按钮贴顶 */
+#pluginPanel .plugin-overview-top { flex-wrap: wrap; }
+#pluginPanel .plugin-overview-top > div:first-child { flex: 1 1 320px; min-width: 0; }
 .plugin-home-bar { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.plugin-overview-top .plugin-home-bar { flex: 0 1 280px; margin-top: 4px; }
 .plugin-home-bar .ui-select { flex: 0 1 280px; width: min(100%, 280px); min-width: 0; margin-left: auto; }
 #pluginHomesDialog .ask-card { --dialog-width: 520px; }
 #pluginHomesDialog .dialog-heading { margin-bottom: 12px; }
@@ -2434,7 +2408,6 @@ html.reduce-motion #connectionWslFields, html.reduce-motion #connectionSshFields
 .pack-detail .pack-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .pack-detail .pack-target { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .pack-detail .pack-target label { color: var(--muted); font-size: 12px; }
-.pack-detail .pack-target input { width: 170px; }
 .pack-actions .ghost.primary { border-color: #b9ccf0; background: var(--accent-soft); color: var(--accent); }
 /* 导出那一行里的小勾选：原生 checkbox，和旁边的输入框同高对齐 */
 .pack-check { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; white-space: nowrap; cursor: pointer; }
@@ -2771,7 +2744,6 @@ html.reduce-motion .ask-notes-spinner { animation: none; }
 /* MCP 行是 div 不是 label：横向排版和右侧开关都靠 .toggle 那套（和插件行一致） */
 #mcpList .plugin-row { display: flex; align-items: center; gap: 12px; }
 #mcpList .plugin-desc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#mcpList .plugin-actions .plugin-update { font-variant-numeric: normal; }
 
 #launchDialog .home-field:has(#versionPicker) { position: relative; }
 #launchDialog .launch-version-select-row { display: flex; align-items: center; gap: 8px; }
@@ -2779,8 +2751,8 @@ html.reduce-motion .ask-notes-spinner { animation: none; }
 /* 深色主题把通用 danger 改成灰白；预更新结果仍需明确的红/绿语义。 */
 .launch-compatibility { --compatibility-success: #16803c; --compatibility-warning: #d12838; flex: 1 0 100%; min-width: 0; font-size: 13px; overflow-wrap: anywhere; }
 html[data-color-scheme="dark"] .launch-compatibility { --compatibility-success: #75d89a; --compatibility-warning: #ff858c; }
-.launch-compatibility.is-compatible #launchCompatibilityStatus { color: var(--compatibility-success); }
-.launch-compatibility.is-incompatible #launchCompatibilityStatus, #launchCompatibilityIssues { color: var(--compatibility-warning); }
+.launch-compatibility.is-compatible .compatibility-status { color: var(--compatibility-success); }
+.launch-compatibility.is-incompatible .compatibility-status, .compatibility-issues { color: var(--compatibility-warning); }
 .launch-compatibility p { margin: 6px 0; }
 .launch-compatibility ul { margin: 6px 0 12px; padding-left: 20px; }
 #launchCompatibilityAgent { display: grid; gap: 8px; }
@@ -2799,14 +2771,16 @@ html[data-color-scheme="dark"] .launch-compatibility { --compatibility-success: 
 #versionPanel .select-option { padding: 9px 11px; font-size: 14px; }
 #versionPanel .select-option.more { font-size: 13px; }
 #launchDialog .ask-title, #launchDialog .launch-save-actions { flex: 0 0 auto; }
-.pack-import-source { margin: 6px 0 18px; color: var(--muted); font-size: 12px; }
-.pack-import-source > summary { cursor: pointer; }
-.pack-import-source .pack-source { margin-top: 12px; }
 .pack-source button { height: 36px; border-radius: 9px; }
+.pack-import-card .pack-source { margin: 0 0 10px; }
+.pack-import-card .pack-source input { height: var(--control-height); font-size: var(--control-font-size); }
+.pack-import-card .hint { margin: 0; }
+/* 导入框自己的错误行（空输入、选文件失败）；没内容时不占位 */
+.pack-import-card .pack-import-hint { margin-top: 8px; color: var(--danger); }
+.pack-import-hint:empty { display: none; }
 
 /* 弹窗按业务层级叠放，子弹窗打开时父卡片由 JS 设为 inert。 */
 #packImportDialog, #packExportDialog { z-index: 32; }
-#packDetailDialog { z-index: 34; }
 #packInstallDialog { z-index: 36; }
 /* 遮罩留在最初那层，子层只切卡片，返回时背景亮度不会先淡出再跳暗。 */
 .ask.is-underlay { pointer-events: none; }
@@ -2821,84 +2795,17 @@ html.reduce-motion .ask > .ask-card { transition: none; }
 .dialog-subtitle { margin: 5px 0 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
 .dialog-heading .icon-btn { width: 30px; height: 30px; padding: 6px; border-radius: 8px; }
 .dialog-heading .icon-btn svg { width: 17px; height: 17px; }
-.market-browser:focus { outline: none; }
-.market-browser .dialog-close { border-color: transparent; background: transparent; color: var(--muted); }
-.market-browser .dialog-close:hover { background: var(--accent-soft); color: var(--accent); }
-.market-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
-.market-search { position: relative; flex: 1; min-width: 0; }
-.market-search > svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--muted); pointer-events: none; }
-.market-search input[type=search] { width: 100%; padding-left: 36px; }
-input[type=search] { background: var(--card); border: 1px solid var(--line); color: var(--text); font: inherit; font-size: var(--control-font-size); border-radius: var(--control-radius); height: var(--control-height); padding: 0 var(--control-padding); outline-offset: 2px; }
-.market-toolbar .ui-select { width: 130px; flex: 0 0 auto; }
-#packMarketTitle { margin: 0 0 10px; font-size: 12px; color: var(--muted); }
-.market-grid { --market-gap: 14px; display: grid; flex: 1 1 auto; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 4px; align-items: start; align-content: start; column-gap: var(--market-gap); overflow-y: auto; overflow-x: hidden; min-height: 0; padding: 2px; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
-.market-grid[hidden], .market-detail[hidden] { display: none; }
-.market-card { display: flex; flex-direction: column; gap: 16px; padding: 18px; border: 1px solid color-mix(in srgb, var(--line) 65%, transparent); border-radius: 16px; background: color-mix(in srgb, var(--accent-soft) 24%, var(--card)); min-width: 0; box-shadow: 0 2px 8px rgba(34, 67, 128, .025); transition: border-color 160ms ease, background-color 160ms ease; }
-.market-card:hover { border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); background: color-mix(in srgb, var(--accent-soft) 48%, var(--card)); }
-.market-card-info { display: flex; flex-direction: column; gap: 14px; width: 100%; padding: 0; border: 0; text-align: left; color: var(--text); background: transparent; font: inherit; cursor: pointer; min-width: 0; }
-.market-card-info:focus-visible { outline: 2px solid var(--accent); outline-offset: 6px; border-radius: 5px; }
-.market-card-heading { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.market-card-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); flex: 0 0 auto; }
-.market-card-icon svg { width: 19px; height: 19px; }
-.market-card-name { font-size: 14px; line-height: 1.5; font-weight: 600; overflow-wrap: anywhere; }
-.market-card-desc { font-size: 12px; line-height: 1.75; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; white-space: pre-line; }
-.market-card-footer { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.market-card-author { flex: 1; min-width: 0; font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.market-card-author small { display: block; font-size: 10.5px; margin-top: 3px; opacity: .8; }
-.market-stars { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 11.5px; white-space: nowrap; }
-.market-stars svg { width: 13px; height: 13px; }
-.market-install { flex: 0 0 auto; width: auto; min-width: 62px; height: 30px; padding: 0 12px; border-radius: 8px; font-size: 12px; }
-.market-card .market-install { color: var(--accent); border-color: transparent; background: var(--accent-soft); }
-.market-card .market-install:hover:not(:disabled) { border-color: var(--accent); }
-.market-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid var(--line); padding: 12px 0 0; margin-top: 0; flex: 0 0 auto; color: var(--muted); font-size: 12px; }
-input[type=search]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-#marketCount { font-variant-numeric: tabular-nums; white-space: nowrap; }
-.market-browser .pack-import-source { margin: 8px 0 14px; flex: 0 0 auto; font-size: 12px; }
-.market-browser .pack-source { flex-wrap: wrap; }
-.market-browser .pack-source input { height: var(--control-height); font-size: var(--control-font-size); }
-#packMarketHint { margin: 9px 0 0; font-size: 11px; }
-#packMarketHint:empty { display: none; }
-.market-empty { grid-column: 1 / -1; padding: 45px 12px; text-align: center; color: var(--muted); font-size: 13px; }
-/* 市场读取中的骨架占位：一道两端透明的扫光来回摆，循环处不跳变 */
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
-.market-card.is-skeleton { pointer-events: none; }
-.skel-line { position: relative; overflow: hidden; height: 12px; border-radius: 6px; background: var(--accent-dim); }
-.skel-line::after { content: ''; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .7), transparent); animation: skel-sweep 1.5s ease-in-out infinite; }
-html[data-color-scheme="dark"] .skel-line::after { background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .12), transparent); }
-@keyframes skel-sweep { to { transform: translateX(100%); } }
-.is-skeleton .skel-name { height: 14px; width: 58%; }
-.is-skeleton .skel-short { width: 68%; }
-.is-skeleton .skel-author { flex: 1; }
-.is-skeleton .skel-pill { width: 62px; height: 30px; border-radius: 8px; }
-.is-skeleton:nth-child(2) .skel-line::after { animation-delay: .12s; }
-.is-skeleton:nth-child(3) .skel-line::after { animation-delay: .24s; }
-.is-skeleton:nth-child(4) .skel-line::after { animation-delay: .36s; }
-@media (prefers-reduced-motion: reduce) {
-  .skel-line::after { animation: none; }
-}
 /* 安装信息读取中：文字前转圈（hidden 别被 display 盖掉） */
 .pack-preparing { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
 .pack-preparing[hidden] { display: none; }
 .pack-preparing .spin { display: inline-block; flex: 0 0 auto; width: 14px; height: 14px; border-width: 2px; }
-.market-detail { flex: 1 1 auto; overflow-y: auto; min-height: 0; }
-.market-detail-meta { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--muted); }
-.market-detail-meta .market-stars { margin-left: auto; }
-.market-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 10px; margin: 20px 0; padding: 14px 0; }
-.market-facts > div { display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 0; border-right: 1px solid var(--line); }
-.market-facts > div:last-child { border-right: 0; }
-.market-facts strong { font-size: 13px; font-weight: 600; }
-.market-facts span { font-size: 11px; color: var(--muted); }
-.market-description { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.85; margin: 0 0 22px; }
-.market-detail-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex: 0 0 auto; margin-top: 16px; border-top: 1px solid var(--line); padding-top: 16px; }
-.market-detail-actions a { text-decoration: none; padding: 8px 12px; border-radius: 8px; font-size: 12px; }
-.market-detail-actions .market-install { height: 36px; min-width: 88px; }
 #packInstallDialog .pack-detail { flex: 1 1 auto; overflow-y: auto; min-height: 0; margin: 0; border: 0; padding: 0; background: transparent; gap: 18px; }
 #packInstallDialog .pack-detail > * { flex-shrink: 0; }
 #packInstallDialog .pack-title { flex-direction: column; align-items: flex-start; gap: 5px; }
 #packInstallDialog .pack-name { font-size: 16px; }
 .pack-install-summary { padding: 14px; border-radius: 9px; background: var(--accent-soft); font-size: 13px; }
 #packInstallDialog .pack-target { display: grid; grid-template-columns: 1fr; gap: 8px; }
-#packInstallDialog .pack-target input { width: 100%; height: var(--control-height); font-size: var(--control-font-size); box-sizing: border-box; }
 #packInstallDialog .pack-target .select-trigger { min-height: var(--control-height); padding: 0 var(--control-padding); border-radius: var(--control-radius); font-size: var(--control-font-size); }
 #packInstallDialog .pack-target .pack-meta { font-size: 11.5px; }
 /* 安装环境的候选面板在流内展开：弹窗本身可滚，绝对定位会被裁掉 */
@@ -3027,13 +2934,6 @@ html .set-row:focus-within { background: transparent; box-shadow: none; }
   .launch-plugins-head { top: 18px; right: 18px; }
   .launch-save-actions { flex-wrap: wrap; }
   .launch-save-actions .launch-repair { font-size: 11px; }
-  .market-grid { grid-template-columns: 1fr; }
-  .market-card { gap: 12px; padding: 14px; }
-  .market-toolbar { gap: 8px; }
-  .market-toolbar .ui-select { width: 108px; }
-  .market-footer { flex-wrap: wrap; gap: 10px; }
-  .market-facts { grid-template-columns: repeat(2, 1fr); gap: 14px 0; }
-  .market-facts > div:nth-child(2) { border-right: 0; }
   .launch-plugins-head > div { max-width: calc(100% - 194px); }
   .launch-plugins-head .ask-title { font-size: 14px; }
   #launchPluginsDialog .plugin-head { flex-wrap: wrap; gap: 3px 7px; }
@@ -3134,3 +3034,7 @@ html.reduce-motion #launchIconTrigger, html.reduce-motion #launchDialog .launch-
 #ask .ask-title { padding-right: 36px; }
 .ask-close { position: absolute; top: 12px; right: 12px; width: 30px; height: 30px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer; transition: background-color .15s ease, color .15s ease; }
 .ask-close:hover { background: var(--accent-soft); color: var(--text); }
+
+/* 导出环境：导出方式和离线文件勾选各占一组，竖排 */
+.pack-export-target,
+.pack-export-offline { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }

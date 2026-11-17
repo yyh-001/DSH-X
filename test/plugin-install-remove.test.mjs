@@ -132,7 +132,9 @@ if (args[0] === 'plugin') {
     const before = commands().length
     const again = await api('/api/plugins/add', { spec: PLUGIN, profile: 'web' })
     assert.equal(again.status, 400)
-    assert.match(again.error, /已经在这个环境里/)
+    // 插件装在配置（dsh profile）里；「实例」专指装好插件的 DSH 那个对象
+    assert.match(again.error, /已经在这个配置里/)
+    assert.doesNotMatch(again.error, /Profile|环境/)
     const official = await api('/api/plugins/add', { spec: `${OFFICIAL}@${VERSION}`, profile: 'web' })
     assert.equal(official.status, 400)
     assert.match(official.error, /官方组件/)
@@ -158,7 +160,7 @@ if (args[0] === 'plugin') {
     const before = commands().length
     const missing = await api('/api/plugins/remove', { name: PLUGIN, profile: 'web' })
     assert.equal(missing.status, 400)
-    assert.match(missing.error, /没有装/)
+    assert.match(missing.error, /这个配置里没有装/)
     const official = await api('/api/plugins/remove', { name: OFFICIAL, profile: 'web' })
     assert.equal(official.status, 400)
     assert.match(official.error, /官方组件/)
@@ -209,11 +211,13 @@ if (args[0] === 'plugin') {
   })
 })
 
-test('界面入口与文案：环境详情里有添加按钮，行尾有卸载按钮，删改都要提醒重启', () => {
+test('界面入口与文案：加入 / 移除插件在实例页（加入栏在插件卡片顶上，「移除」贴在插件旁边）；配置页没有这两个入口', () => {
   const page = readFileSync(new URL('../src/public/index.html', import.meta.url), 'utf8')
+  const envPage = readFileSync(new URL('../src/public/environments-page.js', import.meta.url), 'utf8')
   const css = readFileSync(new URL('../src/public/launcher.css', import.meta.url), 'utf8')
   const server = readFileSync(new URL('../src/server.js', import.meta.url), 'utf8')
 
+  // 服务端的装 / 卸接口没动（上面那条用例按接口验过行为），这里只钉它们走的同一条 pnpm 链路
   assert.match(server, /url\.pathname === '\/api\/plugins\/add'/)
   assert.match(server, /url\.pathname === '\/api\/plugins\/remove'/)
   assert.match(server, /await addPlugin\(version, spec, \{ profile \}\)/, '添加复用插件页同一条 pnpm 链路')
@@ -221,20 +225,22 @@ test('界面入口与文案：环境详情里有添加按钮，行尾有卸载�
   assert.match(server, /removeBundleMounted\(dir, \[name\]\)/, '卸载同时从层栈摘掉')
   assert.match(server, /dropRowDisables\(dir, stale\)/, '卸载清理补丁层里的开关残留')
 
-  assert.match(page, /data-plugin-add="1"/, '环境详情顶部有添加入口')
-  assert.match(page, /id="pluginAddDialog"/, '添加插件弹窗')
-  assert.match(page, /id="pluginAddSpec"[^>]*autocomplete="off"/)
-  assert.match(page, /data-remove="\$\{escapeHtml\(plugin\.name\)\}"/, '插件行有卸载按钮')
-  assert.match(page, /!plugin\.official/, '官方组件不给卸载入口')
-  assert.match(page, /正在卸载…/, '卸载时行内进度说卸载，不是更新')
-  assert.match(page, /卸载「\{name\}」？卸载后它提供的功能会消失，重启 dsh 后生效。/, '卸载要二次确认并提醒重启')
-  assert.match(page, /data-remove[\s\S]{0,260}?event\.preventDefault\(\)[\s\S]{0,80}?event\.stopPropagation\(\)/, '卸载按钮要挡住整行 label 的开关')
-  assert.match(css, /\.plugin-remove \{/, '卸载按钮有样式')
-  assert.match(css, /#pluginAddDialog \.mcp-field input \{ width: 100%/, '包名/地址输入框占满')
+  // 插件清单属于实例：加入栏在实例页插件卡片的最上面一栏，填包名（可带版本）就加进实例
+  const bar = page.slice(page.indexOf('<form class="environment-plugin-bar" id="environmentAddForm">'), page.indexOf('</form>', page.indexOf('environmentAddForm')))
+  assert.match(bar, /<input id="environmentSpec" type="text" autocomplete="off"/, '加入栏的输入框')
+  assert.match(bar, /<button class="ghost" id="environmentAdd" type="submit" data-i18n="加入插件">加入插件<\/button>/)
+  assert.match(envPage, /post\('\/api\/environments\/plugins\/add', \{ id: env\.id, spec \}\)/, '加进当前打开的实例')
+  assert.match(envPage, /post\('\/api\/environments\/plugins\/remove', \{ id: env\.id, name: button\.dataset\.removePlugin \}\)/, '「移除」从实例里删掉这一个')
+  assert.match(envPage, /plugin\.official \? '' : `<button class="ghost" type="button" data-remove-plugin=/, '官方组件不给移除入口')
+
+  // 配置页只管开关和数据：添加弹窗、行尾卸载钮、卸载确认都撤了，也不再直接调装 / 卸接口
+  assert.doesNotMatch(page, /data-plugin-add="1"|id="pluginAddDialog"|id="pluginAddSpec"/, '配置页没有添加插件入口')
+  assert.doesNotMatch(page, /data-remove="\$\{escapeHtml\(plugin\.name\)\}"/, '配置页的插件行没有卸载按钮')
+  assert.doesNotMatch(page, /\/api\/plugins\/(?:add|remove)'/, '页面不再直接装 / 卸进配置')
+  assert.doesNotMatch(css, /\.plugin-remove \{|#pluginAddDialog/, '配置页卸载钮和添加弹窗的样式跟着撤了')
 
   const dict = new Function(`return (${page.match(/const EN = (\{[\s\S]*?\n\})/)[1]})`)()
-  for (const key of [
-    '添加插件', '输入插件的 npm 包名、GitHub 地址或本地路径。', '包名或地址',
-    '卸载插件', '卸载失败', '请填写插件包名或地址',
-  ]) assert.equal(typeof dict[key], 'string', `缺少英文翻译：${key}`)
+  for (const key of ['加入插件', '移除', '插件', '插件名，可带版本：dsh-x-memory@0.1.1']) {
+    assert.equal(typeof dict[key], 'string', `缺少英文翻译：${key}`)
+  }
 })

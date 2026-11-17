@@ -15,7 +15,7 @@ function panel() {
       { id: 'work2', name: '工作副本', dshHome: 'D:/工作', profile: 'bot' },
     ], instances: [] },
     pluginHome: '', pluginViewRevision: 0, pluginLoadRequest: 0, launchPluginScope: '', pluginLaunchEntry: null,
-    pluginProfile: 'web', pluginUpdates: {}, pluginsLoaded: false, packBusy: false, pluginUpdating: '', pluginRemoving: '', pluginAdding: false, pluginTogglePending: new Map(),
+    pluginProfile: 'web', pluginsLoaded: false, packBusy: false, pluginTogglePending: new Map(),
     openedPack: null, packState: { packs: [] }, packPluginListEl: { dataset: {} },
     packImportDialog: { hidden: true }, launchProfile: 'web',
     launchDialogEl: { hidden: true }, launchHomePicked: '',
@@ -24,12 +24,12 @@ function panel() {
     normalizeHomePath: (home) => String(home || '').trim().replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase(),
     t: (text, values = {}) => text.replace(/\{(\w+)\}/g, (_, key) => values[key] ?? ''),
     escapeHtml: (text) => String(text ?? ''), syncUiSelect() {}, renderRecovery() {}, notify() {},
-    renderPackGrid() {}, renderPackView() {}, refreshPluginUpdates: async () => {},
+    renderPackGrid() {}, renderPackView() {},
     getJson: (path) => new Promise((resolve, reject) => pending.push({ path, home: context.pluginTargetHome(), resolve, reject })),
   })
   vm.runInContext(section('    const pluginHomeEl =', "    const portEl ="), context)
   vm.runInContext(section('    function applyPluginPayload(data)', '    const recoveryHintEl ='), context)
-  vm.runInContext(section('    function loadPlugins(', '    function pluginButtons()'), context)
+  vm.runInContext(section('    function loadPlugins(', '    // 翻译涉及后面声明的弹窗'), context)
   vm.runInContext(section('    const scopedLaunchId =', '    const post ='), context)
   vm.runInContext(section('    function applyHomes(', '    /** 左栏的「+ 添加目录」'), context)
   return { context, nodes, pending }
@@ -80,9 +80,9 @@ test('下拉中的管理目录入口打开弹窗，保持当前目录与插件�
   assert.equal(nodes.pluginHome.value, 'D:/工作')
 })
 
-test('切换同名 Profile 所属目录时清空旧列表；迟到的列表、错误和更新检查不能覆盖当前目录', async () => {
+test('切换同名 Profile 所属目录时清空旧列表；迟到的列表和错误不能覆盖当前目录', async () => {
   const { context: c, nodes, pending } = panel()
-  const global = c.loadPlugins({ checkUpdates: false })
+  const global = c.loadPlugins()
   nodes.pluginHome.value = 'D:/工作'
   nodes.pluginHome.onchange()
   assert.equal(c.packState.packs.length, 0)
@@ -93,20 +93,16 @@ test('切换同名 Profile 所属目录时清空旧列表；迟到的列表、�
   await global
   assert.equal(c.packState.home, 'D:/工作')
   assert.equal(c.packState.packs[0].profile, 'web')
+  // 配置页不再查插件更新（插件升级在实例页）：这里只剩「旧目录晚到的报错不弹」
   const notices = []
   c.notify = (message) => notices.push(message)
-  vm.runInContext(section('    async function refreshPluginUpdates(', '    async function updatePlugin('), c)
-  const updates = c.refreshPluginUpdates()
-  const old = c.loadPlugins({ checkUpdates: false })
+  const old = c.loadPlugins()
   nodes.pluginHome.value = ''
   nodes.pluginHome.onchange()
-  pending[3].reject(new Error('old home error'))
+  pending[2].reject(new Error('old home error'))
   await old
-  pending[2].resolve({ plugins: { otherHome: { hasUpdate: true } } })
-  await updates
-  assert.equal(Object.keys(c.pluginUpdates).length, 0)
-  assert.deepEqual(notices, [])
-  pending[4].resolve({ home: 'C:/global', profiles: ['web'], packs: [{ profile: 'web', pluginCount: 1 }] })
+  assert.deepEqual(notices, [], '换走的目录晚到的报错不弹')
+  pending[3].resolve({ home: 'C:/global', profiles: ['web'], packs: [{ profile: 'web', pluginCount: 1 }] })
   await new Promise(setImmediate)
   assert.equal(c.packState.home, 'C:/global')
   assert.equal(c.packState.packs[0].pluginCount, 1)
@@ -139,7 +135,7 @@ test('删除最后一个 Profile 后保留目录选择；打开、关闭启动�
   assert.equal(c.packState.packs.length, 0)
 })
 
-test('插件更新期间也能关掉启动项的插件弹窗，更新在后台跑；其它占用仍挡住', async () => {
+test('启动项的插件弹窗：开关还在落盘、或者删配置 / 修复 / 还原这类操作在忙时挡住关闭；都空闲才关', async () => {
   const { context: c, nodes } = panel()
   nodes['pane-plugins'] = { append() {} }
   let loads = 0
@@ -150,38 +146,32 @@ test('插件更新期间也能关掉启动项的插件弹窗，更新在后台�
     loadPlugins: async () => { loads += 1 },
   })
   vm.runInContext(section('    async function closeLaunchPlugins(', "    document.getElementById('launchPluginsClose')"), c)
-
-  // 单个更新：pluginUpdating 有值、packBusy 还是 false，也必须能关。
   c.pluginLaunchEntry = { profile: 'web' }
-  c.launchPluginScope = 'entry-update'
-  c.pluginUpdating = 'alpha'
-  c.pluginUpdatingProfile = 'web'
-  await c.closeLaunchPlugins()
-  assert.equal(loads, 1, '关掉弹窗后回到环境页，更新不打断')
-  assert.equal(c.launchPluginScope, '')
 
-  // 更新 N 个走 updatePack，packBusy 与 pluginUpdating 同时在；这也是更新，不能挡。
-  c.launchPluginScope = 'entry-update-all'
+  // 配置页不再更新插件，packBusy 只剩删配置 / 修复 / 还原这类：中途抽走列表会留下半截状态
+  c.launchPluginScope = 'entry-busy'
   c.packBusy = true
-  c.pluginUpdating = '*'
   await c.closeLaunchPlugins()
-  assert.equal(loads, 2)
+  assert.equal(loads, 0, 'packBusy 时挡住关闭')
+  assert.equal(c.launchPluginScope, 'entry-busy')
 
-  // 删 Profile / 修复 / 还原这类 packBusy 不是更新，仍不能中途抽走列表。
-  c.launchPluginScope = 'entry-other'
-  c.packBusy = true
-  c.pluginUpdating = ''
-  await c.closeLaunchPlugins()
-  assert.equal(loads, 2, '非更新的 packBusy 照旧挡住关闭')
-  assert.equal(c.launchPluginScope, 'entry-other')
-
-  // 开关请求还没回来时也不跟着插件更新一起放行。
   c.packBusy = false
-  c.pluginUpdating = 'alpha'
   c.pluginTogglePending.set('web:beta', { enabled: false })
   await c.closeLaunchPlugins()
-  assert.equal(loads, 2, '开关还在落盘时仍挡住')
+  assert.equal(loads, 0, '开关还在落盘时挡住')
   c.pluginTogglePending.clear()
+
+  await c.closeLaunchPlugins()
+  assert.equal(loads, 1, '都空闲：关掉弹窗，回到设置页重新加载列表')
+  assert.equal(c.launchPluginScope, '')
+
+  // 删掉了最后一个配置：弹窗的作用域已经失效，忙着也要关
+  c.launchPluginsDialogEl.hidden = false
+  c.launchPluginScope = 'entry-deleted'
+  c.packBusy = true
+  await c.closeLaunchPlugins({ afterDelete: true })
+  assert.equal(loads, 2)
+  assert.equal(c.launchPluginScope, '')
 })
 
 test('登记目录进入下拉列表；添加取消、失败和移除当前目录不会留下错误状态', async () => {

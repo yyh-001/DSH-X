@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { delimiter, dirname, join } from 'node:path'
+import { delimiter, dirname, isAbsolute, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 /**
@@ -31,7 +31,16 @@ const APP_DATA = IS_MAC
   : IS_WINDOWS
     ? (process.env.APPDATA || join(homedir(), 'AppData', 'Roaming'))
     : (process.env.XDG_CONFIG_HOME || join(homedir(), '.config'))
-const SETTINGS_FILE = join(APP_DATA, 'DSH', 'settings.json')
+/** 和核心 platform.js 的 APP_DIR_ENV 同名（外壳不 import 核心）。 */
+const APP_DIR_ENV = 'DSH_APP_DIR'
+const appDirOverride = String(process.env[APP_DIR_ENV] || '').trim()
+/**
+ * 外壳认的每用户目录，main.mjs 也从这里拿：DSH_APP_DIR（绝对路径）优先，规则和核心的
+ * FileManager.appDir 一致——同一进程里两边必须落在同一个目录，否则设置和核心会错位。
+ * 本机并排跑的测试包靠它把单实例锁（userData 在这下面）和正式版分开。
+ */
+export const APP_DIR = appDirOverride && isAbsolute(appDirOverride) ? appDirOverride : join(APP_DATA, 'DSH')
+const SETTINGS_FILE = join(APP_DIR, 'settings.json')
 
 /**
  * 从用户自己的 PATH（外加 mac 的常见前缀）里找 node：显式路径优先，只填命令名时按 PATH 找。

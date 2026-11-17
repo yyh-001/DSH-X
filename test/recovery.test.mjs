@@ -96,7 +96,7 @@ test('还原：只认 profile 目录里的备份命名，别的一律拒绝', as
   writeFileSync(join(dir, 'cordis.patch.yml.bak'), 'x')
   for (const bad of ['../../etc/passwd', 'cordis.patch.yml.bak', 'other.yml', '', null]) {
     // 名字校验是同步抛的，包一层 async 才能交给 assert.rejects 校验
-    await assert.rejects(async () => restoreProfileBackup(dir, bad), /只认 profile 目录里的补丁层备份/, String(bad))
+    await assert.rejects(async () => restoreProfileBackup(dir, bad), /只认配置目录里的补丁层备份/, String(bad))
   }
   await assert.rejects(async () => restoreProfileBackup(dir, 'cordis.patch.yml.bak-123'), /不在了/)
 })
@@ -142,7 +142,7 @@ test('profile 锁：有人在用就拒绝，僵死锁清掉重来', async () => 
   const dir = makeProfile({})
   const lockPath = join(dir, 'lock')
   writeFileSync(lockPath, String(process.pid))
-  await assert.rejects(() => withProfileLock(dir, () => 'never'), /另一个 profile 操作正在进行/)
+  await assert.rejects(() => withProfileLock(dir, () => 'never'), /另一个配置操作正在进行，稍后再试/)
   assert.equal(existsSync(lockPath), true, '活锁不动它')
   assert.equal(lockIsActive(lockPath), true, '自己这个进程当然活着')
   const gone = () => { const error = new Error('gone'); error.code = 'ESRCH'; throw error }

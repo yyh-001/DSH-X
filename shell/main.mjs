@@ -1,8 +1,7 @@
 // 必须是第一个 import：它在核心（server.js）求值之前补好 PATH 和外壳标记（见 env.mjs）
-import './env.mjs'
+import { APP_DIR } from './env.mjs'
 import { BrowserWindow, Menu, Notification, Tray, WebContentsView, app, clipboard, dialog, ipcMain, nativeImage, nativeTheme, net, powerMonitor, powerSaveBlocker, screen, session, shell, systemPreferences } from 'electron'
 import { appendFileSync, existsSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { BrowserTabs } from './tabs.mjs'
@@ -63,16 +62,6 @@ const IS_MAC = process.platform === 'darwin'
 const IS_WINDOWS = process.platform === 'win32'
 /** 拉 dsh 子进程用的 node：Electron 本体（源码运行可用 DSH_RUNTIME_NODE 覆盖）。 */
 const RUNTIME_NODE = process.env.DSH_RUNTIME_NODE || process.execPath
-/**
- * 每用户目录：和核心的 filemanager 同一套约定（%APPDATA%\DSH / ~/Library/Application Support/DSH /
- * $XDG_CONFIG_HOME/DSH）。外壳不 import 核心的 filemanager，拆包后核心目录可以整个换掉。
- */
-const APP_DATA = IS_MAC
-  ? join(homedir(), 'Library', 'Application Support')
-  : IS_WINDOWS
-    ? (process.env.APPDATA || join(homedir(), 'AppData', 'Roaming'))
-    : (process.env.XDG_CONFIG_HOME || join(homedir(), '.config'))
-const APP_DIR = join(APP_DATA, 'DSH')
 /** 用户目录里的活动核心（npm 核心更新换的就是这个目录）。 */
 const ACTIVE_CORE = join(APP_DIR, 'core', 'current')
 /** 上一份核心：新核心起不来时 recoverCore 会把它换回来，成功启动后删掉。 */
