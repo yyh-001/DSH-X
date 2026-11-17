@@ -908,7 +908,9 @@ function createTabPreview(title) {
       if (window.isDestroyed()) return
       visible = show
       if (!show) { window.hide(); return }
-      window.setPosition(Math.round(point.x + 16), Math.round(point.y + 20), false)
+      // Windows 上 frame: false + resizable: false 的窗口调 setPosition 会先读当前尺寸再走 SetBounds，
+      // 每次非客户区换算都把高度 +1，按住不松手就会一直拉长；显式给固定宽高才能锁住卡片尺寸。
+      window.setBounds({ x: Math.round(point.x + 16), y: Math.round(point.y + 20), width: 240, height: 64 }, false)
       if (ready && !window.isVisible()) window.showInactive()
     },
     destroy() { visible = false; if (!window.isDestroyed()) window.destroy() },

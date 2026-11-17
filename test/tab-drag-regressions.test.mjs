@@ -344,3 +344,47 @@ test('Window 菜单与 popup 均禁止单标签重复开窗，指定目标合并
   assert.equal(records[0].view.webContents.loads.length, 1)
   assert.equal(original.window.isDestroyed(), true)
 })
+
+test('拖动预览卡片移动时锁定固定尺寸，不再调用 setPosition 累加高度', () => {
+  const boundsCalls = []
+  let shown = false
+  let hidden = 0
+  class StubPreviewWindow {
+    constructor() { this.handlers = {} }
+    setIgnoreMouseEvents() {}
+    once(event, fn) { this.handlers[event] = fn }
+    isDestroyed() { return false }
+    isVisible() { return shown }
+    showInactive() { shown = true }
+    hide() { shown = false; hidden++ }
+    destroy() { shown = false }
+    loadURL() { return Promise.resolve() }
+    setPosition() { assert.fail('Windows 无边框固定尺寸窗口不能用 setPosition') }
+    setBounds(bounds, animate) {
+      boundsCalls.push({
+        bounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height },
+        animate,
+      })
+    }
+  }
+  const context = vm.createContext({
+    BrowserWindow: StubPreviewWindow,
+    dataUrl: (html) => `data:text/html,${html}`,
+    tabDragPreviewPage: () => '',
+    resolveDark: () => false,
+    state: { theme: 'system', lang: 'zh' },
+    nativeTheme: { shouldUseDarkColors: false },
+  })
+  vm.runInContext(take('createTabPreview', 'stopTabDrag'), context)
+  const preview = context.createTabPreview('web')
+  preview.update({ x: 100, y: 200 }, true)
+  preview.update({ x: 100, y: 200 }, true)
+  preview.update({ x: 105, y: 210 }, true)
+  assert.deepEqual(boundsCalls, [
+    { bounds: { x: 116, y: 220, width: 240, height: 64 }, animate: false },
+    { bounds: { x: 116, y: 220, width: 240, height: 64 }, animate: false },
+    { bounds: { x: 121, y: 230, width: 240, height: 64 }, animate: false },
+  ])
+  preview.update({ x: 105, y: 210 }, false)
+  assert.equal(hidden, 1)
+})
