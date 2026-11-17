@@ -152,8 +152,10 @@ export class ManagerAuth {
       // 兼容旧外壳：它只会打开不带 token 的根地址。新版核心不能把人锁在门外：
       // 本机顶层导航先 303 到带 launch token 的同一地址，再由下面的 exchange 种 cookie。
       // 只在回环地址、顶层导航时放行；局域网访客和页面里的 fetch 仍然要 token。
+      // 已经带着有效 cookie 的直接放行：换完 cookie 那一跳回到的就是不带 token 的地址，
+      // 这里再 303 回去就成了死循环（Electron 窗口 ERR_TOO_MANY_REDIRECTS，整片空白）。
       const authority = requestAuthority(req)
-      if (!authority || !isLoopbackAuthority(authority) || !isTopLevelNavigation(req)) return false
+      if (!authority || !isLoopbackAuthority(authority) || !isTopLevelNavigation(req) || this.isAuthenticated(req)) return false
       const rest = new URLSearchParams(url.searchParams)
       rest.set(TOKEN_PARAM, this.launchToken)
       res.writeHead(303, {
