@@ -4,7 +4,8 @@ import vm from 'node:vm'
 import { readFileSync } from 'node:fs'
 
 // 执行页面原函数，模拟请求和 DOM；不用真实配置、网络或浏览器。
-const source = readFileSync(new URL('../src/public/environments-page.js', import.meta.url), 'utf8')
+// Windows checkout 会转成 CRLF；统一换行后再按多行注释起点切片。
+const source = readFileSync(new URL('../src/public/environments-page.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
 function slice(from, to) {
   const start = source.indexOf(from)
   const end = source.indexOf(to, start)
