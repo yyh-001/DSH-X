@@ -1,0 +1,11 @@
+# DSH-X Computer Use 层栈：
+# - x-computer-use 自己按 DSH_X_DESKTOP / /api/desktop 决定要不要注册 cua 工具（未启用或非 DSH-X 启动时只挂状态页）
+# - x-cua-ui 复用了官方 @deepseek-ai/dsh-cua 的授权卡片与权限页（macOS 上让位给官方 dsh-cua-bundle）
+- insert:
+    - id: x-computer-use
+      name: 'dsh-x-computer-use'
+      config:
+        agentPreset: false
+    - id: x-cua-ui
+      name: '@deepseek-ai/dsh-cua'
+      disabled: !!js "process.platform === 'darwin' || process.env.DSH_X_DESKTOP !== '1' || process.env.DSH_X_COMPUTER_USE !== '1'"

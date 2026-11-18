@@ -552,6 +552,52 @@
               </div>
               <p class="hint" id="browserHint" role="status" aria-live="polite"></p>
             </section>
+            <!-- 电脑操作（Computer Use）：默认关闭；由外壳持有桌面权限、急停与审计，不改 profile YAML。 -->
+            <section class="set-section" data-category="general" aria-labelledby="settingsComputerUseTitle">
+              <div class="set-label" id="settingsComputerUseTitle" data-i18n="电脑操作">电脑操作</div>
+              <div class="set-group">
+                <label class="toggle set-row">
+                  <span class="set-text">
+                    <span class="set-name" data-i18n="启用电脑操作">启用电脑操作</span>
+                    <span class="set-desc" data-i18n="默认关闭。开启后由 DSH-X 启动且装有电脑操作插件的 dsh 实例可向模型提供桌面查看与操作工具；首次操作某应用前会弹出授权卡片，急停与关闭立即生效。">默认关闭。开启后由 DSH-X 启动且装有电脑操作插件的 dsh 实例可向模型提供桌面查看与操作工具；首次操作某应用前会弹出授权卡片，急停与关闭立即生效。</span>
+                  </span>
+                  <input id="computerUse" type="checkbox" />
+                </label>
+                <div class="set-row">
+                  <div class="set-text">
+                    <span class="set-name" data-i18n="运行状态与急停">运行状态与急停</span>
+                    <span class="set-desc" id="computerUseStatusDesc"></span>
+                  </div>
+                  <div class="set-control computer-use-controls">
+                    <span class="computer-use-badge" id="computerUseBadge" data-i18n="未启用">未启用</span>
+                    <button class="ghost danger" id="computerUseStop" type="button" hidden data-i18n="立即停止">立即停止</button>
+                    <button class="ghost" id="computerUseResume" type="button" hidden data-i18n="恢复可用">恢复可用</button>
+                  </div>
+                </div>
+                <div class="set-row" id="computerUsePluginRow">
+                  <div class="set-text">
+                    <span class="set-name" data-i18n="当前配置插件">当前配置插件</span>
+                    <span class="set-desc" id="computerUsePluginDesc" data-i18n="需要 dsh 0.2.2 及以上版本；安装后重启对应实例即可生效。">需要 dsh 0.2.2 及以上版本；安装后重启对应实例即可生效。</span>
+                  </div>
+                  <div class="set-control">
+                    <button class="ghost" id="computerUseInstall" type="button" data-i18n="安装到当前配置">安装到当前配置</button>
+                  </div>
+                </div>
+                <div class="set-row stacked">
+                  <div class="set-text">
+                    <span class="set-name" data-i18n="操作审计记录">操作审计记录</span>
+                    <span class="set-desc" data-i18n="仅记录时间、应用、动作类型与结果，不记录输入的正文内容。">仅记录时间、应用、动作类型与结果，不记录输入的正文内容。</span>
+                  </div>
+                  <div class="set-control computer-use-controls">
+                    <button class="ghost" id="computerUseAuditRefresh" type="button" data-i18n="刷新">刷新</button>
+                    <button class="ghost" id="computerUseAuditClear" type="button" data-i18n="清空记录">清空记录</button>
+                  </div>
+                  <div class="computer-use-audit" id="computerUseAuditList"></div>
+                </div>
+              </div>
+              <p class="hint" id="computerUseBoundaryHint" data-i18n="权限边界：Windows 下不能操作以管理员身份运行的窗口（UIPI），UAC 安全桌面与锁屏界面不可操作；自己从终端直接起的 dsh 不提供桌面操作能力。">权限边界：Windows 下不能操作以管理员身份运行的窗口（UIPI），UAC 安全桌面与锁屏界面不可操作；自己从终端直接起的 dsh 不提供桌面操作能力。</p>
+              <p class="hint" id="computerUseHint" role="status" aria-live="polite"></p>
+            </section>
             <section class="set-section" data-category="advanced" aria-labelledby="settingsStorageTitle" hidden>
               <div class="set-label" data-i18n="启动与修复">启动与修复</div>
               <div class="set-group">
@@ -2102,6 +2148,33 @@
   "正在清除…": "Clearing…",
   "缓存已清除（{n} 个浏览器分区）。": "Cache cleared ({n} browser partitions).",
   "浏览器数据已清除（{n} 个浏览器分区）。": "Browser data cleared ({n} browser partitions).",
+  "电脑操作": "Computer Use",
+  "启用电脑操作": "Enable Computer Use",
+  "默认关闭。开启后由 DSH-X 启动且装有电脑操作插件的 dsh 实例可向模型提供桌面查看与操作工具；首次操作某应用前会弹出授权卡片，急停与关闭立即生效。": "Off by default. When enabled, dsh instances launched by DSH-X with the Computer Use plugin expose desktop observation and control tools; an approval card appears before first controlling an app, and stop/disable takes effect immediately.",
+  "运行状态与急停": "Status & emergency stop",
+  "未启用": "Disabled",
+  "已就绪": "Ready",
+  "运行中": "Active",
+  "已急停": "Stopped",
+  "立即停止": "Stop now",
+  "恢复可用": "Resume",
+  "当前配置插件": "Current profile plugin",
+  "需要 dsh 0.2.2 及以上版本；安装后重启对应实例即可生效。": "Requires dsh 0.2.2 or newer; restart the instance after installing.",
+  "安装到当前配置": "Install to current profile",
+  "当前配置已安装": "Installed in current profile",
+  "操作审计记录": "Audit log",
+  "仅记录时间、应用、动作类型与结果，不记录输入的正文内容。": "Records timestamps, target apps, action types, and outcomes only. Input text is never logged.",
+  "清空记录": "Clear log",
+  "暂无操作记录。": "No actions recorded yet.",
+  "权限边界：Windows 下不能操作以管理员身份运行的窗口（UIPI），UAC 安全桌面与锁屏界面不可操作；自己从终端直接起的 dsh 不提供桌面操作能力。": "Boundaries: On Windows, elevated/administrator windows (UIPI), UAC secure desktop, and lock screens cannot be controlled. Standalone dsh launched outside DSH-X never receives Computer Use tools.",
+  "当前外壳版本还不支持电脑操作，更新 DSH-X 后可用。": "This shell version does not support Computer Use yet. Update DSH-X to use it.",
+  "电脑操作在 DSH-X 桌面端里生效；浏览器里打开管理页时不可用。": "Computer Use only works inside the DSH-X desktop app; it is unavailable when opened in a browser.",
+  "全局急停快捷键：{shortcut}": "Global emergency stop shortcut: {shortcut}",
+  "正在操作 {app}": "Controlling {app}",
+  "正在安装到 {profile}…": "Installing into {profile}…",
+  "已安装到 {profile}；重启对应实例后即可生效。": "Installed into {profile}; restart that instance to take effect.",
+  "电脑操作已紧急停止。": "Computer Use stopped.",
+  "电脑操作已恢复就绪。": "Computer Use resumed.",
   "当前外壳版本还不支持这些开关，更新 DSH-X 后可用。": "This shell version does not support these switches yet. Update DSH-X to use them.",
   "这些开关在 DSH-X 桌面端里生效；浏览器里打开管理页时不可用。": "These switches only apply in the DSH-X desktop app; they are unavailable when the manager is opened in a browser.",
   "设置启动器的启动方式、界面语言，以及 dsh 的插件与启动配置。": "Choose how the launcher starts and which language it uses, plus dsh's plugin and startup settings.",
@@ -10676,6 +10749,7 @@
       const events = new EventSource('/api/events')
       events.addEventListener('state', (event) => {
         applyState(JSON.parse(event.data))
+        if (computerUseSupported) void loadComputerUse()
       })
       events.addEventListener('message', (event) => {
         try {
@@ -11446,6 +11520,21 @@
     const savedBrowserPrefs = {}
     // 清理请求在飞时两个按钮都锁住：连点会造成两次全量清理，没必要
     let browserClearing = false
+    const computerUseEl = document.getElementById('computerUse')
+    const computerUseBadgeEl = document.getElementById('computerUseBadge')
+    const computerUseStatusDescEl = document.getElementById('computerUseStatusDesc')
+    const computerUseStopEl = document.getElementById('computerUseStop')
+    const computerUseResumeEl = document.getElementById('computerUseResume')
+    const computerUsePluginRowEl = document.getElementById('computerUsePluginRow')
+    const computerUsePluginDescEl = document.getElementById('computerUsePluginDesc')
+    const computerUseInstallEl = document.getElementById('computerUseInstall')
+    const computerUseAuditRefreshEl = document.getElementById('computerUseAuditRefresh')
+    const computerUseAuditClearEl = document.getElementById('computerUseAuditClear')
+    const computerUseAuditListEl = document.getElementById('computerUseAuditList')
+    const computerUseHintEl = document.getElementById('computerUseHint')
+    let savedComputerUse = false
+    let computerUseSupported = false
+    let computerUseBusy = false
     let pluginProfile = ''
     const pluginHomeEl = document.getElementById('pluginHome')
     const PLUGIN_HOME_MANAGE = '__manage__'
@@ -11892,7 +11981,87 @@
       if ('autoCleanVersions' in data) autoCleanEl.checked = data.autoCleanVersions !== false
       showSystemPrefs(data)
       showBrowserPrefs(data)
+      showComputerUsePrefs(data)
       syncUiSelects()
+    }
+
+    function paintComputerUseStatus(data) {
+      if (!data) return
+      const supported = data.desktopShell === true && data.computerHost === true
+      computerUseSupported = supported
+      computerUseEl.disabled = !supported
+      const enabled = data.enabled === true
+      const running = data.running === true
+      const halted = data.halted === true
+      computerUseBadgeEl.classList.toggle('is-running', supported && enabled && running && !halted)
+      computerUseBadgeEl.classList.toggle('is-stopped', supported && enabled && halted)
+      computerUseBadgeEl.textContent = !supported || !enabled
+        ? t('未启用')
+        : halted
+          ? t('已急停')
+          : running
+            ? t('运行中')
+            : t('已就绪')
+      const descParts = []
+      if (running && data.currentApp) descParts.push(t('正在操作 {app}', { app: data.currentApp }))
+      if (data.shortcut) descParts.push(t('全局急停快捷键：{shortcut}', { shortcut: data.shortcut }))
+      if (data.driverError) descParts.push(data.driverError)
+      computerUseStatusDescEl.textContent = descParts.join(' · ')
+      computerUseStopEl.hidden = !(supported && enabled && !halted)
+      computerUseResumeEl.hidden = !(supported && enabled && halted)
+      computerUseStopEl.disabled = computerUseBusy
+      computerUseResumeEl.disabled = computerUseBusy
+      if (data.pluginInstalled) {
+        computerUseInstallEl.textContent = t('当前配置已安装')
+        computerUseInstallEl.disabled = true
+      } else {
+        computerUseInstallEl.textContent = t('安装到当前配置')
+        computerUseInstallEl.disabled = computerUseBusy || !supported
+      }
+      if (!supported) {
+        computerUseHintEl.textContent = data.desktopShell === true
+          ? t('当前外壳版本还不支持电脑操作，更新 DSH-X 后可用。')
+          : t('电脑操作在 DSH-X 桌面端里生效；浏览器里打开管理页时不可用。')
+      } else {
+        computerUseHintEl.textContent = ''
+      }
+      const entries = Array.isArray(data.audit) ? data.audit : []
+      computerUseAuditClearEl.disabled = computerUseBusy || !supported || !entries.length
+      computerUseAuditRefreshEl.disabled = computerUseBusy || !supported
+      if (!entries.length) {
+        computerUseAuditListEl.innerHTML = `<p class="hint">${escapeHtml(t('暂无操作记录。'))}</p>`
+        return
+      }
+      computerUseAuditListEl.innerHTML = entries.slice(0, 50).map((entry) => {
+        const clock = entry.time ? new Date(entry.time).toLocaleTimeString([], { hour12: false }) : ''
+        const outcome = entry.result === 'error'
+          ? (entry.errorCode || 'ERROR')
+          : entry.result === 'stopped'
+            ? t('已急停')
+            : 'OK'
+        return `<div class="computer-use-audit-row"><div class="computer-use-audit-main"><span class="computer-use-audit-time">${escapeHtml(clock)}</span>${entry.app ? `<span class="computer-use-audit-app">${escapeHtml(entry.app)}</span>` : ''}<span class="computer-use-audit-action">${escapeHtml(entry.action || '')}</span>${entry.detail ? `<span class="computer-use-audit-detail">${escapeHtml(entry.detail)}</span>` : ''}</div><span class="computer-use-audit-result${entry.result === 'error' || entry.result === 'stopped' ? ' is-error' : ''}">${escapeHtml(outcome)}</span></div>`
+      }).join('')
+    }
+
+    async function loadComputerUse() {
+      try {
+        const data = await getJson('/api/computer-use')
+        paintComputerUseStatus(data)
+      } catch {
+        // 浏览器模式或旧核心时不打断设置页加载
+      }
+    }
+
+    function showComputerUsePrefs(data) {
+      if ('computerUse' in data) {
+        savedComputerUse = data.computerUse === true
+        if (!pendingSettings.has('computerUse')) computerUseEl.checked = savedComputerUse
+      }
+      if (!('desktopShell' in data) && !('computerHost' in data)) return
+      const supported = data.desktopShell === true && data.computerHost === true
+      computerUseSupported = supported
+      computerUseEl.disabled = !supported
+      void loadComputerUse()
     }
 
     function loadSettings() {
@@ -11988,6 +12157,7 @@
         }
         if (systemPrefRows.some(([key]) => key in patch)) showSystemPrefs(data)
         if (browserPrefRows.some(([key]) => key in patch)) showBrowserPrefs(data)
+        if ('computerUse' in patch) showComputerUsePrefs(data)
         if ('dataDir' in patch && !pendingSettings.has('dataDir') && document.activeElement !== dataDirEl) {
           dataDirEl.value = String(data.dataDir ?? patch.dataDir)
           dataDirHint.textContent = t('仅用于新安装的版本，已有版本不迁移。', { home: data.dshHome || '~/.dsh' })
@@ -12046,6 +12216,9 @@
           if (!(key in patch) || pendingSettings.has(key)) continue
           input.checked = savedBrowserPrefs[key] === true
         }
+        if ('computerUse' in patch && !pendingSettings.has('computerUse')) {
+          computerUseEl.checked = savedComputerUse === true
+        }
         settingsHint.textContent = error.message
       } finally {
         settingSaveRunning = false
@@ -12099,6 +12272,64 @@
     }
     browserClearCacheEl.onclick = () => void clearBrowserData('cache')
     browserClearAllEl.onclick = () => void clearBrowserData('all')
+    computerUseEl.onchange = () => queueSetting('computerUse', computerUseEl.checked)
+    computerUseStopEl.onclick = async () => {
+      if (computerUseBusy) return
+      computerUseBusy = true
+      try {
+        const data = await post('/api/computer-use/stop', {})
+        paintComputerUseStatus(data)
+        computerUseHintEl.textContent = t('电脑操作已紧急停止。')
+      } catch (error) {
+        computerUseHintEl.textContent = error.message
+      } finally {
+        computerUseBusy = false
+        paintComputerUseStatus({ ...(await getJson('/api/computer-use').catch(() => ({}))), desktopShell: true, computerHost: computerUseSupported })
+      }
+    }
+    computerUseResumeEl.onclick = async () => {
+      if (computerUseBusy) return
+      computerUseBusy = true
+      try {
+        const data = await post('/api/computer-use/resume', {})
+        paintComputerUseStatus(data)
+        computerUseHintEl.textContent = t('电脑操作已恢复就绪。')
+      } catch (error) {
+        computerUseHintEl.textContent = error.message
+      } finally {
+        computerUseBusy = false
+      }
+    }
+    computerUseInstallEl.onclick = async () => {
+      if (computerUseBusy) return
+      computerUseBusy = true
+      const profile = state.profile || 'web'
+      computerUseHintEl.textContent = t('正在安装到 {profile}…', { profile })
+      computerUseInstallEl.disabled = true
+      try {
+        const data = await post('/api/computer-use/install', { profile })
+        paintComputerUseStatus(data)
+        computerUseHintEl.textContent = t('已安装到 {profile}；重启对应实例后即可生效。', { profile })
+      } catch (error) {
+        computerUseHintEl.textContent = error.message
+      } finally {
+        computerUseBusy = false
+        void loadComputerUse()
+      }
+    }
+    computerUseAuditRefreshEl.onclick = () => void loadComputerUse()
+    computerUseAuditClearEl.onclick = async () => {
+      if (computerUseBusy) return
+      computerUseBusy = true
+      try {
+        const data = await post('/api/computer-use/audit/clear', {})
+        paintComputerUseStatus(data)
+      } catch (error) {
+        computerUseHintEl.textContent = error.message
+      } finally {
+        computerUseBusy = false
+      }
+    }
     uiLangEl.onchange = () => queueSetting('lang', uiLangEl.value)
     sourceEl.onchange = () => {
       // 提示行跟着换；设置交给自动保存，切完下一次查版本/下载就走新源

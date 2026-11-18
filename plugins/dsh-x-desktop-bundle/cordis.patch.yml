@@ -14,3 +14,10 @@
       # 可选：覆盖 dsh-x-desktop-notify 的默认配置（见它的 cordis.patch.yml）
       # config:
       #   includeSubagents: false
+    - id: x-computer-use
+      name: dsh-x-computer-use
+      config:
+        agentPreset: false
+    - id: x-cua-ui
+      name: '@deepseek-ai/dsh-cua'
+      disabled: !!js "process.platform === 'darwin' || process.env.DSH_X_DESKTOP !== '1' || process.env.DSH_X_COMPUTER_USE !== '1'"

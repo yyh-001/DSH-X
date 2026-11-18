@@ -144,6 +144,8 @@ async function buildShellStage() {
     license: 'MIT',
     main: 'shell/main.mjs',
     dependencies: { 'electron-updater': '^6.8.11' },
+    // Cua Driver 按平台装可选原生依赖；缺少时不阻断外壳构建，运行时按可用性降级提示
+    optionalDependencies: { '@trycua/cua-driver': '^0.53.0' },
   }, null, 2)}\n`)
   // 外壳自更新依赖装进 app 层
   const npm = spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['install', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund'], { cwd: SHELL_STAGE, stdio: 'inherit', windowsHide: false, shell: process.platform === 'win32' })

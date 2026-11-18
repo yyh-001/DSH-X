@@ -639,6 +639,8 @@ export const DEFAULTS = {
   keepAwake: false,
   // 内置浏览器不校验 HTTPS 证书（自签名 / 过期证书的站点也能打开），只影响浏览器分区
   browserIgnoreCertificate: false,
+  // 电脑操作（Computer Use）：默认关闭；开启后只有 DSH-X 桌面外壳启动的实例才允许向模型暴露工具
+  computerUse: false,
   downloadSource: DEFAULT_SOURCE,
   // 启动器更新的下载源：direct（默认）/ mirror（国内加速）
   updateSource: DEFAULT_UPDATE_SOURCE,
@@ -1193,6 +1195,7 @@ async function saveSettingsNow(patch) {
   merged.keepAwake = merged.keepAwake === true
   // 内置浏览器开关与证书校验：和上面一组同一套布尔语义
   merged.browserIgnoreCertificate = merged.browserIgnoreCertificate === true
+  merged.computerUse = merged.computerUse === true
   // 同 webBind：脏值顺手修回默认（回环），显式改绑定方式时才把错误抛给调用方
   try {
     merged.webBind = safeWebBind(merged.webBind)

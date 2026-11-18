@@ -3079,3 +3079,23 @@ html.reduce-motion .environment-tab-actions .action-icon.is-checking svg { anima
 #environmentMcpHost[hidden], #environmentSkillsHost[hidden] { display: none; }
 #environmentMcpHost .pane-inner.fill, #environmentSkillsHost .pane-inner.fill { height: auto; }
 #environmentMcpHost .pane-top, #environmentSkillsHost .pane-top { display: none; }
+
+.computer-use-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.computer-use-badge {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px;
+  font-size: 12px; font-weight: 500; background: var(--accent-soft); color: var(--muted);
+}
+.computer-use-badge.is-running { background: rgba(45, 175, 110, 0.16); color: #2daf6e; }
+.computer-use-badge.is-stopped { background: rgba(229, 72, 77, 0.14); color: #e5484d; }
+.computer-use-audit { display: grid; gap: 6px; max-height: 220px; overflow: auto; margin-top: 8px; }
+.computer-use-audit-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 6px 10px; border-radius: 8px; background: var(--accent-soft); font-size: 12px;
+}
+.computer-use-audit-main { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.computer-use-audit-time { color: var(--muted); font-variant-numeric: tabular-nums; }
+.computer-use-audit-app { font-weight: 500; color: var(--text); }
+.computer-use-audit-action { color: var(--accent); }
+.computer-use-audit-detail { color: var(--muted); overflow-wrap: anywhere; }
+.computer-use-audit-result { flex: 0 0 auto; font-size: 11px; color: var(--muted); }
+.computer-use-audit-result.is-error { color: #e5484d; }

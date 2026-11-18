@@ -32,8 +32,9 @@ GET /api/desktop
   "api": 1,
   "available": true,
   "platform": "win32",
-  "capabilities": ["notify", "open", "reveal", "clipboard", "dialog"],
+  "capabilities": ["notify", "open", "reveal", "clipboard", "dialog", "computer"],
   "notifications": { "enabled": true, "sound": true },
+  "computer": { "available": true, "enabled": false, "halted": false, "running": false },
   "theme": "dark",
   "versions": { "core": "0.1.22", "shell": "0.1.22", "electron": "44.7.0" }
 }
@@ -133,6 +134,19 @@ POST /api/desktop/dialog
 - `message`：`type` 是 `info` / `warning` / `error` / `question` / `none`；按钮最多 4 个、
   每个最多 40 字；`defaultId` / `cancelId` 越界时回落到第一个 / 最后一个按钮。
 - 对话框要等用户操作，客户端别设太短的超时。管理页窗口不可见时对话框不挂父窗口。
+
+### 电脑操作（Computer Use）
+
+由外壳持有桌面操作权限、急停开关与审计日志（默认关闭；只有 `capabilities` 含 `computer` 且 `computer.enabled === true` 时才可用）：
+
+```http
+POST /api/desktop/computer
+{ "op": "rpc", "sessionId": "0.2.2-rc.4@web:agent-1", "id": "req-1", "method": "listApps", "params": {}, "instance": "0.2.2-rc.4@web" }
+```
+
+- `op`: `status` / `rpc` / `cancel` / `closeSession`。
+- 外壳未开启电脑操作或用户触发急停时，`rpc` 返回 `{ "ok": true, "error": { "code": "COMPUTER_USE_DISABLED" | "COMPUTER_USE_STOPPED", "message": "..." } }`。
+- 审计日志只记录时间、实例、应用、动作类型与结果，绝不记录输入的正文。
 
 ## 错误与降级
 

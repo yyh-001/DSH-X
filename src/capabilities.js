@@ -16,6 +16,8 @@ export function detectCapabilities({ host = {}, env = process.env } = {}) {
   return Object.freeze({
     /** 桌面通知 / 系统对话框 / 剪贴板 / 在文件管理器里显示（GET /api/desktop 的能力清单）。 */
     desktop: Boolean(host.desktop),
+    /** 电脑操作（Computer Use）：外壳持有桌面驱动与急停开关时为真。 */
+    computerUse: Boolean(host.desktop && typeof host.desktop.computer === 'function'),
     /** 内置浏览器（右侧栏）的数据清理；只有带浏览器分区的 Electron 外壳才有。 */
     browser: Boolean(host.browser),
     /** 管理页装在外壳窗口里（DSH_APP_WINDOW）；false = 浏览器标签页。 */

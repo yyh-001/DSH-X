@@ -49,5 +49,8 @@
   },
   "dependencies": {
     "ssh2": "^1.17.0"
+  },
+  "optionalDependencies": {
+    "@trycua/cua-driver": "^0.53.0"
   }
 }

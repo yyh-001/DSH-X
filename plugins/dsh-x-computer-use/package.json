@@ -1,0 +1,76 @@
+{
+  "name": "dsh-x-computer-use",
+  "version": "0.1.0",
+  "description": "DSH-X 电脑操作桥接插件：默认关闭，只在 DSH-X 桌面外壳启用时向模型暴露桌面查看与操作工具；桌面权限、急停开关与审计日志全部由外壳托管。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": "./client.js",
+    "./package.json": "./package.json",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "lib",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "meta": {
+    "title": "电脑操作",
+    "description": "让智能体通过 DSH-X 外壳查看并操作 Windows 桌面应用（默认关闭）。"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "computer-use",
+    "cua",
+    "desktop",
+    "dsh-x"
+  ],
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
+    },
+    "compatibility": {
+      "dsh": ">=0.2.2-rc.1 <0.3.0-0"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "~4.1.0",
+    "@deepseek-ai/dsh-computer-use": ">=0.2.2-alpha.1",
+    "@deepseek-ai/dsh-cua": ">=0.2.2-alpha.1"
+  },
+  "dshhub": {
+    "schemaVersion": 1,
+    "displayName": "DSH-X Computer Use",
+    "summary": "DSH-X 的电脑操作提供者：接入 DSH-X 外壳托管的桌面自动化与急停能力，默认关闭、首次操作应用需授权，非 DSH-X 启动静默降级。",
+    "categories": [
+      "桌面",
+      "自动化"
+    ],
+    "homepage": "https://github.com/yyh-001/DSH-X"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yyh-001/DSH-X.git"
+  },
+  "author": "yyh",
+  "license": "MIT"
+}

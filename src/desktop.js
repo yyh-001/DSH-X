@@ -14,8 +14,8 @@ import { isAbsolute } from 'node:path'
 /** 协议版本：插件可以按 GET /api/desktop 的 api 字段决定用哪套接口。 */
 export const DESKTOP_API_VERSION = 1
 
-/** 外壳能做的事。没有 Electron 外壳时 GET 会返回空数组。 */
-export const DESKTOP_CAPABILITIES = Object.freeze(['notify', 'open', 'reveal', 'clipboard', 'dialog'])
+/** 外壳能做的事。没有 Electron 外壳时 GET 会返回空数组；computer 只在带电脑操作宿主的壳里出现。 */
+export const DESKTOP_CAPABILITIES = Object.freeze(['notify', 'open', 'reveal', 'clipboard', 'dialog', 'computer'])
 
 /**
  * 请求上限。通知是给人看的，不是日志通道；剪贴板也不该被拿来做文件传输。
@@ -180,12 +180,37 @@ function parseDialog(input) {
   return { action: 'dialog', kind, options }
 }
 
+const COMPUTER_OPS = new Set(['status', 'rpc', 'cancel', 'closeSession'])
+
+/**
+ * 电脑操作桥（`/api/desktop/computer`）：只做协议轮廓校验，真正的权限判定、
+ * 急停拦截和驱动执行全留在外壳 `host.desktop.computer` 里。
+ */
+function parseComputer(input) {
+  const op = String(input.op ?? '')
+  if (!COMPUTER_OPS.has(op)) throw new Error('op 只能是 status / rpc / cancel / closeSession')
+  const sessionId = oneLine(input.sessionId, 128)
+  if (op === 'status') return { action: 'computer', op }
+  if (op === 'closeSession') return { action: 'computer', op, sessionId }
+  const id = oneLine(input.id, 128)
+  if (op === 'cancel') {
+    if (!id) throw new Error('cancel 需要请求 id')
+    return { action: 'computer', op, sessionId, id }
+  }
+  const method = oneLine(input.method, 64)
+  if (!method) throw new Error('rpc 需要 method')
+  const params = input.params && typeof input.params === 'object' && !Array.isArray(input.params) ? input.params : {}
+  const instance = oneLine(input.instance, 120)
+  return { action: 'computer', op, sessionId, id, method, params, instance }
+}
+
 const PARSERS = {
   notify: parseNotify,
   open: parseOpen,
   reveal: parseReveal,
   clipboard: parseClipboard,
   dialog: parseDialog,
+  computer: parseComputer,
 }
 
 /**

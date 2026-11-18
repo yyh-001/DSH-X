@@ -1,6 +1,6 @@
 // 必须是第一个 import：它在核心（server.js）求值之前补好 PATH 和外壳标记（见 env.mjs）
 import { APP_DIR } from './env.mjs'
-import { BrowserWindow, Menu, Notification, Tray, WebContentsView, app, clipboard, dialog, ipcMain, nativeImage, nativeTheme, net, powerMonitor, powerSaveBlocker, screen, session, shell, systemPreferences } from 'electron'
+import { BrowserWindow, Menu, Notification, Tray, WebContentsView, app, clipboard, dialog, globalShortcut, ipcMain, nativeImage, nativeTheme, net, powerMonitor, powerSaveBlocker, screen, session, shell, systemPreferences } from 'electron'
 import { appendFileSync, existsSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -18,6 +18,7 @@ import { readPrefs } from './prefs.mjs'
 import { shellRelaunchOptions } from './relaunch.mjs'
 import { coreSetupPage, coreSetupPaintScript, dataUrl, errorPage, resolveDark, tabBaseColor, tabWindowFallbackPage, tabDragPreviewPage } from './pages.mjs'
 import { clickTarget, dialogOptions, notificationDecision, notifyThrottled } from './desktop.mjs'
+import { COMPUTER_USE_SHORTCUT, createComputerUseHost } from './computer-use.mjs'
 import {
   LAUNCH_ACTIONS,
   internalMode,
@@ -217,6 +218,47 @@ function syncKeepAwake() {
 }
 
 /** settings.json 变了才重读：轮询每 1.5s 跑一次，不能每次都解析一遍文件。 */
+/** 电脑操作（Computer Use）：外壳持有桌面权限与急停开关；默认关闭。 */
+let computerUseShortcutActive = false
+const computerUse = createComputerUseHost({
+  getFileIcon: async (filePath) => {
+    try {
+      const icon = await app.getFileIcon(filePath, { size: 'normal' })
+      return icon.resize({ width: 32, height: 32 }).toDataURL()
+    } catch {
+      return ''
+    }
+  },
+  onStateChanged: () => {
+    syncComputerUseShortcut()
+    syncTrayMenu()
+  },
+})
+computerUse.setEnabled(prefs.computerUse === true)
+
+function syncComputerUseShortcut() {
+  if (!app.isReady()) return
+  const want = prefs.computerUse === true
+  if (want && !computerUseShortcutActive) {
+    try {
+      computerUseShortcutActive = globalShortcut.register(COMPUTER_USE_SHORTCUT, () => {
+        void computerUse.stop('shortcut')
+        const en = state.lang === 'en'
+        showNotification({
+          title: en ? 'Computer Use stopped' : '电脑操作已停止',
+          body: en ? 'Stopped by global shortcut.' : '已通过全局快捷键停止桌面操作。',
+          taskSwitch: false,
+        })
+      })
+    } catch {
+      computerUseShortcutActive = false
+    }
+  } else if (!want && computerUseShortcutActive) {
+    try { globalShortcut.unregister(COMPUTER_USE_SHORTCUT) } catch { /* ignore */ }
+    computerUseShortcutActive = false
+  }
+}
+
 function refreshPrefs() {
   let stamp
   try { stamp = statSync(PREFS_FILE).mtimeMs } catch { return }
@@ -227,6 +269,10 @@ function refreshPrefs() {
   prefs = next
   if (!changed.length) return
   syncKeepAwake()
+  if (changed.includes('computerUse')) {
+    computerUse.setEnabled(prefs.computerUse === true)
+    syncComputerUseShortcut()
+  }
   if (changed.includes('autoUpdate') && prefs.autoUpdate) void autoUpdateTick()
 }
 
@@ -285,11 +331,12 @@ function desktopNotify(payload) {
   return shown ? { shown: true } : { shown: false, reason: 'unsupported' }
 }
 
-/** GET /api/desktop 里外壳负责的那部分：主题和版本。 */
+/** GET /api/desktop 里外壳负责的那部分：主题、版本和电脑操作状态。 */
 function desktopInfo() {
   return {
     theme: resolveDark(state.theme, nativeTheme.shouldUseDarkColors) ? 'dark' : 'light',
     versions: { shell: VERSION, electron: String(process.versions.electron || '') },
+    computer: computerUse.status(),
   }
 }
 
@@ -712,6 +759,7 @@ async function start() {
       reveal: ({ path }) => shell.showItemInFolder(path),
       clipboard: ({ text }) => { clipboard.writeText(text) },
       dialog: desktopDialog,
+      computer: (request) => computerUse.dispatch(request),
     },
     // 设置页「浏览器控制」的清理按钮：guest 分区只有外壳碰得到（核心没有 Electron）。
     browser: {
@@ -723,6 +771,7 @@ async function start() {
   // 启动时也查一次外壳更新（不阻塞窗口）；页面从 /api/self 的 shell 状态和 SSE 拿结果
   void updater.check()
   syncKeepAwake()
+  syncComputerUseShortcut()
   // 自动更新（核心 npm 层）：文件顶部没有实例时会立刻检查/安装；之后每分钟看一眼
   setTimeout(() => void autoUpdateTick(), 15_000)
   setInterval(() => void autoUpdateTick(), AUTO_UPDATE_INTERVAL_MS)
@@ -1459,12 +1508,39 @@ function createTray() {
 function syncTrayMenu() {
   if (!tray) return
   const en = state.lang === 'en'
-  const key = JSON.stringify([en, state.launches.map((row) => [row.id, launchLabel(row, en), LAUNCH_ACTIONS.map(({ action }) => launchActionEnabled(row, action))])])
+  const cu = computerUse.status()
+  const showCu = cu.enabled || cu.running || cu.halted
+  const cuLabel = cu.running
+    ? (en ? `Computer Use: Active${cu.currentApp ? ` (${cu.currentApp})` : ''}` : `电脑操作：运行中${cu.currentApp ? `（${cu.currentApp}）` : ''}`)
+    : cu.halted
+      ? (en ? 'Computer Use: Stopped' : '电脑操作：已停止')
+      : (en ? 'Computer Use: Ready' : '电脑操作：已就绪')
+  const key = JSON.stringify([
+    en,
+    showCu,
+    cuLabel,
+    cu.halted,
+    cu.enabled,
+    state.launches.map((row) => [row.id, launchLabel(row, en), LAUNCH_ACTIONS.map(({ action }) => launchActionEnabled(row, action))]),
+  ])
   if (key === trayMenuKey) return
   trayMenuKey = key
+  tray.setToolTip(cu.running
+    ? (en ? `DSH-X · Computer Use active${cu.currentApp ? ` (${cu.currentApp})` : ''}` : `DSH-X · 正在电脑操作${cu.currentApp ? `（${cu.currentApp}）` : ''}`)
+    : 'DSH-X')
+  const cuMenuItems = showCu ? [
+    { label: cuLabel, enabled: false },
+    ...(cu.halted && cu.enabled
+      ? [{ label: en ? 'Resume Computer Use' : '恢复电脑操作', click: () => { try { computerUse.resume() } catch { /* ignore */ } } }]
+      : cu.enabled
+        ? [{ label: en ? 'Stop Computer Use' : '停止电脑操作', accelerator: COMPUTER_USE_SHORTCUT, click: () => void computerUse.stop('tray') }]
+        : []),
+    { type: 'separator' },
+  ] : []
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: en ? 'Open DSH-X' : '打开启动器', click: () => showManager() },
     { type: 'separator' },
+    ...cuMenuItems,
     ...state.launches.map((row) => ({
       label: launchLabel(row, en),
       submenu: LAUNCH_ACTIONS.map(({ action, zh, en: english }) => ({
@@ -1718,6 +1794,8 @@ function liveInstanceCount() {
 /** 管理服务收尾之后（退出 / 自更新）真正退出：先放行窗口的 close，再让 Electron 退。 */
 function exitApp(code = 0) {
   quitting = true
+  try { globalShortcut.unregisterAll() } catch { /* ignore */ }
+  void computerUse.dispose()
   stopTabDrag()
   instanceViews?.dispose()
   app.exit(code)
@@ -1738,5 +1816,10 @@ app.on('before-quit', (event) => {
 })
 // 窗口全关了也不退：托盘还在（默认行为在 macOS 上本来就不退，这里写明白）
 app.on('window-all-closed', () => {})
-app.on('will-quit', () => { stopTabDrag(); instanceViews?.dispose() })
+app.on('will-quit', () => {
+  try { globalShortcut.unregisterAll() } catch { /* ignore */ }
+  void computerUse.dispose()
+  stopTabDrag()
+  instanceViews?.dispose()
+})
 

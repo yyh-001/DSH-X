@@ -18,7 +18,7 @@ import { createLogWriter } from './log-writer.js'
 import { checkPluginCompatibility } from './pre-update.js'
 import { createStartupDiagnosis } from './startup-diagnosis.js'
 import { createInstanceLink } from './instance-link.js'
-import { DESKTOP_ENHANCE_ID, DESKTOP_ENHANCE_NAME, DESKTOP_PLUGINS, versionAtLeast } from './desktop-plugins.js'
+import { COMPUTER_USE_PLUGIN, DESKTOP_ENHANCE_ID, DESKTOP_ENHANCE_NAME, DESKTOP_PLUGINS, versionAtLeast } from './desktop-plugins.js'
 import { bindDiagnosis, checkedRepairPlan, profileFingerprint } from './repair-plan.js'
 import { DiagnosticRepairs, verificationSummary } from './repair-actions.js'
 import { recordedChanges } from './repair-evidence.js'
@@ -697,6 +697,7 @@ const REMOTE_LOCAL_API_PREFIXES = [
 ]
 const REMOTE_LOCAL_API_EXACT = new Set([
   '/api/plugin-profile',
+  '/api/computer-use/install',
   '/api/launch-home/profiles',
   '/api/pick-dir',
   '/api/pick-file',
@@ -2310,8 +2311,11 @@ async function publicSettings() {
     // 内置浏览器（右侧栏浏览器）：开关与证书策略。browserHost 表明当前外壳能否清理浏览数据
     // （只有 Electron 外壳拿得到 guest 分区；浏览器里打开管理页 / 旧外壳没有这层能力）。
     browserIgnoreCertificate: stored.browserIgnoreCertificate === true,
-    // 能力检测统一走 capabilities.js：web 模式下这三个都是 false，页面据此禁用整组开关
+    // 电脑操作（Computer Use）：默认关闭；computerHost 表明当前外壳带桌面操作宿主与急停开关
+    computerUse: stored.computerUse === true,
+    // 能力检测统一走 capabilities.js：web 模式下这些都是 false，页面据此禁用整组开关
     browserHost: capabilities().browser,
+    computerHost: capabilities().computerUse,
     shellPrefs: capabilities().shellPrefs,
     desktopShell: capabilities().windowHost,
     webBind: WEB_BIND,
@@ -4616,6 +4620,7 @@ async function saveManagerSettings(body) {
     ...('closeToTray' in body ? { closeToTray: body.closeToTray !== false } : {}),
     ...('keepAwake' in body ? { keepAwake: body.keepAwake === true } : {}),
     ...('browserIgnoreCertificate' in body ? { browserIgnoreCertificate: body.browserIgnoreCertificate === true } : {}),
+    ...('computerUse' in body ? { computerUse: body.computerUse === true } : {}),
     ...('autoStart' in body ? { autoStart: Boolean(body.autoStart) } : {}),
     ...('pluginMarketSources' in body ? { pluginMarketSources: safePluginMarketSources(body.pluginMarketSources) } : {}),
     ...('autoDisablePlugins' in body ? { autoDisablePlugins: body.autoDisablePlugins !== false } : {}),
@@ -4710,6 +4715,16 @@ async function saveManagerSettings(body) {
       ? '内置浏览器不再校验 HTTPS 证书（只影响内置浏览器，重启启动器后生效）'
       : '内置浏览器恢复 HTTPS 证书校验（重启启动器后生效）')
   }
+  if ('computerUse' in body) {
+    if (stored.computerUse) {
+      pushLog('电脑操作（Computer Use）已开启：由 DSH-X 启动且装有插件的实例重启后可使用桌面操作工具')
+    } else {
+      pushLog('电脑操作（Computer Use）已关闭，立即停止在途桌面操作')
+      if (typeof host.desktop?.computer === 'function') {
+        await host.desktop.computer({ op: 'stop', reason: 'disabled' }).catch(() => {})
+      }
+    }
+  }
   // profile 立即生效：插件页、启动参数、npmrc 都读这个变量（已经在跑的 dsh 不受影响）
   EXTRA_ARGS = composeExtraArgs(stored.args)
   WEB_BIND = safeWebBind(stored.webBind)
@@ -4764,7 +4779,11 @@ export function dshEnv(version, options = {}) {
     // DSH_X_DESKTOP 只在真外壳接上 host.desktop 时给（浏览器模式 / 旧外壳没有），
     // 插件据此静默降级，不必先发一次注定 503 的请求。
     DSH_X_MANAGER_URL: `http://127.0.0.1:${PORT}`,
+    DSH_X_INSTANCE_KEY: `${version}@${PROFILE_NAME}`,
     ...(host.desktop ? { DSH_X_DESKTOP: '1' } : {}),
+    ...(host.desktop && typeof host.desktop.computer === 'function' && loadSettingsSync().computerUse === true
+      ? { DSH_X_COMPUTER_USE: '1' }
+      : {}),
     // 只有「必须被 dsh 起的 worker 线程继承」的东西留在这里：worker 的 execArgv 是空的，
     // 命令行参数传不进去，只能靠 NODE_OPTIONS（路径写法见 nodeOptionsPath）。
     // dsh 自己要的那几个开关（--use-system-ca、--max-http-header-size、--import 钩子）走命令行，
@@ -7615,6 +7634,10 @@ async function killTree(pid, child, force = true) {
  */
 async function terminateProcess(proc) {
   const label = `${proc.version}/${proc.profile}`
+  // upstream-integration-regression 会把 terminateProcess 抽到没有 host 的 VM 沙箱里执行。
+  if (typeof host !== 'undefined' && typeof host.desktop?.computer === 'function') {
+    void host.desktop.computer({ op: 'closeSession', sessionId: `${proc.version}@${proc.profile}` }).catch(() => {})
+  }
   // 远端 core 起的实例没有本地 child：把停止请求转发给 core。
   if (proc.remoteCore) return stopRemoteCoreInstance(proc)
   // WSL 实例：先让 Linux 侧的脚本按 pidfile 收掉 dsh 本体，再杀 wsl.exe 这扇门。
@@ -9580,17 +9603,74 @@ function desktopPayload() {
     info = {}
   }
   const settings = loadSettingsSync()
+  const hasComputer = Boolean(desktop && typeof desktop.computer === 'function')
+  const computerInfo = info.computer && typeof info.computer === 'object'
+    ? { ...info.computer, enabled: settings.computerUse === true }
+    : (hasComputer ? { available: true, enabled: settings.computerUse === true } : null)
   return {
     api: DESKTOP_API_VERSION,
     available: Boolean(desktop),
     platform: process.platform,
-    capabilities: desktop ? [...DESKTOP_CAPABILITIES] : [],
+    capabilities: desktop
+      ? DESKTOP_CAPABILITIES.filter((cap) => cap !== 'computer' || hasComputer)
+      : [],
     notifications: {
       enabled: settings.taskNotifications !== false,
       sound: settings.notificationSound !== false,
     },
+    ...(computerInfo ? { computer: computerInfo } : {}),
     theme: typeof info.theme === 'string' ? info.theme : '',
     versions: { core: APP_VERSION, ...(info.versions && typeof info.versions === 'object' ? info.versions : {}) },
+  }
+}
+
+function computerUsePluginInstalled(profile = PROFILE_NAME) {
+  try {
+    const manifest = JSON.parse(readFileSync(join(profileDirOf(profile), 'package.json'), 'utf8'))
+    const deps = manifest?.dependencies && typeof manifest.dependencies === 'object' ? manifest.dependencies : {}
+    return Object.hasOwn(deps, COMPUTER_USE_PLUGIN.name) || Object.hasOwn(deps, 'dsh-x-desktop-bundle')
+  } catch {
+    return false
+  }
+}
+
+async function computerUsePayload(profile = PROFILE_NAME) {
+  const stored = loadSettingsSync()
+  const caps = capabilities()
+  const desktop = host.desktop
+  let status = {
+    available: false,
+    enabled: stored.computerUse === true,
+    halted: false,
+    running: false,
+    activeCount: 0,
+    driverAvailable: null,
+    driverError: '',
+    platform: process.platform,
+    shortcut: '',
+    currentApp: '',
+    currentInstance: '',
+    lastAction: '',
+    lastActionAt: 0,
+    stopReason: '',
+    audit: [],
+  }
+  if (desktop && typeof desktop.computer === 'function') {
+    try {
+      const remote = await desktop.computer({ op: 'status' })
+      if (remote && typeof remote === 'object') status = { ...status, ...remote }
+    } catch (error) {
+      status.driverError = error instanceof Error ? error.message : String(error)
+    }
+  }
+  return {
+    desktopShell: caps.windowHost,
+    computerHost: caps.computerUse,
+    enabled: stored.computerUse === true,
+    profile,
+    plugin: COMPUTER_USE_PLUGIN,
+    pluginInstalled: launchIsRemote() ? false : computerUsePluginInstalled(profile),
+    ...status,
   }
 }
 
@@ -10804,6 +10884,83 @@ async function handleApi(req, res, url) {
       const message = error instanceof Error ? error.message : String(error)
       pushLog(`桌面能力 ${request.action} 失败：${message}`)
       send(res, 500, { error: message })
+    }
+    return
+  }
+  // 电脑操作（Computer Use）管理页接口：读状态/审计、全局急停/恢复、清空审计、把插件装进配置
+  if (url.pathname === '/api/computer-use' || url.pathname.startsWith('/api/computer-use/')) {
+    if (url.pathname === '/api/computer-use') {
+      if (req.method !== 'GET') {
+        send(res, 405, { error: '/api/computer-use 只支持 GET' })
+        return
+      }
+      try {
+        const profile = safeProfile(url.searchParams.get('profile') || PROFILE_NAME)
+        send(res, 200, await computerUsePayload(profile))
+      } catch (error) {
+        send(res, 400, { error: error instanceof Error ? error.message : String(error) })
+      }
+      return
+    }
+    if (req.method !== 'POST') {
+      send(res, 405, { error: '操作接口只支持 POST' })
+      return
+    }
+    if (url.pathname === '/api/computer-use/install') {
+      const profile = safeProfile(String(body.profile || '') || PROFILE_NAME)
+      if (pluginBusy) {
+        send(res, 409, { error: '正在装插件或整合包，等它结束再试' })
+        return
+      }
+      let version
+      try {
+        version = await pluginCommandVersion(profile)
+      } catch (error) {
+        send(res, 400, { error: error instanceof Error ? error.message : String(error) })
+        return
+      }
+      if (!versionAtLeast(version, COMPUTER_USE_PLUGIN.minDsh)) {
+        send(res, 400, { error: `${COMPUTER_USE_PLUGIN.label} 需要 dsh ${COMPUTER_USE_PLUGIN.minDsh} 或更高版本` })
+        return
+      }
+      try {
+        pushLog(`电脑操作：安装 ${COMPUTER_USE_PLUGIN.name} 到 ${profile}`)
+        await addPlugin(version, `${COMPUTER_USE_PLUGIN.name}@${COMPUTER_USE_PLUGIN.spec}`, { profile })
+        send(res, 200, { ok: true, ...(await computerUsePayload(profile)) })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        pushLog(`电脑操作：${COMPUTER_USE_PLUGIN.name} 安装失败：${message}`)
+        send(res, 400, { error: message })
+      }
+      return
+    }
+    if (!host.desktop || typeof host.desktop.computer !== 'function') {
+      send(res, 503, { available: false, error: '当前不是带电脑操作能力的外壳，或处于浏览器模式' })
+      return
+    }
+    try {
+      if (url.pathname === '/api/computer-use/stop') {
+        await host.desktop.computer({ op: 'stop', reason: 'manager' })
+        pushLog('电脑操作：已在管理页紧急停止')
+        await emitState()
+        send(res, 200, { ok: true, ...(await computerUsePayload()) })
+        return
+      }
+      if (url.pathname === '/api/computer-use/resume') {
+        await host.desktop.computer({ op: 'resume' })
+        pushLog('电脑操作：已恢复就绪')
+        await emitState()
+        send(res, 200, { ok: true, ...(await computerUsePayload()) })
+        return
+      }
+      if (url.pathname === '/api/computer-use/audit/clear') {
+        await host.desktop.computer({ op: 'clearAudit' })
+        send(res, 200, { ok: true, ...(await computerUsePayload()) })
+        return
+      }
+      send(res, 404, { error: `未知接口 ${url.pathname}` })
+    } catch (error) {
+      send(res, 400, { error: error instanceof Error ? error.message : String(error) })
     }
     return
   }

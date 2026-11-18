@@ -31,6 +31,14 @@ export const DESKTOP_PLUGINS = Object.freeze([
   { name: 'dsh-x-sidebar-browser', spec: '0.1.1', label: '侧栏浏览器', minDsh: '0.2.1-rc.2' },
 ])
 
+/** 电脑操作插件（默认关闭，需 dsh >= 0.2.2 与桌面外壳；不自动放进桌面增强默认组）。 */
+export const COMPUTER_USE_PLUGIN = Object.freeze({
+  name: 'dsh-x-computer-use',
+  spec: '0.1.0',
+  label: '电脑操作',
+  minDsh: '0.2.2-rc.1',
+})
+
 /**
  * `x.y.z` / `x.y.z-rc.1` → `[x, y, z]`；认不出来返回 null。
  * @param {string} text - dsh 版本。

@@ -1,7 +1,7 @@
 {
   "name": "dsh-x-desktop-bundle",
-  "version": "0.1.0",
-  "description": "DSH-X 桌面插件组：一个包挂全组，profile 只加一个依赖。首版成员是 dsh-x-desktop-notify（宿主侧原生通知 + dshDesktop 服务）；以后加成员 = 加依赖 + 加一行 patch，用户侧仍只装这一个包。",
+  "version": "0.1.1",
+  "description": "DSH-X 桌面插件组：一个包挂全组，profile 只加一个依赖。成员包括 dsh-x-desktop-notify（宿主侧原生通知 + dshDesktop 服务）与 dsh-x-computer-use（电脑操作，默认关闭）；以后加成员 = 加依赖 + 加一行 patch，用户侧仍只装这一个包。",
   "type": "module",
   "exports": {
     "./package.json": "./package.json",
@@ -31,12 +31,13 @@
     }
   },
   "dependencies": {
-    "dsh-x-desktop-notify": "^0.1.0"
+    "dsh-x-desktop-notify": "^0.1.0",
+    "dsh-x-computer-use": "^0.1.0"
   },
   "dshhub": {
     "schemaVersion": 1,
     "displayName": "DSH-X Desktop",
-    "summary": "DSH-X 的桌面插件组：一个依赖挂全组。首版提供宿主侧原生通知（一轮结束、等待确认）与 dshDesktop 桌面能力服务（notify / open / reveal / clipboard / dialog）。",
+    "summary": "DSH-X 的桌面插件组：一个依赖挂全组。提供宿主侧原生通知与 dshDesktop 桌面能力服务（notify / open / reveal / clipboard / dialog），以及默认关闭的电脑操作（Computer Use，需 dsh >= 0.2.2）。",
     "categories": [
       "桌面",
       "通知"

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Computer Use",
+    "description": "Observe and control desktop apps through the DSH-X shell (off by default, with app consent and emergency stop)."
+  }
+}
