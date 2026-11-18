@@ -404,9 +404,11 @@ jobs:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
 
-      # trusted publishing 要 npm 11.5.1+，Node 22 自带的 npm 10 不够
+      # trusted publishing 要 npm 11.5.1+，Node 22 自带的 npm 10 不够。
+      # 锁 11 不跟 latest：npm 12 默认拒收 lockfile 里指向非 npmjs 的 tarball
+      # （EALLOWREMOTE），和镜像源生成的 lockfile 直接冲突。
       - name: 升级 npm（OIDC 发布要求 11.5.1+）
-        run: npm install -g npm@latest
+        run: npm install -g npm@11
 
       # 只要 node_modules/electron/package.json 里的版本号（写进核心包的 dshX.electron），
       # 不需要 Electron 本体，跳过它的下载脚本
@@ -457,8 +459,8 @@ jobs:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: 升级 npm（OIDC 发布要求 11.5.1+）
-        run: npm install -g npm@latest
+      - name: 升级 npm（OIDC 发布要求 11.5.1+，锁 11 的理由见 core-package）
+        run: npm install -g npm@11
 
       - name: 打包并发布 dsh-x npm 包
         shell: bash
