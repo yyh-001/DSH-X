@@ -42,20 +42,20 @@ const pathHelpers = page.slice(page.indexOf('    const normalizeHomePath ='), pa
 
 const EN_REQUIRED = [
   '隔离方式', '插件隔离', '会话隔离', '自定义',
-  '将自动新建配置「{name}」：沿用全局 dsh 目录，会话与记忆共享，插件与配置独立。',
+  '将自动新建实例「{name}」：沿用全局 dsh 目录，会话与记忆共享，插件、配置与技能独立。',
   '将自动新建独立目录：会话、记忆、插件与配置全部独立。',
   '数据目录还没就绪，稍后再试',
-  // 选目录和配置（dsh profile）的那个按钮叫「目录与配置」（「实例」留给装好插件的 DSH）
-  '版本、端口、目录和配置都在这里手动选；点「目录与配置」换目录或配置，左栏「+」加目录。',
+  // 自定义页签：手选用户目录和实例
+  '版本、端口、用户目录和实例都在这里手动选。',
   '新建配置', '自定义目录', '自动新建（{path}）',
-  '配置名称，留空用 web',
+  '实例名称，留空用 web',
   '这个配置不能启动网页，换一个名称',
   '编辑配置…',
   // 中文界面说 dsh profile 的地方一律叫「配置」（英文仍叫 Profile）
   '配置「{profile}」还没初始化：先用它启动一次，dsh 会把它建好，之后就能在这里编辑。',
   // 复制档：说清复制范围 + 目标名的几条错误
-  '把「{profile}」复制成新的配置「{name}」：插件与配置跟过来，技能、Prompt 管理和会话不跟。',
-  '先选一份要复制的配置：左边挑用户目录，右边挑配置；复制出来的配置从空白会话开始。',
+  '把「{profile}」复制成新的实例「{name}」：插件、配置与技能跟过来，会话不跟。',
+  '先选一个要复制的实例：左边挑用户目录，右边挑实例；复制出来的实例从空白会话开始。',
   '「{name}」是系统保留名称，换个配置名称（例如 {name}-copy）。',
   '目标名字不能和来源「{profile}」一样，换一个配置名称。',
   '全局目录里已经有「{name}」，换个名字再复制。',
@@ -99,28 +99,28 @@ test('前两档下面挂一条两档 tab：自己起名 / 从已有配置复制�
   assert.ok(isolation.indexOf('id="launchIsolationHint"') < isolation.indexOf('id="launchGuideField"'), '引导块放在说明行下面')
   assert.match(isolation, /<div class="launch-guide" id="launchGuideField">/)
   // 两档 tab 跟上面三档同款胶囊，只是等分两份；data-active 取值（name / copy）跟三档的错开
-  assert.match(isolation, /<div class="launch-isolation-tabs launch-isolation-tabs--pair" id="launchSourceTabs" role="tablist" aria-label="配置来源" data-i18n-aria-label="配置来源"[^>]*data-active="name">/)
+  assert.match(isolation, /<div class="launch-isolation-tabs launch-isolation-tabs--pair" id="launchSourceTabs" role="tablist" aria-label="实例来源" data-i18n-aria-label="实例来源"[^>]*data-active="name">/)
   const tabs = [...isolation.matchAll(/<button class="launch-isolation-tab launch-source-tab"[^>]*data-source="(name|copy)"[^>]*>/g)]
-  assert.deepEqual(tabs.map((match) => match[1]), ['name', 'copy'], 'tab 顺序：新建配置 → 从已有配置复制')
+  assert.deepEqual(tabs.map((match) => match[1]), ['name', 'copy'], 'tab 顺序：新建实例 → 从已有实例复制')
   assert.match(isolation, /data-source="name" aria-selected="true" aria-controls="launchSourceNamePanel"/, '默认停在自己起名那档')
   assert.match(isolation, /data-source="copy" aria-selected="false" aria-controls="launchSourceCopyPanel"/)
-  for (const label of ['新建配置', '从已有配置复制']) {
+  for (const label of ['新建实例', '从已有实例复制']) {
     assert.ok(isolation.includes(`data-i18n="${label}">${label}</button>`), `tab 文案要有中英翻译：${label}`)
   }
   // 面板：名字那档默认露出来，复制来源那块先藏着
   assert.match(isolation, /<div class="launch-source-panel" id="launchSourceNamePanel" role="tabpanel">/)
   assert.match(isolation, /<div class="launch-source-panel" id="launchSourceCopyPanel" role="tabpanel" hidden>/)
-  // 名字输入两档各一个：插件隔离改 Profile 名，会话隔离给新目录里的 Profile 取名
-  assert.match(isolation, /id="launchProfileCustom"[^>]*aria-label="配置名称" data-i18n-aria-label="配置名称"/, '没有可见 label，读屏靠 aria-label')
-  assert.match(isolation, /id="launchHomeProfile"[^>]*aria-label="配置名称" data-i18n-aria-label="配置名称"/)
+  // 名字输入两档各一个：插件隔离改实例名，会话隔离给新目录里的实例取名
+  assert.match(isolation, /id="launchProfileCustom"[^>]*aria-label="实例名称" data-i18n-aria-label="实例名称"/, '没有可见 label，读屏靠 aria-label')
+  assert.match(isolation, /id="launchHomeProfile"[^>]*aria-label="实例名称" data-i18n-aria-label="实例名称"/)
   assert.doesNotMatch(isolation, /(?:aria-label|data-i18n)="[^"]*Profile[^"]*"/, '这一块的中文文案不再写 Profile')
   // 新建配置落在哪：设备列表放在「新建配置」面板里
   assert.match(isolation, /id="launchSourceNamePanel"[\s\S]*id="launchGuideDirTrigger"/, '新建配置面板里有用户目录列表')
   assert.ok(isolation.indexOf('id="launchSourceTabs"') < isolation.indexOf('id="launchGuideDeviceField"'), '用户目录列表在来源 tab 下面')
   const copyPanel = isolation.slice(isolation.indexOf('id="launchSourceCopyPanel"'), isolation.indexOf('id="launchSourceNamePanel"'))
   assert.ok(!copyPanel.includes('launchGuideDevice'), '复制档不选设备：三级菜单已经把目录与配置选掉了')
-  // 复制来源不再用两串下拉：一行按钮打开两栏选择窗（见下面专门的用例）
-  assert.match(isolation, /id="launchSourceCopyPanel"[\s\S]*id="launchCopyPick" aria-haspopup="dialog"[\s\S]*id="launchCopyPickValue"/)
+  // 复制来源改用应用内下拉，和「新建实例」同款控件，不再是两串下拉或弹出三栏大窗
+  assert.match(isolation, /id="launchSourceCopyPanel"[\s\S]*id="launchCopyPick" aria-haspopup="listbox"[\s\S]*id="launchCopyPickValue"/)
   assert.ok(!isolation.includes('id="launchCopyHome"'), '来源目录不再是下拉')
   assert.ok(!isolation.includes('id="launchCopyProfile"'), '来源 Profile 不再是下拉')
   // 自动启动跟「Profile 从哪来」无关，两档共用一份，不跟着隐藏
@@ -135,8 +135,8 @@ test('自定义档是可显隐的字段块：原来那张完整表单原样搬�
   const fields = section('<div class="launch-custom-fields" id="launchCustomFields">', '<!-- /launch-custom-fields -->')
   assert.match(fields, /id="versionPicker"[\s\S]*id="launchUpdateChannel"/, '版本行也在里面')
   assert.match(fields, /id="launchIdentityField"[\s\S]*id="launchName"/)
-  // 用户目录 + 配置合并成一个「目录与配置」触发器，两个下拉藏在同一格里当真相源
-  assert.match(fields, /id="launchEnvField"[\s\S]*<label for="launchEnvPick"[\s\S]*id="launchEnvPick" aria-haspopup="dialog"[\s\S]*id="launchEnvPickValue"[\s\S]*<select id="launchDshHome"[^>]*hidden><\/select>[\s\S]*<select id="launchProfile" title="Profile" hidden><\/select>/, '目录与配置的选择窗触发器 + 两个隐藏下拉')
+  // 用户目录触发器打开目录下拉面板，两个真下拉藏在同一格里当真相源
+  assert.match(fields, /id="launchEnvField"[\s\S]*<label for="launchEnvPick"[\s\S]*id="launchEnvPick" aria-haspopup="listbox"[\s\S]*id="launchEnvPickValue"[\s\S]*<select id="launchDshHome"[^>]*hidden><\/select>[\s\S]*<select id="launchProfile" title="Profile" hidden><\/select>/, '用户目录的下拉触发器 + 两个隐藏下拉')
   assert.ok(!fields.includes('id="launchHomeSelectField"'), '目录下拉不再单独占一行')
   assert.match(fields, /id="launchPort"/)
   // 「打开启动器时启动」自定义档里也有一份（折叠里那两份跟它同步）
@@ -379,8 +379,8 @@ test('引导接线：说明行/占位符随档刷新、目录下拉由登记目�
   const paint = section('    function paintLaunchIsolation() {', '    // 名字边打边更新说明行')
   assert.match(paint, /tabsEl\.dataset\.active = launchIsolation/, '切档把胶囊浮块滑到对应位置')
   assert.match(paint, /paintLaunchHomeCustom\(\)/, '切档时重画目录下拉（第一项跟着自动目录变）')
-  assert.match(paint, /launchProfileCustomEl\.placeholder = suggestIsolatedProfile\(\)/, 'Profile 名称占位符就是自动会取的名字')
-  assert.match(paint, /launchHomeProfileEl\.placeholder = t\('配置名称，留空用 web'\)/)
+  assert.match(paint, /launchProfileCustomEl\.placeholder = suggestIsolatedProfile\(\)/, '实例名称占位符就是自动会取的名字')
+  assert.match(paint, /launchHomeProfileEl\.placeholder = t\('实例名称，留空用 web'\)/)
   assert.match(paint, /paintLaunchHint\(\)/, '说明行由单独的函数画（改名字时只重画它）')
   // 名字边打边更新：说明行和启动项名都跟着变
   const typing = section('    for (const input of [launchProfileCustomEl, launchHomeProfileEl]) {', '    // 两排 tab 共用一套处理')
@@ -514,9 +514,9 @@ test('选配置是三栏选择窗：目录 / 配置 / 插件，两档用途共�
   assert.doesNotMatch(dialog, /id="profilePickHomeAdd"/, '不再重复放添加目录按钮')
   assert.match(dialog, /id="profilePickCreate" type="button"/)
   assert.match(dialog, /id="profilePickCopy" type="button"[^>]*disabled/)
-  // 复制来源那行：一个按钮打开弹窗，不再是两串下拉；自定义档同样换了触发器
+  // 复制来源那行：用同款应用内下拉选择已有实例，不再有原生 select
   const panel = section('id="launchSourceCopyPanel"', 'id="launchSourceNamePanel"')
-  assert.match(panel, /id="launchCopyPick" aria-haspopup="dialog"/)
+  assert.match(panel, /id="launchCopyPick" aria-haspopup="listbox"/)
   assert.ok(!panel.includes('<select'), '面板里不再有下拉')
 
   // 选项铺法：全局目录排第一；名字默认取文件夹名，本机 / 远程靠图标区分；起不了网页的仍然列出但不可选
@@ -888,4 +888,235 @@ test('从选择窗创建项目：取消回到选择窗，而不是掉回主页',
   assert.ok(!/forceHidePackDialog\(profilePickDialogEl\)/.test(handler), '打开创建项目时不能先把选择窗收掉')
   assert.match(handler, /openProjectDialog\(\)/, '创建项目叠在选择窗上面，取消后自然回到它')
   assert.match(page, /if \(!profilePickDialogEl\.hidden\) void forceHidePackDialog\(profilePickDialogEl\)[\s\S]{0,160}?if \(!launchDialogEl\.hidden\) void forceHidePackDialog\(launchDialogEl\)/, '创建成功后仍按独立流程收尾')
+})
+
+test('从已有实例复制使用同款应用内下拉面板：列出可用实例并在触发器显示「实例名 · 路径」', () => {
+  assert.match(page, /id="launchCopyPanel"[^>]*hidden/)
+  assert.match(page, /id="launchCopyList" role="listbox"/)
+  assert.match(page, /id="launchCopyPickIcon"/)
+  const iconUse = { href: '', setAttribute(k, v) { if (k === 'href') this.href = v } }
+  const pickEl = { classList: { toggle() {} }, setAttribute(k, v) { this[k] = v }, title: '' }
+  const valueEl = { textContent: '' }
+  const listEl = { innerHTML: '' }
+  const context = vm.createContext({
+    state: {
+      dshHome: 'C:\\global',
+      profiles: ['web', 'work'],
+      webProfiles: ['web', 'work'],
+      profilesByHome: { 'D:\\extra': ['lab'] },
+      webProfilesByHome: { 'D:\\extra': ['lab'] },
+      dshHomes: ['D:\\extra'],
+      launchPresets: [],
+    },
+    launchEntries: () => context.state.launchPresets,
+    homeOptions: () => new Map([['D:\\extra', '实验室']]),
+    launchCopySource: { home: 'C:\\global', profile: 'web' },
+    launchCopyCandidates: [],
+    launchCopyPickEl: pickEl,
+    launchCopyPickValueEl: valueEl,
+    launchCopyListEl: listEl,
+    connectionForHomeKey: () => null,
+    parseSshHomeKey: () => null,
+    parseWslHomeKey: () => null,
+    connectionTarget: () => '',
+    launchHomeOf: () => '',
+    escapeHtml: (v) => String(v),
+    t: (text) => text,
+    document: { getElementById: (id) => (id === 'launchCopyPickIcon' ? { querySelector: () => iconUse } : null) },
+  })
+  vm.runInContext(
+    `${pathHelpers}
+${functionSource('collectLaunchCopyItems')}
+${functionSource('paintLaunchCopyList')}
+${functionSource('paintLaunchCopy')}`,
+    context,
+  )
+  context.paintLaunchCopy()
+  assert.equal(valueEl.textContent, 'web · C:\\global')
+  assert.equal(iconUse.href, '/icons.svg#lucide-package')
+  context.paintLaunchCopyList()
+  assert.match(listEl.innerHTML, /<strong>web<\/strong><small>C:\\global<\/small>/)
+  assert.match(listEl.innerHTML, /<strong>work<\/strong><small>C:\\global<\/small>/)
+  assert.match(listEl.innerHTML, /<strong>lab<\/strong><small>D:\\extra<\/small>/)
+  assert.match(listEl.innerHTML, /is-selected"[^>]*data-copy-index="0"/)
+  assert.match(listEl.innerHTML, /data-env-manage="1"[\s\S]*?<strong>管理实例<\/strong>/, '插件隔离/会话隔离的复制实例下拉框也有管理实例入口')
+})
+
+test('会话隔离的新建目录走统一下拉面板：包含自动新建、已有目录和创建项目，旧下拉藏起来', () => {
+  assert.match(css, /#launchGuideDirField[^{]*\{\s*display:\s*none;\s*\}/, '旧原生下拉包装器通过 CSS 隐藏，只当真相源')
+  assert.match(css, /#launchLocalVersionGroup[^{]*\{\s*display:\s*none;\s*\}/, '自定义表单不再展示版本与版本类型选择组')
+  assert.match(section('const EN = {', 'function t(zh, vars)'), /"自动新建":\s*"Create automatically",/)
+  const iconUse = { href: '', setAttribute(k, v) { if (k === 'href') this.href = v } }
+  const context = vm.createContext({
+    state: { dshHome: 'C:\\global', dataDir: 'C:\\data', dshHomes: ['D:\\work'], dshHomeNames: { 'D:\\work': '工作目录' }, launchPresets: [] },
+    launchEntries: () => [],
+    homeOptions: () => new Map([['D:\\work', '工作目录']]),
+    pluginHomeName: (home, fallback) => (home === 'D:\\work' ? '工作目录' : fallback),
+    folderBaseName: (path) => String(path || '').replace(/[\\/]+$/, '').split(/[\\/]/).pop() || '',
+    launchSourceMode: 'name',
+    launchIsolation: 'home',
+    launchIsGuided: () => true,
+    launchGuideBackend: 'local',
+    launchGuideConnectionId: '',
+    guideConnection: () => null,
+    launchBackendIsRemote: () => false,
+    guideTargetIsRemote: () => false,
+    connectionById: () => null,
+    connectionsList: () => [],
+    connectionRuntime: {},
+    PLUGIN_HOME_MANAGE: '__manage__',
+    launchHomeCustomEl: { value: '' },
+    launchDshHomeEl: { value: '' },
+    launchConnectionIdEl: { value: '' },
+    launchRemoteHomeEl: { value: '' },
+    launchHomeProfileEl: { value: '' },
+    launchProfileCustomEl: { value: '' },
+    launchNameEl: { value: '' },
+    launchNameAuto: '',
+    launchGuideDirListEl: { innerHTML: '' },
+    launchGuideDeviceEl: { innerHTML: '', value: '' },
+    launchGuideDirLabelEl: { textContent: '' },
+    launchGuideDirIconEl: { querySelector: () => iconUse },
+    launchGuideDirStatusEl: { hidden: false, className: '' },
+    launchGuideDeviceFieldEl: { hidden: true },
+    launchGuideWslHomeFieldEl: { hidden: true },
+    launchGuideDirFieldEl: { hidden: false },
+    launchGuideTargetHintEl: { hidden: false, textContent: '' },
+    launchGuideWslHomeEl: { placeholder: '' },
+    syncGuideWslFields: () => {},
+    paintLaunchHomeCustom: () => {},
+    refreshCopyTargetProfiles: () => {},
+    paintLaunchIsolation: () => {},
+    suggestIsolatedProfile: () => 'work',
+    guideRemoteHomeValue: () => '~/.dsh',
+    versionScopeState: null,
+    launchWslProfiles: [],
+    t: (text) => text,
+    escapeHtml: (value) => String(value ?? ''),
+  })
+  vm.runInContext(
+    `${pathHelpers}
+${functionSource('suggestIsolatedHome')}
+${functionSource('guidedLaunchName')}
+${functionSource('fillGuidedLaunchName')}
+${functionSource('paintGuideTarget')}
+${functionSource('selectGuideLocalHome')}`,
+    context,
+  )
+
+  context.paintGuideTarget()
+  assert.equal(context.launchGuideDeviceFieldEl.hidden, false, '会话隔离同样展示统一目录下拉触发器')
+  assert.equal(context.launchGuideDirLabelEl.textContent, '自动新建 · C:\\data\\homes\\dsh')
+  assert.match(context.launchGuideDirListEl.innerHTML, /<button class="project-device-option is-selected"[^>]*data-guide-home=""><span class="project-device-option-icon">[\s\S]*?<strong>自动新建<\/strong><small>C:\\data\\homes\\dsh<\/small>/)
+  assert.match(context.launchGuideDirListEl.innerHTML, /data-guide-home="D:\\work"[\s\S]*?<strong>工作目录<\/strong><small>D:\\work<\/small>/)
+  assert.match(context.launchGuideDirListEl.innerHTML, /data-guide-create[\s\S]*?<strong>创建项目<\/strong>/)
+
+  context.selectGuideLocalHome('D:\\work')
+  assert.equal(context.launchHomeCustomEl.value, 'D:\\work')
+  assert.equal(context.launchGuideDirLabelEl.textContent, '工作目录 · D:\\work')
+  assert.match(context.launchGuideDirListEl.innerHTML, /<button class="project-device-option is-selected"[^>]*data-guide-home="D:\\work"/)
+})
+
+test('自定义档的「用哪个实例」改用同款应用内下拉面板：复用 launchCopyPanel，显示「实例名 · 路径」', () => {
+  const envField = section('id="launchEnvField"', 'id="launchPort"')
+  assert.match(envField, /class="project-device-trigger" id="launchEnvPick"/)
+  const field = section('<div class="home-field" id="launchEnvironmentField">', '<!-- 本机版本整组')
+  assert.match(field, /class="project-device-trigger" id="launchEnvironmentPick" aria-haspopup="listbox" aria-expanded="false" aria-controls="launchCopyPanel"/)
+  assert.match(field, /id="launchEnvironmentPickIcon"[\s\S]*#lucide-package/)
+  assert.match(field, /id="launchEnvironmentPickValue"/)
+  assert.match(field, /<select id="launchEnvironment" hidden>/)
+  assert.match(css, /#launchEnvironmentField \.ui-select, #launchEnvironmentField > select, #launchEnvironmentHint/)
+  assert.match(css, /#launchDialog \.select-trigger, #launchDialog \.project-device-trigger \{ min-height: 42px; height: 42px; padding: 0 12px; border-radius: 10px; font-size: 13px; \}/)
+
+  const iconUse = { href: '', setAttribute(k, v) { if (k === 'href') this.href = v } }
+  const pickEl = { classList: { toggle() {} }, setAttribute(k, v) { this[k] = v }, title: '' }
+  const valueEl = { textContent: '' }
+  const listEl = { innerHTML: '' }
+  const context = vm.createContext({
+    state: {
+      dshHome: 'C:\\global',
+      profiles: ['web', 'work', 'deleted-ghost'],
+      webProfiles: ['web', 'work', 'deleted-ghost'],
+      profilesByHome: {},
+      webProfilesByHome: {},
+      dshHomes: [],
+      launchPresets: [],
+    },
+    environmentState: {
+      list: [
+        { id: 'env-web', name: 'web', targetProfile: 'web', targetHome: 'C:\\global' },
+        { id: 'env-work', name: '工作环境', targetProfile: 'work', targetHome: 'C:\\global' },
+      ],
+    },
+    launchEntries: () => context.state.launchPresets,
+    homeOptions: () => new Map(),
+    launchBackendIsRemote: () => false,
+    connectionById: () => null,
+    launchConnectionIdEl: { value: '' },
+    launchRemoteHomeEl: { value: '' },
+    launchWslHomeEl: { value: '' },
+    launchDshHomeEl: { value: '' },
+    launchProfile: 'work',
+    launchCopySource: null,
+    launchCopyCandidates: [],
+    launchCopyAnchorEl: pickEl,
+    launchCopyPickEl: { setAttribute() {} },
+    launchEnvironmentPickEl: pickEl,
+    launchEnvironmentPickValueEl: valueEl,
+    launchCopyListEl: listEl,
+    connectionForHomeKey: () => null,
+    parseSshHomeKey: () => null,
+    parseWslHomeKey: () => null,
+    connectionTarget: () => '',
+    launchHomeOf: () => '',
+    escapeHtml: (v) => String(v),
+    t: (text) => text,
+    document: {
+      getElementById: (id) => (
+        id === 'launchEnvironmentPickIcon'
+          ? { querySelector: () => iconUse }
+          : id === 'launchEnvironment'
+            ? { value: 'env-work' }
+            : null
+      ),
+    },
+  })
+  vm.runInContext(
+    `${pathHelpers}
+${functionSource('collectLaunchCopyItems')}
+${functionSource('paintLaunchCopyList')}
+${functionSource('paintLaunchEnvironmentPick')}`,
+    context,
+  )
+  context.paintLaunchEnvironmentPick()
+  assert.equal(valueEl.textContent, 'work · C:\\global')
+  assert.equal(iconUse.href, '/icons.svg#lucide-package')
+  context.paintLaunchCopyList()
+  assert.match(listEl.innerHTML, /<button class="project-device-option is-selected"[^>]*data-copy-index="1"[\s\S]*?<strong>工作环境<\/strong><small>C:\\global<\/small>/)
+  assert.doesNotMatch(listEl.innerHTML, /deleted-ghost/, '已删除实例遗留的目录不再混进实例下拉列表')
+  assert.match(listEl.innerHTML, /<button class="project-device-option is-add"[^>]*data-env-manage="1"[\s\S]*?#lucide-sliders-horizontal[\s\S]*?<strong>管理实例<\/strong>/)
+  assert.match(section("launchCopyListEl?.addEventListener('click'", '    function selectGuideLocalHome('), /data-env-manage[\s\S]*showPane\('environments'\)/)
+  for (const [id, icon] of [['environmentRestore', 'lucide-rotate-ccw'], ['environmentSave', 'lucide-save'], ['environmentAddOpen', 'lucide-plus']]) {
+    assert.match(page, new RegExp(`class="ghost icon-btn(?: action-icon)?" id="${id}"[^>]*>[\\s\\S]{0,120}#${icon}`), `${id} 统一用图标按钮`)
+  }
+})
+
+test('新建实例时隐藏「打开启动器时启动」和「桌面增强」，仅编辑已有启动项时展示', () => {
+  assert.match(css, /#launchForm:has\(#launchIsolationHead:not\(\[hidden\]\)\) \.launch-auto-launch,\s*#launchForm:has\(#launchIsolationHead:not\(\[hidden\]\)\) #launchDesktopEnhanceField \{ display: none; \}/)
+  const { context } = isolationHarness()
+  context.launchAutoLaunchEl = { parentElement: { hidden: false } }
+  context.launchAutoLaunchGuidedEl = { parentElement: { hidden: false } }
+  context.launchDesktopEnhanceFieldEl = { hidden: false }
+
+  for (const mode of ['profile', 'home', 'custom']) {
+    context.setLaunchIsolation(mode, true)
+    assert.equal(context.launchAutoLaunchEl.parentElement.hidden, true, `${mode} 新建时隐藏自定义档自动启动`)
+    assert.equal(context.launchAutoLaunchGuidedEl.parentElement.hidden, true, `${mode} 新建时隐藏引导区自动启动`)
+    assert.equal(context.launchDesktopEnhanceFieldEl.hidden, true, `${mode} 新建时隐藏桌面增强`)
+  }
+
+  context.setLaunchIsolation('custom', false)
+  assert.equal(context.launchAutoLaunchEl.parentElement.hidden, false, '编辑启动项时恢复显示自动启动')
+  assert.equal(context.launchAutoLaunchGuidedEl.parentElement.hidden, true, '引导区自动启动始终隐藏')
+  assert.equal(context.launchDesktopEnhanceFieldEl.hidden, false, '编辑启动项时恢复显示桌面增强')
 })

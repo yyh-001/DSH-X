@@ -90,12 +90,13 @@ test('目录的迟到响应不能覆盖另一次选择，目录检查后按新�
   assert.deepEqual(Array.from(c.state.profilesByHome['D:/new']), ['web'])
 })
 
-test('自定义档的目录 + 配置交给选择窗，底下的下拉只当真相源', () => {
+test('自定义档的用户目录交给目录下拉面板，底下的下拉只当真相源', () => {
   const field = section('id="launchEnvField"', 'id="launchPort"')
-  // 一行「目录与配置」触发器：点开三栏选择窗，目录和配置（dsh profile）一起挑；「实例」留给装好插件的 DSH
-  assert.match(field, /<label for="launchEnvPick" data-i18n="目录与配置">目录与配置<\/label>/)
-  assert.doesNotMatch(field, /目录与 Profile|启动环境/, '旧叫法不再出现在这一格')
-  assert.match(field, /id="launchEnvPick" aria-haspopup="dialog"/)
+  // 一行「用户目录」触发器：只挑用户目录（不和下面的「用哪个实例」冲突）
+  assert.match(field, /<label for="launchEnvPick" data-i18n="用户目录">用户目录<\/label>/)
+  assert.doesNotMatch(field, /目录与 Profile|启动环境|目录与配置/, '旧叫法不再出现在这一格')
+  assert.match(field, /id="launchEnvPick" aria-haspopup="listbox"/)
+  assert.match(field, /id="launchEnvPickIcon"/)
   assert.match(field, /id="launchEnvPickValue"/)
   assert.doesNotMatch(field, /launchPickHome|launchResetHome|readonly/)
   assert.doesNotMatch(field, /<datalist|浏览…/)
@@ -107,6 +108,34 @@ test('自定义档的目录 + 配置交给选择窗，底下的下拉只当真�
   assert.doesNotMatch(page, /id="launchWorkdir"|id="launchProjectDir"/)
   // 原生 select 得接进自绘那套，否则点开的是系统菜单（藏起来的这两个也在其中）
   assert.match(page, /querySelectorAll\('#launchDshHome[^']*#launchProfile[^']*#pluginHome/)
+
+  // paintLaunchEnvTrigger 只显示用户目录名称与路径（不再拼 › profile）
+  const iconUse = { href: '', setAttribute(k, v) { if (k === 'href') this.href = v } }
+  const pickEl = {
+    classList: { toggle() {}, remove() {}, add() {} },
+    setAttribute(k, v) { this[k] = v },
+    title: '',
+  }
+  const valueEl = { textContent: '' }
+  const { context: c } = editor()
+  Object.assign(c, {
+    launchEnvPickEl: pickEl,
+    launchEnvPickValueEl: valueEl,
+    launchConnectionIdEl: { value: '' },
+    launchRemoteHomeEl: { value: '' },
+    launchWslHomeEl: { value: '' },
+    launchWslDistroEl: { value: '' },
+    launchBackendIsRemote: () => false,
+    connectionById: () => null,
+    pluginHomeName: () => '',
+    folderBaseName: (p) => String(p).replace(/[\\/]+$/, '').split(/[\\/]/).filter(Boolean).pop() || '',
+    document: { getElementById: (id) => (id === 'launchEnvPickIcon' ? { querySelector: () => iconUse } : null) },
+  })
+  vm.runInContext(section('    function paintLaunchEnvTrigger()', '    function paintPickerHomes()'), c)
+  c.paintLaunchEnvTrigger()
+  assert.equal(valueEl.textContent, 'global · C:/global', '只展示目录名与路径')
+  assert.doesNotMatch(valueEl.textContent, /›|web/, '不拼接 profile')
+  assert.equal(iconUse.href, '/icons.svg#lucide-folder')
 })
 
 test('下拉末项是管理目录：选中它只开弹窗，不会把占位值当成目录', () => {
@@ -178,6 +207,8 @@ test('独立目录的恢复提示不受全局状态推送覆盖，空作用域�
   c.launchDshHomeEl.value = ''
   c.renderRecovery()
   assert.equal(c.recoveryHintEl.hidden, true, '切换目录后不沿用另一份目录的恢复档')
+  const css = readFileSync(new URL('../src/public/launcher.css', import.meta.url), 'utf8')
+  assert.match(css, /#recoveryHint \{ display: none; \}/, '启动项弹窗底部不再展示配置备份还原提醒')
   vm.runInContext(section('    const scopedLaunchId =', '    const post ='), c)
   assert.equal(vm.runInContext("scopedLaunchId('/api/recover', '')", c), '')
   assert.equal(vm.runInContext("scopedLaunchId('/api/recover')", c), 'work')

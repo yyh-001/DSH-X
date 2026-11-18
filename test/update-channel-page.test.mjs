@@ -352,11 +352,12 @@ function paint(entries, scene) {
   const cards = {}
   for (const chunk of context.launchPresetsEl.innerHTML.split('data-launch-key="').slice(1)) {
     const id = chunk.slice(0, chunk.indexOf('"'))
-    const button = /<button\b[^>]*\bclass="[^"]*\blaunch-new-version\b[^"]*"[^>]*>([\s\S]*?)<\/button>/.exec(chunk)
+    const button = /<button\b([^>]*\bclass="[^"]*\blaunch-new-version\b[^"]*"[^>]*)>([\s\S]*?)<\/button>/.exec(chunk)
+    const aria = button ? /\baria-label="([^"]*)"/.exec(button[1])?.[1] : null
     const entry = entries.find((item) => item.id === id)
     cards[id] = {
       version: context.resolveLaunchVersion(entry),
-      button: button ? button[1].replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() : null,
+      button: button ? (aria ?? button[2].replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()) : null,
       click() {
         const target = context.launchPresetsEl.buttons().find((item) => item.dataset.versionId === id)
         assert.ok(target?.onclick, `${id} 的「新版本」按钮要能点`)
@@ -767,4 +768,14 @@ test('状态推送：弹窗开着时 channelPlans 变了，说明跟着变，开
   push({ installed: NO_OFFICIAL.installed, published: null })
   assert.match(hintOf(h), FALLBACK_SAYS.zh[0], '又不认得正式版了：说明再次讲退档')
   assert.equal(String(h.slider.value), '0')
+})
+
+test('「新版本」升级入口是操作区里的紧凑图标按钮，安装中直接变成旋转图标动画、不再铺底栏进度条', () => {
+  const copy = page.slice(page.indexOf('<span class="launch-preset-copy">'), page.indexOf('<span class="launch-actions">'))
+  assert.doesNotMatch(copy, /launch-new-version/, '左侧文案与标题区不放新版本胶囊，避免挤压名称或加高卡片')
+  const actions = page.slice(page.indexOf('<span class="launch-actions">'), page.indexOf('data-launch-id="${entry.id}"'))
+  assert.match(actions, /class="launch-edit launch-new-version[\s\S]*?#lucide-\$\{activeUpgrade \? 'refresh-cw' : 'arrow-up-to-line'\}/, '操作区使用统一尺寸的升级图标，安装中切换为旋转图标')
+  const css = readFileSync(new URL('../src/public/launcher.css', import.meta.url), 'utf8')
+  assert.match(css, /\.launch-edit\.launch-new-version\.is-installing svg \{ animation: spin/)
+  assert.match(page.replace(/\r\n/g, '\n'), /setProgress\(false\)/, '主页不再展示底部安装进度条')
 })

@@ -212,8 +212,8 @@ test('导出：结果晚到、弹窗已经重新打开过时，不往新弹窗�
 test('导入 / 导出入口在环境页：Profile 页撤掉了这两个按钮', () => {
   const envPane = slice('<section class="pane" id="pane-environments">', '<section class="pane fill" id="pane-mcp">')
   // 顶栏动作是图标加文字（pane-action），翻译标记挂在文字那个 span 上
-  assert.match(envPane, /<button class="ghost pane-action" id="environmentImport" type="button">[\s\S]*?<span data-i18n="导入…">导入…<\/span><\/button>/, '环境页有「导入…」')
-  assert.match(envPane, /<button class="ghost icon-btn pack-tool" id="environmentExport" type="button" title="导出实例" aria-label="导出实例"/, '实例详情页头有「导出实例」图标按钮')
+  assert.match(envPane, /<button class="ghost pane-action" id="environmentImport" type="button">[\s\S]*?<span data-i18n="导入镜像…">导入镜像…<\/span><\/button>/, '环境页有「导入镜像…」')
+  assert.match(envPane, /<button class="ghost icon-btn pack-tool" id="environmentExport" type="button" title="导出镜像" aria-label="导出镜像"/, '实例详情页头有「导出镜像」图标按钮')
   const profilePane = slice('<section class="pane" id="pane-plugins">', '<section class="pane" id="pane-environments">')
   assert.doesNotMatch(profilePane, /id="(?:environmentImport|environmentExport|packImport\w*|packExport\w*)"/, 'Profile 页里没有导入 / 导出按钮')
   assert.doesNotMatch(html, /data-pack-import|data-pack-export/, 'Profile 详情的工具栏里也不再画这两个按钮')
@@ -285,51 +285,37 @@ const tileOf = (cardHtml) => {
   return match ? { hue: Number(match[1]), char: match[2] } : null
 }
 
-test('内置环境配方是环境页网格里的卡片：没导入过的才画，点一张进导入预览；导入弹窗里没有这一块', () => {
+test('环境页网格只画已有实例卡片：即使服务端带着内置配方也不再展示，导入弹窗里也没有这一块', () => {
   const grid = fakeContainer()
-  const inspected = []
   const context = cardContext({
     el: { grid, hint: { textContent: '' } },
     environments: [{ id: 'env-a', name: '甲', dshVersion: '1.0.0', plugins: [], usedBy: [] }],
     builtin: [
       { name: 'dsh-x-recommended', displayName: 'DSH-X 推荐实例', description: '开箱即用的一整套插件，说明很长很长', imported: false },
-      { name: 'dsh-x-workbench', displayName: '工作台', description: '', imported: true },
+      { name: 'dsh-x-workbench', displayName: '工作台', description: '', imported: false },
     ],
     busy: false, updates: {},
     versionText: (env) => env.dshVersion, thirdParty: (env) => env.plugins,
-    open() {}, inspectPack: (payload) => { inspected.push(JSON.parse(JSON.stringify(payload))) },
+    open() {},
   })
   new vm.Script(envSlice('  function tagsOf(', '  function paintVersionOptions(')).runInContext(context)
   context.renderGrid()
   assert.match(grid.innerHTML, /data-environment="env-a"/, '环境卡片照画')
   // 中文界面把这个对象叫「实例」：卡片按钮的读屏名称跟着说实例（配置页那张卡说「查看配置…」）
   assert.match(grid.innerHTML, /data-environment="env-a" aria-label="查看实例 甲 的插件"/)
-  assert.match(grid.innerHTML, /data-builtin="dsh-x-recommended" aria-label="导入内置实例 DSH-X 推荐实例"/)
+  assert.doesNotMatch(grid.innerHTML, /data-builtin|DSH-X 推荐实例|工作台|随启动器发的镜像配方|内置镜像 · 点开导入/, '内置配方不再在实例网格里画卡片')
+  assert.deepEqual(grid.querySelectorAll('[data-builtin]'), [])
   assert.doesNotMatch(grid.innerHTML, /查看配置|查看环境|导入内置环境/)
-  const recipes = grid.querySelectorAll('[data-builtin]')
-  assert.deepEqual(recipes.map((button) => button.dataset.builtin), ['dsh-x-recommended'], '导入过的配方不再给卡片')
-  assert.match(grid.innerHTML, /DSH-X 推荐实例/)
-  // 配方卡片和实例卡片同一套样子：色块 + 名字 + 一行摘要 + 标签；没有「更多操作」，说明全文只放悬停提示
-  const recipeCard = cardsOf(grid.innerHTML).find((card) => card.includes('data-builtin="dsh-x-recommended"'))
-  assert.deepEqual(tileOf(recipeCard)?.char, 'D', '色块是名字的第一个字')
-  assert.match(recipeCard, /<span class="pack-card-name">DSH-X 推荐实例<\/span>/)
-  assert.match(recipeCard, /<div class="pack-card-meta">随启动器发的实例配方<\/div>/, '摘要固定一行，不放长说明')
-  assert.match(recipeCard, /<div class="pack-card-tags"><span class="pack-tag">内置 · 点开导入<\/span><\/div>/)
-  assert.match(recipeCard, /<button class="pack-card" type="button" data-builtin="dsh-x-recommended" aria-label="[^"]*" title="开箱即用的一整套插件，说明很长很长">/, '说明全文放进悬停提示')
-  assert.equal(recipeCard.split('开箱即用的一整套插件').length - 1, 1, '说明只在 title 里出现一次，卡片正文里没有')
-  assert.doesNotMatch(recipeCard, /<details|更多操作/, '配方卡片没有「更多操作」')
-  recipes[0].onclick()
-  assert.deepEqual(inspected, [{ builtin: 'dsh-x-recommended' }], '点配方卡片走导入预览（只读检查）')
   assert.equal(context.el.hint.textContent, '', '有实例时不显示空列表提示')
   context.environments = []
-  context.builtin = []
   context.renderGrid()
+  assert.equal(grid.innerHTML, '', '没有实例时只留空网格，不会用内置配方填数')
   assert.equal(context.el.hint.textContent, '还没有实例。新建、导入一个，或者先保存一个启动项，启动器会按它的配置自动生成。', '空列表提示说实例和配置')
 
   assert.match(html, /<div class="pack-grid" id="environmentGrid"><\/div>/, '网格在环境页里')
   const importDialog = slice('<div class="ask" id="packImportDialog"', '<div class="ask" id="packInstallDialog"')
   assert.doesNotMatch(importDialog, /data-builtin|id="[^"]*[Bb]uiltin[^"]*"/, '导入弹窗里不再有内置配方那一块')
-  assert.doesNotMatch(html, /data-builtin/, '主脚本不再画内置配方卡片（只有环境页画）')
+  assert.doesNotMatch(html, /data-builtin/, '主脚本不再画内置配方卡片')
 })
 
 test('页面逻辑：一张卡就是一个 profile，点开进详情，开关/更新/删除各自走对接口；导入导出走环境接口', () => {
@@ -379,7 +365,7 @@ test('Profile 页没有整包更新：没有「更新 N 个」和分组更新按
   assert.doesNotMatch(html, /t\('更新 \{n\} 个'|t\('更新 \{name\} 的 \{n\} 个插件'/, '批量更新的文案不再画')
   // 配置页只管开关和数据：单个插件的更新、添加、卸载都搬到实例页（升级插件 = 整个实例的插件一起升）
   assert.doesNotMatch(html, /\/api\/plugins\/(?:update|add|remove)'/, '配置页不再更新 / 添加 / 卸载插件')
-  assert.match(envPage, /post\('\/api\/environments\/plugins\/upgrade', \{ id: env\.id \}\)/, '实例页的「升级插件」按实例走')
+  assert.match(envPage, /post\('\/api\/environments\/plugins\/upgrade', \{ id: env\.id, name \}\)/, '实例页的「升级」按插件走')
 })
 
 test('检查走环境导入接口，包里的配置默认不导；关闭后晚到的旧结果不能复活预览', async () => {
@@ -610,8 +596,8 @@ test('「实例」只指装好插件的 DSH、「配置」指 dsh profile：旧�
   const page = uiSource(html) + uiSource(envPage)
   // 「新实例名称」随顶栏常驻输入框一起撤了：新建弹窗里的名字框用的就是「实例名称」
   for (const text of [
-    '新建实例', '复制实例', '删除实例', '导入实例', '导出实例', '更新实例', '实例名称', '用哪个实例', '返回实例列表',
-    '目录与配置', '选择目录与配置', '修复配置', '新建配置', '复制配置', '重命名配置', '删除配置',
+    '新建实例', '复制实例', '删除实例', '导入镜像', '导出镜像', '更新实例', '实例名称', '用哪个实例', '返回实例列表',
+    '选择目录与配置', '修复配置', '新建配置', '复制配置', '重命名配置', '删除配置',
     '配置名称', '选择配置', '配置备份与回退', '这个配置里有什么', '返回配置列表', '系统配置不能删除', '系统配置不能重命名',
   ]) {
     assert.ok(page.includes(text), `页面里要用「${text}」`)
@@ -651,15 +637,18 @@ test('英文词典：实例那组译成 Instance，配置那组仍叫 Profile，
   }
   for (const [zh, en] of Object.entries(exact)) assert.equal(dict[zh], en, `「${zh}」的英文`)
   for (const zh of [
-    '实例名称', '用哪个实例', '返回实例列表', '导入内置实例 {name}', '随启动器发的实例配方', '还有启动项在用，先给它们换一个实例',
-    '删除实例「{name}」？配置和里面已经装好的插件不受影响。', '实例已导入，配置没能写进配置',
+    '实例名称', '用哪个实例', '返回实例列表', '还有启动项在用，先给它们换一个实例',
+    '删除实例「{name}」？实例清单和对应配置目录都会被彻底删除，不可恢复。', '实例已导入，配置没能写进配置',
   ]) {
     assert.match(dict[zh] || '', /instance/i, `「${zh}」的英文要说 instance`)
     assert.doesNotMatch(dict[zh], /environment/i, `「${zh}」的英文不再说 environment`)
   }
+  for (const zh of ['导入镜像', '导出镜像', '导入内置镜像 {name}', '随启动器发的镜像配方']) {
+    assert.match(dict[zh] || '', /image/i, `「${zh}」的英文要说 image`)
+  }
   for (const zh of [
     '新建配置', '复制配置', '重命名配置', '删除配置', '配置名称', '选择配置', '修复配置', '配置备份与回退', '这个配置里有什么',
-    '返回配置列表', '系统配置不能删除', '系统配置不能重命名', '目录与配置', '选择目录与配置', '选择目录与配置…', '配置来源',
+    '返回配置列表', '系统配置不能删除', '系统配置不能重命名', '选择目录与配置', '配置来源',
     '从已有配置复制', '编辑配置…', '现在装在配置：{names}。', 'WSL 里的配置', '这个配置还没初始化',
   ]) {
     assert.match(dict[zh] || '', /profile/i, `「${zh}」的英文仍叫 profile`)
@@ -892,7 +881,7 @@ test('实例卡片的「更多操作」：复制 / 导出 / 删除，和详情�
   const view = instanceGrid({ environments: [env, used] })
   const [first, second] = cardsOf(view.grid.innerHTML)
   const items = (card) => [...card.matchAll(/<i data-icon="(\w+)"><\/i>([^<]+)<\/button>/g)].map((match) => `${match[1]}:${match[2]}`)
-  assert.deepEqual(items(first), ['copy:复制实例', 'export:导出实例', 'trash:删除实例'])
+  assert.deepEqual(items(first), ['copy:复制实例', 'export:导出镜像', 'trash:删除实例'])
   const camel = (name) => name.replace(/-([a-z])/g, (_, c) => c.toUpperCase())
   const button = (attr, id) => view.grid.querySelectorAll(`[data-${attr}]`).find((item) => item.dataset[camel(attr)] === id)
   // 有启动项在用：删除灰着，并说清为什么；没人用的可以删
@@ -920,14 +909,14 @@ test('实例卡片的「更多操作」：复制 / 导出 / 删除，和详情�
   const cancelButton = cancelled.grid.querySelectorAll('[data-environment-delete]')[0]
   cancelButton.onclick()
   await settle(() => cancelled.confirms.length > 0)
-  assert.deepEqual(cancelled.confirms, [['删除实例「甲」？配置和里面已经装好的插件不受影响。', '删除实例']])
+  assert.deepEqual(cancelled.confirms, [['删除实例「甲」？实例清单和对应配置目录都会被彻底删除，不可恢复。', '删除实例']])
   assert.equal(cancelButton.menu.open, false)
   assert.deepEqual(cancelled.posts, [], '取消就不删')
   const approved = instanceGrid({ environments: [env] })
   approved.context.openedId = 'env-a'
   approved.grid.querySelectorAll('[data-environment-delete]')[0].onclick()
   await settle(() => approved.counts.loads > 0)
-  assert.deepEqual(approved.posts, [['/api/environments/remove', { id: 'env-a' }]])
+  assert.deepEqual(approved.posts, [['/api/environments/remove', { id: 'env-a', removeProfile: true }]])
   assert.equal(approved.context.openedId, '', '删完回到列表')
 
   // 另一个实例操作还在跑：复制和删除都灰着，导出不受影响

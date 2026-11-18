@@ -153,3 +153,20 @@ test('旧设置里的 workdir 迁移成 <项目>/.dsh，坏值回默认而不丢
   assert.ok(bad.some((item) => item.id === 'cccccccccccccccc'), '坏 workdir 只是不迁移，别把启动项整条丢掉')
   assert.equal(bad.find((item) => item.id === 'cccccccccccccccc')?.dshHome, undefined)
 })
+
+test('以已有实例为模板复制时，一并复制其隔离的技能目录', async () => {
+  const sourceHome = join(env.root, 'skill-copy-src')
+  seedProfile(sourceHome, 'web')
+  mkdirSync(join(sourceHome, 'skills', 'demo-skill'), { recursive: true })
+  writeFileSync(join(sourceHome, 'skills', 'demo-skill', 'SKILL.md'), '---\nname: demo-skill\ndescription: demo\n---\n\nhello\n')
+
+  const result = await save({
+    name: 'web-copy',
+    version: '1.0.0',
+    profile: 'web-copy',
+    dshHome: sourceHome,
+    copyFrom: { profile: 'web', home: sourceHome },
+  })
+  assert.ok(result.ok, `保存失败：HTTP ${result.status} ${JSON.stringify(result.data)}`)
+  assert.ok(existsSync(join(sourceHome, 'profiles', 'web-copy', 'skills', 'demo-skill', 'SKILL.md')), '克隆实例应带走来源的隔离技能')
+})

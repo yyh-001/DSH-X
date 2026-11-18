@@ -57,3 +57,20 @@ test('隔离方式记忆：设置接口存取上次选的档，认不出的值�
   const dirty = await env.call('/api/settings', { launchIsolation: '../../etc' })
   assert.equal(dirty.data.launchIsolation, 'profile', '认不出的值回默认档')
 })
+
+test('指定实例但所选用户目录还没建出对应配置时，保存会自动初始化配置', async () => {
+  const created = await env.call('/api/environments/create', { name: '独立目录实例', dshVersion: '1.0.0' })
+  assert.ok(created.ok, `创建实例失败：${JSON.stringify(created.data)}`)
+  const extraHome = join(env.root, 'env-extra-home')
+  const result = await save({
+    name: '跨目录用实例',
+    version: '1.0.0',
+    profile: 'work-env',
+    dshHome: extraHome,
+    environment: created.data.environment.id,
+  })
+  assert.ok(result.ok, `保存失败：HTTP ${result.status} ${JSON.stringify(result.data)}`)
+  assert.equal(result.data.entry.environment, created.data.environment.id)
+  assert.equal(result.data.entry.dshHome, extraHome)
+  assert.ok(existsSync(profileManifest(extraHome, 'work-env')), '指定实例时应自动在目标用户目录下补建缺失的配置')
+})

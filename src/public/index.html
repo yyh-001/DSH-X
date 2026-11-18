@@ -120,7 +120,7 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-package"/></svg>
             <span data-i18n="实例">实例</span>
           </button>
-          <button type="button" class="nav-item" data-pane="plugins">
+          <button type="button" hidden class="nav-item" data-pane="plugins">
             <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-box"/></svg>
             <span data-i18n="配置">配置</span>
           </button>
@@ -128,11 +128,11 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-sun"/></svg>
             <span data-i18n="外观">外观</span>
           </button>
-            <button type="button" class="nav-item" data-pane="mcp">
+            <button type="button" hidden class="nav-item" data-pane="mcp">
             <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-app-window"/></svg>
             <span data-i18n="MCP">MCP</span>
           </button>
-          <button type="button" class="nav-item" data-pane="skills">
+          <button type="button" hidden class="nav-item" data-pane="skills">
             <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-star"/></svg>
             <span data-i18n="技能">技能</span>
           </button>
@@ -156,7 +156,7 @@
              <!-- 控制面板就是主界面本身，不加标题：进来看到的就是这张卡片 -->
              <div class="card home">
         <div class="launch-presets" id="launchPresets"></div>
-        <button class="launch-add" id="launchAdd" type="button" title="添加启动项" aria-label="添加启动项" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-plus"/></svg><span class="sr-only" data-i18n="添加启动项">添加启动项</span></button>
+        <button class="launch-add" id="launchAdd" type="button" title="添加实例" aria-label="添加实例" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-plus"/></svg><span class="sr-only" data-i18n="添加实例">添加实例</span></button>
         <p class="hint" id="hint"></p>
         <div class="progress" id="progress" hidden>
           <div class="progress-bar" id="progress-bar"></div>
@@ -198,7 +198,7 @@
         <!-- 环境页：改的是清单（environment.json），不碰任何 profile 目录；下次用它启动时才写进 Profile 并装依赖。 -->
         <section class="pane" id="pane-environments">
           <div class="pane-inner" id="environmentPanel">
-            <div class="pane-top">
+            <div class="pane-top" id="environmentTop">
               <div>
                 <h1 class="pane-title" data-i18n="实例">实例</h1>
                 <p class="pane-sub" data-i18n="实例 = 装好插件的 DSH。启动项选一个实例和一个配置；在这里改的插件，下次启动时生效。">实例 = 装好插件的 DSH。启动项选一个实例和一个配置；在这里改的插件，下次启动时生效。</p>
@@ -207,7 +207,7 @@
                    名字不再常驻输入框（标题旁一条空输入框比动作本身还抢眼），点「新建实例」才弹窗问。 -->
               <div class="pane-actions">
                 <button class="ghost pane-action icon-only" id="environmentCheckUpdates" type="button" title="检查更新" aria-label="检查更新" data-i18n-title="检查更新" data-i18n-aria-label="检查更新"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-refresh-cw"/></svg></button>
-                <button class="ghost pane-action" id="environmentImport" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-download"/></svg><span data-i18n="导入…">导入…</span></button>
+                <button class="ghost pane-action" id="environmentImport" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-download"/></svg><span data-i18n="导入镜像…">导入镜像…</span></button>
                 <button class="ghost pane-action" id="environmentCreate" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-plus"/></svg><span data-i18n="新建实例">新建实例</span></button>
               </div>
             </div>
@@ -226,7 +226,8 @@
                      从上游源拉新版本，本地实例没有源可更新，整个按钮不出现。 -->
                 <div class="pack-detail-actions">
                   <button class="ghost icon-btn pack-tool" id="environmentApplyUpdate" type="button" title="更新实例" aria-label="更新实例" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-download"/></svg></button>
-                  <button class="ghost icon-btn pack-tool" id="environmentExport" type="button" title="导出实例" aria-label="导出实例" data-i18n-title="导出实例" data-i18n-aria-label="导出实例"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-upload"/></svg></button>
+                  <button class="ghost icon-btn pack-tool" id="environmentBackups" type="button" title="备份与回退" aria-label="备份与回退" data-i18n-title="备份与回退" data-i18n-aria-label="备份与回退"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-history"/></svg></button>
+                  <button class="ghost icon-btn pack-tool" id="environmentExport" type="button" title="导出镜像" aria-label="导出镜像" data-i18n-title="导出镜像" data-i18n-aria-label="导出镜像"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-upload"/></svg></button>
                   <button class="ghost icon-btn pack-tool" id="environmentDuplicate" type="button" title="复制实例" aria-label="复制实例" data-i18n-title="复制实例" data-i18n-aria-label="复制实例"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-copy"/></svg></button>
                   <button class="ghost icon-btn pack-tool danger" id="environmentDelete" type="button" title="删除实例" aria-label="删除实例" data-i18n-title="删除实例" data-i18n-aria-label="删除实例"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-trash-2"/></svg></button>
                 </div>
@@ -236,7 +237,7 @@
               </div>
               <div class="environment-form" id="environmentHistoryRow" hidden>
                 <select id="environmentHistory" aria-label="之前的版本" data-i18n-aria-label="之前的版本"></select>
-                <button class="ghost" id="environmentRestore" type="button" data-i18n="切回这一份">切回这一份</button>
+                <button class="ghost icon-btn" id="environmentRestore" type="button" title="切回这一份" aria-label="切回这一份" data-i18n-title="切回这一份" data-i18n-aria-label="切回这一份"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-rotate-ccw"/></svg></button>
               </div>
               <form class="environment-form" id="environmentEditForm">
                 <input id="environmentName" type="text" autocomplete="off" required aria-label="实例名称" data-i18n-aria-label="实例名称" />
@@ -250,16 +251,25 @@
                   <span class="channel-switch-name" id="environmentChannelName" aria-hidden="true"></span>
                 </div>
                 <button class="ghost icon-btn" id="environmentManageVersions" type="button" title="管理版本" aria-label="管理版本" data-i18n-title="管理版本" data-i18n-aria-label="管理版本"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-layout-list"/></svg></button>
-                <button class="ghost" id="environmentSave" type="submit" data-i18n="保存">保存</button>
+                <button class="ghost icon-btn" id="environmentSave" type="submit" title="保存" aria-label="保存" data-i18n-title="保存" data-i18n-aria-label="保存"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-save"/></svg></button>
               </form>
-              <!-- 插件卡片顶上一栏放管插件的动作：加入、检查兼容性、升级插件（不跟随上游，逐个升到最新） -->
-              <div class="plugin-list environment-plugins">
-                <form class="environment-plugin-bar" id="environmentAddForm">
-                  <input id="environmentSpec" type="text" autocomplete="off" spellcheck="false" aria-label="插件" data-i18n-aria-label="插件" data-placeholder-i18n="插件名，可带版本：dsh-x-memory@0.1.1" />
-                  <button class="ghost" id="environmentAdd" type="submit" data-i18n="加入插件">加入插件</button>
-                  <button class="ghost icon-btn" id="environmentCheckCompatibility" type="button" title="检查兼容性" aria-label="检查兼容性" data-i18n-title="检查兼容性" data-i18n-aria-label="检查兼容性"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-shield-check"/></svg></button>
-                  <button class="ghost icon-btn" id="environmentUpgrade" type="button" title="升级插件" aria-label="升级插件" data-i18n-title="升级插件" data-i18n-aria-label="升级插件"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-arrow-up-to-line"/></svg></button>
-                </form>
+              <div class="environment-toolbar">
+                <div class="launch-isolation-tabs environment-tabs" id="environmentTabs" role="tablist" aria-label="实例内容" data-i18n-aria-label="实例内容" data-active="plugins">
+                  <button type="button" class="launch-isolation-tab" role="tab" data-env-tab="plugins" aria-selected="true" data-i18n="插件">插件</button>
+                  <button type="button" class="launch-isolation-tab" role="tab" data-env-tab="mcp" aria-selected="false" data-i18n="MCP">MCP</button>
+                  <button type="button" class="launch-isolation-tab" role="tab" data-env-tab="skills" aria-selected="false" data-i18n="技能">技能</button>
+                </div>
+                <div class="environment-tab-actions" id="environmentTabActions">
+                  <div class="plugin-actions" id="environmentPluginActions">
+                    <button class="ghost icon-btn action-icon" id="environmentAddOpen" type="button" title="加入插件" aria-label="加入插件" data-i18n-title="加入插件" data-i18n-aria-label="加入插件"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-plus"/></svg></button>
+                    <button class="ghost icon-btn action-icon" id="environmentCheckCompatibility" type="button" title="检查兼容性" aria-label="检查兼容性" data-i18n-title="检查兼容性" data-i18n-aria-label="检查兼容性"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-shield-check"/></svg></button>
+                    <button class="ghost icon-btn action-icon" id="environmentUpgrade" type="button" title="升级插件" aria-label="升级插件" data-i18n-title="升级插件" data-i18n-aria-label="升级插件" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-arrow-up-to-line"/></svg></button>
+                    <button class="ghost icon-btn action-icon" id="environmentCheckPluginUpdates" type="button" title="检查更新" aria-label="检查更新" data-i18n-title="检查更新" data-i18n-aria-label="检查更新"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-refresh-cw"/></svg></button>
+                  </div>
+                </div>
+              </div>
+              <!-- 插件卡片只留兼容性提示与插件列表；有插件更新时露出单行「更新到 x」与右上批量升级 -->
+              <div class="plugin-list environment-plugins" id="environmentPluginsBox">
                 <div class="launch-compatibility environment-compatibility" id="environmentCompatibility" aria-live="polite" hidden>
                   <p class="hint compatibility-status" id="environmentCompatibilityStatus"></p>
                   <ul class="compatibility-issues" id="environmentCompatibilityIssues" hidden></ul>
@@ -267,12 +277,14 @@
                 </div>
                 <div id="environmentPluginList"></div>
               </div>
+              <div id="environmentMcpHost" hidden></div>
+              <div id="environmentSkillsHost" hidden></div>
               <p class="hint" id="environmentUsage"></p>
             </div>
           </div>
         </section>
         <section class="pane fill" id="pane-mcp">
-          <div class="pane-inner fill">
+          <div class="pane-inner fill" id="mcpPanel">
             <div class="pane-top">
               <div>
                 <h1 class="pane-title" data-i18n="MCP 服务器">MCP 服务器</h1>
@@ -288,7 +300,7 @@
           </div>
         </section>
         <section class="pane fill" id="pane-skills">
-          <div class="pane-inner fill">
+          <div class="pane-inner fill" id="skillsPanel">
             <div class="pane-top">
               <div>
                 <h1 class="pane-title" data-i18n="技能">技能</h1>
@@ -724,11 +736,11 @@
   <div class="ask" id="packImportDialog" hidden>
     <div class="ask-card pack-import-card" id="packImportCard" role="dialog" aria-modal="true" aria-labelledby="packImportTitle" tabindex="-1" data-dialog-size="medium">
       <div class="dialog-heading">
-        <div><h2 class="ask-title" id="packImportTitle" data-i18n="导入实例">导入实例</h2><p class="dialog-subtitle" data-i18n="从实例文件（.dspack）或 GitHub 仓库导入，检查之后才动文件。">从实例文件（.dspack）或 GitHub 仓库导入，检查之后才动文件。</p></div>
+        <div><h2 class="ask-title" id="packImportTitle" data-i18n="导入镜像">导入镜像</h2><p class="dialog-subtitle" data-i18n="从镜像文件（.dspack）或 GitHub 仓库导入，检查之后才动文件。">从镜像文件（.dspack）或 GitHub 仓库导入，检查之后才动文件。</p></div>
         <button type="button" class="ghost icon-btn dialog-close" id="packImportClose" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button>
       </div>
-      <div class="pack-source"><input id="packSource" type="text" data-placeholder-i18n="文件路径或 GitHub 仓库（owner/repo）" aria-label="实例文件或 GitHub 仓库" data-i18n-aria-label="实例文件或 GitHub 仓库" autocomplete="off" spellcheck="false" /><button class="ghost" id="packPick" type="button" data-i18n="选文件…">选文件…</button><button class="ghost" id="packCheck" type="button" data-i18n="继续">继续</button></div>
-      <p class="hint" data-i18n="GitHub 仓库取它最新 Release 里的实例文件，导入后跟随它更新。">GitHub 仓库取它最新 Release 里的实例文件，导入后跟随它更新。</p>
+      <div class="pack-source"><input id="packSource" type="text" data-placeholder-i18n="文件路径或 GitHub 仓库（owner/repo）" aria-label="镜像文件或 GitHub 仓库" data-i18n-aria-label="镜像文件或 GitHub 仓库" autocomplete="off" spellcheck="false" /><button class="ghost" id="packPick" type="button" data-i18n="选文件…">选文件…</button><button class="ghost" id="packCheck" type="button" data-i18n="继续">继续</button></div>
+      <p class="hint" data-i18n="GitHub 仓库取它最新 Release 里的镜像文件，导入后跟随它更新。">GitHub 仓库取它最新 Release 里的镜像文件，导入后跟随它更新。</p>
       <p class="hint pack-import-hint" id="packImportHint" role="status" aria-live="polite"></p>
     </div>
   </div>
@@ -746,7 +758,7 @@
   </div>
   <div class="ask" id="packExportDialog" hidden>
     <div class="ask-card" role="dialog" aria-modal="true" aria-labelledby="packExportTitle" data-dialog-size="medium">
-      <h2 class="ask-title" id="packExportTitle" data-i18n="导出实例">导出实例</h2>
+      <h2 class="ask-title" id="packExportTitle" data-i18n="导出镜像">导出镜像</h2>
       <div class="dialog-body">
       <p class="ask-note" data-i18n="导出 DSH 的精确版本和插件清单：npm 插件钉到精确版本，github 插件钉到提交，本地插件打成离线文件。不带配置、会话和凭据。">导出 DSH 的精确版本和插件清单：npm 插件钉到精确版本，github 插件钉到提交，本地插件打成离线文件。不带配置、会话和凭据。</p>
       <div class="mcp-form">
@@ -761,6 +773,7 @@
         <label class="pack-check" id="packExportWorkflowRow" hidden><input type="checkbox" id="packExportWorkflow" /><span data-i18n="附带推 tag 自动发布的 GitHub Actions 模板">附带推 tag 自动发布的 GitHub Actions 模板</span></label>
       </div>
       <div class="pack-export-offline" id="packExportOffline" hidden></div>
+      <div class="pack-export-skills" id="packExportSkillsRow"><label class="pack-check"><input type="checkbox" id="packExportSkills" checked /><span data-i18n="附带这个实例的技能">附带这个实例的技能</span></label></div>
       <p class="hint" id="packExportHint"></p>
       </div>
       <div class="ask-actions">
@@ -902,6 +915,9 @@
   <div class="project-device-panel" id="launchGuideDirPanel" hidden>
     <div class="project-device-list" id="launchGuideDirList" role="listbox" aria-label="用户目录" data-i18n-aria-label="用户目录"></div>
   </div>
+  <div class="project-device-panel" id="launchCopyPanel" hidden>
+    <div class="project-device-list" id="launchCopyList" role="listbox" aria-label="选择一个实例…" data-i18n-aria-label="选择一个实例…"></div>
+  </div>
   <div class="ask" id="connectionProgressDialog" hidden>
     <div class="ask-card connection-progress-card" role="dialog" aria-modal="true" aria-labelledby="connectionProgressTitle" data-dialog-size="medium" tabindex="-1">
       <div class="connection-progress-head">
@@ -940,6 +956,18 @@
       <div class="profile-dialog-actions"><button class="ghost" id="environmentCreateCancel" type="button" data-i18n="取消">取消</button><button class="primary" id="environmentCreateSave" type="submit" data-i18n="创建">创建</button></div>
     </form>
   </div>
+  <!-- 加入插件：和「新建实例」同一张小卡，填插件名（可带版本）；失败留在框里，成功直接关弹窗。 -->
+  <div class="ask" id="environmentAddDialog" hidden>
+    <form class="ask-card profile-dialog-card" id="environmentAddForm" role="dialog" aria-modal="true" aria-labelledby="environmentAddTitle" data-dialog-size="small">
+      <div class="dialog-heading"><h2 class="ask-title" id="environmentAddTitle" data-i18n="加入插件">加入插件</h2><button class="ghost icon-btn dialog-close" id="environmentAddClose" type="button" title="关闭" aria-label="关闭" data-i18n-title="关闭" data-i18n-aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
+      <div class="dialog-body">
+        <label for="environmentSpec" data-i18n="插件">插件</label>
+        <input id="environmentSpec" type="text" autocomplete="off" spellcheck="false" data-placeholder-i18n="插件名，可带版本：dsh-x-memory@0.1.1" />
+        <p class="hint profile-error" id="environmentAddError" role="alert" hidden></p>
+      </div>
+      <div class="profile-dialog-actions"><button class="ghost" id="environmentAddCancel" type="button" data-i18n="取消">取消</button><button class="primary" id="environmentAdd" type="submit" data-i18n="加入插件">加入插件</button></div>
+    </form>
+  </div>
   <div class="ask" id="environmentUpdateDialog" hidden>
     <div class="ask-card" role="dialog" aria-modal="true" aria-labelledby="environmentUpdateTitle" data-dialog-size="medium">
       <h2 class="ask-title" id="environmentUpdateTitle" data-i18n="更新实例">更新实例</h2>
@@ -955,7 +983,7 @@
   </div>
   <div class="ask" id="launchDialog" hidden>
     <form class="ask-card" id="launchForm" role="dialog" aria-modal="true" aria-labelledby="launchDialogTitle" data-dialog-size="medium">
-      <div class="dialog-heading launch-dialog-heading"><h2 class="ask-title" id="launchDialogTitle" data-i18n="编辑启动项">编辑启动项</h2><button class="ghost icon-btn dialog-close" id="launchDialogClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
+      <div class="dialog-heading launch-dialog-heading"><h2 class="ask-title" id="launchDialogTitle" data-i18n="编辑实例">编辑实例</h2><button class="ghost icon-btn dialog-close" id="launchDialogClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
       <!-- 新建启动项先问「怎么隔离」：三档用 tab 切换。前两档什么都不用填（版本、名称、目录、Profile
            都由页面代算），直接保存就新建；想指定 Profile 名、或者照抄一份现成的，用后面那条两档 tab，
            留空还是自动取名。第三档「自定义」才是原来那张完整表单。编辑老启动项时引导整块藏起来、
@@ -989,18 +1017,20 @@
                会话隔离那档的目标目录留在 tab 上面——它说的是「建到哪」，跟「Profile 从哪来」
                是两件事，切 tab 也得一直看得见。第三档「自定义」整块藏起来。 -->
           <div class="launch-guide" id="launchGuideField">
-            <div class="launch-isolation-tabs launch-isolation-tabs--pair" id="launchSourceTabs" role="tablist" aria-label="配置来源" data-i18n-aria-label="配置来源" data-active="name">
-              <button class="launch-isolation-tab launch-source-tab" type="button" role="tab" data-source="name" aria-selected="true" aria-controls="launchSourceNamePanel" data-i18n="新建配置">新建配置</button>
-              <button class="launch-isolation-tab launch-source-tab" type="button" role="tab" data-source="copy" aria-selected="false" aria-controls="launchSourceCopyPanel" data-i18n="从已有配置复制">从已有配置复制</button>
+            <div class="launch-isolation-tabs launch-isolation-tabs--pair" id="launchSourceTabs" role="tablist" aria-label="实例来源" data-i18n-aria-label="实例来源" data-active="name">
+              <button class="launch-isolation-tab launch-source-tab" type="button" role="tab" data-source="name" aria-selected="true" aria-controls="launchSourceNamePanel" data-i18n="新建实例">新建实例</button>
+              <button class="launch-isolation-tab launch-source-tab" type="button" role="tab" data-source="copy" aria-selected="false" aria-controls="launchSourceCopyPanel" data-i18n="从已有实例复制">从已有实例复制</button>
             </div>
             <div class="launch-source-panel" id="launchSourceCopyPanel" role="tabpanel" hidden>
-              <!-- 来源目录 × Profile 交给两栏选择窗（见 openProfilePicker）：目录一多、Profile 一多，
-                   两串下拉要一级级点开还看不全，一个窗口里左右并排点两下就选定。 -->
-              <div class="select">
-                <button type="button" class="select-trigger" id="launchCopyPick" aria-haspopup="dialog" aria-expanded="false">
-                  <span class="select-value" id="launchCopyPickValue"></span>
-                  <svg class="select-caret" viewBox="0 0 12 8" aria-hidden="true"><path fill="currentColor" d="M0 0h12L6 8z"/></svg>
-                </button>
+              <!-- 复制来源跟「新建实例」同款应用内下拉，选中即定下要复制的实例 -->
+              <div class="home-field launch-guide-dirs-field">
+                <div class="project-device-control">
+                  <button type="button" class="project-device-trigger" id="launchCopyPick" aria-haspopup="listbox" aria-expanded="false" aria-controls="launchCopyPanel">
+                    <svg class="project-device-kind-icon" id="launchCopyPickIcon" viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-package"/></svg>
+                    <span class="project-device-label select-value" id="launchCopyPickValue"></span>
+                    <svg class="project-device-caret" viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-chevron-down"/></svg>
+                  </button>
+                </div>
               </div>
             </div>
             <div class="launch-source-panel" id="launchSourceNamePanel" role="tabpanel">
@@ -1029,8 +1059,8 @@
               <!-- 新 Profile 的名字两档都要：自己起名时留空由页面代算，复制档预填「来源-copy」并可改。
                    两个输入各给一档用：插件隔离在全局目录里新建，会话隔离给新目录里的 Profile 取名。
                    占位符就是自动会取的名字，填了就按填的来（见 paintLaunchIsolation） -->
-              <input id="launchProfileCustom" type="text" maxlength="32" autocomplete="off" spellcheck="false" aria-label="配置名称" data-i18n-aria-label="配置名称" />
-              <input id="launchHomeProfile" type="text" maxlength="32" autocomplete="off" spellcheck="false" aria-label="配置名称" data-i18n-aria-label="配置名称" />
+              <input id="launchProfileCustom" type="text" maxlength="32" autocomplete="off" spellcheck="false" aria-label="实例名称" data-i18n-aria-label="实例名称" />
+              <input id="launchHomeProfile" type="text" maxlength="32" autocomplete="off" spellcheck="false" aria-label="实例名称" data-i18n-aria-label="实例名称" />
             </div>
             <!-- 自动启动跟「Profile 从哪来」无关：两档共用这一份，切 tab 也不跟着藏 -->
             <label class="toggle launch-auto-launch">
@@ -1050,13 +1080,14 @@
           </div>
           <div class="home-pickers">
             <div class="home-field" id="launchEnvField">
-              <!-- 用户目录 + Profile 都交给三栏选择窗（同「从已有 Profile 复制」那一份）：一行触发器显示
-                   「目录 › Profile」。底下两个下拉仍留着当唯一真相源（回填、保存、恢复都读它们），只是藏起来。 -->
-              <label for="launchEnvPick" data-i18n="目录与配置">目录与配置</label>
-              <div class="select">
-                <button type="button" class="select-trigger" id="launchEnvPick" aria-haspopup="dialog" aria-expanded="false">
-                  <span class="select-value" id="launchEnvPickValue"></span>
-                  <svg class="select-caret" viewBox="0 0 12 8" aria-hidden="true"><path fill="currentColor" d="M0 0h12L6 8z"/></svg>
+              <!-- 自定义 / 编辑实例选用户目录（同引导页签的目录下拉面板）：触发器只显示「用户目录名 · 路径」，
+                   不再和下面的「用哪个实例」冲突；底下两个原生下拉仍留着当唯一真相源（回填、保存、恢复都读它们），只是藏起来。 -->
+              <label for="launchEnvPick" data-i18n="用户目录">用户目录</label>
+              <div class="project-device-control">
+                <button type="button" class="project-device-trigger" id="launchEnvPick" aria-haspopup="listbox" aria-expanded="false" aria-controls="launchGuideDirPanel">
+                  <svg class="project-device-kind-icon" id="launchEnvPickIcon" viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-folder"/></svg>
+                  <span class="project-device-label select-value" id="launchEnvPickValue"></span>
+                  <svg class="project-device-caret" viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-chevron-down"/></svg>
                 </button>
               </div>
               <select id="launchDshHome" aria-label="dsh 用户目录" data-i18n-aria-label="dsh 用户目录" hidden></select>
@@ -1071,9 +1102,16 @@
                版本那一组整个藏起来（版本跟着实例走）；「自定义」（值为空）才自己挑版本，保存时按配置现有的
                插件和挑的版本找到或生成一个实例（老启动项迁移也是这么来的）。 -->
           <div class="home-field" id="launchEnvironmentField">
-            <label for="launchEnvironment" data-i18n="用哪个实例">用哪个实例</label>
-            <select id="launchEnvironment"><option value="" data-i18n="自定义">自定义</option></select>
-            <p class="hint" id="launchEnvironmentHint"></p>
+            <label for="launchEnvironmentPick" data-i18n="用哪个实例">用哪个实例</label>
+            <div class="project-device-control">
+              <button type="button" class="project-device-trigger" id="launchEnvironmentPick" aria-haspopup="listbox" aria-expanded="false" aria-controls="launchCopyPanel">
+                <svg class="project-device-kind-icon" id="launchEnvironmentPickIcon" viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-package"/></svg>
+                <span class="project-device-label select-value" id="launchEnvironmentPickValue"></span>
+                <svg class="project-device-caret" viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-chevron-down"/></svg>
+              </button>
+            </div>
+            <select id="launchEnvironment" hidden><option value="" data-i18n="自定义">自定义</option></select>
+            <p class="hint" id="launchEnvironmentHint" hidden></p>
           </div>
           <!-- 本机版本整组（下拉、版本类型、管理按钮、渠道提示）在 WSL 下一起藏掉，避免残留的版本类型说明串到 WSL 版本下面。 -->
           <div class="home-pickers" id="launchLocalVersionGroup">
@@ -1829,6 +1867,7 @@
   "只支持打开已登记的用户目录": "Only registered user directories can be opened.",
   "管理目录": "Manage directories",
   "管理目录…": "Manage directories…",
+  "自动新建": "Create automatically",
   "自动新建（{path}）": "Create automatically ({path})",
   "添加目录": "Add directory",
   "拖动或用方向键排序": "Drag or use arrow keys to reorder",
@@ -2669,9 +2708,11 @@
   "改动在下次用这个实例启动时生效。": "Changes apply the next time something launches with this instance.",
   "还有启动项在用，先给它们换一个实例": "Launch entries still use it. Move them to another instance first.",
   "都已经是最新版本": "Everything is up to date",
+  "升级": "Upgrade",
+  "使用版本范围，无需单独升级": "Uses a version range; no manual upgrade needed",
   "升级结果": "Upgrade results",
   "{name} 副本": "{name} copy",
-  "删除实例「{name}」？配置和里面已经装好的插件不受影响。": "Delete instance “{name}”? Profiles and the plugins already installed in them are not affected.",
+  "删除实例「{name}」？实例清单和对应配置目录都会被彻底删除，不可恢复。": "Delete instance “{name}”? Its manifest and profile folder will be permanently deleted.",
   "返回配置列表": "Back to profiles",
   "之前的版本": "Earlier versions",
   "切回这一份": "Switch back to this one",
@@ -2779,6 +2820,32 @@
   "上游没有比现在更新的版本": "Upstream has nothing newer than this version",
   "读取中…": "Loading…",
   "选择仓库目录…": "Choosing the repository folder…",
+  "实例内容": "Instance contents",
+  "附带这个实例的技能": "Include this instance's skills",
+  "导入包里附带的技能": "Import bundled skills",
+  "添加实例": "Add instance",
+  "编辑实例": "Edit instance",
+  "管理实例": "Manage instance",
+  "管理 {name}": "Manage {name}",
+  "实例来源": "Instance source",
+  "从已有实例复制": "Copy from an existing instance",
+  "选择一个实例…": "Choose an instance…",
+  "实例名称，留空用 web": "Instance name (leave blank for web)",
+  "将自动新建实例「{name}」：沿用全局 dsh 目录，会话与记忆共享，插件、配置与技能独立。": "Creates instance “{name}” in the global dsh folder: sessions and memory are shared, while plugins, configuration, and skills are isolated.",
+  "将在 {device} 的 {home} 里新建实例「{name}」：会话与记忆共享，插件、配置与技能独立。": "Creates instance “{name}” in {home} on {device}: sessions and memory are shared, while plugins, configuration, and skills are isolated.",
+  "把「{profile}」复制成新的实例「{name}」：插件、配置与技能跟过来，会话不跟。": "Copies “{profile}” into a new instance “{name}”: plugins, configuration, and skills are copied, without sessions.",
+  "先选一个要复制的实例：左边挑用户目录，右边挑实例；复制出来的实例从空白会话开始。": "Pick an instance to copy first: choose a user folder on the left and an instance on the right; the copy starts with blank sessions.",
+  "导入镜像…": "Import image…",
+  "导入镜像": "Import image",
+  "导出镜像": "Export image",
+  "从镜像文件（.dspack）或 GitHub 仓库导入，检查之后才动文件。": "Import from an image file (.dspack) or a GitHub repository. Nothing is written until you confirm after the check.",
+  "镜像文件或 GitHub 仓库": "Image file or GitHub repository",
+  "GitHub 仓库取它最新 Release 里的镜像文件，导入后跟随它更新。": "A GitHub repository is imported from the image file in its latest release, and the instance then follows it for updates.",
+  "导入内置镜像 {name}": "Import built-in image {name}",
+  "随启动器发的镜像配方": "Image recipe shipped with the launcher",
+  "内置镜像 · 点开导入": "Built-in image · open to import",
+  "版本、端口、用户目录和实例都在这里手动选。": "Set version, port, user directory, and instance manually here.",
+  "自己挑 DSH 版本；保存时按当前配置现有的插件找到或生成一个实例。": "Pick the DSH version yourself; saving finds or creates an instance from the current profile's plugins.",
 }
 
     function t(zh, vars) {
@@ -2877,9 +2944,13 @@
     const launchProfileCustomEl = document.getElementById('launchProfileCustom')
     const launchHomeCustomEl = document.getElementById('launchHomeCustom')
     const launchHomeProfileEl = document.getElementById('launchHomeProfile')
-    // 从已有 Profile 复制：来源目录 × Profile 走两栏选择窗
+    // 从已有实例复制：来源选择器改用同款应用内下拉面板
     const launchCopyPickEl = document.getElementById('launchCopyPick')
     const launchCopyPickValueEl = document.getElementById('launchCopyPickValue')
+    const launchCopyPanelEl = document.getElementById('launchCopyPanel')
+    const launchCopyListEl = document.getElementById('launchCopyList')
+    const launchEnvironmentPickEl = document.getElementById('launchEnvironmentPick')
+    const launchEnvironmentPickValueEl = document.getElementById('launchEnvironmentPickValue')
     // 自定义档的 Profile 也走同一个选择窗：触发器 + 藏起来的下拉（下拉仍是唯一真相源）
     const launchEnvPickEl = document.getElementById('launchEnvPick')
     const launchEnvPickValueEl = document.getElementById('launchEnvPickValue')
@@ -2975,6 +3046,7 @@
     const launchNameEl = document.getElementById('launchName')
     const launchSaveEl = document.getElementById('launchSave')
     // 桌面增强：新建时是「保存后装」的开关，编辑时回显这个 profile 装了几个
+    const launchDesktopEnhanceFieldEl = document.getElementById('launchDesktopEnhanceField')
     const launchDesktopEnhanceEl = document.getElementById('launchDesktopEnhance')
     const launchDesktopEnhanceHintEl = document.getElementById('launchDesktopEnhanceHint')
     const launchDialogEl = document.getElementById('launchDialog')
@@ -4633,6 +4705,9 @@
       })
       placeNavPill()
       if (paneChanged) {
+        if ((name === 'mcp' || name === 'skills') && typeof globalThis.syncEnvironmentToolTab === 'function') {
+          globalThis.syncEnvironmentToolTab('plugins', null)
+        }
         panes.forEach((el) => el.classList.remove('active'))
         pane.classList.add('active')
         paneLoaders[name]?.()
@@ -4999,6 +5074,7 @@
       }
       launchProfile = launchProfileEl.value
       void loadRecovery(launchProfile)
+      paintLaunchEnvironmentPick()
       render()
     }
 
@@ -5288,8 +5364,9 @@
       if (launchBackendIsRemote()) return refreshRemoteProfiles(resetMissing)
       const home = launchDshHomeEl.value.trim()
       const revision = ++launchHomeRevision
+      const hasChosenEnv = Boolean(document.getElementById('launchEnvironment')?.value)
       if (!home) {
-        if (resetMissing && !state.profiles?.includes(launchProfile)) {
+        if (resetMissing && !hasChosenEnv && !state.profiles?.includes(launchProfile)) {
           const pool = state.webProfiles?.length ? state.webProfiles : (state.profiles || [])
           launchProfile = pool.includes('web') ? 'web' : pool[0] || 'web'
         }
@@ -5304,7 +5381,7 @@
         paintLaunchHomes(data.home)
         state.webProfilesByHome = { ...(state.webProfilesByHome || {}), [data.home]: data.webProfiles || data.profiles }
         state.profilesByHome = { ...(state.profilesByHome || {}), [data.home]: data.profiles }
-        if (resetMissing && !data.profiles.includes(launchProfile)) launchProfile = data.profiles.includes('web') ? 'web' : data.profiles[0] || 'web'
+        if (resetMissing && !hasChosenEnv && !data.profiles.includes(launchProfile)) launchProfile = data.profiles.includes('web') ? 'web' : data.profiles[0] || 'web'
         paintLaunchProfiles()
         void loadRecovery(launchProfile)
         return true
@@ -6486,7 +6563,9 @@
     /** 引导模式代填的启动项名：Profile 档用 Profile 名，会话隔离档用目录的最后一段。 */
     function guidedLaunchName() {
       if (launchIsolation === 'home') {
-        const home = guideTargetIsRemote() ? guideRemoteHomeValue() : suggestIsolatedHome()
+        const rawPicked = typeof launchHomeCustomEl !== 'undefined' ? String(launchHomeCustomEl?.value || '').trim() : ''
+        const picked = typeof PLUGIN_HOME_MANAGE !== 'undefined' && rawPicked === PLUGIN_HOME_MANAGE ? '' : rawPicked
+        const home = guideTargetIsRemote() ? guideRemoteHomeValue() : (picked || suggestIsolatedHome())
         const tail = String(home || '').replace(/[\\/]+$/, '').split(/[\\/]/).pop() || 'dsh'
         return tail.slice(0, 32) || 'dsh'
       }
@@ -6597,8 +6676,9 @@
 
     /** 切第二排 tab：换面板 + 重画说明行（选了复制要说清复制的是谁）。 */
     function setLaunchSource(mode) {
+      if (typeof closeLaunchCopyPanel === 'function') closeLaunchCopyPanel()
       launchSourceMode = mode === 'copy' ? 'copy' : 'name'
-      // 第一次切到复制那档先给个默认来源：全局目录里的 web，最常见的一份，省得每次都要开选择窗
+      // 第一次切到复制那档先给个默认来源：全局目录里的 web，最常见的一份，省得每次都要开下拉
       if (launchSourceMode === 'copy' && !launchCopySource) launchCopySource = defaultCopySource()
       paintLaunchSource()
       fillCopyProfileName()
@@ -6698,24 +6778,39 @@
     function paintGuideTarget() {
       if (typeof launchGuideDirListEl === 'undefined' || !launchGuideDirListEl) return
       const copyMode = launchSourceMode === 'copy'
-      const connection = guideConnection()
+      const guided = launchIsGuided()
+      const homeIsolation = guided && typeof launchIsolation !== 'undefined' && launchIsolation === 'home'
+      const rawCustomHome = typeof launchHomeCustomEl !== 'undefined' ? String(launchHomeCustomEl?.value || '').trim() : ''
+      const customHome = typeof PLUGIN_HOME_MANAGE !== 'undefined' && rawCustomHome === PLUGIN_HOME_MANAGE ? '' : rawCustomHome
+      const connection = guided ? guideConnection() : (launchBackendIsRemote() ? connectionById(launchConnectionIdEl?.value || '') : null)
       const localHome = launchDshHomeEl?.value.trim() || ''
       const folderIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-folder"/></svg>'
       const serverIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-server"/></svg>'
       const check = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-check"/></svg>'
       const rows = []
-      const localHomes = ['']
-      for (const [home] of homeOptions(localHome)) if (!localHomes.includes(home)) localHomes.push(home)
-      for (const home of localHomes) {
-        const selected = !connection && (home || '') === localHome
-        const real = home || state.dshHome || '~/.dsh'
-        const name = pluginHomeName(real, '') || folderBaseName(real) || t('本机')
-        rows.push(`<button class="project-device-option${selected ? ' is-selected' : ''}" type="button" role="option" aria-selected="${selected}" data-guide-home="${escapeHtml(home)}"><span class="project-device-option-icon">${folderIcon}</span><span class="project-device-option-text"><strong>${escapeHtml(name)}</strong><small>${escapeHtml(real)}</small></span><span class="project-device-option-state">${selected ? `<span class="project-device-check">${check}</span>` : ''}</span></button>`)
-      }
-      for (const item of connectionsList()) {
-        const selected = launchGuideConnectionId === item.id
-        const status = connectionRuntime[item.id]?.status || 'offline'
-        rows.push(`<button class="project-device-option${selected ? ' is-selected' : ''}" type="button" role="option" aria-selected="${selected}" data-guide-conn="${escapeHtml(item.id)}"><span class="project-device-option-icon">${serverIcon}</span><span class="project-device-option-text"><strong>${escapeHtml(folderBaseName('~/.dsh') || item.name)}</strong><small>${escapeHtml(connectionTarget(item))}</small></span><span class="project-device-option-state">${projectDeviceStatusMark(status)}${selected ? `<span class="project-device-check">${check}</span>` : ''}</span></button>`)
+      if (homeIsolation) {
+        const autoPath = suggestIsolatedHome() || t('数据目录')
+        const autoSelected = !connection && !customHome
+        rows.push(`<button class="project-device-option${autoSelected ? ' is-selected' : ''}" type="button" role="option" aria-selected="${autoSelected}" data-guide-home=""><span class="project-device-option-icon">${folderIcon}</span><span class="project-device-option-text"><strong>${escapeHtml(t('自动新建'))}</strong><small>${escapeHtml(autoPath)}</small></span><span class="project-device-option-state">${autoSelected ? `<span class="project-device-check">${check}</span>` : ''}</span></button>`)
+        for (const [home, homeName] of homeOptions(customHome)) {
+          const selected = !connection && Boolean(customHome) && sameHomePath(home, customHome)
+          const title = pluginHomeName(home, homeName) || folderBaseName(home) || t('本机')
+          rows.push(`<button class="project-device-option${selected ? ' is-selected' : ''}" type="button" role="option" aria-selected="${selected}" data-guide-home="${escapeHtml(home)}"><span class="project-device-option-icon">${folderIcon}</span><span class="project-device-option-text"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(home)}</small></span><span class="project-device-option-state">${selected ? `<span class="project-device-check">${check}</span>` : ''}</span></button>`)
+        }
+      } else {
+        const localHomes = ['']
+        for (const [home] of homeOptions(localHome)) if (!localHomes.includes(home)) localHomes.push(home)
+        for (const home of localHomes) {
+          const selected = !connection && (home || '') === localHome
+          const real = home || state.dshHome || '~/.dsh'
+          const name = pluginHomeName(real, '') || folderBaseName(real) || t('本机')
+          rows.push(`<button class="project-device-option${selected ? ' is-selected' : ''}" type="button" role="option" aria-selected="${selected}" data-guide-home="${escapeHtml(home)}"><span class="project-device-option-icon">${folderIcon}</span><span class="project-device-option-text"><strong>${escapeHtml(name)}</strong><small>${escapeHtml(real)}</small></span><span class="project-device-option-state">${selected ? `<span class="project-device-check">${check}</span>` : ''}</span></button>`)
+        }
+        for (const item of connectionsList()) {
+          const selected = connection?.id === item.id
+          const status = connectionRuntime[item.id]?.status || 'offline'
+          rows.push(`<button class="project-device-option${selected ? ' is-selected' : ''}" type="button" role="option" aria-selected="${selected}" data-guide-conn="${escapeHtml(item.id)}"><span class="project-device-option-icon">${serverIcon}</span><span class="project-device-option-text"><strong>${escapeHtml(folderBaseName('~/.dsh') || item.name)}</strong><small>${escapeHtml(connectionTarget(item))}</small></span><span class="project-device-option-state">${projectDeviceStatusMark(status)}${selected ? `<span class="project-device-check">${check}</span>` : ''}</span></button>`)
+        }
       }
       rows.push(`<button class="project-device-option is-add" type="button" role="option" data-guide-create><span class="project-device-option-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-folder-plus"/></svg></span><span class="project-device-option-text"><strong>${escapeHtml(t('创建项目'))}</strong></span></button>`)
       launchGuideDirListEl.innerHTML = rows.join('')
@@ -6725,10 +6820,20 @@
       ].join('')
       launchGuideDeviceEl.value = launchGuideConnectionId ? `conn:${launchGuideConnectionId}` : 'local'
 
-      const real = connection ? (launchRemoteHomeEl?.value.trim() || '~/.dsh') : (localHome || state.dshHome || '~/.dsh')
-      const label = connection
-        ? `${folderBaseName('~/.dsh') || '.dsh'} · ${connectionTarget(connection)}`
-        : (pluginHomeName(real, '') || folderBaseName(real) || t('本机')) + (real && real !== (pluginHomeName(real, '') || folderBaseName(real)) ? ` · ${real}` : '')
+      let label
+      if (connection) {
+        label = `${folderBaseName('~/.dsh') || '.dsh'} · ${connectionTarget(connection)}`
+      } else if (homeIsolation) {
+        if (!customHome) {
+          label = `${t('自动新建')} · ${suggestIsolatedHome() || t('数据目录')}`
+        } else {
+          const title = pluginHomeName(customHome, '') || folderBaseName(customHome) || t('本机')
+          label = title && title !== customHome ? `${title} · ${customHome}` : customHome
+        }
+      } else {
+        const real = localHome || state.dshHome || '~/.dsh'
+        label = (pluginHomeName(real, '') || folderBaseName(real) || t('本机')) + (real && real !== (pluginHomeName(real, '') || folderBaseName(real)) ? ` · ${real}` : '')
+      }
       launchGuideDirLabelEl.textContent = label
       launchGuideDirIconEl.querySelector('use')?.setAttribute('href', connection ? '/icons.svg#lucide-server' : '/icons.svg#lucide-folder')
       const pickedStatus = connection ? connectionRuntime[connection.id]?.status : ''
@@ -6736,7 +6841,7 @@
       launchGuideDirStatusEl.className = `project-device-status project-device-dot${pickedStatus === 'online' ? ' is-online' : pickedStatus === 'preparing' ? ' is-preparing' : pickedStatus === 'error' ? ' is-error' : ''}`
 
       const remote = guideTargetIsRemote()
-      if (launchGuideDeviceFieldEl) launchGuideDeviceFieldEl.hidden = copyMode || launchIsolation === 'home'
+      if (launchGuideDeviceFieldEl) launchGuideDeviceFieldEl.hidden = copyMode
       if (launchGuideWslHomeFieldEl) launchGuideWslHomeFieldEl.hidden = copyMode || !remote || launchIsolation !== 'home'
       if (launchGuideDirFieldEl) launchGuideDirFieldEl.hidden = copyMode || remote || launchIsolation !== 'home'
       if (launchGuideTargetHintEl) {
@@ -6754,34 +6859,55 @@
       syncGuideWslFields()
     }
 
-    /** 面板和触发器同宽：布局晚一拍变过（滚动条出现/消失）也要再对齐一次。 */
-    function alignLaunchGuideDirPanel() {
-      if (!launchGuideDirPanelEl || !launchGuideDirTriggerEl) return
-      const rect = launchGuideDirTriggerEl.getBoundingClientRect()
-      const width = Math.min(Math.max(320, rect.width || 320), window.innerWidth - 24)
-      launchGuideDirPanelEl.style.width = `${width}px`
-      launchGuideDirPanelEl.style.left = `${Math.max(12, Math.min(rect.left, window.innerWidth - width - 12))}px`
-      launchGuideDirPanelEl.style.top = `${rect.bottom + 6}px`
+    let launchGuideDirAnchorEl = null
+    let launchCopyAnchorEl = null
+    let launchCopyCandidates = []
+    let launchCopyResize = null
+
+    /** 浮动下拉面板通用定位：与触发器对齐并在靠近底部视口时向上翻转。 */
+    function alignFloatingPanel(panelEl, anchorEl) {
+      if (!panelEl || !anchorEl) return
+      const place = () => {
+        const rect = anchorEl.getBoundingClientRect()
+        const width = Math.min(Math.max(320, rect.width || 320), window.innerWidth - 24)
+        panelEl.style.width = `${width}px`
+        panelEl.style.left = `${Math.max(12, Math.min(rect.left, window.innerWidth - width - 12))}px`
+        panelEl.style.top = `${rect.bottom + 6}px`
+      }
+      place()
       requestAnimationFrame(() => {
-        if (!launchGuideDirPanelEl || launchGuideDirPanelEl.hidden) return
-        alignLaunchGuideDirPanel()
-        const panel = launchGuideDirPanelEl.getBoundingClientRect()
-        if (panel.bottom > window.innerHeight - 12) launchGuideDirPanelEl.style.top = `${Math.max(12, rect.top - panel.height - 6)}px`
+        if (!panelEl || panelEl.hidden) return
+        place()
+        const rect = anchorEl.getBoundingClientRect()
+        const panel = panelEl.getBoundingClientRect()
+        if (panel.bottom > window.innerHeight - 12) panelEl.style.top = `${Math.max(12, rect.top - panel.height - 6)}px`
       })
     }
 
+    /** 面板和触发器同宽：布局晚一拍变过（滚动条出现/消失）也要再对齐一次。 */
+    function alignLaunchGuideDirPanel() {
+      alignFloatingPanel(launchGuideDirPanelEl, launchGuideDirAnchorEl || launchGuideDirTriggerEl)
+    }
+
+    function alignLaunchCopyPanel() {
+      alignFloatingPanel(launchCopyPanelEl, launchCopyAnchorEl || launchCopyPickEl)
+    }
+
     let launchGuideDirResize = null
-    function openLaunchGuideDirPanel() {
-      if (!launchGuideDirPanelEl || !launchGuideDirPanelEl.hidden) return
+    function openLaunchGuideDirPanel(anchorEl = launchGuideDirTriggerEl) {
+      const anchor = anchorEl || launchGuideDirTriggerEl
+      if (!launchGuideDirPanelEl || !launchGuideDirPanelEl.hidden || !anchor) return
+      closeLaunchCopyPanel()
+      launchGuideDirAnchorEl = anchor
       paintGuideTarget()
       launchGuideDirPanelEl.hidden = false
-      launchGuideDirTriggerEl?.setAttribute('aria-expanded', 'true')
+      anchor.setAttribute('aria-expanded', 'true')
       alignLaunchGuideDirPanel()
-      if (typeof ResizeObserver === 'function' && launchGuideDirTriggerEl && !launchGuideDirResize) {
+      if (typeof ResizeObserver === 'function' && !launchGuideDirResize) {
         launchGuideDirResize = new ResizeObserver(() => {
           if (launchGuideDirPanelEl && !launchGuideDirPanelEl.hidden) alignLaunchGuideDirPanel()
         })
-        launchGuideDirResize.observe(launchGuideDirTriggerEl)
+        launchGuideDirResize.observe(anchor)
       }
     }
 
@@ -6789,14 +6915,202 @@
       if (!launchGuideDirPanelEl || launchGuideDirPanelEl.hidden) return
       launchGuideDirPanelEl.hidden = true
       launchGuideDirTriggerEl?.setAttribute('aria-expanded', 'false')
+      launchEnvPickEl?.setAttribute('aria-expanded', 'false')
+      launchGuideDirAnchorEl = null
       launchGuideDirResize?.disconnect()
       launchGuideDirResize = null
     }
 
+    /** 汇总本机默认目录、已登记目录及已保存远端启动项中可供复制的实例列表。 */
+    function collectLaunchCopyItems() {
+      const items = []
+      const seen = new Set()
+      const defaultHome = state.dshHome || ''
+      const addItem = (home, profile, realHome, remote = false, label = '') => {
+        const cleanProfile = String(profile || '').trim()
+        if (!cleanProfile) return
+        const normHome = remote ? String(home || '') : normalizeHomePath(home || defaultHome)
+        const key = `${normHome}\0${cleanProfile}`
+        if (seen.has(key)) return
+        seen.add(key)
+        items.push({ home: home || '', profile: cleanProfile, label: String(label || cleanProfile), realHome: realHome || '~/.dsh', remote })
+      }
+      const missingHomes = []
+      const hasEnvList = typeof environmentState !== 'undefined' && Array.isArray(environmentState?.list)
+      if (hasEnvList) {
+        // 本机实例以「实例管理」里的清单为准，已删除实例留下的孤立目录不混进下拉框
+        for (const env of environmentState.list) {
+          const home = env.targetHome || defaultHome
+          addItem(home, env.targetProfile || env.name, home || '~/.dsh', false, env.name || env.targetProfile || '')
+        }
+      } else {
+        const defaultWeb = (Array.isArray(state.webProfiles) && state.webProfiles.length ? state.webProfiles : (state.profiles || [])).map(String)
+        for (const profile of defaultWeb) addItem(defaultHome, profile, defaultHome || '~/.dsh', false)
+        for (const [home] of homeOptions('')) {
+          const webKey = Object.keys(state.webProfilesByHome || {}).find((item) => sameHomePath(item, home))
+          const allKey = Object.keys(state.profilesByHome || {}).find((item) => sameHomePath(item, home))
+          const knownList = webKey ? state.webProfilesByHome[webKey] : allKey ? state.profilesByHome[allKey] : null
+          if (Array.isArray(knownList)) {
+            for (const profile of knownList) addItem(home, profile, home, false)
+          } else {
+            missingHomes.push(home)
+          }
+        }
+      }
+      for (const entry of launchEntries()) {
+        if (entry.backend === 'wsl' || entry.backend === 'ssh') {
+          const remoteHomeKey = launchHomeOf(entry)
+          const conn = remoteHomeKey ? connectionForHomeKey(remoteHomeKey) : null
+          addItem(remoteHomeKey, entry.profile, connectionTarget(conn) || remoteHomeKey, true)
+        } else if (!hasEnvList && entry.dshHome) {
+          addItem(entry.dshHome, entry.profile, entry.dshHome, false)
+        }
+      }
+      if (launchCopySource?.profile && (!hasEnvList || connectionForHomeKey(launchCopySource.home || ''))) {
+        const srcHome = launchCopySource.home || ''
+        const srcConn = srcHome ? connectionForHomeKey(srcHome) : null
+        addItem(srcHome, launchCopySource.profile, srcConn ? (connectionTarget(srcConn) || srcHome) : (srcHome || defaultHome || '~/.dsh'), Boolean(srcConn))
+      }
+      return { items, missingHomes }
+    }
+
+    function paintLaunchCopyList() {
+      if (!launchCopyListEl) return
+      const { items, missingHomes } = collectLaunchCopyItems()
+      launchCopyCandidates = items
+      const packageIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-package"/></svg>'
+      const serverIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-server"/></svg>'
+      const check = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-check"/></svg>'
+      const defaultHome = state.dshHome || ''
+      const forCustomEnv = typeof launchCopyAnchorEl !== 'undefined' && typeof launchEnvironmentPickEl !== 'undefined' && launchCopyAnchorEl === launchEnvironmentPickEl
+      const activeRemote = forCustomEnv && typeof launchBackendIsRemote === 'function' && launchBackendIsRemote()
+      const activeConn = activeRemote && typeof connectionById === 'function' ? connectionById(launchConnectionIdEl?.value || '') : null
+      const activeHome = !forCustomEnv
+        ? ''
+        : activeRemote
+          ? (activeConn ? connectionHomeKey(activeConn, launchRemoteHomeEl?.value.trim() || launchWslHomeEl?.value.trim() || '~/.dsh') : '')
+          : (launchDshHomeEl?.value.trim() || defaultHome)
+      const activeProfile = forCustomEnv ? (typeof launchProfile !== 'undefined' ? launchProfile : 'web') : ''
+      const rowsHtml = items.map((item, index) => {
+        const selected = forCustomEnv
+          ? (activeProfile === item.profile
+            && (item.remote ? activeHome === item.home : sameHomePath(activeHome || defaultHome, item.home || defaultHome)))
+          : (Boolean(launchCopySource)
+            && launchCopySource.profile === item.profile
+            && (item.remote ? launchCopySource.home === item.home : sameHomePath(launchCopySource.home || defaultHome, item.home || defaultHome)))
+        return `<button class="project-device-option${selected ? ' is-selected' : ''}" type="button" role="option" aria-selected="${selected}" data-copy-index="${index}"><span class="project-device-option-icon">${item.remote ? serverIcon : packageIcon}</span><span class="project-device-option-text"><strong>${escapeHtml(item.label || item.profile)}</strong><small>${escapeHtml(item.realHome)}</small></span><span class="project-device-option-state">${selected ? `<span class="project-device-check">${check}</span>` : ''}</span></button>`
+      }).join('')
+      const manageHtml = `<button class="project-device-option is-add" type="button" role="option" data-env-manage="1"><span class="project-device-option-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-sliders-horizontal"/></svg></span><span class="project-device-option-text"><strong>${escapeHtml(t('管理实例'))}</strong></span></button>`
+      launchCopyListEl.innerHTML = rowsHtml + manageHtml
+      return missingHomes
+    }
+
+    function openLaunchCopyPanel(anchorEl = launchCopyPickEl) {
+      const anchor = anchorEl || launchCopyPickEl
+      if (!launchCopyPanelEl || !launchCopyPanelEl.hidden || !anchor) return
+      closeLaunchGuideDirPanel()
+      launchCopyAnchorEl = anchor
+      const missingHomes = paintLaunchCopyList()
+      launchCopyPanelEl.hidden = false
+      anchor.setAttribute('aria-expanded', 'true')
+      alignLaunchCopyPanel()
+      if (typeof ResizeObserver === 'function' && !launchCopyResize) {
+        launchCopyResize = new ResizeObserver(() => {
+          if (launchCopyPanelEl && !launchCopyPanelEl.hidden) alignLaunchCopyPanel()
+        })
+        launchCopyResize.observe(anchor)
+      }
+      if (missingHomes?.length) {
+        void Promise.allSettled(missingHomes.map(async (home) => {
+          const data = await getJson(`/api/launch-home/profiles?home=${encodeURIComponent(home)}`)
+          const real = data?.home || home
+          state.profilesByHome = { ...(state.profilesByHome || {}), [real]: Array.isArray(data?.profiles) ? data.profiles : [] }
+          state.webProfilesByHome = { ...(state.webProfilesByHome || {}), [real]: Array.isArray(data?.webProfiles) ? data.webProfiles : (Array.isArray(data?.profiles) ? data.profiles : []) }
+        })).then(() => {
+          if (launchCopyPanelEl && !launchCopyPanelEl.hidden) {
+            paintLaunchCopyList()
+            alignLaunchCopyPanel()
+          }
+        })
+      }
+    }
+
+    function closeLaunchCopyPanel() {
+      if (!launchCopyPanelEl || launchCopyPanelEl.hidden) return
+      launchCopyPanelEl.hidden = true
+      launchCopyPickEl?.setAttribute('aria-expanded', 'false')
+      launchEnvironmentPickEl?.setAttribute('aria-expanded', 'false')
+      launchCopyAnchorEl = null
+      launchCopyResize?.disconnect()
+      launchCopyResize = null
+    }
+
+    launchCopyListEl?.addEventListener('click', (event) => {
+      const manage = event.target.closest?.('[data-env-manage]')
+      if (manage) {
+        closeLaunchCopyPanel()
+        void (async () => {
+          if (!launchDialogEl.hidden) await closeLaunchEditor()
+          if (typeof environmentState !== 'undefined') environmentState.closeDetail?.()
+          await showPane('environments')
+        })()
+        return
+      }
+      const option = event.target.closest?.('[data-copy-index]')
+      if (!option) return
+      const item = launchCopyCandidates[Number(option.dataset.copyIndex)]
+      if (!item) return
+      const forCustomEnv = launchCopyAnchorEl === launchEnvironmentPickEl
+      closeLaunchCopyPanel()
+      if (forCustomEnv) {
+        const envSelect = document.getElementById('launchEnvironment')
+        if (item.remote) {
+          const conn = connectionForHomeKey(item.home)
+          const parsed = parseSshHomeKey(item.home) || parseWslHomeKey(item.home)
+          if (envSelect) envSelect.value = ''
+          if (conn && parsed) applyRemotePickerToLaunchForm(conn, parsed.home, item.profile)
+        } else {
+          if (launchBackendIsRemote()) setLaunchBackend('local')
+          const targetHome = item.home || state.dshHome || ''
+          const nextHome = sameHomePath(targetHome, state.dshHome || '') ? '' : (item.home || '')
+          if (!sameHomePath(nextHome || state.dshHome || '', launchDshHomeEl?.value.trim() || state.dshHome || '')) {
+            paintLaunchHomes(nextHome)
+            if (launchDshHomeEl) launchDshHomeEl.value = nextHome
+          }
+          const matchedEnv = typeof environmentState !== 'undefined' && Array.isArray(environmentState?.list)
+            ? (environmentState.list.find((env) => (env.targetProfile || env.name) === item.profile && sameHomePath(env.targetHome || state.dshHome || '', targetHome))
+              || environmentState.list.find((env) => (env.targetProfile || env.name) === item.profile))
+            : null
+          if (envSelect) {
+            envSelect.value = matchedEnv?.id || ''
+            envSelect.onchange?.()
+          }
+          setLaunchProfile(item.profile)
+        }
+        paintLaunchEnvironmentPick()
+        paintLaunchEnvTrigger()
+        return
+      }
+      launchCopySource = { home: item.remote ? item.home : (item.home || state.dshHome || ''), profile: item.profile }
+      paintLaunchCopy()
+      fillCopyProfileName()
+      fillGuidedLaunchName()
+      paintLaunchIsolation()
+    })
+
     function selectGuideLocalHome(home) {
       launchGuideConnectionId = ''
       launchGuideBackend = 'local'
-      if (launchDshHomeEl) launchDshHomeEl.value = String(home || '')
+      const clean = String(home || '')
+      if (launchIsolation === 'home') {
+        if (launchHomeCustomEl) {
+          launchHomeCustomEl.value = clean
+          paintLaunchHomeCustom()
+        }
+        void refreshCopyTargetProfiles()
+      } else if (launchDshHomeEl) {
+        launchDshHomeEl.value = clean
+      }
       if (launchConnectionIdEl) launchConnectionIdEl.value = ''
       if (launchRemoteHomeEl) launchRemoteHomeEl.value = ''
       versionScopeState = null
@@ -6808,19 +7122,28 @@
 
     launchGuideDirTriggerEl?.addEventListener('click', (event) => {
       event.stopPropagation()
-      if (launchGuideDirPanelEl?.hidden) openLaunchGuideDirPanel()
+      if (launchGuideDirPanelEl?.hidden) openLaunchGuideDirPanel(launchGuideDirTriggerEl)
       else closeLaunchGuideDirPanel()
     })
     launchGuideDirListEl?.addEventListener('click', (event) => {
       const create = event.target.closest?.('[data-guide-create]')
       if (create) { closeLaunchGuideDirPanel(); openProjectDialog(); return }
       const local = event.target.closest?.('[data-guide-home]')
-      if (local) { selectGuideLocalHome(local.dataset.guideHome); closeLaunchGuideDirPanel(); return }
+      if (local) {
+        if (launchIsGuided()) selectGuideLocalHome(local.dataset.guideHome)
+        else void applyPickerToLaunchForm({ home: local.dataset.guideHome, profile: launchProfile || 'web' })
+        closeLaunchGuideDirPanel()
+        return
+      }
       const remote = event.target.closest?.('[data-guide-conn]')
       if (!remote) return
-      setLaunchGuideDevice(`conn:${remote.dataset.guideConn}`)
-      closeLaunchGuideDirPanel()
       const connection = connectionById(remote.dataset.guideConn)
+      if (launchIsGuided()) {
+        setLaunchGuideDevice(`conn:${remote.dataset.guideConn}`)
+      } else if (connection) {
+        applyRemotePickerToLaunchForm(connection, '~/.dsh', launchProfile || 'web')
+      }
+      closeLaunchGuideDirPanel()
       if (connection && connectionRuntime[connection.id]?.status !== 'online') {
         void startConnectionPrepare(connection.id)
         // 连接 / 安装可能还要用户确认：连上后自动把远端 Profile 和版本读回来，不用再选一次。
@@ -6828,20 +7151,36 @@
           const startedAt = Date.now()
           while (Date.now() - startedAt < 180000) {
             await new Promise((resolve) => setTimeout(resolve, 800))
-            if (launchGuideConnectionId !== connection.id) return
+            if (launchIsGuided()) {
+              if (launchGuideConnectionId !== connection.id) return
+            } else if ((launchConnectionIdEl?.value || '') !== connection.id) return
             const status = connectionRuntime[connection.id]?.status
-            if (status === 'online') { reloadGuideScope(); return }
+            if (status === 'online') {
+              if (launchIsGuided()) reloadGuideScope()
+              else applyRemotePickerToLaunchForm(connection, '~/.dsh', launchProfile || 'web')
+              return
+            }
             if (!['preparing', 'awaiting-install'].includes(status)) return
           }
         })()
       }
     })
     document.addEventListener('click', (event) => {
-      if (!launchGuideDirPanelEl || launchGuideDirPanelEl.hidden) return
-      if (launchGuideDirPanelEl.contains(event.target) || launchGuideDirTriggerEl?.contains(event.target)) return
-      closeLaunchGuideDirPanel()
+      if (launchGuideDirPanelEl && !launchGuideDirPanelEl.hidden) {
+        if (!launchGuideDirPanelEl.contains(event.target) && !launchGuideDirTriggerEl?.contains(event.target) && !launchEnvPickEl?.contains(event.target)) {
+          closeLaunchGuideDirPanel()
+        }
+      }
+      if (launchCopyPanelEl && !launchCopyPanelEl.hidden) {
+        if (!launchCopyPanelEl.contains(event.target) && !launchCopyPickEl?.contains(event.target) && !launchEnvironmentPickEl?.contains(event.target)) {
+          closeLaunchCopyPanel()
+        }
+      }
     })
-    window.addEventListener('resize', () => { if (launchGuideDirPanelEl && !launchGuideDirPanelEl.hidden) alignLaunchGuideDirPanel() })
+    window.addEventListener('resize', () => {
+      if (launchGuideDirPanelEl && !launchGuideDirPanelEl.hidden) alignLaunchGuideDirPanel()
+      if (launchCopyPanelEl && !launchCopyPanelEl.hidden) alignLaunchCopyPanel()
+    })
 
     function setLaunchGuideDevice(value) {
       const picked = String(value || '')
@@ -6892,6 +7231,8 @@
      * 第三档把完整表单原样露出来，引导块整块收起。
      */
     function setLaunchIsolation(mode, creating = true) {
+      if (typeof closeLaunchGuideDirPanel === 'function') closeLaunchGuideDirPanel()
+      if (typeof closeLaunchCopyPanel === 'function') closeLaunchCopyPanel()
       launchIsolation = mode === 'home' || mode === 'custom' ? mode : 'profile'
       // 会话隔离就是新建一个本机目录，用户目录下拉在这档没有作用；从远端切过来时落回本机。
       if (creating && launchIsolation === 'home' && launchGuideBackend !== 'local') setLaunchGuideDevice('local')
@@ -6917,6 +7258,10 @@
       launchNameEl.required = !guided
       // 新建前两档没什么可修的：环境是刚自动建的，修复入口只会让人误点；编辑和自定义里还留着。
       launchRecoverEl.hidden = guided
+      // 新建（添加实例）隐藏「打开启动器时启动」和「桌面增强」，仅在编辑已有启动项时保留。
+      if (typeof launchAutoLaunchEl !== 'undefined' && launchAutoLaunchEl?.parentElement) launchAutoLaunchEl.parentElement.hidden = creating
+      if (typeof launchAutoLaunchGuidedEl !== 'undefined' && launchAutoLaunchGuidedEl?.parentElement) launchAutoLaunchGuidedEl.parentElement.hidden = true
+      if (typeof launchDesktopEnhanceFieldEl !== 'undefined' && launchDesktopEnhanceFieldEl) launchDesktopEnhanceFieldEl.hidden = creating
       paintLaunchIsolation()
     }
 
@@ -6928,21 +7273,21 @@
       const typedName = String(guidedProfileNameEl()?.value || '').trim()
       let hint
       if (copy) {
-        // 说清复制的是 Profile，不是整个环境：技能、Prompt 和会话都不跟过来，别让人以为搬完就完工
-        hint = t('把「{profile}」复制成新的配置「{name}」：插件与配置跟过来，技能、Prompt 管理和会话不跟。', {
+        // 复制实例会带走插件、补丁层配置以及隔离的技能目录，只有聊天会话历史保持空白
+        hint = t('把「{profile}」复制成新的实例「{name}」：插件、配置与技能跟过来，会话不跟。', {
           profile: copy.profile,
           name: typedName || suggestCopyProfile(copy.profile, copyTargetExisting() ?? (guideTargetIsRemote() ? launchWslProfiles : state.profiles)) || t('（待定）'),
         })
       } else if (copying) {
         // 停在复制那档还没选来源：说清下一步，别让人以为直接保存就复制了
-        hint = t('先选一份要复制的配置：左边挑用户目录，右边挑配置；复制出来的配置从空白会话开始。')
+        hint = t('先选一个要复制的实例：左边挑用户目录，右边挑实例；复制出来的实例从空白会话开始。')
       } else if (launchIsolation === 'profile') {
         const device = guideConnection()
         hint = device
-          ? t('将在 {device} 的 {home} 里新建配置「{name}」：会话与记忆共享，插件与配置独立。', {
+          ? t('将在 {device} 的 {home} 里新建实例「{name}」：会话与记忆共享，插件、配置与技能独立。', {
             device: connectionLabel(device), home: guideRemoteHomeValue(), name: typedName || suggestIsolatedProfile(),
           })
-          : t('将自动新建配置「{name}」：沿用全局 dsh 目录，会话与记忆共享，插件与配置独立。', { name: typedName || suggestIsolatedProfile() })
+          : t('将自动新建实例「{name}」：沿用全局 dsh 目录，会话与记忆共享，插件、配置与技能独立。', { name: typedName || suggestIsolatedProfile() })
       } else if (launchIsolation === 'home') {
         const device = guideConnection()
         hint = device
@@ -6951,7 +7296,7 @@
           })
           : t('将自动新建独立目录：会话、记忆、插件与配置全部独立。')
       } else {
-        hint = t('版本、端口、目录和配置都在这里手动选；点「目录与配置」换目录或配置，左栏「+」加目录。')
+        hint = t('版本、端口、用户目录和实例都在这里手动选。')
       }
       if (launchIsolationHintEl.textContent === hint) return
       launchIsolationHintEl.textContent = hint
@@ -6978,7 +7323,7 @@
       if (launchIsolation !== 'custom' && !editingLaunchId) paintGuideTarget()
       // 名字输入框留空时用占位符把「自动会取什么」亮出来
       if (launchProfileCustomEl) launchProfileCustomEl.placeholder = suggestIsolatedProfile()
-      if (launchHomeProfileEl) launchHomeProfileEl.placeholder = t('配置名称，留空用 web')
+      if (launchHomeProfileEl) launchHomeProfileEl.placeholder = t('实例名称，留空用 web')
       // 复制来源按钮的文案也跟着刷新（切语言、换了来源都要重画）
       paintLaunchCopy()
       paintLaunchHint()
@@ -7128,43 +7473,94 @@
         const profile = profiles.includes('web') ? 'web' : (profiles[0] || '')
         return profile ? { home: guideRemoteHomeKey(), profile } : null
       }
+      const envs = typeof environmentState !== 'undefined' && Array.isArray(environmentState?.list) ? environmentState.list : null
+      if (envs && envs.length) {
+        const chosen = envs.find((item) => (item.targetProfile || item.name) === 'web') || envs[0]
+        const profile = chosen?.targetProfile || chosen?.name || ''
+        return profile ? { home: chosen.targetHome || state.dshHome || '', profile } : null
+      }
       const web = (Array.isArray(state.webProfiles) && state.webProfiles.length ? state.webProfiles : (state.profiles || [])).map(String)
       const profile = web.includes('web') ? 'web' : (web[0] || '')
       // 来源目录写成真实路径：留空会被服务端当成「当前目标目录」，复制到别的目录时就变成复制目标自己
       return profile ? { home: state.dshHome || '', profile } : null
     }
 
-    /** 复制来源那行按钮：选过就是「目录 › Profile」，没选过是占位文案。 */
+    /** 复制来源那行按钮：选过就是「实例名 · 路径」，没选过是占位文案。 */
     function paintLaunchCopy() {
       if (!launchCopyPickEl) return
       const { home = '', profile = '' } = launchCopySource || {}
+      const conn = home ? connectionForHomeKey(home) : null
+      const parsed = conn ? (parseSshHomeKey(home) || parseWslHomeKey(home)) : null
+      const realPath = conn ? (connectionTarget(conn) || parsed?.home || '~/.dsh') : (home || state.dshHome || '~/.dsh')
+      const envs = typeof environmentState !== 'undefined' && Array.isArray(environmentState?.list) ? environmentState.list : []
+      const envMatch = !conn && profile ? (envs.find((item) => (item.targetProfile || item.name) === profile && (!item.targetHome || sameHomePath(item.targetHome, home || state.dshHome || ''))) || envs.find((item) => (item.targetProfile || item.name) === profile)) : null
+      const displayName = envMatch?.name || profile
+      const text = launchCopySource
+        ? (realPath ? `${displayName} · ${realPath}` : displayName)
+        : t('选择一个实例…')
+      const iconEl = document.getElementById('launchCopyPickIcon')
+      iconEl?.querySelector('use')?.setAttribute('href', conn ? '/icons.svg#lucide-server' : '/icons.svg#lucide-package')
       launchCopyPickEl.classList.toggle('is-placeholder', !launchCopySource)
-      launchCopyPickValueEl.textContent = launchCopySource
-        ? t('{home} › {profile}', { home: copyHomeName(home), profile })
-        : t('选择一个配置…')
-      launchCopyPickEl.title = launchCopySource
-        ? t('{home} › {profile}（{path}）', { home: copyHomeName(home), profile, path: home || state.dshHome || '~/.dsh' })
-        : t('选择一个配置…')
-      launchCopyPickEl.setAttribute('aria-label', launchCopyPickValueEl.textContent)
+      launchCopyPickValueEl.textContent = text
+      launchCopyPickEl.title = text
+      launchCopyPickEl.setAttribute('aria-label', text)
+    }
+    globalThis.paintLaunchCopyPick = () => {
+      paintLaunchCopy()
+      if (launchCopyPanelEl && !launchCopyPanelEl.hidden) paintLaunchCopyList()
     }
 
-    /** 「自定义」档那行环境触发器：显示「目录 › Profile」，悬停能看到路径。 */
+    /** 「自定义 / 编辑」档的用户目录触发器：只显示用户目录名与路径，悬停看完整文本。 */
     function paintLaunchEnvTrigger() {
       if (!launchEnvPickEl) return
       const remote = launchBackendIsRemote()
       const connection = connectionById(launchConnectionIdEl?.value || '')
-      const profile = launchProfile || ''
       const home = remote ? (launchRemoteHomeEl?.value.trim() || launchWslHomeEl.value.trim()) : launchDshHomeEl.value.trim()
-      const path = remote ? (home || '~/.dsh') : (home || state.dshHome || '~/.dsh')
-      const label = connection
-        ? connectionLabel(connection)
-        : remote ? t('远端 · {target}', { target: launchWslDistroEl.value || 'WSL' }) : (home ? copyHomeName(home) : t('本机'))
-      const text = profile ? t('{home} › {profile}', { home: label, profile }) : t('选择目录与配置…')
-      launchEnvPickEl.classList.toggle('is-placeholder', !profile)
+      const real = remote ? (home || '~/.dsh') : (home || state.dshHome || '~/.dsh')
+      const name = pluginHomeName(real, '') || folderBaseName(real) || t('本机')
+      const text = connection
+        ? `${folderBaseName(real) || '.dsh'} · ${connectionTarget(connection)}`
+        : remote
+          ? t('远端 · {target}', { target: launchWslDistroEl.value || 'WSL' })
+          : (real && real !== name ? `${name} · ${real}` : name)
+      const iconEl = document.getElementById('launchEnvPickIcon')
+      iconEl?.querySelector('use')?.setAttribute('href', remote ? '/icons.svg#lucide-server' : '/icons.svg#lucide-folder')
+      launchEnvPickEl.classList.remove('is-placeholder')
       launchEnvPickValueEl.textContent = text
-      launchEnvPickEl.title = profile ? t('{home} › {profile}（{path}）', { home: label, profile, path }) : t('选择目录与配置…')
+      launchEnvPickEl.title = text
       launchEnvPickEl.setAttribute('aria-label', text)
+      paintLaunchEnvironmentPick()
     }
+
+    /** 「自定义 / 编辑」档的「用哪个实例」按钮：和「从已有实例复制」同款，显示「实例名 · 路径」。 */
+    function paintLaunchEnvironmentPick() {
+      if (typeof launchEnvironmentPickEl === 'undefined' || !launchEnvironmentPickEl || typeof launchEnvironmentPickValueEl === 'undefined' || !launchEnvironmentPickValueEl) return
+      const envId = document.getElementById('launchEnvironment')?.value || ''
+      const envList = typeof environmentState !== 'undefined' && Array.isArray(environmentState?.list) ? environmentState.list : []
+      const remote = typeof launchBackendIsRemote === 'function' && launchBackendIsRemote()
+      const conn = remote ? connectionById(launchConnectionIdEl?.value || '') : null
+      const formHome = remote
+        ? (launchRemoteHomeEl?.value.trim() || launchWslHomeEl?.value.trim() || '~/.dsh')
+        : (launchDshHomeEl?.value.trim() || state.dshHome || '~/.dsh')
+      const formProfile = typeof launchProfile !== 'undefined' ? launchProfile : 'web'
+      const rawEnv = envId && !remote ? envList.find((item) => item.id === envId) : null
+      const env = rawEnv
+        && (!rawEnv.targetProfile || rawEnv.targetProfile === formProfile)
+        && (typeof sameHomePath !== 'function' || sameHomePath(rawEnv.targetHome || state.dshHome || '', formHome))
+        ? rawEnv
+        : null
+      const profile = env ? (env.targetProfile || env.name || formProfile || 'web') : (formProfile || 'web')
+      const home = env ? (env.targetHome || state.dshHome || '~/.dsh') : formHome
+      const realPath = conn ? (connectionTarget(conn) || home || '~/.dsh') : (home || state.dshHome || '~/.dsh')
+      const text = profile ? (realPath ? `${profile} · ${realPath}` : profile) : t('选择一个实例…')
+      const iconEl = document.getElementById('launchEnvironmentPickIcon')
+      iconEl?.querySelector('use')?.setAttribute('href', conn || remote ? '/icons.svg#lucide-server' : '/icons.svg#lucide-package')
+      launchEnvironmentPickEl.classList.toggle('is-placeholder', !profile)
+      launchEnvironmentPickValueEl.textContent = text
+      launchEnvironmentPickEl.title = text
+      launchEnvironmentPickEl.setAttribute('aria-label', text)
+    }
+    globalThis.paintLaunchEnvironmentPick = paintLaunchEnvironmentPick
 
     /**
      * 左栏的目录：全局那份排第一（空值），后面是登记过的目录，每行带重命名/移除。
@@ -7658,6 +8054,7 @@
       if (!launchDialogEl.hidden) {
         paintLaunchHomes(launchHomePicked)
         paintLaunchHomeCustom()
+        paintGuideTarget()
       }
       paintPluginHomes()
     }
@@ -7859,8 +8256,25 @@
       }
     }
 
-    launchCopyPickEl.onclick = () => void openProfilePicker('copy')
-    launchEnvPickEl.onclick = () => void openProfilePicker('form')
+    launchCopyPickEl.onclick = (event) => {
+      event?.stopPropagation?.()
+      if (launchCopyPanelEl?.hidden || launchCopyAnchorEl !== launchCopyPickEl) {
+        closeLaunchCopyPanel()
+        openLaunchCopyPanel(launchCopyPickEl)
+      } else closeLaunchCopyPanel()
+    }
+    launchEnvPickEl.onclick = (event) => {
+      event?.stopPropagation?.()
+      if (launchGuideDirPanelEl?.hidden) openLaunchGuideDirPanel(launchEnvPickEl)
+      else closeLaunchGuideDirPanel()
+    }
+    if (launchEnvironmentPickEl) launchEnvironmentPickEl.onclick = (event) => {
+      event?.stopPropagation?.()
+      if (launchCopyPanelEl?.hidden || launchCopyAnchorEl !== launchEnvironmentPickEl) {
+        closeLaunchCopyPanel()
+        openLaunchCopyPanel(launchEnvironmentPickEl)
+      } else closeLaunchCopyPanel()
+    }
     profilePickConfirmEl.onclick = confirmProfilePick
     document.getElementById('pickHomeAddClose').onclick = closePickHomeAddDialog
     document.getElementById('pickHomeAddCancel').onclick = closePickHomeAddDialog
@@ -9004,6 +9418,14 @@
         // 会把钉子拔掉、跟别的条目撞成同一个实例（两张一样的卡就是这么来的）；
         // 想动钉子走「编辑启动项」的版本下拉。提醒的是这个启动项所跟通道里的最新版。
         const hasNewVersion = !remote && entry.version === 'auto' && version && latest && compareVersion(latest, version) > 0
+        const activeUpgrade = !remote && Boolean(
+          (typeof updatingLaunchId !== 'undefined' && updatingLaunchId === entry.id)
+          || (hasNewVersion && Boolean(state.installing) && latest === state.installing),
+        )
+        const showUpgrade = hasNewVersion || activeUpgrade
+        const upgradeLabel = activeUpgrade
+          ? (typeof progressHint === 'function' && (Boolean(state.installing) || action === 'install' || action === 'update') ? progressHint(t('正在安装')) : t('正在安装…'))
+          : t('新版本 {version}', { version: latest })
         const installNote = !remote && !installedList().includes(version) && !live ? t('首次启动会自动安装') : ''
         // 启动中的阶段（启动进程 → 加载插件）显示在说明行，按钮上的秒表每秒走一格
         const startupNote = live?.status === 'starting' ? startupPhaseText(live.startupPhase) : ''
@@ -9011,22 +9433,19 @@
           <button class="launch-app-icon" type="button" data-launch-drag-handle title="${escapeHtml(t('拖动或用方向键排序'))}" aria-label="${escapeHtml(t('调整 {name} 的顺序', { name }))}">${launchIconMarkup(entry.icon)}</button>
           <span class="launch-preset-copy"><span class="launch-preset-heading">
             <span class="launch-preset-name">${escapeHtml(name)}</span>${wsl ? `<span class="launch-tag launch-tag-wsl" title="${escapeHtml(entry.wslDistro || launchWslDistroOf(entry))}">WSL</span>` : entry.backend === 'ssh' ? `<span class="launch-tag launch-tag-ssh" title="${escapeHtml(launchTargetLabel(entry))}">SSH</span>` : ''}${builtin ? `<span class="launch-builtin">${escapeHtml(t('内置'))}</span>` : ''}</span>
-            <span class="launch-preset-meta" title="${escapeHtml(automaticHint)}"><span>${escapeHtml([note, installNote, startupNote].filter(Boolean).join(' · '))}</span></span>
-            ${hasNewVersion ? `<button class="launch-new-version" type="button" data-version-id="${entry.id}" ${action || state.installing ? 'disabled' : ''}>${escapeHtml(t('新版本 {version}', { version: latest }))}<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-chevron-right"/></svg></button>` : ''}</span>
-          <span class="launch-actions"><button class="launch-edit launch-plugins"${wsl ? ' hidden' : ''} type="button" data-plugins-id="${entry.id}" title="${escapeHtml(t('管理插件'))}" aria-label="${escapeHtml(t('管理 {name} 的插件', { name }))}">
+            <span class="launch-preset-meta" title="${escapeHtml(automaticHint)}"><span>${escapeHtml([note, installNote, startupNote].filter(Boolean).join(' · '))}</span></span></span>
+          <span class="launch-actions">${showUpgrade ? `<button class="launch-edit launch-new-version${activeUpgrade ? ' is-installing' : ''}" type="button" data-version-id="${entry.id}" title="${escapeHtml(upgradeLabel)}" aria-label="${escapeHtml(upgradeLabel)}" ${activeUpgrade || action || state.installing ? 'disabled' : ''}><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-${activeUpgrade ? 'refresh-cw' : 'arrow-up-to-line'}"/></svg></button>` : ''}<button class="launch-edit launch-plugins"${wsl ? ' hidden' : ''} type="button" data-plugins-id="${entry.id}" title="${escapeHtml(t('管理实例'))}" aria-label="${escapeHtml(t('管理 {name}', { name }))}">
             <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-package"/></svg></button><button class="launch-edit launch-log${issue ? ' has-issue' : ''}" type="button" data-log-id="${entry.id}" title="${escapeHtml(t('查看 {name} 的日志', { name }))}" aria-label="${escapeHtml(t('查看 {name} 的日志', { name }))}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-file-text"/></svg></button><button class="launch-edit" type="button" data-edit-id="${entry.id}" title="${escapeHtml(t('编辑 {name}', { name }))}" aria-label="${escapeHtml(t('编辑 {name}', { name }))}" ${action || state.installing || ownAction || busy ? 'disabled' : ''}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-pencil"/></svg></button>
           ${live ? `<button class="icon-btn launch-action" type="button" data-restart-id="${entry.id}" title="${escapeHtml(t('重启'))}" aria-label="${escapeHtml(t('重启'))}" ${action || ownAction || busy ? 'disabled' : ''}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-rotate-cw"/></svg></button>
           <button class="icon-btn launch-action" type="button" data-stop-id="${entry.id}" title="${escapeHtml(t('停止'))}" aria-label="${escapeHtml(t('停止'))}" ${action || ownAction || busy ? 'disabled' : ''}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-square"/></svg></button>` : ''}
-          <span class="launch-open-group${instanceWindowsAvailable ? ' has-menu' : ''}"><span class="launch-open"><button class="primary icon-btn launch-primary${busy || ownAction ? ' loading' : ''}" type="button" data-launch-id="${entry.id}" title="${escapeHtml(live?.status === 'running' && live.url ? '' : label)}" aria-label="${escapeHtml(label)}" ${!version || action || ownAction || installBlocked || busy || (live?.status === 'running' && !live.url) ? 'disabled' : ''}>
+          <span class="launch-open"><button class="primary icon-btn launch-primary${busy || ownAction ? ' loading' : ''}" type="button" data-launch-id="${entry.id}" title="${escapeHtml(live?.status === 'running' && live.url ? '' : label)}" aria-label="${escapeHtml(label)}" ${!version || action || ownAction || installBlocked || busy || (live?.status === 'running' && !live.url) ? 'disabled' : ''}>
             <span class="spin" aria-hidden="true"></span>${live?.status === 'running'
               ? '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-external-link"/></svg>'
               : '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5a1 1 0 0 1 1.5-.86l10 6.5a1 1 0 0 1 0 1.72l-10 6.5A1 1 0 0 1 8 18.5Z"/></svg>'}</button>
-          ${live?.status === 'running' && live.url ? `<span class="launch-link-popover" role="group" aria-label="${escapeHtml(t('访问链接'))}"><span class="launch-link-head"><span>${escapeHtml(t('访问链接'))}</span><button class="launch-link-copy" type="button" data-copy-launch-link title="${escapeHtml(t('复制链接'))}" aria-label="${escapeHtml(t('复制链接'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-copy"/></svg></button></span><a class="launch-link-value" href="${escapeHtml(live.url)}" data-copy-url="${escapeHtml(live.lanUrl || live.url)}" target="_blank" rel="noopener">${escapeHtml(live.lanUrl || live.url)}</a>${live.lanError ? `<span class="launch-link-note">${escapeHtml(lanErrorText(live.lanError))}</span>` : ''}</span>` : ''}</span>
-          ${instanceWindowsAvailable ? `<button class="primary launch-open-toggle" type="button" data-open-menu="${entry.id}" popovertarget="launch-open-menu-${entry.id}" aria-haspopup="menu" aria-expanded="false" aria-label="${escapeHtml(t('更多打开方式'))}" title="${escapeHtml(t('更多打开方式'))}" ${action || ownAction || busy || live?.status !== 'running' || !live?.url ? 'disabled' : ''}><span class="launch-menu-chevron" aria-hidden="true"></span></button><span class="launch-open-menu" id="launch-open-menu-${entry.id}" popover role="menu" aria-label="${escapeHtml(t('更多打开方式'))}"><button type="button" role="menuitem" data-window-id="${entry.id}" ${action || ownAction || busy || live?.status !== 'running' || !live?.url ? 'disabled' : ''}><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-external-link"/></svg>${escapeHtml(t('在新窗口打开'))}</button></span>` : ''}
-          </span></span>
+          ${live?.status === 'running' && live.url ? `<span class="launch-link-popover" role="group" aria-label="${escapeHtml(t('访问链接'))}"><span class="launch-link-head"><span>${escapeHtml(t('访问链接'))}</span><button class="launch-link-copy" type="button" data-copy-launch-link title="${escapeHtml(t('复制链接'))}" aria-label="${escapeHtml(t('复制链接'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-copy"/></svg></button></span><a class="launch-link-value" href="${escapeHtml(live.url)}" data-copy-url="${escapeHtml(live.lanUrl || live.url)}" target="_blank" rel="noopener">${escapeHtml(live.lanUrl || live.url)}</a>${live.lanError ? `<span class="launch-link-note">${escapeHtml(lanErrorText(live.lanError))}</span>` : ''}</span>` : ''}</span></span>
         </div>`
       }).join('')
       // 状态推送很频繁；内容没变就保留节点，避免悬停动效和键盘焦点反复重置。
@@ -9053,41 +9472,6 @@
           if (!remote && state.installing && !installedList().includes(version) && !versionInstalls.has(version)) return
           try { await startVersion(remote ? (version || 'auto') : version, entry.profile, entry.port, entry.id) }
           catch (error) { notifyError(error) }
-        }
-      })
-      launchPresetsEl.querySelectorAll('[data-open-menu]').forEach((button) => {
-        const panel = document.getElementById(button.getAttribute('popovertarget'))
-        const position = () => {
-          const rect = button.getBoundingClientRect()
-          const width = panel.offsetWidth || 180, height = panel.offsetHeight || 48
-          const above = rect.bottom + height + 6 > innerHeight - 12
-          panel.style.left = `${Math.max(12, Math.min(rect.right - width, innerWidth - width - 12))}px`
-          panel.style.top = `${Math.max(12, above ? rect.top - height - 6 : rect.bottom + 6)}px`
-          panel.style.transformOrigin = above ? 'bottom right' : 'top right'
-          panel.style.setProperty('--menu-enter-y', above ? '4px' : '-4px')
-        }
-        panel.onbeforetoggle = (event) => { if (event.newState === 'open') position() }
-        panel.ontoggle = () => {
-          const open = panel.matches(':popover-open')
-          button.setAttribute('aria-expanded', String(open))
-          if (open) { position(); panel.querySelector('button:not(:disabled)')?.focus() }
-        }
-        button.onkeydown = (event) => {
-          if (event.key === 'ArrowDown' && !button.disabled) { event.preventDefault(); if (!panel.matches(':popover-open')) button.click() }
-        }
-        panel.onkeydown = (event) => {
-          if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
-            event.preventDefault(); panel.querySelector('button:not(:disabled)')?.focus()
-          }
-        }
-      })
-      launchPresetsEl.querySelectorAll('[data-window-id]').forEach((button) => {
-        button.onclick = async () => {
-          button.closest('[popover]').hidePopover()
-          button.closest('.launch-open-group').querySelector('[data-open-menu]').focus()
-          const entry = launchEntries().find((item) => item.id === button.dataset.windowId)
-          const live = entry && runningInfoForEntry(entry)
-          if (!button.disabled && live?.status === 'running' && live.url) await openInstance(live.url, 'window')
         }
       })
       launchPresetsEl.querySelectorAll('.launch-open').forEach((wrap) => {
@@ -9123,7 +9507,14 @@
         }
       })
       launchPresetsEl.querySelectorAll('[data-plugins-id]').forEach((button) => {
-        button.onclick = () => openLaunchPlugins(launchEntries().find((item) => item.id === button.dataset.pluginsId))
+        button.onclick = () => {
+          const entry = launchEntries().find((item) => item.id === button.dataset.pluginsId)
+          if (entry && entry.backend !== 'wsl' && entry.backend !== 'ssh' && typeof globalThis.openEnvironmentDetail === 'function') {
+            void globalThis.openEnvironmentDetail(entry.environment || { profile: entry.profile || 'web', home: entry.dshHome || '' }, entry)
+            return
+          }
+          openLaunchPlugins(entry)
+        }
       })
       launchPresetsEl.querySelectorAll('[data-log-id]').forEach((button) => {
         button.onclick = () => { void openLaunchLog(launchEntries().find((item) => item.id === button.dataset.logId)) }
@@ -9135,7 +9526,7 @@
         button.onclick = () => manageLaunchEntry(button.dataset.restartId, true)
       })
       launchAddEl.disabled = Boolean(action) || Boolean(state.installing)
-      launchAddEl.title = launchAddEl.ariaLabel = t('添加启动项')
+      launchAddEl.title = launchAddEl.ariaLabel = t('添加实例')
     }
 
     async function saveLaunchOrder(ids) {
@@ -9238,17 +9629,20 @@
       return versionScopeState
     }
 
+    let versionManageUnderlayEl = null
     function openVersionManager() {
       if (!versionManageDialogEl.hidden && !versionManageDialogEl.dataset.dialogClosing) return
       ++versionManageRevision
       versionManageOrigin = document.activeElement
-      versionManageReturnToEditor = !launchDialogEl.hidden
+      versionManageUnderlayEl = !launchDialogEl.hidden
+        ? launchDialogEl
+        : (!launchPluginsDialogEl.hidden ? launchPluginsDialogEl : null)
+      versionManageReturnToEditor = Boolean(versionManageUnderlayEl)
       closeVersionPanel()
       closeUiSelect()
-      if (versionManageReturnToEditor) {
-        launchFormEl.inert = true
-        launchDialogEl.classList.add('is-underlay')
-      }
+      if (versionManageUnderlayEl === launchDialogEl) launchFormEl.inert = true
+      else if (versionManageUnderlayEl === launchPluginsDialogEl) launchPluginsCardEl.inert = true
+      versionManageUnderlayEl?.classList.add('is-underlay')
       versionManageDialogEl.classList.toggle('is-child-dialog', versionManageReturnToEditor)
       paintVersionManager()
       if (versionTargetIsWsl()) {
@@ -9272,12 +9666,16 @@
       if (versionManageDialogEl.hidden || versionManageDialogEl.dataset.dialogClosing) return
       const revision = ++versionManageRevision
       closeUiSelect()
-      if (versionManageReturnToEditor) launchDialogEl.classList.remove('is-underlay')
+      const underlay = versionManageUnderlayEl
+      if (underlay) underlay.classList.remove('is-underlay')
       if (!(await hideDialog(versionManageDialogEl)) || revision !== versionManageRevision) return
       versionManageDialogEl.classList.remove('is-child-dialog')
-      if (versionManageReturnToEditor) launchFormEl.inert = false
-      // 实例页也能打开版本管理：它的版本下拉列的是已装版本，关掉后重画一次，刚装 / 删的版本才对得上
-      else void environmentState.reload?.()
+      if (underlay === launchDialogEl) launchFormEl.inert = false
+      else if (underlay === launchPluginsDialogEl) {
+        launchPluginsCardEl.inert = false
+        void environmentState.reload?.()
+      } else void environmentState.reload?.()
+      versionManageUnderlayEl = null
       versionManageReturnToEditor = false
       const origin = versionManageOrigin
       versionManageOrigin = null
@@ -9709,7 +10107,7 @@
       launchUpdateChannelEl.value = String(UPDATE_CHANNELS.indexOf(launchChannel(entry)))
       paintLaunchChannel()
       launchDeleteEl.hidden = !entry || entry.id === DEFAULT_LAUNCH_ID
-      document.getElementById('launchDialogTitle').textContent = t(entry ? '编辑启动项' : '添加启动项')
+      document.getElementById('launchDialogTitle').textContent = t(entry ? '编辑实例' : '添加实例')
       showDialog(launchDialogEl)
       paintLaunchProfiles()
       if (!launchBackendIsWsl() && entry?.dshHome) void refreshLaunchHomeProfiles()
@@ -9718,6 +10116,7 @@
       if (!launchBackendIsWsl()) void loadRecovery(launchProfile)
       // 环境下拉在 environments-page.js 里填（它挂上这个钩子；钩子不在时就是没有环境页）
       globalThis.onLaunchEditorOpen?.(entry || null)
+      paintLaunchEnvironmentPick()
       launchNameEl.focus()
     }
 
@@ -9733,6 +10132,22 @@
       render()
     }
 
+    /** 编辑框里换了实例：把配置（dsh profile）一并切到实例关联的那份（切回初始项时恢复）。 */
+    function setLaunchProfile(profile) {
+      if (!profile) return
+      launchProfile = profile
+      if (launchProfileEl) {
+        if (![...launchProfileEl.options].some((opt) => opt.value === profile)) {
+          launchProfileEl.insertAdjacentHTML('beforeend', `<option value="${escapeHtml(profile)}">${escapeHtml(profile)}</option>`)
+        }
+        launchProfileEl.value = profile
+        syncUiSelect(launchProfileEl)
+      }
+      void loadRecovery(launchProfile)
+      paintLaunchEnvironmentPick()
+      render()
+    }
+
     async function closeLaunchEditor() {
       if (launchSaveEl.disabled || launchDialogEl.hidden || launchDialogClosing) return
       const revision = ++launchDialogRevision
@@ -9740,6 +10155,8 @@
       ++launchHomeRevision
       launchDialogClosing = true
       closeVersionPanel()
+      closeLaunchGuideDirPanel()
+      closeLaunchCopyPanel()
       launchFormEl.inert = true
       const closed = await hideDialog(launchDialogEl)
       // 连续开关时，较早的关闭动画不能把新打开的编辑窗口隐藏。
@@ -9897,11 +10314,10 @@
       if (versionDisabled) closeVersionPanel()
       paintVersionTrigger()
       if (versionOpen) paintVersionPanel()
-      setProgress(Boolean(state.installing) || action === 'install' || action === 'update')
+      setProgress(false)
       paintBackupProgress()
       paintLaunchHome()
       hintEl.textContent = action === 'optimize' || installProgress?.phase === 'optimize' ? t('正在优化依赖…')
-        : action === 'install' || action === 'update' || state.installing ? progressHint(t('正在安装'))
         : action === 'uninstall' ? t('正在卸载…') : ''
       // 上次启动没成：原因的入口留在提示行上。托盘里点的启动失败时没有页面在等结果，
       // 能看到原因的只有这里。那个组合又跑起来了就不再提。
@@ -10015,9 +10431,11 @@
 
     /** 升级到最新版：正在跑就先停掉，装完再按原样拉起来。 */
     let pendingUpdateTarget = null
+    let updatingLaunchId = ''
     async function updateToLatest(latest) {
       const target = pendingUpdateTarget
       pendingUpdateTarget = null
+      updatingLaunchId = target?.launchId || ''
       const original = { picked, versionValue, launchProfile, userPicked }
       const targetVersion = target?.version || selected()
       const targetProfile = target?.profile || launchProfile
@@ -10053,17 +10471,21 @@
           // 跟点卡片启动一样带上启动项的固定端口：端口随版本挪到新版，不然更新后这次落在随机端口上。
           await startVersion(latest, targetProfile, entry ? entry.port : null, target?.launchId)
           // 这条分支直接 return，不在这里收尾的话首页会一直停在「正在安装」、按钮全锁死。
+          updatingLaunchId = ''
           action = ''
           render()
           return
         }
+        updatingLaunchId = ''
         action = ''
         render()
       } catch (error) {
+        updatingLaunchId = ''
         action = ''
         render()
         notifyError(error)
       } finally {
+        updatingLaunchId = ''
         if (target?.preserveSelection) {
           picked = original.picked
           versionValue = original.versionValue
@@ -11239,8 +11661,6 @@
     const openModeEl = document.getElementById('openMode')
     const openModeHint = document.getElementById('openModeHint')
     let internalTabsAvailable = false
-    // SSE 会整体替换 state；外壳能力只来自设置接口，不能随实例快照一起丢掉。
-    let instanceWindowsAvailable = false
     const describeOpenMode = (mode) => mode === 'internal' && !internalTabsAvailable
       ? t('内部标签页需使用新版 DSH-X 桌面端；当前使用浏览器标签页。')
       : ''
@@ -11439,8 +11859,6 @@
         showNodeRuntimeSettings(data)
       }
       if ('openMode' in data) {
-        instanceWindowsAvailable = data.instanceWindows === true
-        paintLaunchHome()
         internalTabsAvailable = data.openModeInternal === true
         const modes = Array.isArray(data.openModes) && data.openModes.length
           ? data.openModes
@@ -11893,11 +12311,25 @@
 
     async function closeLaunchPlugins({ afterDelete = false } = {}) {
       if (launchPluginsDialogEl.hidden || launchPluginsDialogEl.dataset.dialogClosing) return
-      // packBusy 操作（删 Profile、修复、还原）中途抽走列表会留下半截状态，挡住不让关
-      if (!afterDelete && (pluginTogglePending.size || packBusy)) return
+      const envPanel = document.getElementById('environmentPanel')
+      const host = document.getElementById('launchPluginsHost')
+      const hostingEnvironment = Boolean(envPanel && host && envPanel.parentElement === host)
+      // packBusy / 实例动作在忙或开关还在落盘时挡住关闭；删完实例（afterDelete）必须强制收尾
+      if (!afterDelete && (pluginTogglePending.size || packBusy || (hostingEnvironment && environmentState?.busy))) return
       ++pluginDialogRequest
       closeUiSelect()
       if (!(await hideDialog(launchPluginsDialogEl))) return
+      if (hostingEnvironment) {
+        const close = document.getElementById('launchPluginsClose')
+        if (close) launchPluginsCardEl.querySelector('.launch-plugins-head')?.append(close)
+        document.getElementById('pane-environments')?.append(envPanel)
+        environmentState.closeDetail?.()
+        pluginLaunchEntry = null
+        launchPluginScope = ''
+        if (pluginDialogOrigin?.isConnected) pluginDialogOrigin.focus()
+        else launchAddEl.focus()
+        return
+      }
       document.getElementById('pane-plugins').append(pluginPanelEl)
       // 弹窗里停在某个环境的详情上，关掉后回卡片列表，别把详情视图带到主页面
       closePack()
@@ -11912,6 +12344,7 @@
       if (pluginDialogOrigin?.isConnected) pluginDialogOrigin.focus()
       else launchAddEl.focus()
     }
+    globalThis.closeLaunchPlugins = closeLaunchPlugins
     document.getElementById('launchPluginsClose').onclick = closeLaunchPlugins
     launchPluginsDialogEl.onclick = (event) => { if (event.target === launchPluginsDialogEl) closeLaunchPlugins() }
     launchPluginsDialogEl.onkeydown = (event) => {
@@ -12040,7 +12473,7 @@
       const last = recovery?.last
       const backup = last?.backup ?? recovery?.backups?.[0]?.path ?? null
       const options = recoveryOptions()
-      if (!profile || !options || editorRecovery?.home !== recoveryTargetHome(options) || recovery?.profile !== profile || (!backup && !last)) {
+      if ((typeof launchIsGuided === 'function' && launchIsGuided()) || !profile || !options || editorRecovery?.home !== recoveryTargetHome(options) || recovery?.profile !== profile || (!backup && !last)) {
         recoveryHintEl.hidden = true
         recoveryHintEl.textContent = ''
         return
@@ -12494,13 +12927,15 @@
         : backupPhase === 'snapshot' ? t('正在生成备份…') : t('正在回退配置…')
       paintProgress(backupProgressTrackEl, backupProgressTrackEl.querySelector('.progress-bar'), progress, true)
     }
+    let backupHome = ''
     async function loadProfileBackups() {
       if (!backupProfile) return
       const request = ++backupListRequest
       const profile = backupProfile
+      const scope = typeof backupHome === 'string' && backupHome ? { launchId: '', home: backupHome } : null
       backupListLoading = true
       try {
-        const data = await getJson(`/api/profile-backups?profile=${encodeURIComponent(profile)}`)
+        const data = await getJson(`/api/profile-backups?profile=${encodeURIComponent(profile)}`, ...(scope ? [scope] : []))
         // 迟到的响应不能画进另一个环境/已经关掉的弹窗
         if (request !== backupListRequest || backupDialogEl.hidden || backupProfile !== profile) return
         paintProfileBackups(data.backups)
@@ -12510,9 +12945,10 @@
         if (request === backupListRequest) backupListLoading = false
       }
     }
-    function openProfileBackups(profile) {
+    function openProfileBackups(profile, home = '') {
       if (!profile || packBusy) return
       backupProfile = profile
+      backupHome = String(home || '')
       backupPhase = ''
       // 说明只留一行保留策略；补丁/清单这些细节挂 title，鼠标停一下就能看全
       backupHintEl.textContent = t('配置「{profile}」的配置层快照 · 最多保留 10 份 / 30 天', { profile })
@@ -12527,16 +12963,18 @@
     function closeProfileBackups() {
       void hidePackDialog(backupDialogEl)
     }
+    globalThis.openProfileBackupsForInstance = (profile, home = '') => openProfileBackups(profile, home)
     async function restoreProfileBackup(id) {
       if (!backupProfile || !id || backupLoading) return
       const ok = await appConfirm(t('回退到这份备份？当前配置会先自动存一份，回退后会自动重装依赖（可能比较慢），并需要重启这个配置的实例才生效。'))
       if (!ok) return
       const profile = backupProfile
+      const scope = typeof backupHome === 'string' && backupHome ? { launchId: '', home: backupHome } : null
       backupPhase = 'restore'
       backupLoading = true
       paintBackupProgress()
       try {
-        const data = await post('/api/profile-backups/restore', { profile, id })
+        const data = await post('/api/profile-backups/restore', { profile, id }, ...(scope ? [scope] : []))
         const install = data?.install
         if (install?.ok === false) {
           notify(t('配置已回退，但依赖重装失败：{error}。可以再回退一次重试。', { error: install.error }), t('回退完成'))
@@ -12559,9 +12997,10 @@
     async function removeProfileBackup(id, button) {
       if (!backupProfile || !id || backupLoading || button?.disabled) return
       if (!await appConfirm(t('删除这份备份？删除后不能再回退到它；当前配置不受影响。'), { title: t('删除备份'), parent: backupDialogEl })) return
+      const scope = typeof backupHome === 'string' && backupHome ? { launchId: '', home: backupHome } : null
       if (button) button.disabled = true
       try {
-        await post('/api/profile-backups/delete', { profile: backupProfile, id })
+        await post('/api/profile-backups/delete', { profile: backupProfile, id }, ...(scope ? [scope] : []))
         notify(t('已删除备份。'), t('备份'))
         await loadProfileBackups()
       } catch (error) {
@@ -12571,11 +13010,12 @@
     }
     backupNowEl.onclick = async () => {
       if (!backupProfile || backupLoading) return
+      const scope = typeof backupHome === 'string' && backupHome ? { launchId: '', home: backupHome } : null
       backupPhase = 'snapshot'
       backupLoading = true
       paintBackupProgress()
       try {
-        const data = await post('/api/profile-backups/snapshot', { profile: backupProfile })
+        const data = await post('/api/profile-backups/snapshot', { profile: backupProfile }, ...(scope ? [scope] : []))
         notify(data.backup ? t('已生成新备份。') : t('配置没有变化，不需要新备份。'), t('备份'))
         await loadProfileBackups()
       } catch (error) {
@@ -12944,6 +13384,7 @@
       hidePackDialog(packImportDialog)
     }
 
+    let packSkillsWanted = true
     /** 导出一个环境：版本号和说明沿用上次导出填的，本地插件默认都打成离线文件带上。 */
     function openExportDialog(env) {
       exportingEnvironment = env
@@ -12959,6 +13400,8 @@
       packExportOfflineEl.innerHTML = local.length
         ? `<span class="pack-block-title">${escapeHtml(t('本地插件打成离线文件带上（不勾的不进实例文件）'))}</span>${local.map((plugin) => `<label class="pack-check"><input type="checkbox" data-offline="${escapeHtml(plugin.name)}" checked /><span>${escapeHtml(plugin.name)}</span></label>`).join('')}`
         : ''
+      const skillsCheck = typeof document === 'object' ? document.getElementById('packExportSkills') : null
+      if (skillsCheck) skillsCheck.checked = true
       packExportHintEl.textContent = env.dshVersion === AUTO_VERSION ? t('这个实例跟着最新版本走：导出时写成现在会用的那个精确版本。') : ''
       showPackDialog(packExportDialog, packExportNameEl)
     }
@@ -13018,6 +13461,8 @@
         : t('不跟随上游：之后不会提示更新')
       const offline = (env.offline || []).map((item) => `${item.name} · ${item.file} · ${t('{kb} KB', { kb: Math.max(1, Math.round(item.bytes / 1024)) })} · sha256 ${item.sha256.slice(0, 12)}…`)
       const profileData = data.profileData || {}
+      const hasSkills = Array.isArray(profileData.home) && profileData.home.some((path) => String(path).startsWith('skills/'))
+      const skillsWanted = typeof packSkillsWanted === 'undefined' ? true : packSkillsWanted
       const configRows = [profileData.patch ? t('补丁层（插件开关、插件配置、MCP）') : '', ...(profileData.overrides || []), ...(profileData.home || []).map((path) => t('用户级文件 {path}', { path }))].filter(Boolean)
       const profiles = [...new Set([packTargetProfile, ...(data.profiles || [])])].filter(Boolean)
       const contentWasHidden = packInspectEl.hidden
@@ -13032,12 +13477,13 @@
         ${packNotes(t('问题（先解决这些）'), data.errors || [], 'warn')}
         ${packNotes(t('要注意'), data.warnings || [], 'warn')}
         ${packNotes(t('这个实例带了 {n} 个离线文件：它们是可执行代码，来源不像 npm 那样可查，确认是信得过的作者再导入', { n: offline.length }), offline, 'warn')}
-        ${profileData.available ? `<div class="pack-target">
-          <label class="pack-check"><input type="checkbox" id="packConfigImport" ${packConfigWanted ? 'checked' : ''} ${packBusy ? 'disabled' : ''} /><span>${escapeHtml(t('把包里的配置导进配置'))}</span></label>
+        ${(profileData.available || hasSkills) ? `<div class="pack-target">
+          ${profileData.available ? `<label class="pack-check"><input type="checkbox" id="packConfigImport" ${packConfigWanted ? 'checked' : ''} ${packBusy ? 'disabled' : ''} /><span>${escapeHtml(t('把包里的配置导进配置'))}</span></label>
           <select id="packProfile" aria-label="${escapeHtml(t('导入配置的配置'))}" ${packBusy || !packConfigWanted ? 'disabled' : ''}>
             ${profiles.map((name) => `<option value="${escapeHtml(name)}" ${name === packTargetProfile ? 'selected' : ''}>${escapeHtml(name)}</option>`).join('')}
           </select>
-          <span class="pack-meta">${escapeHtml(t('默认不导：配置属于配置。导入前会备份，之后可以在配置页撤销。'))}</span>
+          <span class="pack-meta">${escapeHtml(t('默认不导：配置属于配置。导入前会备份，之后可以在配置页撤销。'))}</span>` : ''}
+          ${hasSkills ? `<label class="pack-check"><input type="checkbox" id="packSkillsImport" ${skillsWanted ? 'checked' : ''} ${packBusy ? 'disabled' : ''} /><span>${escapeHtml(t('导入包里附带的技能'))}</span></label>` : ''}
         </div>` : ''}
         <details class="pack-advanced">
           <summary>${escapeHtml(t('查看详情'))}</summary>
@@ -13059,6 +13505,10 @@
           renderPackInspect()
         }
       }
+      const skillsImportEl = document.getElementById('packSkillsImport')
+      if (skillsImportEl) {
+        skillsImportEl.onchange = (event) => { packSkillsWanted = event.target.checked }
+      }
       const installEl = document.getElementById('packInstall')
       if (installEl) installEl.onclick = () => { void installPack() }
       document.getElementById('packCancel').onclick = closeInstallDialog
@@ -13072,6 +13522,7 @@
       if (packBusy) return
       // 配置默认不导（设计稿第 10 条）；目标 Profile 预选当前在用的那个
       packConfigWanted = false
+      packSkillsWanted = true
       packTargetProfile = state.profile || 'web'
       const request = ++packInspectRequest
       const controller = new AbortController()
@@ -13111,13 +13562,14 @@
     async function installPack() {
       if (!packInspection?.ok || packBusy) return
       const profile = packConfigWanted ? packTargetProfile : ''
+      const includeSkills = typeof document !== 'undefined' && document.getElementById('packSkillsImport')?.checked === true
       const env = packInspection.environment || {}
       packInstalling = true
       packBusy = true
       renderPackInspect()
       packHintEl.textContent = env.dshInstalled ? t('正在导入…') : t('正在安装 DSH {version}，装好后导入…', { version: env.dshVersion })
       try {
-        const data = await post('/api/environments/import', { token: packInspection.token, ...(profile ? { profile } : {}) })
+        const data = await post('/api/environments/import', { token: packInspection.token, ...(profile ? { profile } : {}), ...(includeSkills ? { includeSkills: true, ...(!profile && packTargetProfile ? { skillsProfile: packTargetProfile } : {}) } : {}) })
         packInspection = null
         renderPackInspect()
         packHintEl.textContent = ''
@@ -13181,6 +13633,7 @@
       const revision = exportRevision
       const target = packExportDialog.querySelector('input[name="packExportTarget"]:checked')?.value || 'file'
       const exclude = [...packExportOfflineEl.querySelectorAll('input[data-offline]')].filter((input) => !input.checked).map((input) => input.dataset.offline)
+      const includeSkills = typeof document !== 'undefined' && document.getElementById('packExportSkills')?.checked === true
       packBusy = true
       packExportGoEl.disabled = true
       packExportHintEl.textContent = t(target === 'dir' ? '选择仓库目录…' : '选择保存位置…')
@@ -13194,6 +13647,7 @@
           repo: packExportRepoEl.value.trim(),
           exclude,
           workflow: target === 'dir' && packExportWorkflowEl.checked,
+          ...(includeSkills ? { includeSkills: true } : {}),
         })
         // 服务端把这次填的版本号和描述记回了环境：重取列表，下次打开导出框才是新值
         if (!data.canceled) void environmentState.reload?.()
@@ -13295,6 +13749,16 @@
 
 
     // ---- MCP 服务器：写进 profile 补丁层里的 dsh-mcp-client 条目 ----
+    let instanceToolScope = { profile: '', home: '' }
+    let instanceToolMountKey = ''
+    function toolScopeOptions() {
+      return (instanceToolScope.profile || instanceToolScope.home)
+        ? { launchId: '', ...(instanceToolScope.home ? { home: instanceToolScope.home } : {}) }
+        : {}
+    }
+    function withToolProfile(body = {}) {
+      return instanceToolScope.profile ? { ...body, profile: instanceToolScope.profile } : body
+    }
     const mcpListEl = document.getElementById('mcpList')
     const mcpHintEl = document.getElementById('mcpHint')
     const mcpDialogEl = document.getElementById('mcpDialog')
@@ -13347,7 +13811,7 @@
       remove.onclick = async () => {
         remove.disabled = true
         try {
-          const data = await post('/api/mcp/remove', { serverName: server.serverName })
+          const data = await post('/api/mcp/remove', withToolProfile({ serverName: server.serverName }), toolScopeOptions())
           mcpServers = data.servers || []
           renderMcp()
           setMcpHint(t('已删除 {name}。dsh 在跑会热加载。', { name: server.serverName }))
@@ -13362,7 +13826,7 @@
         const enabled = toggle.checked
         toggle.disabled = true
         try {
-          const data = await post('/api/mcp/toggle', { serverName: server.serverName, enabled })
+          const data = await post('/api/mcp/toggle', withToolProfile({ serverName: server.serverName, enabled }), toolScopeOptions())
           mcpServers = data.servers || []
           renderMcp()
         } catch (error) { setMcpHint(error.message); toggle.checked = !enabled } finally { toggle.disabled = false }
@@ -13386,7 +13850,8 @@
 
     async function loadMcp() {
       try {
-        const data = await getJson('/api/mcp')
+        const query = instanceToolScope.profile ? `?profile=${encodeURIComponent(instanceToolScope.profile)}` : ''
+        const data = await getJson(`/api/mcp${query}`, toolScopeOptions())
         mcpServers = data.servers || []
         renderMcp()
       } catch (error) { setMcpHint(error.message) }
@@ -13453,7 +13918,7 @@
       }
       button.disabled = true
       try {
-        const data = await post('/api/mcp/save', spec)
+        const data = await post('/api/mcp/save', withToolProfile(spec), toolScopeOptions())
         mcpServers = data.servers || []
         closeMcpDialog()
         renderMcp()
@@ -13500,7 +13965,7 @@
       button.disabled = true
       setMcpHint(t('正在检测（真起进程 / 真连端点）…'))
       try {
-        const data = await post('/api/mcp/probe', {})
+        const data = await post('/api/mcp/probe', withToolProfile({}), toolScopeOptions())
         const results = data.results || []
         const ok = results.filter((item) => item.ok).length
         const failed = results.filter((item) => !item.ok)
@@ -13529,7 +13994,8 @@
       showDialog(skillDetailDialogEl)
       document.getElementById('skillDetailClose').focus()
       try {
-        const data = await getJson(`/api/skills/detail?${new URLSearchParams({ root: skill.root, path: skill.relPath })}`)
+        const params = new URLSearchParams({ root: skill.root, path: skill.relPath, ...(instanceToolScope.profile ? { profile: instanceToolScope.profile } : {}) })
+        const data = await getJson(`/api/skills/detail?${params}`, toolScopeOptions())
         if (request !== skillDetailRequest) return
         // 技能里的 Markdown/HTML 只显示原文，避免本地技能文件变成页面脚本。
         skillDetailContentEl.textContent = data.content
@@ -13632,7 +14098,7 @@
           payload = { files: [] }
           for (const file of skillLocalFiles) payload.files.push({ path: file.webkitRelativePath || file.name, base64: await fileBase64(file) })
         }
-        const data = await post('/api/skills/preview', payload)
+        const data = await post('/api/skills/preview', payload, toolScopeOptions())
         skillImportToken = data.token
         skillImportListEl.innerHTML = data.skills.map((skill) => `<label class="skill-import-choice"><input type="checkbox" value="${escapeHtml(skill.id)}" ${skill.issue ? 'disabled' : 'checked'} /><span><strong>${escapeHtml(skill.name)}</strong><small>${escapeHtml(skill.description)}</small><small>${escapeHtml(t('{n} 个文件', { n: skill.fileCount }))}</small>${skill.issue ? `<small class="skill-import-issue">${escapeHtml(skill.issue)}</small>` : ''}</span></label>`).join('')
         skillImportListEl.hidden = false
@@ -13650,7 +14116,7 @@
       const selected = selectedSkillImports(); if (!selected.length) return
       setSkillImportBusy(true); skillInstallErrorEl.textContent = ''
       try {
-        const data = await post('/api/skills/install', { token: skillImportToken, selected, root: document.getElementById('skillInstallRoot').value })
+        const data = await post('/api/skills/install', withToolProfile({ token: skillImportToken, selected, root: document.getElementById('skillInstallRoot').value }), toolScopeOptions())
         renderSkills(data); skillHintEl.textContent = t('已安装 {n} 个技能，dsh 在跑会热加载。', { n: data.installed.length })
         setSkillImportBusy(false); await closeSkillInstall(); resetSkillImport()
       } catch (error) { skillInstallErrorEl.textContent = error.message }
@@ -13682,11 +14148,11 @@
       document.getElementById('skillFormError').textContent = ''
       try {
         const name = document.getElementById('skillName').value.trim()
-        const data = await post('/api/skills/create', {
+        const data = await post('/api/skills/create', withToolProfile({
           root: document.getElementById('skillRoot').value, name,
           description: document.getElementById('skillDescription').value,
           content: document.getElementById('skillContent').value,
-        })
+        }), toolScopeOptions())
         renderSkills(data)
         skillHintEl.textContent = t('{name} 已保存，dsh 在跑会热加载。', { name })
         skillSaving = false
@@ -13726,7 +14192,7 @@
         const enabled = input.checked
         input.disabled = true
         try {
-          renderSkills(await post('/api/skills/toggle', { root: skill.root, path: skill.relPath, enabled }))
+          renderSkills(await post('/api/skills/toggle', withToolProfile({ root: skill.root, path: skill.relPath, enabled }), toolScopeOptions()))
         } catch (error) {
           skillHintEl.textContent = error.message
           input.checked = !enabled
@@ -13738,7 +14204,7 @@
         remove.disabled = true
         try {
           if (!await appConfirm(t(skill.linked ? '移除技能「{name}」的链接？原始文件会保留。' : '删除技能「{name}」及其目录内的资源？此操作无法撤销。', { name: displayName }), { title: t('删除技能 {name}', { name: displayName }) })) return
-          renderSkills(await post('/api/skills/delete', { root: skill.root, path: skill.relPath }))
+          renderSkills(await post('/api/skills/delete', withToolProfile({ root: skill.root, path: skill.relPath }), toolScopeOptions()))
           skillHintEl.textContent = t('已删除 {name}。dsh 在跑会热加载。', { name: displayName })
           document.getElementById('skillAdd').focus()
         } catch (error) {
@@ -13769,7 +14235,8 @@
 
     async function loadSkills() {
       try {
-        renderSkills(await getJson('/api/skills'))
+        const query = instanceToolScope.profile ? `?profile=${encodeURIComponent(instanceToolScope.profile)}` : ''
+        renderSkills(await getJson(`/api/skills${query}`, toolScopeOptions()))
       } catch (error) { skillHintEl.textContent = error.message }
     }
 
@@ -13779,9 +14246,87 @@
         const button = document.getElementById(id)
         button.disabled = true
         try {
-          const data = await post('/api/skills/open-folder', { root })
+          const data = await post('/api/skills/open-folder', withToolProfile({ root }), toolScopeOptions())
           skillHintEl.textContent = t('已打开 {dir}', { dir: data.dir || '' })
         } catch (error) { skillHintEl.textContent = error.message } finally { button.disabled = false }
+      }
+    }
+
+    globalThis.openEnvironmentDetail = async (target, entry = null) => {
+      if (!target) return
+      const requestId = ++pluginDialogRequest
+      pluginDialogOrigin = document.activeElement
+      const envPanel = document.getElementById('environmentPanel')
+      const host = document.getElementById('launchPluginsHost')
+      if (!envPanel || !host || !launchPluginsDialogEl) return
+      if (pluginPanelEl?.parentElement === host) document.getElementById('pane-plugins')?.append(pluginPanelEl)
+      environmentState.closeDetail?.()
+      pluginLaunchEntry = entry || null
+      launchPluginScope = entry?.id || ''
+      document.getElementById('launchPluginsTitle').textContent = entry?.name ? `${entry.name} · ${t('实例')}` : t('实例')
+      launchPluginsCardEl.querySelector('.launch-plugins-head').append(document.getElementById('launchPluginsClose'))
+      host.append(envPanel)
+      environmentState.pendingOpen = target
+      const opening = showDialog(launchPluginsDialogEl)
+      document.getElementById('launchPluginsClose').focus()
+      const reloading = environmentState.reload?.()
+      if (!(await opening)) return
+      await reloading
+      if (launchPluginsDialogEl.hidden || launchPluginsDialogEl.dataset.dialogClosing || requestId !== pluginDialogRequest) return
+      const top = envPanel.querySelector('#environmentView .pack-detail-top')
+      if (top) top.append(document.getElementById('launchPluginsClose'))
+    }
+    globalThis.syncEnvironmentToolTab = (tab = 'plugins', env = null) => {
+      const mcpPanel = document.getElementById('mcpPanel')
+      const skillsPanel = document.getElementById('skillsPanel')
+      const mcpHome = document.getElementById('pane-mcp')
+      const skillsHome = document.getElementById('pane-skills')
+      const mcpHost = document.getElementById('environmentMcpHost')
+      const skillsHost = document.getElementById('environmentSkillsHost')
+      const tabActions = document.getElementById('environmentTabActions')
+      const mcpTop = mcpPanel?.querySelector('.pane-top')
+      const skillsTop = skillsPanel?.querySelector('.pane-top')
+      const mcpActions = document.getElementById('mcpAdd')?.closest('.plugin-actions')
+      const skillsActions = document.getElementById('skillAdd')?.closest('.plugin-actions')
+      const nextTab = env && (tab === 'mcp' || tab === 'skills') ? tab : 'plugins'
+      instanceToolScope = nextTab !== 'plugins' && env
+        ? { profile: env.targetProfile || 'web', home: env.targetHome || '' }
+        : { profile: '', home: '' }
+      if (mcpPanel) {
+        const target = nextTab === 'mcp' && mcpHost ? mcpHost : mcpHome
+        if (target && mcpPanel.parentElement !== target) target.append(mcpPanel)
+      }
+      if (skillsPanel) {
+        const target = nextTab === 'skills' && skillsHost ? skillsHost : skillsHome
+        if (target && skillsPanel.parentElement !== target) target.append(skillsPanel)
+      }
+      // 切进 MCP / 技能页签时把对应的操作图标放到页签栏右侧，切回或退回主面板时还原到原顶栏，避免页签下多出一排空白操作栏
+      if (mcpActions && mcpTop && nextTab !== 'mcp' && mcpActions.parentElement !== mcpTop) {
+        mcpTop.append(mcpActions)
+      }
+      if (skillsActions && skillsTop && nextTab !== 'skills' && skillsActions.parentElement !== skillsTop) {
+        skillsTop.append(skillsActions)
+      }
+      if (tabActions) {
+        const pluginActions = document.getElementById('environmentPluginActions')
+        if (pluginActions) pluginActions.hidden = !env || nextTab !== 'plugins'
+        const activeActions = nextTab === 'mcp' ? mcpActions : nextTab === 'skills' ? skillsActions : null
+        if (activeActions && activeActions.parentElement !== tabActions) tabActions.append(activeActions)
+        tabActions.hidden = !env
+      }
+      if (nextTab === 'plugins') {
+        instanceToolMountKey = ''
+        return
+      }
+      const nextKey = `${nextTab}:${env.id}:${instanceToolScope.profile}:${instanceToolScope.home}`
+      if (instanceToolMountKey === nextKey) return
+      instanceToolMountKey = nextKey
+      if (nextTab === 'mcp') {
+        setMcpHint(t('检测会真的起进程或连端点，可能需要几秒。'))
+        void loadMcp()
+      } else {
+        skillHintEl.textContent = ''
+        void loadSkills()
       }
     }
 

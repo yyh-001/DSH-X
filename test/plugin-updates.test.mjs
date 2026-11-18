@@ -42,9 +42,9 @@ test('全部更新逐个来：单个失败不影响其它，最后如实汇总',
   assert.match(server, /return \{ checked: names\.length, done, failed \}/)
 })
 
-test('更新入口：配置页不再更新插件；「升级插件」在实例页插件卡片顶上那栏，一次升整个实例', () => {
+test('更新入口：配置页不再更新插件；每个插件行自带「升级」图标按钮，按插件单独升到最新', () => {
   // 插件清单属于实例：配置页只管开关和数据（设计：配置只保留数据和插件设置）。检查更新、逐个「更新到 x」、
-  // 「更新 N 个」/ 分组更新都不在配置页；实例页的「升级插件」不跟随上游，把实例里的插件逐个升到最新
+  // 「更新 N 个」/ 分组更新都不在配置页；实例页给非本地第三方插件行各自放「升级」图标，按 name 单独升级
   assert.ok(!/id="pluginCheckUpdates"/.test(html), '不再有单独的「检查更新」按钮')
   assert.ok(!/id="pluginUpdateAll"/.test(html), '不再有单独的「全部更新」按钮')
   assert.ok(!/id="pluginRefresh"/.test(html), '插件页顶部的刷新按钮也撤了')
@@ -52,12 +52,16 @@ test('更新入口：配置页不再更新插件；「升级插件」在实例�
   assert.doesNotMatch(html, /\/api\/plugins\/updates?['?`]/, '配置页不调插件的查更新 / 更新接口')
   assert.doesNotMatch(html, /\/api\/packs\/update|data-pack-update|data-group-update/, '没有「更新 N 个」和分组更新，也不调整合包更新接口')
   assert.doesNotMatch(server, /url\.pathname === '\/api\/packs\/update'/, '服务端的整合包更新接口也撤了')
-  const bar = slice(html, '<form class="environment-plugin-bar" id="environmentAddForm">', '</form>')
-  assert.match(bar, /<button class="ghost icon-btn" id="environmentUpgrade" type="button" title="升级插件" aria-label="升级插件"/, '升级插件是插件卡片顶上那栏的图标按钮')
-  assert.match(envPage, /el\.upgrade\.onclick = \(\) => \{[\s\S]{0,120}?post\('\/api\/environments\/plugins\/upgrade', \{ id: env\.id \}\)/, '按当前打开的实例升')
-  // 升完把结果说清：升了哪些（从哪版到哪版）、哪些没升成
-  assert.match(envPage, /`\$\{item\.name\} \$\{item\.from\} → \$\{item\.to\}`/)
-  assert.match(envPage, /notify\(done \|\| t\('都已经是最新版本'\), t\('升级结果'\), failed\)/)
+  const bar = slice(html, '<div class="plugin-actions" id="environmentPluginActions">', '</div>')
+  assert.match(bar, /id="environmentUpgrade"[^>]*title="升级插件"[^>]*hidden/, '有更新时再在右上角露出批量升级按钮')
+  assert.match(bar, /id="environmentCheckPluginUpdates"[^>]*title="检查更新"[\s\S]*?#lucide-refresh-cw/, '右上角有刷新图标检查更新')
+  const instanceRow = slice(envPage, '  function pluginRow(', '  function paintUpstream(')
+  assert.match(instanceRow, /hasUpdate \? `<button class="plugin-update" type="button" data-upgrade-plugin="\$\{escapeHtml\(plugin\.name\)\}"[\s\S]*?t\('更新到 \{latest\}', \{ latest: updateInfo\.latest \}\)/, '只有有更新时才在插件行展示「更新到 x」按钮')
+  assert.match(envPage, /el\.plugins\.querySelectorAll\('\[data-upgrade-plugin\]'\)[\s\S]*?post\('\/api\/environments\/plugins\/upgrade', \{ id: env\.id, name \}\)/, '按当前行插件名发升级请求')
+  assert.match(envPage, /el\.upgrade\.onclick = \(\) => \{[\s\S]*?post\('\/api\/environments\/plugins\/upgrade', \{ id: env\.id \}\)/, '保留右上角批量升级入口')
+  // 升级成功静默刷新列表不弹窗，失败才把错误列出来
+  assert.match(envPage, /if \(failed\) notify\('', t\('升级结果'\), failed\)/)
+  assert.doesNotMatch(envPage, /notify\(done \|\|/)
 })
 
 test('插件装/升级的进度：认得出 pnpm 的输出，也认百分比', () => {
@@ -95,11 +99,11 @@ test('服务端在插件操作期间发进度，结束时收掉', () => {
   assert.match(server, /emitPluginProgress\(null\)/, '结束时收掉（成功失败都要收）')
 })
 
-test('插件行：配置页那行只有开关；实例页那行没有开关，「移除」贴在插件右边、官方组件不给', () => {
+test('插件行：配置页和实例页的第三方插件都用拨动开关；实例页再带「移除」和按需「更新到 x」', () => {
   const profileRow = slice(html, 'function pluginRowHtml(', 'function bindPluginRowEvents(')
   assert.match(profileRow, /<input type="checkbox" data-plugin=/, '配置页的插件行是开关')
   assert.doesNotMatch(profileRow, /plugin-update|plugin-remove|data-update|data-remove/, '配置页的插件行没有更新、卸载按钮')
-  const instanceRow = slice(envPage, '  function pluginRow(plugin) {', '  function paintUpstream(')
-  assert.doesNotMatch(instanceRow, /type="checkbox"/, '实例页的插件行不是开关：开关在配置页')
-  assert.match(instanceRow, /plugin\.official \? '' : `<button class="ghost" type="button" data-remove-plugin="\$\{escapeHtml\(plugin\.name\)\}"/, '第三方插件带「移除」，官方组件没有')
+  const instanceRow = slice(envPage, '  function pluginRow(', '  function paintUpstream(')
+  assert.match(instanceRow, /<input type="checkbox" data-toggle-plugin="\$\{escapeHtml\(plugin\.name\)\}"/, '实例页的插件行使用拨动开关')
+  assert.match(instanceRow, /plugin\.official \? '' : `<button class="ghost icon-btn" type="button" data-remove-plugin="\$\{escapeHtml\(plugin\.name\)\}"/, '第三方插件带「移除」，官方组件没有')
 })

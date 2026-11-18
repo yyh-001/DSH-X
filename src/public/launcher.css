@@ -492,6 +492,7 @@ main:not(.home) .settings-nav { animation: nav-in 280ms cubic-bezier(.22, 1, .36
   z-index: 1;
   transition: background 140ms ease, color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
 }
+.nav-item[hidden] { display: none; }
 .nav-item svg { width: 16px; height: 16px; flex: 0 0 auto; color: var(--muted); }
 .nav-item:hover { background: rgba(59, 111, 224, 0.09); }
 .nav-item:hover svg { color: var(--accent); }
@@ -618,12 +619,15 @@ main.home .settings-body { padding-top: 34px; }
 .launch-sort-ghost .launch-app-icon { transform: none; box-shadow: none; }
 .launch-presets[data-launch-count="1"] .launch-app-icon { cursor: default; }
 .launch-app-icon svg { width: 25px; height: 25px; }
-.launch-new-version { display: inline-flex; align-items: center; gap: 4px; border: 0; padding: 3px 0; margin-top: 4px; background: transparent; color: var(--accent); font: inherit; font-size: 11.5px; cursor: pointer; }
-.launch-new-version svg { width: 12px; height: 12px; transition: transform 140ms ease; }
-.launch-new-version:hover svg { transform: translateX(2px); }
-.launch-new-version:disabled { opacity: .45; cursor: default; }
+.launch-edit.launch-new-version { color: var(--accent); }
+.launch-edit.launch-new-version:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent); }
+.launch-edit.launch-new-version:disabled { opacity: .45; cursor: default; }
+.launch-edit.launch-new-version.is-installing { opacity: 1; background: var(--accent-soft); color: var(--accent); }
+.launch-edit.launch-new-version.is-installing svg { animation: spin 900ms linear infinite; }
+html.reduce-motion .launch-edit.launch-new-version.is-installing svg { animation: none; }
+@media (prefers-reduced-motion: reduce) { .launch-edit.launch-new-version.is-installing svg { animation: none; } }
 .launch-preset-heading { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.launch-preset-name { color: var(--text); font-size: 17px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.launch-preset-name { flex: 0 1 auto; min-width: 0; color: var(--text); font-size: 17px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .launch-preset-name { padding: 0; border: 0; background: transparent; font-family: inherit; text-align: left; }
 .plugin-packs { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--line); }
 .plugin-packs > summary { color: var(--muted); font-size: 12px; cursor: pointer; }
@@ -661,23 +665,6 @@ html.reduce-motion .launch-status.is-working::before { animation: none; }
 .launch-preset .launch-primary { width: 34px; height: 34px; min-width: 0; padding: 0; color: #fff; }
 .launch-actions .icon-btn { width: 34px; height: 34px; border-radius: 9px; }
 .launch-actions .icon-btn svg { width: 18px; height: 18px; }
-.launch-open-group { display: inline-flex; flex: 0 0 auto; align-items: center; }
-.launch-open-group.has-menu .launch-primary { border-radius: 9px 0 0 9px; }
-.launch-open-group .launch-open-toggle { display: grid; place-items: center; width: 22px; min-width: 0; height: 34px; padding: 0; border-radius: 0 9px 9px 0; border-left: 1px solid #ffffff40; }
-.launch-menu-chevron { width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: translateY(-2px) rotate(45deg); }
-/* 原生 popover 进入顶层，避免启动项滚动容器裁掉菜单；Escape 和点击外部由浏览器处理。 */
-.launch-open-menu { position: fixed; inset: auto; margin: 0; padding: 5px; min-width: 180px; max-width: calc(100vw - 24px); border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--text); box-shadow: 0 8px 24px #16233d1a; }
-/* 保留顶层直到淡出结束；从按钮方向轻移入场，快速反复开合也能从当前帧接续。 */
-.launch-open-menu { opacity: 0; transform: translateY(var(--menu-enter-y, -4px)) scale(.98); transform-origin: top right; transition: opacity 120ms ease, transform 120ms ease, display 120ms allow-discrete, overlay 120ms allow-discrete; }
-.launch-open-menu:popover-open { opacity: 1; transform: translateY(0) scale(1); transition-duration: 180ms; transition-timing-function: cubic-bezier(.16, 1, .3, 1); }
-@starting-style {
-  .launch-open-menu:popover-open { opacity: 0; transform: translateY(var(--menu-enter-y, -4px)) scale(.98); }
-}
-html.reduce-motion .launch-open-menu { transition: none; transform: none; }
-@media (prefers-reduced-motion: reduce) { .launch-open-menu { transition: none; transform: none; } }
-.launch-open-menu button { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px; padding: 8px 10px; border: 0; border-radius: 6px; background: transparent; color: inherit; text-align: left; white-space: nowrap; }
-.launch-open-menu button:is(:hover, :focus-visible) { background: var(--accent-soft); }
-.launch-open-menu svg { width: 16px; height: 16px; flex: none; }
 .launch-action { border: 1px solid var(--line); background: var(--card); color: var(--text); }
 .launch-action:hover:not(:disabled) { background: var(--accent-soft); }
 .launch-actions [data-stop-id], .instance-actions [data-stop-version] { background: #fff; border-color: var(--line); color: #e5484d; }
@@ -746,6 +733,11 @@ html.reduce-motion .launch-open-menu { transition: none; transform: none; }
 .launch-guide .launch-auto-launch { margin-top: 2px; }
 /* 桌面增强：三种档位共用一个开关；说明收进「?」，下面那行只给编辑时的安装状态（已装 x/2） */
 .launch-desktop-enhance { display: grid; gap: 6px; }
+.launch-guide .launch-auto-launch,
+.toggle.launch-auto-launch[hidden],
+.launch-desktop-enhance[hidden],
+#launchForm:has(#launchIsolationHead:not([hidden])) .launch-auto-launch,
+#launchForm:has(#launchIsolationHead:not([hidden])) #launchDesktopEnhanceField { display: none; }
 .launch-desktop-enhance .hint { margin: 0; }
 #launchDesktopEnhanceHint:empty { display: none; }
 .launch-enhance-label { position: relative; display: inline-flex; align-items: center; gap: 6px; min-width: 0; line-height: 1; }
@@ -838,11 +830,12 @@ html.reduce-motion .launch-enhance-tip { transition: none; }
 .launch-source-panel[hidden] { display: none; }
 .launch-source-panel:not([hidden]) { animation: launch-source-in 160ms cubic-bezier(.22,.61,.36,1) both; }
 @keyframes launch-source-in { from { opacity: 0; transform: translateY(-2px); } }
-/* 复制来源那行触发器：没选过时用灰字，跟原生下拉的占位一个观感 */
-#launchDialog .select-trigger.is-placeholder .select-value { color: var(--muted); }
+/* 占位文案用灰字，跟原生下拉一个观感 */
+#launchDialog .select-trigger.is-placeholder .select-value,
+#launchDialog .project-device-trigger.is-placeholder .project-device-label { color: var(--muted); }
 /* 自定义档的用户目录 + Profile 都换成了选择窗触发器：底下那两个真下拉和包装器一起藏起来
    （它们仍是唯一真相源，回填和保存都读它们） */
-#launchEnvField .ui-select, #launchEnvField > select { display: none; }
+#launchEnvField .ui-select, #launchEnvField > select, #launchEnvironmentField .ui-select, #launchEnvironmentField > select, #launchEnvironmentHint, #launchGuideDirField, #launchLocalVersionGroup { display: none; }
 /* ---- 选 Profile：三栏选择窗（用户目录 / Profile / 插件） ---- */
 /* 跟资源管理器一个路子：左目录、中 Profile、右它装了什么，点两下就选定。每栏各自滚动，
    弹窗高度锁在视口里，短窗口下只有列表滚、标题和按钮不动。 */
@@ -1730,6 +1723,10 @@ html.reduce-motion #launchLogDialog .launch-log-card[data-log-panel][data-dir]:n
 /* 整合包页的列表行是 div 不是 label：补上横向排版，按钮才会待在右端而不是掉到下一行 */
 .plugin-row.pack-row { display: flex; align-items: center; gap: 12px; }
 .plugin-row.pack-row .ghost { flex: 0 0 auto; }
+.plugin-row.pack-row .icon-btn { flex: 0 0 auto; width: 30px; height: 30px; padding: 6px; border-radius: 8px; border: 0; background: transparent; color: var(--muted); }
+.plugin-row.pack-row .icon-btn svg { width: 18px; height: 18px; }
+.plugin-row.pack-row [data-toggle-plugin][data-enabled="false"] { color: var(--accent); }
+.plugin-row.pack-row [data-remove-plugin]:hover:not(:disabled) { background: #e5484d15; color: #e5484d; }
 .plugin-row:focus-within { background: var(--accent-soft); }
 .plugin-row:last-child { border-bottom: 0; }
 .plugin-row.off .plugin-name { color: var(--muted); font-weight: 500; }
@@ -2225,11 +2222,8 @@ html.reduce-motion #connectionWslFields, html.reduce-motion #connectionSshFields
 .environment-form .ui-select { width: auto; min-width: 148px; }
 /* 实例页版本那行：三档开关借启动项编辑框的样子，高度跟这行的输入框走；图标钮缩到控件高 */
 .environment-form .launch-channel-control { flex: 0 0 150px; height: var(--control-height); }
-.environment-form .icon-btn, .environment-plugin-bar .icon-btn { flex: 0 0 var(--control-height); width: var(--control-height); height: var(--control-height); padding: 8px; border-radius: var(--control-radius); }
-.environment-form .icon-btn svg, .environment-plugin-bar .icon-btn svg { width: 18px; height: 18px; }
-/* 插件卡片顶上那栏：和下面的插件行同一套左右内边距与分隔线，输入框占满、按钮贴右 */
-.environment-plugin-bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
-.environment-plugin-bar input[type=text] { flex: 1 1 180px; min-width: 0; }
+.environment-form .icon-btn { flex: 0 0 var(--control-height); width: var(--control-height); height: var(--control-height); padding: 8px; border-radius: var(--control-radius); }
+.environment-form .icon-btn svg { width: 18px; height: 18px; }
 .environment-compatibility { padding: 2px 16px 8px; border-bottom: 1px solid var(--line); }
 /* 上游有新版本：「更新实例」右上角一个小圆点，标签上那句「有新版本」之外再给一眼能看到的提示 */
 .pack-tool.has-update::after { content: ''; position: absolute; top: 4px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
@@ -2245,8 +2239,8 @@ html.reduce-motion #connectionWslFields, html.reduce-motion #connectionSshFields
   to { opacity: 1; transform: translateY(0); }
 }
 #pane-plugins #packView { animation: pack-view-in 0.28s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
-/* 进环境详情后页顶标题整条让位（pane-top 是 flex，hidden 属性会被盖掉） */
-#pluginPanel .pane-top[hidden] { display: none; }
+/* 进实例/配置详情后页顶标题整条让位（pane-top 是 flex，hidden 属性会被盖掉） */
+#pluginPanel .pane-top[hidden], #environmentPanel .pane-top[hidden], .pane-top[hidden] { display: none; }
 /* 标题下有一行说明，排法同实例页：左栏（标题 + 说明）能收窄换行，右边的目录下拉和按钮贴顶 */
 #pluginPanel .plugin-overview-top { flex-wrap: wrap; }
 #pluginPanel .plugin-overview-top > div:first-child { flex: 1 1 320px; min-width: 0; }
@@ -2763,7 +2757,7 @@ html[data-color-scheme="dark"] .launch-compatibility { --compatibility-success: 
 #launchDialog .launch-compatibility-check svg { width: 20px; height: 20px; }
 #launchDialog .launch-manage-version { flex: 0 0 42px; width: 42px; height: 42px; padding: 11px; border-radius: 10px; align-self: flex-end; }
 #launchDialog .launch-manage-version svg { width: 18px; height: 18px; }
-#launchDialog .select-trigger { min-height: 42px; height: 42px; border-radius: 10px; font-size: 13px; }
+#launchDialog .select-trigger, #launchDialog .project-device-trigger { min-height: 42px; height: 42px; padding: 0 12px; border-radius: 10px; font-size: 13px; }
 #launchDialog input[type=text], #launchDialog input[type=number], #launchDialog select { height: 42px; border-radius: 10px; font-size: 13px; }
 /* 版本候选在内容区内展开，避免固定弹窗的滚动边界裁掉菜单。 */
 #launchDialog .select-panel { position: static; margin: 6px 0 0; max-height: min(250px, 32vh); box-shadow: 0 12px 32px #0003; }
@@ -2837,24 +2831,31 @@ html.reduce-motion .ask > .ask-card { transition: none; }
 #launchPluginsClose svg { width: 18px; height: 18px; }
 .launch-plugins-head > div { min-width: 0; max-width: calc(100% - 240px); }
 .launch-plugins-head .ask-title { font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.8; }
-#launchPluginsHost, #launchPluginsHost #pluginPanel { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+#launchPluginsHost, #launchPluginsHost #pluginPanel, #launchPluginsHost #environmentPanel { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
 /* 弹窗的卡片是 overflow: hidden，滚动原来由平面列表承担；列表并进环境详情后，
    这里接班：详情占满剩余高度，插件列表内部滚，顶部那行操作保持固定 */
-#launchPluginsDialog #packView { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
-#launchPluginsDialog #packView[hidden] { display: none; }
-#launchPluginsDialog #packPluginList { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+#launchPluginsDialog #packView, #launchPluginsDialog #environmentView { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+#launchPluginsDialog #packView[hidden], #launchPluginsDialog #environmentView[hidden] { display: none; }
+#launchPluginsDialog #packPluginList,
+#launchPluginsDialog #environmentPluginsBox,
+#launchPluginsDialog #environmentMcpHost,
+#launchPluginsDialog #environmentSkillsHost { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+#launchPluginsDialog #environmentPluginsBox[hidden],
+#launchPluginsDialog #environmentMcpHost[hidden],
+#launchPluginsDialog #environmentSkillsHost[hidden] { display: none; }
 #packPluginList.is-empty { border: 0; background: transparent; }
 #launchPluginsCard.is-loading .plugin-empty-state { min-height: 220px; justify-content: center; }
 .plugin-empty-spinner { width: 20px; height: 20px; border: 2px solid var(--line); border-top-color: var(--muted); border-radius: 50%; animation: spin 900ms linear infinite; }
 html.reduce-motion .plugin-empty-spinner { animation: none; }
 @media (prefers-reduced-motion: reduce) { .plugin-empty-spinner { animation: none; } }
-#launchPluginsDialog .pane-top, #launchPluginsDialog #profileAdd { display: none; }
+#launchPluginsDialog #pluginPanel > .pane-top, #launchPluginsDialog #environmentTop, #launchPluginsDialog #profileAdd { display: none; }
 .plugin-profile-label { font-size: 11px; color: var(--muted); }
 #launchPluginsDialog .plugin-profile-label { display: none; }
 #pluginSearch { flex: 1 1 180px; min-width: 0; width: 100%; }
-#launchPluginsDialog #pluginOverview { display: none; }
-/* 弹窗里直接就是这个环境的详情，没有「返回环境列表」可回 */
-#launchPluginsDialog #packBack { display: none; }
+#launchPluginsDialog #pluginOverview, #launchPluginsDialog #environmentOverview { display: none; }
+/* 弹窗里直接就是这个实例的详情，没有「返回列表」可回 */
+#launchPluginsDialog #packBack, #launchPluginsDialog #environmentBack { display: none; }
+#mcpDialog, #skillDetailDialog, #skillInstallDialog, #skillEditorDialog, #profileBackupsDialog, #environmentUpdateDialog, #environmentAddDialog { z-index: 36; }
 #launchPluginsDialog .plugin-name { font-size: 13px; }
 #launchPluginsDialog .plugin-desc { font-size: 11.5px; }
 #launchPluginsDialog .plugin-version, #launchPluginsDialog .plugin-status { font-size: 10.5px; }
@@ -2876,6 +2877,7 @@ html .set-row:focus-within { background: transparent; box-shadow: none; }
 .set-control input[type=text], .set-control input[type=number], .set-row > input[type=number] { height: var(--control-height); padding-top: 0; padding-bottom: 0; font-size: var(--control-font-size); border-radius: var(--control-radius); }
 .set-control .ui-select:has(#proxyMode) { width: 160px; }
 .launch-tool-actions { display: none; }
+#recoveryHint { display: none; }
 .launch-tool-actions #launchVersionTools { display: none !important; }
 .launch-tool-actions #launchRecover { height: 36px; border-radius: 9px; font-size: 12px; }
 .launch-tool-actions .icon-btn, .plugin-actions .action-icon { width: 32px; height: 32px; padding: 6px; border-radius: 8px; }
@@ -3035,6 +3037,45 @@ html.reduce-motion #launchIconTrigger, html.reduce-motion #launchDialog .launch-
 .ask-close { position: absolute; top: 12px; right: 12px; width: 30px; height: 30px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer; transition: background-color .15s ease, color .15s ease; }
 .ask-close:hover { background: var(--accent-soft); color: var(--text); }
 
-/* 导出环境：导出方式和离线文件勾选各占一组，竖排 */
+/* 导出环境：导出方式、离线文件与技能勾选各占一组，竖排 */
 .pack-export-target,
-.pack-export-offline { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+.pack-export-offline,
+.pack-export-skills { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+.environment-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 0 0 12px; }
+.environment-tabs { flex: 0 0 auto; width: 240px; max-width: 100%; margin: 0; }
+.environment-tabs .launch-isolation-tab { padding: 6px 8px; }
+.environment-tabs[data-active="mcp"]::after { transform: translateX(calc(100% + 2px)); }
+.environment-tabs[data-active="skills"]::after { transform: translateX(calc(200% + 4px)); }
+.environment-tab-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; margin-left: auto; }
+.environment-tab-actions[hidden],
+.environment-tab-actions .plugin-actions[hidden] { display: none; }
+.environment-tab-actions .plugin-actions { gap: 8px; }
+.environment-tab-actions .action-icon { width: 34px; height: 34px; margin: 0; padding: 7px; border-radius: var(--control-radius); }
+.environment-tab-actions .action-icon svg { width: 18px; height: 18px; }
+.plugin-row.pack-row .plugin-update { flex: 0 0 auto; }
+.plugin-update {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  border: 1px solid #c7d8f7;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.plugin-update:hover:not(:disabled) { background: var(--accent-dim); border-color: #b9ccf0; }
+.plugin-update:disabled { opacity: 0.5; cursor: default; }
+.environment-tab-actions .action-icon[hidden] { display: none; }
+.environment-tab-actions .action-icon.is-update { background: var(--accent-soft); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.environment-tab-actions .action-icon.is-checking svg { animation: spin 900ms linear infinite; }
+html.reduce-motion .environment-tab-actions .action-icon.is-checking svg { animation: none; }
+@media (prefers-reduced-motion: reduce) { .environment-tab-actions .action-icon.is-checking svg { animation: none; } }
+.plugin-row.pack-row .icon-btn.is-update { background: var(--accent-soft); color: var(--accent); }
+.plugin-status.is-update { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+#environmentUsage { display: none; }
+#environmentMcpHost, #environmentSkillsHost { margin-top: 0; }
+#environmentMcpHost[hidden], #environmentSkillsHost[hidden] { display: none; }
+#environmentMcpHost .pane-inner.fill, #environmentSkillsHost .pane-inner.fill { height: auto; }
+#environmentMcpHost .pane-top, #environmentSkillsHost .pane-top { display: none; }

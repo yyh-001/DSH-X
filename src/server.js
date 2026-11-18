@@ -34,7 +34,9 @@ import {
   packageRowIds,
   parseFailedRows,
   parseUnresolvedBundles,
+  patchPathOf,
   pluginsNamedInFailure,
+  readPatchState,
   removeBundleMounted,
   setPluginEnabled,
 } from './plugins.js'
@@ -43,8 +45,12 @@ import { latestRecovery, listPatchBackups, restoreProfileBackup, sanitizeProfile
 import { createMarketStatsReader, marketRepository } from './pack-market.js'
 import {
   createSkill,
+  ensureProfileSkillsDir,
+  exportSkillsEntries,
+  importSkillsFromPack,
   installSkillPackages,
   prepareSkillImport,
+  profileSkillsDir,
   listSkills,
   localSkillsEnabled,
   readSkill,
@@ -53,6 +59,7 @@ import {
   setLocalSkillsEnabled,
   setSkillEnabled,
   skillRoots,
+  syncProfileSkills,
 } from './skills.js'
 import {
   STORE_TYPES,
@@ -2656,10 +2663,10 @@ async function saveLaunchPresetNow(body) {
       const fromHome = safeDshHome(copyFrom.home) || ''
       await launchScope.run({ home }, () => createProfile(profile, fromProfile, fromHome))
       await copyAppliedRecord(fromHome || defaultHome(), fromProfile, home, profile)
-    } else if (body.ensureProfile === true && missing()) {
+    } else if ((body.ensureProfile === true || (chosenEnvironment && !TEMPLATE_PROFILES.includes(profile.toLowerCase()) && !CLI_BLOCKED_PROFILES.has(profile.toLowerCase()))) && missing()) {
       await launchScope.run({ home }, () => createProfile(profile))
     }
-    if (missing()) throw new Error(`配置 ${profile} 不存在`)
+    if (missing() && !TEMPLATE_PROFILES.includes(profile.toLowerCase())) throw new Error(`配置 ${profile} 不存在`)
   }
   const portText = String(body.port ?? '').trim()
   const port = portText && portText !== '0' ? safePort(portText) : 0
@@ -2904,9 +2911,11 @@ const errorText = (error) => (error instanceof Error ? error.message : String(er
 const ENVIRONMENT_ROUTES = Object.freeze({
   '/api/environments/create': (body) => createEnvironmentNow(body),
   '/api/environments/update': (body) => updateEnvironmentNow(body),
-  '/api/environments/remove': (body) => removeEnvironmentNow(body.id),
+  '/api/environments/remove': (body) => removeEnvironmentNow(body.id, { removeProfile: body.removeProfile === true }),
   '/api/environments/plugins/add': (body) => addEnvironmentPluginNow(body.id, body.spec),
   '/api/environments/plugins/remove': (body) => removeEnvironmentPluginNow(body.id, body.name),
+  '/api/environments/plugins/toggle': (body) => toggleEnvironmentPluginNow(body),
+  '/api/environments/plugins/updates': (body) => checkEnvironmentPluginUpdatesNow(body.id),
   '/api/environments/plugins/upgrade': (body) => upgradeEnvironmentPluginsNow(body.id, body.name ? String(body.name) : ''),
   '/api/environments/import/inspect': (body) => inspectEnvironmentImport(body),
   '/api/environments/import': (body) => importEnvironmentNow(body),
@@ -3281,6 +3290,16 @@ async function applyLaunchEnvironment(version, profile) {
   return undefined
 }
 
+/** 计算实例关联的本地参考配置（优先已写入的参考目录，其次绑定它的本机启动项，最后回退默认 web）。 */
+function environmentTargetProfile(store, env, presets = safeLaunchPresets(loadSettingsSync().launchPresets)) {
+  const ref = referenceProfile(store, env)
+  if (ref) return { home: ref.home, profile: ref.profile, dir: ref.dir }
+  const firstPreset = presets.find((entry) => entry.environment === env.id && !ENVIRONMENT.REMOTE_BACKENDS.includes(entry.backend))
+  const home = firstPreset?.dshHome || defaultHome()
+  const profile = firstPreset?.profile || 'web'
+  return { home, profile, dir: join(home, 'profiles', safeProfile(profile)) }
+}
+
 /** 环境页的数据：生效的插件清单 + 哪些启动项在用 + 当前写在哪些 profile 目录里。 */
 async function environmentsPayload() {
   await collectAllProfileChanges().catch((error) => pushLog(`[实例] 收集插件改动失败：${errorText(error)}`))
@@ -3293,6 +3312,10 @@ async function environmentsPayload() {
       const list = effectivePlugins(env)
       const following = isFollowing(env)
       const local = new Set([...Object.keys(env.delta.dependencies), ...env.delta.bundlesAdded])
+      const usedPresets = presets.filter((entry) => entry.environment === env.id)
+      const target = environmentTargetProfile(store, env, presets)
+      const refPlugins = existsSync(join(target.dir, 'package.json')) ? listPlugins(target.dir).plugins : []
+      const refPluginMap = new Map(refPlugins.map((item) => [item.name, item]))
       return {
         id: env.id,
         name: env.name,
@@ -3302,14 +3325,24 @@ async function environmentsPayload() {
         updateChannel: list.updateChannel,
         following,
         source: env.source,
-        plugins: Object.entries(list.dependencies).map(([name, spec]) => ({
-          name, spec,
-          bundle: list.bundles.includes(name),
-          official: isOfficialPackage(name),
-          local: isLocalSpec(spec),
-          offline: Boolean(env.files[name]),
-          origin: local.has(name) ? ENVIRONMENT.PLUGIN_ORIGIN.LOCAL : ENVIRONMENT.PLUGIN_ORIGIN.UPSTREAM,
-        })),
+        plugins: Object.entries(list.dependencies).map(([name, spec]) => {
+          const official = isOfficialPackage(name)
+          const localSpec = isLocalSpec(spec)
+          const refItem = refPluginMap.get(name)
+          const enabled = official ? true
+            : refItem ? (refItem.toggleable ? refItem.enabled : list.bundles.includes(name))
+            : list.bundles.includes(name)
+          return {
+            name, spec,
+            bundle: list.bundles.includes(name),
+            enabled,
+            official,
+            local: localSpec,
+            upgradable: !official && !localSpec && isExactVersion(spec),
+            offline: Boolean(env.files[name]),
+            origin: local.has(name) ? ENVIRONMENT.PLUGIN_ORIGIN.LOCAL : ENVIRONMENT.PLUGIN_ORIGIN.UPSTREAM,
+          }
+        }),
         bundles: list.bundles,
         delta: following ? {
           dshVersion: env.delta.dshVersion,
@@ -3317,7 +3350,9 @@ async function environmentsPayload() {
           changed: Object.keys(env.delta.dependencies).filter((name) => Object.hasOwn(env.base.dependencies, name)),
           removed: env.delta.removed,
         } : null,
-        usedBy: presets.filter((entry) => entry.environment === env.id).map((entry) => ({ id: entry.id, name: entry.name })),
+        usedBy: usedPresets.map((entry) => ({ id: entry.id, name: entry.name })),
+        targetProfile: target.profile,
+        targetHome: target.home,
         // 更新前存下的旧清单（新到旧），环境页「切回之前的版本」用
         history: store.history(env.id),
         applied: Object.entries(state.applied).filter(([, record]) => record.environment === env.id).map(([key]) => {
@@ -3418,21 +3453,79 @@ function updateEnvironmentNow(body) {
   }))
 }
 
-function removeEnvironmentNow(id) {
+function removeEnvironmentNow(id, { removeProfile = false } = {}) {
   // 两条队列都排：和保存启动项并发时，不能让启动项刚绑上一个正在删的环境
   return withLaunchPresetWrite(() => withEnvironmentWrite(async () => {
     const store = environmentStore()
     const env = requireEnvironment(store, id)
-    const users = safeLaunchPresets(loadSettingsSync().launchPresets).filter((entry) => entry.environment === env.id)
+    const allPresets = safeLaunchPresets(loadSettingsSync().launchPresets)
+    const users = allPresets.filter((entry) => entry.environment === env.id)
     if (users.length) throw new Error(`还有启动项在用这个实例：${users.map((entry) => entry.name).join('、')}，先给它们换一个实例`)
     const state = store.readState()
-    for (const [key, record] of Object.entries(state.applied)) if (record.environment === env.id) delete state.applied[key]
-    for (const [key, link] of Object.entries(state.links)) if (link.environment === env.id) delete state.links[key]
+    const candidates = []
+    const seenTargets = new Set()
+    const addCandidate = (home, profile) => {
+      const clean = String(profile || '').trim()
+      if (!clean || clean.toLowerCase() === 'web') return
+      const targetHome = home || defaultHome()
+      const targetProfile = safeProfile(clean)
+      const key = `${targetHome}\0${targetProfile}`
+      if (seenTargets.has(key)) return
+      seenTargets.add(key)
+      candidates.push({ home: targetHome, profile: targetProfile })
+    }
+    for (const [key, record] of Object.entries(state.applied)) {
+      if (record.environment === env.id) {
+        if (removeProfile) {
+          const [home, profile] = key.split('\0')
+          addCandidate(home, profile)
+        }
+        delete state.applied[key]
+      }
+    }
+    for (const [key, link] of Object.entries(state.links)) {
+      if (link.environment === env.id) {
+        if (removeProfile && link.profile) addCandidate(link.home, link.profile)
+        delete state.links[key]
+      }
+    }
+    if (removeProfile) {
+      for (const item of env.adoptedFrom || []) addCandidate(item.home, item.profile)
+      if (env.reference?.profile) addCandidate(env.reference.home, env.reference.profile)
+    }
     // 从 profile 收养来的环境删了就是不要了：下次启动的迁移别再按那个目录把它生成回来
     if (env.id.startsWith(ENVIRONMENT.ADOPTED_PREFIX) && !state.dismissed.includes(env.id)) state.dismissed.push(env.id)
     store.writeState(state)
     store.remove(env.id)
-    pushLog(`[实例] 已删除实例「${env.name}」（配置目录里的插件不动，下次换实例启动时才会替换）`)
+    const removedDirs = []
+    if (removeProfile && candidates.length) {
+      const remainingEnvs = store.list()
+      const activeProcs = instanceList()
+      for (const { home, profile } of candidates) {
+        const usedByPreset = allPresets.some((entry) => !ENVIRONMENT.REMOTE_BACKENDS.includes(entry.backend) && entry.profile === profile && fileManager.samePath(entry.dshHome || defaultHome(), home))
+        const usedByEnv = remainingEnvs.some((other) => (
+          Object.entries(state.applied).some(([appliedKeyStr, rec]) => {
+            if (rec.environment !== other.id) return false
+            const [appliedHome, appliedProfile] = appliedKeyStr.split('\0')
+            return appliedProfile === profile && fileManager.samePath(appliedHome || defaultHome(), home)
+          })
+          || (other.adoptedFrom || []).some((item) => item.profile === profile && fileManager.samePath(item.home || defaultHome(), home))
+        ))
+        const running = activeProcs.some((proc) => proc.profile === profile && fileManager.samePath(proc.home || defaultHome(), home))
+        if (usedByPreset || usedByEnv || running) continue
+        const profileRoot = join(home, 'profiles', profile)
+        if (existsSync(profileRoot)) {
+          rmSync(profileRoot, { recursive: true, force: true })
+          removedDirs.push(profileRoot)
+        }
+        const skillsRoot = profileSkillsDir(home, profile)
+        if (existsSync(skillsRoot)) rmSync(skillsRoot, { recursive: true, force: true })
+      }
+    }
+    pushLog(removedDirs.length
+      ? `[实例] 已彻底删除实例「${env.name}」及配置目录（${removedDirs.join('、')}）`
+      : `[实例] 已删除实例「${env.name}」（配置目录里的插件不动，下次换实例启动时才会替换）`)
+    await emitState()
     return { ok: true }
   }))
 }
@@ -3500,25 +3593,88 @@ function removeEnvironmentPluginNow(id, name) {
   })
 }
 
+async function toggleEnvironmentPluginNow(body) {
+  const id = safeEnvironmentId(body.id)
+  const name = safePluginName(body.name)
+  if (isOfficialPackage(name)) throw new Error('官方组件不提供开关')
+  const enabled = body.enabled !== false
+  const store = environmentStore()
+  const env = requireEnvironment(store, id)
+  const list = effectivePlugins(env)
+  if (!Object.hasOwn(list.dependencies, name) && !list.bundles.includes(name)) {
+    throw new Error(`实例里没有 ${name}`)
+  }
+  const target = environmentTargetProfile(store, env)
+  if (existsSync(join(target.dir, 'package.json'))) {
+    const installed = listPlugins(target.dir).plugins.find((item) => item.name === name)
+    if (installed?.toggleable) {
+      await launchScope.run({ home: target.home }, () => editProfile(target.profile, () => setPluginEnabled(target.dir, name, enabled)))
+      if (enabled && !list.bundles.includes(name)) {
+        await withEnvironmentWrite(() => {
+          const current = requireEnvironment(store, id)
+          const before = effectivePlugins(current)
+          if (!before.bundles.includes(name)) {
+            const folded = foldPluginChanges(current, before, { ...before, bundles: [...before.bundles, name] })
+            if (folded.changed) store.save(folded.env)
+          }
+        })
+      }
+      pushLog(`[实例] 实例「${env.name}」插件 ${name} → ${enabled ? '启用' : '禁用'}`)
+      return { ok: true, enabled }
+    }
+  }
+  await withEnvironmentWrite(() => {
+    const current = requireEnvironment(store, id)
+    const before = effectivePlugins(current)
+    const nextBundles = enabled
+      ? (before.bundles.includes(name) ? before.bundles : [...before.bundles, name])
+      : before.bundles.filter((item) => item !== name)
+    const folded = foldPluginChanges(current, before, { ...before, bundles: nextBundles })
+    if (folded.changed) store.save(folded.env)
+  })
+  pushLog(`[实例] 实例「${env.name}」插件 ${name} → ${enabled ? '启用' : '禁用'}`)
+  return { ok: true, enabled }
+}
+
+/**
+ * 查实例里的 npm 插件在远端有没有新版本（官方组件和非精确版本号跳过），供检查更新与按需升级共用。
+ */
+async function checkEnvironmentPluginUpdates(current, only = '') {
+  const names = Object.keys(current).filter((name) => (!only || name === only) && !isOfficialPackage(name) && isExactVersion(current[name]))
+  if (only && !names.length) throw new Error(`${only} 不是实例里可以升级的 npm 插件`)
+  const found = []
+  const failed = []
+  const updates = {}
+  for (const name of names) {
+    try {
+      const { tags, versions } = await listPackage(name, { force: true })
+      const latest = tags.latest || versions[0] || current[name]
+      const available = Boolean(latest) && cmpVer(parseVer(latest), parseVer(current[name])) > 0
+      updates[name] = { current: current[name], latest, available }
+      if (available) found.push({ name, from: current[name], to: latest })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      failed.push({ name, error: message })
+      updates[name] = { current: current[name], latest: '', available: false, error: message }
+    }
+  }
+  return { names, updates, found, failed }
+}
+
+/** 主动检查实例里各插件的新版本：走 registry 实时查询，并把结果返回给详情页标记。 */
+async function checkEnvironmentPluginUpdatesNow(id) {
+  const current = effectivePlugins(requireEnvironment(environmentStore(), id)).dependencies
+  const { names, updates, failed } = await checkEnvironmentPluginUpdates(current)
+  return { ok: true, id, updates, checkedCount: names.length, failed }
+}
+
 /**
  * 升级：npm 插件查最新版（官方组件和非 npm 坐标跳过），单个查不到不挡其他的。
  * 查版本在队列外；写的时候只升「查的时候是什么版本、现在还是那个版本」的，中间被改过的不动。
  */
 async function upgradeEnvironmentPluginsNow(id, only = '') {
   const current = effectivePlugins(requireEnvironment(environmentStore(), id)).dependencies
-  const names = Object.keys(current).filter((name) => (!only || name === only) && !isOfficialPackage(name) && isExactVersion(current[name]))
-  if (only && !names.length) throw new Error(`${only} 不是实例里可以升级的 npm 插件`)
-  const found = []
-  const failed = []
-  for (const name of names) {
-    try {
-      const { tags, versions } = await listPackage(name, { force: true })
-      const latest = tags.latest || versions[0]
-      if (latest && cmpVer(parseVer(latest), parseVer(current[name])) > 0) found.push({ name, from: current[name], to: latest })
-    } catch (error) {
-      failed.push({ name, error: error instanceof Error ? error.message : String(error) })
-    }
-  }
+  const { found, failed } = await checkEnvironmentPluginUpdates(current, only)
   return withEnvironmentWrite(async () => {
     const store = environmentStore()
     let env = requireEnvironment(store, id)
@@ -3931,6 +4087,12 @@ async function importEnvironmentNow(body) {
         pushLog(`[实例] 配置写进配置「${configProfile}」失败：${config.error}`)
       }
     }
+    if (body.includeSkills === true && (!configProfile || !config?.error) && pack.home?.some((item) => typeof item.path === 'string' && item.path.startsWith('skills/'))) {
+      const skillProfile = configProfile || safeProfile(String(body.skillsProfile || 'web'))
+      const importedSkills = importSkillsFromPack(ensureProfileSkillsDir(homeDir(), skillProfile), pack)
+      if (importedSkills && skillProfile === PROFILE_NAME) syncProfileSkills(homeDir(), skillProfile)
+      if (importedSkills) pushLog(`[实例] 已把镜像里的技能写入配置「${skillProfile}」（${importedSkills} 个文件）`)
+    }
     return { ok: true, environment, config }
   })
 }
@@ -4130,6 +4292,9 @@ async function exportEnvironmentNow(body) {
     offline: Object.fromEntries(ctx.offline.map((item) => [item.name, { file: `${ENVIRONMENT_PACK.OFFLINE_DIR}/${item.file}`, sha256: item.sha256 }])),
   })
   const entries = environmentEntries(manifest, ctx.offline)
+  const skillsSource = body.includeSkills === true ? (reference || environmentTargetProfile(store, env)) : null
+  const skillEntries = skillsSource ? exportSkillsEntries(ensureProfileSkillsDir(skillsSource.home, skillsSource.profile)) : []
+  if (skillEntries.length) entries.push(...skillEntries)
   let bytes = 0
   if (target === ENVIRONMENT_PACK.TARGET_FILE) {
     const buffer = writeZip(entries)
@@ -4148,7 +4313,7 @@ async function exportEnvironmentNow(body) {
     const latest = store.get(env.id)
     if (latest) store.save({ ...latest, packVersion: version, description })
   })
-  pushLog(`[实例] 已导出实例「${env.name}」→ ${destination}（DSH ${dshVersion}，${Object.keys(dependencies).length} 个依赖${ctx.offline.length ? `，${ctx.offline.length} 个离线文件` : ''}${warnings.length ? `，${warnings.length} 条提醒` : ''}）`)
+  pushLog(`[实例] 已导出实例「${env.name}」→ ${destination}（DSH ${dshVersion}，${Object.keys(dependencies).length} 个依赖${ctx.offline.length ? `，${ctx.offline.length} 个离线文件` : ''}${skillEntries.length ? `，${skillEntries.length} 个技能文件` : ''}${warnings.length ? `，${warnings.length} 条提醒` : ''}）`)
   return {
     ok: true,
     target,
@@ -4157,6 +4322,7 @@ async function exportEnvironmentNow(body) {
     dshVersion,
     plugins: Object.keys(dependencies).filter((plugin) => !isOfficialPackage(plugin)).length,
     offline: ctx.offline.map((item) => item.name),
+    ...(skillEntries.length ? { skills: skillEntries.length } : {}),
     warnings,
   }
 }
@@ -5196,24 +5362,41 @@ function composeExtraArgs(settingsText) {
   return [...parseArgs(settingsText), ...CLI_ARGS]
 }
 
-/** 当前 profile 的用户补丁层：插件开关、MCP 条目、本地技能覆盖都写这里。 */
+/** 当前或指定 profile 的用户补丁层：插件开关、MCP 条目、本地技能覆盖都写这里。 */
+function targetMcpProfile(url, body) {
+  const raw = (body && typeof body.profile === 'string' && body.profile.trim()) || url?.searchParams?.get('profile') || ''
+  return raw ? safeProfile(raw) : PROFILE_NAME
+}
+function patchFileFor(profile = PROFILE_NAME) {
+  return join(profileDirOf(profile), 'cordis.patch.yml')
+}
 function patchFile() {
-  return join(profileDir(), 'cordis.patch.yml')
+  return patchFileFor(PROFILE_NAME)
 }
 
-/** 技能接口的统一载荷：列表 + 两个受管根 + 本地技能总开关状态。 */
+/** 技能接口的统一载荷：列表 + 两个受管根 + 本地技能总开关状态。传了 profile 时走该实例独立的技能目录。 */
 // 预览保留下载时的字节，安装时不重新抓可变分支；限量缓存，十分钟自动失效。
 const skillImports = new Map()
 const SKILL_IMPORT_TTL = 10 * 60 * 1000
 function pruneSkillImports() {
   for (const [token, item] of skillImports) if (item.expires < Date.now()) skillImports.delete(token)
 }
-function skillsPayload() {
-  const roots = skillRoots(homeDir())
+function targetSkillsProfile(url, body) {
+  const raw = (body && typeof body.profile === 'string' && body.profile.trim()) || url?.searchParams?.get('profile') || ''
+  return raw ? safeProfile(raw) : ''
+}
+function syncActiveProfileSkills(profile) {
+  if (!profile) return
+  if (profile === PROFILE_NAME || instanceList().some((proc) => proc.profile === profile && fileManager.samePath(proc.home, homeDir()))) {
+    syncProfileSkills(homeDir(), profile)
+  }
+}
+function skillsPayload(profile = '') {
+  const roots = skillRoots(homeDir(), profile)
   return {
     skills: listSkills(roots),
     roots,
-    localSkills: localSkillsEnabled(profileDir()),
+    localSkills: localSkillsEnabled(profileDirOf(profile || PROFILE_NAME)),
   }
 }
 
@@ -7773,6 +7956,12 @@ async function selfCheckPage(url, version) {
 async function bootOnce(ver, prof, onStarted) {
   const startedAt = performance.now()
   await mkdir(homeDir(), { recursive: true })
+  if (typeof launchIsRemote === 'function' && !launchIsRemote()
+    && typeof existsSync === 'function'
+    && typeof profileSkillsDir === 'function' && typeof syncProfileSkills === 'function'
+    && existsSync(profileSkillsDir(homeDir(), prof))) {
+    syncProfileSkills(homeDir(), prof)
+  }
   const alongside = instances.size > 0
   const pinned = pinnedPort(ver, prof)
   const automatic = remembersAutoPort(prof, pinned)
@@ -8892,6 +9081,7 @@ async function createProfile(profile, source = '', sourceHome = '') {
     let created = false
     try {
       if (from) {
+        ensureProfileSkillsDir(fromHome, from)
         await cp(original, staging, {
           recursive: true,
           filter: (path) => !['node_modules', '.git', 'lock'].includes(basename(path)) && !lstatSync(path).isSymbolicLink(),
@@ -11347,11 +11537,14 @@ async function handleApi(req, res, url) {
     return
   }
   if (req.method === 'GET' && url.pathname === '/api/mcp') {
-    send(res, 200, { ...listMcpServers(patchFile()), profile: PROFILE_NAME })
+    const targetProfile = targetMcpProfile(url, null)
+    send(res, 200, { ...listMcpServers(patchFileFor(targetProfile)), profile: targetProfile })
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/mcp/save') {
-    const result = await editProfile(PROFILE_NAME, () => saveMcpServer(patchFile(), body))
+    const targetProfile = targetMcpProfile(url, body)
+    const patch = patchFileFor(targetProfile)
+    const result = await editProfile(targetProfile, () => saveMcpServer(patch, body))
     const extras = [
       result.repaired ? '覆盖了损坏区块' : '',
       ...(result.warnings || []),
@@ -11361,14 +11554,15 @@ async function handleApi(req, res, url) {
       ok: true,
       warnings: result.warnings || [],
       repaired: result.repaired === true,
-      ...listMcpServers(patchFile()),
-      profile: PROFILE_NAME,
+      ...listMcpServers(patch),
+      profile: targetProfile,
     })
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/mcp/probe') {
     // 真起进程 / 真连端点：一次一台或指定的几台，结果按入参顺序返回
-    const { servers } = listMcpServers(patchFile())
+    const targetProfile = targetMcpProfile(url, body)
+    const { servers } = listMcpServers(patchFileFor(targetProfile))
     const wanted = Array.isArray(body.serverNames) && body.serverNames.length
       ? new Set(body.serverNames.map((name) => String(name)))
       : null
@@ -11386,21 +11580,26 @@ async function handleApi(req, res, url) {
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/mcp/toggle') {
+    const targetProfile = targetMcpProfile(url, body)
+    const patch = patchFileFor(targetProfile)
     const name = String(body.serverName || '')
-    const result = await editProfile(PROFILE_NAME, () => setMcpEnabled(patchFile(), name, body.enabled !== false))
+    const result = await editProfile(targetProfile, () => setMcpEnabled(patch, name, body.enabled !== false))
     pushLog(`MCP 服务器 ${name} → ${body.enabled !== false ? '启用' : '停用'}${result.changed ? '' : '（无变化）'}`)
-    send(res, 200, { ok: true, changed: result.changed, ...listMcpServers(patchFile()), profile: PROFILE_NAME })
+    send(res, 200, { ok: true, changed: result.changed, ...listMcpServers(patch), profile: targetProfile })
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/mcp/remove') {
+    const targetProfile = targetMcpProfile(url, body)
+    const patch = patchFileFor(targetProfile)
     const name = String(body.serverName || '')
-    await editProfile(PROFILE_NAME, () => removeMcpServer(patchFile(), name))
+    await editProfile(targetProfile, () => removeMcpServer(patch, name))
     pushLog(`MCP 服务器 ${name} 已删除`)
-    send(res, 200, { ok: true, ...listMcpServers(patchFile()), profile: PROFILE_NAME })
+    send(res, 200, { ok: true, ...listMcpServers(patch), profile: targetProfile })
     return
   }
   if (req.method === 'GET' && url.pathname === '/api/skills') {
-    send(res, 200, { ...skillsPayload(), profile: PROFILE_NAME })
+    const skillProfile = targetSkillsProfile(url, null)
+    send(res, 200, { ...skillsPayload(skillProfile), profile: skillProfile || PROFILE_NAME })
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/skills/preview') {
@@ -11419,25 +11618,30 @@ async function handleApi(req, res, url) {
       pruneSkillImports()
       const item = skillImports.get(body.token)
       if (!item) throw new Error('技能预览已过期，请重新检查来源')
-      const root = rootDirOf(skillRoots(homeDir()), body.root)
+      const skillProfile = targetSkillsProfile(url, body)
+      const root = rootDirOf(skillRoots(homeDir(), skillProfile), body.root)
       const result = installSkillPackages(root, item.packages, body.selected)
       skillImports.delete(body.token)
+      syncActiveProfileSkills(skillProfile)
       pushLog(`技能安装完成：${result.installed.join('、')}`)
-      send(res, 200, { ok: true, ...result, ...skillsPayload(), profile: PROFILE_NAME })
+      send(res, 200, { ok: true, ...result, ...skillsPayload(skillProfile), profile: skillProfile || PROFILE_NAME })
     } catch (error) { send(res, 400, { error: error.message }) }
     return
   }
   if (req.method === 'GET' && url.pathname === '/api/skills/detail') {
-    const root = rootDirOf(skillRoots(homeDir()), url.searchParams.get('root'))
+    const skillProfile = targetSkillsProfile(url, null)
+    const root = rootDirOf(skillRoots(homeDir(), skillProfile), url.searchParams.get('root'))
     send(res, 200, readSkill(root, url.searchParams.get('path')))
     return
   }
   if (req.method === 'POST' && ['/api/skills/create', '/api/skills/delete'].includes(url.pathname)) {
     try {
-      const root = rootDirOf(skillRoots(homeDir()), body.root)
+      const skillProfile = targetSkillsProfile(url, body)
+      const root = rootDirOf(skillRoots(homeDir(), skillProfile), body.root)
       const result = url.pathname.endsWith('/create') ? createSkill(root, body) : removeSkill(root, body.path)
+      syncActiveProfileSkills(skillProfile)
       pushLog(`技能 ${body.name || body.path} → ${url.pathname.endsWith('/create') ? '新增' : '删除'}`)
-      send(res, 200, { ok: true, ...result, ...skillsPayload(), profile: PROFILE_NAME })
+      send(res, 200, { ok: true, ...result, ...skillsPayload(skillProfile), profile: skillProfile || PROFILE_NAME })
     } catch (error) {
       send(res, 400, { error: error.message })
     }
@@ -11448,15 +11652,18 @@ async function handleApi(req, res, url) {
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/skills/toggle') {
-    const root = rootDirOf(skillRoots(homeDir()), body.root)
+    const skillProfile = targetSkillsProfile(url, body)
+    const root = rootDirOf(skillRoots(homeDir(), skillProfile), body.root)
     setSkillEnabled(root, String(body.path || ''), body.enabled !== false)
+    syncActiveProfileSkills(skillProfile)
     pushLog(`技能 ${body.path} → ${body.enabled !== false ? '启用' : '停用'}`)
-    send(res, 200, { ok: true, ...skillsPayload(), profile: PROFILE_NAME })
+    send(res, 200, { ok: true, ...skillsPayload(skillProfile), profile: skillProfile || PROFILE_NAME })
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/skills/open-folder') {
-    // 在资源管理器里打开技能根目录（默认 ~/.dsh/skills）；目录不存在就顺手建好
-    const dir = rootDirOf(skillRoots(homeDir()), body.root || 'dsh')
+    // 在资源管理器里打开技能根目录（默认 ~/.dsh/skills 或实例自己的技能目录）；目录不存在就顺手建好
+    const skillProfile = targetSkillsProfile(url, body)
+    const dir = rootDirOf(skillRoots(homeDir(), skillProfile), body.root || 'dsh')
     await mkdir(dir, { recursive: true })
     await openDirectory(dir)
     pushLog(`已打开技能目录 ${dir}`)
@@ -11464,10 +11671,12 @@ async function handleApi(req, res, url) {
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/skills/local') {
+    const skillProfile = targetSkillsProfile(url, body)
+    const targetProfile = skillProfile || PROFILE_NAME
     const enabled = body.enabled !== false
-    await editProfile(PROFILE_NAME, () => setLocalSkillsEnabled(profileDir(), enabled))
+    await editProfile(targetProfile, () => setLocalSkillsEnabled(profileDirOf(targetProfile), enabled))
     pushLog(`本地技能加载 → ${enabled ? '启用' : '恢复默认'}${enabled ? '' : '（清除覆盖）'}`)
-    send(res, 200, { ok: true, ...skillsPayload(), profile: PROFILE_NAME })
+    send(res, 200, { ok: true, ...skillsPayload(skillProfile), profile: targetProfile })
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/sync/save') {

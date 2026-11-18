@@ -12,6 +12,7 @@
 (() => {
   const byId = (id) => document.getElementById(id)
   const el = {
+    top: byId('environmentTop'),
     grid: byId('environmentGrid'),
     hint: byId('environmentHint'),
     overview: byId('environmentOverview'),
@@ -30,8 +31,13 @@
     detailSub: byId('environmentDetailSub'),
     upgrade: byId('environmentUpgrade'),
     exportButton: byId('environmentExport'),
+    backups: byId('environmentBackups'),
     duplicate: byId('environmentDuplicate'),
     remove: byId('environmentDelete'),
+    tabs: byId('environmentTabs'),
+    pluginsBox: byId('environmentPluginsBox'),
+    mcpHost: byId('environmentMcpHost'),
+    skillsHost: byId('environmentSkillsHost'),
     editForm: byId('environmentEditForm'),
     name: byId('environmentName'),
     version: byId('environmentVersion'),
@@ -39,11 +45,18 @@
     channelName: byId('environmentChannelName'),
     manageVersions: byId('environmentManageVersions'),
     checkCompatibility: byId('environmentCheckCompatibility'),
+    checkPluginUpdates: byId('environmentCheckPluginUpdates'),
     compat: byId('environmentCompatibility'),
     compatStatus: byId('environmentCompatibilityStatus'),
     compatIssues: byId('environmentCompatibilityIssues'),
+    addOpen: byId('environmentAddOpen'),
+    addDialog: byId('environmentAddDialog'),
     addForm: byId('environmentAddForm'),
+    addClose: byId('environmentAddClose'),
+    addCancel: byId('environmentAddCancel'),
+    addError: byId('environmentAddError'),
     spec: byId('environmentSpec'),
+    addSubmit: byId('environmentAdd'),
     plugins: byId('environmentPluginList'),
     usage: byId('environmentUsage'),
     checkUpdates: byId('environmentCheckUpdates'),
@@ -64,10 +77,14 @@
   // 名字上限由服务端给（ENVIRONMENT.NAME_MAX），页面不再自己写一份
   let nameMax = 0
   let openedId = ''
+  let activeTab = 'plugins'
   let busy = false
   // 跟随上游的检查结果：环境 id → {available, installed, latest, error}（服务端缓存 10 分钟）
   let updates = {}
   let checking = false
+  // 实例内各 npm 插件的更新检查结果：环境 id → { [插件名]: { current, latest, available } }
+  let pluginUpdates = {}
+  let checkingPlugins = false
   // 正在确认的那次更新检查（服务端给的 token + 差别）；每次打开更新框加一，晚到的结果不画
   let updateCheck = null
   let updateRevision = 0
@@ -105,35 +122,21 @@
     const inUse = env.usedBy.length > 0
     return `
       <button class="ghost" type="button" data-environment-copy="${escapeHtml(env.id)}" ${busy ? 'disabled' : ''}>${packMoreIcons.copy}${escapeHtml(t('复制实例'))}</button>
-      <button class="ghost" type="button" data-environment-export="${escapeHtml(env.id)}">${packMoreIcons.export}${escapeHtml(t('导出实例'))}</button>
+      <button class="ghost" type="button" data-environment-export="${escapeHtml(env.id)}">${packMoreIcons.export}${escapeHtml(t('导出镜像'))}</button>
       <button class="ghost danger" type="button" data-environment-delete="${escapeHtml(env.id)}" ${busy || inUse ? 'disabled' : ''} ${inUse ? `title="${escapeHtml(t('还有启动项在用，先给它们换一个实例'))}"` : ''}>${packMoreIcons.trash}${escapeHtml(t('删除实例'))}</button>`
   }
 
   function renderGrid() {
-    // 内置配方还没导入过的放在后面：点开就是导入预览，导入一次后就是普通环境
-    const recipes = builtin.filter((recipe) => !recipe.imported)
-    el.grid.innerHTML = [
-      ...environments.map((env) => gridCardHtml({
-        data: { environment: env.id },
-        label: t('查看实例 {name} 的插件', { name: env.name }),
-        // 色相按 id 定：改名不换色
-        tile: { name: env.id, displayName: env.name },
-        name: env.name,
-        meta: t('DSH {version} · {count} 个插件', { version: versionText(env), count: thirdParty(env).length }),
-        tags: tagsOf(env),
-        menu: menuOf(env),
-      })),
-      // 配方说明很长，卡片上只留一行，全文放进悬停提示
-      ...recipes.map((recipe) => gridCardHtml({
-        data: { builtin: recipe.name },
-        label: t('导入内置实例 {name}', { name: recipe.displayName }),
-        title: recipe.description || '',
-        tile: { name: recipe.name, displayName: recipe.displayName },
-        name: recipe.displayName,
-        meta: t('随启动器发的实例配方'),
-        tags: [t('内置 · 点开导入')],
-      })),
-    ].join('')
+    el.grid.innerHTML = environments.map((env) => gridCardHtml({
+      data: { environment: env.id },
+      label: t('查看实例 {name} 的插件', { name: env.name }),
+      // 色相按 id 定：改名不换色
+      tile: { name: env.id, displayName: env.name },
+      name: env.name,
+      meta: t('DSH {version} · {count} 个插件', { version: versionText(env), count: thirdParty(env).length }),
+      tags: tagsOf(env),
+      menu: menuOf(env),
+    })).join('')
     el.hint.textContent = environments.length ? '' : t('还没有实例。新建、导入一个，或者先保存一个启动项，启动器会按它的配置自动生成。')
     const envOf = (id) => environments.find((env) => env.id === id) || null
     const fromMenu = (button, action) => { button.closest('details').open = false; action() }
@@ -148,9 +151,6 @@
     })
     el.grid.querySelectorAll('[data-environment-delete]').forEach((button) => {
       button.onclick = () => fromMenu(button, () => { void removeEnvironment(envOf(button.dataset.environmentDelete)) })
-    })
-    el.grid.querySelectorAll('[data-builtin]').forEach((button) => {
-      button.onclick = () => { void inspectPack({ builtin: button.dataset.builtin }) }
     })
   }
 
@@ -214,16 +214,23 @@
     }
   }
 
-  function pluginRow(plugin) {
+  const exactVersionSpec = (spec) => /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(String(spec || '').trim())
+
+  function pluginRow(plugin, envId = openedId) {
+    const disabled = !plugin.official && plugin.enabled === false
+    const upgradable = plugin.upgradable ?? (!plugin.official && !plugin.local && exactVersionSpec(plugin.spec))
+    const updateInfo = (typeof pluginUpdates !== 'undefined' && envId ? pluginUpdates[envId]?.[plugin.name] : null) || null
+    const hasUpdate = Boolean(upgradable && updateInfo?.available && updateInfo.latest)
     const tags = [
       plugin.official ? t('官方组件') : '',
       plugin.local ? t('本地路径') : '',
       plugin.offline ? t('离线文件') : '',
       plugin.origin === LOCAL_ORIGIN ? t('本地改动') : '',
       plugin.bundle ? '' : t('不挂载'),
+      disabled ? t('已禁用') : '',
     ].filter(Boolean)
-    // div 行（不是配置页那种开关 label）：.pack-row 给横排，「移除」贴在插件右边
-    return `<div class="plugin-item"><div class="plugin-row pack-row">
+    // div 行（.toggle + .pack-row）：有新版本时显示「更新到 x」，右边保持与 MCP/技能一致的拨动开关与移除图标
+    return `<div class="plugin-item"><div class="toggle plugin-row pack-row${disabled ? ' off' : ''}">
       <span class="plugin-main">
         <span class="plugin-head">
           <span class="plugin-name">${escapeHtml(plugin.name)}</span>
@@ -231,7 +238,9 @@
           ${tags.map((tag) => `<span class="plugin-status">${escapeHtml(tag)}</span>`).join('')}
         </span>
       </span>
-      ${plugin.official ? '' : `<button class="ghost" type="button" data-remove-plugin="${escapeHtml(plugin.name)}" ${busy ? 'disabled' : ''}>${escapeHtml(t('移除'))}</button>`}
+      ${hasUpdate ? `<button class="plugin-update" type="button" data-upgrade-plugin="${escapeHtml(plugin.name)}" aria-label="${escapeHtml(`${plugin.name} ${t('更新到 {latest}', { latest: updateInfo.latest })}`)}" ${busy ? 'disabled' : ''}><span class="update-label">${escapeHtml(t('更新到 {latest}', { latest: updateInfo.latest }))}</span></button>` : ''}
+      ${plugin.official ? '' : `<input type="checkbox" data-toggle-plugin="${escapeHtml(plugin.name)}" ${disabled ? '' : 'checked'} ${busy ? 'disabled' : ''} aria-label="${escapeHtml(t(disabled ? '启用 {name}' : '禁用 {name}', { name: plugin.name }))}" />`}
+      ${plugin.official ? '' : `<button class="ghost icon-btn" type="button" data-remove-plugin="${escapeHtml(plugin.name)}" title="${escapeHtml(t('移除'))}" aria-label="${escapeHtml(t('移除'))}" ${busy ? 'disabled' : ''}><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-trash-2"/></svg></button>`}
     </div></div>`
   }
 
@@ -276,13 +285,23 @@
 
   function renderView() {
     const env = opened()
+    el.top && (el.top.hidden = Boolean(env))
     el.overview.hidden = Boolean(env)
     el.view.hidden = !env
+    const popupClose = byId('launchPluginsClose')
+    const popupDialog = byId('launchPluginsDialog')
+    if (popupClose && popupDialog && !popupDialog.hidden && popupDialog.contains?.(el.view)) {
+      const topBar = el.view.querySelector?.('.pack-detail-top')
+      if (topBar && popupClose.parentElement !== topBar) topBar.append?.(popupClose)
+    }
     el.checkUpdates.disabled = busy || checking
     // 检查更新只剩一个图标：查的时候让它转起来，不然点了看不出有没有在查
     el.checkUpdates.classList.toggle('is-checking', checking)
     el.createSave.disabled = busy
-    if (!env) return
+    if (!env) {
+      globalThis.syncEnvironmentToolTab?.('plugins', null)
+      return
+    }
     paintUpstream(env)
     paintHistory(env)
     el.detailName.textContent = env.name
@@ -297,7 +316,44 @@
       resetCompatibility()
     }
     paintChannelSwitch(el.channel, el.channelName)
-    el.plugins.innerHTML = env.plugins.map(pluginRow).join('') || `<div class="plugin-empty">${escapeHtml(t('这个实例还没有插件。'))}</div>`
+    el.plugins.innerHTML = env.plugins.map((plugin) => pluginRow(plugin, env.id)).join('') || `<div class="plugin-empty">${escapeHtml(t('这个实例还没有插件。'))}</div>`
+    const hasPluginUpdate = (plugin) => {
+      const upgradable = plugin.upgradable ?? (!plugin.official && !plugin.local && typeof exactVersionSpec === 'function' && exactVersionSpec(plugin.spec))
+      const updateInfo = (typeof pluginUpdates !== 'undefined' && env.id ? pluginUpdates[env.id]?.[plugin.name] : null) || null
+      return Boolean(upgradable && updateInfo?.available && updateInfo.latest)
+    }
+    const updatableCount = env.plugins.filter(hasPluginUpdate).length
+    if (el.upgrade) {
+      el.upgrade.hidden = updatableCount === 0
+      el.upgrade.disabled = busy
+      el.upgrade.classList?.toggle('is-update', updatableCount > 0)
+    }
+    el.plugins.querySelectorAll('[data-upgrade-plugin]').forEach((button) => {
+      button.onclick = () => {
+        const name = button.dataset.upgradePlugin
+        void run(() => post('/api/environments/plugins/upgrade', { id: env.id, name }), {
+          after: (result) => {
+            if (typeof pluginUpdates !== 'undefined' && pluginUpdates[env.id]) {
+              for (const item of result?.upgraded || []) {
+                pluginUpdates[env.id][item.name] = { current: item.to, latest: item.to, available: false }
+              }
+              if (!(result?.upgraded?.length) && !(result?.failed?.length) && pluginUpdates[env.id][name]) {
+                pluginUpdates[env.id][name] = { ...pluginUpdates[env.id][name], available: false }
+              }
+            }
+            const failed = (result?.failed || []).map((item) => `${item.name}：${item.error}`).join('\n')
+            if (failed) notify('', t('升级结果'), failed)
+          },
+        })
+      }
+    })
+    el.plugins.querySelectorAll('input[data-toggle-plugin]').forEach((input) => {
+      input.onchange = () => run(() => post('/api/environments/plugins/toggle', {
+        id: env.id,
+        name: input.dataset.togglePlugin,
+        enabled: input.checked,
+      }))
+    })
     el.plugins.querySelectorAll('[data-remove-plugin]').forEach((button) => {
       button.onclick = () => run(() => post('/api/environments/plugins/remove', { id: env.id, name: button.dataset.removePlugin }))
     })
@@ -309,7 +365,9 @@
       env.following ? t('跟随上游 {repo}：这里的改动记成本地改动，上游更新后会重放。', { repo: env.source.repo }) : '',
       t('改动在下次用这个实例启动时生效。'),
     ].filter(Boolean).join(' ')
-    for (const control of [el.upgrade, el.exportButton, el.duplicate, el.name, el.version, el.spec, byId('environmentSave'), byId('environmentAdd')]) control.disabled = busy
+    for (const control of [el.exportButton, el.duplicate, el.name, el.version, el.spec, byId('environmentSave'), el.addOpen, el.addSubmit]) {
+      if (control) control.disabled = busy
+    }
     // 版本类型只对「自动最新版本」有意义；钉了具体版本时它不影响选哪个版本
     el.channel.disabled = busy || el.version.value !== AUTO_VERSION
     syncUiSelect(el.version)
@@ -320,9 +378,28 @@
       : target ? t('检查兼容性（查配置「{profile}」里装好的插件）', { profile: target.profile }) : t('检查兼容性')
     el.checkCompatibility.title = checkTitle
     el.checkCompatibility.setAttribute('aria-label', checkTitle)
+    if (el.checkPluginUpdates) {
+      const checkingNow = typeof checkingPlugins !== 'undefined' && checkingPlugins
+      el.checkPluginUpdates.disabled = busy || checkingNow
+      el.checkPluginUpdates.classList.toggle('is-checking', checkingNow)
+      el.checkPluginUpdates.setAttribute('aria-busy', String(checkingNow))
+    }
     el.remove.disabled = busy || env.usedBy.length > 0
     // 图标按钮没字：不能删时说为什么，能删时就是它的名字
     el.remove.title = env.usedBy.length ? t('还有启动项在用，先给它们换一个实例') : t('删除实例')
+    if (el.backups) el.backups.disabled = busy
+    const tab = typeof activeTab === 'string' ? activeTab : 'plugins'
+    if (el.tabs?.dataset) {
+      el.tabs.dataset.active = tab
+      el.tabs.querySelectorAll?.('[data-env-tab]')?.forEach((button) => {
+        button.setAttribute('aria-selected', String(button.dataset.envTab === tab))
+        button.disabled = busy
+      })
+    }
+    if (el.pluginsBox) el.pluginsBox.hidden = tab !== 'plugins'
+    if (el.mcpHost) el.mcpHost.hidden = tab !== 'mcp'
+    if (el.skillsHost) el.skillsHost.hidden = tab !== 'skills'
+    globalThis.syncEnvironmentToolTab?.(tab, env)
   }
 
   function paint() {
@@ -337,6 +414,7 @@
     builtin = data.builtin || []
     nameMax = data.limits?.nameMax || nameMax
     if (nameMax) el.newName.maxLength = el.name.maxLength = nameMax
+    if (typeof environmentState !== 'undefined') environmentState.list = environments
     environmentState.defaults = data.defaults || {}
   }
 
@@ -358,14 +436,26 @@
   async function load() {
     try {
       await fetchEnvironments()
-      // 刚导入完跳过来的：直接打开那个环境
+      // 刚导入完或从主页点管理跳过来的：直接打开对应实例
       if (environmentState.pendingOpen) {
-        openedId = environmentState.pendingOpen
+        const pending = environmentState.pendingOpen
         environmentState.pendingOpen = ''
+        activeTab = 'plugins'
+        if (typeof pending === 'string') {
+          openedId = pending
+        } else if (pending && typeof pending === 'object') {
+          const normHome = (value) => String(value || '').replace(/[\\/]+$/, '').toLowerCase()
+          const wantHome = normHome(pending.home || state.dshHome || '')
+          const found = environments.find((env) => env.targetProfile === pending.profile && normHome(env.targetHome || state.dshHome || '') === wantHome)
+            || environments.find((env) => env.targetProfile === pending.profile)
+            || environments[0]
+          openedId = found?.id || ''
+        }
         el.editForm.dataset.environment = ''
       }
       if (openedId && !opened()) openedId = ''
       paint()
+      if (openedId && !pluginUpdates[openedId]) void checkPluginUpdates({ silent: true, targetId: openedId })
     } catch (error) {
       el.hint.textContent = error.message
     }
@@ -375,6 +465,7 @@
   async function run(action, { after, onError = (error) => notify(error.message) } = {}) {
     if (busy) return
     busy = true
+    if (typeof environmentState !== 'undefined') environmentState.busy = true
     renderView()
     try {
       const result = await action()
@@ -383,22 +474,39 @@
       onError(error)
     } finally {
       busy = false
+      if (typeof environmentState !== 'undefined') environmentState.busy = false
       await load()
     }
   }
 
   function open(id) {
     openedId = id
+    activeTab = 'plugins'
     el.editForm.dataset.environment = ''
     renderView()
+    if (openedId && !pluginUpdates[openedId]) void checkPluginUpdates({ silent: true, targetId: openedId })
     byId('pane-environments')?.scrollTo({ top: 0 })
   }
 
   // 和页面上其他下拉一样换成自绘菜单（原生 select 仍存值、仍触发 change）
   for (const select of [el.version, el.history, byId('launchEnvironment')]) createUiSelect(select)
-  el.back.onclick = () => { openedId = ''; paint() }
+  el.back.onclick = () => { openedId = ''; activeTab = 'plugins'; paint() }
   el.importButton.onclick = () => openImportDialog()
   el.exportButton.onclick = () => exportEnvironment(opened())
+  if (el.backups) {
+    el.backups.onclick = () => {
+      const env = opened()
+      globalThis.openProfileBackupsForInstance?.(env?.targetProfile || 'web', env?.targetHome || '')
+    }
+  }
+  el.tabs?.querySelectorAll?.('[data-env-tab]')?.forEach((button) => {
+    button.onclick = () => {
+      const next = button.dataset.envTab || 'plugins'
+      if (next === activeTab) return
+      activeTab = next
+      renderView()
+    }
+  })
   // 改版本 / 版本类型：上一次的兼容性结果是按旧版本查的，作废
   el.version.onchange = () => {
     resetCompatibility()
@@ -410,6 +518,54 @@
   }
   el.manageVersions.onclick = () => openVersionManager()
   el.checkCompatibility.onclick = () => { void checkCompatibility() }
+  async function checkPluginUpdates({ silent = false, targetId = '' } = {}) {
+    const env = targetId ? environments.find((item) => item.id === targetId) : opened()
+    if (!env || (!silent && (busy || checkingPlugins))) return
+    const hasUpgradable = env.plugins.some((plugin) => (plugin.upgradable ?? (!plugin.official && !plugin.local && exactVersionSpec(plugin.spec))))
+    if (!hasUpgradable) {
+      pluginUpdates[env.id] = {}
+      if (!silent) notify(t('都已经是最新版本'), t('检查更新'))
+      else if (openedId === env.id) renderView()
+      return
+    }
+    if (!silent) {
+      checkingPlugins = true
+      renderView()
+    }
+    try {
+      const result = await post('/api/environments/plugins/updates', { id: env.id })
+      pluginUpdates[env.id] = result?.updates || {}
+      const count = Object.values(pluginUpdates[env.id]).filter((item) => item?.available).length
+      const failed = (result?.failed || []).map((item) => `${item.name}：${item.error}`).join('\n')
+      if (!silent) {
+        if (!count && !failed) notify(t('都已经是最新版本'), t('检查更新'))
+        else if (failed) notify('', t('检查更新失败'), failed)
+      }
+    } catch (error) {
+      if (!silent) notify(error.message, t('检查更新失败'))
+    } finally {
+      if (!silent) checkingPlugins = false
+      if (openedId === env.id || !silent) renderView()
+    }
+  }
+  if (el.checkPluginUpdates) el.checkPluginUpdates.onclick = () => { void checkPluginUpdates() }
+  if (el.upgrade) {
+    el.upgrade.onclick = () => {
+      const env = opened()
+      if (!env) return
+      void run(() => post('/api/environments/plugins/upgrade', { id: env.id }), {
+        after: (result) => {
+          if (pluginUpdates[env.id]) {
+            for (const item of result?.upgraded || []) {
+              pluginUpdates[env.id][item.name] = { current: item.to, latest: item.to, available: false }
+            }
+          }
+          const failed = (result?.failed || []).map((item) => `${item.name}：${item.error}`).join('\n')
+          if (failed) notify('', t('升级结果'), failed)
+        },
+      })
+    }
+  }
   function openCreateDialog() {
     // 每次打开都是空白的一张：上一次没建成的名字和报错不带过来
     el.newName.value = ''
@@ -442,21 +598,37 @@
       after: () => { el.editForm.dataset.environment = '' },
     })
   }
+  function openAddDialog() {
+    el.spec.value = ''
+    if (el.addError) el.addError.hidden = true
+    showPackDialog(el.addDialog, el.spec)
+  }
+  function closeAddDialog() {
+    if (!busy) void hidePackDialog(el.addDialog)
+  }
+  if (el.addDialog) trapPackDialog(el.addDialog, closeAddDialog)
+  if (el.addOpen) el.addOpen.onclick = openAddDialog
+  if (el.addCancel) el.addCancel.onclick = closeAddDialog
+  if (el.addClose) el.addClose.onclick = closeAddDialog
   el.addForm.onsubmit = (event) => {
     event.preventDefault()
     const env = opened()
     const spec = el.spec.value.trim()
     if (!env || !spec) { el.spec.focus(); return }
-    void run(() => post('/api/environments/plugins/add', { id: env.id, spec }), { after: () => { el.spec.value = '' } })
-  }
-  el.upgrade.onclick = () => {
-    const env = opened()
-    if (!env) return
-    void run(() => post('/api/environments/plugins/upgrade', { id: env.id }), {
-      after: (result) => {
-        const done = result.upgraded.map((item) => `${item.name} ${item.from} → ${item.to}`).join('\n')
-        const failed = result.failed.map((item) => `${item.name}：${item.error}`).join('\n')
-        notify(done || t('都已经是最新版本'), t('升级结果'), failed)
+    if (el.addError) el.addError.hidden = true
+    void run(() => post('/api/environments/plugins/add', { id: env.id, spec }), {
+      after: () => {
+        el.spec.value = ''
+        if (el.addDialog) void hidePackDialog(el.addDialog)
+      },
+      onError: (error) => {
+        if (el.addError) {
+          el.addError.textContent = error.message
+          el.addError.hidden = false
+          el.spec.focus()
+        } else {
+          notify(error.message)
+        }
       },
     })
   }
@@ -470,8 +642,14 @@
     if (env) openExportDialog(env)
   }
   async function removeEnvironment(env) {
-    if (!env || !(await appConfirm(t('删除实例「{name}」？配置和里面已经装好的插件不受影响。', { name: env.name }), { title: t('删除实例') }))) return
-    void run(() => post('/api/environments/remove', { id: env.id }), { after: () => { openedId = '' } })
+    if (!env || !(await appConfirm(t('删除实例「{name}」？实例清单和对应配置目录都会被彻底删除，不可恢复。', { name: env.name }), { title: t('删除实例') }))) return
+    void run(() => post('/api/environments/remove', { id: env.id, removeProfile: true }), {
+      after: () => {
+        if (typeof pluginUpdates !== 'undefined') delete pluginUpdates[env.id]
+        openedId = ''
+        if (!byId('launchPluginsDialog')?.hidden) void globalThis.closeLaunchPlugins?.({ afterDelete: true })
+      },
+    })
   }
   el.duplicate.onclick = () => duplicateEnvironment(opened())
   el.remove.onclick = () => { void removeEnvironment(opened()) }
@@ -482,6 +660,7 @@
     void checkUpdates()
   }
   environmentState.reload = load
+  environmentState.closeDetail = () => { openedId = ''; activeTab = 'plugins'; paint() }
 
   // ---- 跟随上游：应用更新 ----
   /** 更新框正文：DSH 版本、插件加删改、和本地改动的重复 / 冲突、没经过上游验证的本地插件（勾着 = 留着）。 */
@@ -603,15 +782,18 @@
   const launchHint = byId('launchEnvironmentHint')
   // 每次打开编辑框加一：晚到的列表请求不能填进后来那次打开的编辑框
   let launchRevision = 0
-  // 编辑框打开时启动项自己的版本：换走再换回原来的环境时要还原成它
-  let launchOriginal = { version: AUTO_VERSION, channel: UPDATE_CHANNELS[0] }
+  // 编辑框打开时启动项自己的版本与配置：换走再换回原来的实例时要还原成它
+  let launchOriginal = { version: AUTO_VERSION, channel: UPDATE_CHANNELS[0], profile: 'web' }
 
   function paintLaunchHint() {
     const env = environments.find((item) => item.id === launchSelect.value)
     launchHint.textContent = env
       ? t('DSH {version} · {count} 个插件。版本和插件跟着实例走，要改去「实例」页。', { version: versionText(env), count: thirdParty(env).length })
-      : t('自己挑 DSH 版本；保存时按这个配置现有的插件找到或生成一个实例。')
+      : ''
+    launchHint.hidden = !launchHint.textContent
     paintLaunchVersionGroup()
+    globalThis.paintLaunchEnvironmentPick?.()
+    globalThis.paintLaunchCopyPick?.()
   }
 
   // 「自定义」排在实例后面：值为空，和老启动项迁移、新建时没选实例是同一条路
@@ -620,7 +802,7 @@
   async function fillLaunchEnvironments(entry) {
     const revision = ++launchRevision
     const current = entry?.environment || ''
-    launchOriginal = { version: entry?.version || AUTO_VERSION, channel: launchChannel(entry) }
+    launchOriginal = { version: entry?.version || AUTO_VERSION, channel: launchChannel(entry), profile: entry?.profile || 'web' }
     // 先同步复位：上一次打开留下的选项和值，不能在列表回来之前被这次保存带上
     launchSelect.innerHTML = `${current ? `<option value="${escapeHtml(current)}">${escapeHtml(t('读取中…'))}</option>` : ''}${customOption()}`
     launchSelect.value = current
@@ -637,7 +819,11 @@
       ...environments.map((env) => `<option value="${escapeHtml(env.id)}">${escapeHtml(`${env.name} · ${versionText(env)}`)}</option>`),
       customOption(),
     ].join('')
-    launchSelect.value = environments.some((env) => env.id === current) ? current : ''
+    const targetProfile = entry?.profile || 'web'
+    const exact = environments.find((env) => env.id === current)
+    const byProfile = environments.find((env) => (env.targetProfile || env.name) === targetProfile)
+    const pickedEnv = exact || byProfile || (!entry ? environments[0] : null)
+    launchSelect.value = pickedEnv?.id || ''
     launchSelect.dataset.saved = launchSelect.value
     syncUiSelect(launchSelect)
     paintLaunchHint()
@@ -645,8 +831,15 @@
 
   launchSelect.onchange = () => {
     const env = environments.find((item) => item.id === launchSelect.value)
-    if (launchSelect.value === launchSelect.dataset.saved) setLaunchVersion(launchOriginal.version, launchOriginal.channel)
-    else if (env) setLaunchVersion(env.dshVersion, env.updateChannel)
+    if (launchSelect.value === launchSelect.dataset.saved) {
+      setLaunchVersion(launchOriginal.version, launchOriginal.channel)
+      if (typeof setLaunchProfile === 'function') setLaunchProfile(launchOriginal.profile)
+    } else if (env) {
+      setLaunchVersion(env.dshVersion, env.updateChannel)
+      if (env.targetProfile && typeof setLaunchProfile === 'function') setLaunchProfile(env.targetProfile)
+    } else if (typeof setLaunchProfile === 'function') {
+      setLaunchProfile(launchOriginal.profile)
+    }
     paintLaunchHint()
   }
   globalThis.onLaunchEditorOpen = (entry) => { void fillLaunchEnvironments(entry) }

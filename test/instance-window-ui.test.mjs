@@ -41,25 +41,7 @@ test('仅网络失败的普通打开保留浏览器回退，显式打开仍展�
   assert.equal(browser.length, 1)
 })
 
-test('SSE 替换实例快照后开窗入口仍存在；旧外壳隐藏，停止与忙碌时禁用', () => {
-  const declaration = html.match(/let instanceWindowsAvailable = false/)[0]
-  const assignment = html.match(/instanceWindowsAvailable = data\.instanceWindows === true/)[0]
-  const template = html.split('\n').find((line) => line.trim().startsWith('${instanceWindowsAvailable ?')).trim()
-  const context = vm.createContext({
-    state: {}, data: { instanceWindows: true }, entry: { id: 'test' }, name: '工作',
-    live: { status: 'running', url: 'http://127.0.0.1:1234/' }, action: '', ownAction: '', busy: false,
-    escapeHtml: (text) => text, t: (text) => text,
-  })
-  vm.runInContext(`${declaration}; ${assignment}; state = { instances: [] }`, context)
-  const render = () => vm.runInContext('`' + template + '`', context)
-  assert.match(render(), /data-window-id="test"/)
-  assert.doesNotMatch(render(), / disabled/)
-  context.live.status = 'stopped'
-  assert.match(render(), / disabled/)
-  context.live.status = 'running'
-  context.busy = true
-  assert.match(render(), / disabled/)
-  context.data = {}
-  vm.runInContext(assignment, context)
-  assert.equal(render(), '')
+test('启动项卡片不再附带「更多打开方式」下拉菜单，打开方式统一放在设置 → 常规的 #openMode 中', () => {
+  assert.doesNotMatch(html, /launch-open-toggle|launch-open-menu|data-window-id|data-open-menu/)
+  assert.match(html, /打开 dsh 的方式[\s\S]{0,400}?<select id="openMode"><\/select>/)
 })

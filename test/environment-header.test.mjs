@@ -544,7 +544,7 @@ test('检查更新是只有图标的按钮：refresh-cw 图标，提示和读屏
 })
 
 test('导入、新建实例是图标加文字；翻译时只换文字那一截，不会把图标冲掉', () => {
-  for (const [id, icon, label] of [['environmentImport', 'lucide-download', '导入…'], ['environmentCreate', 'lucide-plus', '新建实例']]) {
+  for (const [id, icon, label] of [['environmentImport', 'lucide-download', '导入镜像…'], ['environmentCreate', 'lucide-plus', '新建实例']]) {
     const button = byId(id)
     assert.equal(iconOf(button), `/icons.svg#${icon}`, `#${id} 用 ${icon} 图标`)
     assert.equal(visibleText(button).trim(), label, `#${id} 的字是「${label}」`)
@@ -608,7 +608,7 @@ test('新建弹窗的结构：对话框语义、标题、带 label 的名字框�
 })
 
 test('英文界面：顶栏和新建弹窗的文案都有英文，弹窗里看得见的中文都挂了翻译标记', () => {
-  for (const zh of ['新建实例', '实例名称', '创建', '取消', '检查更新', '导入…']) {
+  for (const zh of ['新建实例', '实例名称', '创建', '取消', '检查更新', '导入镜像…']) {
     assert.ok(EN[zh], `「${zh}」缺英文`)
     assert.doesNotMatch(EN[zh], CJK, `「${zh}」的英文里不该还有中文`)
   }
@@ -776,6 +776,7 @@ test('创建成功：弹窗关上，进入服务端回包里 environment.id 那�
     },
   })
   assert.equal(h.$('environmentView').hidden, true, '起初在实例列表')
+  assert.equal(h.$('environmentTop').hidden, false, '列表页顶栏显示')
   await openCreateDialog(h)
   typeInto(h, 'environmentNewName', '乙')
   click(h, 'environmentCreateSave')
@@ -783,9 +784,14 @@ test('创建成功：弹窗关上，进入服务端回包里 environment.id 那�
   assert.equal(h.$('environmentCreateDialog').hidden, true, '成功后弹窗关上')
   assert.equal(h.$('environmentView').hidden, false, '进入详情')
   assert.equal(h.$('environmentOverview').hidden, true, '列表收起来')
+  assert.equal(h.$('environmentTop').hidden, true, '进入详情时顶栏收起来')
   assert.equal(h.$('environmentDetailName').textContent, '乙')
   assert.match(h.$('environmentDetailSub').textContent, /9\.9\.9/, '打开的是新建出来的那个（id 来自回包），不是同名的老实例')
   assert.equal(h.$('environmentName').value, '乙', '详情页的名字框填的是新实例')
+  click(h, 'environmentBack')
+  await settle()
+  assert.equal(h.$('environmentView').hidden, true, '点返回回到实例列表')
+  assert.equal(h.$('environmentTop').hidden, false, '回到列表后顶栏重新显示')
 })
 
 test('创建失败：弹窗留着，名字框下面的错误提示露出来，写着服务端给的原因', async () => {
@@ -919,4 +925,17 @@ test('没有跟随上游的实例时点检查更新，按钮不会卡在「检�
   const button = h.$('environmentCheckUpdates')
   assert.equal(button.disabled, false)
   assert.equal(button.classList.contains('is-checking'), false)
+})
+
+test('实例详情的 插件 / MCP / 技能 页签跟对应操作图标并排在一条工具栏里', () => {
+  const css = readFileSync(new URL('../src/public/launcher.css', import.meta.url), 'utf8')
+  assert.match(html, /<div class="environment-toolbar">[\s\S]*?id="environmentTabs"[\s\S]*?id="environmentTabActions">[\s\S]*?id="environmentPluginActions"/)
+  assert.match(html, /id="environmentAddOpen"[^>]*title="加入插件"/)
+  assert.match(html, /id="environmentCheckPluginUpdates"[^>]*title="检查更新"/)
+  assert.match(html, /<div class="ask" id="environmentAddDialog" hidden>[\s\S]*?id="environmentAddForm"[\s\S]*?id="environmentSpec"/)
+  assert.match(css, /\.environment-toolbar\s*\{[^}]*display:\s*flex/)
+  assert.match(css, /\.environment-tabs\s*\{[^}]*width:\s*240px/)
+  assert.match(css, /#environmentMcpHost \.pane-top,\s*#environmentSkillsHost \.pane-top\s*\{\s*display:\s*none;\s*\}/)
+  assert.match(css, /#environmentUsage\s*\{\s*display:\s*none;\s*\}/)
+  assert.match(html, /if \(tabActions\)\s*\{\s*const pluginActions = document\.getElementById\('environmentPluginActions'\)/)
 })

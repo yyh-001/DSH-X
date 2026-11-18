@@ -302,6 +302,12 @@ test('升级插件：不带 name 全部升到 latest 并回 from/to；带 name �
   const oneView = await envById(one.id)
   assert.equal(specOf(oneView, '@acme/dsh-bar'), '2.3.0')
   assert.equal(specOf(oneView, 'dsh-x-foo'), '1.0.0', '没点名的插件不动')
+
+  const check = await okPost('/api/environments/plugins/updates', { id: one.id })
+  assert.equal(check.updates['dsh-x-foo']?.available, true)
+  assert.equal(check.updates['dsh-x-foo']?.latest, '2.0.0')
+  assert.equal(check.updates['@acme/dsh-bar']?.available, false)
+  assert.equal(check.updates['@acme/dsh-bar']?.latest, '2.3.0')
 })
 
 // ---------------------------------------------------------------- 启动项绑定
@@ -418,6 +424,15 @@ test('删除环境：有启动项在用拒绝；解绑后删除，清单目录�
   assert.equal(existsSync(manifestDir(created.id)), false, '清单目录要删掉')
   assert.equal(await envById(created.id), undefined, '列表里不再有它')
   await rejected('/api/environments/remove', { id: created.id }, '删过的再删')
+
+  const fullProfile = freshProfile('full-remove', { dependencies: {}, bundles: [BASE, WEB] })
+  const fullPreset = await savePreset({ name: '收养后彻底删', version: '1.0.0', profile: fullProfile })
+  const fullId = fullPreset.environment
+  assert.match(String(fullId), ENV_ID_RE)
+  await okPost('/api/launch-presets/remove', { id: fullPreset.id })
+  await okPost('/api/environments/remove', { id: fullId, removeProfile: true })
+  assert.equal(existsSync(manifestDir(fullId)), false, '清单目录要删掉')
+  assert.equal(existsSync(join(env.home, 'profiles', fullProfile)), false, '传了 removeProfile 时连同独立配置目录一起删掉')
 })
 
 // ---------------------------------------------------------------- WSL 启动项
