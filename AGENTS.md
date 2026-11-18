@@ -174,16 +174,9 @@ dsh 的环境隔离单位。模板名（web / headless / acp / sdk / …）会�
 - **外壳/Electron 升级**：`shell/updater.mjs` 用 electron-updater（electron-builder 的 NSIS/dmg/AppImage + `latest.yml`/`latest-linux.yml` + blockmap）。主进程把 `shellUpdate` 状态/操作挂在 host 上，页面走 `/api/shell-update/check|download|install`，进度是 SSE `shellUpdate`。安装时先停 dsh、退出，再静默安装并拉起新版。mac 的包用 ad-hoc 签名（`identity: '-'`；未签名的 arm64 包会被 Gatekeeper 判成「已损坏」），装不上更新包，所以只出 dmg、不发 zip/latest-mac.yml，`updater.mjs` 在 mac 上直接当不支持（`DSH_UPDATE_FEED` 仍可本地演练）；拿到 Developer ID 后加回 zip 目标并放开那里的平台限制。Linux 的 AppImage 自更新要求从 AppImage 启动（`APPIMAGE` 环境变量存在）；deb 装出来的进程没有这个变量，`updater.mjs` 直接当不支持，用户去发布页换包（核心那层照旧走 npm）。
 - **核心升级**：核心包声明 `dshX.electron`，和当前进程不一致时 `checkAppUpdate` 返回 `reason: 'electron'`，页面提示先更新外壳；核心更新只换核心目录，不动 Electron。
 - **首启取核心**：安装包里没有核心，`start()` 在 `resolveCoreDir()` 返回空时用 `setupCore()` 从 npm 取一份——镜像优先、失败退回官方，校验 npm 的 `dist.integrity`（sha512），解压用系统自带的 tar；下载期间显示带进度的启动页。**第一次启动需要联网**（和 npm 版一致）。这时还没有核心、读不到设置里的下载源和代理，所以网络走 Electron 的 `net.fetch`（跟随系统代理），registry 可用 `DSH_CORE_REGISTRY` 覆盖。挑版本时跳过起不来的版本（`recoverCore` 写进 `<APP_DIR>/core/bootstrap.json`），防止「下载 → 起不来 → 回退 → 再下载」循环；外壳很久不更新、核心已按新 Electron 构建时，会往下找最近一个还能跑的版本，而不是直接报错。
-- 边界：源码运行、npm 版（`NPM_MODE`）、npm 上还没有对应平台包时都不提供核心更新；拆包后的核心模式（`DSH_CORE=1`）关掉 GitHub 安装包自更新检查，由外壳的 electron-updater 负责。
+- 边界：源码运行、npm 上还没有对应平台包时都不提供核心更新；拆包后的核心模式（`DSH_CORE=1`）关掉 GitHub 安装包自更新检查，由外壳的 electron-updater 负责。
 - 快捷方式图标：electron-builder 的快捷方式指向 `DSH.exe`，图标随外壳安装包更新；核心模式不再调 `refreshShortcuts`。
 - 本地验收：`npm run stage:core && npm run dist && node scripts/update-flow-demo.mjs` 用 `release/core-stage` 造一份比当前高一个版本的假核心和假 npm registry，复制 `release/eb/win-unpacked` 到 `release/test-install` 并预置 `core/current`，按打印的命令（`APPDATA` 指到 `test-install/userdata`、带 `DSH_CORE_REGISTRY`）启动，点更新即可走「替换 core/current → 重启外壳」；外壳更新用 `DSH_UPDATE_FEED` 指到本地 latest.yml 目录。
-
-### npm 版（npm-package/）
-
-- `npm-package/` 是 `@yyh001/dsh-x` CLI 包：`npm i -g @yyh001/dsh-x` 后 `dsh-x` 启动。包里有 `shell/` 和图标（`assets/icon.png`、`tray.ico`、`tray.png`），版本跟 `shell/package.json` 走；依赖 `electron`（版本跟根 `package.json` 的 devDependencies 对齐），核心从 npm 拉跨平台的 `dsh-x-core` 到用户缓存（Windows `%LOCALAPPDATA%\dsh-x`、mac `~/Library/Caches/dsh-x`、Linux `~/.cache/dsh-x`），然后 `spawn(electron, [包根])` 启动外壳，并用 `DSH_CORE_DIR` 指向缓存核心。
-- CLI 设置 `DSH_NPM=1`、`DSH_CORE_DIR` 和 `DSH_ELECTRON_BIN`；核心的 `NPM_MODE` 会关掉安装包/核心自更新，设置页「关于」提示用 `npm update -g @yyh001/dsh-x`。`node/` 包装脚本优先用 `DSH_ELECTRON_BIN`，没有就读核心写在 `core/` 旁边的 `electron-bin` 标记（核心启动时写；dsh 插件管理器的 service 路径会剥掉 `DSH_*` 变量，#102），再回退安装版的 `DSH.exe` / `Contents/MacOS/DSH` / AppImage 根目录的 `DSH`。
-  - 标记位置跟着 `node/` 定：`<core>/../electron-bin`（安装版 `core/electron-bin`、npm 版 `<cache>/core/electron-bin`），核心更新只整目录换 `current`，标记原地留下。写标记和包装脚本模板都在 `src/electron-bin.js`，`pack.mjs` 只负责落盘。
-- `scripts/pack-npm.mjs` 打包/发布 CLI（含外壳）；CI 的 `npm-package` job 在三个平台构建后发 `dsh-x`（需要 `NPM_TOKEN` 和 npm 上的包名）。npm 版没有快捷方式、卸载项和开机自启；数据目录与安装版共用。
 
 ### 打包与安装布局
 

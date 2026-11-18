@@ -246,7 +246,7 @@ import { lanUrlOf, pickLanAddress, startLanProxy } from './lan-proxy.js'
 import { DESKTOP_API_VERSION, DESKTOP_CAPABILITIES, parseDesktopRequest } from './desktop.js'
 import { checkCoreUpdate, downloadCoreTarball, extractCoreTarball, stagingExists, stagingStats } from './core-npm.js'
 import { writeElectronBinMarker } from './electron-bin.js'
-import { IN_ELECTRON, IS_LINUX, IS_MAC, IS_WINDOWS, LAUNCHER_NAME, MAC_APP_NAME, NPM_MODE, PACKAGED, RUNTIME_NODE, RUNTIME_NODE_ENV } from './platform.js'
+import { IN_ELECTRON, IS_LINUX, IS_MAC, IS_WINDOWS, LAUNCHER_NAME, MAC_APP_NAME, PACKAGED, RUNTIME_NODE, RUNTIME_NODE_ENV } from './platform.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -5977,8 +5977,6 @@ function stripTag(tag) {
 async function checkSelfUpdate({ force = false } = {}) {
   const current = APP_VERSION
   const fallback = { current, latest: null, update: false, url: installerUrl() }
-  // npm 版：CLI 和核心都走 npm，不提示完整安装包
-  if (NPM_MODE) return { ...fallback, npm: true }
   // 拆包后的核心：完整安装包的自更新归外壳（electron-updater），这里不再查 GitHub
   if (process.env.DSH_CORE === '1') return { ...fallback, shell: true }
   if (!force && selfCache.data && Date.now() - selfCache.at < 30 * 60 * 1000) return selfCache.data
@@ -6163,7 +6161,6 @@ export async function refreshShortcuts({ installRoot, appDir = APP_DIR, version 
  * 只提示更新外壳。核心目录在用户目录里，不在签名的 .app 内，mac 也不需要重签。
  */
 async function checkAppUpdate({ force = false } = {}) {
-  if (NPM_MODE) return { available: false, reason: 'npm' }
   if (!PACKAGED || (!IS_WINDOWS && !IS_MAC && !IS_LINUX)) return { available: false, reason: PACKAGED ? 'platform' : 'source' }
   if (!force && appUpdateCache.data && Date.now() - appUpdateCache.at < APP_UPDATE_CACHE_MS) return appUpdateCache.data
   const remember = (data) => { appUpdateCache = { at: Date.now(), data }; return data }
@@ -10161,7 +10158,7 @@ async function handleApi(req, res, url) {
     const info = await checkSelfUpdate({ force: refresh })
     // staged / downloading 让页面重载后也能知道下载进度：下载在服务端跑，和弹窗开不开无关
     const app = await checkAppUpdate({ force: refresh }).catch((error) => ({ available: false, reason: 'error', error: error?.message || String(error) }))
-    send(res, 200, { ...info, npm: NPM_MODE, shell: host.shellUpdate?.state() || null, staged: stagedUpdate?.latest || '', downloading: selfDownloadInFlight, app, appStaged: stagedApp?.version || '' })
+    send(res, 200, { ...info, shell: host.shellUpdate?.state() || null, staged: stagedUpdate?.latest || '', downloading: selfDownloadInFlight, app, appStaged: stagedApp?.version || '' })
     return
   }
   if (req.method === 'GET' && url.pathname === '/api/shell-update') {

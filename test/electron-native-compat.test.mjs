@@ -23,10 +23,3 @@ test('固定的 Electron 必须在 dsh 原生模块的指纹表里，升级前�
     `Electron ${electron} 不在 dsh 原生模块支持的版本里（${supported.join(' / ')}），实例会启动失败：unsupported Electron runtime fingerprint`)
 })
 
-test('打包脚本的兜底版本与 package.json 一致，避免 npm pack 打出对不上的运行时', () => {
-  const source = readFileSync(new URL('../scripts/pack-npm.mjs', import.meta.url), 'utf8')
-  const after = source.slice(source.indexOf('devDependencies?.electron'))
-  const fallback = /\|\|\s*'(\d+\.\d+\.\d[^']*)'/.exec(after)
-  assert.ok(fallback, 'pack-npm.mjs 应该有 electron 兜底版本')
-  assert.equal(fallback[1], root.devDependencies.electron)
-})

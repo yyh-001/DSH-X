@@ -61,7 +61,7 @@ async function copyNodeRuntime(nodeDir) {
   await copyNpmModules(modules, nodeDir)
   await copyPnpmModule(nodeDir, join(modules, 'npm', 'bin', 'npm-cli.js'))
 
-  // POSIX：DSH_ELECTRON_BIN 由外壳/CLI 设置；没有时读核心写的 electron-bin 标记，
+  // POSIX：DSH_ELECTRON_BIN 由外壳设置；没有时读核心写的 electron-bin 标记，
   // 再没有才依次试安装版的 Windows / mac / Linux 布局（见 src/electron-bin.js）
   const nodeShim = join(nodeDir, 'node')
   await writeFile(nodeShim, nodeShimPosix())

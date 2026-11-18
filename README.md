@@ -17,9 +17,6 @@
   <a href="https://github.com/yyh-001/DSH-X/releases">
     <img src="https://img.shields.io/github/v/release/yyh-001/DSH-X?label=Release&color=4D6BFE" alt="Release" />
   </a>
-  <a href="https://www.npmjs.com/package/@yyh001/dsh-x">
-    <img src="https://img.shields.io/npm/v/%40yyh001%2Fdsh-x?label=npm&color=4D6BFE" alt="npm" />
-  </a>
   <img src="https://img.shields.io/badge/license-MIT-4D6BFE" alt="License" />
   <br>
   <img src="https://img.shields.io/github/downloads/yyh-001/DSH-X/total?label=downloads&color=4D6BFE" alt="Downloads" />
@@ -265,7 +262,7 @@ node scripts/release-manifest.mjs check-tag v0.1.22
 node scripts/release-manifest.mjs verify
 ```
 
-GitHub Actions 的 `build` 工作流构建 Windows / macOS / Linux 三个平台的安装包，并在 tag 上发布 npm 核心包与 CLI。macOS 目前只出 dmg（临时签名，外壳自更新暂不提供）；Linux 用 AppImage + `latest-linux.yml`。
+GitHub Actions 的 `build` 工作流构建 Windows / macOS / Linux 三个平台的安装包，并在 tag 上发布 npm 核心包。macOS 目前只出 dmg（临时签名，外壳自更新暂不提供）；Linux 用 AppImage + `latest-linux.yml`。
 
 发布清单的私钥在 `release/release-key.pem`（已被忽略、不进仓库，**务必备份**）。
 

@@ -1,5 +1,3 @@
-import { NPM_MODE } from './platform.js'
-
 /**
  * 运行时能力：同一份核心既跑在 Electron 外壳里（桌面模式），也跑在纯 Node 里（web 模式）。
  *
@@ -28,7 +26,7 @@ export function detectCapabilities({ host = {}, env = process.env } = {}) {
     shellPrefs: env.DSH_SHELL_PREFS === '1',
     /** 外壳自己的更新器（electron-updater）。 */
     shellUpdate: Boolean(host.shellUpdate),
-    /** 核心自己的更新来源：npm 版走 npm，安装包走核心增量更新，源码运行没有。 */
-    updater: NPM_MODE ? 'npm' : host.shellUpdate ? 'electron-updater' : 'none',
+    /** 核心自己的更新来源：安装包走核心增量更新，源码运行没有。 */
+    updater: host.shellUpdate ? 'electron-updater' : 'none',
   })
 }

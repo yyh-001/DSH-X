@@ -167,14 +167,14 @@ function corePackage(dir) {
 }
 
 /**
- * 启动哪个核心：CLI 明确指定（DSH_CORE_DIR）→ 源码运行用仓库的 src/ → 用户目录里的 core/current。
+ * 启动哪个核心：源码运行用仓库的 src/ → 用户目录里的 core/current。
  * 安装版不再内置核心：current 不存在或声明的 Electron 和当前外壳对不上时返回空，
  * 由 setupCore 去 npm 取一份（外壳可以很久不更新，核心照发）。
  */
 function resolveCoreDir() {
   if (process.env.DSH_CORE_DIR) return process.env.DSH_CORE_DIR
   // 源码运行（npm run electron）用仓库自己的核心，不去碰用户目录里安装版更新的 core/current
-  if (!app.isPackaged && process.env.DSH_NPM !== '1') return SOURCE_CORE
+  if (!app.isPackaged) return SOURCE_CORE
   if (!existsSync(join(ACTIVE_CORE, 'server.js'))) return ''
   const pkg = corePackage(ACTIVE_CORE)
   const electron = pkg?.dshX?.electron
@@ -603,7 +603,7 @@ async function start() {
   }
   // 核心按「打包态」运行：它不在 resources/app 里，但仍要按安装包路径处理更新和快捷方式。
   // 源码 `npm run electron` 不算打包态（PACKAGED 为 false），否则开发时也会去查 npm 核心更新。
-  if (app.isPackaged || process.env.DSH_NPM === '1') process.env.DSH_CORE = '1'
+  if (app.isPackaged) process.env.DSH_CORE = '1'
   process.env.DSH_SHELL_VERSION = VERSION
   // 核心的 node/ 包装脚本转调外壳的 Electron 本体
   process.env.DSH_ELECTRON_BIN = process.execPath

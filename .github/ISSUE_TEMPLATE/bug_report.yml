@@ -41,7 +41,6 @@ body:
         - Windows 安装包（DSH-X-…-win-x64.exe）
         - macOS dmg
         - Linux AppImage
-        - npm 全局（@yyh001/dsh-x）
         - 源码运行
     validations:
       required: true

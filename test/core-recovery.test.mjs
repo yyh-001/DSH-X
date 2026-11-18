@@ -136,7 +136,6 @@ for (const mode of ['ENOTDIR', 'EACCES']) {
         const root = ${JSON.stringify(root)}, mode = ${JSON.stringify(mode)}
         const appDir = isolateUserHome(root), parent = join(root, 'blocked'), dataDir = join(parent, 'data')
         process.env.DSH_CORE = '1'
-        delete process.env.DSH_NPM
         mkdirSync(appDir, { recursive: true })
         if (mode === 'ENOTDIR') writeFileSync(parent, 'file blocking data directory')
         else { mkdirSync(parent); chmodSync(parent, 0o500) }

@@ -1,16 +1,14 @@
 // 核心包（dsh-x-core）的获取：查 npm 元数据 → 挑版本 → 下 tarball → 校验 sha512 → 解压。
 //
-// 两处用它：
+// 用途：
 // - 安装版外壳：安装包里不再带核心，第一次启动就靠它从 npm 取到 core/current（见 shell/main.mjs）
-// - npm CLI（npm-package/lib/core.mjs）：取到自己的缓存目录
 // 解压用系统自带的 tar（Windows 10+ 的 System32\tar.exe、其他平台的 /usr/bin/tar），不引依赖。
 // 核心包跨平台：Windows / mac / Linux 用同一个 dsh-x-core。
 
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs'
-import { mkdir, readdir, rm, writeFile } from 'node:fs/promises'
-import { homedir } from 'node:os'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
 const IS_WINDOWS = process.platform === 'win32'
@@ -260,59 +258,5 @@ export async function installCore({ release, target, previous = '', onProgress, 
   } finally {
     rmSync(tarball, { force: true })
     rmSync(staging, { recursive: true, force: true })
-  }
-}
-
-// ---- npm CLI 的缓存（安装版外壳不用这些） ----
-
-export function cacheRoot() {
-  if (process.env.DSH_NPM_CACHE) return process.env.DSH_NPM_CACHE
-  if (IS_WINDOWS) return join(process.env.LOCALAPPDATA || process.env.APPDATA || homedir(), 'dsh-x')
-  if (IS_MAC) return join(homedir(), 'Library', 'Caches', 'dsh-x')
-  return join(process.env.XDG_CACHE_HOME || join(homedir(), '.cache'), 'dsh-x')
-}
-
-export function installedCore() {
-  try {
-    const current = JSON.parse(readFileSync(join(cacheRoot(), 'current.json'), 'utf8'))
-    const dir = join(cacheRoot(), 'core', String(current.version))
-    if (existsSync(join(dir, 'server.js')) && existsSync(join(dir, 'package.json'))) {
-      return { version: String(current.version), dir }
-    }
-  } catch { /* 没装或坏了 */ }
-  return null
-}
-
-/** 确保 CLI 的缓存里有一份核心；返回 { version, dir, downloaded }。 */
-export async function ensureCore({ force = false, electronVersion = '' } = {}) {
-  const name = corePackageName()
-  const metadata = await fetchCoreMetadata(name)
-  const release = resolveLatest(metadata)
-  if (!release) throw new Error(`npm 上没有 ${name} 的可用版本`)
-  if (release.electron && electronVersion && release.electron !== electronVersion) {
-    throw new Error(`核心包需要 Electron ${release.electron}，当前 CLI 带的是 ${electronVersion}；先 npm update -g dsh-x`)
-  }
-  const dir = join(cacheRoot(), 'core', release.version)
-  const installed = installedCore()
-  if (!force && installed?.version === release.version) return { ...installed, downloaded: false }
-  const tarball = join(cacheRoot(), `.core-${release.version}-${process.pid}.tgz`)
-  await mkdir(cacheRoot(), { recursive: true })
-  try {
-    await downloadCoreTarball(release.tarball, tarball, { integrity: release.integrity })
-    const pkg = extractCoreTarball(tarball, dir)
-    if (String(pkg.version) !== release.version) throw new Error(`核心包版本不一致：${pkg.version} != ${release.version}`)
-  } finally {
-    await rm(tarball, { force: true }).catch(() => {})
-  }
-  await writeFile(join(cacheRoot(), 'current.json'), `${JSON.stringify({ version: release.version }, null, 2)}\n`)
-  return { version: release.version, dir, downloaded: true }
-}
-
-/** 列出 CLI 缓存里的核心版本（给 --version / 清理用）。 */
-export async function cachedVersions() {
-  try {
-    return (await readdir(join(cacheRoot(), 'core'))).filter((name) => existsSync(join(cacheRoot(), 'core', name, 'server.js'))).sort()
-  } catch {
-    return []
   }
 }

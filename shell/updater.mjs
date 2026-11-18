@@ -7,8 +7,7 @@ import { app } from 'electron'
 import electronUpdater from 'electron-updater'
 
 const { autoUpdater } = electronUpdater
-/** npm 版（CLI 拉起的外壳）：更新由 npm 负责，这里不启用。 */
-const NPM_MODE = process.env.DSH_NPM === '1'
+
 /**
  * mac 包是临时签名，electron-updater 换不上去；发布页也不再放 zip / latest-mac.yml，
  * 干脆当不支持，免得每次启动都报查不到更新清单。DSH_UPDATE_FEED 留给本地演练。
@@ -34,7 +33,7 @@ function friendlyError(error) {
  * @param {string} [options.version] 外壳版本（源码运行时 app.getVersion() 可能是 Electron 的版本）
  */
 export function createUpdater({ onBeforeInstall, version } = {}) {
-  const enabled = SHELL_UPDATE_SUPPORTED && !NPM_MODE && (app.isPackaged || Boolean(process.env.DSH_UPDATE_FEED))
+  const enabled = SHELL_UPDATE_SUPPORTED && (app.isPackaged || Boolean(process.env.DSH_UPDATE_FEED))
   const state = {
     status: enabled ? 'idle' : 'disabled',
     current: String(version || app.getVersion()),

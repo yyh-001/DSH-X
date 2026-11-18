@@ -17,9 +17,6 @@
   <a href="https://github.com/yyh-001/DSH-X/releases">
     <img src="https://img.shields.io/github/v/release/yyh-001/DSH-X?label=Release&color=4D6BFE" alt="Release" />
   </a>
-  <a href="https://www.npmjs.com/package/@yyh001/dsh-x">
-    <img src="https://img.shields.io/npm/v/%40yyh001%2Fdsh-x?label=npm&color=4D6BFE" alt="npm" />
-  </a>
   <img src="https://img.shields.io/badge/license-MIT-4D6BFE" alt="License" />
   <br>
   <img src="https://img.shields.io/github/downloads/yyh-001/DSH-X/total?label=downloads&color=4D6BFE" alt="Downloads" />
@@ -265,7 +262,7 @@ node scripts/release-manifest.mjs check-tag v0.1.22
 node scripts/release-manifest.mjs verify
 ```
 
-The GitHub Actions `build` workflow builds Windows / macOS / Linux installers and publishes the npm core package and CLI on tags. macOS currently ships dmg only (ad-hoc signing; shell auto-update is disabled); Linux uses AppImage + `latest-linux.yml`.
+The GitHub Actions `build` workflow builds Windows / macOS / Linux installers and publishes the npm core package on tags. macOS currently ships dmg only (ad-hoc signing; shell auto-update is disabled); Linux uses AppImage + `latest-linux.yml`.
 
 The release-manifest private key lives in `release/release-key.pem` (git-ignored, **back it up**).
 

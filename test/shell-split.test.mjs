@@ -78,18 +78,6 @@ test('外壳版本和核心版本分开：shell/package.json + 关于页显示�
   assert.match(html, /DSH-X 核心/, '核心和外壳在更新弹窗里分开显示')
 })
 
-test('npm CLI 带着外壳启动，核心目录通过 DSH_CORE_DIR 传入', () => {
-  const bin = read('npm-package/bin/dsh-x.mjs')
-  assert.match(bin, /DSH_CORE_DIR: core\.dir/)
-  assert.match(bin, /spawn\(electron, \[appRoot, \.\.\.args\]/)
-  const pack = read('scripts/pack-npm.mjs')
-  assert.match(pack, /join\(ROOT, 'shell'\)/)
-  assert.match(pack, /shell\/main\.mjs/)
-  assert.match(pack, /shellPkg\.version/, 'CLI 版本跟外壳走')
-  assert.match(read('npm-package/lib/core.mjs'), /shell\/core-fetch\.mjs/, 'CLI 复用外壳那套核心获取逻辑')
-  assert.match(read('shell/core-fetch.mjs'), /'dsh-x-core'/, '核心包名跨平台，只有一个')
-})
-
 test('首启下载页：实时进度与下载源，总大小未知时走不确定态', () => {
   const zh = coreSetupPage('zh')
   for (const id of ['hint', 'track', 'bar', 'detail', 'source']) {

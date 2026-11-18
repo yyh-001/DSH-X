@@ -19,8 +19,7 @@ export const ELECTRON_BIN_FILE = 'electron-bin'
 
 /**
  * 标记位置：<coreDir>/../electron-bin。node 包装在 <coreDir>/node，所以从 node 目录
- * 往上是 `..\..`、shell 里是 `$dir/../../`。安装版 = %APPDATA%\DSH\core\electron-bin，
- * npm 版 = <cache>/core/electron-bin，源码组装的核心 = release/electron-bin。
+ * 往上是 `..\..`、shell 里是 `$dir/../../`。安装版 = %APPDATA%\DSH\core\electron-bin，源码组装的核心 = release/electron-bin。
  */
 export function electronBinMarkerPath(coreDir) {
   return join(dirname(coreDir), ELECTRON_BIN_FILE)
