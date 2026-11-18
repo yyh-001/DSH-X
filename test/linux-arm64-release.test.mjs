@@ -4,7 +4,7 @@ import test from 'node:test'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import vm from 'node:vm'
 
-// Linux ARM64 原生出包的黑盒回归：配置（electron-builder）、CI（build.yml 的 linux job）、
+// Linux ARM64 原生出包的黑盒回归：配置（electron-builder）、CI（publish.yml 的 linux job）、
 // 落地页（docs/index.html 的 assetOf）三处必须对得上——任何一处单独改了，用户要么拿到
 // 错架构的包，要么 electron-updater 在 arm64 上找不到 latest-linux-arm64.yml。
 
@@ -105,9 +105,9 @@ test('Windows / mac 目标不受影响：win nsis x64，mac dmg arm64 + x64', as
   assert.deepEqual([...macTargets[0].arch].sort(), ['arm64', 'x64'])
 })
 
-// ---------- .github/workflows/build.yml 的 linux job（纯文本解析，不引 YAML 依赖） ----------
+// ---------- .github/workflows/publish.yml 的 linux job（纯文本解析，不引 YAML 依赖） ----------
 
-const WORKFLOW = read('.github/workflows/build.yml')
+const WORKFLOW = read('.github/workflows/publish.yml')
 const indentOf = (line) => line.match(/^ */)[0].length
 /** YAML 注释去掉再做「不许出现」类断言：注释里解释「为什么不用 QEMU」是正当的。 */
 const stripComments = (text) => text.split('\n').map((line) => line.replace(/(^|\s)#.*$/, '')).join('\n')
