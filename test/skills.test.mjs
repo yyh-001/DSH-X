@@ -4,7 +4,19 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import { createSkill, listSkills, readSkill, removeSkill, setSkillEnabled } from '../src/skills.js'
+import {
+  createSkill,
+  ensureProfileSkillsDir,
+  exportSkillsEntries,
+  importSkillsFromPack,
+  listSkills,
+  profileSkillsDir,
+  readSkill,
+  removeSkill,
+  setSkillEnabled,
+  skillRoots,
+  syncProfileSkills,
+} from '../src/skills.js'
 
 // 技能开关只动 frontmatter 里那一行，其余字节一个字不碰（用户手写的 YAML 不该被重排）。
 // 技能根有两层（~/.dsh/skills 与 ~/.agents/skills），测试里用临时目录充当其中一层。
@@ -233,4 +245,95 @@ test('删除清理整个技能包和单文件，链接技能保留外部原件�
     assert.equal(readFileSync(join(external, 'resource.txt'), 'utf8'), '外部资源')
     assert.equal(readFileSync(join(external, 'SKILL.md'), 'utf8'), GOOD)
   } finally { box.done(); rmSync(external, { recursive: true, force: true }) }
+})
+
+test('按实例隔离技能：web 首次继承全局技能并跳过 .system，非 web 从空目录起步', () => {
+  const home = mkdtempSync(join(tmpdir(), 'dsh-profile-skills-'))
+  try {
+    mkdirSync(join(home, 'skills', '.system'), { recursive: true })
+    writeFileSync(join(home, 'skills', '.system', 'builtin.md'), 'builtin')
+    mkdirSync(join(home, 'skills', 'alpha'), { recursive: true })
+    writeFileSync(join(home, 'skills', 'alpha', 'SKILL.md'), GOOD)
+    writeFileSync(join(home, 'skills', 'solo.md'), GOOD)
+
+    const webDir = ensureProfileSkillsDir(home, 'web')
+    assert.equal(webDir, profileSkillsDir(home, 'web'))
+    assert.equal(existsSync(join(webDir, 'alpha', 'SKILL.md')), true)
+    assert.equal(existsSync(join(webDir, 'solo.md')), true)
+    assert.equal(existsSync(join(webDir, '.system')), false)
+
+    const workDir = ensureProfileSkillsDir(home, 'work')
+    assert.equal(workDir, profileSkillsDir(home, 'work'))
+    assert.equal(existsSync(join(workDir, 'alpha')), false)
+    assert.equal(skillRoots(home, 'work')[0].dir, workDir)
+    assert.equal(skillRoots(home)[0].dir, join(home, 'skills'))
+  } finally {
+    rmSync(home, { recursive: true, force: true })
+  }
+})
+
+test('切换或启动实例同步技能：先保住未迁移的 web 技能，再同步目标实例且保留 .system', () => {
+  const home = mkdtempSync(join(tmpdir(), 'dsh-sync-skills-'))
+  try {
+    mkdirSync(join(home, 'skills', '.system'), { recursive: true })
+    writeFileSync(join(home, 'skills', '.system', 'keep.txt'), 'keep')
+    mkdirSync(join(home, 'skills', 'legacy-web'), { recursive: true })
+    writeFileSync(join(home, 'skills', 'legacy-web', 'SKILL.md'), GOOD)
+
+    const workDir = ensureProfileSkillsDir(home, 'work')
+    createSkill(workDir, { name: 'work-only', description: '工作', content: '工作技能' })
+
+    syncProfileSkills(home, 'work')
+    assert.equal(existsSync(join(profileSkillsDir(home, 'web'), 'legacy-web', 'SKILL.md')), true, '未迁移的 web 技能不能丢失')
+    assert.equal(readFileSync(join(home, 'skills', '.system', 'keep.txt'), 'utf8'), 'keep')
+    assert.equal(existsSync(join(home, 'skills', 'legacy-web')), false)
+    assert.equal(existsSync(join(home, 'skills', 'work-only', 'SKILL.md')), true)
+
+    syncProfileSkills(home, 'web')
+    assert.equal(existsSync(join(home, 'skills', 'legacy-web', 'SKILL.md')), true)
+    assert.equal(existsSync(join(home, 'skills', 'work-only')), false)
+  } finally {
+    rmSync(home, { recursive: true, force: true })
+  }
+})
+
+test('镜像导出与导入技能：打包 home/skills/* 并安全写入目标实例', () => {
+  const srcHome = mkdtempSync(join(tmpdir(), 'dsh-pack-skills-src-'))
+  const dstHome = mkdtempSync(join(tmpdir(), 'dsh-pack-skills-dst-'))
+  try {
+    const srcDir = ensureProfileSkillsDir(srcHome, 'work')
+    createSkill(srcDir, { name: 'packed-skill', description: '打包测试', content: '正文' })
+    writeFileSync(join(srcDir, 'packed-skill', 'note.txt'), 'attached')
+    writeFileSync(join(srcDir, 'single.md'), GOOD)
+    mkdirSync(join(srcDir, '.system'), { recursive: true })
+    writeFileSync(join(srcDir, '.system', 'skip.md'), 'skip')
+    mkdirSync(join(srcDir, 'not-a-skill'), { recursive: true })
+    writeFileSync(join(srcDir, 'not-a-skill', 'ignored.txt'), 'ignored')
+
+    const exported = exportSkillsEntries(srcDir)
+    const names = exported.map((entry) => entry.name).sort()
+    assert.deepEqual(names, [
+      'home/skills/packed-skill/SKILL.md',
+      'home/skills/packed-skill/note.txt',
+      'home/skills/single.md',
+    ])
+
+    const pack = {
+      home: exported.map((entry) => ({ path: entry.name.slice('home/'.length) })),
+      files: new Map(exported.map((entry) => [entry.name, entry.data])),
+    }
+    const dstDir = ensureProfileSkillsDir(dstHome, 'imported')
+    const count = importSkillsFromPack(dstDir, pack)
+    assert.equal(count, 3)
+    assert.equal(readFileSync(join(dstDir, 'packed-skill', 'note.txt'), 'utf8'), 'attached')
+    assert.equal(readFileSync(join(dstDir, 'single.md'), 'utf8'), GOOD)
+
+    assert.throws(() => importSkillsFromPack(dstDir, {
+      home: [{ path: 'skills/../escape.txt' }],
+      files: new Map([['home/skills/../escape.txt', Buffer.from('bad')]]),
+    }))
+  } finally {
+    rmSync(srcHome, { recursive: true, force: true })
+    rmSync(dstHome, { recursive: true, force: true })
+  }
 })

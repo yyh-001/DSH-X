@@ -22,9 +22,9 @@
  * **agent 预设**自己挂这两个行（官方注释写的是 "presets own local discovery"）——本地技能
  * 默认就在工作。所以这里那两行覆盖只是"host 层强制启用"的高级开关，不是本地技能的总闸。
  */
-import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, rmdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, rmdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
-import { join, resolve, sep } from 'node:path'
+import { dirname, join, resolve, sep } from 'node:path'
 import { crc32, readZipEntry, readZipIndex } from './zipfile.js'
 import { netFetch } from './proxy.js'
 import { patchPathOf, readPatchState, forceRowId } from './plugins.js'
@@ -42,11 +42,116 @@ export const LOCAL_SKILL_ROWS = ['skill-filesystem', 'tool-skill']
 /** 老版本误当成"本地技能三件套"的一员，跟本地技能无关，关闭时顺手清掉残留覆盖。 */
 export const LEGACY_SKILL_ROWS = ['skill-badge']
 
-/** 技能根目录（受管的两层，项目根不归启动器管）。 */
-export function skillRoots(dshHome) {
+/** 实例自己的技能子目录（<DSH_HOME>/profiles/<profile>/skills）。 */
+export function profileSkillsDir(dshHome, profile) {
+  return join(dshHome, 'profiles', profile, 'skills')
+}
+
+/** 确保实例自己的技能子目录存在；默认实例 web 首次建立时从全局 skills/ 继承已有技能（跳过 .system）。 */
+export function ensureProfileSkillsDir(dshHome, profile) {
+  const dir = profileSkillsDir(dshHome, profile)
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true })
+    const globalDir = join(dshHome, 'skills')
+    if (profile === 'web' && existsSync(globalDir)) {
+      for (const entry of readdirSync(globalDir, { withFileTypes: true })) {
+        if (entry.name === '.system') continue
+        const src = join(globalDir, entry.name)
+        const dst = join(dir, entry.name)
+        const followed = entry.isSymbolicLink() ? statOrNull(src) : null
+        if (entry.isDirectory() || followed?.isDirectory() === true) {
+          cpSync(src, dst, { recursive: true, dereference: true })
+        } else if (entry.isFile() || followed?.isFile() === true) {
+          copyFileSync(src, dst)
+        }
+      }
+    }
+  }
+  return dir
+}
+
+/** 把某个实例独立的技能子目录同步映射到 <DSH_HOME>/skills，供 dsh 运行时读取（保留 .system）。 */
+export function syncProfileSkills(dshHome, profile) {
+  if (profile !== 'web' && !existsSync(profileSkillsDir(dshHome, 'web'))) {
+    ensureProfileSkillsDir(dshHome, 'web')
+  }
+  const source = ensureProfileSkillsDir(dshHome, profile)
+  const target = join(dshHome, 'skills')
+  mkdirSync(target, { recursive: true })
+  for (const entry of readdirSync(target, { withFileTypes: true })) {
+    if (entry.name === '.system') continue
+    const dest = join(target, entry.name)
+    if (entry.isSymbolicLink()) unlinkSync(dest)
+    else rmSync(dest, { recursive: true, force: true })
+  }
+  for (const entry of readdirSync(source, { withFileTypes: true })) {
+    if (entry.name === '.system') continue
+    const src = join(source, entry.name)
+    const dst = join(target, entry.name)
+    const followed = entry.isSymbolicLink() ? statOrNull(src) : null
+    if (entry.isDirectory() || followed?.isDirectory() === true) {
+      cpSync(src, dst, { recursive: true, dereference: true })
+    } else if (entry.isFile() || followed?.isFile() === true) {
+      copyFileSync(src, dst)
+    }
+  }
+}
+
+/** 把技能目录里的有效技能打成 `.dspack` 的 `home/skills/...` ZIP 条目。 */
+export function exportSkillsEntries(skillsDir) {
+  if (!skillsDir || !existsSync(skillsDir)) return []
+  const entries = []
+  const walkDir = (dir, prefix) => {
+    for (const item of readdirSync(dir, { withFileTypes: true })) {
+      if (item.name === '.git' || item.name === 'node_modules' || item.name.endsWith('.bak')) continue
+      const full = join(dir, item.name)
+      const rel = `${prefix}/${item.name}`
+      const followed = item.isSymbolicLink() ? statOrNull(full) : null
+      if (item.isDirectory() || followed?.isDirectory() === true) walkDir(full, rel)
+      else if (item.isFile() || followed?.isFile() === true) entries.push({ name: rel, data: readFileSync(full) })
+    }
+  }
+  for (const entry of readdirSync(skillsDir, { withFileTypes: true })) {
+    if (entry.name === '.system' || entry.name.endsWith('.bak')) continue
+    const full = join(skillsDir, entry.name)
+    const followed = entry.isSymbolicLink() ? statOrNull(full) : null
+    if (entry.isDirectory() || followed?.isDirectory() === true) {
+      if (!existsSync(join(full, 'SKILL.md'))) continue
+      walkDir(full, `home/skills/${entry.name}`)
+    } else if ((entry.isFile() || followed?.isFile() === true) && /\.md$/i.test(entry.name)) {
+      entries.push({ name: `home/skills/${entry.name}`, data: readFileSync(full) })
+    }
+  }
+  return entries
+}
+
+/** 把镜像包里 `home/skills/...` 条目写入目标实例的技能目录（做路径安全检查，不写越界路径）。 */
+export function importSkillsFromPack(skillsDir, pack) {
+  const items = (pack?.home || []).filter((item) => typeof item.path === 'string' && item.path.startsWith('skills/'))
+  if (!items.length) return 0
+  mkdirSync(skillsDir, { recursive: true })
+  const base = resolve(skillsDir)
+  let count = 0
+  for (const item of items) {
+    const rel = item.path.slice('skills/'.length)
+    if (!rel) continue
+    importPath(rel)
+    const data = pack.files?.get(`home/${item.path}`)
+    if (data === undefined || data === null) continue
+    const target = resolve(skillsDir, rel)
+    if (!target.toLowerCase().startsWith((base + sep).toLowerCase())) continue
+    mkdirSync(dirname(target), { recursive: true })
+    writeFileSync(target, Buffer.isBuffer(data) ? data : Buffer.from(String(data), 'utf8'))
+    count += 1
+  }
+  return count
+}
+
+/** 技能根目录（受管的两层，项目根不归启动器管；传 profile 时 dsh 层使用该实例独立技能子目录）。 */
+export function skillRoots(dshHome, profile = '') {
   const agentsHome = process.env.DSH_AGENTS_HOME || join(homedir(), '.agents')
   return [
-    { key: 'dsh', dir: join(dshHome, 'skills') },
+    { key: 'dsh', dir: profile ? ensureProfileSkillsDir(dshHome, profile) : join(dshHome, 'skills') },
     { key: 'agents', dir: join(agentsHome, 'skills') },
   ]
 }
