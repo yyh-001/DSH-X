@@ -39,6 +39,7 @@
     mcpHost: byId('environmentMcpHost'),
     skillsHost: byId('environmentSkillsHost'),
     editForm: byId('environmentEditForm'),
+    saveStatus: byId('environmentSaveStatus'),
     name: byId('environmentName'),
     version: byId('environmentVersion'),
     channel: byId('environmentChannel'),
@@ -49,12 +50,24 @@
     compat: byId('environmentCompatibility'),
     compatStatus: byId('environmentCompatibilityStatus'),
     compatIssues: byId('environmentCompatibilityIssues'),
+    configBox: byId('environmentConfigBox'),
+    pluginSubtabs: byId('environmentPluginSubtabs'),
+    installedCount: byId('environmentInstalledCount'),
+    installedPane: byId('environmentInstalledPane'),
+    marketPane: byId('environmentMarketPane'),
+    marketTools: byId('environmentMarketTools'),
+    addForm: byId('environmentAddForm'),
     addOpen: byId('environmentAddOpen'),
     addDialog: byId('environmentAddDialog'),
-    addForm: byId('environmentAddForm'),
     addClose: byId('environmentAddClose'),
     addCancel: byId('environmentAddCancel'),
+    addDialogError: byId('environmentAddDialogError'),
     addError: byId('environmentAddError'),
+    addSource: byId('environmentAddSource'),
+    addSearch: byId('environmentAddSearch'),
+    addRefresh: byId('environmentAddRefresh'),
+    addCategories: byId('environmentAddCategories'),
+    addMarket: byId('environmentAddMarket'),
     spec: byId('environmentSpec'),
     addSubmit: byId('environmentAdd'),
     plugins: byId('environmentPluginList'),
@@ -78,6 +91,7 @@
   let nameMax = 0
   let openedId = ''
   let activeTab = 'plugins'
+  let pluginSubTab = 'installed'
   let busy = false
   // 跟随上游的检查结果：环境 id → {available, installed, latest, error}（服务端缓存 10 分钟）
   let updates = {}
@@ -215,12 +229,77 @@
   }
 
   const exactVersionSpec = (spec) => /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(String(spec || '').trim())
+  const ICON_TONES = ['blue', 'indigo', 'cyan', 'purple', 'emerald', 'amber', 'pink']
+
+  function toneForPluginName(name) {
+    let hash = 0
+    for (const ch of String(name || '')) hash = ((hash * 31) + ch.charCodeAt(0)) >>> 0
+    return ICON_TONES[hash % ICON_TONES.length]
+  }
+
+  function pluginVisualMeta(name) {
+    if (typeof marketState !== 'undefined') {
+      const desktop = marketState.desktopEnhance?.find((item) => item.name === name)
+      if (desktop) {
+        return {
+          icon: desktop.icon || 'lucide-package',
+          tone: desktop.tone || toneForPluginName(name),
+          title: desktop.title || '',
+        }
+      }
+      const curated = marketState.curated?.find((item) => item.name === name)
+      if (curated) {
+        const group = marketState.curatedCategories?.find((cat) => cat.id === curated.category)
+        return {
+          icon: curated.icon || group?.icon || 'lucide-package',
+          tone: group?.tone || toneForPluginName(name),
+          title: curated.title || '',
+        }
+      }
+    }
+    return { icon: 'lucide-package', tone: toneForPluginName(name), title: '' }
+  }
+
+  const isAvatarIconUrl = (value) => /^https:\/\/(?:avatars\.githubusercontent\.com|github\.com)\//i.test(String(value || '').trim())
+
+  function renderPluginIconHtml({ realIcon = '', fallbackIcon = 'lucide-package', tone = 'blue' } = {}) {
+    const cleanFallback = typeof fallbackIcon === 'string' && fallbackIcon.startsWith('lucide-') ? fallbackIcon : 'lucide-package'
+    const cleanTone = ICON_TONES.includes(tone) ? tone : 'blue'
+    if (realIcon) {
+      const avatarClass = isAvatarIconUrl(realIcon) ? ' has-avatar' : ''
+      return `<div class="plugin-market-icon has-image${avatarClass}"><img src="${escapeHtml(realIcon)}" alt="" loading="lazy" referrerPolicy="no-referrer" data-fallback-icon="${escapeHtml(cleanFallback)}" data-fallback-tone="${escapeHtml(cleanTone)}" /></div>`
+    }
+    return `<div class="plugin-market-icon tone-${escapeHtml(cleanTone)}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#${escapeHtml(cleanFallback)}"/></svg></div>`
+  }
+
+  // 图片真实图标加载失败（断链或离线）时，无缝退回对应色调的矢量图标
+  function handleIconImageError(event) {
+    const img = event.target
+    if (!img || img.tagName !== 'IMG') return
+    const box = img.parentElement
+    if (!box?.classList?.contains('plugin-market-icon')) return
+    const iconId = img.dataset?.fallbackIcon || 'lucide-package'
+    const tone = ICON_TONES.includes(img.dataset?.fallbackTone) ? img.dataset.fallbackTone : 'blue'
+    box.classList.remove('has-image', 'has-avatar')
+    box.classList.add(`tone-${tone}`)
+    box.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#${escapeHtml(iconId)}"/></svg>`
+  }
+  el.plugins?.addEventListener?.('error', handleIconImageError, true)
+  el.addMarket?.addEventListener?.('error', handleIconImageError, true)
 
   function pluginRow(plugin, envId = openedId) {
     const disabled = !plugin.official && plugin.enabled === false
     const upgradable = plugin.upgradable ?? (!plugin.official && !plugin.local && exactVersionSpec(plugin.spec))
     const updateInfo = (typeof pluginUpdates !== 'undefined' && envId ? pluginUpdates[envId]?.[plugin.name] : null) || null
     const hasUpdate = Boolean(upgradable && updateInfo?.available && updateInfo.latest)
+    const visual = typeof pluginVisualMeta === 'function' ? pluginVisualMeta(plugin.name) : { icon: 'lucide-package', tone: 'blue' }
+    const realIcon = plugin.icon || (typeof marketState !== 'undefined' ? marketState.marketIcons?.[plugin.name] : '') || ''
+    const iconHtml = typeof renderPluginIconHtml === 'function'
+      ? renderPluginIconHtml({ realIcon, fallbackIcon: visual.icon, tone: visual.tone })
+      : `<div class="plugin-market-icon tone-blue">${realIcon ? `<img src="${escapeHtml(realIcon)}" alt="" loading="lazy" referrerPolicy="no-referrer" />` : '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-package"/></svg>'}</div>`
+    const versionBadge = !plugin.local && plugin.spec
+      ? `<span class="plugin-version plugin-market-sub">${escapeHtml(plugin.spec)}</span>`
+      : ''
     const tags = [
       plugin.official ? t('官方组件') : '',
       plugin.local ? t('本地路径') : '',
@@ -229,18 +308,22 @@
       plugin.bundle ? '' : t('不挂载'),
       disabled ? t('已禁用') : '',
     ].filter(Boolean)
-    // div 行（.toggle + .pack-row）：有新版本时显示「更新到 x」，右边保持与 MCP/技能一致的拨动开关与移除图标
-    return `<div class="plugin-item"><div class="toggle plugin-row pack-row${disabled ? ' off' : ''}">
-      <span class="plugin-main">
-        <span class="plugin-head">
-          <span class="plugin-name">${escapeHtml(plugin.name)}</span>
-          <span class="plugin-version">${escapeHtml(plugin.spec)}</span>
-          ${tags.map((tag) => `<span class="plugin-status">${escapeHtml(tag)}</span>`).join('')}
-        </span>
-      </span>
-      ${hasUpdate ? `<button class="plugin-update" type="button" data-upgrade-plugin="${escapeHtml(plugin.name)}" aria-label="${escapeHtml(`${plugin.name} ${t('更新到 {latest}', { latest: updateInfo.latest })}`)}" ${busy ? 'disabled' : ''}><span class="update-label">${escapeHtml(t('更新到 {latest}', { latest: updateInfo.latest }))}</span></button>` : ''}
-      ${plugin.official ? '' : `<input type="checkbox" data-toggle-plugin="${escapeHtml(plugin.name)}" ${disabled ? '' : 'checked'} ${busy ? 'disabled' : ''} aria-label="${escapeHtml(t(disabled ? '启用 {name}' : '禁用 {name}', { name: plugin.name }))}" />`}
-      ${plugin.official ? '' : `<button class="ghost icon-btn" type="button" data-remove-plugin="${escapeHtml(plugin.name)}" title="${escapeHtml(t('移除'))}" aria-label="${escapeHtml(t('移除'))}" ${busy ? 'disabled' : ''}><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-trash-2"/></svg></button>`}
+    const updateButton = hasUpdate ? `<button class="plugin-update" type="button" data-upgrade-plugin="${escapeHtml(plugin.name)}" aria-label="${escapeHtml(`${plugin.name} ${t('更新到 {latest}', { latest: updateInfo.latest })}`)}" ${busy ? 'disabled' : ''}><span class="update-label">${escapeHtml(t('更新到 {latest}', { latest: updateInfo.latest }))}</span></button>` : ''
+    const subMeta = `${versionBadge}${updateButton}${tags.map((tag) => `<span class="plugin-status plugin-market-tag${tag === t('官方组件') ? ' is-official' : ''}">${escapeHtml(tag)}</span>`).join('')}`
+    // 双列卡片排版：上区放图标、名称/版本标签与开关/移除，下区展示插件简介，有更新时把升级胶囊并入版本行
+    return `<div class="plugin-item"><div class="toggle plugin-row pack-row plugin-market-card plugin-installed-card${disabled ? ' off' : ''}" title="${escapeHtml(`${plugin.name}${plugin.description ? `\n${plugin.description}` : ''}`)}">
+      <div class="plugin-installed-head">
+        ${iconHtml}
+        <div class="plugin-market-meta">
+          <div class="plugin-market-name"><span class="plugin-name">${escapeHtml(plugin.name)}</span></div>
+          ${subMeta ? `<div class="plugin-installed-sub">${subMeta}</div>` : ''}
+        </div>
+        <div class="plugin-installed-actions">
+          ${plugin.official ? '' : `<input type="checkbox" data-toggle-plugin="${escapeHtml(plugin.name)}" ${disabled ? '' : 'checked'} ${busy ? 'disabled' : ''} aria-label="${escapeHtml(t(disabled ? '启用 {name}' : '禁用 {name}', { name: plugin.name }))}" />`}
+          ${plugin.official ? '' : `<button class="ghost icon-btn" type="button" data-remove-plugin="${escapeHtml(plugin.name)}" title="${escapeHtml(t('移除'))}" aria-label="${escapeHtml(t('移除'))}" ${busy ? 'disabled' : ''}><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-trash-2"/></svg></button>`}
+        </div>
+      </div>
+      ${plugin.description ? `<div class="plugin-desc plugin-market-desc plugin-installed-desc">${escapeHtml(plugin.description)}</div>` : ''}
     </div></div>`
   }
 
@@ -299,7 +382,8 @@
     el.checkUpdates.classList.toggle('is-checking', checking)
     el.createSave.disabled = busy
     if (!env) {
-      globalThis.syncEnvironmentToolTab?.('plugins', null)
+      globalThis.syncEnvLaunchConfig?.(null)
+      globalThis.syncEnvironmentToolTab?.('plugins', null, 'installed')
       return
     }
     paintUpstream(env)
@@ -314,8 +398,10 @@
       el.version.value = env.dshVersion
       el.channel.value = String(Math.max(0, UPDATE_CHANNELS.indexOf(env.updateChannel)))
       resetCompatibility()
+      if (typeof paintEnvSaveStatus === 'function') paintEnvSaveStatus('idle')
     }
     paintChannelSwitch(el.channel, el.channelName)
+    if (el.installedCount) el.installedCount.textContent = String(env.plugins.length)
     el.plugins.innerHTML = env.plugins.map((plugin) => pluginRow(plugin, env.id)).join('') || `<div class="plugin-empty">${escapeHtml(t('这个实例还没有插件。'))}</div>`
     const hasPluginUpdate = (plugin) => {
       const upgradable = plugin.upgradable ?? (!plugin.official && !plugin.local && typeof exactVersionSpec === 'function' && exactVersionSpec(plugin.spec))
@@ -365,7 +451,7 @@
       env.following ? t('跟随上游 {repo}：这里的改动记成本地改动，上游更新后会重放。', { repo: env.source.repo }) : '',
       t('改动在下次用这个实例启动时生效。'),
     ].filter(Boolean).join(' ')
-    for (const control of [el.exportButton, el.duplicate, el.name, el.version, el.spec, byId('environmentSave'), el.addOpen, el.addSubmit]) {
+    for (const control of [el.exportButton, el.duplicate, el.name, el.version, el.spec, el.addSubmit, el.addOpen]) {
       if (control) control.disabled = busy
     }
     // 版本类型只对「自动最新版本」有意义；钉了具体版本时它不影响选哪个版本
@@ -389,6 +475,7 @@
     el.remove.title = env.usedBy.length ? t('还有启动项在用，先给它们换一个实例') : t('删除实例')
     if (el.backups) el.backups.disabled = busy
     const tab = typeof activeTab === 'string' ? activeTab : 'plugins'
+    const subTab = typeof pluginSubTab === 'string' ? pluginSubTab : 'installed'
     if (el.tabs?.dataset) {
       el.tabs.dataset.active = tab
       el.tabs.querySelectorAll?.('[data-env-tab]')?.forEach((button) => {
@@ -396,10 +483,29 @@
         button.disabled = busy
       })
     }
+    if (el.pluginSubtabs) {
+      el.pluginSubtabs.querySelectorAll?.('[data-plugin-subtab]')?.forEach((button) => {
+        const active = button.dataset.pluginSubtab === subTab
+        button.classList?.toggle('is-active', active)
+        button.setAttribute('aria-selected', String(active))
+        button.disabled = busy
+      })
+      globalThis.syncSubtabPill?.(el.pluginSubtabs)
+      if (tab === 'plugins') {
+        globalThis.requestAnimationFrame?.(() => globalThis.syncSubtabPill?.(el.pluginSubtabs))
+      }
+    }
+    const isMarketView = subTab === 'curated' || subTab === 'market'
     if (el.pluginsBox) el.pluginsBox.hidden = tab !== 'plugins'
+    if (el.installedPane) el.installedPane.hidden = subTab !== 'installed'
+    if (el.marketPane) el.marketPane.hidden = !isMarketView
+    if (el.marketTools) el.marketTools.hidden = !isMarketView
     if (el.mcpHost) el.mcpHost.hidden = tab !== 'mcp'
     if (el.skillsHost) el.skillsHost.hidden = tab !== 'skills'
-    globalThis.syncEnvironmentToolTab?.(tab, env)
+    if (el.configBox) el.configBox.hidden = tab !== 'config'
+    if (tab === 'plugins' && isMarketView && typeof paintMarket === 'function') paintMarket(env)
+    if (tab === 'config') globalThis.syncEnvLaunchConfig?.(env)
+    globalThis.syncEnvironmentToolTab?.(tab, env, subTab)
   }
 
   function paint() {
@@ -441,6 +547,7 @@
         const pending = environmentState.pendingOpen
         environmentState.pendingOpen = ''
         activeTab = 'plugins'
+        pluginSubTab = 'installed'
         if (typeof pending === 'string') {
           openedId = pending
         } else if (pending && typeof pending === 'object') {
@@ -456,6 +563,7 @@
       if (openedId && !opened()) openedId = ''
       paint()
       if (openedId && !pluginUpdates[openedId]) void checkPluginUpdates({ silent: true, targetId: openedId })
+      if (openedId && !marketState.loadedOnce && el.addMarket) void loadPluginMarket({ silent: true })
     } catch (error) {
       el.hint.textContent = error.message
     }
@@ -482,15 +590,17 @@
   function open(id) {
     openedId = id
     activeTab = 'plugins'
+    pluginSubTab = 'installed'
     el.editForm.dataset.environment = ''
     renderView()
     if (openedId && !pluginUpdates[openedId]) void checkPluginUpdates({ silent: true, targetId: openedId })
+    if (openedId && !marketState.loadedOnce && el.addMarket) void loadPluginMarket({ silent: true })
     byId('pane-environments')?.scrollTo({ top: 0 })
   }
 
   // 和页面上其他下拉一样换成自绘菜单（原生 select 仍存值、仍触发 change）
   for (const select of [el.version, el.history, byId('launchEnvironment')]) createUiSelect(select)
-  el.back.onclick = () => { openedId = ''; activeTab = 'plugins'; paint() }
+  el.back.onclick = () => { void flushEnvAutoSave(); openedId = ''; activeTab = 'plugins'; pluginSubTab = 'installed'; paint() }
   el.importButton.onclick = () => openImportDialog()
   el.exportButton.onclick = () => exportEnvironment(opened())
   if (el.backups) {
@@ -503,18 +613,43 @@
     button.onclick = () => {
       const next = button.dataset.envTab || 'plugins'
       if (next === activeTab) return
+      if (activeTab === 'config') void flushEnvAutoSave()
       activeTab = next
       renderView()
     }
   })
-  // 改版本 / 版本类型：上一次的兼容性结果是按旧版本查的，作废
+  el.pluginSubtabs?.querySelectorAll?.('[data-plugin-subtab]')?.forEach((button) => {
+    button.onclick = () => {
+      const next = button.dataset.pluginSubtab || 'installed'
+      if (next === pluginSubTab) return
+      pluginSubTab = next
+      if (next === 'curated' || next === 'market') {
+        marketState.category = next === 'market' ? 'market-index' : 'curated'
+        marketState.animate = true
+        if (el.addMarket) el.addMarket.scrollTop = 0
+        if (el.addError) el.addError.hidden = true
+      }
+      renderView()
+      globalThis.animateSubPane?.(next === 'installed' ? el.installedPane : el.marketPane)
+      if (next === 'curated' || next === 'market') {
+        if (!marketState.loadedOnce) void loadPluginMarket()
+        else if (next === 'market' && !marketState.indexLoaded && !marketState.indexLoading) void loadMarketIndex()
+      }
+    }
+  })
+  // 改版本 / 版本类型：上一次的兼容性结果是按旧版本查的，作废；同时自动落盘配置
   el.version.onchange = () => {
     resetCompatibility()
     renderView()
+    void flushEnvAutoSave()
   }
   el.channel.oninput = () => {
     resetCompatibility()
     renderView()
+    scheduleEnvAutoSave(180)
+  }
+  el.channel.onchange = () => {
+    void flushEnvAutoSave()
   }
   el.manageVersions.onclick = () => openVersionManager()
   el.checkCompatibility.onclick = () => { void checkCompatibility() }
@@ -566,6 +701,26 @@
       })
     }
   }
+  function openAddDialog() {
+    if (!opened() || !el.addDialog) return
+    if (el.spec) el.spec.value = ''
+    if (el.addDialogError) el.addDialogError.hidden = true
+    if (typeof showPackDialog === 'function') showPackDialog(el.addDialog, el.spec)
+    else {
+      el.addDialog.hidden = false
+      el.spec?.focus?.()
+    }
+  }
+  function closeAddDialog(force = false) {
+    if (!el.addDialog || (!force && busy)) return
+    if (typeof hidePackDialog === 'function') void hidePackDialog(el.addDialog)
+    else el.addDialog.hidden = true
+  }
+  if (el.addDialog && typeof trapPackDialog === 'function') trapPackDialog(el.addDialog, () => closeAddDialog(false))
+  if (el.addOpen) el.addOpen.onclick = openAddDialog
+  if (el.addCancel) el.addCancel.onclick = () => closeAddDialog(false)
+  if (el.addClose) el.addClose.onclick = () => closeAddDialog(false)
+
   function openCreateDialog() {
     // 每次打开都是空白的一张：上一次没建成的名字和报错不带过来
     el.newName.value = ''
@@ -592,45 +747,510 @@
   }
   el.editForm.onsubmit = (event) => {
     event.preventDefault()
+    void flushEnvAutoSave({ force: true })
+  }
+  const envAutoSave = { timer: null, inFlight: null, queued: false, forceQueued: false }
+  function paintEnvSaveStatus(kind = 'idle', detail = '') {
+    const badge = el.saveStatus || byId('environmentSaveStatus')
+    if (!badge) return
+    if (kind === 'error') {
+      badge.textContent = detail || t('保存失败：{error}', { error: '' })
+      badge.hidden = false
+    } else {
+      badge.textContent = ''
+      badge.hidden = true
+    }
+  }
+  function scheduleEnvAutoSave(delay = 500) {
+    if (envAutoSave.timer && typeof clearTimeout === 'function') {
+      clearTimeout(envAutoSave.timer)
+      envAutoSave.timer = null
+    }
     const env = opened()
     if (!env) return
-    void run(() => post('/api/environments/update', { id: env.id, name: el.name.value, dshVersion: el.version.value, updateChannel: switchChannel(el.channel) }), {
-      after: () => { el.editForm.dataset.environment = '' },
+    if (typeof setTimeout === 'function') {
+      envAutoSave.timer = setTimeout(() => {
+        envAutoSave.timer = null
+        void saveEnvironmentConfigNow()
+      }, delay)
+    } else {
+      void saveEnvironmentConfigNow()
+    }
+  }
+  async function flushEnvAutoSave({ force = false } = {}) {
+    if (envAutoSave.timer && typeof clearTimeout === 'function') {
+      clearTimeout(envAutoSave.timer)
+      envAutoSave.timer = null
+    }
+    if (envAutoSave.inFlight) {
+      envAutoSave.queued = true
+      if (force) envAutoSave.forceQueued = true
+      return envAutoSave.inFlight
+    }
+    return saveEnvironmentConfigNow({ force })
+  }
+  async function saveEnvironmentConfigNow({ force = false } = {}) {
+    if (envAutoSave.inFlight) {
+      envAutoSave.queued = true
+      if (force) envAutoSave.forceQueued = true
+      return envAutoSave.inFlight
+    }
+    const env = opened()
+    if (!env || busy) return
+    const nextName = String(el.name.value ?? '').trim()
+    if (!nextName) {
+      paintEnvSaveStatus('error', t('实例名称不能为空'))
+      return
+    }
+    const nextVersion = el.version.value || env.dshVersion
+    const nextChannel = switchChannel(el.channel)
+    if (!force && nextName === env.name && nextVersion === env.dshVersion && nextChannel === env.updateChannel) {
+      paintEnvSaveStatus('idle')
+      return
+    }
+    paintEnvSaveStatus('saving')
+    const runSave = (async () => {
+      try {
+        const res = await post('/api/environments/update', {
+          id: env.id,
+          name: nextName,
+          dshVersion: nextVersion,
+          updateChannel: nextChannel,
+        })
+        const savedEnv = res?.environment
+        if (savedEnv && typeof environments !== 'undefined' && Array.isArray(environments)) {
+          environments = environments.map((item) => (item.id === savedEnv.id ? savedEnv : item))
+          if (typeof environmentState !== 'undefined') environmentState.list = environments
+          const stillSameEnv = opened()?.id === savedEnv.id
+          if (stillSameEnv) {
+            el.detailName.textContent = savedEnv.name
+            el.detailSub.textContent = t('DSH {version} · {count} 个插件', { version: versionText(savedEnv), count: thirdParty(savedEnv).length })
+            const inputsMatchSaved = String(el.name.value ?? '').trim() === savedEnv.name
+              && el.version.value === savedEnv.dshVersion
+              && switchChannel(el.channel) === savedEnv.updateChannel
+            if (inputsMatchSaved) {
+              el.name.value = savedEnv.name
+              el.editForm.dataset.environment = ''
+            }
+          }
+          if (typeof renderGrid === 'function') renderGrid()
+          if (stillSameEnv) {
+            paintUpstream(savedEnv)
+            paintHistory(savedEnv)
+            if (typeof paintVersionOptions === 'function') paintVersionOptions(savedEnv)
+            paintChannelSwitch(el.channel, el.channelName)
+            el.channel.disabled = busy || el.version.value !== AUTO_VERSION
+            syncUiSelect(el.version)
+            const users = (savedEnv.usedBy || []).map((entry) => entry.name).join('、')
+            const written = (savedEnv.applied || []).map((item) => item.profile).join('、')
+            el.usage.textContent = [
+              users ? t('在用的启动项：{names}', { names: users }) : t('还没有启动项用这个实例。'),
+              written ? t('现在装在配置：{names}。', { names: written }) : '',
+              savedEnv.following ? t('跟随上游 {repo}：这里的改动记成本地改动，上游更新后会重放。', { repo: savedEnv.source.repo }) : '',
+              t('改动在下次用这个实例启动时生效。'),
+            ].filter(Boolean).join(' ')
+          }
+          globalThis.onEnvironmentConfigSaved?.(savedEnv)
+        } else {
+          el.editForm.dataset.environment = ''
+          await load()
+        }
+        paintEnvSaveStatus('saved')
+      } catch (error) {
+        paintEnvSaveStatus('error', t('保存失败：{error}', { error: error.message }))
+      } finally {
+        envAutoSave.inFlight = null
+        if (envAutoSave.queued) {
+          const queuedForce = envAutoSave.forceQueued
+          envAutoSave.queued = false
+          envAutoSave.forceQueued = false
+          void saveEnvironmentConfigNow({ force: queuedForce })
+        }
+      }
+    })()
+    envAutoSave.inFlight = runSave
+    return runSave
+  }
+  el.name.oninput = () => scheduleEnvAutoSave(500)
+  el.name.onblur = () => { void flushEnvAutoSave() }
+  el.name.onchange = () => { void flushEnvAutoSave() }
+  const DEFAULT_DESKTOP_ENHANCE = [
+    { name: 'dsh-x-desktop-notify', spec: '0.1.1', installSpec: 'dsh-x-desktop-notify@0.1.1', title: '原生通知', description: '调用系统原生通知', icon: 'lucide-info', tone: 'blue', officialTag: true },
+    { name: 'dsh-x-sidebar-browser', spec: '0.1.1', installSpec: 'dsh-x-sidebar-browser@0.1.1', title: '侧栏浏览器', description: '让智能体查看并操作侧栏网页', icon: 'lucide-globe', tone: 'cyan', officialTag: true },
+    { name: 'dsh-x-computer-use', spec: '0.1.0', installSpec: 'dsh-x-computer-use@0.1.0', title: '电脑操作', description: '让智能体查看并操作桌面应用', icon: 'lucide-app-window', tone: 'purple', officialTag: true },
+  ]
+  const marketState = {
+    category: 'curated',
+    q: '',
+    loading: false,
+    loadedOnce: false,
+    installingSpec: '',
+    animate: false,
+    curatedError: '',
+    desktopEnhance: DEFAULT_DESKTOP_ENHANCE,
+    curatedCategories: [],
+    curated: [],
+    sources: [],
+    activeUrl: '',
+    indexLoading: false,
+    indexLoaded: false,
+    indexError: '',
+    indexCategory: 'all',
+    indexCategories: [],
+    indexEntries: [],
+    indexTotal: 0,
+    indexNextOffset: null,
+    marketIcons: {},
+    seq: 0,
+    indexSeq: 0,
+    searchTimer: 0,
+  }
+  function installedPluginMap(env) {
+    const map = new Map()
+    for (const item of Array.isArray(env?.plugins) ? env.plugins : []) {
+      map.set(item.name, item)
+    }
+    const bundle = map.get('dsh-x-desktop-bundle')
+    if (bundle) {
+      for (const item of DEFAULT_DESKTOP_ENHANCE) {
+        if (!map.has(item.name)) map.set(item.name, { name: item.name, enabled: bundle.enabled, official: false })
+      }
+    }
+    return map
+  }
+  function marketCardHtml(item, installedMap, { localizeDesktop = false, tone = '', index = 0 } = {}) {
+    const name = String(item.name || '')
+    const title = localizeDesktop ? t(item.title || name) : (item.title || name)
+    const desc = localizeDesktop ? t(item.description || '') : (item.description || '')
+    const existing = installedMap.get(name)
+    const realIcon = (typeof item.icon === 'string' && !item.icon.startsWith('lucide-') ? item.icon : '')
+      || marketState.marketIcons[name]
+      || ''
+    const fallbackIcon = (typeof item.icon === 'string' && item.icon.startsWith('lucide-') ? item.icon : '')
+      || pluginVisualMeta(name).icon
+      || 'lucide-package'
+    const iconHtml = renderPluginIconHtml({
+      realIcon,
+      fallbackIcon,
+      tone: tone || item.tone || toneForPluginName(name),
+    })
+    const badge = item.officialTag
+      ? `<span class="plugin-market-tag is-official">${escapeHtml(t('官方'))}</span>`
+      : item.stars === 5
+        ? `<span class="plugin-market-tag is-star">${escapeHtml(t('推荐'))}</span>`
+        : item.sourceTag
+          ? `<span class="plugin-market-tag">${escapeHtml(item.sourceTag)}</span>`
+          : ''
+    const version = item.version || item.spec || ''
+    const subText = item.officialTag || item.stars ? '' : (version ? `v${version}` : (item.author || ''))
+    const installSpec = String(item.installSpec || (version ? `${name}@${version}` : name))
+    const isInstalling = busy && marketState.installingSpec === installSpec
+    // 市场页签聚焦浏览与安装：已装插件展示状态标识，开关/卸载在「已安装」子页签操作。
+    const rightControl = existing
+      ? `<span class="plugin-market-installed"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-check"/></svg><span>${escapeHtml(t('已安装'))}</span></span>`
+      : `<button class="ghost plugin-market-install${isInstalling ? ' is-installing' : ''}" type="button" data-market-install="${escapeHtml(installSpec)}" ${busy ? 'disabled' : ''}>${escapeHtml(t(isInstalling ? '安装中…' : '安装'))}</button>`
+    const delayIdx = Math.min(index, 12)
+    return `<div class="plugin-market-card${existing ? ' is-installed' : ''}" style="--i:${delayIdx}" title="${escapeHtml(`${name}${desc ? `\n${desc}` : ''}`)}">${iconHtml}<div class="plugin-market-meta"><div class="plugin-market-name"><span>${escapeHtml(title)}</span>${badge}${subText ? `<span class="plugin-market-sub">${escapeHtml(subText)}</span>` : ''}</div>${desc ? `<div class="plugin-market-desc">${escapeHtml(desc)}</div>` : ''}</div>${rightControl}</div>`
+  }
+  function filterLocalCards(items, q, localize = false) {
+    const terms = String(q || '').trim().toLowerCase().split(/\s+/).filter(Boolean)
+    if (!terms.length) return items
+    return items.filter((item) => {
+      const hay = `${item.name}\n${item.title}\n${localize ? t(item.title) : ''}\n${item.description}\n${localize ? t(item.description) : ''}`.toLowerCase()
+      return terms.every((term) => hay.includes(term))
     })
   }
-  function openAddDialog() {
-    el.spec.value = ''
-    if (el.addError) el.addError.hidden = true
-    showPackDialog(el.addDialog, el.spec)
+  function mergeMarketIcons(nextIcons) {
+    if (!nextIcons || typeof nextIcons !== 'object') return false
+    let changed = false
+    for (const [name, icon] of Object.entries(nextIcons)) {
+      if (!icon || marketState.marketIcons[name] === icon) continue
+      marketState.marketIcons[name] = icon
+      changed = true
+    }
+    return changed
   }
-  function closeAddDialog() {
-    if (!busy) void hidePackDialog(el.addDialog)
-  }
-  if (el.addDialog) trapPackDialog(el.addDialog, closeAddDialog)
-  if (el.addOpen) el.addOpen.onclick = openAddDialog
-  if (el.addCancel) el.addCancel.onclick = closeAddDialog
-  if (el.addClose) el.addClose.onclick = closeAddDialog
-  el.addForm.onsubmit = (event) => {
-    event.preventDefault()
+  function refreshInstalledIconsIfVisible() {
     const env = opened()
-    const spec = el.spec.value.trim()
-    if (!env || !spec) { el.spec.focus(); return }
-    if (el.addError) el.addError.hidden = true
-    void run(() => post('/api/environments/plugins/add', { id: env.id, spec }), {
+    if (!env || activeTab !== 'plugins' || pluginSubTab !== 'installed') return
+    renderView()
+  }
+  function paintMarket(env = opened()) {
+    if (!el.addMarket) return
+    const cat = pluginSubTab === 'market' ? 'market-index' : 'curated'
+    marketState.category = cat
+    if (el.addSource) {
+      const showSources = cat === 'market-index' && marketState.sources.length > 1
+      el.addSource.hidden = !showSources
+      if (showSources) {
+        const key = marketState.sources.map((src) => `${src.url}\0${src.title}`).join('\n')
+        if (el.addSource.dataset.sources !== key) {
+          el.addSource.dataset.sources = key
+          el.addSource.innerHTML = marketState.sources.map((src) => `<option value="${escapeHtml(src.url)}">${escapeHtml(src.title || src.url)}</option>`).join('')
+        }
+        el.addSource.value = marketState.activeUrl || marketState.sources[0].url
+      }
+    }
+    const isBusyLoading = marketState.loading || (cat === 'market-index' && marketState.indexLoading)
+    if (el.addRefresh) {
+      el.addRefresh.disabled = busy || isBusyLoading
+      el.addRefresh.classList.toggle('is-loading', isBusyLoading)
+    }
+    if (el.addCategories) {
+      const hasIndexCats = cat === 'market-index' && marketState.indexCategories.length > 0
+      const prevScrollLeft = el.addCategories.scrollLeft || 0
+      el.addCategories.hidden = !hasIndexCats
+      if (hasIndexCats) {
+        const allBtn = `<button type="button" class="plugin-market-tab${marketState.indexCategory === 'all' ? ' is-active' : ''}" data-index-cat="all">${escapeHtml(t('全部'))}</button>`
+        const subBtns = marketState.indexCategories.map((item) => `<button type="button" class="plugin-market-tab${marketState.indexCategory === item.id ? ' is-active' : ''}" data-index-cat="${escapeHtml(item.id)}">${escapeHtml(item.title)}</button>`).join('')
+        el.addCategories.innerHTML = allBtn + subBtns
+        el.addCategories.scrollLeft = prevScrollLeft
+      } else {
+        el.addCategories.innerHTML = ''
+      }
+    }
+
+    const installedMap = installedPluginMap(env)
+    const sections = []
+    let cardIdx = 0
+
+    if (cat === 'curated' || cat === 'desktop-enhance') {
+      const desktopItems = filterLocalCards(marketState.desktopEnhance, marketState.q, true)
+      if (desktopItems.length) {
+        sections.push(`<div><div class="plugin-market-group-title"><span>${escapeHtml(t('桌面增强'))}</span><span class="plugin-market-group-count">${desktopItems.length}</span></div><div class="plugin-market-grid">${desktopItems.map((item) => marketCardHtml(item, installedMap, { localizeDesktop: true, index: cardIdx++ })).join('')}</div></div>`)
+      }
+    }
+
+    if (cat === 'curated') {
+      if (marketState.curated.length) {
+        const curatedMatches = filterLocalCards(marketState.curated, marketState.q)
+        for (const group of marketState.curatedCategories) {
+          const items = curatedMatches.filter((item) => item.category === group.id)
+          if (!items.length) continue
+          sections.push(`<div><div class="plugin-market-group-title"><span>${escapeHtml(t(group.zh) || group.zh)}</span><span class="plugin-market-group-count">${items.length}</span></div><div class="plugin-market-grid">${items.map((item) => marketCardHtml(item, installedMap, { tone: group.tone, index: cardIdx++ })).join('')}</div></div>`)
+        }
+      } else if (marketState.loading) {
+        sections.push(globalThis.marketLoadingHtml
+          ? globalThis.marketLoadingHtml(t('正在从 GitHub 获取精选插件…'))
+          : `<div class="market-loading" role="status"><div class="market-loading-head"><span class="plugin-empty-spinner" aria-hidden="true"></span><span>${escapeHtml(t('正在从 GitHub 获取精选插件…'))}</span></div></div>`)
+      } else if (marketState.curatedError) {
+        sections.push(`<p class="hint profile-error">${escapeHtml(t('精选清单加载失败：{error}', { error: marketState.curatedError }))}</p>`)
+      }
+    }
+
+    if (cat === 'market-index') {
+      if (marketState.indexLoading && !marketState.indexEntries.length) {
+        sections.push(globalThis.marketLoadingHtml
+          ? globalThis.marketLoadingHtml(t('正在读取插件市场…'))
+          : `<div class="market-loading" role="status"><div class="market-loading-head"><span class="plugin-empty-spinner" aria-hidden="true"></span><span>${escapeHtml(t('正在读取插件市场…'))}</span></div></div>`)
+      } else if (marketState.indexError) {
+        sections.push(`<p class="hint profile-error">${escapeHtml(t('索引加载失败：{error}', { error: marketState.indexError }))}</p>`)
+      } else {
+        const matches = filterLocalCards(marketState.indexEntries, marketState.q)
+        if (matches.length) {
+          sections.push(`<div class="plugin-market-grid">${matches.map((item) => marketCardHtml(item, installedMap, { index: cardIdx++ })).join('')}</div>`)
+          if (marketState.indexNextOffset !== null) {
+            sections.push(`<button type="button" class="ghost plugin-market-more" data-market-more="1" ${marketState.indexLoading ? 'disabled' : ''}>${escapeHtml(t('加载更多'))}</button>`)
+          }
+        }
+      }
+    }
+
+    if (!sections.length) {
+      sections.push(`<p class="hint">${escapeHtml(t('没有找到匹配的插件。'))}</p>`)
+    }
+    const shouldAnimate = marketState.animate
+    marketState.animate = false
+    el.addMarket.classList.remove('is-entering')
+    el.addMarket.innerHTML = sections.join('')
+    if (shouldAnimate) {
+      // 重排一帧让新挂载卡片触发阶梯入场，搜索/切状态时保持静止避免闪烁。
+      void el.addMarket.offsetWidth
+      el.addMarket.classList.add('is-entering')
+    }
+  }
+  async function loadMarketIndex({ refresh = false, offset = 0, append = false, silent = false } = {}) {
+    if (!el.addMarket) return
+    const seq = ++marketState.indexSeq
+    marketState.indexLoading = true
+    if (!append) marketState.indexError = ''
+    if (!silent) paintMarket()
+    try {
+      const params = new URLSearchParams({
+        limit: '120',
+        offset: String(offset),
+        ...(marketState.activeUrl ? { source: marketState.activeUrl } : {}),
+        ...(marketState.indexCategory && marketState.indexCategory !== 'all' ? { category: marketState.indexCategory } : {}),
+        ...(marketState.category === 'market-index' && marketState.q.trim() ? { q: marketState.q.trim() } : {}),
+        ...(refresh ? { refresh: '1' } : {}),
+      })
+      const data = await getJson(`/api/plugin-market?${params}`)
+      if (seq !== marketState.indexSeq) return
+      if (Array.isArray(data?.sources)) marketState.sources = data.sources
+      if (typeof data?.activeUrl === 'string') marketState.activeUrl = data.activeUrl
+      if (Array.isArray(data?.categories)) marketState.indexCategories = data.categories
+      if (Array.isArray(data?.entries)) {
+        marketState.indexEntries = append ? [...marketState.indexEntries, ...data.entries] : data.entries
+      }
+      marketState.indexTotal = Number(data?.total) || 0
+      marketState.indexNextOffset = data?.nextOffset ?? null
+      marketState.indexError = data?.error || ''
+      marketState.indexLoaded = true
+      if (mergeMarketIcons(data?.marketIcons)) refreshInstalledIconsIfVisible()
+    } catch (error) {
+      if (seq !== marketState.indexSeq) return
+      if (!silent) marketState.indexError = error instanceof Error ? error.message : String(error)
+    } finally {
+      if (seq === marketState.indexSeq) {
+        marketState.indexLoading = false
+        if (!silent || pluginSubTab === 'market') paintMarket()
+      }
+    }
+  }
+  async function loadPluginMarket({ refresh = false, silent = false } = {}) {
+    if (!el.addMarket) return
+    marketState.loadedOnce = true
+    const seq = ++marketState.seq
+    marketState.loading = true
+    if (!silent) marketState.curatedError = ''
+    if (!silent) paintMarket()
+    // 精选列表走快速路径先渲染，同时异步拉取官方 DSH 市场索引拿到各插件真实图标
+    const indexPromise = (refresh || !marketState.indexLoaded)
+      ? loadMarketIndex({ refresh, silent: silent || pluginSubTab !== 'market' })
+      : Promise.resolve()
+    try {
+      const params = new URLSearchParams({
+        scope: 'curated',
+        ...(refresh ? { refresh: '1' } : {}),
+      })
+      const data = await getJson(`/api/plugin-market?${params}`)
+      if (seq !== marketState.seq) return
+      if (Array.isArray(data?.desktopEnhance) && data.desktopEnhance.length) {
+        marketState.desktopEnhance = data.desktopEnhance.map((item) => {
+          const base = DEFAULT_DESKTOP_ENHANCE.find((d) => d.name === item.name)
+          return {
+            ...base,
+            ...item,
+            title: item.label || base?.title || item.name,
+            description: base?.description || '',
+            officialTag: true,
+          }
+        })
+      }
+      let metaChanged = false
+      if (Array.isArray(data?.curatedCategories)) marketState.curatedCategories = data.curatedCategories
+      if (Array.isArray(data?.curated) && data.curated.length) {
+        marketState.curated = data.curated
+        metaChanged = true
+      }
+      if (mergeMarketIcons(data?.marketIcons)) metaChanged = true
+      if (metaChanged) refreshInstalledIconsIfVisible()
+      marketState.curatedError = data?.curatedError || ''
+    } catch (error) {
+      if (seq !== marketState.seq) return
+      if (!silent) marketState.curatedError = error instanceof Error ? error.message : String(error)
+    } finally {
+      if (seq === marketState.seq) {
+        marketState.loading = false
+        if (!silent || pluginSubTab === 'curated' || pluginSubTab === 'market') paintMarket()
+      }
+    }
+    await indexPromise
+  }
+  function submitAddPlugin(spec, { fromMarketCard = false } = {}) {
+    const env = opened()
+    const clean = String(spec || '').trim()
+    if (!env || !clean) { el.spec?.focus?.(); return }
+    const targetError = fromMarketCard ? el.addError : (el.addDialogError || el.addError)
+    if (fromMarketCard && el.addError) el.addError.hidden = true
+    if (!fromMarketCard && el.addDialogError) el.addDialogError.hidden = true
+    marketState.installingSpec = fromMarketCard ? clean : ''
+    void run(() => post('/api/environments/plugins/add', { id: env.id, spec: clean }), {
       after: () => {
-        el.spec.value = ''
-        if (el.addDialog) void hidePackDialog(el.addDialog)
+        marketState.installingSpec = ''
+        if (!fromMarketCard) {
+          if (el.spec) el.spec.value = ''
+          pluginSubTab = 'installed'
+          closeAddDialog(true)
+        } else {
+          paintMarket()
+        }
       },
       onError: (error) => {
-        if (el.addError) {
-          el.addError.textContent = error.message
-          el.addError.hidden = false
-          el.spec.focus()
+        marketState.installingSpec = ''
+        if (fromMarketCard) paintMarket()
+        if (targetError) {
+          targetError.textContent = error.message
+          targetError.hidden = false
+          if (!fromMarketCard) el.spec?.focus?.()
         } else {
           notify(error.message)
         }
       },
     })
+  }
+  if (el.addRefresh) {
+    el.addRefresh.onclick = () => {
+      marketState.animate = true
+      void loadPluginMarket({ refresh: true })
+    }
+  }
+  if (el.addSource) {
+    el.addSource.onchange = () => {
+      marketState.activeUrl = el.addSource.value
+      marketState.indexCategory = 'all'
+      marketState.animate = true
+      void loadMarketIndex({ offset: 0 })
+    }
+  }
+  if (el.addSearch) {
+    el.addSearch.oninput = () => {
+      marketState.q = el.addSearch.value
+      if (el.addError) el.addError.hidden = true
+      paintMarket()
+      if (marketState.category === 'market-index') {
+        clearTimeout(marketState.searchTimer)
+        marketState.searchTimer = setTimeout(() => {
+          void loadMarketIndex({ offset: 0 })
+        }, 180)
+      }
+    }
+  }
+  if (el.addCategories) {
+    el.addCategories.onclick = (event) => {
+      const indexCatBtn = event.target.closest?.('[data-index-cat]')
+      if (!indexCatBtn) return
+      const nextCat = indexCatBtn.dataset.indexCat || 'all'
+      if (nextCat === marketState.indexCategory) return
+      indexCatBtn.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+      marketState.indexCategory = nextCat
+      marketState.animate = true
+      void loadMarketIndex({ offset: 0 })
+    }
+    el.addCategories.addEventListener?.('wheel', (event) => {
+      if (!event || el.addCategories.scrollWidth <= el.addCategories.clientWidth) return
+      const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY
+      if (!delta) return
+      event.preventDefault?.()
+      el.addCategories.scrollLeft += delta
+    }, { passive: false })
+  }
+  if (el.addMarket) {
+    el.addMarket.onclick = (event) => {
+      const moreBtn = event.target.closest?.('[data-market-more]')
+      if (moreBtn && marketState.indexNextOffset !== null && !marketState.indexLoading) {
+        void loadMarketIndex({ offset: marketState.indexNextOffset, append: true })
+        return
+      }
+      const installBtn = event.target.closest?.('[data-market-install]')
+      if (installBtn && !installBtn.disabled) {
+        submitAddPlugin(installBtn.dataset.marketInstall, { fromMarketCard: true })
+      }
+    }
+  }
+  el.addForm.onsubmit = (event) => {
+    event.preventDefault()
+    submitAddPlugin(el.spec.value)
   }
   // 复制 / 导出 / 删除：详情页的按钮和卡片的「更多操作」都走这三个，复制完都进新实例的详情
   function duplicateEnvironment(env) {
@@ -660,7 +1280,20 @@
     void checkUpdates()
   }
   environmentState.reload = load
-  environmentState.closeDetail = () => { openedId = ''; activeTab = 'plugins'; paint() }
+  environmentState.closeDetail = () => { openedId = ''; activeTab = 'plugins'; pluginSubTab = 'installed'; paint() }
+  environmentState.flushConfigSave = () => flushEnvAutoSave()
+  environmentState.openId = (id, { keepTab = '' } = {}) => {
+    const nextId = String(id || '').trim()
+    if (!nextId) return
+    void flushEnvAutoSave()
+    openedId = nextId
+    activeTab = keepTab || 'plugins'
+    pluginSubTab = 'installed'
+    el.editForm.dataset.environment = ''
+    paint()
+    if (openedId && !pluginUpdates[openedId]) void checkPluginUpdates({ silent: true, targetId: openedId })
+    if (openedId && !marketState.loadedOnce && el.addMarket) void loadPluginMarket({ silent: true })
+  }
 
   // ---- 跟随上游：应用更新 ----
   /** 更新框正文：DSH 版本、插件加删改、和本地改动的重复 / 冲突、没经过上游验证的本地插件（勾着 = 留着）。 */

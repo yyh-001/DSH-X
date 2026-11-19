@@ -40,55 +40,30 @@ test('安装 / 卸载两条路由：只动缺的或装了的那几个，版本�
   assert.match(server, /removeBundleMounted\(profileDirOf\(profile\), \[plugin\.name\]\)/, '同时从层栈摘掉')
 })
 
-test('启动项保存后补装，编辑时可以单独查这个 profile 装了几个', () => {
-  // 写锁放掉之后再装：装插件慢不该卡住别的启动项编辑。
-  assert.match(server, /body\.desktopEnhance === true/)
-  assert.match(server, /saved\.desktopEnhance = await launchScope\.run\(\{ home \}, \(\) => installDesktopEnhance\(saved\.entry\.profile\)\)/)
-  // 状态接口按 profile 查，home 走 x-dsh-home 头（会话隔离/项目环境也能读对）。
+test('桌面增强已迁入「加入插件」弹窗：编辑启动项与设置页均不再放开关或单独按钮', () => {
+  assert.doesNotMatch(server, /body\.desktopEnhance === true/, '保存启动项不再触发补装桌面增强')
+  assert.match(server, /url\.pathname === '\/api\/plugin-market'/, '提供插件市场索引查询与桌面增强清单')
+  // 状态接口仍保留，方便外部或兼容路径按 profile 查询
   assert.match(server, /req\.method === 'GET' && url\.pathname === '\/api\/desktop-enhance'/)
   assert.match(server, /missing: desktopEnhanceMissing\(profile\)\.map\(\(plugin\) => plugin\.name\)/)
-})
 
-test('启动项弹窗：开关 + 说明 + 保存时带上；设置页那块已经撤掉', () => {
-  assert.match(page, /id="launchDesktopEnhance" type="checkbox"/)
-  assert.match(page, /data-i18n="桌面增强">桌面增强/)
-  assert.match(page, /id="launchDesktopEnhanceHint"/)
-  // 说明不占一行：收进标题旁的问号，悬停/聚焦才显示
-  assert.match(page, /class="launch-enhance-help"[\s\S]{0,160}>\?<\/span>/)
-  assert.match(page, /class="launch-enhance-tip"[\s\S]{0,220}下次启动时加载/)
-  assert.match(css, /\.launch-enhance-help:hover \+ \.launch-enhance-tip/)
-  assert.doesNotMatch(page, /function launchDesktopEnhanceHintText/)
-  // 新建一律不勾；编辑只看 profile 实际装没装（装齐了就勾上），界面上不写「已安装 x/3」
-  const pageLf = page.replace(/\r\n/g, '\n')
-  assert.match(pageLf, /launchDesktopEnhanceEl\.checked = false\n      launchDesktopEnhanceHintEl\.textContent = ''/)
-  assert.match(page, /if \(entry\) void refreshLaunchDesktopEnhance\(entry\)/)
-  assert.match(page, /function refreshLaunchDesktopEnhance\(entry\)/)
-  assert.match(page, /getJson\(`\/api\/desktop-enhance\?profile=\$\{encodeURIComponent\(entry\.profile\)\}`/)
-  assert.doesNotMatch(page, /已安装 \{installed\}/, '安装数不再写进界面')
-  assert.doesNotMatch(page, /正在读取安装状态/)
-  // 保存只发一个布尔；取消勾选不会卸载，服务端只补缺的
-  assert.match(page, /desktopEnhance: launchDesktopEnhanceEl\.checked/)
-  assert.match(page, /data\.desktopEnhance\?\.failed/)
-  // 旧设置页入口整套撤掉：按钮、说明行、转圈样式
+  assert.doesNotMatch(page, /id="launchDesktopEnhance"/)
+  assert.doesNotMatch(page, /id="launchDesktopEnhanceField"/)
   assert.doesNotMatch(page, /id="desktopEnhanceInstall"/)
   assert.doesNotMatch(page, /id="desktopEnhanceHint"/)
   assert.doesNotMatch(css, /#desktopEnhanceInstall/)
-  // 设置接口不再回显当前 profile 的进度（状态改由启动项弹窗按 profile 查）
+  assert.doesNotMatch(css, /#launchDesktopEnhanceField/)
   assert.doesNotMatch(server, /desktopEnhance: desktopEnhanceSummary\(\),/)
-  const dict = new Function(`return (${page.match(/const EN = (\{[\s\S]*?\n\})/)[1]})`)()
-  for (const key of [
-    '桌面增强', '正在保存并安装桌面增强…',
-    '启动项已保存，但桌面增强有 {n} 个没装上：{error}',
-    // 插件装进启动项的配置（dsh profile）、记进它用的实例（装好插件的 DSH）；「正在运行的实例」说的是 dsh 进程，照旧
-    '保存时把官方插件（原生通知、侧栏浏览器）装进这个启动项的配置，记进它用的实例；下次启动时加载，正在运行的实例重启后生效。',
-  ]) {
-    assert.ok(dict[key], `「${key}」有英文`)
-  }
-  const tip = dict['保存时把官方插件（原生通知、侧栏浏览器）装进这个启动项的配置，记进它用的实例；下次启动时加载，正在运行的实例重启后生效。']
-  assert.match(tip, /profile/, '英文界面仍叫 profile')
-  assert.match(tip, /instance it uses/, '英文里记进的是 instance')
-  assert.doesNotMatch(tip, /environment/i, '英文不再说 environment')
-  assert.doesNotMatch(page, /装进这个启动项的 Profile，记进它用的环境/, '旧说法不再出现')
+
+  assert.match(page, /id="environmentAddSearch"/)
+  assert.match(page, /id="environmentAddCategories"/)
+  assert.match(page, /id="environmentAddMarket"/)
+  const envPage = read('src/public/environments-page.js')
+  assert.match(envPage, /dsh-x-desktop-notify/)
+  assert.match(envPage, /dsh-x-sidebar-browser/)
+  assert.match(envPage, /dsh-x-computer-use/)
+  assert.match(envPage, /\/api\/plugin-market/)
+  assert.doesNotMatch(envPage, /data-market-toggle/, '加入插件弹窗只负责安装，不放开关')
 })
 
 test('桌面增强不再记住上次的勾选：设置里没有这个键，新建永远从「不勾」开始', () => {
@@ -96,7 +71,7 @@ test('桌面增强不再记住上次的勾选：设置里没有这个键，新�
   assert.doesNotMatch(server, /launchDesktopEnhance: stored/)
   assert.doesNotMatch(page, /launchDesktopEnhanceSaved/, '页面上也不再有「上次的勾选」')
   assert.doesNotMatch(page, /queueSetting\('launchDesktopEnhance'/, '勾选不再写回设置')
-  assert.match(page, /\/\/ 桌面增强：新建一律不勾/, '新建固定不勾')
+  assert.doesNotMatch(page, /launchDesktopEnhanceEl/, '编辑窗不再保留桌面增强勾选框')
 })
 
 test('右键菜单 / 浏览器控制不再有独立开关：只有安装 + 插件页开关', () => {

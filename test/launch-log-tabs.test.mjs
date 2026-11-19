@@ -76,7 +76,7 @@ test('日志弹窗固定高度，切页签不再忽高忽低；内容在卡片�
 })
 
 test('切页签有动效：选中块滑动 + 内容按方向轻推，且遵守减动效', () => {
-  assert.match(css, /\.launch-log-tabs::after \{[^}]*transition: transform 280ms/, '选中块滑动')
+  assert.match(css, /\.launch-log-tabs::after \{[^}]*transition: transform (?:280ms|var\(--motion-[\w-]+\))/, '选中块滑动')
   assert.match(css, /\.launch-log-tabs\[data-count="3"\]::after/, '三个常驻页签各占三分之一')
   assert.match(css, /\.launch-log-tabs\[data-index="1"\]::after/, '按当前页签算位移')
   assert.match(css, /#launchLogDialog \.launch-log-card\[data-log-panel\]:not\(\[hidden\]\) \{[^}]*animation: launch-log-panel-in/, '面板淡入轻推')

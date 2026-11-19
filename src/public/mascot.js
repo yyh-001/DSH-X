@@ -39,7 +39,8 @@
   document.body.append(host);
   const button = host.querySelector('button');
   const parts = Object.fromEntries([...host.querySelectorAll('[data-part]')].map(el => [el.dataset.part, el]));
-  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+  const shared = globalThis.launcherMotion;
+  const reduced = shared ? null : matchMedia('(prefers-reduced-motion: reduce)');
   let failed = false;
   let frame = 0, last = 0, clock = 0, nextBlink = 2 + Math.random() * 3;
   let blinkStart = -10, reactionAt = -10, reactionTuft = 0, reactionBow = 0, reactionEar = 0;
@@ -90,8 +91,8 @@
   host.dataset.state = state;
   let rect = host.getBoundingClientRect();
   const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
-  const active = () => !failed && !reduced.matches && !document.hidden
-    && !document.documentElement.classList.contains('reduce-motion')
+  const active = () => !failed && !document.hidden
+    && (shared?.reduced ? !shared.reduced() : (!reduced.matches && !document.documentElement.classList.contains('reduce-motion') && document.documentElement.dataset.reduceMotion !== 'true'))
     && !document.documentElement.classList.contains('big-fish-hidden')
     && !document.documentElement.classList.contains('launcher-idle')
     && !document.body.classList.contains('subpage-open') && !document.documentElement.classList.contains('internal-dsh-active');
@@ -116,7 +117,8 @@
     if (active()) frame = requestAnimationFrame(tick);
     else { neutral(); relax(); }
   }
-  reduced.addEventListener('change', sync);
+  if (shared?.onReduceChange) shared.onReduceChange(sync);
+  else reduced.addEventListener('change', sync);
   document.addEventListener('visibilitychange', sync);
   new MutationObserver(sync).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
   new MutationObserver(sync).observe(document.body, { attributes: true, attributeFilter: ['class'] });

@@ -42,22 +42,38 @@
   let merging = false
   let lastStrip = ''
   const moves = new Map()
-  const motionPreference = matchMedia('(prefers-reduced-motion: reduce)')
-  const reducedMotion = () => root.classList.contains('reduce-motion') || motionPreference.matches
+  const shared = globalThis.launcherMotion
+  const motionPreference = shared ? null : matchMedia('(prefers-reduced-motion: reduce)')
+  const reducedMotion = () => (
+    shared?.reduced
+      ? shared.reduced()
+      : Boolean(root.classList.contains('reduce-motion') || root.dataset?.reduceMotion === 'true' || motionPreference.matches)
+  )
+  shared?.onReduceChange?.(() => {
+    if (!reducedMotion()) return
+    for (const animation of moves.values()) animation.cancel()
+    moves.clear()
+  })
   const tabNodes = () => [...list.children]
   const order = () => tabNodes().map((item) => item.dataset.id)
   const glide = (item, from) => {
     moves.get(item)?.cancel()
     moves.delete(item)
     if (!from || reducedMotion()) return
-    const animation = item.animate([{ transform: `translateX(${from}px)` }, { transform: 'translateX(0)' }], { duration: 220, easing: 'cubic-bezier(.2, .8, .2, 1)' })
+    const animation = item.animate([{ transform: `translateX(${from}px)` }, { transform: 'translateX(0)' }], {
+      duration: shared?.duration?.tabGlide ?? 220,
+      easing: shared?.ease?.standard ?? 'cubic-bezier(.2, .8, .2, 1)',
+    })
     moves.set(item, animation)
     animation.finished.catch(() => {}).then(() => { if (moves.get(item) === animation) moves.delete(item) })
   }
   /** 新标签只淡入；缩放会改变上报的抓取区域，使窗口淡入期间的鼠标锚点漂移。 */
   const enter = (item) => {
     if (reducedMotion()) return
-    item.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180, easing: 'cubic-bezier(.2, .8, .2, 1)' })
+    item.animate([{ opacity: 0 }, { opacity: 1 }], {
+      duration: shared?.duration?.tabEnter ?? 180,
+      easing: shared?.ease?.standard ?? 'cubic-bezier(.2, .8, .2, 1)',
+    })
   }
   const arrange = (ids, animate = false, snapshot = null) => {
     const current = order()

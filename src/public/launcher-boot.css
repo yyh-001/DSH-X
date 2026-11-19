@@ -9,15 +9,15 @@
 .launcher-boot-wordmark {
   display: block; margin: 14px 0 24px; color: var(--accent);
   font-size: clamp(64px, 10vw, 100px); font-weight: 750; line-height: 1; letter-spacing: -.05em;
-  animation: launcher-wordmark-in 700ms cubic-bezier(.16, 1, .3, 1) both;
+  animation: launcher-wordmark-in 700ms var(--ease-decelerate, cubic-bezier(.22, 1, .36, 1)) both;
 }
 .launcher-boot-line { height: 2px; overflow: hidden; background: var(--line); }
 .launcher-boot-line::after {
   content: ''; display: block; width: 100%; height: 100%; background: var(--accent);
-  transform: translateX(-100%); animation: launcher-loading-line 1300ms cubic-bezier(.45, 0, .25, 1) infinite;
+  transform: translateX(-100%); animation: launcher-loading-line 1300ms var(--ease-standard, cubic-bezier(.2, .8, .2, 1)) infinite;
 }
 .launcher-boot-status { margin: 14px 0 0; color: var(--muted); font-size: 12px; }
-.launcher-boot.is-leaving { pointer-events: none; animation: launcher-boot-out 300ms ease both; }
+.launcher-boot.is-leaving { pointer-events: none; animation: launcher-boot-out 300ms var(--ease-standard, cubic-bezier(.2, .8, .2, 1)) both; }
 .launcher-boot.is-leaving .launcher-boot-line::after { animation: none; transform: none; }
 
 /* 加载时仍可拖动、最小化和关闭原生窗口，其余入口等本地数据就绪后再开放。 */
@@ -32,21 +32,21 @@ html.launcher-loading .mascot { visibility: hidden; opacity: 0; pointer-events: 
 
 /* 开场只执行一次；状态推送和返回主页不再重新播放大肥鱼的入场。 */
 html.launcher-ready .mascot { animation: none; }
-html.launcher-entering .backdrop { animation: launcher-scene-in 600ms ease both; }
+html.launcher-entering .backdrop { animation: launcher-scene-in 600ms var(--ease-standard, cubic-bezier(.2, .8, .2, 1)) both; }
 /* 只展开字标，保留整块返回主页的点击范围；版本号稍后跟进。
    .brand 是 .brand-home（flex / 标签形态下是 grid）的子项，本来就按块级排，transform 与 clip-path 直接生效，
    这里别再给它写 display：这份样式表最后加载，同特异性的 display 会盖掉 launcher.css 里
    「标签形态藏起字标」那条——0.1.22 就是这样，回主页图标和挤成两行的「DSH-X」叠在左上角。 */
-html.launcher-entering .brand-home .brand { animation: launcher-wordmark-in 700ms 30ms cubic-bezier(.16, 1, .3, 1) both; }
-html.launcher-entering .brand-home .app-ver { animation: launcher-module-in 450ms 220ms cubic-bezier(.16, 1, .3, 1) both; }
+html.launcher-entering .brand-home .brand { animation: launcher-wordmark-in 700ms 30ms var(--ease-decelerate, cubic-bezier(.22, 1, .36, 1)) both; }
+html.launcher-entering .brand-home .app-ver { animation: launcher-module-in var(--motion-enter, 460ms) 220ms var(--ease-decelerate, cubic-bezier(.22, 1, .36, 1)) both; }
 /* 更新按钮只淡入、不做位移动画：它是贴在字标旁边的图标，跟着版本号一起往上滑会显得比文字低一截 */
-html.launcher-entering .brand-block .self-update { animation: launcher-module-fade-in 450ms 220ms cubic-bezier(.16, 1, .3, 1) both; }
+html.launcher-entering .brand-block .self-update { animation: launcher-module-fade-in var(--motion-enter, 460ms) 220ms var(--ease-decelerate, cubic-bezier(.22, 1, .36, 1)) both; }
 /* 毛玻璃及其父层保持原位，避免透明度动画隔断背景采样。
    整条启动项一起向上入场；只标记开场已有的行，状态更新不会重播。 */
 .launcher-preset-enter {
-  animation: launcher-preset-in 480ms calc(100ms + var(--launcher-entry-delay)) cubic-bezier(.22, 1, .36, 1) both;
+  animation: launcher-preset-in var(--motion-enter, 460ms) calc(100ms + var(--launcher-entry-delay)) var(--ease-decelerate, cubic-bezier(.22, 1, .36, 1)) both;
 }
-html.launcher-entering .mascot { animation: launcher-fish-in 1000ms 60ms cubic-bezier(.2, .75, .2, 1) both; }
+html.launcher-entering .mascot { animation: launcher-fish-in 1000ms 60ms var(--ease-decelerate, cubic-bezier(.22, 1, .36, 1)) both; }
 
 @keyframes launcher-wordmark-in { from { clip-path: inset(0 100% 0 0); transform: translateX(12px); } to { clip-path: inset(0); transform: none; } }
 @keyframes launcher-loading-line { 0% { transform: translateX(-100%); } 70%, 100% { transform: translateX(100%); } }
@@ -57,6 +57,14 @@ html.launcher-entering .mascot { animation: launcher-fish-in 1000ms 60ms cubic-b
 @keyframes launcher-fish-in { from { opacity: 0; transform: translateY(65%) scale(.98); } to { opacity: 1; transform: none; } }
 @keyframes launcher-preset-in { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
 
+html.reduce-motion .launcher-boot,
+html.reduce-motion .launcher-boot *,
+html.reduce-motion.launcher-entering .brand-home .brand,
+html.reduce-motion.launcher-entering .brand-home .app-ver,
+html.reduce-motion.launcher-entering .brand-block .self-update,
+html.reduce-motion.launcher-entering .backdrop,
+html.reduce-motion.launcher-entering .mascot,
+html.reduce-motion .launcher-preset-enter { animation: none !important; }
 @media (prefers-reduced-motion: reduce) {
   .launcher-boot, .launcher-boot * { animation: none !important; }
   html.launcher-entering .brand-home .brand,

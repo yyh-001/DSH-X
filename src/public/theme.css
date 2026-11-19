@@ -9,7 +9,11 @@ html[data-color-scheme="dark"] {
   --accent: #f0f0f2;
   --accent-soft: #34353a;
   --accent-dim: #44454b;
-  --danger: #f0f0f2;
+  --danger: #f2797f;
+  --danger-soft: rgba(242, 121, 127, 0.14);
+  --danger-border: rgba(242, 121, 127, 0.36);
+  --status-running: #4ade80;
+  --status-starting: #fbbf24;
   --switch-off: #66656d;
   --switch-on: #a6a7ad;
   /* 内部标签页那层标签条：要明显比页面底色深，选中的标签（用采样来的页面色）才立得起来，
@@ -38,7 +42,12 @@ html[data-color-scheme="dark"] main:not(.home) .shell {
   box-shadow: 0 18px 52px rgba(0, 0, 0, .28), 0 3px 12px rgba(0, 0, 0, .16);
 }
 html[data-color-scheme="dark"] .settings-nav { background: var(--settings-nav-bg); }
-html[data-color-scheme="dark"] #pane-control .card.home { background: rgba(39, 39, 43, var(--panel-opacity)); }
+html[data-color-scheme="dark"] #pane-control .card.home {
+  background: rgba(39, 39, 43, var(--panel-opacity));
+  border-color: rgba(116, 116, 122, .45);
+  box-shadow: 0 20px 52px rgba(0, 0, 0, .34), 0 4px 14px rgba(0, 0, 0, .2);
+}
+html[data-color-scheme="dark"] .launch-preset:hover::before { background: rgba(255, 255, 255, .045); }
 html[data-color-scheme="dark"] main:not(.home) .settings-body {
   background: transparent;
 }
@@ -61,11 +70,11 @@ html[data-color-scheme="dark"] .settings-nav.has-pill .nav-item.active {
 }
 html[data-color-scheme="dark"] .toggle.set-row:hover { background: #313237; }
 html[data-color-scheme="dark"] .plugin-update {
-  border-color: #6b6c72;
-  background: #34353a;
-  color: var(--accent);
+  border-color: rgba(96, 165, 250, 0.32);
+  background: rgba(59, 130, 246, 0.16);
+  color: #7eb2ff;
 }
-html[data-color-scheme="dark"] .plugin-update:hover:not(:disabled) { background: #414248; border-color: #898a91; }
+html[data-color-scheme="dark"] .plugin-update:hover:not(:disabled) { background: rgba(59, 130, 246, 0.28); border-color: rgba(96, 165, 250, 0.52); color: #a5cbff; }
 html[data-color-scheme="dark"] .set-row:focus-within { box-shadow: inset 3px 0 0 var(--accent); }
 html[data-color-scheme="dark"] .nav-item.active svg { color: var(--accent); }
 html[data-color-scheme="dark"] .set-group,
@@ -101,27 +110,28 @@ html[data-color-scheme="dark"] .ghost { color: var(--accent); }
 /* 环境详情的返回键是导航不是操作：保持无边框透明，悬停只铺软底 */
 html[data-color-scheme="dark"] .pack-detail-top .pack-back { background: transparent; border-color: transparent; color: var(--muted); }
 html[data-color-scheme="dark"] .pack-detail-top .pack-back:hover:not(:disabled) { background: var(--accent-soft); border-color: transparent; color: var(--text); }
-/* 「更多操作」菜单项：压掉暗色 .ghost 的实底，浮层里保持平铺；危险项用淡玫瑰红 */
+/* 「更多操作」菜单项：压掉暗色 .ghost 的实底，浮层里保持平铺；危险项沿用 --danger 语义色 */
 html[data-color-scheme="dark"] .pack-more-actions .ghost { background: transparent; border: 0; color: var(--text); }
 html[data-color-scheme="dark"] .pack-more-actions .ghost:hover:not(:disabled) { background: var(--accent-soft); border-color: transparent; }
-html[data-color-scheme="dark"] .pack-more-actions .ghost.danger { color: #f2797f; }
-html[data-color-scheme="dark"] .pack-more-actions .ghost.danger:hover:not(:disabled) { background: rgba(225, 29, 72, 0.16); }
-/* 设置页的危险操作按钮跟「更多操作」里的危险项同一套配色（浅色主题那条 #fff1f2 在暗色里太亮） */
-html[data-color-scheme="dark"] .set-control .ghost.danger { color: #f2797f; border-color: rgba(225, 29, 72, 0.35); }
-html[data-color-scheme="dark"] .set-control .ghost.danger:hover:not(:disabled) { background: rgba(225, 29, 72, 0.16); }
-/* 编辑启动项的删除图标钮：悬停铺同款淡玫瑰红（浅色主题那条 #fff1f2 在暗色里太亮） */
-html[data-color-scheme="dark"] .launch-save-actions .launch-delete:hover:not(:disabled) { background: rgba(225, 29, 72, 0.16); border-color: rgba(225, 29, 72, 0.35); }
-/* 备份行的删除图标钮：同上 */
-html[data-color-scheme="dark"] .backup-row .backup-delete:hover:not(:disabled) { background: rgba(225, 29, 72, 0.16); border-color: rgba(225, 29, 72, 0.35); color: #f2797f; }
-/* 选 Profile 的三栏窗：工具按钮跟「更多操作」同套配色（浅色那几条 #b9ccf0 / #fff1f2 在暗色里太亮） */
+html[data-color-scheme="dark"] .pack-more-actions .ghost.danger { color: var(--danger); }
+html[data-color-scheme="dark"] .pack-more-actions .ghost.danger:hover:not(:disabled) { background: var(--danger-soft); color: var(--danger); }
 html[data-color-scheme="dark"] .profile-pick .profile-pick-tool:hover:not(:disabled) { border-color: #898a91; }
-html[data-color-scheme="dark"] .profile-pick .profile-pick-action.danger:hover:not(:disabled) { background: rgba(225, 29, 72, 0.16); color: #f2797f; }
 html[data-color-scheme="dark"] .ghost:hover:not(:disabled),
 html[data-color-scheme="dark"] #restart.icon-btn:hover:not(:disabled),
-html[data-color-scheme="dark"] #update.icon-btn:hover:not(:disabled),
-html[data-color-scheme="dark"] #remove.icon-btn:hover:not(:disabled) {
+html[data-color-scheme="dark"] #update.icon-btn:hover:not(:disabled) {
   background: var(--accent-soft);
   border-color: #898a91;
+}
+html[data-color-scheme="dark"] .ghost.danger,
+html[data-color-scheme="dark"] .launch-save-actions .launch-delete { color: var(--danger); }
+html[data-color-scheme="dark"] .ghost.danger { border-color: var(--danger-border); }
+html[data-color-scheme="dark"] .ghost.danger:hover:not(:disabled),
+html[data-color-scheme="dark"] .launch-save-actions .launch-delete:hover:not(:disabled),
+html[data-color-scheme="dark"] .backup-row .backup-delete:hover:not(:disabled),
+html[data-color-scheme="dark"] #remove.icon-btn:hover:not(:disabled) {
+  background: var(--danger-soft);
+  border-color: var(--danger-border);
+  color: var(--danger);
 }
 html[data-color-scheme="dark"] .star-link:hover,
 html[data-color-scheme="dark"] .gear-btn:hover { border-color: #d2d2d6; background: #45454a; box-shadow: none; }
@@ -148,8 +158,7 @@ html[data-color-scheme="dark"] #main.icon-btn.stop {
   color: #f0f0f2;
   border-color: #77787d;
 }
-html[data-color-scheme="dark"] #main.icon-btn.stop:hover,
-html[data-color-scheme="dark"] #remove.icon-btn:hover:not(:disabled) {
+html[data-color-scheme="dark"] #main.icon-btn.stop:hover {
   background: #494a50;
   border-color: #a0a1a7;
   color: #fff;
@@ -161,7 +170,7 @@ html[data-color-scheme="dark"] .notice-detail {
   color: #dddde0;
 }
 html[data-color-scheme="dark"] .notice-detail { scrollbar-color: #77787d transparent; }
-/* 诊断分节卡片：深色是单色调（--danger 也是灰白），分节头统一深灰，区分靠标题明度 */
+/* 诊断分节卡片：分节头统一深灰保持克制，危险分节标题直接继承 --danger 语义红 */
 html[data-color-scheme="dark"] .diag-section-head,
 html[data-color-scheme="dark"] .diag-tone-danger .diag-section-head,
 html[data-color-scheme="dark"] .diag-tone-warn .diag-section-head { background: #2c2d33; }
@@ -183,7 +192,8 @@ html[data-color-scheme="dark"] .settings-nav,
 html[data-color-scheme="dark"] .launch-modal-fields,
 html[data-color-scheme="dark"] .dialog-body,
 html[data-color-scheme="dark"] .ask-items,
-html[data-color-scheme="dark"] .backup-list { scrollbar-color: #77787d transparent; }
+html[data-color-scheme="dark"] .backup-list,
+html[data-color-scheme="dark"] .plugin-market-scroll { scrollbar-color: #77787d transparent; }
 html[data-color-scheme="dark"] .select-panel::-webkit-scrollbar-thumb,
 html[data-color-scheme="dark"] .plugin-list::-webkit-scrollbar-thumb,
 html[data-color-scheme="dark"] #log::-webkit-scrollbar-thumb,
@@ -192,11 +202,71 @@ html[data-color-scheme="dark"] .settings-nav::-webkit-scrollbar-thumb,
 html[data-color-scheme="dark"] .launch-modal-fields::-webkit-scrollbar-thumb,
 html[data-color-scheme="dark"] .dialog-body::-webkit-scrollbar-thumb,
 html[data-color-scheme="dark"] .ask-items::-webkit-scrollbar-thumb,
-html[data-color-scheme="dark"] .backup-list::-webkit-scrollbar-thumb { background: #77787d; background-clip: content-box; }
+html[data-color-scheme="dark"] .backup-list::-webkit-scrollbar-thumb,
+html[data-color-scheme="dark"] .plugin-market-scroll::-webkit-scrollbar-thumb { background: #77787d; background-clip: content-box; }
 html[data-color-scheme="dark"] .launch-log-text { background: #202024; color: #dddde0; scrollbar-color: #77787d transparent; }
 html[data-color-scheme="dark"] .launch-log-text::-webkit-scrollbar-thumb { background: #77787d; background-clip: content-box; }
 
 html[data-color-scheme="dark"] .ask.is-child-dialog { background: transparent; }
+html[data-color-scheme="dark"] .environment-toolbar { border-bottom-color: rgba(255, 255, 255, 0.08); }
+html[data-color-scheme="dark"] .environment-tabs .launch-isolation-tab[aria-selected="true"] { color: #f4f4f5; }
+html[data-color-scheme="dark"] .environment-tabs::after { background: #e4e4e7; }
+html[data-color-scheme="dark"] .environment-tab-actions .action-icon { background: transparent; border-color: transparent; color: var(--muted); }
+html[data-color-scheme="dark"] .environment-tab-actions .action-icon:hover:not(:disabled) { background: rgba(255, 255, 255, 0.08); border-color: transparent; color: #f4f4f5; }
+html[data-color-scheme="dark"] .environment-market-tools .icon-btn { background: #202024; border-color: rgba(255, 255, 255, 0.08); color: var(--muted); }
+html[data-color-scheme="dark"] .environment-market-tools .icon-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.16); color: #f4f4f5; }
+html[data-color-scheme="dark"] .plugin-market-search { background: #202024; border-color: rgba(255, 255, 255, 0.08); }
+html[data-color-scheme="dark"] .plugin-market-search:focus-within { background: #232328; border-color: rgba(255, 255, 255, 0.24); box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.06); }
+html[data-color-scheme="dark"] .plugin-market-tabs { border-bottom-color: rgba(255, 255, 255, 0.06); }
+html[data-color-scheme="dark"] .plugin-market-tab:hover { background: rgba(255, 255, 255, 0.06); }
+html[data-color-scheme="dark"] .plugin-market-tab.is-active { background: rgba(255, 255, 255, 0.1); color: #f4f4f5; border-color: rgba(255, 255, 255, 0.08); box-shadow: none; }
+html[data-color-scheme="dark"] .plugin-market-card { background: rgba(255, 255, 255, 0.032); border-color: rgba(255, 255, 255, 0.055); }
+html[data-color-scheme="dark"] .plugin-market-card:hover { background: rgba(255, 255, 255, 0.068); border-color: rgba(255, 255, 255, 0.13); box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28); }
+html[data-color-scheme="dark"] .plugin-market-card.is-installed { background: rgba(255, 255, 255, 0.022); }
+html[data-color-scheme="dark"] .plugin-market-installed { background: rgba(255, 255, 255, 0.06); color: #a1a1aa; }
+html[data-color-scheme="dark"] .plugin-market-installed svg { color: #34d399; }
+html[data-color-scheme="dark"] .plugin-market-icon { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 3px 10px rgba(0, 0, 0, 0.22); }
+html[data-color-scheme="dark"] .plugin-market-icon.tone-blue { background: linear-gradient(135deg, rgba(59, 130, 246, 0.28), rgba(37, 99, 235, 0.14)); color: #60a5fa; }
+html[data-color-scheme="dark"] .plugin-market-icon.tone-indigo { background: linear-gradient(135deg, rgba(99, 102, 241, 0.28), rgba(79, 70, 229, 0.14)); color: #818cf8; }
+html[data-color-scheme="dark"] .plugin-market-icon.tone-cyan { background: linear-gradient(135deg, rgba(6, 182, 212, 0.28), rgba(8, 145, 178, 0.14)); color: #22d3ee; }
+html[data-color-scheme="dark"] .plugin-market-icon.tone-purple { background: linear-gradient(135deg, rgba(168, 85, 247, 0.28), rgba(147, 51, 234, 0.14)); color: #c084fc; }
+html[data-color-scheme="dark"] .plugin-market-icon.tone-emerald { background: linear-gradient(135deg, rgba(16, 185, 129, 0.28), rgba(5, 150, 105, 0.14)); color: #34d399; }
+html[data-color-scheme="dark"] .plugin-market-icon.tone-amber { background: linear-gradient(135deg, rgba(245, 158, 11, 0.28), rgba(217, 119, 6, 0.14)); color: #fbbf24; }
+html[data-color-scheme="dark"] .plugin-market-icon.tone-pink { background: linear-gradient(135deg, rgba(236, 72, 153, 0.28), rgba(219, 39, 119, 0.14)); color: #f472b6; }
+html[data-color-scheme="dark"] .plugin-market-icon.has-image { background: #1f1f24; border-color: rgba(255, 255, 255, 0.1); box-shadow: 0 3px 10px rgba(0, 0, 0, 0.24); }
+html[data-color-scheme="dark"] .environment-plugin-subtabs { background: rgba(255, 255, 255, 0.05); }
+html[data-color-scheme="dark"] .environment-plugin-subtabs.has-pill::before { background: #38393e; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.24); }
+html[data-color-scheme="dark"] .environment-subtab.is-active { background: #38393e; color: #f4f4f5; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.24); }
+html[data-color-scheme="dark"] .environment-plugin-subtabs.has-pill .environment-subtab.is-active { background: transparent; box-shadow: none; }
+html[data-color-scheme="dark"] .environment-subtab-count { background: rgba(255, 255, 255, 0.08); color: #a1a1aa; }
+html[data-color-scheme="dark"] .environment-subtab.is-active .environment-subtab-count { background: rgba(255, 255, 255, 0.14); color: #f4f4f5; }
+html[data-color-scheme="dark"] .plugin-row.pack-row.plugin-installed-card { background: rgba(255, 255, 255, 0.032); border-color: rgba(255, 255, 255, 0.06); }
+html[data-color-scheme="dark"] .plugin-row.pack-row.plugin-installed-card:last-child { border-bottom-color: rgba(255, 255, 255, 0.06); }
+html[data-color-scheme="dark"] .plugin-row.pack-row.plugin-installed-card:focus-within { background: rgba(255, 255, 255, 0.032); }
+html[data-color-scheme="dark"] .plugin-row.pack-row.plugin-installed-card:hover { background: rgba(255, 255, 255, 0.065); border-color: rgba(255, 255, 255, 0.14); box-shadow: 0 10px 24px rgba(0, 0, 0, 0.26); }
+html[data-color-scheme="dark"] .plugin-row.pack-row.plugin-installed-card .icon-btn { background: transparent; border-color: transparent; }
+html[data-color-scheme="dark"] .environment-config-card { background: rgba(255, 255, 255, 0.028); border-color: rgba(255, 255, 255, 0.08); }
+html[data-color-scheme="dark"] .env-launch-dialog-card .environment-launch-card { background: transparent; border-color: transparent; }
+html[data-color-scheme="dark"] .toggle.env-launch-auto-toggle { background: rgba(255, 255, 255, 0.03); border-color: rgba(255, 255, 255, 0.08); }
+html[data-color-scheme="dark"] .toggle.env-launch-auto-toggle:hover { background: rgba(255, 255, 255, 0.055); border-color: rgba(255, 255, 255, 0.15); }
+html[data-color-scheme="dark"] .environment-config-extra,
+html[data-color-scheme="dark"] .env-launch-footer-row { border-top-color: rgba(255, 255, 255, 0.07); }
+html[data-color-scheme="dark"] .plugin-market-tag { background: rgba(255, 255, 255, 0.08); color: #c4c4ca; }
+html[data-color-scheme="dark"] .plugin-market-tag.is-official { background: rgba(59, 130, 246, 0.2); color: #7eb2ff; }
+html[data-color-scheme="dark"] .plugin-market-tag.is-star { background: rgba(245, 158, 11, 0.2); color: #f5b841; }
+html[data-color-scheme="dark"] .plugin-market-tag.is-warn { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+html[data-color-scheme="dark"] .plugin-installed-list > .plugin-empty,
+html[data-color-scheme="dark"] #mcpList > .plugin-empty,
+html[data-color-scheme="dark"] #skillList > .plugin-empty { border-color: rgba(255, 255, 255, 0.12); }
+html[data-color-scheme="dark"] .plugin-market-install { background: #34353a; border-color: rgba(255, 255, 255, 0.12); color: #f4f4f5; }
+html[data-color-scheme="dark"] .plugin-market-install:hover:not(:disabled) { background: #43444b; border-color: rgba(255, 255, 255, 0.24); color: #fff; }
+html[data-color-scheme="dark"] .plugin-market-link:hover { background: rgba(255, 255, 255, 0.08); color: #f4f4f5; }
+html[data-color-scheme="dark"] .market-skeleton-card { background: rgba(255, 255, 255, 0.032); border-color: rgba(255, 255, 255, 0.055); }
+html[data-color-scheme="dark"] .market-skeleton-bone {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.05) 25%, rgba(255, 255, 255, 0.12) 50%, rgba(255, 255, 255, 0.05) 75%);
+  background-size: 200% 100%;
+}
+html[data-color-scheme="dark"] #mcpDialog .mcp-field textarea { background: #202024; border-color: rgba(255, 255, 255, 0.1); color: #f4f4f5; }
 html[data-color-scheme="dark"] .set-row:focus-within { background: transparent; box-shadow: none; }
 html[data-color-scheme="dark"] .launch-save-actions .launch-repair,
 html[data-color-scheme="dark"] .launch-save-actions .launch-delete { background: transparent; border-color: transparent; }

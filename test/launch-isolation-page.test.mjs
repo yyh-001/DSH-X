@@ -154,7 +154,7 @@ test('切档时字段块靠 hidden 显隐，tab 是胶囊分段：底槽 + 当�
   // 胶囊分段：底槽浅色圆角，当前档浮块按 data-active 平移到对应三份之一
   assert.match(css, /\.launch-isolation-tabs \{ position: relative; display: flex; gap: 2px; padding: 4px; border-radius: 12px; background: var\(--accent-soft\); \}/)
   assert.match(css, /\.launch-isolation-tabs::after \{ content: ''; position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc\(\(100% - 12px\) \/ 3\);/, '浮块等分三份')
-  assert.match(css, /\.launch-isolation-tabs::after \{[^}]*transition: transform 240ms cubic-bezier/, '切档浮块要滑动')
+  assert.match(css, /\.launch-isolation-tabs::after \{[^}]*transition: transform (?:240ms|var\(--motion-[\w-]+\)) (?:cubic-bezier|var\(--ease-[\w-]+\))/, '切档浮块要滑动')
   assert.match(css, /\.launch-isolation-tabs\[data-active="home"\]::after \{ transform: translateX\(calc\(100% \+ 2px\)\); \}/)
   assert.match(css, /\.launch-isolation-tabs\[data-active="custom"\]::after \{ transform: translateX\(calc\(200% \+ 4px\)\); \}/)
   assert.match(css, /\.launch-isolation-tab \{ flex: 1 1 0; position: relative; z-index: 1; padding: 8px; border: 0; border-radius: 9px; background: transparent/, 'tab 透明让浮块露出来')
@@ -728,7 +728,7 @@ test('记住上次选的档：打开「添加启动项」落在保存过的档�
 })
 
 test('动效接线：胶囊浮块滑动、字段淡入、说明行淡入，都尊重「减少动态」', () => {
-  assert.match(css, /\.launch-isolation-tabs::after \{[^}]*transition: transform 240ms/, '胶囊浮块滑动得有过渡')
+  assert.match(css, /\.launch-isolation-tabs::after \{[^}]*transition: transform (?:240ms|var\(--motion-[\w-]+\))/, '胶囊浮块滑动得有过渡')
   assert.match(css, /\.launch-custom-fields:not\(\[hidden\]\) \{ animation: launch-custom-in/, '切到自定义时字段淡入')
   assert.match(css, /#launchIsolationHint\.isolation-hint-in \{ animation: launch-isolation-hint-in/, '换档时说明行淡入')
   assert.match(css, /html\.reduce-motion #launchIsolationHint\.isolation-hint-in \{ animation: none; \}/, '减少动态时不做动画')
@@ -1096,27 +1096,24 @@ ${functionSource('paintLaunchEnvironmentPick')}`,
   assert.doesNotMatch(listEl.innerHTML, /deleted-ghost/, '已删除实例遗留的目录不再混进实例下拉列表')
   assert.match(listEl.innerHTML, /<button class="project-device-option is-add"[^>]*data-env-manage="1"[\s\S]*?#lucide-sliders-horizontal[\s\S]*?<strong>管理实例<\/strong>/)
   assert.match(section("launchCopyListEl?.addEventListener('click'", '    function selectGuideLocalHome('), /data-env-manage[\s\S]*showPane\('environments'\)/)
-  for (const [id, icon] of [['environmentRestore', 'lucide-rotate-ccw'], ['environmentSave', 'lucide-save'], ['environmentAddOpen', 'lucide-plus']]) {
-    assert.match(page, new RegExp(`class="ghost icon-btn(?: action-icon)?" id="${id}"[^>]*>[\\s\\S]{0,120}#${icon}`), `${id} 统一用图标按钮`)
-  }
+  assert.match(page, new RegExp(`class="ghost icon-btn(?: action-icon)?" id="environmentRestore"[^>]*>[\\s\\S]{0,120}#lucide-rotate-ccw`), 'environmentRestore 统一用图标按钮')
+  assert.match(page, /class="hint environment-config-error" id="environmentSaveStatus" role="alert" hidden/, '实例配置静默自动保存，仅失败时展示错误行')
 })
 
-test('新建实例时隐藏「打开启动器时启动」和「桌面增强」，仅编辑已有启动项时展示', () => {
-  assert.match(css, /#launchForm:has\(#launchIsolationHead:not\(\[hidden\]\)\) \.launch-auto-launch,\s*#launchForm:has\(#launchIsolationHead:not\(\[hidden\]\)\) #launchDesktopEnhanceField \{ display: none; \}/)
+test('新建实例时隐藏「打开启动器时启动」，仅编辑已有启动项时展示；编辑窗不再放「桌面增强」开关', () => {
+  assert.match(css, /#launchForm:has\(#launchIsolationHead:not\(\[hidden\]\)\) \.launch-auto-launch \{ display: none; \}/)
+  assert.doesNotMatch(page, /id="launchDesktopEnhance"/)
   const { context } = isolationHarness()
   context.launchAutoLaunchEl = { parentElement: { hidden: false } }
   context.launchAutoLaunchGuidedEl = { parentElement: { hidden: false } }
-  context.launchDesktopEnhanceFieldEl = { hidden: false }
 
   for (const mode of ['profile', 'home', 'custom']) {
     context.setLaunchIsolation(mode, true)
     assert.equal(context.launchAutoLaunchEl.parentElement.hidden, true, `${mode} 新建时隐藏自定义档自动启动`)
     assert.equal(context.launchAutoLaunchGuidedEl.parentElement.hidden, true, `${mode} 新建时隐藏引导区自动启动`)
-    assert.equal(context.launchDesktopEnhanceFieldEl.hidden, true, `${mode} 新建时隐藏桌面增强`)
   }
 
   context.setLaunchIsolation('custom', false)
   assert.equal(context.launchAutoLaunchEl.parentElement.hidden, false, '编辑启动项时恢复显示自动启动')
   assert.equal(context.launchAutoLaunchGuidedEl.parentElement.hidden, true, '引导区自动启动始终隐藏')
-  assert.equal(context.launchDesktopEnhanceFieldEl.hidden, false, '编辑启动项时恢复显示桌面增强')
 })

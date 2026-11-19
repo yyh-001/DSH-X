@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import { DESKTOP_PLUGINS, parseDshVersion, versionAtLeast } from '../src/desktop-plugins.js'
+import { COMPUTER_USE_PLUGIN, DESKTOP_PLUGINS, parseDshVersion, versionAtLeast } from '../src/desktop-plugins.js'
 
 test('版本解析：只认 x.y.z，预发布后缀丢掉', () => {
   assert.deepEqual(parseDshVersion('0.2.2-alpha.2'), [0, 2, 2])
@@ -28,7 +28,7 @@ test('版本门槛：同版本的预发布算满足', () => {
 })
 
 test('清单和仓库里的插件对得上：包名、版本、命名都在', () => {
-  for (const plugin of DESKTOP_PLUGINS) {
+  for (const plugin of [...DESKTOP_PLUGINS, COMPUTER_USE_PLUGIN]) {
     const dir = join(import.meta.dirname, '..', 'plugins', plugin.name)
     const manifest = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'))
     assert.equal(manifest.name, plugin.name)
@@ -50,4 +50,5 @@ test('清单和仓库里的插件对得上：包名、版本、命名都在', ()
 test('右键菜单插件不再随桌面增强装：dsh 0.2.2 起自带菜单（issue #110）', () => {
   assert.ok(!DESKTOP_PLUGINS.some((plugin) => plugin.name === 'dsh-x-context-menu'))
   assert.deepEqual(DESKTOP_PLUGINS.map((plugin) => plugin.name), ['dsh-x-desktop-notify', 'dsh-x-sidebar-browser'])
+  assert.equal(COMPUTER_USE_PLUGIN.name, 'dsh-x-computer-use')
 })

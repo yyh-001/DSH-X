@@ -6,7 +6,7 @@
   z-index: 2; pointer-events: none;
   /* 入场只做一次平滑的滑入淡入：进设置页会把 .mascot 藏起来（.subpage-open），
      回到主界面时 display 变回来会重放这段动画——以前 68%/84% 有过冲回拉，看着像回弹抖一下。 */
-  animation: mascot-arrive 460ms cubic-bezier(.22, 1, .36, 1) backwards;
+  animation: mascot-arrive var(--motion-enter, 460ms) var(--ease-decelerate, cubic-bezier(.22, 1, .36, 1)) backwards;
 }
 @keyframes mascot-arrive {
   0% { opacity: 0; transform: translate(-16%, 12%) scale(.98); }
@@ -33,6 +33,7 @@ main, .page { pointer-events: none; }
 .page > * { pointer-events: auto; }
 /* 设置页外壳：导航和内容列要能点，面板之外的空白照样穿透到看板娘身上 */
 .settings-nav, .pane-inner { pointer-events: auto; }
+html.reduce-motion .mascot { animation: none; }
 @media (prefers-reduced-motion: reduce) {
   .mascot { animation: none; }
 }

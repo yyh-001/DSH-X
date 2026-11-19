@@ -1,5 +1,5 @@
 /**
- * Computer Use 核心桥接与管理页接口（/api/desktop/computer、/api/computer-use/*、默认关闭开关）。
+ * Computer Use 核心桥接与管理页接口（/api/desktop/computer、/api/computer-use/*、默认开启）。
  */
 import assert from 'node:assert/strict'
 import { isolateUserHome } from './isolated-home.mjs'
@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url'
 
 const read = (path) => readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), 'utf8')
 
-test('Computer Use 核心桥接、默认关闭、急停转发与设置页元素', async (t) => {
+test('Computer Use 核心桥接、默认开启、急停转发与设置页元素', async (t) => {
   const root = mkdtempSync(join(tmpdir(), 'dsh-computer-use-api-'))
   const app = isolateUserHome(root)
   const home = join(root, 'home')
@@ -44,7 +44,7 @@ test('Computer Use 核心桥接、默认关闭、急停转发与设置页元素'
       info: () => ({
         theme: 'dark',
         versions: { shell: '0.1.27', electron: '44.7.0' },
-        computer: { available: true, enabled: false, halted, running: false, shortcut: 'Control+Alt+Backspace' },
+        computer: { available: true, enabled: true, halted, running: false, shortcut: 'Control+Alt+Backspace' },
       }),
       computer: async (request) => {
         calls.push(request)
@@ -57,20 +57,29 @@ test('Computer Use 核心桥接、默认关闭、急停转发与设置页元素'
     },
   })
 
-  // 默认关闭：capabilities 含 computer，但 computer.enabled 为 false 且 dshEnv 不注 DSH_X_COMPUTER_USE
+  // 默认开启：capabilities 含 computer，computer.enabled 为 true 且 dshEnv 注 DSH_X_COMPUTER_USE=1
   const desktopInfo = await (await fetch(`${base}/api/desktop`)).json()
   assert.ok(desktopInfo.capabilities.includes('computer'))
-  assert.equal(desktopInfo.computer.enabled, false)
-  assert.equal('DSH_X_COMPUTER_USE' in server.dshEnv('0.2.2-rc.4'), false)
+  assert.equal(desktopInfo.computer.enabled, true)
+  assert.equal(server.dshEnv('0.2.2-rc.4').DSH_X_COMPUTER_USE, '1')
 
-  // 开启 computerUse 后，dshEnv 带 DSH_X_COMPUTER_USE=1；再关闭立即触发 stop
+  // 显式关闭后再开启：关闭立即触发 stop(disabled) 并撤掉 DSH_X_COMPUTER_USE，开启后恢复
+  const disabledRes = await (await fetch(`${base}/api/settings`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({ computerUse: false }),
+  })).json()
+  assert.equal(disabledRes.computerUse, false)
+  assert.equal(disabledRes.computerHost, true)
+  assert.equal('DSH_X_COMPUTER_USE' in server.dshEnv('0.2.2-rc.4'), false)
+  assert.ok(calls.some((call) => call.op === 'stop' && call.reason === 'disabled'))
+
   const enabledRes = await (await fetch(`${base}/api/settings`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', origin: base },
     body: JSON.stringify({ computerUse: true }),
   })).json()
   assert.equal(enabledRes.computerUse, true)
-  assert.equal(enabledRes.computerHost, true)
   assert.equal(server.dshEnv('0.2.2-rc.4').DSH_X_COMPUTER_USE, '1')
 
   // RPC 桥接与校验
@@ -112,10 +121,21 @@ test('Computer Use 核心桥接、默认关闭、急停转发与设置页元素'
   })
   assert.ok(calls.some((call) => call.op === 'stop' && call.reason === 'disabled'))
 
-  // 设置页 UI 与翻译文案存在
+  // 电脑操作插件与桌面增强分开，从「加入插件」弹窗添加，不放在设置页或编辑启动项里
+  const { COMPUTER_USE_PLUGIN, DESKTOP_PLUGINS } = await import('../src/desktop-plugins.js')
+  assert.equal(DESKTOP_PLUGINS.some((plugin) => plugin.name === 'dsh-x-computer-use'), false)
+  assert.equal(COMPUTER_USE_PLUGIN.name, 'dsh-x-computer-use')
+  const removedInstall = await fetch(`${base}/api/computer-use/install`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: '{}',
+  })
+  assert.equal(removedInstall.status, 404)
+
+  // 设置页已默认直接启用电脑操作、不再展示手动开关面板；加入插件弹窗仍提供入口
   const html = read('src/public/index.html')
-  assert.match(html, /id="computerUse"/)
-  assert.match(html, /id="computerUseStop"/)
-  assert.match(html, /id="computerUseAuditList"/)
-  assert.match(html, /"Enable Computer Use"/)
+  const envPage = read('src/public/environments-page.js')
+  assert.doesNotMatch(html, /id="computerUse"|id="computerUseInstall"|id="computerUseStop"|id="computerUseAuditList"|id="computerUseBoundaryHint"/)
+  assert.match(html, /id="environmentAddMarket"/)
+  assert.match(envPage, /dsh-x-computer-use/)
 })

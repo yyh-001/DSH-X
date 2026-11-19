@@ -30,8 +30,8 @@ export const PREF_DEFAULTS = Object.freeze({
   // 外壳保留这个键只是为了两边默认值一致，不拿它拦侧栏 Browser 本身
   // 内置浏览器忽略 HTTPS 证书错误（自签名站点）
   browserIgnoreCertificate: false,
-  // 电脑操作（Computer Use）：默认关闭，开启后且由 DSH-X 启动的实例才向模型暴露桌面操作工具
-  computerUse: false,
+  // 电脑操作（Computer Use）：默认开启，由 DSH-X 启动且装有插件的实例可向模型暴露桌面操作工具
+  computerUse: true,
 })
 
 /** 从设置对象里挑出外壳要用的字段：只认布尔语义，缺字段回默认。 */
@@ -46,7 +46,7 @@ export function parsePrefs(stored) {
     keepAwake: source.keepAwake === true,
     reduceMotion: source.reduceMotion === true,
     browserIgnoreCertificate: source.browserIgnoreCertificate === true,
-    computerUse: source.computerUse === true,
+    computerUse: source.computerUse !== false,
   }
 }
 

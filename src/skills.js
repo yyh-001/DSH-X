@@ -514,6 +514,48 @@ export function parseSkillGithub(source, refOverride = '') {
   return { owner, repo, ref, path: path.length ? importPath(path.join('/')) : '' }
 }
 
+async function readSkillZipData(zip, entry, maxBytes = SKILL_FILE_LIMIT) {
+  if (entry.size > maxBytes) throw new Error('技能包过大：单文件最多 2 MB，总计最多 16 MB，2000 个文件')
+  const chunks = []; let size = 0
+  await readZipEntry(zip, entry, (chunk) => {
+    size += chunk.length
+    if (size > maxBytes) throw new Error('技能文件解压后过大')
+    chunks.push(chunk)
+  })
+  const data = Buffer.concat(chunks)
+  if (size !== entry.size || crc32(data) !== entry.crc32) throw new Error('技能 ZIP 文件校验失败')
+  return data
+}
+
+/** 从多技能仓库 ZIP 中按 skillId 定位单个技能目录，避免解压整个大仓库触及文件数上限。 */
+async function resolveTargetSkillDir(zip, entries, wrapper, targetSkillId) {
+  const candidates = []
+  for (const [name, entry] of entries) {
+    const rel = name.slice(wrapper.length)
+    if (rel !== 'SKILL.md' && !rel.endsWith('/SKILL.md')) continue
+    const dir = rel === 'SKILL.md' ? '' : rel.slice(0, -'/SKILL.md'.length)
+    const base = dir.includes('/') ? dir.slice(dir.lastIndexOf('/') + 1) : dir
+    candidates.push({ entry, rel, dir, base })
+  }
+  const dirMatches = candidates.filter((item) => item.dir === targetSkillId || item.base === targetSkillId)
+  let matched = dirMatches.find((item) => item.rel.includes('/.curated/')) || dirMatches[0] || null
+  if (!matched) {
+    for (const item of candidates) {
+      if (item.entry.size > 256 * 1024) continue
+      const data = await readSkillZipData(zip, item.entry, 256 * 1024)
+      const text = data.toString('utf8').replace(/^\uFEFF/, '')
+      const fm = locateFrontmatter(text)
+      const fields = fm ? parseFields(text.slice(fm.fmStart, fm.fmEnd)) : {}
+      if (String(fields.name || '').trim() === targetSkillId) {
+        matched = item
+        break
+      }
+    }
+  }
+  if (!matched) throw new Error(`未在仓库中找到技能「${targetSkillId}」`)
+  return matched.dir
+}
+
 /** 限量下载，沿用启动器代理；仓库档案只读取选中目录，避免解压整个项目。 */
 export async function prepareSkillImport(body, fetcher = netFetch) {
   if (body.files) return previewSkillFiles(body.files)
@@ -549,6 +591,10 @@ export async function prepareSkillImport(body, fetcher = netFetch) {
     // GitHub 档案有统一顶层目录，本地 ZIP 也允许把一个技能包在文件夹里。
     const first = names[0]?.split('/')[0]
     const wrapper = first && names.every((name) => name.startsWith(first + '/')) ? first + '/' : ''
+    const targetSkillId = typeof body.skillId === 'string' ? body.skillId.trim() : ''
+    if (!selected && targetSkillId) {
+      selected = await resolveTargetSkillDir(zip, entries, wrapper, targetSkillId)
+    }
     const files = []; let total = 0
     for (const [name, entry] of entries) {
       const path = name.slice(wrapper.length)
@@ -556,15 +602,9 @@ export async function prepareSkillImport(body, fetcher = netFetch) {
       importPath(path)
       if (path.split('/').some((part) => part === '.git' || part === 'node_modules')) continue
       if (entry.size > SKILL_FILE_LIMIT || total + entry.size > SKILL_IMPORT_LIMIT || files.length >= 2000) throw new Error('技能包过大：单文件最多 2 MB，总计最多 16 MB，2000 个文件')
-      const chunks = []; let size = 0
-      await readZipEntry(zip, entry, (chunk) => {
-        size += chunk.length
-        if (size > SKILL_FILE_LIMIT || total + size > SKILL_IMPORT_LIMIT) throw new Error('技能文件解压后过大')
-        chunks.push(chunk)
-      })
-      const data = Buffer.concat(chunks)
-      if (size !== entry.size || crc32(data) !== entry.crc32) throw new Error('技能 ZIP 文件校验失败')
-      total += size; files.push({ path, data })
+      const data = await readSkillZipData(zip, entry)
+      if (total + data.length > SKILL_IMPORT_LIMIT) throw new Error('技能文件解压后过大')
+      total += data.length; files.push({ path, data })
     }
     return previewSkillFiles(files)
   } finally { rmSync(temp, { recursive: true, force: true }) }

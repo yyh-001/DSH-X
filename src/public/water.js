@@ -89,10 +89,11 @@
   const position=gl.getAttribLocation(program,'position');gl.enableVertexAttribArray(position);gl.vertexAttribPointer(position,2,gl.FLOAT,false,0,0);
   const uniforms=Object.fromEntries(['resolution','time','night','ripples[0]'].map(n=>[n,gl.getUniformLocation(program,n)]));
   const ripples=new Float32Array(18);for(let i=0;i<6;i++)ripples[i*3+2]=-20;
-  const reduced=matchMedia('(prefers-reduced-motion: reduce)');
+  const shared=globalThis.launcherMotion;
+  const reduced=shared?null:matchMedia('(prefers-reduced-motion: reduce)');
   let frame=0,last=0,time=0,slot=0,lastRipple=-1,lost=false;
-  const active=()=>!lost&&!document.hidden&&!reduced.matches
-    &&!document.documentElement.classList.contains('reduce-motion')
+  const active=()=>!lost&&!document.hidden
+    &&(shared?.reduced?!shared.reduced():(!reduced.matches&&!document.documentElement.classList.contains('reduce-motion')&&document.documentElement.dataset.reduceMotion!=='true'))
     &&!document.documentElement.classList.contains('launcher-idle')
     &&!document.documentElement.classList.contains('background-hidden')&&!document.documentElement.classList.contains('internal-dsh-active');
   function draw(){
@@ -121,7 +122,7 @@
     slot=(slot+1)%6;lastRipple=time;
   },{passive:true});
   new MutationObserver(sync).observe(document.documentElement,{attributes:true,attributeFilter:['class','data-color-scheme']});
-  document.addEventListener('visibilitychange',sync);reduced.addEventListener('change',sync);
+  document.addEventListener('visibilitychange',sync);if(shared?.onReduceChange)shared.onReduceChange(sync);else reduced.addEventListener('change',sync);
   window.addEventListener('resize',resize);
   canvas.addEventListener('webglcontextlost',()=>{lost=true;canvas.hidden=true;sync();});
   resize();sync();

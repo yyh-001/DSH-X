@@ -19,6 +19,7 @@ import { checkPluginCompatibility } from './pre-update.js'
 import { createStartupDiagnosis } from './startup-diagnosis.js'
 import { createInstanceLink } from './instance-link.js'
 import { COMPUTER_USE_PLUGIN, DESKTOP_ENHANCE_ID, DESKTOP_ENHANCE_NAME, DESKTOP_PLUGINS, versionAtLeast } from './desktop-plugins.js'
+import { createCuratedPluginsClient } from './curated-plugins.js'
 import { bindDiagnosis, checkedRepairPlan, profileFingerprint } from './repair-plan.js'
 import { DiagnosticRepairs, verificationSummary } from './repair-actions.js'
 import { recordedChanges } from './repair-evidence.js'
@@ -37,12 +38,15 @@ import {
   patchPathOf,
   pluginsNamedInFailure,
   readPatchState,
+  readPluginPackageMeta,
   removeBundleMounted,
   setPluginEnabled,
 } from './plugins.js'
 import { listMcpServers, probeMcpServer, removeMcpServer, saveMcpServer, setMcpEnabled } from './mcp.js'
 import { latestRecovery, listPatchBackups, restoreProfileBackup, sanitizeProfile, withProfileLock } from './recovery.js'
 import { createMarketStatsReader, marketRepository } from './pack-market.js'
+import { createPluginMarketClient } from './plugin-market.js'
+import { createMcpMarketClient, createSkillMarketClient } from './tool-markets.js'
 import {
   createSkill,
   ensureProfileSkillsDir,
@@ -363,7 +367,9 @@ let HIDE_BACKGROUND = loadSettingsSync().hideBackground === true
 let HIDE_BIG_FISH = loadSettingsSync().hideBigFish === true
 // dsh 的用户目录（DSH_HOME）：留空用默认 ~/.dsh。用户把 .dsh 挪到别的盘之后，
 // 在这里指回去，否则启动器会按默认位置重建一个、dsh 也就跑到那份空数据上去了。
-let DSH_HOME_DIR = safeDshHome(loadSettingsSync().dshHome)
+// 历史设置若曾放在安装目录内，启动时不直接崩溃，退回默认目录。
+let DSH_HOME_DIR = ''
+try { DSH_HOME_DIR = safeDshHome(loadSettingsSync().dshHome) } catch { /* 历史脏值回退默认目录 */ }
 const launchScope = new AsyncLocalStorage()
 const defaultHome = () => DSH_HOME_DIR || defaultDshHome()
 /**
@@ -697,12 +703,12 @@ const REMOTE_LOCAL_API_PREFIXES = [
 ]
 const REMOTE_LOCAL_API_EXACT = new Set([
   '/api/plugin-profile',
-  '/api/computer-use/install',
   '/api/launch-home/profiles',
   '/api/pick-dir',
   '/api/pick-file',
   '/api/dsh-homes/open',
   '/api/dsh-homes/rename',
+  '/api/dsh-homes/env',
   '/api/wsl/path',
   '/api/wsl/profile',
   '/api/wsl/profile/remove',
@@ -2153,6 +2159,7 @@ async function snapshotDefault() {
     dshHome: defaultHome(),
     dshHomes: safeDshHomes(stored.dshHomes),
     dshHomeNames: safeDshHomeNames(stored.dshHomeNames),
+    userDshHome: currentUserDshHome(),
     profiles,
     webProfiles,
     profilesByHome: { [defaultHome()]: profiles },
@@ -2227,13 +2234,16 @@ async function publicSettings() {
   // 否则会出现「下拉写 English、界面还是中文」这种 LANG 与文件不一致的状态。
   LANG = resolveLang(stored.lang)
   const wslProbe = wslAvailable() ? await listWslDistros() : { available: false, distros: [], error: '当前不是 Windows，或找不到 wsl.exe' }
+  let dshHomeValue = ''
+  try { dshHomeValue = safeDshHome(stored.dshHome) } catch { /* 失效目录不阻断读取设置 */ }
   return {
     dataDir: DATA,
     dshHome: homeDir(),
     dshHomes: safeDshHomes(stored.dshHomes),
     dshHomeNames: safeDshHomeNames(stored.dshHomeNames),
+    userDshHome: currentUserDshHome({ refresh: true }),
     // 设置里填的原文（空 = 用默认位置）+ 默认位置，页面据此回显与提示
-    dshHomeValue: safeDshHome(stored.dshHome),
+    dshHomeValue,
     dshHomeDefault: defaultDshHome(),
     // port 是配置值（重启后生效），listenPort 是当前真正在监听的端口
     port: stored.port ?? DEFAULT_PORT,
@@ -2311,8 +2321,8 @@ async function publicSettings() {
     // 内置浏览器（右侧栏浏览器）：开关与证书策略。browserHost 表明当前外壳能否清理浏览数据
     // （只有 Electron 外壳拿得到 guest 分区；浏览器里打开管理页 / 旧外壳没有这层能力）。
     browserIgnoreCertificate: stored.browserIgnoreCertificate === true,
-    // 电脑操作（Computer Use）：默认关闭；computerHost 表明当前外壳带桌面操作宿主与急停开关
-    computerUse: stored.computerUse === true,
+    // 电脑操作（Computer Use）：默认开启；computerHost 表明当前外壳带桌面操作宿主与急停开关
+    computerUse: stored.computerUse !== false,
     // 能力检测统一走 capabilities.js：web 模式下这些都是 false，页面据此禁用整组开关
     browserHost: capabilities().browser,
     computerHost: capabilities().computerUse,
@@ -3309,7 +3319,11 @@ async function environmentsPayload() {
   await collectAllProfileChanges().catch((error) => pushLog(`[实例] 收集插件改动失败：${errorText(error)}`))
   const store = environmentStore()
   const state = store.readState()
-  const presets = safeLaunchPresets(loadSettingsSync().launchPresets)
+  const stored = loadSettingsSync()
+  const lang = stored.lang === 'en' ? 'en' : 'zh'
+  const presets = safeLaunchPresets(stored.launchPresets)
+  const marketSources = safePluginMarketSources(stored.pluginMarketSources)
+  const cachedMarketIcons = pluginMarketClientInstance?.cachedIcons?.(marketSources) || {}
   const environments = store.list()
   return {
     environments: environments.map((env) => {
@@ -3318,7 +3332,7 @@ async function environmentsPayload() {
       const local = new Set([...Object.keys(env.delta.dependencies), ...env.delta.bundlesAdded])
       const usedPresets = presets.filter((entry) => entry.environment === env.id)
       const target = environmentTargetProfile(store, env, presets)
-      const refPlugins = existsSync(join(target.dir, 'package.json')) ? listPlugins(target.dir).plugins : []
+      const refPlugins = existsSync(join(target.dir, 'package.json')) ? listPlugins(target.dir, { lang }).plugins : []
       const refPluginMap = new Map(refPlugins.map((item) => [item.name, item]))
       return {
         id: env.id,
@@ -3331,13 +3345,28 @@ async function environmentsPayload() {
         source: env.source,
         plugins: Object.entries(list.dependencies).map(([name, spec]) => {
           const official = isOfficialPackage(name)
-          const localSpec = isLocalSpec(spec)
+          const localParsed = localSpecPath(spec)
+          const localSpec = localParsed !== null
+          const localDirPath = localSpec ? (isAbsolute(localParsed.path) ? localParsed.path : resolve(target.dir, localParsed.path)) : ''
           const refItem = refPluginMap.get(name)
+          const refMeta = refItem && (refItem.description || refItem.title || refItem.icon) ? refItem : null
+          const directMeta = localSpec
+            ? readPluginPackageMeta(localDirPath, lang)
+            : (!refMeta ? readPluginPackageMeta(join(target.dir, 'node_modules', name), lang) : {})
+          const pkgMeta = {
+            title: refMeta?.title || directMeta.title || '',
+            description: refMeta?.description || directMeta.description || '',
+            icon: refMeta?.icon || directMeta.icon || '',
+          }
+          const icon = pkgMeta.icon || cachedMarketIcons[name] || ''
           const enabled = official ? true
             : refItem ? (refItem.toggleable ? refItem.enabled : list.bundles.includes(name))
             : list.bundles.includes(name)
           return {
             name, spec,
+            ...(pkgMeta.title ? { title: pkgMeta.title } : {}),
+            ...(pkgMeta.description ? { description: pkgMeta.description } : {}),
+            ...(icon ? { icon } : {}),
             bundle: list.bundles.includes(name),
             enabled,
             official,
@@ -4337,6 +4366,10 @@ async function exportEnvironmentNow(body) {
 
 /** 每个仓库最近的 release，和市场索引同一个缓存时长（设计稿「默认」：检查结果缓存 10 分钟）。 */
 const upstreamReleaseCache = new Map()
+let pluginMarketClientInstance = null
+let curatedPluginsClientInstance = null
+let mcpMarketClientInstance = null
+let skillMarketClientInstance = null
 
 /**
  * 一个仓库最近的几个 release（GitHub 按发布时间新到旧排）。失败也缓存：GitHub 不通时每次进环境页
@@ -4620,7 +4653,7 @@ async function saveManagerSettings(body) {
     ...('closeToTray' in body ? { closeToTray: body.closeToTray !== false } : {}),
     ...('keepAwake' in body ? { keepAwake: body.keepAwake === true } : {}),
     ...('browserIgnoreCertificate' in body ? { browserIgnoreCertificate: body.browserIgnoreCertificate === true } : {}),
-    ...('computerUse' in body ? { computerUse: body.computerUse === true } : {}),
+    ...('computerUse' in body ? { computerUse: body.computerUse !== false } : {}),
     ...('autoStart' in body ? { autoStart: Boolean(body.autoStart) } : {}),
     ...('pluginMarketSources' in body ? { pluginMarketSources: safePluginMarketSources(body.pluginMarketSources) } : {}),
     ...('autoDisablePlugins' in body ? { autoDisablePlugins: body.autoDisablePlugins !== false } : {}),
@@ -4718,6 +4751,9 @@ async function saveManagerSettings(body) {
   if ('computerUse' in body) {
     if (stored.computerUse) {
       pushLog('电脑操作（Computer Use）已开启：由 DSH-X 启动且装有插件的实例重启后可使用桌面操作工具')
+      if (typeof host.desktop?.computer === 'function') {
+        await host.desktop.computer({ op: 'resume' }).catch(() => {})
+      }
     } else {
       pushLog('电脑操作（Computer Use）已关闭，立即停止在途桌面操作')
       if (typeof host.desktop?.computer === 'function') {
@@ -4781,7 +4817,7 @@ export function dshEnv(version, options = {}) {
     DSH_X_MANAGER_URL: `http://127.0.0.1:${PORT}`,
     DSH_X_INSTANCE_KEY: `${version}@${PROFILE_NAME}`,
     ...(host.desktop ? { DSH_X_DESKTOP: '1' } : {}),
-    ...(host.desktop && typeof host.desktop.computer === 'function' && loadSettingsSync().computerUse === true
+    ...(host.desktop && typeof host.desktop.computer === 'function' && loadSettingsSync().computerUse !== false
       ? { DSH_X_COMPUTER_USE: '1' }
       : {}),
     // 只有「必须被 dsh 起的 worker 线程继承」的东西留在这里：worker 的 execArgv 是空的，
@@ -5051,6 +5087,73 @@ export function applySystemPath(enabled) {
   if (!writeUserPath(next)) return { ok: false, dir, message: '写用户 PATH 失败（注册表 HKCU\Environment 不可写？）' }
   pushLog(enabled ? `已把 ${dir} 加到用户 PATH（新开的终端生效）` : `已把 ${dir} 从用户 PATH 移除`)
   return { ok: true, dir }
+}
+
+/** 手动配置 DSH_HOME 的 shell 指令（macOS / Linux 不自动改用户的 shell 配置文件）。 */
+export function manualDshHomeCommand(dir) {
+  return dir ? `export DSH_HOME='${String(dir).replaceAll("'", "'\\''")}'` : 'unset DSH_HOME'
+}
+
+export function manualDshHomeMessage(dir) {
+  return dir
+    ? `需要在 shell 配置中手动添加：${manualDshHomeCommand(dir)}；保存后重新打开终端。启动器不会修改 shell 配置。`
+    : '如曾手动设置 DSH_HOME，请在 shell 配置中移除对应配置，再重新打开终端。启动器不会修改 shell 配置。'
+}
+
+let userDshHomeCache = null
+
+/** 读当前用户环境变量 DSH_HOME（Windows 读 HKCU\Environment；其他平台返回空串）。 */
+export function readUserDshHome() {
+  if (!IS_WINDOWS) return ''
+  const out = spawnSync('reg', ['query', 'HKCU\\Environment', '/v', 'DSH_HOME'], { windowsHide: true })
+  if (out.status !== 0) return ''
+  const stdout = typeof out.stdout === 'string' ? out.stdout : (out.stdout ? decodeProcessOutput(out.stdout) : '')
+  const line = stdout.split(/\r?\n/).find((item) => /\bDSH_HOME\b\s+REG_/i.test(item))
+  if (!line) return ''
+  const raw = line.replace(/^.*?REG_(?:EXPAND_)?SZ\s+/i, '').trim()
+  if (!raw) return ''
+  try { return safeDshHome(raw) } catch { return isAbsolute(raw) ? resolve(raw) : raw }
+}
+
+/** 取已缓存的用户环境变量 DSH_HOME；需要与系统同步时传 { refresh: true }。 */
+export function currentUserDshHome({ refresh = false } = {}) {
+  if (refresh || userDshHomeCache === null) userDshHomeCache = readUserDshHome()
+  return userDshHomeCache
+}
+
+/**
+ * 把指定的用户目录写入（或传空串移除）系统用户级环境变量 DSH_HOME，
+ * 方便外部软件（如 Magpie）直接读取当前环境目录。
+ */
+export function applyUserDshHome(dir) {
+  const target = dir ? safeDshHome(dir) : ''
+  if (!IS_WINDOWS) {
+    return {
+      ok: false,
+      home: target,
+      mode: 'manual',
+      command: manualDshHomeCommand(target),
+      message: manualDshHomeMessage(target),
+    }
+  }
+  if (target) {
+    const out = spawnSync('reg', ['add', 'HKCU\\Environment', '/v', 'DSH_HOME', '/t', 'REG_SZ', '/d', target, '/f'], { encoding: 'utf8', windowsHide: true })
+    if (out.status !== 0) {
+      return { ok: false, home: currentUserDshHome(), mode: 'automatic', message: '写用户环境变量 DSH_HOME 失败（注册表 HKCU\\Environment 不可写？）' }
+    }
+    userDshHomeCache = target
+    pushLog(`已把用户环境变量 DSH_HOME 设为 ${target}（新开的终端或重新读取用户变量后生效）`)
+    return { ok: true, home: target, mode: 'automatic' }
+  }
+  if (currentUserDshHome({ refresh: true })) {
+    const out = spawnSync('reg', ['delete', 'HKCU\\Environment', '/v', 'DSH_HOME', '/f'], { encoding: 'utf8', windowsHide: true })
+    if (out.status !== 0) {
+      return { ok: false, home: currentUserDshHome(), mode: 'automatic', message: '移除用户环境变量 DSH_HOME 失败（注册表 HKCU\\Environment 不可写？）' }
+    }
+  }
+  userDshHomeCache = ''
+  pushLog('已移除用户环境变量 DSH_HOME')
+  return { ok: true, home: '', mode: 'automatic' }
 }
 
 export function withBundledRuntime(pathValue, preferredPnpm = '') {
@@ -9605,8 +9708,8 @@ function desktopPayload() {
   const settings = loadSettingsSync()
   const hasComputer = Boolean(desktop && typeof desktop.computer === 'function')
   const computerInfo = info.computer && typeof info.computer === 'object'
-    ? { ...info.computer, enabled: settings.computerUse === true }
-    : (hasComputer ? { available: true, enabled: settings.computerUse === true } : null)
+    ? { ...info.computer, enabled: settings.computerUse !== false }
+    : (hasComputer ? { available: true, enabled: settings.computerUse !== false } : null)
   return {
     api: DESKTOP_API_VERSION,
     available: Boolean(desktop),
@@ -9624,23 +9727,13 @@ function desktopPayload() {
   }
 }
 
-function computerUsePluginInstalled(profile = PROFILE_NAME) {
-  try {
-    const manifest = JSON.parse(readFileSync(join(profileDirOf(profile), 'package.json'), 'utf8'))
-    const deps = manifest?.dependencies && typeof manifest.dependencies === 'object' ? manifest.dependencies : {}
-    return Object.hasOwn(deps, COMPUTER_USE_PLUGIN.name) || Object.hasOwn(deps, 'dsh-x-desktop-bundle')
-  } catch {
-    return false
-  }
-}
-
 async function computerUsePayload(profile = PROFILE_NAME) {
   const stored = loadSettingsSync()
   const caps = capabilities()
   const desktop = host.desktop
   let status = {
     available: false,
-    enabled: stored.computerUse === true,
+    enabled: stored.computerUse !== false,
     halted: false,
     running: false,
     activeCount: 0,
@@ -9666,10 +9759,8 @@ async function computerUsePayload(profile = PROFILE_NAME) {
   return {
     desktopShell: caps.windowHost,
     computerHost: caps.computerUse,
-    enabled: stored.computerUse === true,
+    enabled: stored.computerUse !== false,
     profile,
-    plugin: COMPUTER_USE_PLUGIN,
-    pluginInstalled: launchIsRemote() ? false : computerUsePluginInstalled(profile),
     ...status,
   }
 }
@@ -10887,6 +10978,64 @@ async function handleApi(req, res, url) {
     }
     return
   }
+  // 精选插件与桌面增强列表（精选清单从 GitHub 仓库读取；未指定 scope=curated 时兼容查询设置里的插件市场源）
+  if (url.pathname === '/api/plugin-market') {
+    if (req.method !== 'GET') {
+      send(res, 405, { error: '/api/plugin-market 只支持 GET' })
+      return
+    }
+    try {
+      const stored = loadSettingsSync()
+      const refresh = url.searchParams.get('refresh') === '1'
+      const scope = String(url.searchParams.get('scope') || '').trim()
+      curatedPluginsClientInstance ??= createCuratedPluginsClient({
+        cacheFile: join(APP_DIR, 'curated-plugins-cache.json'),
+      })
+      const curatedPromise = curatedPluginsClientInstance.load({ refresh })
+      let marketResult = {
+        sources: [],
+        activeUrl: '',
+        categories: [],
+        entries: [],
+        marketIcons: {},
+        total: 0,
+        nextOffset: null,
+        error: '',
+      }
+      let curatedResult
+      if (scope === 'curated') {
+        curatedResult = await curatedPromise
+        marketResult.marketIcons = pluginMarketClientInstance?.cachedIcons?.(safePluginMarketSources(stored.pluginMarketSources)) || {}
+      } else {
+        const sources = safePluginMarketSources(stored.pluginMarketSources)
+        pluginMarketClientInstance ??= createPluginMarketClient()
+        const marketPromise = pluginMarketClientInstance.query(sources, {
+          activeUrl: String(url.searchParams.get('source') || ''),
+          category: String(url.searchParams.get('category') || 'all'),
+          q: String(url.searchParams.get('q') || ''),
+          lang: stored.lang === 'en' ? 'en' : 'zh',
+          offset: Number(url.searchParams.get('offset') || 0),
+          limit: Number(url.searchParams.get('limit') || 60),
+          refresh,
+        })
+        ;[marketResult, curatedResult] = await Promise.all([marketPromise, curatedPromise])
+      }
+      send(res, 200, {
+        ...marketResult,
+        desktopEnhance: [...DESKTOP_PLUGINS, COMPUTER_USE_PLUGIN].map((plugin) => ({
+          name: plugin.name,
+          spec: plugin.spec,
+          installSpec: `${plugin.name}@${plugin.spec}`,
+          label: plugin.label,
+          minDsh: plugin.minDsh,
+        })),
+        ...curatedResult,
+      })
+    } catch (error) {
+      send(res, 400, { error: error instanceof Error ? error.message : String(error) })
+    }
+    return
+  }
   // 电脑操作（Computer Use）管理页接口：读状态/审计、全局急停/恢复、清空审计、把插件装进配置
   if (url.pathname === '/api/computer-use' || url.pathname.startsWith('/api/computer-use/')) {
     if (url.pathname === '/api/computer-use') {
@@ -10904,34 +11053,6 @@ async function handleApi(req, res, url) {
     }
     if (req.method !== 'POST') {
       send(res, 405, { error: '操作接口只支持 POST' })
-      return
-    }
-    if (url.pathname === '/api/computer-use/install') {
-      const profile = safeProfile(String(body.profile || '') || PROFILE_NAME)
-      if (pluginBusy) {
-        send(res, 409, { error: '正在装插件或整合包，等它结束再试' })
-        return
-      }
-      let version
-      try {
-        version = await pluginCommandVersion(profile)
-      } catch (error) {
-        send(res, 400, { error: error instanceof Error ? error.message : String(error) })
-        return
-      }
-      if (!versionAtLeast(version, COMPUTER_USE_PLUGIN.minDsh)) {
-        send(res, 400, { error: `${COMPUTER_USE_PLUGIN.label} 需要 dsh ${COMPUTER_USE_PLUGIN.minDsh} 或更高版本` })
-        return
-      }
-      try {
-        pushLog(`电脑操作：安装 ${COMPUTER_USE_PLUGIN.name} 到 ${profile}`)
-        await addPlugin(version, `${COMPUTER_USE_PLUGIN.name}@${COMPUTER_USE_PLUGIN.spec}`, { profile })
-        send(res, 200, { ok: true, ...(await computerUsePayload(profile)) })
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        pushLog(`电脑操作：${COMPUTER_USE_PLUGIN.name} 安装失败：${message}`)
-        send(res, 400, { error: message })
-      }
       return
     }
     if (!host.desktop || typeof host.desktop.computer !== 'function') {
@@ -11180,6 +11301,22 @@ async function handleApi(req, res, url) {
     await emitState()
     return
   }
+  if (req.method === 'POST' && url.pathname === '/api/dsh-homes/env') {
+    const raw = typeof body.home === 'string' ? body.home.trim() : ''
+    const target = raw ? safeDshHome(raw) : ''
+    let canonical = target
+    if (target) {
+      const stored = await loadSettings()
+      const same = (home) => fileManager.samePath(home, target)
+      canonical = knownHomes(stored).find(same) || ''
+      if (!canonical) throw new Error('只支持将已登记的用户目录设为 DSH_HOME')
+    }
+    const result = applyUserDshHome(canonical)
+    if (!result.ok && result.mode === 'automatic') throw new Error(result.message)
+    send(res, 200, { ...result, userDshHome: currentUserDshHome() })
+    await emitState()
+    return
+  }
   if (req.method === 'POST' && url.pathname === '/api/tray/action') {
     send(res, 200, await trayAction(body))
     return
@@ -11190,16 +11327,6 @@ async function handleApi(req, res, url) {
   }
   if (req.method === 'POST' && url.pathname === '/api/launch-presets') {
     const saved = await saveLaunchPreset(body)
-    // 桌面增强跟着启动项走：启动项落盘之后（写锁已经放掉）再补装缺的，
-    // 装插件慢也不会卡住别的启动项编辑。失败只带回结果，启动项本身已经保存成功。
-    if (body.desktopEnhance === true && saved?.entry?.profile) {
-      const home = saved.entry.dshHome || defaultHome()
-      saved.desktopEnhance = await launchScope.run({ home }, () => installDesktopEnhance(saved.entry.profile))
-      // 已经装齐时是空转（missing 0），不刷日志
-      if (saved.desktopEnhance.missing > 0) {
-        pushLog(`桌面增强：${saved.entry.profile} 安装完成，成功 ${saved.desktopEnhance.installed.length} 个${saved.desktopEnhance.failed.length ? `，失败 ${saved.desktopEnhance.failed.length} 个` : ''}（下次启动时加载；正在运行的实例重启后生效）`)
-      }
-    }
     send(res, 200, saved)
     return
   }
@@ -11695,6 +11822,24 @@ async function handleApi(req, res, url) {
     send(res, 200, { ...listMcpServers(patchFileFor(targetProfile)), profile: targetProfile })
     return
   }
+  if (req.method === 'GET' && url.pathname === '/api/mcp-market') {
+    try {
+      const stored = loadSettingsSync()
+      mcpMarketClientInstance ??= createMcpMarketClient()
+      const data = await mcpMarketClientInstance.query({
+        mode: String(url.searchParams.get('mode') || 'curated'),
+        q: String(url.searchParams.get('q') || ''),
+        lang: stored.lang === 'en' ? 'en' : 'zh',
+        limit: Number(url.searchParams.get('limit') || 30),
+        cursor: String(url.searchParams.get('cursor') || ''),
+        refresh: url.searchParams.get('refresh') === '1',
+      })
+      send(res, 200, data)
+    } catch (error) {
+      send(res, 400, { error: error instanceof Error ? error.message : String(error) })
+    }
+    return
+  }
   if (req.method === 'POST' && url.pathname === '/api/mcp/save') {
     const targetProfile = targetMcpProfile(url, body)
     const patch = patchFileFor(targetProfile)
@@ -11754,6 +11899,49 @@ async function handleApi(req, res, url) {
   if (req.method === 'GET' && url.pathname === '/api/skills') {
     const skillProfile = targetSkillsProfile(url, null)
     send(res, 200, { ...skillsPayload(skillProfile), profile: skillProfile || PROFILE_NAME })
+    return
+  }
+  if (req.method === 'GET' && url.pathname === '/api/skill-market') {
+    try {
+      skillMarketClientInstance ??= createSkillMarketClient()
+      const data = await skillMarketClientInstance.query({
+        mode: String(url.searchParams.get('mode') || 'market'),
+        q: String(url.searchParams.get('q') || ''),
+        page: Number(url.searchParams.get('page') || 0),
+        limit: Number(url.searchParams.get('limit') || 30),
+        refresh: url.searchParams.get('refresh') === '1',
+      })
+      send(res, 200, data)
+    } catch (error) {
+      send(res, 400, { error: error instanceof Error ? error.message : String(error) })
+    }
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/api/skills/market-install') {
+    try {
+      const source = String(body.source || '').trim()
+      const skillId = String(body.skillId || '').trim()
+      if (!source || !skillId) throw new Error('缺少技能来源或名称')
+      const packages = await prepareSkillImport({
+        source,
+        skillId,
+        ...(body.ref ? { ref: String(body.ref) } : {}),
+      })
+      const targetPkg = packages.find((item) =>
+        item.name === skillId
+        || item.id === `${skillId}/SKILL.md`
+        || item.id.endsWith(`/${skillId}/SKILL.md`)
+      ) || packages[0]
+      if (!targetPkg) throw new Error(`未在仓库中找到技能「${skillId}」`)
+      const skillProfile = targetSkillsProfile(url, body)
+      const root = rootDirOf(skillRoots(homeDir(), skillProfile), body.root || 'dsh')
+      const result = installSkillPackages(root, packages, [targetPkg.id])
+      syncActiveProfileSkills(skillProfile)
+      pushLog(`从市场安装技能完成：${result.installed.join('、')}`)
+      send(res, 200, { ok: true, ...result, ...skillsPayload(skillProfile), profile: skillProfile || PROFILE_NAME })
+    } catch (error) {
+      send(res, 400, { error: error instanceof Error ? error.message : String(error) })
+    }
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/skills/preview') {
@@ -11918,7 +12106,9 @@ async function handleApi(req, res, url) {
   }
   if (req.method === 'POST' && url.pathname === '/api/pick-dir') {
     try {
-      send(res, 200, { path: await pickDirectory(safeDshHome(body.initialPath)) })
+      let initialPath = ''
+      try { initialPath = safeDshHome(body.initialPath) } catch { initialPath = '' }
+      send(res, 200, { path: await pickDirectory(initialPath) })
     } catch (error) {
       pushLog(`目录选择失败: ${error?.message || error}`)
       send(res, 200, { path: '', error: error?.message || String(error) })

@@ -612,6 +612,7 @@ test('导航与页标题：新对象那页叫「实例」，dsh profile 那页�
   const navLabel = (pane) => new RegExp(`data-pane="${pane}">\\s*<svg[^>]*>[\\s\\S]*?</svg>\\s*<span data-i18n="([^"]+)">([^<]+)</span>`).exec(nav)?.slice(1)
   assert.deepEqual(navLabel('environments'), ['实例', '实例'], '实例页的导航项')
   assert.deepEqual(navLabel('plugins'), ['配置', '配置'], '配置页（dsh profile）的导航项')
+  assert.ok(nav.indexOf('data-pane="environments"') < nav.indexOf('data-pane="remote"'), '左侧菜单中「实例」排在「远程」上面')
   const envPane = slice('<section class="pane" id="pane-environments">', '<section class="pane fill" id="pane-mcp">')
   assert.match(envPane, /<h1 class="pane-title" data-i18n="实例">实例<\/h1>/, '实例页的标题')
   const profilePane = slice('<section class="pane" id="pane-plugins">', '<section class="pane" id="pane-environments">')
@@ -656,13 +657,13 @@ test('英文词典：实例那组译成 Instance，配置那组仍叫 Profile，
   }
 })
 
-test('改写过的四句说明：讲清「实例 = 装好插件的 DSH」，改动下次启动生效；中英一一对上', () => {
+test('改写过的四句说明：实例副标题简化，改动下次启动生效；中英一一对上', () => {
   const dict = enDict()
   const envPane = slice('<section class="pane" id="pane-environments">', '<section class="pane fill" id="pane-mcp">')
-  const intro = '实例 = 装好插件的 DSH。启动项选一个实例和一个配置；在这里改的插件，下次启动时生效。'
+  const intro = '管理各实例的 DSH 版本、插件、MCP 与技能。'
   assert.ok(envPane.includes(`<p class="pane-sub" data-i18n="${intro}">${intro}</p>`), '实例页标题下的说明')
   const expected = {
-    [intro]: 'An instance is DSH with its plugins installed. A launch entry picks one instance and one profile; plugin changes made here apply at the next launch.',
+    [intro]: "Manage each instance's DSH version, plugins, MCP servers, and skills.",
     '改动在下次用这个实例启动时生效。': 'Changes apply the next time something launches with this instance.',
     '实例「{name}」已更新到 {version}，下次用它启动时生效。': 'Instance “{name}” updated to {version}. It applies at the next launch.',
     '现在装在配置：{names}。': 'Currently installed in profiles: {names}.',
@@ -937,7 +938,7 @@ test('配置页标题下有一行说明（和实例页一样）：配置 = dsh �
   assert.match(pane.slice(pane.indexOf(title) + title.length, pane.indexOf(sub)), /^\s*$/, '说明紧跟在标题下面')
   // 实例页同一个排法
   const envPane = slice('<section class="pane" id="pane-environments">', '<section class="pane fill" id="pane-mcp">')
-  assert.match(envPane, /<h1 class="pane-title" data-i18n="实例">实例<\/h1>\s*<p class="pane-sub" data-i18n="实例 = 装好插件的 DSH。/)
+  assert.match(envPane, /<h1 class="pane-title" data-i18n="实例">实例<\/h1>\s*<p class="pane-sub" data-i18n="管理各实例的 DSH 版本、插件、MCP 与技能。/)
   assert.equal(dict[intro], 'A profile is a dsh profile: plugin switches, plugin settings and MCP servers live here, while sessions and memories are shared by all profiles. A launch entry picks one instance and one profile.')
 })
 

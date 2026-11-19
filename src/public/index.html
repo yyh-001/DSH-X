@@ -40,10 +40,10 @@
       })
     })()
   </script>
-  <link rel="stylesheet" href="/launcher.css?v=20261105-picker-motion" />
-  <link rel="stylesheet" href="/mascot.css" />
-  <link rel="stylesheet" href="/theme.css?v=chrome-tabs-20261028" />
-  <link rel="stylesheet" href="/launcher-boot.css?v=20261102" />
+  <link rel="stylesheet" href="/launcher.css?v=20261119s" />
+  <link rel="stylesheet" href="/mascot.css?v=20261119" />
+  <link rel="stylesheet" href="/theme.css?v=20261119s" />
+  <link rel="stylesheet" href="/launcher-boot.css?v=20261119" />
 </head>
 <body>
   <div class="launcher-boot" id="launcherBoot" hidden>
@@ -54,8 +54,9 @@
       <p class="launcher-boot-status" id="launcherBootStatus" role="status">正在加载控制台…</p>
     </div>
   </div>
-  <script src="/launcher-boot.js?v=20261007e"></script>
-  <script src="/launch-list.js?v=20261007"></script>
+  <script src="/motion.js?v=20261119"></script>
+  <script src="/launcher-boot.js?v=20261119"></script>
+  <script src="/launch-list.js?v=20261119"></script>
   <div class="backdrop" aria-hidden="true">
     <canvas class="water-surface" aria-hidden="true"></canvas>
     <div class="backdrop-character"></div>
@@ -111,14 +112,14 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-settings"/></svg>
             <span data-i18n="常规">常规</span>
           </button>
-          <button type="button" class="nav-item" data-pane="remote">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-server"/></svg>
-            <span data-i18n="远程">远程</span>
-          </button>
           <!-- 环境 = DSH 版本 + 插件清单；下面那页是 Profile（配置与数据）。两者在启动项里组合。 -->
           <button type="button" class="nav-item" data-pane="environments">
             <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-package"/></svg>
             <span data-i18n="实例">实例</span>
+          </button>
+          <button type="button" class="nav-item" data-pane="remote">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-server"/></svg>
+            <span data-i18n="远程">远程</span>
           </button>
           <button type="button" hidden class="nav-item" data-pane="plugins">
             <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-box"/></svg>
@@ -201,7 +202,7 @@
             <div class="pane-top" id="environmentTop">
               <div>
                 <h1 class="pane-title" data-i18n="实例">实例</h1>
-                <p class="pane-sub" data-i18n="实例 = 装好插件的 DSH。启动项选一个实例和一个配置；在这里改的插件，下次启动时生效。">实例 = 装好插件的 DSH。启动项选一个实例和一个配置；在这里改的插件，下次启动时生效。</p>
+                <p class="pane-sub" data-i18n="管理各实例的 DSH 版本、插件、MCP 与技能。">管理各实例的 DSH 版本、插件、MCP 与技能。</p>
               </div>
               <!-- 和配置页「＋ 新建配置」同一排、同一种按钮：最常用的放最右，检查更新退成图标。
                    名字不再常驻输入框（标题旁一条空输入框比动作本身还抢眼），点「新建实例」才弹窗问。 -->
@@ -232,54 +233,105 @@
                   <button class="ghost icon-btn pack-tool danger" id="environmentDelete" type="button" title="删除实例" aria-label="删除实例" data-i18n-title="删除实例" data-i18n-aria-label="删除实例"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-trash-2"/></svg></button>
                 </div>
               </div>
-              <div class="environment-form" id="environmentUpstream" hidden>
-                <span class="hint" id="environmentUpstreamText" role="status" aria-live="polite"></span>
-              </div>
-              <div class="environment-form" id="environmentHistoryRow" hidden>
-                <select id="environmentHistory" aria-label="之前的版本" data-i18n-aria-label="之前的版本"></select>
-                <button class="ghost icon-btn" id="environmentRestore" type="button" title="切回这一份" aria-label="切回这一份" data-i18n-title="切回这一份" data-i18n-aria-label="切回这一份"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-rotate-ccw"/></svg></button>
-              </div>
-              <form class="environment-form" id="environmentEditForm">
-                <input id="environmentName" type="text" autocomplete="off" required aria-label="实例名称" data-i18n-aria-label="实例名称" />
-                <select id="environmentVersion" aria-label="DSH 版本" data-i18n-aria-label="DSH 版本"></select>
-                <!-- 版本类型、管理版本和启动项编辑框里是同一套控件（三档开关、版本管理弹窗） -->
-                <div class="launch-channel-control">
-                  <span class="launch-switch">
-                    <input class="channel-switch" id="environmentChannel" type="range" min="0" max="2" step="1" value="0" aria-label="版本类型" data-i18n-aria-label="版本类型" />
-                    <span class="launch-switch-knob" aria-hidden="true"></span>
-                  </span>
-                  <span class="channel-switch-name" id="environmentChannelName" aria-hidden="true"></span>
-                </div>
-                <button class="ghost icon-btn" id="environmentManageVersions" type="button" title="管理版本" aria-label="管理版本" data-i18n-title="管理版本" data-i18n-aria-label="管理版本"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-layout-list"/></svg></button>
-                <button class="ghost icon-btn" id="environmentSave" type="submit" title="保存" aria-label="保存" data-i18n-title="保存" data-i18n-aria-label="保存"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-save"/></svg></button>
-              </form>
               <div class="environment-toolbar">
                 <div class="launch-isolation-tabs environment-tabs" id="environmentTabs" role="tablist" aria-label="实例内容" data-i18n-aria-label="实例内容" data-active="plugins">
                   <button type="button" class="launch-isolation-tab" role="tab" data-env-tab="plugins" aria-selected="true" data-i18n="插件">插件</button>
                   <button type="button" class="launch-isolation-tab" role="tab" data-env-tab="mcp" aria-selected="false" data-i18n="MCP">MCP</button>
                   <button type="button" class="launch-isolation-tab" role="tab" data-env-tab="skills" aria-selected="false" data-i18n="技能">技能</button>
+                  <button type="button" class="launch-isolation-tab" role="tab" data-env-tab="config" aria-selected="false" data-i18n="配置" data-i18n-en="Config">配置</button>
                 </div>
                 <div class="environment-tab-actions" id="environmentTabActions">
-                  <div class="plugin-actions" id="environmentPluginActions">
+                  <div class="plugin-actions" id="environmentPluginCommonActions">
                     <button class="ghost icon-btn action-icon" id="environmentAddOpen" type="button" title="加入插件" aria-label="加入插件" data-i18n-title="加入插件" data-i18n-aria-label="加入插件"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-plus"/></svg></button>
+                  </div>
+                  <div class="plugin-actions" id="environmentPluginActions">
                     <button class="ghost icon-btn action-icon" id="environmentCheckCompatibility" type="button" title="检查兼容性" aria-label="检查兼容性" data-i18n-title="检查兼容性" data-i18n-aria-label="检查兼容性"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-shield-check"/></svg></button>
                     <button class="ghost icon-btn action-icon" id="environmentUpgrade" type="button" title="升级插件" aria-label="升级插件" data-i18n-title="升级插件" data-i18n-aria-label="升级插件" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-arrow-up-to-line"/></svg></button>
                     <button class="ghost icon-btn action-icon" id="environmentCheckPluginUpdates" type="button" title="检查更新" aria-label="检查更新" data-i18n-title="检查更新" data-i18n-aria-label="检查更新"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-refresh-cw"/></svg></button>
                   </div>
+                  <div class="plugin-actions" id="environmentMarketActions" hidden>
+                    <button class="ghost icon-btn action-icon" id="environmentAddRefresh" type="button" title="刷新" aria-label="刷新" data-i18n-title="刷新" data-i18n-aria-label="刷新"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-refresh-cw"/></svg></button>
+                  </div>
                 </div>
               </div>
-              <!-- 插件卡片只留兼容性提示与插件列表；有插件更新时露出单行「更新到 x」与右上批量升级 -->
-              <div class="plugin-list environment-plugins" id="environmentPluginsBox">
-                <div class="launch-compatibility environment-compatibility" id="environmentCompatibility" aria-live="polite" hidden>
-                  <p class="hint compatibility-status" id="environmentCompatibilityStatus"></p>
-                  <ul class="compatibility-issues" id="environmentCompatibilityIssues" hidden></ul>
-                  <p class="hint" data-i18n="仅检查插件声明的版本要求，不保证运行时行为。">仅检查插件声明的版本要求，不保证运行时行为。</p>
+              <!-- 插件页分「已安装」与「市场」两个子页签，市场直接内嵌在这里，不再套一层弹窗 -->
+              <div class="environment-plugins-box" id="environmentPluginsBox">
+                <div class="environment-plugin-subbar">
+                  <div class="environment-plugin-subtabs" id="environmentPluginSubtabs" role="tablist" aria-label="插件视图" data-i18n-aria-label="插件视图">
+                    <button type="button" class="environment-subtab is-active" role="tab" data-plugin-subtab="installed" aria-selected="true"><span data-i18n="已安装">已安装</span><span class="environment-subtab-count" id="environmentInstalledCount">0</span></button>
+                    <button type="button" class="environment-subtab" role="tab" data-plugin-subtab="curated" aria-selected="false"><span data-i18n="DSH-X 精选">DSH-X 精选</span></button>
+                    <button type="button" class="environment-subtab" role="tab" data-plugin-subtab="market" aria-selected="false"><span data-i18n="插件市场">插件市场</span></button>
+                  </div>
+                  <div class="environment-market-tools" id="environmentMarketTools" hidden>
+                    <select id="environmentAddSource" class="plugin-market-source" aria-label="插件市场索引源" data-i18n-aria-label="插件市场索引源" hidden></select>
+                    <label class="plugin-market-search" aria-label="搜索插件" data-i18n-aria-label="搜索插件">
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-search"/></svg>
+                      <input id="environmentAddSearch" type="search" autocomplete="off" spellcheck="false" data-placeholder-i18n="搜索插件" />
+                    </label>
+                  </div>
                 </div>
-                <div id="environmentPluginList"></div>
+                <div class="environment-installed-pane" id="environmentInstalledPane">
+                  <div class="launch-compatibility environment-compatibility" id="environmentCompatibility" aria-live="polite" hidden>
+                    <p class="hint compatibility-status" id="environmentCompatibilityStatus"></p>
+                    <ul class="compatibility-issues" id="environmentCompatibilityIssues" hidden></ul>
+                    <p class="hint" data-i18n="仅检查插件声明的版本要求，不保证运行时行为。">仅检查插件声明的版本要求，不保证运行时行为。</p>
+                  </div>
+                  <div class="plugin-installed-list" id="environmentPluginList"></div>
+                </div>
+                <div class="environment-market-pane" id="environmentMarketPane" hidden>
+                  <div class="environment-market-form">
+                    <div class="plugin-market-tabs" id="environmentAddCategories" role="tablist" aria-label="插件分类" data-i18n-aria-label="插件分类" hidden></div>
+                    <div class="plugin-market-body">
+                      <div class="plugin-market-scroll" id="environmentAddMarket"></div>
+                      <p class="hint profile-error" id="environmentAddError" role="alert" hidden></p>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div id="environmentMcpHost" hidden></div>
               <div id="environmentSkillsHost" hidden></div>
-              <p class="hint" id="environmentUsage"></p>
+              <div class="environment-config-box" id="environmentConfigBox" hidden>
+                <div class="environment-config-card">
+                  <form class="environment-form environment-config-form" id="environmentEditForm">
+                    <div class="environment-config-inline-grid">
+                      <div class="environment-config-field">
+                        <label for="environmentName" data-i18n="实例名称">实例名称</label>
+                        <input id="environmentName" type="text" autocomplete="off" required aria-label="实例名称" data-i18n-aria-label="实例名称" />
+                      </div>
+                      <div class="environment-config-field">
+                        <label for="environmentVersion" data-i18n="DSH 版本">DSH 版本</label>
+                        <div class="environment-config-version-row">
+                          <select id="environmentVersion" aria-label="DSH 版本" data-i18n-aria-label="DSH 版本"></select>
+                          <!-- 版本类型、管理版本和启动项编辑框里是同一套控件（三档开关、版本管理弹窗） -->
+                          <div class="launch-channel-control">
+                            <span class="launch-switch">
+                              <input class="channel-switch" id="environmentChannel" type="range" min="0" max="2" step="1" value="0" aria-label="版本类型" data-i18n-aria-label="版本类型" />
+                              <span class="launch-switch-knob" aria-hidden="true"></span>
+                            </span>
+                            <span class="channel-switch-name" id="environmentChannelName" aria-hidden="true"></span>
+                          </div>
+                          <button class="ghost icon-btn" id="environmentManageVersions" type="button" title="管理版本" aria-label="管理版本" data-i18n-title="管理版本" data-i18n-aria-label="管理版本"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-layout-list"/></svg></button>
+                        </div>
+                      </div>
+                    </div>
+                    <p class="hint environment-config-error" id="environmentSaveStatus" role="alert" hidden></p>
+                  </form>
+                  <div class="environment-form environment-config-extra" id="environmentUpstream" hidden>
+                    <span class="hint" id="environmentUpstreamText" role="status" aria-live="polite"></span>
+                  </div>
+                  <div class="environment-form environment-config-extra environment-config-history" id="environmentHistoryRow" hidden>
+                    <span class="environment-config-extra-label" data-i18n="历史备份">历史备份</span>
+                    <div class="environment-config-history-controls">
+                      <select id="environmentHistory" aria-label="之前的版本" data-i18n-aria-label="之前的版本"></select>
+                      <button class="ghost icon-btn" id="environmentRestore" type="button" title="切回这一份" aria-label="切回这一份" data-i18n-title="切回这一份" data-i18n-aria-label="切回这一份"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-rotate-ccw"/></svg></button>
+                    </div>
+                  </div>
+                </div>
+                <div class="environment-config-info">
+                  <svg class="environment-config-info-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-info"/></svg>
+                  <p class="hint environment-config-usage" id="environmentUsage"></p>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -295,7 +347,26 @@
                 <button class="ghost icon-btn action-icon" id="mcpRefresh" type="button" title="刷新" aria-label="刷新"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-refresh-cw"/></svg></button>
               </div>
             </div>
+            <div class="environment-plugin-subbar tool-card-subbar">
+              <div class="environment-plugin-subtabs" id="mcpSubtabs" role="tablist" aria-label="MCP 视图" data-i18n-aria-label="MCP 视图">
+                <button type="button" class="environment-subtab is-active" role="tab" data-mcp-subtab="installed" aria-selected="true"><span data-i18n="已安装">已安装</span><span class="environment-subtab-count" id="mcpTotalCount">0</span></button>
+                <button type="button" class="environment-subtab" role="tab" data-mcp-subtab="curated" aria-selected="false"><span data-i18n="MCP 精选">MCP 精选</span></button>
+                <button type="button" class="environment-subtab" role="tab" data-mcp-subtab="market" aria-selected="false"><span data-i18n="MCP 市场">MCP 市场</span></button>
+              </div>
+              <div class="environment-market-tools">
+                <label class="plugin-market-search" aria-label="搜索 MCP" data-i18n-aria-label="搜索 MCP">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-search"/></svg>
+                  <input id="mcpSearch" type="search" autocomplete="off" spellcheck="false" data-placeholder-i18n="搜索 MCP" />
+                </label>
+              </div>
+            </div>
             <div class="plugin-list" id="mcpList"></div>
+            <div class="environment-market-pane tool-market-pane" id="mcpMarketPane" hidden>
+              <div class="plugin-market-body">
+                <div class="plugin-market-scroll" id="mcpMarketList"></div>
+                <p class="hint profile-error" id="mcpMarketError" role="alert" hidden></p>
+              </div>
+            </div>
             <p class="hint" id="mcpHint" data-i18n="检测会真的起进程或连端点，可能需要几秒。">检测会真的起进程或连端点，可能需要几秒。</p>
           </div>
         </section>
@@ -313,7 +384,26 @@
                 <button class="ghost icon-btn action-icon" id="skillRefresh" type="button" title="刷新" aria-label="刷新" data-i18n-title="刷新" data-i18n-aria-label="刷新"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-refresh-cw"/></svg></button>
               </div>
             </div>
+            <div class="environment-plugin-subbar tool-card-subbar">
+              <div class="environment-plugin-subtabs" id="skillSubtabs" role="tablist" aria-label="技能视图" data-i18n-aria-label="技能视图">
+                <button type="button" class="environment-subtab is-active" role="tab" data-skill-subtab="installed" aria-selected="true"><span data-i18n="已安装">已安装</span><span class="environment-subtab-count" id="skillTotalCount">0</span></button>
+                <button type="button" class="environment-subtab" role="tab" data-skill-subtab="market" aria-selected="false"><span data-i18n="技能市场">技能市场</span></button>
+                <button type="button" class="environment-subtab" role="tab" data-skill-subtab="openai" aria-selected="false"><span data-i18n="OpenAI 精选">OpenAI 精选</span></button>
+              </div>
+              <div class="environment-market-tools">
+                <label class="plugin-market-search" aria-label="搜索技能" data-i18n-aria-label="搜索技能">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-search"/></svg>
+                  <input id="skillSearch" type="search" autocomplete="off" spellcheck="false" data-placeholder-i18n="搜索技能" />
+                </label>
+              </div>
+            </div>
             <div class="plugin-list" id="skillList"></div>
+            <div class="environment-market-pane tool-market-pane" id="skillMarketPane" hidden>
+              <div class="plugin-market-body">
+                <div class="plugin-market-scroll" id="skillMarketList"></div>
+                <p class="hint profile-error" id="skillMarketError" role="alert" hidden></p>
+              </div>
+            </div>
             <p class="hint" id="skillHint"></p>
           </div>
         </section>
@@ -552,52 +642,6 @@
               </div>
               <p class="hint" id="browserHint" role="status" aria-live="polite"></p>
             </section>
-            <!-- 电脑操作（Computer Use）：默认关闭；由外壳持有桌面权限、急停与审计，不改 profile YAML。 -->
-            <section class="set-section" data-category="general" aria-labelledby="settingsComputerUseTitle">
-              <div class="set-label" id="settingsComputerUseTitle" data-i18n="电脑操作">电脑操作</div>
-              <div class="set-group">
-                <label class="toggle set-row">
-                  <span class="set-text">
-                    <span class="set-name" data-i18n="启用电脑操作">启用电脑操作</span>
-                    <span class="set-desc" data-i18n="默认关闭。开启后由 DSH-X 启动且装有电脑操作插件的 dsh 实例可向模型提供桌面查看与操作工具；首次操作某应用前会弹出授权卡片，急停与关闭立即生效。">默认关闭。开启后由 DSH-X 启动且装有电脑操作插件的 dsh 实例可向模型提供桌面查看与操作工具；首次操作某应用前会弹出授权卡片，急停与关闭立即生效。</span>
-                  </span>
-                  <input id="computerUse" type="checkbox" />
-                </label>
-                <div class="set-row">
-                  <div class="set-text">
-                    <span class="set-name" data-i18n="运行状态与急停">运行状态与急停</span>
-                    <span class="set-desc" id="computerUseStatusDesc"></span>
-                  </div>
-                  <div class="set-control computer-use-controls">
-                    <span class="computer-use-badge" id="computerUseBadge" data-i18n="未启用">未启用</span>
-                    <button class="ghost danger" id="computerUseStop" type="button" hidden data-i18n="立即停止">立即停止</button>
-                    <button class="ghost" id="computerUseResume" type="button" hidden data-i18n="恢复可用">恢复可用</button>
-                  </div>
-                </div>
-                <div class="set-row" id="computerUsePluginRow">
-                  <div class="set-text">
-                    <span class="set-name" data-i18n="当前配置插件">当前配置插件</span>
-                    <span class="set-desc" id="computerUsePluginDesc" data-i18n="需要 dsh 0.2.2 及以上版本；安装后重启对应实例即可生效。">需要 dsh 0.2.2 及以上版本；安装后重启对应实例即可生效。</span>
-                  </div>
-                  <div class="set-control">
-                    <button class="ghost" id="computerUseInstall" type="button" data-i18n="安装到当前配置">安装到当前配置</button>
-                  </div>
-                </div>
-                <div class="set-row stacked">
-                  <div class="set-text">
-                    <span class="set-name" data-i18n="操作审计记录">操作审计记录</span>
-                    <span class="set-desc" data-i18n="仅记录时间、应用、动作类型与结果，不记录输入的正文内容。">仅记录时间、应用、动作类型与结果，不记录输入的正文内容。</span>
-                  </div>
-                  <div class="set-control computer-use-controls">
-                    <button class="ghost" id="computerUseAuditRefresh" type="button" data-i18n="刷新">刷新</button>
-                    <button class="ghost" id="computerUseAuditClear" type="button" data-i18n="清空记录">清空记录</button>
-                  </div>
-                  <div class="computer-use-audit" id="computerUseAuditList"></div>
-                </div>
-              </div>
-              <p class="hint" id="computerUseBoundaryHint" data-i18n="权限边界：Windows 下不能操作以管理员身份运行的窗口（UIPI），UAC 安全桌面与锁屏界面不可操作；自己从终端直接起的 dsh 不提供桌面操作能力。">权限边界：Windows 下不能操作以管理员身份运行的窗口（UIPI），UAC 安全桌面与锁屏界面不可操作；自己从终端直接起的 dsh 不提供桌面操作能力。</p>
-              <p class="hint" id="computerUseHint" role="status" aria-live="polite"></p>
-            </section>
             <section class="set-section" data-category="advanced" aria-labelledby="settingsStorageTitle" hidden>
               <div class="set-label" data-i18n="启动与修复">启动与修复</div>
               <div class="set-group">
@@ -768,6 +812,7 @@
         <label class="mcp-field" data-mcp-row="stdio"><span data-i18n="启动命令">启动命令</span><input id="mcpCommand" type="text" placeholder="npx -y @modelcontextprotocol/server-memory" autocomplete="off" spellcheck="false" /></label>
         <label class="mcp-field" data-mcp-row="http"><span data-i18n="地址">地址</span><input id="mcpUrl" type="text" placeholder="https://mcp.example.com/mcp" autocomplete="off" spellcheck="false" /></label>
         <details class="mcp-advanced" id="mcpAdvanced"><summary data-i18n="高级选项">高级选项</summary>
+          <label class="mcp-field" data-mcp-row="stdio"><span data-i18n="环境变量（可选，每行 KEY=VALUE）">环境变量（可选，每行 KEY=VALUE）</span><textarea id="mcpEnv" rows="3" placeholder="API_KEY=…" autocomplete="off" spellcheck="false"></textarea></label>
           <label class="mcp-field" data-mcp-row="http"><span data-i18n="请求头（可选，JSON）">请求头（可选，JSON）</span><input id="mcpHeaders" type="text" placeholder='{"Authorization":"Bearer …"}' autocomplete="off" spellcheck="false" /></label>
           <label class="mcp-field"><span data-i18n="超时（毫秒，可选）">超时（毫秒，可选）</span><input id="mcpTimeout" type="number" min="1" step="1" placeholder="60000" inputmode="numeric" /></label>
         </details>
@@ -1002,16 +1047,22 @@
       <div class="profile-dialog-actions"><button class="ghost" id="environmentCreateCancel" type="button" data-i18n="取消">取消</button><button class="primary" id="environmentCreateSave" type="submit" data-i18n="创建">创建</button></div>
     </form>
   </div>
-  <!-- 加入插件：和「新建实例」同一张小卡，填插件名（可带版本）；失败留在框里，成功直接关弹窗。 -->
   <div class="ask" id="environmentAddDialog" hidden>
-    <form class="ask-card profile-dialog-card" id="environmentAddForm" role="dialog" aria-modal="true" aria-labelledby="environmentAddTitle" data-dialog-size="small">
-      <div class="dialog-heading"><h2 class="ask-title" id="environmentAddTitle" data-i18n="加入插件">加入插件</h2><button class="ghost icon-btn dialog-close" id="environmentAddClose" type="button" title="关闭" aria-label="关闭" data-i18n-title="关闭" data-i18n-aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
-      <div class="dialog-body">
-        <label for="environmentSpec" data-i18n="插件">插件</label>
-        <input id="environmentSpec" type="text" autocomplete="off" spellcheck="false" data-placeholder-i18n="插件名，可带版本：dsh-x-memory@0.1.1" />
-        <p class="hint profile-error" id="environmentAddError" role="alert" hidden></p>
+    <form class="ask-card profile-dialog-card environment-add-dialog-form" id="environmentAddForm" role="dialog" aria-modal="true" aria-labelledby="environmentAddDialogTitle" data-dialog-size="small">
+      <div class="dialog-heading">
+        <h2 class="ask-title" id="environmentAddDialogTitle" data-i18n="加入插件">加入插件</h2>
+        <button class="ghost icon-btn dialog-close" id="environmentAddClose" type="button" title="关闭" aria-label="关闭" data-i18n-title="关闭" data-i18n-aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button>
       </div>
-      <div class="profile-dialog-actions"><button class="ghost" id="environmentAddCancel" type="button" data-i18n="取消">取消</button><button class="primary" id="environmentAdd" type="submit" data-i18n="加入插件">加入插件</button></div>
+      <div class="dialog-body">
+        <label for="environmentSpec" data-i18n="插件包名或版本">插件包名或版本</label>
+        <input id="environmentSpec" type="text" autocomplete="off" spellcheck="false" data-placeholder-i18n="插件名，可带版本：dsh-x-memory@0.1.1" aria-label="插件" data-i18n-aria-label="插件" />
+        <p class="dialog-subtitle" data-i18n="支持 npm 包名、带版本号的包名，或本地包路径。">支持 npm 包名、带版本号的包名，或本地包路径。</p>
+        <p class="hint profile-error" id="environmentAddDialogError" role="alert" hidden></p>
+      </div>
+      <div class="profile-dialog-actions">
+        <button class="ghost" id="environmentAddCancel" type="button" data-i18n="取消">取消</button>
+        <button class="primary" id="environmentAdd" type="submit"><span class="spin" aria-hidden="true"></span><span data-i18n="加入插件">加入插件</span></button>
+      </div>
     </form>
   </div>
   <div class="ask" id="environmentUpdateDialog" hidden>
@@ -1222,19 +1273,6 @@
           </label>
         </div>
         <!-- /launch-custom-fields -->
-        <!-- 桌面增强：官方插件跟着启动项走。新建时按上次的选择回显；编辑时显示这个 profile
-             实际装了几个，勾选保存只补装缺的（取消勾选不会卸载）。 -->
-        <div class="launch-desktop-enhance" id="launchDesktopEnhanceField">
-          <div class="toggle launch-auto-launch">
-            <span class="launch-enhance-label">
-              <label for="launchDesktopEnhance" data-i18n="桌面增强">桌面增强</label>
-              <span class="launch-enhance-help" id="launchDesktopEnhanceHelp" tabindex="0" role="note" aria-label="桌面增强说明" aria-describedby="launchDesktopEnhanceTip">?</span>
-              <span class="launch-enhance-tip" id="launchDesktopEnhanceTip" role="tooltip" data-i18n="保存时把官方插件（原生通知、侧栏浏览器）装进这个启动项的配置，记进它用的实例；下次启动时加载，正在运行的实例重启后生效。">保存时把官方插件（原生通知、侧栏浏览器）装进这个启动项的配置，记进它用的实例；下次启动时加载，正在运行的实例重启后生效。</span>
-            </span>
-            <input id="launchDesktopEnhance" type="checkbox" aria-describedby="launchDesktopEnhanceTip" />
-          </div>
-          <p class="hint" id="launchDesktopEnhanceHint" role="status" aria-live="polite"></p>
-        </div>
       </div>
       <div class="launch-tool-actions">
         <div class="launch-version-tools" id="launchVersionTools" hidden>
@@ -1468,6 +1506,71 @@
       </div>
       <div class="ask-actions"><button class="ghost" id="pluginSourcesCancel" type="button" data-i18n="取消">取消</button><button class="primary" type="submit" data-i18n="保存">保存</button></div>
     </form>
+  </div>
+  <div class="ask" id="envLaunchConfigDialog" hidden>
+    <div class="ask-card env-launch-dialog-card" role="dialog" aria-modal="true" aria-labelledby="envLaunchConfigTitle" data-dialog-size="medium" tabindex="-1">
+      <div class="dialog-heading">
+        <h2 class="ask-title" id="envLaunchConfigTitle" data-i18n="编辑启动项">编辑启动项</h2>
+        <button class="ghost icon-btn dialog-close" id="envLaunchConfigClose" type="button" title="关闭" aria-label="关闭" data-i18n-title="关闭" data-i18n-aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button>
+      </div>
+      <div class="environment-config-card environment-launch-card" id="envLaunchConfigCard">
+        <div class="env-launch-grid-top">
+          <div class="environment-config-field">
+            <label for="envLaunchName" data-i18n="名称">名称</label>
+            <div class="env-launch-identity-control" id="envLaunchIdentityControl">
+              <div class="launch-name-row">
+                <button class="launch-icon-trigger" id="envLaunchIconTrigger" type="button" title="修改图标" aria-label="修改图标" data-i18n-title="修改图标" data-i18n-aria-label="修改图标" aria-expanded="false" aria-controls="envLaunchIconPopover"></button>
+                <input id="envLaunchName" type="text" required maxlength="32" autocomplete="off" data-placeholder-i18n="例如：工作" />
+              </div>
+              <div class="launch-icon-popover" id="envLaunchIconPopover" hidden>
+                <div class="launch-icon-picker" id="envLaunchIconPicker" role="group" aria-label="启动项图标" data-i18n-aria-label="启动项图标"></div>
+                <div class="launch-icon-upload">
+                  <button class="ghost icon-btn" id="envLaunchIconUpload" type="button" title="选择图片" aria-label="选择图片" data-i18n-title="选择图片" data-i18n-aria-label="选择图片"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-image"/></svg></button>
+                  <button class="ghost icon-btn" id="envLaunchIconReset" type="button" title="恢复默认" aria-label="恢复默认" data-i18n-title="恢复默认" data-i18n-aria-label="恢复默认"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-rotate-ccw"/></svg></button>
+                </div>
+              </div>
+              <input id="envLaunchIconFile" type="file" accept="image/png,image/jpeg,image/webp" hidden />
+              <span class="hint launch-icon-error" id="envLaunchIconHint"></span>
+            </div>
+          </div>
+          <div class="environment-config-field">
+            <label for="envLaunchPort" data-i18n="端口">端口</label>
+            <input id="envLaunchPort" type="number" min="1" max="65535" step="1" inputmode="numeric" placeholder="自动" data-placeholder-i18n="自动" aria-label="端口" data-i18n-aria-label="端口" />
+          </div>
+        </div>
+        <div class="env-launch-grid-mid">
+          <div class="environment-config-field">
+            <label for="envLaunchHome" data-i18n="用户目录">用户目录</label>
+            <div class="env-launch-dir-row">
+              <select id="envLaunchHome" aria-label="用户目录" data-i18n-aria-label="用户目录"></select>
+              <button class="ghost icon-btn" id="envLaunchBrowseHome" type="button" title="浏览…" aria-label="浏览…" data-i18n-title="浏览…" data-i18n-aria-label="浏览…"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-folder-plus"/></svg></button>
+            </div>
+          </div>
+          <div class="environment-config-field">
+            <label for="envLaunchEnvironment" data-i18n="用哪个实例">用哪个实例</label>
+            <select id="envLaunchEnvironment" aria-label="用哪个实例" data-i18n-aria-label="用哪个实例"></select>
+          </div>
+        </div>
+        <div class="env-launch-toggles">
+          <label class="toggle env-launch-auto-toggle">
+            <span data-i18n="打开启动器时启动">打开启动器时启动</span>
+            <input id="envLaunchAutoLaunch" type="checkbox" />
+          </label>
+          <label class="toggle env-launch-auto-toggle">
+            <span data-i18n="设为环境变量 DSH_HOME">设为环境变量 DSH_HOME</span>
+            <input id="envLaunchDshHomeEnv" type="checkbox" />
+          </label>
+        </div>
+        <div class="env-launch-footer-row">
+          <p class="hint env-launch-recovery-hint" id="envLaunchRecoveryHint" role="status" aria-live="polite" hidden></p>
+          <div class="env-launch-footer-actions">
+            <button class="ghost env-launch-action-btn" id="envLaunchRecover" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-wrench"/></svg><span data-i18n="修复配置">修复配置</span></button>
+            <button class="ghost danger env-launch-action-btn" id="envLaunchDelete" type="button" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-trash-2"/></svg><span data-i18n="删除启动项">删除启动项</span></button>
+          </div>
+        </div>
+        <p class="hint environment-config-error" id="envLaunchSaveStatus" role="alert" hidden></p>
+      </div>
+    </div>
   </div>
   <div class="ask" id="notice" hidden>
     <div class="ask-card" role="alertdialog" aria-modal="true" aria-labelledby="noticeTitle" data-dialog-size="small">
@@ -1921,6 +2024,10 @@
   "启动项列表已变化，请刷新后重新排序": "The launch list has changed. Refresh and reorder again",
   "移除目录": "Remove directory",
   "重命名目录": "Rename directory",
+  "设为环境变量 DSH_HOME": "Set as DSH_HOME environment variable",
+  "只支持将已登记的用户目录设为 DSH_HOME": "Only registered user directories can be set as DSH_HOME.",
+  "写用户环境变量 DSH_HOME 失败（注册表 HKCU\\Environment 不可写？）": "Failed to write user environment variable DSH_HOME (is HKCU\\Environment writable?)",
+  "移除用户环境变量 DSH_HOME 失败（注册表 HKCU\\Environment 不可写？）": "Failed to remove user environment variable DSH_HOME (is HKCU\\Environment writable?)",
   "失效的目录名": "Stale directory name",
   "清除这个失效的目录名": "Clear this stale directory name",
   "目录名称": "Directory name",
@@ -2128,9 +2235,6 @@
   "右键菜单": "Context menu",
   "浏览器": "Browser",
   "桌面增强": "Desktop enhancements",
-  "保存时把官方插件（原生通知、侧栏浏览器）装进这个启动项的配置，记进它用的实例；下次启动时加载，正在运行的实例重启后生效。": "Installs the official plugins (native notifications, sidebar browser) into this launch item's profile when you save, and records them in the instance it uses; they load on the next start, and a running instance picks them up after a restart.",
-  "正在保存并安装桌面增强…": "Saving and installing desktop enhancements…",
-  "启动项已保存，但桌面增强有 {n} 个没装上：{error}": "Launch item saved, but {n} desktop enhancement plugin(s) failed: {error}",
   "操作失败：{error}": "Action failed: {error}",
   "正在安装…": "Installing…",
   "启用右键菜单": "Enable context menu",
@@ -2150,6 +2254,7 @@
   "浏览器数据已清除（{n} 个浏览器分区）。": "Browser data cleared ({n} browser partitions).",
   "电脑操作": "Computer Use",
   "启用电脑操作": "Enable Computer Use",
+  "允许智能体查看并操作桌面应用（全局急停快捷键：Ctrl+Alt+Backspace）。": "Allow agents to view and control desktop apps (global emergency stop: Ctrl+Alt+Backspace).",
   "默认关闭。开启后由 DSH-X 启动且装有电脑操作插件的 dsh 实例可向模型提供桌面查看与操作工具；首次操作某应用前会弹出授权卡片，急停与关闭立即生效。": "Off by default. When enabled, dsh instances launched by DSH-X with the Computer Use plugin expose desktop observation and control tools; an approval card appears before first controlling an app, and stop/disable takes effect immediately.",
   "运行状态与急停": "Status & emergency stop",
   "未启用": "Disabled",
@@ -2158,10 +2263,6 @@
   "已急停": "Stopped",
   "立即停止": "Stop now",
   "恢复可用": "Resume",
-  "当前配置插件": "Current profile plugin",
-  "需要 dsh 0.2.2 及以上版本；安装后重启对应实例即可生效。": "Requires dsh 0.2.2 or newer; restart the instance after installing.",
-  "安装到当前配置": "Install to current profile",
-  "当前配置已安装": "Installed in current profile",
   "操作审计记录": "Audit log",
   "仅记录时间、应用、动作类型与结果，不记录输入的正文内容。": "Records timestamps, target apps, action types, and outcomes only. Input text is never logged.",
   "清空记录": "Clear log",
@@ -2171,8 +2272,6 @@
   "电脑操作在 DSH-X 桌面端里生效；浏览器里打开管理页时不可用。": "Computer Use only works inside the DSH-X desktop app; it is unavailable when opened in a browser.",
   "全局急停快捷键：{shortcut}": "Global emergency stop shortcut: {shortcut}",
   "正在操作 {app}": "Controlling {app}",
-  "正在安装到 {profile}…": "Installing into {profile}…",
-  "已安装到 {profile}；重启对应实例后即可生效。": "Installed into {profile}; restart that instance to take effect.",
   "电脑操作已紧急停止。": "Computer Use stopped.",
   "电脑操作已恢复就绪。": "Computer Use resumed.",
   "当前外壳版本还不支持这些开关，更新 DSH-X 后可用。": "This shell version does not support these switches yet. Update DSH-X to use them.",
@@ -2752,15 +2851,72 @@
   "版本、端口、目录和配置都在这里手动选；点「目录与配置」换目录或配置，左栏「+」加目录。": "Set version, port, directory and profile here; use Directory and profile to switch them, and + in the left column to add a directory.",
   "编辑配置…": "Edit profile…",
   "配置「{profile}」还没初始化：先用它启动一次，dsh 会把它建好，之后就能在这里编辑。": "Profile「{profile}」 is not initialized yet. Launch it once and dsh will create it; then you can edit it here.",
-  "实例 = 装好插件的 DSH。启动项选一个实例和一个配置；在这里改的插件，下次启动时生效。": "An instance is DSH with its plugins installed. A launch entry picks one instance and one profile; plugin changes made here apply at the next launch.",
+  "管理各实例的 DSH 版本、插件、MCP 与技能。": "Manage each instance's DSH version, plugins, MCP servers, and skills.",
   "建好后会打开它的详情，在那里选 DSH 版本、加插件。": "Once created, its details open so you can pick a DSH version and add plugins.",
   "新建实例": "New instance",
   "复制实例": "Duplicate",
   "删除实例": "Delete instance",
   "实例名称": "Instance name",
   "DSH 版本": "DSH version",
+  "启动项配置": "Launch settings",
+  "管理首页启动卡片的名称、目录、端口与启动选项。": "Manage the home card's name, directory, port, and launch options.",
+  "首页启动卡片显示的图标与名称": "Icon and title shown on the home launch card",
+  "用户目录与端口": "Directory & port",
+  "数据存放目录与固定访问端口（留空自动分配）": "Data directory and fixed port (leave blank for automatic)",
+  "切换此启动项使用的实例清单": "Switch which instance this launch item uses",
+  "启动 DSH-X 时自动拉起这个启动项": "Launch automatically when DSH-X opens",
+  "实例配置": "Instance settings",
+  "管理实例名称与运行版本，修改后自动保存。": "Manage instance name and DSH version; changes save automatically.",
+  "自动保存": "Auto-save",
+  "已自动保存": "Saved",
+  "保存失败：{error}": "Save failed: {error}",
+  "端口请填 1-65535，或留空自动分配": "Enter a port from 1 to 65535, or leave blank for automatic",
+  "启动项名称请填 1-32 个字符": "Launch name must be 1–32 characters",
+  "实例名称不能为空": "Instance name cannot be empty",
+  "用于区分不同用途或环境的实例": "Distinguish instances by purpose or setup",
+  "选择自动跟随最新版本或固定指定版本": "Track the latest channel release or pin a version",
+  "历史备份": "History",
   "插件名，可带版本：dsh-x-memory@0.1.1": "Plugin name, optionally with a version: dsh-x-memory@0.1.1",
   "加入插件": "Add plugin",
+  "pluginMarketSources": "pluginMarketSources",
+  "插件市场索引源": "Plugin market sources",
+  "搜索插件": "Search plugins",
+  "插件分类": "Plugin categories",
+  "DSH-X 精选": "DSH-X Picks",
+  "插件市场": "Plugin market",
+  "官方": "Official",
+  "推荐": "Featured",
+  "安装": "Install",
+  "管理与统计": "Management",
+  "性能与效率": "Performance",
+  "IM 与媒体桥接": "Bridges & Media",
+  "记忆与上下文": "Memory & Context",
+  "功能扩展": "Extensions",
+  "界面增强": "Interface",
+  "皮肤与桌宠": "Themes & Pets",
+  "全部": "All",
+  "原生通知": "Native notifications",
+  "调用系统原生通知": "Send system native notifications",
+  "DSH-X 桌面提醒与 dshDesktop 能力": "Native desktop notifications and dshDesktop bridge",
+  "侧栏浏览器": "Sidebar browser",
+  "让智能体查看并操作侧栏网页": "Let agents view and control web pages in the sidebar browser",
+  "让智能体查看并操作桌面应用": "Let agents view and control desktop apps",
+  "正在从 GitHub 获取精选插件…": "Fetching curated plugins from GitHub…",
+  "精选清单加载失败：{error}": "Failed to load curated plugins: {error}",
+  "正在读取插件市场…": "Loading plugin market…",
+  "索引加载失败：{error}": "Failed to load index: {error}",
+  "没有找到匹配的插件。": "No matching plugins found.",
+  "加载更多": "Load more",
+  "安装中…": "Installing…",
+  "已安装": "Installed",
+  "已停用": "Disabled",
+  "条目损坏": "Broken entry",
+  "搜索 MCP": "Search MCP",
+  "搜索技能": "Search skills",
+  "MCP 筛选": "MCP filter",
+  "技能筛选": "Skill filter",
+  "没有匹配的 MCP 服务器。": "No matching MCP servers.",
+  "没有匹配的技能。": "No matching skills.",
   "自动（{channel}）": "Automatic ({channel})",
   "跟随 {repo}": "Follows {repo}",
   "来源：{source}": "Source: {source}",
@@ -2918,6 +3074,33 @@
   "内置镜像 · 点开导入": "Built-in image · open to import",
   "版本、端口、用户目录和实例都在这里手动选。": "Set version, port, user directory, and instance manually here.",
   "自己挑 DSH 版本；保存时按当前配置现有的插件找到或生成一个实例。": "Pick the DSH version yourself; saving finds or creates an instance from the current profile's plugins.",
+  "查看日志": "View logs",
+  "更多操作（有插件警告）": "More actions (plugin warnings)",
+  "有插件警告": "Plugin warnings",
+  "上次启动失败": "Last launch failed",
+  "市场": "Market",
+  "插件视图": "Plugin view",
+  "插件包名或版本": "Package name or version",
+  "支持 npm 包名、带版本号的包名，或本地包路径。": "Supports npm package names, pinned versions, or local paths.",
+  "MCP 视图": "MCP view",
+  "MCP 精选": "Featured MCP",
+  "MCP 市场": "MCP Registry",
+  "技能视图": "Skill view",
+  "技能市场": "Skill Market",
+  "OpenAI 精选": "OpenAI Curated",
+  "环境变量（可选，每行 KEY=VALUE）": "Environment variables (optional, KEY=VALUE per line)",
+  "每行环境变量都要写 KEY=VALUE：{line}": "Each environment line must be KEY=VALUE: {line}",
+  "配置并安装": "Configure",
+  "{n} 次安装": "{n} installs",
+  "官方网站": "Homepage",
+  "GitHub 仓库": "GitHub",
+  "还没有精选 MCP 服务器。": "No featured MCP servers.",
+  "没有找到匹配的 MCP 服务器。": "No matching MCP servers found.",
+  "暂时无法读取 MCP 市场": "Unable to load MCP Registry",
+  "没有找到匹配的技能。": "No matching skills found.",
+  "暂时无法读取技能市场": "Unable to load Skill Market",
+  "暂无 OpenAI 精选技能。": "No OpenAI curated skills available.",
+  "已安装技能 {name}，dsh 在跑会热加载。": "Installed skill {name}. dsh reloads running sessions automatically.",
 }
 
     function t(zh, vars) {
@@ -2931,7 +3114,7 @@
     function applyLang() {
       document.documentElement.lang = lang === 'en' ? 'en' : 'zh-CN'
       for (const el of document.querySelectorAll('[data-i18n]')) {
-        el.textContent = t(el.dataset.i18n) || el.dataset.i18n
+        el.textContent = (lang === 'en' && el.dataset.i18nEn) || t(el.dataset.i18n) || el.dataset.i18n
       }
       for (const el of document.querySelectorAll('[data-placeholder-i18n]')) el.placeholder = t(el.dataset.placeholderI18n)
       // 只有图标的按钮、只有 aria 名字的控件：标记早就写在静态结构里，这里才真正翻
@@ -3117,10 +3300,6 @@
     const launchUpdateChannelHintEl = document.getElementById('launchUpdateChannelHint')
     const launchNameEl = document.getElementById('launchName')
     const launchSaveEl = document.getElementById('launchSave')
-    // 桌面增强：新建时是「保存后装」的开关，编辑时回显这个 profile 装了几个
-    const launchDesktopEnhanceFieldEl = document.getElementById('launchDesktopEnhanceField')
-    const launchDesktopEnhanceEl = document.getElementById('launchDesktopEnhance')
-    const launchDesktopEnhanceHintEl = document.getElementById('launchDesktopEnhanceHint')
     const launchDialogEl = document.getElementById('launchDialog')
     const versionManageDialogEl = document.getElementById('versionManageDialog')
     const launchLogDialogEl = document.getElementById('launchLogDialog')
@@ -3490,6 +3669,14 @@
     }, true)
     window.addEventListener('resize', closeUiSelect)
 
+    // 统一动效时长/曲线/减少动态读取，与 /motion.js 共用同一套尺度
+    const MOTION = globalThis.launcherMotion || {
+      duration: { instant: 120, fast: 150, base: 220, slow: 280, enter: 460, paneExit: 90, paneEnter: 260, dialogOpen: 220, dialogClose: 170, disclosure: 220 },
+      ease: { standard: 'cubic-bezier(.2, .8, .2, 1)', decelerate: 'cubic-bezier(.22, 1, .36, 1)', accelerate: 'cubic-bezier(.4, 0, 1, 1)', spring: 'cubic-bezier(.2, 1.3, .32, 1)' },
+      reduced: () => document.documentElement.classList.contains('reduce-motion') || matchMedia('(prefers-reduced-motion: reduce)').matches,
+    }
+    const isReducedMotion = () => MOTION.reduced()
+
     const disclosureAnimations = new WeakMap()
     // 原生 details 关闭时会立即移走内容；先完成高度过渡再关闭，快速连点可从当前高度反向。
     document.addEventListener('click', (event) => {
@@ -3497,7 +3684,7 @@
       const details = summary?.parentElement
       if (!details?.matches('.plugin-group, .pack-advanced, .pack-import-source, .plugin-packs')
         || event.target.closest('button, a, input, select')) return
-      if (document.documentElement.classList.contains('reduce-motion') || matchMedia('(prefers-reduced-motion: reduce)').matches) return
+      if (isReducedMotion()) return
       event.preventDefault()
       const previous = disclosureAnimations.get(details)
       const opening = previous ? !previous.opening : !details.open
@@ -3510,7 +3697,7 @@
       details.dataset.expanded = String(opening)
       details.style.overflow = 'hidden'
       const animation = details.animate([{ height: `${from}px` }, { height: `${to}px` }], {
-        duration: 220, easing: 'cubic-bezier(.22,.61,.36,1)', fill: 'both',
+        duration: MOTION.duration.disclosure, easing: MOTION.ease.decelerate, fill: 'both',
       })
       disclosureAnimations.set(details, { animation, opening })
       animation.onfinish = () => {
@@ -3574,9 +3761,13 @@
       else dialog.dataset.dialogClosing = 'true'
       const motion = { opening, animations: [], finished: null }
       dialogMotions.set(dialog, motion)
-      const reduced = document.documentElement.classList.contains('reduce-motion') || matchMedia('(prefers-reduced-motion: reduce)').matches
+      const reduced = isReducedMotion()
       if (!reduced && typeof dialog.animate === 'function') {
-        const options = { duration: opening ? 220 : 170, easing: opening ? 'cubic-bezier(.2,.8,.2,1)' : 'ease-in', fill: 'both' }
+        const options = {
+          duration: opening ? MOTION.duration.dialogOpen : MOTION.duration.dialogClose,
+          easing: opening ? MOTION.ease.standard : MOTION.ease.accelerate,
+          fill: 'both',
+        }
         motion.animations = [
           dialog.animate([{ opacity }, { opacity: opening ? 1 : 0 }], options),
           card.animate([{ transform }, { transform: opening ? 'translateY(0) scale(1)' : 'translateY(6px) scale(.985)' }], options),
@@ -4734,7 +4925,13 @@
       const fromIndex = navItems.findIndex((item) => navKey(item) === fromKey)
       const toIndex = navItems.findIndex((item) => navKey(item) === toKey)
       const direction = toIndex < fromIndex ? -1 : 1
-      const motion = !matchMedia('(prefers-reduced-motion: reduce)').matches && !document.documentElement.classList.contains('reduce-motion') && typeof pane.animate === 'function'
+      const lm = globalThis.launcherMotion
+      const reduced = lm ? lm.reduced() : (matchMedia('(prefers-reduced-motion: reduce)').matches || document.documentElement.classList.contains('reduce-motion'))
+      const motion = !reduced && typeof pane.animate === 'function'
+      const paneExitDuration = lm?.duration?.paneExit ?? 90
+      const paneEnterDuration = lm?.duration?.paneEnter ?? 260
+      const paneExitEase = lm?.ease?.accelerate ?? 'cubic-bezier(.4, 0, 1, 1)'
+      const paneEnterEase = lm?.ease?.spring ?? 'cubic-bezier(.2, 1.3, .32, 1)'
       if (motion) {
         const outgoing = document.querySelector('.pane.active')
         const exitTarget = outgoing?.id === 'pane-control' ? outgoing.querySelector('.launch-presets') : outgoing
@@ -4742,7 +4939,7 @@
           const exitAnimation = exitTarget.animate([
             { opacity: 1, transform: 'translateX(0)' },
             { opacity: 0, transform: `translateX(${-direction * 48}px)` },
-          ], { duration: 90, easing: 'cubic-bezier(.4, 0, 1, 1)', fill: 'both' })
+          ], { duration: paneExitDuration, easing: paneExitEase, fill: 'both' })
           activePaneAnimation = exitAnimation
           try { await exitAnimation.finished } catch { return }
           if (token !== paneMotionToken) return
@@ -4791,7 +4988,7 @@
         const enterAnimation = enterTarget.animate([
           { opacity: 0, transform: `translateX(${direction * 48}px)` },
           { opacity: 1, transform: 'translateX(0)' },
-        ], { duration: 260, easing: 'cubic-bezier(.2, 1.3, .32, 1)', fill: 'both' })
+        ], { duration: paneEnterDuration, easing: paneEnterEase, fill: 'both' })
         activePaneAnimation = enterAnimation
         enterAnimation.finished.then(() => {
           if (activePaneAnimation === enterAnimation) {
@@ -7330,10 +7527,9 @@
       launchNameEl.required = !guided
       // 新建前两档没什么可修的：环境是刚自动建的，修复入口只会让人误点；编辑和自定义里还留着。
       launchRecoverEl.hidden = guided
-      // 新建（添加实例）隐藏「打开启动器时启动」和「桌面增强」，仅在编辑已有启动项时保留。
+      // 新建（添加实例）隐藏「打开启动器时启动」，仅在编辑已有启动项时保留。
       if (typeof launchAutoLaunchEl !== 'undefined' && launchAutoLaunchEl?.parentElement) launchAutoLaunchEl.parentElement.hidden = creating
       if (typeof launchAutoLaunchGuidedEl !== 'undefined' && launchAutoLaunchGuidedEl?.parentElement) launchAutoLaunchGuidedEl.parentElement.hidden = true
-      if (typeof launchDesktopEnhanceFieldEl !== 'undefined' && launchDesktopEnhanceFieldEl) launchDesktopEnhanceFieldEl.hidden = creating
       paintLaunchIsolation()
     }
 
@@ -8402,30 +8598,6 @@
     document.getElementById('profilePickCancel').onclick = closeProfilePicker
     trapPackDialog(profilePickDialogEl, closeProfilePicker)
 
-
-    /**
-     * 编辑启动项时回显桌面增强：官方插件在这个 profile 里装齐了就勾上并锁住，
-     * 缺的保持不勾（要装就自己勾）。
-     * 装了几个不写在界面上——开关本身就是状态；数据目录可能不是全局那份，
-     * 用 x-dsh-home 把请求限定过去，读不到就按未装处理，保存时照常会再试一次。
-     */
-    async function refreshLaunchDesktopEnhance(entry) {
-      const revision = launchDialogRevision
-      try {
-        const data = await getJson(`/api/desktop-enhance?profile=${encodeURIComponent(entry.profile)}`, { home: entry.dshHome || '' })
-        if (revision !== launchDialogRevision || editingLaunchId !== entry.id) return
-        const installed = Number(data.desktopEnhance?.installed) || 0
-        const total = Number(data.desktopEnhance?.total) || 0
-        const missing = total - installed
-        launchDesktopEnhanceEl.disabled = missing <= 0
-        launchDesktopEnhanceEl.checked = missing <= 0
-      } catch {
-        if (revision !== launchDialogRevision || editingLaunchId !== entry.id) return
-        launchDesktopEnhanceEl.disabled = false
-        launchDesktopEnhanceEl.checked = false
-      }
-    }
-
     /**
      * 远端引导式新建：Profile 和目录都建在远端 core（WSL / SSH）里，页面只负责把选择翻译成
      * 作用域请求。建完把隐藏字段同步好，保存启动项时仍走同一条 /api/launch-presets。
@@ -9393,10 +9565,10 @@
       launchIconsOpen = open
       document.getElementById('launchIconTrigger').setAttribute('aria-expanded', String(open))
       popover.inert = !open
-      if (immediate || document.documentElement.classList.contains('reduce-motion') || matchMedia('(prefers-reduced-motion: reduce)').matches) { popover.hidden = !open; return }
+      if (immediate || isReducedMotion()) { popover.hidden = !open; return }
       popover.hidden = false
       // 收起完成后才隐藏；连续点击时取消旧动画，避免旧回调关掉新面板。
-      const animation = popover.animate([from, { opacity: open ? 1 : 0, transform: open ? 'translateY(0) scale(1)' : 'translateY(-6px) scale(.96)' }], { duration: open ? 200 : 160, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'both' })
+      const animation = popover.animate([from, { opacity: open ? 1 : 0, transform: open ? 'translateY(0) scale(1)' : 'translateY(-6px) scale(.96)' }], { duration: open ? MOTION.duration.base : MOTION.duration.fast, easing: MOTION.ease.standard, fill: 'both' })
       launchIconMotion = animation
       animation.finished.then(() => {
         if (launchIconMotion !== animation) return
@@ -9412,8 +9584,8 @@
     function paintLaunchIcons() {
       const trigger = document.getElementById('launchIconTrigger')
       trigger.innerHTML = launchIconMarkup(launchIcon)
-      if (paintedLaunchIcon !== null && paintedLaunchIcon !== launchIcon && !launchDialogEl.hidden && !document.documentElement.classList.contains('reduce-motion') && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        trigger.firstElementChild.animate([{ opacity: .25, transform: 'scale(.65) rotate(-10deg)' }, { opacity: 1, transform: 'scale(1) rotate(0)' }], { duration: 220, easing: 'cubic-bezier(.2,.8,.2,1)' })
+      if (paintedLaunchIcon !== null && paintedLaunchIcon !== launchIcon && !launchDialogEl.hidden && !isReducedMotion()) {
+        trigger.firstElementChild.animate([{ opacity: .25, transform: 'scale(.65) rotate(-10deg)' }, { opacity: 1, transform: 'scale(1) rotate(0)' }], { duration: MOTION.duration.base, easing: MOTION.ease.standard })
       }
       paintedLaunchIcon = launchIcon
       const picker = document.getElementById('launchIconPicker')
@@ -9469,17 +9641,29 @@
         const name = builtin && entry.name === '默认启动' ? 'DSH' : entry.name
         const busy = live?.status === 'starting' || live?.status === 'stopping'
         const ownAction = launchEntryTask(entry, version)?.phase || ''
+        const lastFailure = state.failure
+        const entryFailed = !live && !ownAction && Boolean(
+          lastFailure
+          && lastFailure.profile === entry.profile
+          && (lastFailure.home || '') === (entry.dshHome || state.dshHome || '')
+          && (!version || version === 'auto' || !lastFailure.version || lastFailure.version === version),
+        )
+        const iconStatus = live?.status === 'starting' || ownAction === 'start' || ownAction === 'install' ? 'starting'
+          : live?.status === 'stopping' || ownAction === 'stop' ? 'stopping'
+          : live?.status === 'running' ? 'running'
+          : entryFailed ? 'error' : ''
         const installBlocked = !remote && Boolean(state.installing) && !installedList().includes(version) && !versionInstalls.has(version) && live?.status !== 'running'
         const label = ownAction === 'install' ? t('安装中') : busy || ownAction
           ? t(live?.status === 'stopping' || ownAction === 'stop' ? '停止中' : '启动中') + (live?.status === 'starting' ? ` · ${startupElapsed(live)}s` : '')
           : live?.status === 'running' ? t(live.url ? '打开' : '运行中') : t('启动')
-        // 默认目录省略，独立数据目录显示在卡片上，方便辨认隔离的环境。
         // 远端自动版本的 version 是 'auto'：卡片上别把它当版本号显示，只在拿到实际版本时写出来。
         const shownVersion = version === 'auto' ? '' : version
-        const note = remote
-          ? [shownVersion || t('远程 dsh'), entry.profile, launchTargetLabel(entry)].filter(Boolean).join(' · ')
-          : [version || t('自动选择版本'), entry.profile, entry.dshHome].filter(Boolean).join(' · ')
-        // 状态不占文字：启动/停止/安装中的反馈由按钮上的转圈表示，运行中由停止按钮表示
+        const homeShort = !remote && entry.dshHome
+          ? ((typeof pluginHomeName === 'function' ? pluginHomeName(entry.dshHome, '') : '')
+            || String(entry.dshHome).replace(/[\\/]+$/, '').split(/[\\/]/).filter(Boolean).pop()
+            || entry.dshHome)
+          : ''
+        // 状态不占文字：运行/启动/停止/上次失败落在图标右下角状态点；独立目录只在卡片显示短名，完整路径放悬停提示。
         const automaticHint = wsl
           ? entry.version === 'auto' ? t('优先使用正在运行的版本，否则选择 WSL 里已装的最高版本；只用所选版本类型的版本，未安装时会在首次启动自动安装。') : ''
           : entry.backend === 'ssh'
@@ -9501,17 +9685,30 @@
         const installNote = !remote && !installedList().includes(version) && !live ? t('首次启动会自动安装') : ''
         // 启动中的阶段（启动进程 → 加载插件）显示在说明行，按钮上的秒表每秒走一格
         const startupNote = live?.status === 'starting' ? startupPhaseText(live.startupPhase) : ''
-        return `<div class="launch-preset" data-launch-key="${escapeHtml(entry.id)}">
-          <button class="launch-app-icon" type="button" data-launch-drag-handle title="${escapeHtml(t('拖动或用方向键排序'))}" aria-label="${escapeHtml(t('调整 {name} 的顺序', { name }))}">${launchIconMarkup(entry.icon)}</button>
+        const metaParts = []
+        const primaryMeta = remote ? (shownVersion || t('远程 dsh')) : (version || t('自动选择版本'))
+        if (primaryMeta) metaParts.push(`<span class="launch-meta-version">${escapeHtml(primaryMeta)}</span>`)
+        if (entry.profile) metaParts.push(`<span class="launch-meta-home">${escapeHtml(entry.profile)}</span>`)
+        if (remote) {
+          const remoteTarget = launchTargetLabel(entry)
+          if (remoteTarget) metaParts.push(`<span class="launch-meta-home">${escapeHtml(remoteTarget)}</span>`)
+        } else if (homeShort) {
+          metaParts.push(`<span class="launch-meta-home" title="${escapeHtml(entry.dshHome)}">${escapeHtml(homeShort)}</span>`)
+        }
+        if (installNote) metaParts.push(`<span class="launch-meta-note">${escapeHtml(installNote)}</span>`)
+        if (startupNote) metaParts.push(`<span class="launch-meta-note">${escapeHtml(startupNote)}</span>`)
+        const metaHtml = metaParts.join('<span class="launch-meta-sep" aria-hidden="true">·</span>')
+        const metaTitle = [!remote && entry.dshHome ? entry.dshHome : '', automaticHint].filter(Boolean).join('\n')
+        const iconTitle = entryFailed ? `${t('上次启动失败')} · ${t('拖动或用方向键排序')}` : t('拖动或用方向键排序')
+        return `<div class="launch-preset"${iconStatus ? ` data-status="${iconStatus}"` : ''} data-launch-key="${escapeHtml(entry.id)}">
+          <button class="launch-app-icon" type="button" data-launch-drag-handle title="${escapeHtml(iconTitle)}" aria-label="${escapeHtml(t('调整 {name} 的顺序', { name }))}">${launchIconMarkup(entry.icon)}${iconStatus ? '<span class="launch-status-dot" aria-hidden="true"></span>' : ''}</button>
           <span class="launch-preset-copy"><span class="launch-preset-heading">
             <span class="launch-preset-name">${escapeHtml(name)}</span>${wsl ? `<span class="launch-tag launch-tag-wsl" title="${escapeHtml(entry.wslDistro || launchWslDistroOf(entry))}">WSL</span>` : entry.backend === 'ssh' ? `<span class="launch-tag launch-tag-ssh" title="${escapeHtml(launchTargetLabel(entry))}">SSH</span>` : ''}${builtin ? `<span class="launch-builtin">${escapeHtml(t('内置'))}</span>` : ''}</span>
-            <span class="launch-preset-meta" title="${escapeHtml(automaticHint)}"><span>${escapeHtml([note, installNote, startupNote].filter(Boolean).join(' · '))}</span></span></span>
-          <span class="launch-actions">${showUpgrade ? `<button class="launch-edit launch-new-version${activeUpgrade ? ' is-installing' : ''}" type="button" data-version-id="${entry.id}" title="${escapeHtml(upgradeLabel)}" aria-label="${escapeHtml(upgradeLabel)}" ${activeUpgrade || action || state.installing ? 'disabled' : ''}><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-${activeUpgrade ? 'refresh-cw' : 'arrow-up-to-line'}"/></svg></button>` : ''}<button class="launch-edit launch-plugins"${wsl ? ' hidden' : ''} type="button" data-plugins-id="${entry.id}" title="${escapeHtml(t('管理实例'))}" aria-label="${escapeHtml(t('管理 {name}', { name }))}">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-package"/></svg></button><button class="launch-edit launch-log${issue ? ' has-issue' : ''}" type="button" data-log-id="${entry.id}" title="${escapeHtml(t('查看 {name} 的日志', { name }))}" aria-label="${escapeHtml(t('查看 {name} 的日志', { name }))}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-file-text"/></svg></button><button class="launch-edit" type="button" data-edit-id="${entry.id}" title="${escapeHtml(t('编辑 {name}', { name }))}" aria-label="${escapeHtml(t('编辑 {name}', { name }))}" ${action || state.installing || ownAction || busy ? 'disabled' : ''}>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-pencil"/></svg></button>
-          ${live ? `<button class="icon-btn launch-action" type="button" data-restart-id="${entry.id}" title="${escapeHtml(t('重启'))}" aria-label="${escapeHtml(t('重启'))}" ${action || ownAction || busy ? 'disabled' : ''}>
+            <span class="launch-preset-meta" title="${escapeHtml(metaTitle)}">${metaHtml}</span></span>
+          <span class="launch-actions">${showUpgrade ? `<button class="launch-edit launch-new-version${activeUpgrade ? ' is-installing' : ' has-update'}" type="button" data-version-id="${entry.id}" title="${escapeHtml(upgradeLabel)}" aria-label="${escapeHtml(upgradeLabel)}" ${activeUpgrade || action || state.installing ? 'disabled' : ''}><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-${activeUpgrade ? 'refresh-cw' : 'arrow-up-to-line'}"/></svg></button>` : ''}<button class="launch-edit launch-plugins"${wsl ? ' hidden' : ''} type="button" data-plugins-id="${escapeHtml(entry.id)}" title="${escapeHtml(t('管理实例'))}" aria-label="${escapeHtml(t('管理实例'))}" ${action || state.installing || ownAction || busy ? 'disabled' : ''}><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-package"/></svg></button><button class="launch-edit launch-log${issue ? ' has-issue' : ''}" type="button" data-log-id="${entry.id}" title="${escapeHtml(issue ? `${t('查看 {name} 的日志', { name })} · ${t('有插件警告')}` : t('查看 {name} 的日志', { name }))}" aria-label="${escapeHtml(t('查看 {name} 的日志', { name }))}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-file-text"/></svg></button><button class="launch-edit" type="button" data-edit-id="${escapeHtml(entry.id)}" title="${escapeHtml(t('编辑 {name}', { name }))}" aria-label="${escapeHtml(t('编辑 {name}', { name }))}" ${action || state.installing || ownAction || busy ? 'disabled' : ''}><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-pencil"/></svg></button>
+          ${live ? `<button class="icon-btn launch-action" type="button" data-restart-id="${escapeHtml(entry.id)}" title="${escapeHtml(t('重启'))}" aria-label="${escapeHtml(t('重启'))}" ${action || ownAction || busy ? 'disabled' : ''}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-rotate-cw"/></svg></button>
-          <button class="icon-btn launch-action" type="button" data-stop-id="${entry.id}" title="${escapeHtml(t('停止'))}" aria-label="${escapeHtml(t('停止'))}" ${action || ownAction || busy ? 'disabled' : ''}>
+          <button class="icon-btn launch-action launch-stop" type="button" data-stop-id="${entry.id}" title="${escapeHtml(t('停止'))}" aria-label="${escapeHtml(t('停止'))}" ${action || ownAction || busy ? 'disabled' : ''}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-square"/></svg></button>` : ''}
           <span class="launch-open"><button class="primary icon-btn launch-primary${busy || ownAction ? ' loading' : ''}" type="button" data-launch-id="${entry.id}" title="${escapeHtml(live?.status === 'running' && live.url ? '' : label)}" aria-label="${escapeHtml(label)}" ${!version || action || ownAction || installBlocked || busy || (live?.status === 'running' && !live.url) ? 'disabled' : ''}>
             <span class="spin" aria-hidden="true"></span>${live?.status === 'running'
@@ -9559,9 +9756,6 @@
       launchPresetsEl.querySelectorAll('.launch-link-value').forEach((link) => {
         link.onclick = (event) => { event.preventDefault(); void openInstance(link.getAttribute('href')) }
       })
-      launchPresetsEl.querySelectorAll('[data-edit-id]').forEach((button) => {
-        button.onclick = () => openLaunchEditor(launchEntries().find((item) => item.id === button.dataset.editId))
-      })
       launchPresetsEl.querySelectorAll('[data-version-id]').forEach((button) => {
         button.onclick = () => {
           const entry = launchEntries().find((item) => item.id === button.dataset.versionId)
@@ -9581,7 +9775,8 @@
       launchPresetsEl.querySelectorAll('[data-plugins-id]').forEach((button) => {
         button.onclick = () => {
           const entry = launchEntries().find((item) => item.id === button.dataset.pluginsId)
-          if (entry && entry.backend !== 'wsl' && entry.backend !== 'ssh' && typeof globalThis.openEnvironmentDetail === 'function') {
+          if (!entry) return
+          if (entry.backend !== 'wsl' && entry.backend !== 'ssh' && typeof globalThis.openEnvironmentDetail === 'function') {
             void globalThis.openEnvironmentDetail(entry.environment || { profile: entry.profile || 'web', home: entry.dshHome || '' }, entry)
             return
           }
@@ -9591,11 +9786,22 @@
       launchPresetsEl.querySelectorAll('[data-log-id]').forEach((button) => {
         button.onclick = () => { void openLaunchLog(launchEntries().find((item) => item.id === button.dataset.logId)) }
       })
-      launchPresetsEl.querySelectorAll('[data-stop-id]').forEach((button) => {
-        button.onclick = () => manageLaunchEntry(button.dataset.stopId, false)
+      launchPresetsEl.querySelectorAll('[data-edit-id]').forEach((button) => {
+        button.onclick = () => {
+          const entry = launchEntries().find((item) => item.id === button.dataset.editId)
+          if (!entry) return
+          if (entry.backend !== 'wsl' && entry.backend !== 'ssh' && typeof globalThis.openEnvLaunchConfig === 'function') {
+            void globalThis.openEnvLaunchConfig(entry)
+            return
+          }
+          openLaunchEditor(entry)
+        }
       })
       launchPresetsEl.querySelectorAll('[data-restart-id]').forEach((button) => {
         button.onclick = () => manageLaunchEntry(button.dataset.restartId, true)
+      })
+      launchPresetsEl.querySelectorAll('[data-stop-id]').forEach((button) => {
+        button.onclick = () => manageLaunchEntry(button.dataset.stopId, false)
       })
       launchAddEl.disabled = Boolean(action) || Boolean(state.installing)
       launchAddEl.title = launchAddEl.ariaLabel = t('添加实例')
@@ -10171,11 +10377,6 @@
       setLaunchBackend(launchBackend, entry)
       launchPortEl.value = entry?.port ? String(entry.port) : ''
       syncLaunchAutoLaunch(entry?.autoLaunch === true)
-      // 桌面增强：新建一律不勾；编辑先按未装显示，状态回来后再按实际装没装改
-      launchDesktopEnhanceEl.disabled = false
-      launchDesktopEnhanceEl.checked = false
-      launchDesktopEnhanceHintEl.textContent = ''
-      if (entry) void refreshLaunchDesktopEnhance(entry)
       launchUpdateChannelEl.value = String(UPDATE_CHANNELS.indexOf(launchChannel(entry)))
       paintLaunchChannel()
       launchDeleteEl.hidden = !entry || entry.id === DEFAULT_LAUNCH_ID
@@ -10296,10 +10497,6 @@
         const target = guided ? await prepareGuidedLaunch() : null
         // 手填目录后直接按回车也要先刷新 Profile，不能沿用上一份目录的环境列表。
         if (!guided && !await refreshLaunchHomeProfiles(true)) return
-        // 勾了就先把说明换成「正在装」：装插件要跑 pnpm，保存请求会等它
-        if (launchDesktopEnhanceEl.checked && !launchDesktopEnhanceEl.disabled) {
-          launchDesktopEnhanceHintEl.textContent = t('正在保存并安装桌面增强…')
-        }
         const data = await post('/api/launch-presets', {
           id: editingLaunchId || undefined, name: guided ? target.name : launchNameEl.value, icon: launchIcon,
           version: versionValue || 'auto',
@@ -10312,20 +10509,14 @@
           ...(guided && target.copyFrom ? { copyFrom: target.copyFrom } : {}),
           autoLaunch: launchAutoLaunchEl.checked,
           updateChannel: draftLaunchChannel(),
-          // 桌面增强只补缺的：装过的不会被动，取消勾选也不会卸载
-          desktopEnhance: launchDesktopEnhanceEl.checked,
           // 让服务端保存前补建缺失的 Profile（要复制就先复制）：一次请求就落定，
           // 不会出现「Profile 建了、启动项没存上」。
           ...(guided ? { ensureProfile: true } : {}),
         })
-        const enhanceFailed = Array.isArray(data.desktopEnhance?.failed) ? data.desktopEnhance.failed : []
         updateLaunchEntry(data.entry)
         launchSaveEl.disabled = false
         await closeLaunchEditor()
         render()
-        if (enhanceFailed.length) {
-          notify(t('启动项已保存，但桌面增强有 {n} 个没装上：{error}', { n: enhanceFailed.length, error: enhanceFailed[0].error }), t('桌面增强'))
-        }
       } catch (error) { notify(error.message) }
       finally { launchSaveEl.disabled = false; render() }
     }
@@ -10643,6 +10834,7 @@
     function applyState(data) {
       if (!data || typeof data !== 'object') return
       const previousPluginHome = pluginTargetHome()
+      const previousUserDshHome = state.userDshHome || ''
       const installed = [...new Set([...versionNames(data.installed), ...versionNames(data.versions)])]
       let running = null
       if (data.running && data.running.version) {
@@ -10664,6 +10856,7 @@
         dataDir: typeof data.dataDir === 'string' ? data.dataDir : (state.dataDir || ''),
         dshHomes: Array.isArray(data.dshHomes) ? data.dshHomes : (state.dshHomes || []),
         dshHomeNames: data.dshHomeNames || state.dshHomeNames || {},
+        userDshHome: typeof data.userDshHome === 'string' ? data.userDshHome : (state.userDshHome || ''),
         profilesByHome: data.profilesByHome && typeof data.profilesByHome === 'object'
           ? { ...(state.profilesByHome || {}), ...data.profilesByHome } : (state.profilesByHome || {}),
         // 旧服务进程（改动前起的）的 state 里没有 profiles：保留旧值，别把下拉清空
@@ -10712,6 +10905,9 @@
       paintLaunchProfiles()
       // 新建面板开着时目录/Profile 可能在别处变了（比如刚在「管理目录」里加了目录），补一次候选
       if (!launchDialogEl.hidden) paintLaunchIsolation()
+      if (state.userDshHome !== previousUserDshHome) {
+        globalThis.syncEnvLaunchDshHomeEnv?.()
+      }
       if (!userPicked) picked = preferredPick()
       render()
       if (!launchPluginScope && previousPluginHome !== pluginTargetHome()) {
@@ -10749,7 +10945,6 @@
       const events = new EventSource('/api/events')
       events.addEventListener('state', (event) => {
         applyState(JSON.parse(event.data))
-        if (computerUseSupported) void loadComputerUse()
       })
       events.addEventListener('message', (event) => {
         try {
@@ -11520,21 +11715,6 @@
     const savedBrowserPrefs = {}
     // 清理请求在飞时两个按钮都锁住：连点会造成两次全量清理，没必要
     let browserClearing = false
-    const computerUseEl = document.getElementById('computerUse')
-    const computerUseBadgeEl = document.getElementById('computerUseBadge')
-    const computerUseStatusDescEl = document.getElementById('computerUseStatusDesc')
-    const computerUseStopEl = document.getElementById('computerUseStop')
-    const computerUseResumeEl = document.getElementById('computerUseResume')
-    const computerUsePluginRowEl = document.getElementById('computerUsePluginRow')
-    const computerUsePluginDescEl = document.getElementById('computerUsePluginDesc')
-    const computerUseInstallEl = document.getElementById('computerUseInstall')
-    const computerUseAuditRefreshEl = document.getElementById('computerUseAuditRefresh')
-    const computerUseAuditClearEl = document.getElementById('computerUseAuditClear')
-    const computerUseAuditListEl = document.getElementById('computerUseAuditList')
-    const computerUseHintEl = document.getElementById('computerUseHint')
-    let savedComputerUse = false
-    let computerUseSupported = false
-    let computerUseBusy = false
     let pluginProfile = ''
     const pluginHomeEl = document.getElementById('pluginHome')
     const PLUGIN_HOME_MANAGE = '__manage__'
@@ -11876,6 +12056,10 @@
 
     function fillSettings(data) {
       if ('args' in data) argsEl.value = String(data.args ?? '')
+      if ('userDshHome' in data && typeof data.userDshHome === 'string' && typeof state === 'object' && state) {
+        state.userDshHome = data.userDshHome
+        globalThis.syncEnvLaunchDshHomeEnv?.()
+      }
       if ('lang' in data || 'langPref' in data) {
         const pref = 'langPref' in data ? data.langPref : data.lang
         uiLangEl.value = pref === 'zh' || pref === 'en' ? pref : 'system'
@@ -11981,87 +12165,7 @@
       if ('autoCleanVersions' in data) autoCleanEl.checked = data.autoCleanVersions !== false
       showSystemPrefs(data)
       showBrowserPrefs(data)
-      showComputerUsePrefs(data)
       syncUiSelects()
-    }
-
-    function paintComputerUseStatus(data) {
-      if (!data) return
-      const supported = data.desktopShell === true && data.computerHost === true
-      computerUseSupported = supported
-      computerUseEl.disabled = !supported
-      const enabled = data.enabled === true
-      const running = data.running === true
-      const halted = data.halted === true
-      computerUseBadgeEl.classList.toggle('is-running', supported && enabled && running && !halted)
-      computerUseBadgeEl.classList.toggle('is-stopped', supported && enabled && halted)
-      computerUseBadgeEl.textContent = !supported || !enabled
-        ? t('未启用')
-        : halted
-          ? t('已急停')
-          : running
-            ? t('运行中')
-            : t('已就绪')
-      const descParts = []
-      if (running && data.currentApp) descParts.push(t('正在操作 {app}', { app: data.currentApp }))
-      if (data.shortcut) descParts.push(t('全局急停快捷键：{shortcut}', { shortcut: data.shortcut }))
-      if (data.driverError) descParts.push(data.driverError)
-      computerUseStatusDescEl.textContent = descParts.join(' · ')
-      computerUseStopEl.hidden = !(supported && enabled && !halted)
-      computerUseResumeEl.hidden = !(supported && enabled && halted)
-      computerUseStopEl.disabled = computerUseBusy
-      computerUseResumeEl.disabled = computerUseBusy
-      if (data.pluginInstalled) {
-        computerUseInstallEl.textContent = t('当前配置已安装')
-        computerUseInstallEl.disabled = true
-      } else {
-        computerUseInstallEl.textContent = t('安装到当前配置')
-        computerUseInstallEl.disabled = computerUseBusy || !supported
-      }
-      if (!supported) {
-        computerUseHintEl.textContent = data.desktopShell === true
-          ? t('当前外壳版本还不支持电脑操作，更新 DSH-X 后可用。')
-          : t('电脑操作在 DSH-X 桌面端里生效；浏览器里打开管理页时不可用。')
-      } else {
-        computerUseHintEl.textContent = ''
-      }
-      const entries = Array.isArray(data.audit) ? data.audit : []
-      computerUseAuditClearEl.disabled = computerUseBusy || !supported || !entries.length
-      computerUseAuditRefreshEl.disabled = computerUseBusy || !supported
-      if (!entries.length) {
-        computerUseAuditListEl.innerHTML = `<p class="hint">${escapeHtml(t('暂无操作记录。'))}</p>`
-        return
-      }
-      computerUseAuditListEl.innerHTML = entries.slice(0, 50).map((entry) => {
-        const clock = entry.time ? new Date(entry.time).toLocaleTimeString([], { hour12: false }) : ''
-        const outcome = entry.result === 'error'
-          ? (entry.errorCode || 'ERROR')
-          : entry.result === 'stopped'
-            ? t('已急停')
-            : 'OK'
-        return `<div class="computer-use-audit-row"><div class="computer-use-audit-main"><span class="computer-use-audit-time">${escapeHtml(clock)}</span>${entry.app ? `<span class="computer-use-audit-app">${escapeHtml(entry.app)}</span>` : ''}<span class="computer-use-audit-action">${escapeHtml(entry.action || '')}</span>${entry.detail ? `<span class="computer-use-audit-detail">${escapeHtml(entry.detail)}</span>` : ''}</div><span class="computer-use-audit-result${entry.result === 'error' || entry.result === 'stopped' ? ' is-error' : ''}">${escapeHtml(outcome)}</span></div>`
-      }).join('')
-    }
-
-    async function loadComputerUse() {
-      try {
-        const data = await getJson('/api/computer-use')
-        paintComputerUseStatus(data)
-      } catch {
-        // 浏览器模式或旧核心时不打断设置页加载
-      }
-    }
-
-    function showComputerUsePrefs(data) {
-      if ('computerUse' in data) {
-        savedComputerUse = data.computerUse === true
-        if (!pendingSettings.has('computerUse')) computerUseEl.checked = savedComputerUse
-      }
-      if (!('desktopShell' in data) && !('computerHost' in data)) return
-      const supported = data.desktopShell === true && data.computerHost === true
-      computerUseSupported = supported
-      computerUseEl.disabled = !supported
-      void loadComputerUse()
     }
 
     function loadSettings() {
@@ -12157,7 +12261,6 @@
         }
         if (systemPrefRows.some(([key]) => key in patch)) showSystemPrefs(data)
         if (browserPrefRows.some(([key]) => key in patch)) showBrowserPrefs(data)
-        if ('computerUse' in patch) showComputerUsePrefs(data)
         if ('dataDir' in patch && !pendingSettings.has('dataDir') && document.activeElement !== dataDirEl) {
           dataDirEl.value = String(data.dataDir ?? patch.dataDir)
           dataDirHint.textContent = t('仅用于新安装的版本，已有版本不迁移。', { home: data.dshHome || '~/.dsh' })
@@ -12216,9 +12319,6 @@
           if (!(key in patch) || pendingSettings.has(key)) continue
           input.checked = savedBrowserPrefs[key] === true
         }
-        if ('computerUse' in patch && !pendingSettings.has('computerUse')) {
-          computerUseEl.checked = savedComputerUse === true
-        }
         settingsHint.textContent = error.message
       } finally {
         settingSaveRunning = false
@@ -12272,64 +12372,6 @@
     }
     browserClearCacheEl.onclick = () => void clearBrowserData('cache')
     browserClearAllEl.onclick = () => void clearBrowserData('all')
-    computerUseEl.onchange = () => queueSetting('computerUse', computerUseEl.checked)
-    computerUseStopEl.onclick = async () => {
-      if (computerUseBusy) return
-      computerUseBusy = true
-      try {
-        const data = await post('/api/computer-use/stop', {})
-        paintComputerUseStatus(data)
-        computerUseHintEl.textContent = t('电脑操作已紧急停止。')
-      } catch (error) {
-        computerUseHintEl.textContent = error.message
-      } finally {
-        computerUseBusy = false
-        paintComputerUseStatus({ ...(await getJson('/api/computer-use').catch(() => ({}))), desktopShell: true, computerHost: computerUseSupported })
-      }
-    }
-    computerUseResumeEl.onclick = async () => {
-      if (computerUseBusy) return
-      computerUseBusy = true
-      try {
-        const data = await post('/api/computer-use/resume', {})
-        paintComputerUseStatus(data)
-        computerUseHintEl.textContent = t('电脑操作已恢复就绪。')
-      } catch (error) {
-        computerUseHintEl.textContent = error.message
-      } finally {
-        computerUseBusy = false
-      }
-    }
-    computerUseInstallEl.onclick = async () => {
-      if (computerUseBusy) return
-      computerUseBusy = true
-      const profile = state.profile || 'web'
-      computerUseHintEl.textContent = t('正在安装到 {profile}…', { profile })
-      computerUseInstallEl.disabled = true
-      try {
-        const data = await post('/api/computer-use/install', { profile })
-        paintComputerUseStatus(data)
-        computerUseHintEl.textContent = t('已安装到 {profile}；重启对应实例后即可生效。', { profile })
-      } catch (error) {
-        computerUseHintEl.textContent = error.message
-      } finally {
-        computerUseBusy = false
-        void loadComputerUse()
-      }
-    }
-    computerUseAuditRefreshEl.onclick = () => void loadComputerUse()
-    computerUseAuditClearEl.onclick = async () => {
-      if (computerUseBusy) return
-      computerUseBusy = true
-      try {
-        const data = await post('/api/computer-use/audit/clear', {})
-        paintComputerUseStatus(data)
-      } catch (error) {
-        computerUseHintEl.textContent = error.message
-      } finally {
-        computerUseBusy = false
-      }
-    }
     uiLangEl.onchange = () => queueSetting('lang', uiLangEl.value)
     sourceEl.onchange = () => {
       // 提示行跟着换；设置交给自动保存，切完下一次查版本/下载就走新源
@@ -12532,8 +12574,8 @@
       openedPack = { profile: entry.profile }
       packPluginListEl.dataset.profile = ''
       renderPackView()
-      if (!document.documentElement.classList.contains('reduce-motion') && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        packPluginListEl.animate([{ opacity: 0, transform: 'translateY(5px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 180, easing: 'ease-out' })
+      if (!isReducedMotion()) {
+        packPluginListEl.animate([{ opacity: 0, transform: 'translateY(5px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: MOTION.duration.fast, easing: MOTION.ease.decelerate })
       }
     }
 
@@ -12544,16 +12586,21 @@
       const hostingEnvironment = Boolean(envPanel && host && envPanel.parentElement === host)
       // packBusy / 实例动作在忙或开关还在落盘时挡住关闭；删完实例（afterDelete）必须强制收尾
       if (!afterDelete && (pluginTogglePending.size || packBusy || (hostingEnvironment && environmentState?.busy))) return
+      if (!afterDelete && hostingEnvironment) {
+        await Promise.all([globalThis.flushEnvLaunchSave?.(), environmentState?.flushConfigSave?.()])
+        if (launchPluginsDialogEl.hidden || launchPluginsDialogEl.dataset.dialogClosing) return
+      }
       ++pluginDialogRequest
       closeUiSelect()
+      globalThis.closeEnvLaunchIcons?.(true)
       if (!(await hideDialog(launchPluginsDialogEl))) return
       if (hostingEnvironment) {
         const close = document.getElementById('launchPluginsClose')
         if (close) launchPluginsCardEl.querySelector('.launch-plugins-head')?.append(close)
         document.getElementById('pane-environments')?.append(envPanel)
-        environmentState.closeDetail?.()
         pluginLaunchEntry = null
         launchPluginScope = ''
+        environmentState.closeDetail?.()
         if (pluginDialogOrigin?.isConnected) pluginDialogOrigin.focus()
         else launchAddEl.focus()
         return
@@ -13318,14 +13365,13 @@
       openedPack = null
       renderPackView()
       // 返回列表也走一次入场动效：进详情是自下而上升入（CSS pack-view-in），返回就自上而下落定
-      const reduced = document.documentElement.classList.contains('reduce-motion') || matchMedia('(prefers-reduced-motion: reduce)').matches
-      if (!reduced && typeof pluginOverviewEl.animate === 'function') {
+      if (!isReducedMotion() && typeof pluginOverviewEl.animate === 'function') {
         pluginOverviewEl.animate(
           [
             { opacity: 0, transform: 'translateY(-8px)' },
             { opacity: 1, transform: 'translateY(0)' },
           ],
-          { duration: 280, easing: 'cubic-bezier(0.22, 0.61, 0.36, 1)' },
+          { duration: MOTION.duration.slow, easing: MOTION.ease.decelerate },
         )
       }
     }
@@ -13500,7 +13546,10 @@
       if (!dialog.hidden && !dialog.dataset.dialogClosing) return
       closeUiSelect()
       // 启动项弹窗里的「管理目录…」也走这条线：它当父层，目录管理当子层，关掉后焦点回到下拉。
-      const parent = explicitParent || [profileDialogEl, packInstallDialog, packImportDialog, packExportDialog, launchPluginsDialogEl, pluginHomesDialogEl, pickHomeAddDialogEl, projectDialogEl, profilePickDialogEl, launchDialogEl, connectionDialogEl, connectionProgressDialogEl].find((one) => one !== dialog && !one.hidden && !one.dataset.dialogClosing && !one.classList.contains('is-underlay'))
+      const envDialogEl = document.getElementById('environmentAddDialog')
+      const envCreateDialogEl = document.getElementById('environmentCreateDialog')
+      const envLaunchConfigDialogEl = document.getElementById('envLaunchConfigDialog')
+      const parent = explicitParent || [profileDialogEl, packInstallDialog, packImportDialog, packExportDialog, launchPluginsDialogEl, pluginHomesDialogEl, pickHomeAddDialogEl, projectDialogEl, profilePickDialogEl, launchDialogEl, connectionDialogEl, connectionProgressDialogEl, envDialogEl, envCreateDialogEl, envLaunchConfigDialogEl].find((one) => one && one !== dialog && !one.hidden && !one.dataset.dialogClosing && !one.classList.contains('is-underlay'))
       packDialogContext.set(dialog, { parent, origin: document.activeElement })
       dialog.classList.toggle('is-child-dialog', Boolean(parent))
       if (parent) dialog.style.zIndex = Math.max(Number(getComputedStyle(dialog).zIndex), Number(getComputedStyle(parent).zIndex) + 2)
@@ -13740,9 +13789,14 @@
       const installEl = document.getElementById('packInstall')
       if (installEl) installEl.onclick = () => { void installPack() }
       document.getElementById('packCancel').onclick = closeInstallDialog
-      // 读取完成内容首显时轻淡入；busy 轮询重画不重播（reduce-motion 直接跳过）
-      if (contentWasHidden && !document.documentElement.classList.contains('reduce-motion') && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        packInspectEl.animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 160, easing: 'ease-out' })
+      // 读取完成内容首显时轻淡入；busy 轮询重画不重播（reduce-motion 直接跳过；保留单测 vm 沙箱兜底）
+      const inspectReduced = typeof isReducedMotion === 'function'
+        ? isReducedMotion()
+        : (document.documentElement.classList.contains('reduce-motion') || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches))
+      if (contentWasHidden && !inspectReduced && typeof packInspectEl.animate === 'function') {
+        const inspectDuration = typeof MOTION !== 'undefined' ? MOTION.duration.fast : 150
+        const inspectEase = typeof MOTION !== 'undefined' ? MOTION.ease.decelerate : 'cubic-bezier(.22, 1, .36, 1)'
+        packInspectEl.animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: inspectDuration, easing: inspectEase })
       }
     }
 
@@ -13976,6 +14030,42 @@
     packBackEl.onclick = () => closePack()
 
 
+    // ---- 公共分段胶囊滑动定位 + 面板柔和切入 ----
+    globalThis.syncSubtabPill = (container) => {
+      if (!container) return
+      const active = container.querySelector('.environment-subtab.is-active')
+      if (!active || container.offsetParent === null || active.offsetWidth <= 0) return
+      const left = active.offsetLeft
+      const width = active.offsetWidth
+      if (!container.classList.contains('has-pill')) {
+        // 首次测量不走过渡直接落位，避免刚打开页面时胶囊从左边缘飞过来
+        container.style.setProperty('--pill-x', `${left}px`)
+        container.style.setProperty('--pill-w', `${width}px`)
+        void container.offsetWidth
+        container.classList.add('has-pill')
+        return
+      }
+      container.style.setProperty('--pill-x', `${left}px`)
+      container.style.setProperty('--pill-w', `${width}px`)
+    }
+    globalThis.animateSubPane = (pane) => {
+      if (!pane || pane.hidden || isReducedMotion?.()) return
+      pane.classList.remove('is-tab-entering')
+      void pane.offsetWidth
+      pane.classList.add('is-tab-entering')
+    }
+    globalThis.marketLoadingHtml = (label = t('加载中…'), count = 6) => {
+      const cards = Array.from({ length: count }, (_, idx) => (
+        `<div class="market-skeleton-card" style="--i:${idx}"><div class="market-skeleton-icon market-skeleton-bone"></div><div class="market-skeleton-meta"><div class="market-skeleton-line market-skeleton-bone"></div><div class="market-skeleton-line is-short market-skeleton-bone"></div></div><div class="market-skeleton-btn market-skeleton-bone"></div></div>`
+      )).join('')
+      return `<div class="market-loading" role="status" aria-live="polite"><div class="market-loading-head"><span class="plugin-empty-spinner" aria-hidden="true"></span><span>${escapeHtml(label)}</span></div><div class="plugin-market-grid" aria-hidden="true">${cards}</div></div>`
+    }
+    window.addEventListener('resize', () => {
+      for (const id of ['environmentPluginSubtabs', 'mcpSubtabs', 'skillSubtabs']) {
+        globalThis.syncSubtabPill?.(document.getElementById(id))
+      }
+    })
+
     // ---- MCP 服务器：写进 profile 补丁层里的 dsh-mcp-client 条目 ----
     let instanceToolScope = { profile: '', home: '' }
     let instanceToolMountKey = ''
@@ -13989,62 +14079,112 @@
     }
     const mcpListEl = document.getElementById('mcpList')
     const mcpHintEl = document.getElementById('mcpHint')
+    const mcpSubtabsEl = document.getElementById('mcpSubtabs')
+    const mcpTotalCountEl = document.getElementById('mcpTotalCount')
+    const mcpSearchEl = document.getElementById('mcpSearch')
+    const mcpMarketPaneEl = document.getElementById('mcpMarketPane')
+    const mcpMarketListEl = document.getElementById('mcpMarketList')
+    const mcpMarketErrorEl = document.getElementById('mcpMarketError')
+    const mcpProbeEl = document.getElementById('mcpProbe')
+    const mcpRefreshEl = document.getElementById('mcpRefresh')
     const mcpDialogEl = document.getElementById('mcpDialog')
     const mcpDialogNoteEl = document.getElementById('mcpDialogNote')
     const mcpNameEl = document.getElementById('mcpName')
     const mcpTransportEl = document.getElementById('mcpTransport')
     const mcpCommandEl = document.getElementById('mcpCommand')
     const mcpUrlEl = document.getElementById('mcpUrl')
+    const mcpEnvEl = document.getElementById('mcpEnv')
     const mcpHeadersEl = document.getElementById('mcpHeaders')
     const mcpTimeoutEl = document.getElementById('mcpTimeout')
     let mcpServers = []
+    let mcpSubTab = 'installed'
+    let mcpSearch = ''
+    const mcpMarketState = {
+      curatedItems: [],
+      curatedLoaded: false,
+      registryItems: [],
+      registryLoaded: false,
+      nextCursor: null,
+      loading: false,
+      loadingMore: false,
+      error: '',
+      installingId: '',
+      seq: 0,
+      searchTimer: 0,
+    }
 
+    const CARD_ICON_TONES = ['blue', 'indigo', 'cyan', 'purple', 'emerald', 'amber', 'pink']
+    const toneForCardName = (name) => {
+      let hash = 0
+      for (const ch of String(name || '')) hash = ((hash * 31) + ch.charCodeAt(0)) >>> 0
+      return CARD_ICON_TONES[hash % CARD_ICON_TONES.length]
+    }
+    const safeExternalHref = (raw) => /^https?:\/\//i.test(String(raw || '').trim()) ? String(raw).trim() : ''
+    const isAvatarIconUrl = (raw) => /^https:\/\/(?:avatars\.githubusercontent\.com|github\.com)\//i.test(String(raw || '').trim())
     const transportLabel = (value) => value === 'streamable-http' ? 'HTTP' : 'stdio'
-    const setMcpHint = (text) => { mcpHintEl.textContent = text || '' }
+    const setMcpHint = (text) => {
+      mcpHintEl.textContent = text || ''
+      mcpHintEl.hidden = !text || (mcpSubTab !== 'installed' && text === t('检测会真的起进程或连端点，可能需要几秒。'))
+    }
+    function syncMcpSubtabs() {
+      mcpSubtabsEl?.querySelectorAll('[data-mcp-subtab]').forEach((button) => {
+        const active = button.dataset.mcpSubtab === mcpSubTab
+        button.classList.toggle('is-active', active)
+        button.setAttribute('aria-selected', String(active))
+      })
+      if (mcpProbeEl) mcpProbeEl.hidden = mcpSubTab !== 'installed'
+      globalThis.syncSubtabPill?.(mcpSubtabsEl)
+    }
 
     function mcpRow(server) {
       const row = document.createElement('div')
-      // 带 toggle 才会套上开关样式（和插件行、技能行一致），否则是原生单选框
-      row.className = `toggle plugin-row${server.disabled ? ' off' : ''}`
-      const main = document.createElement('div')
-      main.className = 'plugin-main'
+      // 与已安装插件复用同一套双列卡片样式与紧凑开关/操作条
+      row.className = `toggle plugin-row pack-row plugin-market-card plugin-installed-card mcp-card${server.disabled ? ' off' : ''}`
+      const isHttp = server.transport === 'streamable-http'
+      const timeoutText = !server.broken && server.toolCallTimeoutMs ? `${server.toolCallTimeoutMs}ms` : ''
+      const summary = server.broken ? (server.error || '补丁层里这行读不出来，删掉重加一次即可') : (server.command || server.url || '')
+      row.title = [server.serverName, server.transport, summary, timeoutText].filter(Boolean).join(' · ')
+
       const head = document.createElement('div')
-      head.className = 'plugin-head'
-      const description = server.broken ? (server.error || '条目损坏') : `${server.transport}${server.toolCallTimeoutMs ? ` · 超时 ${server.toolCallTimeoutMs}ms` : ''}`
-      row.title = [server.serverName, server.transport, server.command || server.url || '', description].filter(Boolean).join(' · ')
+      head.className = 'plugin-installed-head'
+
+      const iconWrap = document.createElement('div')
+      const iconTone = server.broken ? 'amber' : isHttp ? 'cyan' : toneForCardName(server.serverName)
+      const iconId = server.broken ? 'lucide-triangle-alert' : isHttp ? 'lucide-globe' : 'lucide-terminal'
+      iconWrap.className = `plugin-market-icon tone-${iconTone}`
+      iconWrap.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#${iconId}"/></svg>`
+
+      const meta = document.createElement('div')
+      meta.className = 'plugin-market-meta'
+      const nameRow = document.createElement('div')
+      nameRow.className = 'plugin-market-name'
       const name = document.createElement('span')
       name.className = 'plugin-name'
-      name.textContent = server.broken ? `${server.serverName}（条目损坏）` : server.serverName
-      const status = document.createElement('span')
-      status.className = 'plugin-status'
-      status.textContent = `${transportLabel(server.transport)}${server.disabled ? ' · 已停用' : ''}`
-      head.append(name, status)
-      const desc = document.createElement('span')
-      desc.className = 'plugin-desc'
-      desc.textContent = server.broken ? (server.error || '补丁层里这行读不出来，删掉重加一次即可') : (server.command || server.url || '')
-      main.append(head, desc)
-      const actions = document.createElement('div')
-      actions.className = 'plugin-actions'
-      const edit = document.createElement('button')
-      edit.type = 'button'
-      edit.className = 'ghost icon-btn action-icon'
-      edit.title = edit.ariaLabel = t('编辑')
-      edit.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-pencil"/></svg>'
-      edit.onclick = () => openMcpDialog(server)
-      const remove = document.createElement('button')
-      remove.type = 'button'
-      remove.className = 'ghost icon-btn action-icon'
-      remove.title = remove.ariaLabel = t('删除')
-      remove.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-trash-2"/></svg>'
-      remove.onclick = async () => {
-        remove.disabled = true
-        try {
-          const data = await post('/api/mcp/remove', withToolProfile({ serverName: server.serverName }), toolScopeOptions())
-          mcpServers = data.servers || []
-          renderMcp()
-          setMcpHint(t('已删除 {name}。dsh 在跑会热加载。', { name: server.serverName }))
-        } catch (error) { setMcpHint(error.message) } finally { remove.disabled = false }
+      name.textContent = server.serverName
+      nameRow.append(name)
+
+      const subRow = document.createElement('div')
+      subRow.className = 'plugin-installed-sub'
+      const transportTag = document.createElement('span')
+      transportTag.className = `plugin-status plugin-market-tag${isHttp ? ' is-official' : ''}`
+      transportTag.textContent = transportLabel(server.transport)
+      subRow.append(transportTag)
+      if (timeoutText) {
+        const timeoutEl = document.createElement('span')
+        timeoutEl.className = 'plugin-version plugin-market-sub'
+        timeoutEl.textContent = timeoutText
+        subRow.append(timeoutEl)
       }
+      if (server.broken || server.disabled) {
+        const stateTag = document.createElement('span')
+        stateTag.className = `plugin-status plugin-market-tag${server.broken ? ' is-warn' : ''}`
+        stateTag.textContent = server.broken ? t('条目损坏') : t('已停用')
+        subRow.append(stateTag)
+      }
+      meta.append(nameRow, subRow)
+
+      const actions = document.createElement('div')
+      actions.className = 'plugin-installed-actions'
       const toggle = document.createElement('input')
       toggle.type = 'checkbox'
       toggle.checked = !server.disabled
@@ -14059,21 +14199,317 @@
           renderMcp()
         } catch (error) { setMcpHint(error.message); toggle.checked = !enabled } finally { toggle.disabled = false }
       }
-      actions.append(edit, remove, toggle)
-      row.append(main, actions)
+      const edit = document.createElement('button')
+      edit.type = 'button'
+      edit.className = 'ghost icon-btn'
+      edit.title = edit.ariaLabel = t('编辑')
+      edit.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-pencil"/></svg>'
+      edit.onclick = () => openMcpDialog(server)
+      const remove = document.createElement('button')
+      remove.type = 'button'
+      remove.className = 'ghost icon-btn card-danger-btn'
+      remove.title = remove.ariaLabel = t('删除')
+      remove.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-trash-2"/></svg>'
+      remove.onclick = async () => {
+        remove.disabled = true
+        try {
+          const data = await post('/api/mcp/remove', withToolProfile({ serverName: server.serverName }), toolScopeOptions())
+          mcpServers = data.servers || []
+          renderMcp()
+          setMcpHint(t('已删除 {name}。dsh 在跑会热加载。', { name: server.serverName }))
+        } catch (error) { setMcpHint(error.message) } finally { remove.disabled = false }
+      }
+      actions.append(toggle, edit, remove)
+      head.append(iconWrap, meta, actions)
+      row.append(head)
+
+      if (summary) {
+        const desc = document.createElement('div')
+        desc.className = 'plugin-desc plugin-market-desc plugin-installed-desc'
+        desc.textContent = summary
+        row.append(desc)
+      }
       return row
     }
 
-    function renderMcp() {
-      mcpListEl.textContent = ''
-      if (!mcpServers.length) {
+    function isMcpInstalled(item) {
+      const target = String(item?.name || item?.installConfig?.name || '').trim().toLowerCase()
+      if (!target) return false
+      return mcpServers.some((server) => String(server.serverName || '').trim().toLowerCase() === target)
+    }
+
+    function mcpMarketCard(item) {
+      const installed = isMcpInstalled(item)
+      const installing = mcpMarketState.installingId === item.id
+      const busy = Boolean(mcpMarketState.installingId)
+      const isHttp = item.transport === 'streamable-http'
+      const tone = isHttp ? 'cyan' : toneForCardName(item.name || item.title)
+      const fallbackIcon = isHttp ? 'lucide-globe' : 'lucide-terminal'
+      const card = document.createElement('div')
+      card.className = `plugin-market-card${installed ? ' is-installed' : ''}`
+      card.title = [item.title || item.name, item.description].filter(Boolean).join('\n')
+
+      const iconWrap = document.createElement('div')
+      iconWrap.className = `plugin-market-icon tone-${tone}${item.icon ? ` has-image${isAvatarIconUrl(item.icon) ? ' has-avatar' : ''}` : ''}`
+      if (item.icon) {
+        const img = document.createElement('img')
+        img.src = item.icon
+        img.alt = ''
+        img.loading = 'lazy'
+        img.referrerPolicy = 'no-referrer'
+        img.onerror = () => {
+          iconWrap.classList.remove('has-image', 'has-avatar')
+          iconWrap.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#${fallbackIcon}"/></svg>`
+        }
+        iconWrap.append(img)
+      } else {
+        iconWrap.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#${fallbackIcon}"/></svg>`
+      }
+
+      const meta = document.createElement('div')
+      meta.className = 'plugin-market-meta'
+      const nameRow = document.createElement('div')
+      nameRow.className = 'plugin-market-name'
+      const titleEl = document.createElement('span')
+      titleEl.textContent = item.title || item.name
+      nameRow.append(titleEl)
+      if (item.badge) {
+        const badgeEl = document.createElement('span')
+        badgeEl.className = `plugin-status plugin-market-tag${item.needsConfig ? '' : ' is-official'}`
+        badgeEl.textContent = item.badge
+        nameRow.append(badgeEl)
+      }
+      const subEl = document.createElement('div')
+      subEl.className = 'plugin-market-sub'
+      const subParts = [transportLabel(item.transport), item.packageName || item.id]
+      if (item.version) subParts.push(`v${item.version}`)
+      subEl.textContent = subParts.filter(Boolean).join(' · ')
+      meta.append(nameRow, subEl)
+      if (item.description) {
+        const desc = document.createElement('div')
+        desc.className = 'plugin-market-desc'
+        desc.textContent = item.description
+        meta.append(desc)
+      }
+
+      const cardActions = document.createElement('div')
+      cardActions.className = 'tool-market-card-actions'
+      const href = safeExternalHref(item.homepage)
+      if (href) {
+        const link = document.createElement('a')
+        link.className = 'ghost icon-btn plugin-market-link'
+        link.href = href
+        link.target = '_blank'
+        link.rel = 'noopener noreferrer'
+        link.title = t('官方网站')
+        link.setAttribute('aria-label', t('官方网站'))
+        link.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-external-link"/></svg>'
+        cardActions.append(link)
+      }
+      if (installed) {
+        const badge = document.createElement('span')
+        badge.className = 'plugin-market-installed'
+        badge.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-check"/></svg><span>${escapeHtml(t('已安装'))}</span>`
+        cardActions.append(badge)
+      } else {
+        const action = document.createElement('button')
+        action.type = 'button'
+        action.className = `ghost plugin-market-install${installing ? ' is-installing' : ''}`
+        action.disabled = busy
+        action.textContent = installing ? t('正在安装…') : (item.needsConfig ? t('配置并安装') : t('安装'))
+        action.onclick = async () => {
+          const cfg = item.installConfig || {}
+          if (item.needsConfig || (!cfg.command && !cfg.url)) {
+            openMcpDialog({
+              serverName: cfg.name || item.name,
+              transport: cfg.transport || item.transport || 'stdio',
+              command: cfg.command || '',
+              args: cfg.args || [],
+              env: cfg.env || {},
+              url: cfg.url || '',
+              headers: cfg.headers || {},
+            }, {
+              fromPreset: true,
+              note: item.configHint || (item.envHints?.length ? `${item.envHints.map((e) => e.name).join('、')}` : ''),
+            })
+            return
+          }
+          mcpMarketState.installingId = item.id
+          renderMcpMarket()
+          try {
+            const payload = {
+              serverName: cfg.name || item.name,
+              transport: cfg.transport || 'stdio',
+              ...(cfg.command ? { command: cfg.command, args: cfg.args || [] } : {}),
+              ...(cfg.url ? { url: cfg.url } : {}),
+              ...(cfg.env && Object.keys(cfg.env).length ? { env: cfg.env } : {}),
+              ...(cfg.headers && Object.keys(cfg.headers).length ? { headers: cfg.headers } : {}),
+            }
+            const data = await post('/api/mcp/save', withToolProfile(payload), toolScopeOptions())
+            mcpServers = data.servers || []
+            if (mcpTotalCountEl) mcpTotalCountEl.textContent = String(mcpServers.length)
+            setMcpHint(t('{name} 已保存，dsh 在跑会热加载。', { name: payload.serverName }))
+          } catch (error) {
+            if (mcpMarketErrorEl) {
+              mcpMarketErrorEl.textContent = error.message
+              mcpMarketErrorEl.hidden = false
+            } else {
+              setMcpHint(error.message)
+            }
+          } finally {
+            mcpMarketState.installingId = ''
+            renderMcpMarket()
+          }
+        }
+        cardActions.append(action)
+      }
+      card.append(iconWrap, meta, cardActions)
+      return card
+    }
+
+    function renderMcpMarket() {
+      if (!mcpMarketListEl) return
+      if (mcpRefreshEl) mcpRefreshEl.classList.toggle('is-loading', mcpMarketState.loading)
+      const isRegistry = mcpSubTab === 'market'
+      const rawItems = isRegistry ? mcpMarketState.registryItems : mcpMarketState.curatedItems
+      const terms = mcpSearch.trim().toLowerCase().split(/\s+/).filter(Boolean)
+      const items = !isRegistry && terms.length
+        ? rawItems.filter((item) => {
+            const hay = `${item.title || ''}\n${item.name || ''}\n${item.description || ''}\n${item.packageName || ''}`.toLowerCase()
+            return terms.every((term) => hay.includes(term))
+          })
+        : rawItems
+
+      if (mcpMarketErrorEl) {
+        mcpMarketErrorEl.textContent = mcpMarketState.error || ''
+        mcpMarketErrorEl.hidden = !mcpMarketState.error
+      }
+      mcpMarketListEl.textContent = ''
+      if (mcpMarketState.loading && !items.length) {
+        mcpMarketListEl.innerHTML = globalThis.marketLoadingHtml(t('加载中…'))
+        return
+      }
+      if (!items.length) {
         const empty = document.createElement('div')
         empty.className = 'plugin-empty'
-        empty.textContent = t('还没有 MCP 服务器。点右上角「添加」写一台。')
+        empty.textContent = mcpMarketState.error
+          ? t('暂时无法读取 MCP 市场')
+          : (mcpSearch.trim() ? t('没有找到匹配的 MCP 服务器。') : t('还没有精选 MCP 服务器。'))
+        mcpMarketListEl.append(empty)
+        return
+      }
+      const grid = document.createElement('div')
+      grid.className = 'plugin-market-grid'
+      for (const item of items) grid.append(mcpMarketCard(item))
+      mcpMarketListEl.append(grid)
+
+      if (isRegistry && mcpMarketState.nextCursor) {
+        const moreBtn = document.createElement('button')
+        moreBtn.type = 'button'
+        moreBtn.className = 'ghost plugin-market-more'
+        moreBtn.disabled = mcpMarketState.loadingMore
+        moreBtn.textContent = mcpMarketState.loadingMore ? t('加载中…') : t('加载更多')
+        moreBtn.onclick = () => { void loadMcpMarket({ append: true, cursor: mcpMarketState.nextCursor }) }
+        mcpMarketListEl.append(moreBtn)
+      }
+    }
+
+    async function loadMcpMarket({ refresh = false, append = false, cursor = '' } = {}) {
+      const mode = mcpSubTab === 'market' ? 'registry' : 'curated'
+      const seq = ++mcpMarketState.seq
+      if (append) mcpMarketState.loadingMore = true
+      else {
+        mcpMarketState.loading = true
+        mcpMarketState.error = ''
+      }
+      renderMcpMarket()
+      try {
+        const params = new URLSearchParams({ mode, limit: '30' })
+        if (mode === 'registry' && mcpSearch.trim()) params.set('q', mcpSearch.trim())
+        if (append && cursor) params.set('cursor', cursor)
+        if (refresh) params.set('refresh', '1')
+        const data = await getJson(`/api/mcp-market?${params.toString()}`)
+        if (seq !== mcpMarketState.seq) return
+        const nextItems = Array.isArray(data?.items) ? data.items : []
+        if (mode === 'curated') {
+          mcpMarketState.curatedItems = nextItems
+          mcpMarketState.curatedLoaded = true
+        } else {
+          mcpMarketState.registryItems = append ? [...mcpMarketState.registryItems, ...nextItems] : nextItems
+          mcpMarketState.registryLoaded = true
+          mcpMarketState.nextCursor = data?.nextCursor || null
+        }
+        mcpMarketState.error = data?.error || ''
+      } catch (error) {
+        if (seq !== mcpMarketState.seq) return
+        mcpMarketState.error = error instanceof Error ? error.message : String(error)
+      } finally {
+        if (seq === mcpMarketState.seq) {
+          mcpMarketState.loading = false
+          mcpMarketState.loadingMore = false
+          renderMcpMarket()
+        }
+      }
+    }
+
+    function renderMcp() {
+      if (mcpTotalCountEl) mcpTotalCountEl.textContent = String(mcpServers.length)
+      syncMcpSubtabs()
+      const isInstalled = mcpSubTab === 'installed'
+      if (mcpListEl) mcpListEl.hidden = !isInstalled
+      if (mcpMarketPaneEl) mcpMarketPaneEl.hidden = isInstalled
+      if (mcpHintEl) {
+        const defaultProbeHint = t('检测会真的起进程或连端点，可能需要几秒。')
+        mcpHintEl.hidden = !mcpHintEl.textContent || (!isInstalled && mcpHintEl.textContent === defaultProbeHint)
+      }
+      if (!isInstalled) {
+        renderMcpMarket()
+        return
+      }
+      mcpRefreshEl?.classList.remove('is-loading')
+      mcpListEl.textContent = ''
+      const terms = mcpSearch.trim().toLowerCase().split(/\s+/).filter(Boolean)
+      const filtered = mcpServers.filter((server) => {
+        if (!terms.length) return true
+        const hay = `${server.serverName}\n${server.command || ''}\n${server.url || ''}\n${server.transport || ''}`.toLowerCase()
+        return terms.every((term) => hay.includes(term))
+      })
+      if (!filtered.length) {
+        const empty = document.createElement('div')
+        empty.className = 'plugin-empty'
+        empty.textContent = mcpServers.length ? t('没有匹配的 MCP 服务器。') : t('还没有 MCP 服务器。点右上角「添加」写一台。')
         mcpListEl.append(empty)
         return
       }
-      for (const server of mcpServers) mcpListEl.append(mcpRow(server))
+      for (const server of filtered) mcpListEl.append(mcpRow(server))
+    }
+    mcpSubtabsEl?.addEventListener('click', (event) => {
+      const btn = event.target.closest?.('[data-mcp-subtab]')
+      if (!btn) return
+      const next = btn.dataset.mcpSubtab || 'installed'
+      if (next === mcpSubTab) return
+      mcpSubTab = next
+      if (mcpMarketErrorEl) mcpMarketErrorEl.hidden = true
+      renderMcp()
+      animateSubPane(next === 'installed' ? mcpListEl : mcpMarketPaneEl)
+      if (next === 'curated' && !mcpMarketState.curatedLoaded) void loadMcpMarket()
+      else if (next === 'market' && (!mcpMarketState.registryLoaded || mcpSearch.trim())) void loadMcpMarket()
+    })
+    if (mcpSearchEl) {
+      mcpSearchEl.oninput = () => {
+        mcpSearch = mcpSearchEl.value
+        if (mcpSubTab === 'installed') {
+          renderMcp()
+          return
+        }
+        renderMcpMarket()
+        if (mcpSubTab === 'market') {
+          clearTimeout(mcpMarketState.searchTimer)
+          mcpMarketState.searchTimer = setTimeout(() => {
+            void loadMcpMarket()
+          }, 250)
+        }
+      }
     }
 
     async function loadMcp() {
@@ -14082,6 +14518,7 @@
         const data = await getJson(`/api/mcp${query}`, toolScopeOptions())
         mcpServers = data.servers || []
         renderMcp()
+        requestAnimationFrame(() => globalThis.syncSubtabPill?.(mcpSubtabsEl))
       } catch (error) { setMcpHint(error.message) }
     }
 
@@ -14093,11 +14530,12 @@
     }
 
     let mcpOriginalCommand = null
-    function openMcpDialog(server) {
-      mcpDialogEl.dataset.edit = server ? server.serverName : ''
-      document.getElementById('mcpDialogTitle').textContent = server ? t('编辑 MCP 服务器') : t('添加 MCP 服务器')
+    function openMcpDialog(server, { fromPreset = false, note = '' } = {}) {
+      const isEdit = Boolean(server) && !fromPreset
+      mcpDialogEl.dataset.edit = isEdit ? server.serverName : ''
+      document.getElementById('mcpDialogTitle').textContent = isEdit ? t('编辑 MCP 服务器') : t('添加 MCP 服务器')
       mcpNameEl.value = server?.serverName ?? ''
-      mcpNameEl.disabled = Boolean(server)
+      mcpNameEl.disabled = isEdit
       mcpTransportEl.value = server?.transport === 'streamable-http' ? 'streamable-http' : 'stdio'
       // 直改 value 不会触发 change，触发器文案要手动同步（顺带把 i18n 后的选项文案刷上）
       syncUiSelect(mcpTransportEl)
@@ -14106,13 +14544,22 @@
       // 文本框无法原样显示多行参数；用户没改命令时直接沿用 argv，避免编辑超时顺带改坏参数。
       mcpOriginalCommand = server ? { line: mcpCommandEl.value, command: server.command, args: server.args || [] } : null
       mcpUrlEl.value = server?.url ?? ''
-      mcpHeadersEl.value = server?.headers ? JSON.stringify(server.headers) : ''
+      const envEntries = server?.env && typeof server.env === 'object' ? Object.entries(server.env) : []
+      if (mcpEnvEl) mcpEnvEl.value = envEntries.map(([k, v]) => `${k}=${v ?? ''}`).join('\n')
+      const hasHeaders = Boolean(server?.headers && Object.keys(server.headers).length)
+      mcpHeadersEl.value = hasHeaders ? JSON.stringify(server.headers) : ''
       mcpTimeoutEl.value = server?.toolCallTimeoutMs ?? ''
-      resetMcpAdvanced(Boolean(server?.headers || server?.toolCallTimeoutMs))
-      mcpDialogNoteEl.hidden = true
+      resetMcpAdvanced(Boolean(hasHeaders || envEntries.length || server?.toolCallTimeoutMs))
+      if (note) {
+        mcpDialogNoteEl.textContent = note
+        mcpDialogNoteEl.hidden = false
+      } else {
+        mcpDialogNoteEl.hidden = true
+      }
       syncMcpRows()
       showDialog(mcpDialogEl)
-      if (!server) mcpNameEl.focus()
+      if (!isEdit && !fromPreset) mcpNameEl.focus()
+      else if (fromPreset && envEntries.length && mcpEnvEl) mcpEnvEl.focus()
     }
 
     const closeMcpDialog = () => { void hideDialog(mcpDialogEl) }
@@ -14131,10 +14578,20 @@
           return
         }
       }
+      let envLines
+      if (transport === 'stdio' && mcpEnvEl) {
+        envLines = mcpEnvEl.value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+        const bad = envLines.find((line) => line.indexOf('=') <= 0)
+        if (bad) {
+          noteInDialog(t('每行环境变量都要写 KEY=VALUE：{line}', { line: bad }))
+          return
+        }
+      }
       const spec = {
         serverName: mcpDialogEl.dataset.edit || name,
         transport,
         commandLine: transport === 'stdio' ? mcpCommandEl.value.trim() : undefined,
+        ...(transport === 'stdio' && envLines !== undefined ? { env: envLines } : {}),
         url: transport === 'stdio' ? '' : mcpUrlEl.value.trim(),
         headers: transport === 'stdio' || !headers ? undefined : JSON.parse(headers),
         toolCallTimeoutMs: mcpTimeoutEl.value.trim() || undefined,
@@ -14174,20 +14631,22 @@
       const opening = !(mcpAdvancedOpening ?? mcpAdvancedEl.open)
       const from = mcpAdvancedEl.getBoundingClientRect().height
       mcpAdvancedMotion?.cancel()
-      const reduced = document.documentElement.classList.contains('reduce-motion') || matchMedia('(prefers-reduced-motion: reduce)').matches
-      if (reduced || typeof mcpAdvancedEl.animate !== 'function') { resetMcpAdvanced(opening); return }
+      if (isReducedMotion() || typeof mcpAdvancedEl.animate !== 'function') { resetMcpAdvanced(opening); return }
       mcpAdvancedEl.open = true
       mcpAdvancedEl.style.overflow = 'hidden'
       const target = opening ? mcpAdvancedEl.getBoundingClientRect().height : mcpAdvancedEl.querySelector('summary').getBoundingClientRect().height
       mcpAdvancedOpening = opening
-      const animation = mcpAdvancedEl.animate([{ height: `${from}px` }, { height: `${target}px` }], { duration: 220, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'both' })
+      const animation = mcpAdvancedEl.animate([{ height: `${from}px` }, { height: `${target}px` }], { duration: MOTION.duration.disclosure, easing: MOTION.ease.standard, fill: 'both' })
       mcpAdvancedMotion = animation
       animation.finished.then(() => {
         if (mcpAdvancedMotion !== animation) return
         mcpAdvancedEl.open = opening; mcpAdvancedEl.style.overflow = ''; mcpAdvancedOpening = null; mcpAdvancedMotion = null; animation.cancel()
       }).catch(() => {})
     }
-    document.getElementById('mcpRefresh').onclick = loadMcp
+    document.getElementById('mcpRefresh').onclick = () => {
+      if (mcpSubTab === 'installed') void loadMcp()
+      else void loadMcpMarket({ refresh: true })
+    }
     document.getElementById('mcpProbe').onclick = async () => {
       const button = document.getElementById('mcpProbe')
       button.disabled = true
@@ -14207,6 +14666,39 @@
     const skillListEl = document.getElementById('skillList')
     const skillHintEl = document.getElementById('skillHint')
     const skillSubEl = document.getElementById('skillSub')
+    const skillSubtabsEl = document.getElementById('skillSubtabs')
+    const skillTotalCountEl = document.getElementById('skillTotalCount')
+    const skillSearchEl = document.getElementById('skillSearch')
+    const skillMarketPaneEl = document.getElementById('skillMarketPane')
+    const skillMarketListEl = document.getElementById('skillMarketList')
+    const skillMarketErrorEl = document.getElementById('skillMarketError')
+    const skillRefreshEl = document.getElementById('skillRefresh')
+    let skillItems = []
+    let skillSubTab = 'installed'
+    let skillSearch = ''
+    const skillMarketState = {
+      marketItems: [],
+      marketLoaded: false,
+      marketTotal: 0,
+      page: 0,
+      hasMore: false,
+      openaiItems: [],
+      openaiLoaded: false,
+      loading: false,
+      loadingMore: false,
+      error: '',
+      installingKey: '',
+      seq: 0,
+      searchTimer: 0,
+    }
+    function syncSkillSubtabs() {
+      skillSubtabsEl?.querySelectorAll('[data-skill-subtab]').forEach((button) => {
+        const active = button.dataset.skillSubtab === skillSubTab
+        button.classList.toggle('is-active', active)
+        button.setAttribute('aria-selected', String(active))
+      })
+      globalThis.syncSubtabPill?.(skillSubtabsEl)
+    }
     const skillDetailDialogEl = document.getElementById('skillDetailDialog')
     const skillDetailContentEl = document.getElementById('skillDetailContent')
     let skillDetailRequest = 0
@@ -14256,8 +14748,8 @@
       skillInspectEl.classList.toggle('is-local-source', skillSourceMode === 'local')
     }
     function animateSkillPart(element) {
-      if (document.documentElement.classList.contains('reduce-motion') || matchMedia('(prefers-reduced-motion: reduce)').matches) return
-      element.animate([{ opacity: 0, transform: 'translateY(5px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 180, easing: 'cubic-bezier(.2,.8,.2,1)' })
+      if (isReducedMotion()) return
+      element.animate([{ opacity: 0, transform: 'translateY(5px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: MOTION.duration.fast, easing: MOTION.ease.standard })
     }
     positionSkillInspect()
     function selectedSkillImports() { return [...skillImportListEl.querySelectorAll('input:checked')].map((input) => input.value) }
@@ -14394,27 +14886,40 @@
     }
 
     function skillRow(skill) {
-      // 详情按钮和开关各管一件事，点正文查看说明不会顺带停用技能。
+      // 详情触发按钮和开关/删除各管一件事，点图标、名称或简介打开详情，点开关或删除不误触详情。
       const displayName = skill.name || skill.dirName
       const title = [displayName, skill.relPath, skill.frontmatterOk ? '' : skill.frontmatterIssue].filter(Boolean).join(' · ')
-      const status = skill.frontmatterOk ? (skill.disableModelInvocation ? t('已停用') : '') : t('frontmatter 有问题')
+      const isBroken = !skill.frontmatterOk
+      const status = isBroken ? t('frontmatter 有问题') : (skill.disableModelInvocation ? t('已停用') : '')
       const full = skill.frontmatterOk ? (skill.description || '') : (skill.frontmatterIssue || '')
-      const truncated = full.length > 110 ? `${full.slice(0, 110)}…` : full
+      const truncated = full.length > 140 ? `${full.slice(0, 140)}…` : full
+      const isAgents = skill.root === 'agents'
+      const iconTone = isBroken ? 'amber' : toneForCardName(displayName)
+      const iconId = isBroken ? 'lucide-triangle-alert' : isAgents ? 'lucide-book-open' : 'lucide-sparkles'
       const row = document.createElement('div')
-      row.className = `toggle plugin-row${skill.disableModelInvocation ? ' off' : ''}`
+      row.className = `toggle plugin-row pack-row plugin-market-card plugin-installed-card skill-card${skill.disableModelInvocation ? ' off' : ''}`
       row.title = title
-      row.innerHTML = `<button type="button" class="plugin-main skill-open" aria-haspopup="dialog">
-          <span class="plugin-head">
-            <span class="plugin-name">${escapeHtml(displayName)}</span>
-            <span class="plugin-version">${escapeHtml(skill.root === 'agents' ? '.agents' : '.dsh')}</span>
-            ${status ? `<span class="plugin-status">${escapeHtml(status)}</span>` : ''}
-          </span>
-          ${truncated ? `<span class="plugin-desc" title="${escapeHtml(full)}">${escapeHtml(truncated)}</span>` : ''}
-        </button>
-        <input type="checkbox" ${skill.disableModelInvocation ? '' : 'checked'} ${skill.frontmatterOk ? '' : 'disabled'} aria-label="${escapeHtml(t('启用 {name}', { name: displayName }))}" />
-        <button type="button" class="skill-delete" aria-label="${escapeHtml(t('删除技能 {name}', { name: displayName }))}" title="${escapeHtml(t('删除'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-trash-2"/></svg></button>`
+      row.innerHTML = `<div class="plugin-installed-head">
+          <button type="button" class="skill-open skill-card-trigger" aria-haspopup="dialog">
+            <span class="plugin-market-icon tone-${iconTone}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#${iconId}"/></svg></span>
+            <span class="plugin-market-meta">
+              <span class="plugin-market-name"><span class="plugin-name">${escapeHtml(displayName)}</span></span>
+              <span class="plugin-installed-sub">
+                <span class="plugin-status plugin-market-tag${isAgents ? ' is-official' : ''}">${escapeHtml(isAgents ? '.agents' : '.dsh')}</span>
+                ${status ? `<span class="plugin-status plugin-market-tag${isBroken ? ' is-warn' : ''}">${escapeHtml(status)}</span>` : ''}
+              </span>
+            </span>
+          </button>
+          <div class="plugin-installed-actions">
+            <input type="checkbox" ${skill.disableModelInvocation ? '' : 'checked'} ${skill.frontmatterOk ? '' : 'disabled'} aria-label="${escapeHtml(t('启用 {name}', { name: displayName }))}" />
+            <button type="button" class="ghost icon-btn skill-delete card-danger-btn" aria-label="${escapeHtml(t('删除技能 {name}', { name: displayName }))}" title="${escapeHtml(t('删除'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-trash-2"/></svg></button>
+          </div>
+        </div>
+        ${truncated ? `<button type="button" class="skill-open-desc" title="${escapeHtml(full)}"><span class="plugin-desc plugin-installed-desc">${escapeHtml(truncated)}</span></button>` : ''}`
       const detail = row.querySelector('.skill-open')
       detail.onclick = () => openSkillDetail(skill, detail)
+      const detailDesc = row.querySelector('.skill-open-desc')
+      if (detailDesc) detailDesc.onclick = () => openSkillDetail(skill, detail)
       const input = row.querySelector('input')
       input.onchange = async () => {
         const enabled = input.checked
@@ -14445,19 +14950,284 @@
       return row
     }
 
-    function renderSkills(data) {
-      const skills = data.skills || []
-      skillListEl.textContent = ''
-      if (!skills.length) {
+    function isSkillInstalled(item) {
+      const id = String(item?.skillId || '').trim().toLowerCase()
+      const name = String(item?.name || '').trim().toLowerCase()
+      return skillItems.some((skill) => {
+        const dir = String(skill.dirName || '').trim().toLowerCase()
+        const sName = String(skill.name || '').trim().toLowerCase()
+        return (id && (dir === id || sName === id)) || (name && (dir === name || sName === name))
+      })
+    }
+
+    function formatInstallsBadge(count) {
+      const n = Number(count) || 0
+      if (!n) return ''
+      if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k`
+      return String(n)
+    }
+
+    function skillMarketCard(item) {
+      const installed = isSkillInstalled(item)
+      const installing = skillMarketState.installingKey === item.id
+      const busy = Boolean(skillMarketState.installingKey)
+      const displayTitle = item.title || item.skillId
+      const isOpenAi = item.source === 'openai/skills'
+      const tone = isOpenAi ? 'indigo' : toneForCardName(item.skillId)
+      const iconId = isOpenAi || item.isOfficial ? 'lucide-sparkles' : 'lucide-book-open'
+
+      const card = document.createElement('div')
+      card.className = `plugin-market-card${installed ? ' is-installed' : ''}`
+      card.title = [displayTitle, item.description].filter(Boolean).join('\n')
+
+      const iconWrap = document.createElement('div')
+      iconWrap.className = `plugin-market-icon tone-${tone}${item.icon ? ` has-image${isAvatarIconUrl(item.icon) ? ' has-avatar' : ''}` : ''}`
+      if (item.icon) {
+        const img = document.createElement('img')
+        img.src = item.icon
+        img.alt = ''
+        img.loading = 'lazy'
+        img.referrerPolicy = 'no-referrer'
+        img.onerror = () => {
+          iconWrap.classList.remove('has-image', 'has-avatar')
+          iconWrap.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#${iconId}"/></svg>`
+        }
+        iconWrap.append(img)
+      } else {
+        iconWrap.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#${iconId}"/></svg>`
+      }
+
+      const meta = document.createElement('div')
+      meta.className = 'plugin-market-meta'
+      const nameRow = document.createElement('div')
+      nameRow.className = 'plugin-market-name'
+      const titleEl = document.createElement('span')
+      titleEl.textContent = displayTitle
+      nameRow.append(titleEl)
+      if (isOpenAi || item.isOfficial) {
+        const tag = document.createElement('span')
+        tag.className = 'plugin-status plugin-market-tag is-official'
+        tag.textContent = isOpenAi ? 'OpenAI' : t('官方')
+        nameRow.append(tag)
+      }
+
+      const subEl = document.createElement('div')
+      subEl.className = 'plugin-market-sub'
+      const installText = formatInstallsBadge(item.installs)
+      const subParts = [item.source]
+      if (installText) subParts.push(t('{n} 次安装', { n: installText }))
+      subEl.textContent = subParts.filter(Boolean).join(' · ')
+      meta.append(nameRow, subEl)
+      if (item.description) {
+        const desc = document.createElement('div')
+        desc.className = 'plugin-market-desc'
+        desc.textContent = item.description
+        meta.append(desc)
+      }
+
+      const cardActions = document.createElement('div')
+      cardActions.className = 'tool-market-card-actions'
+      const href = safeExternalHref(item.pageUrl || item.sourceUrl)
+      if (href) {
+        const link = document.createElement('a')
+        link.className = 'ghost icon-btn plugin-market-link'
+        link.href = href
+        link.target = '_blank'
+        link.rel = 'noopener noreferrer'
+        link.title = t('GitHub 仓库')
+        link.setAttribute('aria-label', t('GitHub 仓库'))
+        link.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-external-link"/></svg>'
+        cardActions.append(link)
+      }
+
+      if (installed) {
+        const badge = document.createElement('span')
+        badge.className = 'plugin-market-installed'
+        badge.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-check"/></svg><span>${escapeHtml(t('已安装'))}</span>`
+        cardActions.append(badge)
+      } else {
+        const action = document.createElement('button')
+        action.type = 'button'
+        action.className = `ghost plugin-market-install${installing ? ' is-installing' : ''}`
+        action.disabled = busy
+        action.textContent = installing ? t('正在安装…') : t('安装')
+        action.onclick = async () => {
+          skillMarketState.installingKey = item.id
+          if (skillMarketErrorEl) skillMarketErrorEl.hidden = true
+          renderSkillMarket()
+          try {
+            const data = await post('/api/skills/market-install', withToolProfile({
+              source: item.source,
+              skillId: item.skillId,
+              root: 'dsh',
+            }), toolScopeOptions())
+            skillMarketState.installingKey = ''
+            renderSkills(data)
+            skillHintEl.textContent = t('已安装技能 {name}，dsh 在跑会热加载。', { name: displayTitle })
+          } catch (error) {
+            skillMarketState.installingKey = ''
+            if (skillMarketErrorEl) {
+              skillMarketErrorEl.textContent = error.message
+              skillMarketErrorEl.hidden = false
+            } else {
+              skillHintEl.textContent = error.message
+            }
+            renderSkillMarket()
+          }
+        }
+        cardActions.append(action)
+      }
+      card.append(iconWrap, meta, cardActions)
+      return card
+    }
+
+    function renderSkillMarket() {
+      if (!skillMarketListEl) return
+      if (skillRefreshEl) skillRefreshEl.classList.toggle('is-loading', skillMarketState.loading)
+      const isOpenAi = skillSubTab === 'openai'
+      const rawItems = isOpenAi ? skillMarketState.openaiItems : skillMarketState.marketItems
+      const terms = skillSearch.trim().toLowerCase().split(/\s+/).filter(Boolean)
+      const items = isOpenAi && terms.length
+        ? rawItems.filter((item) => {
+            const hay = `${item.title || ''}\n${item.skillId || ''}\n${item.description || ''}\n${item.source || ''}`.toLowerCase()
+            return terms.every((term) => hay.includes(term))
+          })
+        : rawItems
+
+      if (skillMarketErrorEl) {
+        skillMarketErrorEl.textContent = skillMarketState.error || ''
+        skillMarketErrorEl.hidden = !skillMarketState.error
+      }
+      skillMarketListEl.textContent = ''
+      if (skillMarketState.loading && !items.length) {
+        skillMarketListEl.innerHTML = globalThis.marketLoadingHtml(t('加载中…'))
+        return
+      }
+      if (!items.length) {
         const empty = document.createElement('div')
         empty.className = 'plugin-empty'
-        empty.textContent = t('这两个目录里还没有本地技能。')
+        empty.textContent = skillMarketState.error
+          ? t('暂时无法读取技能市场')
+          : (skillSearch.trim() ? t('没有找到匹配的技能。') : t(isOpenAi ? '暂无 OpenAI 精选技能。' : '没有找到匹配的技能。'))
+        skillMarketListEl.append(empty)
+        return
+      }
+      const grid = document.createElement('div')
+      grid.className = 'plugin-market-grid'
+      for (const item of items) grid.append(skillMarketCard(item))
+      skillMarketListEl.append(grid)
+
+      if (!isOpenAi && skillMarketState.hasMore) {
+        const moreBtn = document.createElement('button')
+        moreBtn.type = 'button'
+        moreBtn.className = 'ghost plugin-market-more'
+        moreBtn.disabled = skillMarketState.loadingMore
+        moreBtn.textContent = skillMarketState.loadingMore ? t('加载中…') : t('加载更多')
+        moreBtn.onclick = () => { void loadSkillMarket({ append: true, page: skillMarketState.page + 1 }) }
+        skillMarketListEl.append(moreBtn)
+      }
+    }
+
+    async function loadSkillMarket({ refresh = false, append = false, page = 0 } = {}) {
+      const mode = skillSubTab === 'openai' ? 'openai' : 'market'
+      const seq = ++skillMarketState.seq
+      if (append) skillMarketState.loadingMore = true
+      else {
+        skillMarketState.loading = true
+        skillMarketState.error = ''
+      }
+      renderSkillMarket()
+      try {
+        const params = new URLSearchParams({ mode, page: String(page), limit: '30' })
+        if (mode === 'market' && skillSearch.trim()) params.set('q', skillSearch.trim())
+        if (refresh) params.set('refresh', '1')
+        const data = await getJson(`/api/skill-market?${params.toString()}`)
+        if (seq !== skillMarketState.seq) return
+        const nextItems = Array.isArray(data?.items) ? data.items : []
+        if (mode === 'openai') {
+          skillMarketState.openaiItems = nextItems
+          skillMarketState.openaiLoaded = true
+        } else {
+          skillMarketState.marketItems = append ? [...skillMarketState.marketItems, ...nextItems] : nextItems
+          skillMarketState.marketLoaded = true
+          skillMarketState.marketTotal = Number(data?.total) || 0
+          skillMarketState.page = Number(data?.page) || 0
+          skillMarketState.hasMore = Boolean(data?.hasMore)
+        }
+        skillMarketState.error = data?.error || ''
+      } catch (error) {
+        if (seq !== skillMarketState.seq) return
+        skillMarketState.error = error instanceof Error ? error.message : String(error)
+      } finally {
+        if (seq === skillMarketState.seq) {
+          skillMarketState.loading = false
+          skillMarketState.loadingMore = false
+          renderSkillMarket()
+        }
+      }
+    }
+
+    function renderSkillList() {
+      if (skillTotalCountEl) skillTotalCountEl.textContent = String(skillItems.length)
+      syncSkillSubtabs()
+      const isInstalled = skillSubTab === 'installed'
+      if (skillListEl) skillListEl.hidden = !isInstalled
+      if (skillMarketPaneEl) skillMarketPaneEl.hidden = isInstalled
+      if (!isInstalled) {
+        renderSkillMarket()
+        return
+      }
+      skillRefreshEl?.classList.remove('is-loading')
+      skillListEl.textContent = ''
+      const terms = skillSearch.trim().toLowerCase().split(/\s+/).filter(Boolean)
+      const filtered = skillItems.filter((skill) => {
+        if (!terms.length) return true
+        const hay = `${skill.name || ''}\n${skill.dirName || ''}\n${skill.description || ''}\n${skill.relPath || ''}`.toLowerCase()
+        return terms.every((term) => hay.includes(term))
+      })
+      if (!filtered.length) {
+        const empty = document.createElement('div')
+        empty.className = 'plugin-empty'
+        empty.textContent = skillItems.length ? t('没有匹配的技能。') : t('这两个目录里还没有本地技能。')
         skillListEl.append(empty)
       } else {
-        for (const skill of skills) skillListEl.append(skillRow(skill))
+        for (const skill of filtered) skillListEl.append(skillRow(skill))
       }
+    }
+
+    function renderSkills(data) {
+      skillItems = data.skills || []
+      renderSkillList()
       if (data.roots) {
         skillSubEl.textContent = data.roots.map((root) => root.dir).join(' · ')
+      }
+    }
+    skillSubtabsEl?.addEventListener('click', (event) => {
+      const btn = event.target.closest?.('[data-skill-subtab]')
+      if (!btn) return
+      const next = btn.dataset.skillSubtab || 'installed'
+      if (next === skillSubTab) return
+      skillSubTab = next
+      if (skillMarketErrorEl) skillMarketErrorEl.hidden = true
+      renderSkillList()
+      animateSubPane(next === 'installed' ? skillListEl : skillMarketPaneEl)
+      if (next === 'openai' && !skillMarketState.openaiLoaded) void loadSkillMarket()
+      else if (next === 'market' && (!skillMarketState.marketLoaded || skillSearch.trim())) void loadSkillMarket()
+    })
+    if (skillSearchEl) {
+      skillSearchEl.oninput = () => {
+        skillSearch = skillSearchEl.value
+        if (skillSubTab === 'installed') {
+          renderSkillList()
+          return
+        }
+        renderSkillMarket()
+        if (skillSubTab === 'market') {
+          clearTimeout(skillMarketState.searchTimer)
+          skillMarketState.searchTimer = setTimeout(() => {
+            void loadSkillMarket({ page: 0 })
+          }, 250)
+        }
       }
     }
 
@@ -14465,10 +15235,14 @@
       try {
         const query = instanceToolScope.profile ? `?profile=${encodeURIComponent(instanceToolScope.profile)}` : ''
         renderSkills(await getJson(`/api/skills${query}`, toolScopeOptions()))
+        requestAnimationFrame(() => globalThis.syncSubtabPill?.(skillSubtabsEl))
       } catch (error) { skillHintEl.textContent = error.message }
     }
 
-    document.getElementById('skillRefresh').onclick = loadSkills
+    document.getElementById('skillRefresh').onclick = () => {
+      if (skillSubTab === 'installed') void loadSkills()
+      else void loadSkillMarket({ refresh: true })
+    }
     for (const [id, root] of [['skillOpenDsh', 'dsh'], ['skillOpenAgents', 'agents']]) {
       document.getElementById(id).onclick = async () => {
         const button = document.getElementById(id)
@@ -14504,7 +15278,7 @@
       const top = envPanel.querySelector('#environmentView .pack-detail-top')
       if (top) top.append(document.getElementById('launchPluginsClose'))
     }
-    globalThis.syncEnvironmentToolTab = (tab = 'plugins', env = null) => {
+    globalThis.syncEnvironmentToolTab = (tab = 'plugins', env = null, pluginSubTab = 'installed') => {
       const mcpPanel = document.getElementById('mcpPanel')
       const skillsPanel = document.getElementById('skillsPanel')
       const mcpHome = document.getElementById('pane-mcp')
@@ -14537,32 +15311,704 @@
       }
       if (tabActions) {
         const pluginActions = document.getElementById('environmentPluginActions')
-        if (pluginActions) pluginActions.hidden = !env || nextTab !== 'plugins'
+        const pluginCommonActions = document.getElementById('environmentPluginCommonActions')
+        const marketActions = document.getElementById('environmentMarketActions')
+        const isMarketSubTab = tab === 'plugins' && (pluginSubTab === 'curated' || pluginSubTab === 'market')
+        if (pluginCommonActions) pluginCommonActions.hidden = !env || tab !== 'plugins'
+        if (pluginActions) pluginActions.hidden = !env || tab !== 'plugins' || pluginSubTab !== 'installed'
+        if (marketActions) marketActions.hidden = !env || !isMarketSubTab
         const activeActions = nextTab === 'mcp' ? mcpActions : nextTab === 'skills' ? skillsActions : null
         if (activeActions && activeActions.parentElement !== tabActions) tabActions.append(activeActions)
-        tabActions.hidden = !env
+        tabActions.hidden = !env || tab === 'config'
       }
       if (nextTab === 'plugins') {
         instanceToolMountKey = ''
         return
       }
       const nextKey = `${nextTab}:${env.id}:${instanceToolScope.profile}:${instanceToolScope.home}`
-      if (instanceToolMountKey === nextKey) return
+      if (instanceToolMountKey === nextKey) {
+        requestAnimationFrame(() => globalThis.syncSubtabPill?.(nextTab === 'mcp' ? mcpSubtabsEl : skillSubtabsEl))
+        return
+      }
       instanceToolMountKey = nextKey
       if (nextTab === 'mcp') {
+        mcpSubTab = 'installed'
+        mcpSearch = ''
+        if (mcpSearchEl) mcpSearchEl.value = ''
+        syncMcpSubtabs()
+        renderMcp()
+        requestAnimationFrame(() => globalThis.syncSubtabPill?.(mcpSubtabsEl))
         setMcpHint(t('检测会真的起进程或连端点，可能需要几秒。'))
         void loadMcp()
       } else {
+        skillSubTab = 'installed'
+        skillSearch = ''
+        if (skillSearchEl) skillSearchEl.value = ''
+        syncSkillSubtabs()
+        renderSkillList()
+        requestAnimationFrame(() => globalThis.syncSubtabPill?.(skillSubtabsEl))
         skillHintEl.textContent = ''
         void loadSkills()
       }
     }
 
+    // 实例详情「配置」页签顶部的启动项配置卡（仅从首页启动卡片点进实例弹窗且非 WSL/SSH 时显示）
+    ;(() => {
+      const dialogEl = document.getElementById('envLaunchConfigDialog')
+      const closeEl = document.getElementById('envLaunchConfigClose')
+      const cardEl = document.getElementById('envLaunchConfigCard')
+      const statusEl = document.getElementById('envLaunchSaveStatus')
+      const identityEl = document.getElementById('envLaunchIdentityControl')
+      const iconTriggerEl = document.getElementById('envLaunchIconTrigger')
+      const iconPopoverEl = document.getElementById('envLaunchIconPopover')
+      const iconPickerEl = document.getElementById('envLaunchIconPicker')
+      const iconUploadEl = document.getElementById('envLaunchIconUpload')
+      const iconResetEl = document.getElementById('envLaunchIconReset')
+      const iconFileEl = document.getElementById('envLaunchIconFile')
+      const iconHintEl = document.getElementById('envLaunchIconHint')
+      const nameEl = document.getElementById('envLaunchName')
+      const homeEl = document.getElementById('envLaunchHome')
+      const browseHomeEl = document.getElementById('envLaunchBrowseHome')
+      const portEl = document.getElementById('envLaunchPort')
+      const envSelectEl = document.getElementById('envLaunchEnvironment')
+      const autoLaunchEl = document.getElementById('envLaunchAutoLaunch')
+      const dshHomeEnvEl = document.getElementById('envLaunchDshHomeEnv')
+      const recoverEl = document.getElementById('envLaunchRecover')
+      const deleteEl = document.getElementById('envLaunchDelete')
+      const recoveryHintEl = document.getElementById('envLaunchRecoveryHint')
+      if (!cardEl) return
+
+      if (homeEl) createUiSelect(homeEl)
+      if (envSelectEl) createUiSelect(envSelectEl)
+
+      let iconDraft = 'terminal'
+      let iconsOpen = false
+      let iconMotion = null
+      let activeLaunchEntry = null
+      let currentEnvObj = null
+      let syncedEntryKey = ''
+      let recoveryState = null
+      let recoverySeq = 0
+      let envHomeBusy = false
+      const autoSave = { timer: null, inFlight: null, queued: false, override: null }
+
+      const effectiveLaunchHome = (entry = liveLaunchEntry()) => {
+        const selected = homeEl ? homeEl.value : (entry?.dshHome || '')
+        return String(selected || state.dshHome || '').trim()
+      }
+
+      function paintDshHomeEnv(entry = liveLaunchEntry()) {
+        if (!dshHomeEnvEl) return
+        const current = effectiveLaunchHome(entry)
+        const envHome = state.userDshHome || ''
+        dshHomeEnvEl.checked = Boolean(current && envHome && normalizeHomePath(envHome) === normalizeHomePath(current))
+        dshHomeEnvEl.disabled = envHomeBusy || !current
+      }
+      globalThis.syncEnvLaunchDshHomeEnv = () => {
+        if (canManageLaunchEntry(liveLaunchEntry())) paintDshHomeEnv()
+      }
+
+      const liveLaunchEntry = () => {
+        const ref = activeLaunchEntry || pluginLaunchEntry
+        if (!ref) return null
+        return launchEntries().find((item) => item.id === ref.id) || ref
+      }
+
+      const canManageLaunchEntry = (entry) => Boolean(
+        entry && entry.backend !== 'wsl' && entry.backend !== 'ssh'
+        && ((dialogEl && !dialogEl.hidden) || (launchPluginsDialogEl && !launchPluginsDialogEl.hidden)),
+      )
+
+      const resolveEntryEnv = (entry) => {
+        if (!entry) return null
+        const list = Array.isArray(environmentState?.list) ? environmentState.list : []
+        if (entry.environment) {
+          const byId = list.find((item) => item.id === entry.environment)
+          if (byId) return byId
+        }
+        const profile = entry.profile || 'web'
+        const home = entry.dshHome || state.dshHome || ''
+        return list.find((item) => (item.targetProfile || item.name) === profile && (!item.targetHome || normalizeHomePath(item.targetHome) === normalizeHomePath(home)))
+          || list.find((item) => (item.targetProfile || item.name) === profile)
+          || null
+      }
+
+      const envVersionLabel = (env) => {
+        if (!env) return ''
+        return env.dshVersion === 'auto'
+          ? t('自动（{channel}）', { channel: t(UPDATE_CHANNEL_NAMES[env.updateChannel] || env.updateChannel) })
+          : env.dshVersion
+      }
+
+      function paintSaveStatus(kind = 'idle', detail = '') {
+        if (!statusEl) return
+        if (kind === 'error') {
+          statusEl.textContent = detail || t('保存失败：{error}', { error: '' })
+          statusEl.hidden = false
+        } else {
+          statusEl.textContent = ''
+          statusEl.hidden = true
+        }
+      }
+
+      function setEnvLaunchIcons(open, immediate = false) {
+        if (!iconPopoverEl || !iconTriggerEl) return
+        if (iconsOpen === open && !immediate) return
+        const wasHidden = iconPopoverEl.hidden
+        const current = getComputedStyle(iconPopoverEl)
+        const from = { opacity: wasHidden ? 0 : current.opacity, transform: wasHidden ? 'translateY(-6px) scale(.96)' : current.transform }
+        iconMotion?.cancel()
+        iconMotion = null
+        iconsOpen = open
+        iconTriggerEl.setAttribute('aria-expanded', String(open))
+        iconPopoverEl.inert = !open
+        if (immediate || isReducedMotion()) { iconPopoverEl.hidden = !open; return }
+        iconPopoverEl.hidden = false
+        const animation = iconPopoverEl.animate(
+          [from, { opacity: open ? 1 : 0, transform: open ? 'translateY(0) scale(1)' : 'translateY(-6px) scale(.96)' }],
+          { duration: open ? MOTION.duration.base : MOTION.duration.fast, easing: MOTION.ease.standard, fill: 'both' },
+        )
+        iconMotion = animation
+        animation.finished.then(() => {
+          if (iconMotion !== animation) return
+          iconPopoverEl.hidden = !open
+          iconMotion = null
+          animation.cancel()
+        }).catch(() => {})
+      }
+
+      function closeEnvLaunchIcons(immediate = false) {
+        setEnvLaunchIcons(false, immediate)
+      }
+      globalThis.closeEnvLaunchIcons = closeEnvLaunchIcons
+
+      function paintIcons() {
+        if (!iconTriggerEl || !iconPickerEl) return
+        iconTriggerEl.innerHTML = launchIconMarkup(iconDraft)
+        const choices = [...Object.keys(LAUNCH_ICON_PATHS), ...(iconDraft.startsWith('data:') ? [iconDraft] : [])]
+        iconPickerEl.innerHTML = choices.map((icon) => `<button type="button" class="launch-icon-choice" aria-label="${escapeHtml(t(LAUNCH_ICON_NAMES[icon] || '自定义图片'))}" aria-pressed="${icon === iconDraft}" title="${escapeHtml(t(LAUNCH_ICON_NAMES[icon] || '自定义图片'))}">${launchIconMarkup(icon)}</button>`).join('')
+        iconPickerEl.querySelectorAll('button').forEach((button, index) => {
+          button.onclick = () => {
+            iconDraft = choices[index]
+            paintIcons()
+            closeEnvLaunchIcons()
+            void saveEnvLaunchConfig({ icon: iconDraft })
+          }
+        })
+      }
+
+      if (iconTriggerEl) iconTriggerEl.onclick = () => setEnvLaunchIcons(!iconsOpen)
+      document.addEventListener('pointerdown', (event) => {
+        if (identityEl && !identityEl.contains(event.target)) closeEnvLaunchIcons()
+      })
+      if (identityEl) {
+        identityEl.onkeydown = (event) => {
+          if (event.key === 'Escape' && iconPopoverEl && !iconPopoverEl.hidden) {
+            event.preventDefault()
+            event.stopPropagation()
+            closeEnvLaunchIcons()
+            iconTriggerEl?.focus()
+          }
+        }
+      }
+      if (iconResetEl) {
+        iconResetEl.onclick = () => {
+          iconDraft = 'terminal'
+          paintIcons()
+          closeEnvLaunchIcons()
+          void saveEnvLaunchConfig({ icon: 'terminal' })
+        }
+      }
+      if (iconUploadEl) {
+        iconUploadEl.onclick = () => {
+          closeEnvLaunchIcons()
+          iconFileEl?.click()
+        }
+      }
+      if (iconFileEl) {
+        iconFileEl.onchange = async (event) => {
+          const file = event.target.files?.[0]
+          if (!file) return
+          try {
+            if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+              throw new Error(t('请选择 5 MB 以内的 PNG、JPEG 或 WebP 图片'))
+            }
+            const bitmap = await createImageBitmap(file)
+            const canvas = document.createElement('canvas')
+            canvas.width = canvas.height = 96
+            const ctx = canvas.getContext('2d')
+            const scale = Math.min(96 / bitmap.width, 96 / bitmap.height)
+            ctx.drawImage(bitmap, (96 - bitmap.width * scale) / 2, (96 - bitmap.height * scale) / 2, bitmap.width * scale, bitmap.height * scale)
+            bitmap.close()
+            iconDraft = canvas.toDataURL('image/png')
+            paintIcons()
+            if (iconHintEl) iconHintEl.textContent = ''
+            void saveEnvLaunchConfig({ icon: iconDraft })
+          } catch (error) {
+            if (iconHintEl) iconHintEl.textContent = error.message
+          }
+          event.target.value = ''
+        }
+      }
+
+      function paintHomes(selectedHome) {
+        if (!homeEl) return
+        const homes = homeOptions(selectedHome)
+        const defaultLabel = homeOptionLabel(state.dshHome, pluginHomeName(state.dshHome, t('全局目录')))
+        homeEl.innerHTML = `<option value="">${escapeHtml(defaultLabel)}</option>`
+          + [...homes].map(([home, label]) => `<option value="${escapeHtml(home)}">${escapeHtml(homeOptionLabel(home, label))}</option>`).join('')
+        homeEl.value = selectedHome || ''
+        syncUiSelect(homeEl)
+        paintDshHomeEnv()
+      }
+
+      function paintEnvironments(currentEnvId, envObj = null) {
+        if (!envSelectEl) return
+        const list = Array.isArray(environmentState?.list) ? environmentState.list : []
+        const hasSelected = Boolean(currentEnvId) && list.some((item) => item.id === currentEnvId)
+        const options = [...list]
+        if (currentEnvId && !hasSelected && envObj) options.unshift(envObj)
+        envSelectEl.innerHTML = options.length
+          ? options.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(`${item.name} · ${envVersionLabel(item)}`)}</option>`).join('')
+          : (currentEnvId ? `<option value="${escapeHtml(currentEnvId)}">${escapeHtml(currentEnvId)}</option>` : '')
+        envSelectEl.value = currentEnvId || (envObj?.id || options[0]?.id || '')
+        syncUiSelect(envSelectEl)
+      }
+
+      function paintRecovery() {
+        if (!recoveryHintEl) return
+        const entry = liveLaunchEntry()
+        const recovery = recoveryState?.data
+        const last = recovery?.last
+        const backup = last?.backup ?? recovery?.backups?.[0]?.path ?? null
+        const profile = entry?.profile || ''
+        const home = entry?.dshHome || state.dshHome || ''
+        if (!canManageLaunchEntry(entry) || !profile || recoveryState?.home !== home || recovery?.profile !== profile || (!backup && !last)) {
+          recoveryHintEl.hidden = true
+          recoveryHintEl.textContent = ''
+          return
+        }
+        recoveryHintEl.hidden = false
+        recoveryHintEl.innerHTML = escapeHtml(last
+          ? t('已修复配置 {profile}：补丁层已备份，停用第三方插件 {count} 个，重启后生效。', { profile, count: last.dropped?.length || 0 })
+          : t('配置 {profile} 有一份配置备份，可还原。', { profile }))
+          + (last?.warning ? ` ${escapeHtml(last.warning)}` : '')
+          + (backup ? ` <button class="link-button" type="button" id="envLaunchRecoverUndo" ${packBusy ? 'disabled' : ''}>${escapeHtml(t('还原'))}</button>` : '')
+          + (installedList().length ? ` <button class="link-button" type="button" id="envLaunchRecoverRestart" ${packBusy ? 'disabled' : ''}>${escapeHtml(t('启动 / 重启这个配置'))}</button>` : '')
+        document.getElementById('envLaunchRecoverUndo')?.addEventListener('click', () => void restoreEnvLaunchRecovery(entry, backup))
+        document.getElementById('envLaunchRecoverRestart')?.addEventListener('click', () => void restartEnvironment(profile))
+      }
+
+      async function loadRecoveryForEntry(entry) {
+        if (!canManageLaunchEntry(entry)) return
+        const seq = ++recoverySeq
+        const profile = entry.profile || 'web'
+        const home = entry.dshHome || state.dshHome || ''
+        try {
+          const data = await getJson(`/api/recover?profile=${encodeURIComponent(profile)}`, { launchId: entry.id })
+          if (seq !== recoverySeq || liveLaunchEntry()?.id !== entry.id) return
+          recoveryState = { home, data }
+          state.recovery = data
+          paintRecovery()
+        } catch (error) {
+          if (seq === recoverySeq && recoveryHintEl && canManageLaunchEntry(entry)) {
+            recoveryHintEl.hidden = false
+            recoveryHintEl.textContent = error.message
+          }
+        }
+      }
+
+      async function restoreEnvLaunchRecovery(entry, backup) {
+        if (!entry || packBusy) return
+        packBusy = true
+        paintRecovery()
+        try {
+          const profile = entry.profile || 'web'
+          const data = await post('/api/recover/restore', { profile, backup }, { launchId: entry.id })
+          if (data?.recovery) {
+            state.recovery = data.recovery
+            recoveryState = { home: entry.dshHome || state.dshHome || '', data: data.recovery }
+            paintRecovery()
+            render()
+          }
+          await loadRecoveryForEntry(entry)
+          await environmentState.reload?.()
+        } catch (error) {
+          notify(error.message)
+        } finally {
+          packBusy = false
+          paintRecovery()
+        }
+      }
+
+      if (recoverEl) {
+        recoverEl.onclick = async () => {
+          const entry = liveLaunchEntry()
+          if (!entry || packBusy) return
+          const profile = entry.profile || 'web'
+          if (!(await appConfirm(t('修复配置 {profile}：把补丁层（自定义 provider、主题等）备份后移出启动路径，并停用第三方插件；重启后生效。继续？', { profile }), { title: t('修复配置') }))) return
+          packBusy = true
+          if (recoveryHintEl) {
+            recoveryHintEl.hidden = false
+            recoveryHintEl.textContent = t('正在修复配置…')
+          }
+          paintRecovery()
+          try {
+            const data = await post('/api/recover', { profile }, { launchId: entry.id })
+            if (data?.recovery) {
+              state.recovery = data.recovery
+              recoveryState = { home: entry.dshHome || state.dshHome || '', data: data.recovery }
+            }
+            render()
+            await loadRecoveryForEntry(entry)
+            await environmentState.reload?.()
+            notify(t('配置已修复，可启动或重启这个配置。'), t('修复配置'))
+          } catch (error) {
+            notify(error.message, t('修复配置'))
+          } finally {
+            packBusy = false
+            paintRecovery()
+          }
+        }
+      }
+
+      if (deleteEl) {
+        deleteEl.onclick = async () => {
+          const entry = liveLaunchEntry()
+          if (!entry || entry.id === DEFAULT_LAUNCH_ID || deleteEl.disabled) return
+          const ok = await appConfirm(t('删除启动项「{name}」？已装的版本和数据不受影响。', { name: entry.name || '' }))
+          if (!ok) return
+          deleteEl.disabled = true
+          try {
+            const id = entry.id
+            await post('/api/launch-presets/remove', { id })
+            state.launchPresets = launchEntries().filter((item) => item.id !== id)
+            if (dialogEl && !dialogEl.hidden) await closeEnvLaunchConfig({ afterDelete: true })
+            if (launchPluginsDialogEl && !launchPluginsDialogEl.hidden) await closeLaunchPlugins({ afterDelete: true })
+            render()
+          } catch (error) {
+            notify(error.message)
+          } finally {
+            deleteEl.disabled = false
+          }
+        }
+      }
+
+      function scheduleEnvLaunchSave(delay = 500) {
+        if (autoSave.timer) {
+          clearTimeout(autoSave.timer)
+          autoSave.timer = null
+        }
+        if (!canManageLaunchEntry(liveLaunchEntry())) return
+        autoSave.timer = setTimeout(() => {
+          autoSave.timer = null
+          void saveEnvLaunchConfig()
+        }, delay)
+      }
+
+      async function flushEnvLaunchSave(override = null) {
+        if (autoSave.timer) {
+          clearTimeout(autoSave.timer)
+          autoSave.timer = null
+        }
+        if (autoSave.inFlight) {
+          autoSave.queued = true
+          if (override) autoSave.override = { ...(autoSave.override || {}), ...override }
+          return autoSave.inFlight
+        }
+        return saveEnvLaunchConfig(override || {})
+      }
+      globalThis.flushEnvLaunchSave = flushEnvLaunchSave
+
+      async function saveEnvLaunchConfig(override = {}) {
+        if (autoSave.inFlight) {
+          autoSave.queued = true
+          autoSave.override = { ...(autoSave.override || {}), ...override }
+          return autoSave.inFlight
+        }
+        const entry = liveLaunchEntry()
+        if (!canManageLaunchEntry(entry)) return
+        const nextName = String(nameEl?.value ?? '').trim()
+        if (!nextName || nextName.length > 32) {
+          paintSaveStatus('error', t('启动项名称请填 1-32 个字符'))
+          return
+        }
+        const portRaw = String(portEl?.value ?? '').trim()
+        let nextPort = 0
+        if (portRaw) {
+          const portNum = Number(portRaw)
+          if (!/^\d+$/.test(portRaw) || !Number.isInteger(portNum) || portNum < 1 || portNum > 65535) {
+            paintSaveStatus('error', t('端口请填 1-65535，或留空自动分配'))
+            return
+          }
+          nextPort = portNum
+        }
+        const prevIcon = entry.icon || 'terminal'
+        const nextIcon = override.icon !== undefined ? override.icon : iconDraft
+        const nextHome = String(override.dshHome !== undefined ? override.dshHome : (homeEl?.value ?? ''))
+        const nextEnvId = String(override.environment !== undefined ? override.environment : (envSelectEl?.value ?? entry.environment ?? ''))
+        const nextAutoLaunch = Boolean(autoLaunchEl?.checked)
+        const switchingEnvironment = Boolean(nextEnvId) && nextEnvId !== (entry.environment || '')
+        const envList = Array.isArray(environmentState?.list) ? environmentState.list : []
+        const nextEnvObj = envList.find((item) => item.id === nextEnvId) || null
+        const unchanged = override.icon === undefined
+          && override.environment === undefined
+          && override.dshHome === undefined
+          && !switchingEnvironment
+          && nextName === (entry.name || '')
+          && nextIcon === prevIcon
+          && nextHome === (entry.dshHome || '')
+          && nextPort === (Number(entry.port) || 0)
+          && nextEnvId === (entry.environment || '')
+          && nextAutoLaunch === (entry.autoLaunch === true)
+        if (unchanged) {
+          paintSaveStatus('idle')
+          return
+        }
+
+        const linkedEnv = switchingEnvironment
+          ? nextEnvObj
+          : (envList.find((item) => item.id === (entry.environment || nextEnvId)) || currentEnvObj || null)
+        const nextProfile = switchingEnvironment
+          ? (nextEnvObj?.targetProfile || entry.profile || 'web')
+          : (entry.profile || 'web')
+        const nextVersion = linkedEnv?.dshVersion || entry.version || 'auto'
+        const nextChannel = linkedEnv?.updateChannel || launchChannel(entry)
+        paintSaveStatus('saving')
+        const runSave = (async () => {
+          try {
+            const data = await post('/api/launch-presets', {
+              id: entry.id,
+              name: nextName,
+              icon: nextIcon,
+              version: nextVersion,
+              ...(nextEnvId ? { environment: nextEnvId } : {}),
+              profile: nextProfile,
+              port: nextPort ? String(nextPort) : '',
+              dshHome: nextHome,
+              autoLaunch: nextAutoLaunch,
+              updateChannel: nextChannel,
+            })
+            const saved = data.entry
+            if (saved) {
+              updateLaunchEntry(saved)
+              if (activeLaunchEntry?.id === saved.id) activeLaunchEntry = saved
+              if (pluginLaunchEntry?.id === saved.id) {
+                pluginLaunchEntry = saved
+                const titleEl = document.getElementById('launchPluginsTitle')
+                if (titleEl) titleEl.textContent = saved.name ? `${saved.name} · ${t('实例')}` : t('实例')
+              }
+              iconDraft = saved.icon || 'terminal'
+              paintIcons()
+              if (document.activeElement !== nameEl && nameEl) nameEl.value = saved.name || ''
+              if (document.activeElement !== portEl && portEl) portEl.value = saved.port ? String(saved.port) : ''
+              if (homeEl) paintHomes(saved.dshHome || '')
+              if (autoLaunchEl) autoLaunchEl.checked = saved.autoLaunch === true
+              if (deleteEl) deleteEl.hidden = saved.id === DEFAULT_LAUNCH_ID
+              render()
+              if (switchingEnvironment && nextEnvId) {
+                if (nextEnvObj) currentEnvObj = nextEnvObj
+                paintEnvironments(nextEnvId, nextEnvObj)
+                if (launchPluginsDialogEl && !launchPluginsDialogEl.hidden && pluginLaunchEntry?.id === saved.id) {
+                  environmentState.openId?.(nextEnvId, { keepTab: 'config' })
+                }
+                void environmentState.reload?.()
+                void loadRecoveryForEntry(saved)
+              } else if (nextHome !== (entry.dshHome || '')) {
+                void environmentState.reload?.()
+                void loadRecoveryForEntry(saved)
+              }
+            }
+            paintSaveStatus('saved')
+          } catch (error) {
+            paintHomes(entry.dshHome || '')
+            paintEnvironments(entry.environment || '', currentEnvObj)
+            paintSaveStatus('error', t('保存失败：{error}', { error: error.message }))
+          } finally {
+            autoSave.inFlight = null
+            if (autoSave.queued) {
+              const queuedOverride = autoSave.override || {}
+              autoSave.queued = false
+              autoSave.override = null
+              void saveEnvLaunchConfig(queuedOverride)
+            }
+          }
+        })()
+        autoSave.inFlight = runSave
+        return runSave
+      }
+
+      if (nameEl) {
+        nameEl.oninput = () => scheduleEnvLaunchSave(500)
+        nameEl.onblur = () => { void flushEnvLaunchSave() }
+        nameEl.onchange = () => { void flushEnvLaunchSave() }
+        nameEl.onkeydown = (event) => {
+          if (event.key === 'Enter') { event.preventDefault(); void flushEnvLaunchSave() }
+        }
+      }
+      if (portEl) {
+        portEl.oninput = () => scheduleEnvLaunchSave(500)
+        portEl.onblur = () => { void flushEnvLaunchSave() }
+        portEl.onchange = () => { void flushEnvLaunchSave() }
+        portEl.onkeydown = (event) => {
+          if (event.key === 'Enter') { event.preventDefault(); void flushEnvLaunchSave() }
+        }
+      }
+      if (homeEl) {
+        homeEl.onchange = () => {
+          paintDshHomeEnv()
+          void flushEnvLaunchSave()
+        }
+      }
+      if (browseHomeEl) {
+        browseHomeEl.onclick = async () => {
+          const entry = liveLaunchEntry()
+          if (!canManageLaunchEntry(entry)) return
+          const picked = await pickDirectoryPath(homeEl?.value || entry.dshHome || state.dshHome || '')
+          if (picked.canceled || !picked.path) {
+            if (picked.error) paintSaveStatus('error', t('保存失败：{error}', { error: picked.error }))
+            return
+          }
+          paintHomes(picked.path)
+          if (homeEl) {
+            homeEl.value = picked.path
+            syncUiSelect(homeEl)
+          }
+          void flushEnvLaunchSave({ dshHome: picked.path })
+        }
+      }
+      if (envSelectEl) {
+        envSelectEl.onchange = () => {
+          const nextId = envSelectEl.value
+          if (nextId) void flushEnvLaunchSave({ environment: nextId })
+        }
+      }
+      if (autoLaunchEl) {
+        autoLaunchEl.onchange = () => { void flushEnvLaunchSave() }
+      }
+      if (dshHomeEnvEl) {
+        dshHomeEnvEl.onchange = async () => {
+          if (envHomeBusy) { paintDshHomeEnv(); return }
+          const want = Boolean(dshHomeEnvEl.checked)
+          envHomeBusy = true
+          paintDshHomeEnv()
+          try {
+            if (autoSave.timer || autoSave.inFlight) await flushEnvLaunchSave()
+            const target = effectiveLaunchHome()
+            if (want && !target) {
+              paintDshHomeEnv()
+              return
+            }
+            const data = await post('/api/dsh-homes/env', { home: want ? target : '' })
+            state.userDshHome = typeof data.userDshHome === 'string' ? data.userDshHome : (want ? target : '')
+            if (data.mode === 'manual' && data.message) paintSaveStatus('error', t(data.message))
+            else paintSaveStatus('idle')
+          } catch (error) {
+            paintSaveStatus('error', t(error.message))
+          } finally {
+            envHomeBusy = false
+            paintDshHomeEnv()
+          }
+        }
+      }
+
+      globalThis.syncEnvLaunchConfig = (env = null) => {
+        currentEnvObj = env || null
+        const entry = liveLaunchEntry()
+        if (!canManageLaunchEntry(entry)) {
+          cardEl.hidden = true
+          syncedEntryKey = ''
+          closeEnvLaunchIcons(true)
+          if (recoveryHintEl) recoveryHintEl.hidden = true
+          return
+        }
+        cardEl.hidden = false
+        const key = `${entry.id}:${env?.id || ''}:${entry.dshHome || ''}:${entry.environment || ''}`
+        const isFresh = syncedEntryKey !== key
+        syncedEntryKey = key
+        iconDraft = entry.icon || 'terminal'
+        paintIcons()
+        if (nameEl && (isFresh || document.activeElement !== nameEl)) nameEl.value = entry.name || ''
+        if (portEl && (isFresh || document.activeElement !== portEl)) portEl.value = entry.port ? String(entry.port) : ''
+        paintHomes(entry.dshHome || '')
+        paintEnvironments(entry.environment || env?.id || '', env)
+        if (autoLaunchEl) autoLaunchEl.checked = entry.autoLaunch === true
+        if (deleteEl) deleteEl.hidden = entry.id === DEFAULT_LAUNCH_ID
+        if (iconHintEl) iconHintEl.textContent = ''
+        if (isFresh) {
+          paintSaveStatus('idle')
+          void loadRecoveryForEntry(entry)
+        } else {
+          paintRecovery()
+        }
+      }
+
+      async function closeEnvLaunchConfig({ afterDelete = false } = {}) {
+        if (!dialogEl || dialogEl.hidden || dialogEl.dataset?.dialogClosing) return
+        if (!afterDelete && (packBusy || envHomeBusy)) return
+        if (!afterDelete) {
+          await flushEnvLaunchSave()
+          if (dialogEl.hidden || dialogEl.dataset?.dialogClosing) return
+        }
+        if (typeof closeUiSelect === 'function') closeUiSelect()
+        closeEnvLaunchIcons(true)
+        if (typeof hidePackDialog === 'function') {
+          if (!(await hidePackDialog(dialogEl))) return
+        } else {
+          dialogEl.hidden = true
+        }
+        activeLaunchEntry = null
+        syncedEntryKey = ''
+      }
+      globalThis.closeEnvLaunchConfig = closeEnvLaunchConfig
+
+      globalThis.openEnvLaunchConfig = async (entry) => {
+        if (!entry || entry.backend === 'wsl' || entry.backend === 'ssh') return
+        activeLaunchEntry = entry
+        syncedEntryKey = ''
+        currentEnvObj = resolveEntryEnv(entry)
+        if (dialogEl) {
+          if (typeof showPackDialog === 'function') showPackDialog(dialogEl, nameEl)
+          else dialogEl.hidden = false
+        }
+        globalThis.syncEnvLaunchConfig(currentEnvObj)
+        if (!Array.isArray(environmentState?.list) || !environmentState.list.length) {
+          try {
+            await environmentState?.reload?.()
+            if (!dialogEl || !dialogEl.hidden) {
+              currentEnvObj = resolveEntryEnv(liveLaunchEntry()) || currentEnvObj
+              globalThis.syncEnvLaunchConfig(currentEnvObj)
+            }
+          } catch {}
+        }
+      }
+
+      if (closeEl) closeEl.onclick = () => { void closeEnvLaunchConfig() }
+      if (dialogEl && typeof trapPackDialog === 'function') {
+        trapPackDialog(dialogEl, () => { void closeEnvLaunchConfig() })
+      }
+
+      globalThis.onEnvironmentConfigSaved = (savedEnv) => {
+        if (!savedEnv) return
+        currentEnvObj = savedEnv
+        const entry = liveLaunchEntry()
+        if (entry && entry.environment === savedEnv.id) {
+          const synced = { ...entry, version: savedEnv.dshVersion, updateChannel: savedEnv.updateChannel }
+          updateLaunchEntry(synced)
+          if (activeLaunchEntry?.id === synced.id) activeLaunchEntry = synced
+          if (pluginLaunchEntry?.id === synced.id) pluginLaunchEntry = synced
+        }
+        if (canManageLaunchEntry(liveLaunchEntry())) {
+          paintEnvironments(liveLaunchEntry()?.environment || savedEnv.id, savedEnv)
+        }
+      }
+    })()
+
     applyLang()
     loadSettings()
   </script>
   <!-- 环境页：用上面主脚本的全局（t / post / paneLoaders …），所以排在它后面、不加 defer -->
-  <script src="/environments-page.js"></script>
+  <script src="/environments-page.js?v=20261119r"></script>
   <script src="/idle.js" defer></script>
   <script src="/mascot.js" defer></script>
   <script src="/water.js" defer></script>

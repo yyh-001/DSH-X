@@ -9,7 +9,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { PREF_DEFAULTS, parsePrefs, readPrefs } from '../shell/prefs.mjs'
 
-test('缺字段时回默认：硬件加速 / 通知 / 托盘默认开，自动更新 / 防休眠 / 忽略证书默认关', () => {
+test('缺字段时回默认：硬件加速 / 通知 / 托盘 / 电脑操作默认开，自动更新 / 防休眠 / 忽略证书默认关', () => {
   assert.deepEqual(parsePrefs({}), { ...PREF_DEFAULTS })
   assert.equal(PREF_DEFAULTS.hardwareAcceleration, true)
   assert.equal(PREF_DEFAULTS.taskNotifications, true)
@@ -18,7 +18,7 @@ test('缺字段时回默认：硬件加速 / 通知 / 托盘默认开，自动�
   assert.equal(PREF_DEFAULTS.keepAwake, false)
   assert.equal(PREF_DEFAULTS.reduceMotion, false)
   assert.equal(PREF_DEFAULTS.browserIgnoreCertificate, false)
-  assert.equal(PREF_DEFAULTS.computerUse, false)
+  assert.equal(PREF_DEFAULTS.computerUse, true)
 })
 
 test('只认布尔语义：true 型不会把脏值当成开，false 型不会被字符串关掉', () => {
@@ -31,7 +31,7 @@ test('只认布尔语义：true 型不会把脏值当成开，false 型不会被
     keepAwake: {},
     reduceMotion: 'true',
     browserIgnoreCertificate: 'yes',
-    computerUse: 'yes',
+    computerUse: 'no',
   })
   assert.equal(prefs.hardwareAcceleration, true, "'no' 不是 false，按默认开")
   assert.equal(prefs.autoUpdate, false, "'true' 字符串不算 true")
@@ -41,7 +41,7 @@ test('只认布尔语义：true 型不会把脏值当成开，false 型不会被
   assert.equal(prefs.keepAwake, false, '对象不算 true')
   assert.equal(prefs.reduceMotion, false)
   assert.equal(prefs.browserIgnoreCertificate, false, "'yes' 不算 true")
-  assert.equal(prefs.computerUse, false, "'yes' 不算 true")
+  assert.equal(prefs.computerUse, true, "'no' 不是 false，按默认开")
 })
 
 test('显式布尔值原样生效', () => {
@@ -54,7 +54,7 @@ test('显式布尔值原样生效', () => {
     keepAwake: true,
     reduceMotion: true,
     browserIgnoreCertificate: true,
-    computerUse: true,
+    computerUse: false,
   })
   assert.deepEqual(prefs, {
     hardwareAcceleration: false,
@@ -65,7 +65,7 @@ test('显式布尔值原样生效', () => {
     keepAwake: true,
     reduceMotion: true,
     browserIgnoreCertificate: true,
-    computerUse: true,
+    computerUse: false,
   })
 })
 

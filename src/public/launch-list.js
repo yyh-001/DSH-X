@@ -1,13 +1,19 @@
 (() => {
   const root = document.documentElement
-  const motion = matchMedia('(prefers-reduced-motion: reduce)')
+  const shared = globalThis.launcherMotion
+  const D = shared?.duration || {}
+  const EASE_DECEL = shared?.ease?.decelerate || 'cubic-bezier(.22, 1, .36, 1)'
+  const motion = shared ? null : matchMedia('(prefers-reduced-motion: reduce)')
   const lists = new WeakMap(), active = new Map()
-  const reduced = () => motion.matches || root.dataset.reduceMotion === 'true'
+  // 独立单测里的 mock classList.contains 固定返回 ready，兜底只检查媒体查询与 data 属性
+  const reduced = shared
+    ? shared.reduced
+    : () => Boolean(motion.matches || root.dataset.reduceMotion === 'true')
 
   function play(node, frames, options, cleanup = () => {}) {
     active.get(node)?.()
     if (reduced() || typeof node.animate !== 'function') { cleanup(); return }
-    const animation = node.animate(frames, { easing: 'cubic-bezier(.22, 1, .36, 1)', fill: 'both', ...options })
+    const animation = node.animate(frames, { easing: EASE_DECEL, fill: 'both', ...options })
     let done = false
     const finish = () => {
       if (done) return
@@ -24,8 +30,12 @@
   function stopMotion() {
     if (reduced()) for (const finish of [...active.values()]) finish()
   }
-  motion.addEventListener('change', stopMotion)
-  new MutationObserver(stopMotion).observe(root, { attributes: true, attributeFilter: ['data-reduce-motion'] })
+  if (shared?.onReduceChange) {
+    shared.onReduceChange(stopMotion)
+  } else {
+    motion.addEventListener('change', stopMotion)
+    new MutationObserver(stopMotion).observe(root, { attributes: true, attributeFilter: ['data-reduce-motion'] })
+  }
 
   function sortable(container, options) {
     let gesture = null
@@ -48,7 +58,7 @@
       for (const row of rows()) {
         if (row === moving) continue
         const shift = positions.get(row) - row.getBoundingClientRect().top
-        if (Math.abs(shift) > .5) play(row, [{ transform: `translateY(${shift}px)` }, { transform: 'none' }], { duration: 220 })
+        if (Math.abs(shift) > .5) play(row, [{ transform: `translateY(${shift}px)` }, { transform: 'none' }], { duration: D.tabGlide ?? 220 })
       }
     }
 
@@ -94,11 +104,11 @@
       // 落位完成前继续暂停状态回填，避免预览还在移动时列表被后台刷新重建。
       container.dataset.sorting = 'settling'
       const target = row.getBoundingClientRect().top - parseFloat(ghost.style.top)
-      play(row, [{ opacity: .25 }, { opacity: 1 }], { duration: 200 })
+      play(row, [{ opacity: .25 }, { opacity: 1 }], { duration: D.sortSettle ?? 200 })
       play(ghost, [
         { transform: ghost.style.transform, opacity: 1 },
         { transform: `translateY(${target}px)`, opacity: 0, boxShadow: '0 2px 6px #00000000' },
-      ], { duration: 200 }, complete)
+      ], { duration: D.sortSettle ?? 200 }, complete)
     }
 
     container.addEventListener('pointerdown', (event) => {
@@ -137,7 +147,7 @@
         ghost.style.width = `${rect.width + left + right}px`
         gesture.ghost = ghost
         gesture.row.classList.add('launch-sorting-row')
-        play(ghost, [{ boxShadow: '0 2px 6px #00000010' }, { boxShadow: '0 12px 30px #00000030' }], { duration: 160 })
+        play(ghost, [{ boxShadow: '0 2px 6px #00000010' }, { boxShadow: '0 12px 30px #00000030' }], { duration: D.sortLift ?? 160 })
         let scroller = container.parentElement
         while (scroller && !(scroller.scrollHeight > scroller.clientHeight && /auto|scroll/.test(getComputedStyle(scroller).overflowY))) scroller = scroller.parentElement
         gesture.scroller = scroller || document.scrollingElement
@@ -216,7 +226,7 @@
           paddingTop: rect.paddingTop, paddingBottom: rect.paddingBottom,
           borderBottomWidth: rect.borderBottomWidth, pointerEvents: 'none',
         })
-        play(node, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-12px)' }], { duration: 180 }, () => node.remove())
+        play(node, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-12px)' }], { duration: D.listRemove ?? 180 }, () => node.remove())
       }
 
       const added = new Set()
@@ -244,9 +254,10 @@
       if (!animate) return
 
       const after = container.getBoundingClientRect()
+      const shiftTiming = { duration: D.listShift ?? 360, delay: D.listDelay ?? 70 }
       for (const [key, { node }] of list.rows) {
         if (added.has(key)) {
-          play(node, [{ opacity: 0, transform: 'translateY(20px)' }, { opacity: 1, transform: 'none' }], { duration: 420, delay: 70 })
+          play(node, [{ opacity: 0, transform: 'translateY(20px)' }, { opacity: 1, transform: 'none' }], { duration: D.listAdd ?? 420, delay: D.listDelay ?? 70 })
         } else {
           const rect = node.getBoundingClientRect(), previous = before.get(key)
           // 卡片本身会随高度保持居中，补位只计算列表内部的位移，避免重复抵消居中变化。
@@ -258,13 +269,13 @@
             play(node, [
               { height: `${previous.height}px`, paddingTop: previous.paddingTop, paddingBottom: previous.paddingBottom, borderBottomWidth: previous.borderBottomWidth, transform: `translateY(${shift}px)` },
               { height: `${rect.height}px`, paddingTop: style.paddingTop, paddingBottom: style.paddingBottom, borderBottomWidth: style.borderBottomWidth, transform: 'none' },
-            ], { duration: 360, delay: 70 })
-          } else if (Math.abs(shift) > .5) play(node, [{ transform: `translateY(${shift}px)` }, { transform: 'none' }], { duration: 360, delay: 70 })
+            ], shiftTiming)
+          } else if (Math.abs(shift) > .5) play(node, [{ transform: `translateY(${shift}px)` }, { transform: 'none' }], shiftTiming)
         }
       }
       // 只过渡高度，不给毛玻璃卡片或它的父层加透明度、缩放，保留即时背景模糊。
       if (Math.abs(box.height - after.height) > .5) {
-        play(container, [{ height: `${box.height}px` }, { height: `${after.height}px` }], { duration: 360, delay: 70 })
+        play(container, [{ height: `${box.height}px` }, { height: `${after.height}px` }], shiftTiming)
       }
     },
   }

@@ -114,15 +114,21 @@ test('首次使用同一版本的多个环境共用一次安装，随后各自�
   await Promise.all([first, second])
 })
 
-test('界面只锁住忙碌项，运行时添加、编辑和其他环境启动可用', async () => {
+test('界面只锁住忙碌项，运行时添加、管理实例和其他环境启动可用', async () => {
   const h = ui({ instances: [{ version: '0.1.0', profile: 'web', home: 'home', status: 'running', url: 'http://local' }] })
   h.context.paintLaunchHome()
   assert.equal(h.context.launchAddEl.disabled, false)
+  assert.match(h.list.innerHTML, /data-plugins-id="a"/)
+  assert.doesNotMatch(h.list.innerHTML, /data-plugins-id="a"[^>]*disabled/)
   assert.doesNotMatch(h.list.innerHTML, /data-edit-id="a"[^>]*disabled/)
   const starting = h.context.startVersion('0.1.0', 'work', null, 'b')
   h.context.paintLaunchHome()
   assert.doesNotMatch(h.list.innerHTML, /data-launch-id="a"[^>]*disabled/)
   assert.match(h.list.innerHTML, /data-launch-id="b"[^>]*disabled/)
+  assert.doesNotMatch(h.list.innerHTML, /data-plugins-id="a"[^>]*disabled/)
+  assert.match(h.list.innerHTML, /data-plugins-id="b"[^>]*disabled/)
+  assert.doesNotMatch(h.list.innerHTML, /data-edit-id="a"[^>]*disabled/)
+  assert.match(h.list.innerHTML, /data-edit-id="b"[^>]*disabled/)
   assert.equal(h.context.launchAddEl.disabled, false)
   h.calls[0].resolve({})
   await starting

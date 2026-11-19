@@ -1,0 +1,544 @@
+{
+  "version": 1,
+  "updatedAt": "2026-11-18",
+  "categories": [
+    {
+      "id": "manage",
+      "zh": "管理与统计",
+      "en": "Management",
+      "icon": "lucide-sliders-horizontal",
+      "tone": "blue"
+    },
+    {
+      "id": "perf",
+      "zh": "性能与效率",
+      "en": "Performance",
+      "icon": "lucide-rocket",
+      "tone": "indigo"
+    },
+    {
+      "id": "bridge",
+      "zh": "IM 与媒体桥接",
+      "en": "Bridges & Media",
+      "icon": "lucide-globe",
+      "tone": "cyan"
+    },
+    {
+      "id": "memory",
+      "zh": "记忆与上下文",
+      "en": "Memory & Context",
+      "icon": "lucide-book-open",
+      "tone": "purple"
+    },
+    {
+      "id": "ext",
+      "zh": "功能扩展",
+      "en": "Extensions",
+      "icon": "lucide-package-plus",
+      "tone": "emerald"
+    },
+    {
+      "id": "ui",
+      "zh": "界面增强",
+      "en": "Interface",
+      "icon": "lucide-layout-list",
+      "tone": "amber"
+    },
+    {
+      "id": "theme",
+      "zh": "皮肤与桌宠",
+      "en": "Themes & Pets",
+      "icon": "lucide-sparkles",
+      "tone": "pink"
+    }
+  ],
+  "plugins": [
+    {
+      "name": "dshmarket",
+      "title": "DSH 插件市场",
+      "description": "网页内的可视化插件市场，浏览、搜索并一键安装社区插件。",
+      "category": "manage",
+      "stars": 5,
+      "installSpec": "dshmarket",
+      "icon": "lucide-package-plus"
+    },
+    {
+      "name": "dsh-cost-meter",
+      "title": "dsh-cost-meter",
+      "description": "会话费用统计、170+ 模型价格同步与 14 家 Coding Plan 额度/余额查询。",
+      "category": "manage",
+      "stars": 5,
+      "installSpec": "dsh-cost-meter",
+      "icon": "lucide-sliders-horizontal"
+    },
+    {
+      "name": "dsh-ops",
+      "title": "dsh-ops",
+      "description": "Rust 实现的原生文件与命令工具（Windows 提供 bash 与 PowerShell 7 通道），显著省 token。",
+      "category": "perf",
+      "stars": 5,
+      "installSpec": "dsh-ops",
+      "icon": "lucide-terminal"
+    },
+    {
+      "name": "dsh-llm-retry-settings",
+      "title": "dsh-llm-retry-settings",
+      "description": "LLM 自动重试与输出截断续传，可配置重试次数、退避抖动与错误码过滤。",
+      "category": "perf",
+      "stars": 5,
+      "installSpec": "dsh-llm-retry-settings",
+      "icon": "lucide-refresh-cw"
+    },
+    {
+      "name": "dsh-tiered-plugin-menu",
+      "title": "dsh-tiered-plugin-menu",
+      "description": "提供客户端级、父工作区级、子工作区级与会话级插件分级生效控制。",
+      "category": "perf",
+      "stars": 5,
+      "installSpec": "dsh-tiered-plugin-menu",
+      "icon": "lucide-layout-list"
+    },
+    {
+      "name": "dsh-wish-specializer",
+      "title": "dsh-wish-specializer",
+      "description": "多层次许愿强化预设与独立配置界面，精细增强模型执行规范。",
+      "category": "perf",
+      "stars": 4,
+      "installSpec": "dsh-wish-specializer@github:WestFox-AwA/dsh-wish-specializer",
+      "sourceTag": "GitHub",
+      "icon": "lucide-sparkles"
+    },
+    {
+      "name": "dsh-deep-ptc-mode",
+      "title": "dsh-deep-ptc-mode",
+      "description": "深度 PTC 模式，改善跳步省略与长思考过程不汇报进度的问题。",
+      "category": "perf",
+      "stars": 3,
+      "installSpec": "dsh-deep-ptc-mode",
+      "icon": "lucide-code-xml"
+    },
+    {
+      "name": "billion-context",
+      "title": "billion-context",
+      "description": "长对话上下文压缩，降低窗口溢出风险与 token 消耗（建议备份重要会话）。",
+      "category": "perf",
+      "stars": 3,
+      "installSpec": "billion-context",
+      "icon": "lucide-file-archive"
+    },
+    {
+      "name": "dsh-prompt-enhancer",
+      "title": "dsh-prompt-enhancer",
+      "description": "会话输入提示词增强：支持语音录入、多级模型润色与强化模式。",
+      "category": "perf",
+      "stars": 3,
+      "installSpec": "dsh-prompt-enhancer",
+      "icon": "lucide-pencil"
+    },
+    {
+      "name": "dsh-plugin-iot-thinking",
+      "title": "dsh-plugin-iot-thinking",
+      "description": "Thinking 思维链块级压缩，保留关键事实同时节省 token。",
+      "category": "perf",
+      "stars": 3,
+      "installSpec": "dsh-plugin-iot-thinking@github:Roninton/IoT-items-of-thoughts",
+      "sourceTag": "GitHub",
+      "icon": "lucide-rocket"
+    },
+    {
+      "name": "@michengai/dsh-pua",
+      "title": "dsh-pua",
+      "description": "在输入栏一键附加风格化激励/施压提示，提高模型排查严谨度。",
+      "category": "perf",
+      "stars": 3,
+      "installSpec": "@michengai/dsh-pua",
+      "icon": "lucide-rocket"
+    },
+    {
+      "name": "@xmanrui/dsh-im",
+      "title": "dsh-im",
+      "description": "把微信、QQ、飞书、企微、钉钉、Telegram、Discord、Slack 接入 dsh。",
+      "category": "bridge",
+      "stars": 5,
+      "installSpec": "@xmanrui/dsh-im",
+      "icon": "lucide-globe"
+    },
+    {
+      "name": "@memef1f1y/dsh-plugin-tts",
+      "title": "dsh-plugin-tts",
+      "description": "自动/手动语音朗读，支持 Edge TTS 音色与本地 RVC 声音调教。",
+      "category": "bridge",
+      "stars": 5,
+      "installSpec": "@memef1f1y/dsh-plugin-tts",
+      "icon": "lucide-server"
+    },
+    {
+      "name": "dsh-ntr",
+      "title": "dsh-ntr",
+      "description": "社区趣味互动插件。",
+      "category": "bridge",
+      "stars": 4,
+      "installSpec": "dsh-ntr",
+      "icon": "lucide-star"
+    },
+    {
+      "name": "dsh-qwen-paint",
+      "title": "dsh-qwen-paint",
+      "description": "千问本地绘图工具插件，支持手动切换生成模型。",
+      "category": "bridge",
+      "stars": 3,
+      "installSpec": "dsh-qwen-paint",
+      "icon": "lucide-image"
+    },
+    {
+      "name": "dsh-comfyui-workbench",
+      "title": "dsh-comfyui-workbench",
+      "description": "连接本地 ComfyUI 工作台，加速生图工作流并节省上下文 token。",
+      "category": "bridge",
+      "stars": 3,
+      "installSpec": "dsh-comfyui-workbench",
+      "icon": "lucide-image"
+    },
+    {
+      "name": "dsh-mnemon",
+      "title": "dsh-mnemon",
+      "description": "长期记忆主平台，提供跨会话通用记忆与偏好注入（可搭配 rcs-context）。",
+      "category": "memory",
+      "stars": 5,
+      "installSpec": "dsh-mnemon",
+      "icon": "lucide-book-open"
+    },
+    {
+      "name": "rcs-context",
+      "title": "rcs-context",
+      "description": "长会话治理与强审计上下文瘦身（原文可展开），完美搭配 dsh-mnemon。",
+      "category": "memory",
+      "stars": 5,
+      "installSpec": "rcs-context",
+      "icon": "lucide-history"
+    },
+    {
+      "name": "dsh-memory-acc",
+      "title": "dsh-memory-acc",
+      "description": "支持完整原文留存与人格记忆沉淀的跨会话记忆插件。",
+      "category": "memory",
+      "stars": 4,
+      "installSpec": "dsh-memory-acc@github:harm-m422/dsh-memory-acc",
+      "sourceTag": "GitHub",
+      "icon": "lucide-book-open"
+    },
+    {
+      "name": "dsh-live-compact",
+      "title": "dsh-live-compact",
+      "description": "动态压低上下文占用水位，持续保持模型高注意力。",
+      "category": "memory",
+      "stars": 4,
+      "installSpec": "dsh-live-compact",
+      "icon": "lucide-history"
+    },
+    {
+      "name": "dsh-agent-compact",
+      "title": "dsh-agent-compact",
+      "description": "按需压缩历史上下文区间，减少长对话 token 占用。",
+      "category": "memory",
+      "stars": 3,
+      "installSpec": "dsh-agent-compact@github:MimicHunterZ/dsh-agent-compact",
+      "sourceTag": "GitHub",
+      "icon": "lucide-file-archive"
+    },
+    {
+      "name": "dsh-agent-soul-kit",
+      "title": "dsh-agent-soul-kit",
+      "description": "内置完整人设与偏好注入的一键装机记忆套件。",
+      "category": "memory",
+      "stars": 3,
+      "installSpec": "dsh-agent-soul-kit@github:Akashyc/dsh-agent-soul-kit",
+      "sourceTag": "GitHub",
+      "icon": "lucide-sparkles"
+    },
+    {
+      "name": "dsh-better-sidebar",
+      "title": "dsh-better-sidebar",
+      "description": "侧边栏增强基础件（Office 预览等侧栏插件常用前置依赖）。",
+      "category": "ext",
+      "stars": 5,
+      "installSpec": "dsh-better-sidebar",
+      "icon": "lucide-app-window"
+    },
+    {
+      "name": "dsh-our-free-model",
+      "title": "dsh-our-free-model",
+      "description": "免登录免 API Key 接入免费模型并为本地工具调用提供兼容转发。",
+      "category": "ext",
+      "stars": 5,
+      "installSpec": "dsh-our-free-model",
+      "icon": "lucide-rocket"
+    },
+    {
+      "name": "dsh-univer-office",
+      "title": "dsh-univer-office",
+      "description": "Office 办公三件套处理：在会话内实时编辑并导出 Word、PPT、Excel。",
+      "category": "ext",
+      "stars": 5,
+      "installSpec": "dsh-univer-office",
+      "icon": "lucide-file-text"
+    },
+    {
+      "name": "dsh-image-gen",
+      "title": "dsh-image-gen",
+      "description": "原生对话生图：让智能体直接绘图并将图片自动保留在当前会话中。",
+      "category": "ext",
+      "stars": 5,
+      "installSpec": "dsh-image-gen",
+      "icon": "lucide-image"
+    },
+    {
+      "name": "dsh-video-storyboard",
+      "title": "dsh-video-storyboard",
+      "description": "在线视频分镜阅读与低成本长视频内容解析。",
+      "category": "ext",
+      "stars": 5,
+      "installSpec": "dsh-video-storyboard",
+      "icon": "lucide-image"
+    },
+    {
+      "name": "dsh-orb-cordis",
+      "title": "dsh-orb-cordis",
+      "description": "桌面悬浮球快捷操控电脑，支持配置前后台模型。",
+      "category": "ext",
+      "stars": 4,
+      "installSpec": "dsh-orb-cordis@github:mini-yifan/dsh-orb-cordis",
+      "sourceTag": "GitHub",
+      "icon": "lucide-sparkles"
+    },
+    {
+      "name": "dsh-blender-plugin",
+      "title": "dsh-blender-plugin",
+      "description": "DSH × Blender 直连：让 AI 实时观察视口、改场景并执行建模操作。",
+      "category": "ext",
+      "stars": 4,
+      "installSpec": "dsh-blender-plugin",
+      "icon": "lucide-box"
+    },
+    {
+      "name": "dsh-tavern",
+      "title": "dsh-tavern",
+      "description": "Agent 酒馆模式，兼容 SillyTavern 角色卡导入即玩。",
+      "category": "ext",
+      "stars": 4,
+      "installSpec": "dsh-tavern",
+      "icon": "lucide-book-open"
+    },
+    {
+      "name": "dsh-mobile",
+      "title": "dsh-mobile",
+      "description": "移动端远程访问与安全局域网连接扩展，适配自定义移动界面。",
+      "category": "ext",
+      "stars": 4,
+      "installSpec": "dsh-mobile",
+      "icon": "lucide-globe"
+    },
+    {
+      "name": "dsh-ai-model-builder",
+      "title": "dsh-ai-model-builder",
+      "description": "在本地体验从零训练微型语言模型的工具插件。",
+      "category": "ext",
+      "stars": 4,
+      "installSpec": "dsh-ai-model-builder@github:kalozamf233/dsh-ai-model-builder",
+      "sourceTag": "GitHub",
+      "icon": "lucide-code-xml"
+    },
+    {
+      "name": "dsh-blender",
+      "title": "blender (dsh-blender)",
+      "description": "直连本地 Blender 并提供配套三维创作技能集。",
+      "category": "ext",
+      "stars": 3,
+      "installSpec": "dsh-blender",
+      "icon": "lucide-box"
+    },
+    {
+      "name": "dsh-remote",
+      "title": "dsh-remote",
+      "description": "SSH 远程办公：连接远端工作区，提供 rw_* 文件工具、端口转发与审计。",
+      "category": "ext",
+      "stars": 3,
+      "installSpec": "dsh-remote",
+      "icon": "lucide-server"
+    },
+    {
+      "name": "dsh-config-manager",
+      "title": "dsh-config-manager",
+      "description": "通过 S3 / WebDAV / Git / ZIP 在多台设备间同步配置、插件、MCP 与技能。",
+      "category": "ext",
+      "stars": 3,
+      "installSpec": "dsh-config-manager",
+      "icon": "lucide-upload"
+    },
+    {
+      "name": "dsh-genui",
+      "title": "dsh-genui",
+      "description": "在对话中渲染交互式图表与流程图，升级为可视化 UI 输出。",
+      "category": "ext",
+      "stars": 3,
+      "installSpec": "dsh-genui",
+      "icon": "lucide-layout-list"
+    },
+    {
+      "name": "dsh-whale-persona",
+      "title": "dsh-whale-persona",
+      "description": "预制鲸鱼娘人设插件，装好即可启用对话。",
+      "category": "ext",
+      "stars": 3,
+      "installSpec": "dsh-whale-persona",
+      "icon": "lucide-sparkles"
+    },
+    {
+      "name": "dsh-plugin-control-your-capture",
+      "title": "dsh-plugin-control-your-capture",
+      "description": "调控并提升 dsh 截图的清晰度与分辨率表现。",
+      "category": "ext",
+      "stars": 3,
+      "installSpec": "dsh-plugin-control-your-capture",
+      "icon": "lucide-image"
+    },
+    {
+      "name": "dsh-bili-whale",
+      "title": "dsh-bili-whale",
+      "description": "按生物钟刷 B 站、写日记并分享给你的娱乐陪伴插件。",
+      "category": "ext",
+      "stars": 3,
+      "installSpec": "dsh-bili-whale@github:Alterssss/dsh-bili-whale",
+      "sourceTag": "GitHub",
+      "icon": "lucide-star"
+    },
+    {
+      "name": "dsh-whale-widget",
+      "title": "DeepSeek Balance Whale",
+      "description": "右下角鲸鱼挂件，实时监测 API 账单、峰谷时段与订阅额度。",
+      "category": "ui",
+      "stars": 5,
+      "installSpec": "dsh-whale-widget",
+      "icon": "lucide-star"
+    },
+    {
+      "name": "dsh-context",
+      "title": "dsh-context",
+      "description": "上下文可视化面板，从面板、侧栏与命令透视上下文组成与压缩情况。",
+      "category": "ui",
+      "stars": 5,
+      "installSpec": "dsh-context",
+      "icon": "lucide-layout-list"
+    },
+    {
+      "name": "dsh-workspace-explorer",
+      "title": "dsh-workspace-explorer",
+      "description": "资源管理器模式文件夹视图，支持直接在工作区预览图片。",
+      "category": "ui",
+      "stars": 4,
+      "installSpec": "dsh-workspace-explorer",
+      "icon": "lucide-folder"
+    },
+    {
+      "name": "dsh-meme",
+      "title": "dsh-meme",
+      "description": "表情包插件：多图库情绪搜图、一键发送与 AI 学图。",
+      "category": "ui",
+      "stars": 4,
+      "installSpec": "dsh-meme",
+      "icon": "lucide-image"
+    },
+    {
+      "name": "dsh-workspace-session-drag",
+      "title": "dsh-workspace-session-drag",
+      "description": "支持通过拖拽调整会话回合所属的工作区。",
+      "category": "ui",
+      "stars": 3,
+      "installSpec": "dsh-workspace-session-drag@github:liangzz1998/dsh-workspace-session-drag",
+      "sourceTag": "GitHub",
+      "icon": "lucide-folder-code"
+    },
+    {
+      "name": "dsh-process-tree",
+      "title": "dsh-process-tree",
+      "description": "将模型工具调用链以更易读的树形结构呈现。",
+      "category": "ui",
+      "stars": 3,
+      "installSpec": "dsh-process-tree",
+      "icon": "lucide-code-xml"
+    },
+    {
+      "name": "@bananiceee/dsh-status-bar",
+      "title": "dsh-status-bar",
+      "description": "扩展底部状态栏，实时显示 TPS、平均 TPS 与首字延迟。",
+      "category": "ui",
+      "stars": 3,
+      "installSpec": "@bananiceee/dsh-status-bar",
+      "icon": "lucide-info"
+    },
+    {
+      "name": "@michengai/dsh-btw",
+      "title": "dsh-btw",
+      "description": "右键呼出独立小窗旁白提问，不打断当前主会话执行。",
+      "category": "ui",
+      "stars": 3,
+      "installSpec": "@michengai/dsh-btw",
+      "icon": "lucide-app-window"
+    },
+    {
+      "name": "dsh-plugin-wallpaper-engine",
+      "title": "dsh-wallpaper-engine",
+      "description": "将 Wallpaper 壁纸与液态玻璃特效接入 DSH，支持套用作者预设。",
+      "category": "theme",
+      "stars": 5,
+      "installSpec": "dsh-plugin-wallpaper-engine",
+      "icon": "lucide-sun"
+    },
+    {
+      "name": "dsh-dream-skin",
+      "title": "dsh-dream-skin",
+      "description": "轻量化界面皮肤，内置高质感预设主题与玻璃材质效果。",
+      "category": "theme",
+      "stars": 5,
+      "installSpec": "dsh-dream-skin",
+      "icon": "lucide-sparkles"
+    },
+    {
+      "name": "dsh-pet-live2d",
+      "title": "dsh-pet-live2d",
+      "description": "Q 版 Live2D 桌面宠物扩展。",
+      "category": "theme",
+      "stars": 3,
+      "installSpec": "dsh-pet-live2d",
+      "icon": "lucide-sparkles"
+    },
+    {
+      "name": "dsh-live2d-mao",
+      "title": "dsh-live2d-mao",
+      "description": "Live2D 桌面宠物扩展（Mao 模型）。",
+      "category": "theme",
+      "stars": 3,
+      "installSpec": "dsh-live2d-mao",
+      "icon": "lucide-sparkles"
+    },
+    {
+      "name": "deepseek-splash-animation",
+      "title": "DeepSeek Splash Animation",
+      "description": "为 DSH 启动加入普瑞赛斯大肥鱼开屏动画并支持自定义。",
+      "category": "theme",
+      "stars": 4,
+      "installSpec": "deepseek-splash-animation@github:KDDKBD/DeepSeek-splash-animation",
+      "sourceTag": "GitHub",
+      "icon": "lucide-sun"
+    },
+    {
+      "name": "dsh-pet",
+      "title": "dsh-pet",
+      "description": "透明动画桌宠，支持多开、自由缩放位置及 AI DIY 素材链。",
+      "category": "theme",
+      "stars": 4,
+      "installSpec": "dsh-pet",
+      "icon": "lucide-sparkles"
+    }
+  ]
+}

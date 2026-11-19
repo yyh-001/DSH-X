@@ -49,7 +49,7 @@ test('新增目录弹窗用两个页签区分本机 / 远程连接，远程页�
   assert.doesNotMatch(page, /id="pickerNewConnection"/, '底部不再堆新建连接，统一走添加目录里的连接下拉')
   assert.match(page, /class="ghost icon-btn profile-pick-tool" id="pickerCreateProject"/, '创建项目是环境右上角的纯图标按钮')
   assert.match(page, /value="\$\{NEW_CONNECTION_OPTION\}"[\s\S]{0,80}?新建远程连接…/, '远程连接下拉最后一项是新建连接')
-  assert.match(css, /\.pick-home-tabs::after \{[^}]*transition: transform 240ms/, '选中块滑动')
+  assert.match(css, /\.pick-home-tabs::after \{[^}]*transition: transform (?:240ms|var\(--motion-[\w-]+\))/, '选中块滑动')
   assert.match(css, /html\.reduce-motion \.pick-home-tabs::after \{ transition: none; \}/, '减动效时关掉滑动')
 })
 

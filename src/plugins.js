@@ -10,10 +10,18 @@
  * - 删掉最后一行后恢复模板的 `[]` 占位，否则整个 profile 起不来；
  * - 官方包（@deepseek-ai/*）与市场自管行（mkt-/client-）不提供开关。
  */
-import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { copyFileSync, existsSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
+import { extname, isAbsolute, join, relative, resolve, sep, win32 } from 'node:path'
 
 const ROW_ID_RE = /^[A-Za-z0-9_.-]+$/
+const MAX_PLUGIN_ICON_BYTES = 256 * 1024
+const PLUGIN_ICON_TYPES = new Map([
+  ['.svg', 'image/svg+xml'],
+  ['.png', 'image/png'],
+  ['.jpg', 'image/jpeg'],
+  ['.jpeg', 'image/jpeg'],
+  ['.webp', 'image/webp'],
+])
 /** 官方组件：关掉任何一条都可能让 dsh 起不来。 */
 const PROTECTED_PACKAGE_RE = /^@deepseek-ai\//
 /** 市场自己的运行时命名空间，永久补丁行会变成孤儿。 */
@@ -143,23 +151,85 @@ function packageVersion(profileDir, name) {
   return meta.version
 }
 
-/** 已装插件自带的版本与一句话自述（读不到就只有版本为空，不影响其余字段）。 */
-function packageMeta(profileDir, name) {
+function resolveExportedIconPath(entry) {
+  if (typeof entry === 'string') return entry.trim()
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return ''
+  for (const key of ['default', 'import', 'require']) {
+    const hit = resolveExportedIconPath(entry[key])
+    if (hit) return hit
+  }
+  for (const value of Object.values(entry)) {
+    const hit = resolveExportedIconPath(value)
+    if (hit) return hit
+  }
+  return ''
+}
+
+/** 按官方 DSH 规范从插件包内读取真实图标：仅认包目录内 ≤ 256 KiB 的 SVG/PNG/JPEG/WebP，不执行包代码。 */
+function readPluginIcon(pkgDir, manifest) {
   try {
-    const manifest = JSON.parse(readFileSync(join(profileDir, 'node_modules', name, 'package.json'), 'utf8'))
-    const description = typeof manifest.description === 'string' ? manifest.description.trim() : ''
-    return {
-      version: String(manifest.version || ''),
-      // 自述可能很长，列表里只当一行副标题用
-      description: description.length > 140 ? `${description.slice(0, 139)}…` : description,
-    }
+    const rel = manifest?.icon === undefined
+      ? resolveExportedIconPath(manifest?.exports?.['./icon'])
+      : (typeof manifest.icon === 'string' ? manifest.icon.trim() : '')
+    if (!rel || isAbsolute(rel) || win32.isAbsolute(rel) || /^[A-Za-z][A-Za-z\d+.-]*:/u.test(rel)) return ''
+    const root = realpathSync(pkgDir)
+    const candidate = resolve(root, rel)
+    if (!existsSync(candidate)) return ''
+    const target = realpathSync(candidate)
+    const inside = relative(root, target)
+    if (!inside || inside === '..' || inside.startsWith(`..${sep}`) || isAbsolute(inside)) return ''
+    const mediaType = PLUGIN_ICON_TYPES.get(extname(target).toLowerCase())
+    if (!mediaType) return ''
+    const stat = statSync(target)
+    if (!stat.isFile() || stat.size > MAX_PLUGIN_ICON_BYTES) return ''
+    const bytes = readFileSync(target)
+    if (bytes.length > MAX_PLUGIN_ICON_BYTES) return ''
+    return `data:${mediaType};base64,${bytes.toString('base64')}`
   } catch {
-    return { version: '', description: '' }
+    return ''
   }
 }
 
+/** 从插件包目录读取版本、本地化标题、一句话介绍与真实图标。 */
+export function readPluginPackageMeta(pkgDir, lang = 'zh') {
+  if (!pkgDir) return { version: '', title: '', description: '', icon: '' }
+  try {
+    const manifest = JSON.parse(readFileSync(join(pkgDir, 'package.json'), 'utf8'))
+    const locales = lang === 'en' ? ['en', 'en-US'] : ['zh', 'zh-CN', 'zh-Hans']
+    let locMeta = null
+    for (const code of locales) {
+      try {
+        const parsed = JSON.parse(readFileSync(join(pkgDir, 'locale', `${code}.json`), 'utf8'))
+        if (parsed?.meta && typeof parsed.meta === 'object') {
+          locMeta = parsed.meta
+          break
+        }
+      } catch {
+        // 没有对应语言文件时退回 package.json
+      }
+    }
+    const clean = (value) => (typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '')
+    const title = clean(locMeta?.title) || clean(manifest.meta?.title) || clean(manifest.dshhub?.displayName)
+    const rawDesc = clean(locMeta?.description) || clean(manifest.meta?.description) || clean(manifest.dshhub?.summary) || clean(manifest.description)
+    return {
+      version: String(manifest.version || ''),
+      title,
+      // 自述可能很长，列表里只当一行副标题用
+      description: rawDesc.length > 140 ? `${rawDesc.slice(0, 139)}…` : rawDesc,
+      icon: readPluginIcon(pkgDir, manifest),
+    }
+  } catch {
+    return { version: '', title: '', description: '', icon: '' }
+  }
+}
+
+/** 已装插件自带的版本、一句话自述与图标（读不到不影响其余字段）。 */
+function packageMeta(profileDir, name, lang = 'zh') {
+  return readPluginPackageMeta(join(profileDir, 'node_modules', name), lang)
+}
+
 /** 已装插件清单 + 当前开关状态（无需 dsh 在跑）。 */
-export function listPlugins(profileDir) {
+export function listPlugins(profileDir, { lang = 'zh' } = {}) {
   const patchPath = patchPathOf(profileDir)
   const state = readPatchState(patchPath)
   let manifest = {}
@@ -193,8 +263,20 @@ export function listPlugins(profileDir) {
       toggleable = false
       reason = '市场自管行，不提供开关'
     }
-    const meta = packageMeta(profileDir, name)
-    return { name, version: meta.version, description: meta.description, ids, enabled: mounted && !disabled, mounted, toggleable, reason, official }
+    const meta = packageMeta(profileDir, name, lang)
+    return {
+      name,
+      version: meta.version,
+      title: meta.title,
+      description: meta.description,
+      ...(meta.icon ? { icon: meta.icon } : {}),
+      ids,
+      enabled: mounted && !disabled,
+      mounted,
+      toggleable,
+      reason,
+      official,
+    }
   })
   return { profileDir, patchPath, plugins, disables: state.disables }
 }

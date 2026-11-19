@@ -211,7 +211,7 @@ if (args[0] === 'plugin') {
   })
 })
 
-test('界面入口与文案：加入 / 移除插件在实例页（加入栏在插件卡片顶上，「移除」贴在插件旁边）；配置页没有这两个入口', () => {
+test('界面入口与文案：加入 / 移除插件在实例页（市场子页签内嵌添加，「移除」贴在插件旁边）；配置页没有这两个入口', () => {
   const page = readFileSync(new URL('../src/public/index.html', import.meta.url), 'utf8')
   const envPage = readFileSync(new URL('../src/public/environments-page.js', import.meta.url), 'utf8')
   const css = readFileSync(new URL('../src/public/launcher.css', import.meta.url), 'utf8')
@@ -225,13 +225,15 @@ test('界面入口与文案：加入 / 移除插件在实例页（加入栏在�
   assert.match(server, /removeBundleMounted\(dir, \[name\]\)/, '卸载同时从层栈摘掉')
   assert.match(server, /dropRowDisables\(dir, stale\)/, '卸载清理补丁层里的开关残留')
 
-  // 插件清单属于实例：加入插件在页签栏右侧点图标打开弹窗，填包名（可带版本）加进实例
-  const bar = page.slice(page.indexOf('<div class="plugin-actions" id="environmentPluginActions">'), page.indexOf('</div>', page.indexOf('environmentPluginActions')))
-  assert.match(bar, /<button class="ghost icon-btn action-icon" id="environmentAddOpen" type="button" title="加入插件" aria-label="加入插件"/)
-  const dialog = page.slice(page.indexOf('<div class="ask" id="environmentAddDialog" hidden>'), page.indexOf('</form>', page.indexOf('environmentAddForm')))
-  assert.match(dialog, /<input id="environmentSpec" type="text" autocomplete="off"/, '加入弹窗的输入框')
-  assert.match(dialog, /<button class="primary" id="environmentAdd" type="submit" data-i18n="加入插件">加入插件<\/button>/)
-  assert.match(envPage, /post\('\/api\/environments\/plugins\/add', \{ id: env\.id, spec \}\)/, '加进当前打开的实例')
+  // 插件清单属于实例：加入插件在顶部「+」弹窗里填包名（可带版本）加进实例
+  const tabActions = page.slice(page.indexOf('id="environmentTabActions"'), page.indexOf('id="environmentPluginsBox"'))
+  assert.match(tabActions, /id="environmentAddOpen"/)
+  const subtabs = page.slice(page.indexOf('id="environmentPluginSubtabs"'), page.indexOf('id="environmentMarketTools"'))
+  assert.match(subtabs, /data-plugin-subtab="installed"[\s\S]*data-plugin-subtab="market"/)
+  const addDialog = page.slice(page.indexOf('id="environmentAddDialog"'), page.indexOf('id="environmentUpdateDialog"'))
+  assert.match(addDialog, /id="environmentAddForm"[\s\S]*<input id="environmentSpec" type="text" autocomplete="off"/, '手填添加插件在弹窗内')
+  assert.match(addDialog, /<button class="primary" id="environmentAdd" type="submit"><span class="spin"[^>]*><\/span><span data-i18n="加入插件">加入插件<\/span><\/button>/)
+  assert.match(envPage, /post\('\/api\/environments\/plugins\/add', \{ id: env\.id, spec: clean \}\)/, '加进当前打开的实例')
   assert.match(envPage, /post\('\/api\/environments\/plugins\/remove', \{ id: env\.id, name: button\.dataset\.removePlugin \}\)/, '「移除」从实例里删掉这一个')
   assert.match(envPage, /plugin\.official \? '' : `<button class="ghost icon-btn" type="button" data-remove-plugin=/, '官方组件不给移除入口')
 
@@ -242,7 +244,7 @@ test('界面入口与文案：加入 / 移除插件在实例页（加入栏在�
   assert.doesNotMatch(css, /\.plugin-remove \{|#pluginAddDialog/, '配置页卸载钮和添加弹窗的样式跟着撤了')
 
   const dict = new Function(`return (${page.match(/const EN = (\{[\s\S]*?\n\})/)[1]})`)()
-  for (const key of ['加入插件', '移除', '插件', '插件名，可带版本：dsh-x-memory@0.1.1']) {
+  for (const key of ['加入插件', '移除', '插件', '市场', '已安装', '插件名，可带版本：dsh-x-memory@0.1.1']) {
     assert.equal(typeof dict[key], 'string', `缺少英文翻译：${key}`)
   }
 })

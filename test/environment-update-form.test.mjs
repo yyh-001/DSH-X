@@ -60,7 +60,7 @@ function harness() {
     ['  function renderView() {', '  function paint() {'],
     ['  async function run(', '  function open('],
     ['  async function applyUpdate()', '  trapPackDialog(el.updateDialog'],
-    ['  el.editForm.onsubmit =', '  function openAddDialog('],
+    ['  el.editForm.onsubmit =', '  const DEFAULT_DESKTOP_ENHANCE ='],
   ]) vm.runInContext(slice(from, to), context)
   context.renderView()
   return { el, calls, context, setFail: value => { fail = value }, setNavigate: () => { navigate = true },
