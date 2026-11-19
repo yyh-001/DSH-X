@@ -8,7 +8,8 @@ import { netFetch } from './proxy.js'
 import { cmpVer, parseVer } from './version.js'
 
 const DEFAULT_TTL_MS = 10 * 60 * 1000
-const FETCH_TIMEOUT_MS = 10_000
+// 官网全量索引（awesome-dsh-plugin.com/index.json）约 5MB+，代理环境下流式读正文需要充足窗口
+const FETCH_TIMEOUT_MS = 45_000
 const MAX_INDEX_BYTES = 16 * 1024 * 1024
 const DATA_ICON_RE = /^data:image\/(?:svg\+xml|png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/u
 const GITHUB_OWNER_RE = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/u
@@ -265,8 +266,18 @@ export function searchPluginMarketIndex(parsed, { category = 'all', q = '', lang
   }
 }
 
+function isMarketAbortError(error) {
+  const msg = String(error?.message || '')
+  return error?.name === 'AbortError'
+    || msg === 'aborted'
+    || msg === 'The operation was aborted'
+    || /\((?:aborted|The operation was aborted)\)/.test(msg)
+}
+
 export function createPluginMarketClient({ fetch = netFetch, now = Date.now, ttl = DEFAULT_TTL_MS } = {}) {
   const cache = new Map()
+  // 同一地址并发请求去重：静默预取图标与打开市场页签共用一次下载，避免重复拉取大索引抢带宽
+  const inFlight = new Map()
 
   function collectIcons(parsed) {
     const icons = {}
@@ -297,26 +308,41 @@ export function createPluginMarketClient({ fetch = netFetch, now = Date.now, ttl
     if (!cleanUrl) throw new Error('插件市场索引地址为空')
     const hit = cache.get(cleanUrl)
     if (!force && hit && now() - hit.fetchedAt < ttl) return hit
+    if (inFlight.has(cleanUrl)) return inFlight.get(cleanUrl)
 
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+    const task = (async () => {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+      try {
+        const res = await fetch(cleanUrl, {
+          headers: { accept: 'application/json' },
+          signal: controller.signal,
+        })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const contentLength = Number(res.headers?.get?.('content-length') || 0)
+        if (contentLength > MAX_INDEX_BYTES) throw new Error('插件市场索引体积超出上限')
+        const text = await res.text()
+        if (Buffer.byteLength(text, 'utf8') > MAX_INDEX_BYTES) throw new Error('插件市场索引体积超出上限')
+        const json = JSON.parse(text)
+        const parsed = parsePluginMarketIndex(json, cleanUrl)
+        const record = { fetchedAt: now(), parsed }
+        cache.set(cleanUrl, record)
+        return record
+      } catch (error) {
+        if (controller.signal.aborted || isMarketAbortError(error)) {
+          if (hit) return hit
+          throw new Error('连接插件市场超时，请稍后点右上角刷新重试')
+        }
+        throw error
+      } finally {
+        clearTimeout(timer)
+      }
+    })()
+    inFlight.set(cleanUrl, task)
     try {
-      const res = await fetch(cleanUrl, {
-        headers: { accept: 'application/json' },
-        signal: controller.signal,
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const contentLength = Number(res.headers?.get?.('content-length') || 0)
-      if (contentLength > MAX_INDEX_BYTES) throw new Error('插件市场索引体积超出上限')
-      const text = await res.text()
-      if (Buffer.byteLength(text, 'utf8') > MAX_INDEX_BYTES) throw new Error('插件市场索引体积超出上限')
-      const json = JSON.parse(text)
-      const parsed = parsePluginMarketIndex(json, cleanUrl)
-      const record = { fetchedAt: now(), parsed }
-      cache.set(cleanUrl, record)
-      return record
+      return await task
     } finally {
-      clearTimeout(timer)
+      if (inFlight.get(cleanUrl) === task) inFlight.delete(cleanUrl)
     }
   }
 

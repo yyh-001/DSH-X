@@ -1095,12 +1095,15 @@
       }
       marketState.indexTotal = Number(data?.total) || 0
       marketState.indexNextOffset = data?.nextOffset ?? null
-      marketState.indexError = data?.error || ''
-      marketState.indexLoaded = true
+      const errText = data?.error || ''
+      // 后台静默预取失败不污染市场错误状态，也不标记 indexLoaded，等用户切进「插件市场」时自动重试
+      marketState.indexError = (silent && pluginSubTab !== 'market' && errText) ? '' : errText
+      marketState.indexLoaded = !errText
       if (mergeMarketIcons(data?.marketIcons)) refreshInstalledIconsIfVisible()
     } catch (error) {
       if (seq !== marketState.indexSeq) return
-      if (!silent) marketState.indexError = error instanceof Error ? error.message : String(error)
+      marketState.indexLoaded = false
+      if (!silent || pluginSubTab === 'market') marketState.indexError = error instanceof Error ? error.message : String(error)
     } finally {
       if (seq === marketState.indexSeq) {
         marketState.indexLoading = false

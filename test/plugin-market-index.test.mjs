@@ -259,6 +259,33 @@ test('createPluginMarketClient 缓存检索且打包清单包含 plugin-market.j
   await client.query(['https://awesome-dsh-plugin.com/index.json'], { refresh: true })
   assert.equal(fetches, 2, 'refresh=true 强制重新拉取')
 
+  // 并发去重：同一地址同时发起多次 query 时共享同一次网络拉取
+  let releaseConcurrent
+  let concurrentFetches = 0
+  const concurrentClient = createPluginMarketClient({
+    fetch: () => {
+      concurrentFetches += 1
+      return new Promise((resolve) => {
+        releaseConcurrent = () => resolve(new Response(JSON.stringify(SAMPLE_INDEX), { status: 200 }))
+      })
+    },
+  })
+  const p1 = concurrentClient.query(['https://awesome-dsh-plugin.com/index.json'], { q: 'pdf' })
+  const p2 = concurrentClient.query(['https://awesome-dsh-plugin.com/index.json'], { q: 'github' })
+  assert.equal(concurrentFetches, 1, '并发请求同一索引源时只发起 1 次底层 fetch')
+  releaseConcurrent()
+  const [r1, r2] = await Promise.all([p1, p2])
+  assert.equal(r1.total, 1)
+  assert.equal(r2.total, 1)
+
+  // 中止/超时错误转为明确中文提示（有缓存时优先回落旧缓存）
+  const abortClient = createPluginMarketClient({
+    fetch: async () => { throw new Error('aborted') },
+  })
+  const abortedRes = await abortClient.query(['https://awesome-dsh-plugin.com/index.json'])
+  assert.match(abortedRes.error, /超时.*刷新重试/)
+  assert.doesNotMatch(abortedRes.error, /^aborted$/)
+
   const packCommon = readFileSync(new URL('../scripts/pack-common.mjs', import.meta.url), 'utf8')
   assert.match(packCommon, /'plugin-market\.js'/)
 })
