@@ -91,3 +91,22 @@ test('LaunchAgent：开自启写文件、关自启删文件，都不 launchctl l
       ])
     })
 })
+
+test('installDir 与 containsPath：识别安装目录，按路径段边界且尊重平台大小写语义', () => {
+  const win = windows({ root: 'D:\\APPS\\DSH', existsSync: (p) => p === join('D:\\APPS\\DSH', 'DSH.exe') })
+  assert.equal(win.installDir(), 'D:\\APPS\\DSH')
+  assert.equal(windows({ root: 'D:\\APPS\\DSH', existsSync: () => false }).installDir(), '')
+  assert.equal(win.containsPath('D:\\APPS\\DSH', 'd:\\apps\\dsh'), true)
+  assert.equal(win.containsPath('D:\\APPS\\DSH\\', 'd:\\apps\\dsh\\.dsh'), true)
+  assert.equal(win.containsPath('D:\\APPS\\DSH', 'D:\\APPS\\DSH-home'), false, '同前缀兄弟目录不能误判进安装目录')
+
+  const macInstalled = mac({ root: '/Applications/DSH-X.app/Contents/Resources/core' })
+  assert.equal(macInstalled.installDir(), '/Applications/DSH-X.app')
+  assert.equal(macInstalled.containsPath('/Applications/DSH-X.app', '/Applications/DSH-X.app/Data'), true)
+  assert.equal(macInstalled.containsPath('/Applications/DSH-X.app', '/applications/dsh-x.app/Data'), false)
+  assert.equal(macInstalled.containsPath('/Applications/DSH-X.app', '/Applications/DSH-X.app-data'), false)
+
+  assert.equal(linux({ env: { APPIMAGE: '/home/a/DSH-X.AppImage' } }).installDir(), '', 'AppImage 单文件不把所在目录当安装目录')
+  assert.equal(linux().containsPath('/opt/DSH-X', '/opt/DSH-X/data'), true)
+  assert.equal(linux().containsPath('/opt/DSH-X', '/opt/DSH-X-data'), false)
+})

@@ -2,7 +2,7 @@ import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { basename, dirname } from 'node:path'
 import { FileManager } from './filemanager-base.js'
-import { APP_DIR_NAME, LAUNCHER_NAME, MAC_BUNDLE_ID } from './platform.js'
+import { APP_DIR_NAME, IN_ELECTRON, LAUNCHER_NAME, MAC_BUNDLE_ID } from './platform.js'
 
 /** AppleScript 里用户点「取消」的错误号：不算失败，当作没选。 */
 const USER_CANCELED = '-128'
@@ -52,6 +52,22 @@ export class MacFileManager extends FileManager {
     const bundle = this.appBundle()
     const exe = bundle ? join(bundle, 'Contents', 'MacOS', LAUNCHER_NAME) : ''
     return exe && this.exists(exe) ? exe : ''
+  }
+
+  /**
+   * macOS 打包核心拆包后跑在 Application Support/DSH/core/current，此时 appBundle() 为空，
+   * 需要从 Electron 主进程路径回推所在 .app 包。
+   */
+  installDir() {
+    const bundle = this.appBundle()
+    if (bundle) return bundle
+    if (IN_ELECTRON && !process.defaultApp) {
+      const macos = dirname(process.execPath)
+      const contents = dirname(macos)
+      const app = dirname(contents)
+      if (basename(macos) === 'MacOS' && basename(contents) === 'Contents' && app.endsWith('.app')) return app
+    }
+    return ''
   }
 
   /** 走 open 而不是直接执行包里的二进制：LaunchServices 负责单实例和把应用带到前台。 */

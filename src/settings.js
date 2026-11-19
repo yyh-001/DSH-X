@@ -235,14 +235,20 @@ export function updateUrlCandidates(url, source = DEFAULT_UPDATE_SOURCE) {
   return [...prefixes.map((prefix) => `${prefix}${direct}`), direct]
 }
 
-/** dsh 用户目录（DSH_HOME）：留空用默认 ~/.dsh；填了必须是绝对路径。 */
-export function safeDshHome(dir) {
+/** dsh 用户目录（DSH_HOME）：留空用默认 ~/.dsh；填了必须是绝对路径，且不能落在安装目录内。 */
+export function safeDshHome(dir, { installDir = fileManager.installDir() } = {}) {
   if (dir === undefined || dir === null) return ''
   if (typeof dir !== 'string') throw new Error('dsh 用户目录填一个路径，别填别的')
   const trimmed = dir.trim()
   if (!trimmed) return ''
   if (!isAbsolute(trimmed)) throw new Error('请使用绝对路径（例如 D:\\dsh-home）')
-  return resolve(trimmed)
+  const resolved = resolve(trimmed)
+  // 升级或卸载启动器时会清理整个安装目录（并触发 NSIS 复制到 Temp 引发启发式误杀），
+  // 放在安装目录内的 .dsh 会在升级时丢失数据。
+  if (installDir && fileManager.containsPath(installDir, resolved)) {
+    throw new Error(`不能把 dsh 用户目录设在启动器安装目录内（${installDir}）：升级或卸载启动器时会清空安装目录，请选其他位置`)
+  }
+  return resolved
 }
 
 /**
@@ -639,8 +645,8 @@ export const DEFAULTS = {
   keepAwake: false,
   // 内置浏览器不校验 HTTPS 证书（自签名 / 过期证书的站点也能打开），只影响浏览器分区
   browserIgnoreCertificate: false,
-  // 电脑操作（Computer Use）：默认关闭；开启后只有 DSH-X 桌面外壳启动的实例才允许向模型暴露工具
-  computerUse: false,
+  // 电脑操作（Computer Use）：默认开启；仅由 DSH-X 桌面外壳启动且装有插件的实例才会向模型暴露工具
+  computerUse: true,
   downloadSource: DEFAULT_SOURCE,
   // 启动器更新的下载源：direct（默认）/ mirror（国内加速）
   updateSource: DEFAULT_UPDATE_SOURCE,
@@ -1025,13 +1031,17 @@ function hasInstall(dir) {
   return existsSync(join(dir, 'config.json')) || existsSync(join(dir, 'versions'))
 }
 
-export function safeDataDir(dir) {
+export function safeDataDir(dir, { installDir = fileManager.installDir() } = {}) {
   if (typeof dir !== 'string' || !dir.trim()) throw new Error('版本目录不能为空')
   const trimmed = dir.trim()
   // 先判再 resolve：resolve 会把相对路径按当前工作目录补齐，补完就永远是绝对路径，
   // 倒过来判等于没有这条校验——用户在设置页填个 dsh-data 会安静地落到启动器所在目录
   if (!isAbsolute(trimmed)) throw new Error('请使用绝对路径')
-  return resolve(trimmed)
+  const resolved = resolve(trimmed)
+  if (installDir && fileManager.containsPath(installDir, resolved)) {
+    throw new Error(`不能把版本目录设在启动器安装目录内（${installDir}）：升级或卸载启动器时会清空安装目录，请选其他位置`)
+  }
+  return resolved
 }
 
 /**
@@ -1044,7 +1054,9 @@ export function packagedUnderNodeModules(dir = ROOT) {
 
 export function fallbackDataDir() {
   const local = join(ROOT, 'data')
-  if (hasInstall(local)) return local
+  const installDir = fileManager.installDir()
+  const localInsideInstall = Boolean(installDir && fileManager.containsPath(installDir, local))
+  if (!localInsideInstall && hasInstall(local)) return local
   const userDir = fileManager.effectiveUserAppDir()
   if (userDir) {
     const roaming = join(userDir, 'data')
@@ -1150,7 +1162,16 @@ async function saveSettingsNow(patch) {
   // 目录列表的增删也在同一读改写队列里，连续操作不会覆盖彼此。
   if (typeof patch === 'function') patch = patch(current)
   const merged = { ...current, ...patch }
-  if (merged.dataDir) merged.dataDir = safeDataDir(merged.dataDir)
+  if (merged.dataDir) {
+    try { merged.dataDir = safeDataDir(merged.dataDir) } catch { merged.dataDir = inferDataDir() }
+  }
+  if ('dataDir' in patch && patch.dataDir) merged.dataDir = safeDataDir(patch.dataDir)
+  try {
+    merged.dshHome = safeDshHome(merged.dshHome)
+  } catch {
+    merged.dshHome = ''
+  }
+  if ('dshHome' in patch) merged.dshHome = safeDshHome(patch.dshHome)
   // 历史文件里的脏端口值顺手修回默认；显式改端口时才把错误抛给调用方
   try {
     merged.port = safePort(merged.port)
@@ -1195,7 +1216,7 @@ async function saveSettingsNow(patch) {
   merged.keepAwake = merged.keepAwake === true
   // 内置浏览器开关与证书校验：和上面一组同一套布尔语义
   merged.browserIgnoreCertificate = merged.browserIgnoreCertificate === true
-  merged.computerUse = merged.computerUse === true
+  merged.computerUse = merged.computerUse !== false
   // 同 webBind：脏值顺手修回默认（回环），显式改绑定方式时才把错误抛给调用方
   try {
     merged.webBind = safeWebBind(merged.webBind)
@@ -1274,13 +1295,19 @@ export function inferDataDir() {
 
 export function resolveDataDir() {
   const settings = loadSettingsSync()
-  if (settings.dataDir) return safeDataDir(settings.dataDir)
+  if (settings.dataDir) {
+    try { return safeDataDir(settings.dataDir) } catch { /* 历史目录落在安装目录内等失效情况，回退默认 */ }
+  }
   return inferDataDir()
 }
 
 export async function ensureSettings() {
   const stored = await loadSettings()
-  const dataDir = stored.dataDir ? safeDataDir(stored.dataDir) : inferDataDir()
+  let dataDir = ''
+  if (stored.dataDir) {
+    try { dataDir = safeDataDir(stored.dataDir) } catch { /* 失效目录回退默认 */ }
+  }
+  if (!dataDir) dataDir = inferDataDir()
   const patch = {}
   if (stored.dataDir !== dataDir) patch.dataDir = dataDir
   // 保留既有的下载源选择，旧更新源字段只作为兼容副本。

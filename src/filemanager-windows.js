@@ -1,4 +1,4 @@
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { FileManager } from './filemanager-base.js'
 import { APP_DIR_NAME, IN_ELECTRON, LAUNCHER_NAME } from './platform.js'
 
@@ -58,6 +58,11 @@ export class WindowsFileManager extends FileManager {
     }
     const exe = join(this.root, `${LAUNCHER_NAME}.exe`)
     return this.exists(exe) ? exe : ''
+  }
+
+  installDir() {
+    const exe = this.launcherExecutable()
+    return exe ? dirname(exe) : ''
   }
 
   async autoStartEnabled() {

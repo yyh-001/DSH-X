@@ -1,12 +1,44 @@
 import assert from 'node:assert/strict'
+import childProcess from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
+import { syncBuiltinESMExports } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { isolateUserHome } from './isolated-home.mjs'
 
 test('按用户目录查看和修改同名 Profile；中文目录、空目录和最后一个 Profile 都不串到全局', async (t) => {
+  const originalSpawnSync = childProcess.spawnSync
+  let regDshHome = ''
+  let regWritable = true
+  t.mock.method(childProcess, 'spawnSync', (command, args, options) => {
+    if (command !== 'reg') return originalSpawnSync(command, args, options)
+    assert.equal(args[1], 'HKCU\\Environment')
+    assert.equal(args[args.indexOf('/v') + 1], 'DSH_HOME')
+    if (args[0] === 'query') {
+      return regDshHome
+        ? { status: 0, stdout: Buffer.from(`    DSH_HOME    REG_SZ    ${regDshHome}\r\n`, 'utf8') }
+        : { status: 1, stdout: Buffer.alloc(0) }
+    }
+    if (args[0] === 'add') {
+      if (!regWritable) return { status: 1, stdout: '' }
+      assert.equal(args[args.indexOf('/t') + 1], 'REG_SZ')
+      regDshHome = args[args.indexOf('/d') + 1]
+      return { status: 0, stdout: '' }
+    }
+    if (args[0] === 'delete') {
+      if (!regWritable) return { status: 1, stdout: '' }
+      regDshHome = ''
+      return { status: 0, stdout: '' }
+    }
+    throw new Error(`unexpected reg op: ${args[0]}`)
+  })
+  syncBuiltinESMExports()
+  t.after(() => {
+    t.mock.restoreAll()
+    syncBuiltinESMExports()
+  })
   const root = mkdtempSync(join(tmpdir(), 'dsh-plugin-home-'))
   const globalHome = join(root, 'global')
   const home = join(root, '独立目录')
@@ -119,5 +151,52 @@ test('按用户目录查看和修改同名 Profile；中文目录、空目录和
   for (const header of ['relative/path', '%invalid']) {
     const invalid = await fetch(origin + '/api/plugins', { headers: { origin, 'x-dsh-home': header } })
     assert.equal(invalid.status, 400)
+  }
+
+  // ---- 设置 / 取消用户环境变量 DSH_HOME ----
+  assert.equal((await call('/api/state')).userDshHome, '')
+  assert.equal((await call('/api/settings')).userDshHome, '')
+
+  for (const bad of [{ home: 'relative/path' }, { home: join(root, 'unregistered') }]) {
+    const rejected = await fetch(origin + '/api/dsh-homes/env', {
+      method: 'POST', headers: { origin, 'content-type': 'application/json' }, body: JSON.stringify(bad),
+    })
+    assert.equal(rejected.status, 500)
+    assert.ok((await rejected.json()).error)
+  }
+
+  if (process.platform === 'win32') {
+    const setExtra = await call('/api/dsh-homes/env', null, { home: emptyHome })
+    assert.equal(setExtra.ok, true)
+    assert.equal(setExtra.mode, 'automatic')
+    assert.equal(setExtra.userDshHome, emptyHome)
+    assert.equal(regDshHome, emptyHome)
+    assert.equal((await call('/api/state')).userDshHome, emptyHome)
+    assert.equal((await call('/api/settings')).userDshHome, emptyHome)
+
+    const setGlobal = await call('/api/dsh-homes/env', null, { home: globalHome })
+    assert.equal(setGlobal.userDshHome, globalHome)
+    assert.equal(regDshHome, globalHome)
+
+    regWritable = false
+    const writeFailed = await fetch(origin + '/api/dsh-homes/env', {
+      method: 'POST', headers: { origin, 'content-type': 'application/json' }, body: JSON.stringify({ home: '' }),
+    })
+    assert.equal(writeFailed.status, 500)
+    assert.match((await writeFailed.json()).error, /移除用户环境变量 DSH_HOME 失败/)
+    assert.equal(regDshHome, globalHome)
+    regWritable = true
+
+    const cleared = await call('/api/dsh-homes/env', null, { home: '' })
+    assert.equal(cleared.ok, true)
+    assert.equal(cleared.userDshHome, '')
+    assert.equal(regDshHome, '')
+    assert.equal((await call('/api/state')).userDshHome, '')
+  } else {
+    const manual = await call('/api/dsh-homes/env', null, { home: emptyHome })
+    assert.equal(manual.ok, false)
+    assert.equal(manual.mode, 'manual')
+    assert.match(manual.message, /export DSH_HOME=/)
+    assert.equal(manual.userDshHome, '')
   }
 })

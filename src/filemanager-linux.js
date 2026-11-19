@@ -42,6 +42,14 @@ export class LinuxFileManager extends PosixFileManager {
     return ''
   }
 
+  /** AppImage 是单文件，父目录通常是用户自己的软件/下载目录，不视为应用安装目录。 */
+  installDir() {
+    const appImage = String(this.env.APPIMAGE || '').trim()
+    if (appImage) return ''
+    if (IN_ELECTRON && !process.defaultApp) return dirname(process.execPath)
+    return ''
+  }
+
   /** XDG autostart 的 .desktop 文件。 */
   get autoStartPath() {
     return join(this.env.XDG_CONFIG_HOME || join(this.home, '.config'), 'autostart', 'dsh-x.desktop')

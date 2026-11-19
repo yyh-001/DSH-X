@@ -64,6 +64,26 @@ export class FileManager {
     return this.pathKey(left) === this.pathKey(right)
   }
 
+  /**
+   * 打包后启动器所在的安装目录；源码运行或单文件形态（如 AppImage）返回空串。
+   * 用于拦截把用户数据/版本目录选进安装目录（升级或卸载会清空安装目录）。
+   */
+  installDir() { return '' }
+
+  /**
+   * child 是否等于 parent 或在 parent 子目录下（只比字符串，按路径段边界匹配，
+   * 避免把同前缀的兄弟目录如 D:\APPS\DSH-home 误判进 D:\APPS\DSH）。
+   */
+  containsPath(parent, child) {
+    if (!parent || !child) return false
+    const norm = (path) => this.pathKey(String(path).replace(/\\/g, '/').replace(/(.)\/+$/, '$1'))
+    const base = norm(parent)
+    const target = norm(child)
+    if (!base || !target) return false
+    if (base === '/') return target.startsWith('/')
+    return target === base || target.startsWith(`${base}/`)
+  }
+
   /** 某个目录里是否已经能直接调到这个命令。 */
   hasCommand(dir, name) {
     return this.commandExtensions.some((ext) => this.exists(join(dir, name + ext)))

@@ -4,7 +4,7 @@ import { homedir, tmpdir } from 'node:os'
 import { join, sep } from 'node:path'
 import test from 'node:test'
 
-import { defaultDshHome, ensureWritableDir, packagedUnderNodeModules, safeDataDir, safeDshHome } from '../src/settings.js'
+import { defaultDshHome, ensureSettings, ensureWritableDir, packagedUnderNodeModules, resolveDataDir, safeDataDir, safeDshHome } from '../src/settings.js'
 
 test('装在 node_modules 里的核心不把数据落进包里', () => {
   // npm 版（npm i -g dsh-x-core）：升级整包替换、全局目录还可能只读
@@ -85,4 +85,18 @@ test('建目录失败时不删用户的悬空符号链接', { skip: process.plat
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
+})
+
+test('禁止把 dsh 用户目录和版本目录设在启动器安装目录内，同前缀兄弟目录放行', () => {
+  const installDir = join(tmpdir(), 'dsh-install-root')
+  for (const candidate of [installDir, join(installDir, '.dsh'), join(installDir, 'nested', 'data')]) {
+    assert.throws(() => safeDshHome(candidate, { installDir }), /不能把 dsh 用户目录设在启动器安装目录内/)
+    assert.throws(() => safeDataDir(candidate, { installDir }), /不能把版本目录设在启动器安装目录内/)
+  }
+  const siblingHome = `${installDir}-home`
+  const siblingData = `${installDir}-data`
+  assert.equal(safeDshHome(siblingHome, { installDir }), siblingHome)
+  assert.equal(safeDataDir(siblingData, { installDir }), siblingData)
+  assert.equal(typeof resolveDataDir(), 'string')
+  assert.equal(typeof ensureSettings, 'function')
 })
