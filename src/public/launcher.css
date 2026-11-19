@@ -2856,6 +2856,9 @@ html.reduce-motion .ask > .ask-card { transition: none; }
 .launch-plugins-head > div { min-width: 0; max-width: calc(100% - 240px); }
 .launch-plugins-head .ask-title { font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.8; }
 #launchPluginsHost, #launchPluginsHost #pluginPanel, #launchPluginsHost #environmentPanel { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+#launchPluginsHost[hidden], #launchPluginsLoading[hidden] { display: none; }
+.launch-plugins-loading { flex: 1 1 auto; min-height: 220px; justify-content: center; color: var(--muted); }
+.launch-plugins-loading .plugin-empty-spinner { width: 24px; height: 24px; border-width: 2.5px; }
 /* 弹窗的卡片是 overflow: hidden，滚动原来由平面列表承担；列表并进环境详情后，
    这里接班：详情占满剩余高度，插件列表内部滚，顶部那行操作保持固定 */
 #launchPluginsDialog #packView, #launchPluginsDialog #environmentView { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }

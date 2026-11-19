@@ -1456,6 +1456,10 @@
         </div>
         <button class="ghost icon-btn" id="launchPluginsClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button>
       </div>
+      <div class="launch-plugins-loading plugin-empty-state" id="launchPluginsLoading" hidden>
+        <span class="plugin-empty-spinner" aria-hidden="true"></span>
+        <p id="launchPluginsLoadingText" role="status" data-i18n="正在加载实例配置…">正在加载实例配置…</p>
+      </div>
       <div id="launchPluginsHost"></div>
     </div>
   </div>
@@ -2683,6 +2687,7 @@
   "这个配置尚未初始化": "This profile has not been initialized",
   "请先用这个配置启动一次，再管理插件。": "Launch this profile once before managing its plugins.",
   "正在加载插件…": "Loading plugins…",
+  "正在加载实例配置…": "Loading instance configuration…",
   "部分启用": "Partly enabled",
   "完成": "Done",
   "修复配置": "Repair profile",
@@ -12550,7 +12555,13 @@
       paneTopEl.hidden = true
       document.getElementById('launchPluginsTitle').textContent = `${entry.name} · ${t('插件')}`
       launchPluginsCardEl.querySelector('.launch-plugins-head').append(document.getElementById('launchPluginsClose'))
-      document.getElementById('launchPluginsHost').append(pluginPanelEl)
+      const loadingEl = document.getElementById('launchPluginsLoading')
+      if (loadingEl) loadingEl.hidden = true
+      const hostEl = document.getElementById('launchPluginsHost')
+      if (hostEl) {
+        hostEl.hidden = false
+        hostEl.append(pluginPanelEl)
+      }
       const opening = showDialog(launchPluginsDialogEl)
       packPluginListEl.dataset.profile = ''
       renderPackView()
@@ -12594,6 +12605,10 @@
       closeUiSelect()
       globalThis.closeEnvLaunchIcons?.(true)
       if (!(await hideDialog(launchPluginsDialogEl))) return
+      const loadingEl = document.getElementById('launchPluginsLoading')
+      if (loadingEl) loadingEl.hidden = true
+      if (host) host.hidden = false
+      launchPluginsCardEl.classList.remove('is-loading')
       if (hostingEnvironment) {
         const close = document.getElementById('launchPluginsClose')
         if (close) launchPluginsCardEl.querySelector('.launch-plugins-head')?.append(close)
@@ -15267,6 +15282,10 @@
       launchPluginScope = entry?.id || ''
       document.getElementById('launchPluginsTitle').textContent = entry?.name ? `${entry.name} · ${t('实例')}` : t('实例')
       launchPluginsCardEl.querySelector('.launch-plugins-head').append(document.getElementById('launchPluginsClose'))
+      const loadingEl = document.getElementById('launchPluginsLoading')
+      launchPluginsCardEl.classList.add('is-loading')
+      if (loadingEl) loadingEl.hidden = false
+      host.hidden = true
       host.append(envPanel)
       environmentState.pendingOpen = target
       const opening = showDialog(launchPluginsDialogEl)
@@ -15275,8 +15294,17 @@
       if (!(await opening)) return
       await reloading
       if (launchPluginsDialogEl.hidden || launchPluginsDialogEl.dataset.dialogClosing || requestId !== pluginDialogRequest) return
+      launchPluginsCardEl.classList.remove('is-loading')
+      if (loadingEl) loadingEl.hidden = true
+      host.hidden = false
       const top = envPanel.querySelector('#environmentView .pack-detail-top')
       if (top) top.append(document.getElementById('launchPluginsClose'))
+      const subtabs = envPanel.querySelector('#environmentPluginSubtabs')
+      if (subtabs) requestAnimationFrame(() => globalThis.syncSubtabPill?.(subtabs))
+      const viewEl = envPanel.querySelector('#environmentView')
+      if (viewEl && !isReducedMotion()) {
+        viewEl.animate([{ opacity: 0, transform: 'translateY(5px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: MOTION.duration.fast, easing: MOTION.ease.decelerate })
+      }
     }
     globalThis.syncEnvironmentToolTab = (tab = 'plugins', env = null, pluginSubTab = 'installed') => {
       const mcpPanel = document.getElementById('mcpPanel')

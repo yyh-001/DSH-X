@@ -583,6 +583,13 @@ test('实例详情页：4 签切换（配置签）、已安装/市场子签切�
   assert.match(css, /\.environment-config-version-row\s+\.ui-select\s*\{[^}]*flex:\s*1\s+1\s+[^;]*;[^}]*min-width:\s*220px/)
   assert.ok(css.indexOf('.environment-config-history[hidden]') > css.indexOf('.environment-config-history {'), '.environment-config-history[hidden] 必须排在 .environment-config-history 之后才不会被 grid 覆盖')
   assert.match(themeCss, /html\[data-color-scheme="dark"\]\s+\.environment-config-extra,\s*html\[data-color-scheme="dark"\]\s+\.env-launch-footer-row/)
+
+  // 实例配置弹窗打开瞬间先展示居中加载动画，数据就绪后再显现详情视图，避免空白闪烁
+  assert.match(html, /id="launchPluginsLoading"[^>]*\shidden[\s\S]*?plugin-empty-spinner[\s\S]*?id="launchPluginsLoadingText"/)
+  assert.match(html, /globalThis\.openEnvironmentDetail\s*=[\s\S]*?launchPluginsCardEl\.classList\.add\('is-loading'\)[\s\S]*?host\.hidden\s*=\s*true[\s\S]*?await opening[\s\S]*?await reloading[\s\S]*?launchPluginsCardEl\.classList\.remove\('is-loading'\)[\s\S]*?host\.hidden\s*=\s*false/)
+  assert.match(envJs, /!byId\('launchPluginsCard'\)\?\.classList\?\.contains\?\.\('is-loading'\)/)
+  assert.match(css, /#launchPluginsHost\[hidden\],\s*#launchPluginsLoading\[hidden\]\s*\{\s*display:\s*none;\s*\}/)
+  assert.match(css, /\.launch-plugins-loading\s*\{[^}]*justify-content:\s*center/)
 })
 
 test('启动项配置卡：设为环境变量 DSH_HOME 开关跟随当前用户目录状态并支持开启、关闭与状态同步', async () => {

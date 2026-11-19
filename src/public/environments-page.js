@@ -373,7 +373,8 @@
     el.view.hidden = !env
     const popupClose = byId('launchPluginsClose')
     const popupDialog = byId('launchPluginsDialog')
-    if (popupClose && popupDialog && !popupDialog.hidden && popupDialog.contains?.(el.view)) {
+    // 加载态时 #launchPluginsHost 处于隐藏状态：保持关闭按钮留在外层头部，防止加载瞬间右上角“×”跟着消失
+    if (popupClose && popupDialog && !popupDialog.hidden && !byId('launchPluginsCard')?.classList?.contains?.('is-loading') && popupDialog.contains?.(el.view)) {
       const topBar = el.view.querySelector?.('.pack-detail-top')
       if (topBar && popupClose.parentElement !== topBar) topBar.append?.(popupClose)
     }
