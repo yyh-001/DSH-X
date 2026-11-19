@@ -3374,8 +3374,11 @@ html.reduce-motion .environment-market-tools .icon-btn.is-loading svg { animatio
 /* MCP 与技能共用已安装的过滤工具栏与双列卡片网格样式 */
 .tool-card-subbar { flex: 0 0 auto; }
 #pane-mcp .pane-inner.fill, #pane-skills .pane-inner.fill { gap: 10px; }
+/* 卡片是 min-height: 0 的纵向 flex：auto 行会被量成一行文字的高度（25.6px），
+   卡片互相压住、简介跑到下一张卡上；行高按内容算，双列才排得开 */
 #mcpList, #skillList {
   display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;
+  grid-auto-rows: max-content;
   padding: 2px 4px 6px 2px; background: transparent; border: 0; border-radius: 0;
   overflow-x: hidden; overflow-y: auto; align-content: start;
 }

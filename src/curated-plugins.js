@@ -10,7 +10,8 @@ import { fileURLToPath } from 'node:url'
 import { safePluginName } from './environments.js'
 import { netFetch } from './proxy.js'
 
-export const CURATED_PLUGINS_URL = 'https://raw.githubusercontent.com/yyh-001/DSH-X/main/docs/curated-plugins.json'
+// 分支必须是仓库里真实存在的：默认分支是 Staging（没有 main），指错分支 raw 会一直 404
+export const CURATED_PLUGINS_URL = 'https://raw.githubusercontent.com/yyh-001/DSH-X/Staging/docs/curated-plugins.json'
 
 const DEFAULT_TTL_MS = 15 * 60 * 1000
 const FETCH_TIMEOUT_MS = 12_000

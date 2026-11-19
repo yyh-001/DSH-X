@@ -561,6 +561,7 @@ test('实例详情页：4 签切换（配置签）、已安装/市场子签切�
   assert.match(html, /function mcpRow\(server\)[\s\S]*?plugin-installed-card mcp-card[\s\S]*?plugin-installed-head[\s\S]*?plugin-installed-actions/)
   assert.match(html, /function skillRow\(skill\)[\s\S]*?plugin-installed-card skill-card[\s\S]*?plugin-installed-head[\s\S]*?plugin-installed-actions[\s\S]*?class="skill-open-desc"[^>]*><span class="plugin-desc plugin-installed-desc">/)
   assert.match(css, /#mcpList,\s*#skillList\s*\{[^}]*display:\s*grid;\s*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/)
+  assert.match(css, /#mcpList,\s*#skillList\s*\{[^}]*grid-auto-rows:\s*max-content/, '双列卡片的行高要按内容算，auto 行会被压成一行文字的高度')
   assert.match(css, /#mcpList:not\(\[hidden\]\):has\(>\s*\.plugin-empty\),\s*#skillList:not\(\[hidden\]\):has\(>\s*\.plugin-empty\)\s*\{\s*display:\s*block;?\s*\}/)
   assert.ok(css.indexOf('#mcpList[hidden]') > css.indexOf('#mcpList, #skillList'), '#mcpList[hidden] 必须排在网格与空态规则之后才不会失效')
   assert.match(css, /\.plugin-market-sub\s*\{[^}]*white-space:\s*nowrap/)

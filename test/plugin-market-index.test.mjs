@@ -127,7 +127,7 @@ test('GET /api/plugin-market 对接 GitHub 精选清单、桌面增强与可选�
 test('GitHub 精选清单解析、远程缓存、失败回落磁盘缓存与静态清单校验', async () => {
   const { CURATED_PLUGINS_URL, createCuratedPluginsClient, parseCuratedPluginsManifest } = await import('../src/curated-plugins.js')
   const { safePluginName } = await import('../src/environments.js')
-  assert.match(CURATED_PLUGINS_URL, /^https:\/\/raw\.githubusercontent\.com\/yyh-001\/DSH-X\//)
+  assert.match(CURATED_PLUGINS_URL, /^https:\/\/raw\.githubusercontent\.com\/yyh-001\/DSH-X\/Staging\/docs\/curated-plugins\.json$/, '精选清单要走真实存在的默认分支 Staging（指 main 会一直 404）')
 
   const rawManifest = JSON.parse(readFileSync(new URL('../docs/curated-plugins.json', import.meta.url), 'utf8'))
   const parsed = parseCuratedPluginsManifest(rawManifest)
