@@ -41,6 +41,13 @@ test('ModuleLoader 契约：id / inject / 导出', () => {
   assert.match(source, /return \{ apply, inject \};/)
 })
 
+test('取词走 ctx.locale.bind：客户端 locale 没有 t(ns, key)', () => {
+  assert.match(source, /ctx\.locale\.bind\(NS\)/)
+  assert.match(source, /translate\?\.\(key\)/)
+  assert.doesNotMatch(source, /ctx\.locale\.t\?\.\(/)
+  assert.doesNotMatch(source, /ctx\.locale\.t\(/)
+})
+
 test('词典：中英键集合一致，且没有重复', () => {
   const zh = dictionaryKeys('zh')
   const en = dictionaryKeys('en')

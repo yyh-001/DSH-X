@@ -452,6 +452,8 @@ window.__ModuleLoader__.load({
 
 		/** 注册词典、样式与设置页那块面板。 */
 		function apply(ctx) {
+			// 客户端 locale 没有 t(ns, key)，用 bind(ns) 拿按当前语言解析的 translate
+			const translate = typeof ctx.locale.bind === "function" ? ctx.locale.bind(NS) : null;
 			ctx.effect(() => ctx.locale.register(NS, { zh, en }), "dsh-x-sync: dictionaries");
 			ctx.effect(() => {
 				if (document.getElementById(STYLE_ID)) return () => {};
@@ -462,7 +464,7 @@ window.__ModuleLoader__.load({
 				return () => { style.remove(); };
 			}, "dsh-x-sync: styles");
 			ctx.slots.inject("settings.section", () => ctx.slots.register(
-				{ name: "settings.section", id: "x-sync", order: 32, label: () => ctx.locale.t?.(NS, "title") ?? "同步", locale: NS },
+				{ name: "settings.section", id: "x-sync", order: 32, label: () => translate?.("title") ?? "同步", locale: NS },
 				SyncPanel,
 			));
 		}

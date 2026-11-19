@@ -396,6 +396,8 @@ window.__ModuleLoader__.load({
 
 		/** 注册词典、样式与设置页那块面板。 */
 		function apply(ctx) {
+			// 客户端 locale 没有 t(ns, key)，用 bind(ns) 拿按当前语言解析的 translate
+			const translate = typeof ctx.locale.bind === "function" ? ctx.locale.bind(NS) : null;
 			ctx.effect(() => ctx.locale.register(NS, { zh, en }), "dsh-x-memory: dictionaries");
 			ctx.effect(() => {
 				if (document.getElementById("dsh-xmem-style")) return () => {};
@@ -406,7 +408,7 @@ window.__ModuleLoader__.load({
 				return () => { style.remove(); };
 			}, "dsh-x-memory: styles");
 			ctx.slots.inject("settings.section", () => ctx.slots.register(
-				{ name: "settings.section", id: "x-memory", order: 34, label: () => ctx.locale.t?.(NS, "title") ?? "记忆", locale: NS },
+				{ name: "settings.section", id: "x-memory", order: 34, label: () => translate?.("title") ?? "记忆", locale: NS },
 				MemoryPanel,
 			));
 		}

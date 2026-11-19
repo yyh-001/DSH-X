@@ -311,10 +311,13 @@ window.__ModuleLoader__.load({
 			const store = createStore();
 			const toasts = createToasts();
 
+			// dsh 的客户端 locale 没有 t(ns, key)：公开入口是 bind(ns)，返回的 translate
+			// 在调用时读当前语言；词典里的函数值（actionFailed）原样拿回来再带参数调。
+			const translate = typeof ctx.locale.bind === "function" ? ctx.locale.bind(NS) : null;
 			const t = (key, ...args) => {
 				let value;
 				try {
-					value = ctx.locale.t?.(NS, key);
+					value = translate?.(key);
 				} catch {
 					value = undefined;
 				}
