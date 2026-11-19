@@ -3,39 +3,46 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a> 桌面启动器 —— 多实例并行、版本与环境隔离、在线市场与跨平台外壳。
+  <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a> 启动器 ——<br />
+  启动项与多实例，版本、插件、实例、远端连接、MCP 和技能管理。
 </p>
 
 <p align="center">
   <img alt="Windows" src="https://img.shields.io/badge/-Windows-0078D6?style=flat-square" />
   <img alt="macOS" src="https://img.shields.io/badge/-macOS-000000?style=flat-square&logo=apple&logoColor=white" />
   <img alt="Linux" src="https://img.shields.io/badge/-Linux-FCC624?style=flat-square&logo=linux&logoColor=black" />
-  <a href="https://github.com/yyh-001/DSH-X/releases"><img src="https://img.shields.io/github/v/release/yyh-001/DSH-X?label=Release&color=4D6BFE&style=flat-square" alt="Release" /></a>
-  <img src="https://img.shields.io/github/downloads/yyh-001/DSH-X/total?label=Downloads&color=4D6BFE&style=flat-square" alt="Downloads" />
-  <img src="https://img.shields.io/github/stars/yyh-001/DSH-X?label=Stars&color=4D6BFE&style=flat-square" alt="Stars" />
-  <img src="https://img.shields.io/badge/License-MIT-4D6BFE?style=flat-square" alt="License" />
 </p>
 
 <p align="center">
-  <samp><a href="https://yyh-001.github.io/DSH-X/">主页</a> · <a href="https://github.com/yyh-001/DSH-X/releases/latest">下载安装包</a> · <a href="docs/releases">更新日志</a> · <a href="CONTRIBUTING.md">参与贡献</a> · <a href="README.en.md">English</a> · <strong>中文</strong></samp>
+  <a href="https://github.com/yyh-001/DSH-X/releases">
+    <img src="https://img.shields.io/github/v/release/yyh-001/DSH-X?label=Release&color=4D6BFE" alt="Release" />
+  </a>
+  <img src="https://img.shields.io/badge/license-MIT-4D6BFE" alt="License" />
+  <br>
+  <img src="https://img.shields.io/github/downloads/yyh-001/DSH-X/total?label=downloads&color=4D6BFE" alt="Downloads" />
+  <img src="https://img.shields.io/github/stars/yyh-001/DSH-X?label=stars&color=4D6BFE" alt="Stars" />
+  <img src="https://img.shields.io/github/contributors/yyh-001/DSH-X?label=contributors&color=4D6BFE" alt="Contributors" />
+</p>
+
+<p align="center">
+  <samp><a href="https://yyh-001.github.io/DSH-X/">主页</a> · <a href="https://github.com/yyh-001/DSH-X/releases/latest">下载</a> · <a href="docs/releases">更新日志</a> · <a href="CONTRIBUTING.md">参与贡献</a> · <a href="README.en.md">English</a> · <strong>中文</strong></samp>
 </p>
 
 > [!IMPORTANT]
-> **DSH-X 启动的是 DeepSeek Harness 官方原版 Web 界面。**
-> 它只负责版本安装、启动编排与扩展管理，不修改或重做 DSH 原生页面；本项目为社区开源项目，并非 DeepSeek 官方产品。
+> **DSH-X 启动的是 DeepSeek Harness 官方原版 Web 页面。**  
+> 它只负责版本安装、启动和插件管理，不修改也不重做 DSH 的网页界面。DSH-X 本身是社区开源项目，并非 DeepSeek 官方产品。
 
----
+## 功能
 
-## 核心特性
-
-- **启动项与多窗并发** — 每个启动项独立绑定用户目录、配置（profile）、实例与端口，支持多实例同时运行、内部标签页与独立窗口跨窗拖拽。
-- **实例与三签在线市场** — 实例详情整合「插件 / MCP / 技能」管理，升级为「已安装 / 精选 / 市场」三签检索与一键安装，接入真实图标与 GitHub 头像兜底。
-- **桌面增强与电脑操作** — 外壳持有桌面权限，默认启用 `dsh-x-computer-use` 电脑操作（应用级首次授权、`Ctrl+Alt+Backspace` 全局急停与审计日志），并提供原生通知、侧栏浏览器等首方插件。
-- **WSL 与 SSH 远端运行** — 启动项可直接跑在 WSL 发行版或 SSH 远端主机上，首次启动自动部署 `dsh-x-core` 并经本地隧道打开页面。
-- **`.dspack` 整合包与上游跟随** — 实例锁定 DSH 版本与插件清单，支持本地文件或 GitHub `owner/repo` 导入导出、跟随上游新版本并在升级后保留本地改动。
-- **版本管理与启动诊断** — 一键安装/切换/清理版本；日志弹窗提供「原始 / 耗时构成 / 空间构成」三页分析，插件报错自动亮红并给出修复方案。
-
----
+- 🚀 **启动项与多实例** — 按项选用户目录、配置、版本和端口，支持并行启动与运行中新增。
+- 📦 **版本管理** — 检测、安装、卸载和清理 dsh 版本，为启动项钉版本、查看磁盘占用。
+- 🧩 **插件与实例** — 实例锁定 DSH 版本与插件，可导入导出、跟随上游更新；插件按配置开关并支持在线市场一键安装。
+- 🌐 **WSL 与 SSH 远端** — 在设置 → 远程管理连接；启动项可跑在 WSL / SSH 主机上，远端自动安装 dsh-x-core，页面经 SSH 隧道在本机打开。
+- 🔍 **启动排查** — 日志分原始 / 耗时 / 空间三页，按插件归并耗时和依赖；插件报错时日志图标点红。
+- 🔄 **更新与恢复** — 自更新、故障恢复、配置备份与回退、旧版本清理。
+- 🪟 **打开方式与外观** — 内部标签页 / 系统浏览器 / 独立窗口（支持跨窗拖拽）；深浅色、透明度、背景与动画。
+- 🛠️ **MCP、技能与桌面增强** — 内置 MCP / 技能在线市场，默认启用 `dsh-x-computer-use` 电脑操作，支持原生通知、侧栏浏览器等首方插件。
+- ⚙️ **跨平台与系统开关** — Windows / macOS / Linux 安装包；硬件加速、自动下载更新、托盘常驻、开机自启。
 
 ## 快速开始
 
@@ -60,8 +67,6 @@ sha256sum DSH-X-<版本>-linux-x64.AppImage             # Linux
 ```
 
 </details>
-
----
 
 ## 界面预览
 
@@ -92,8 +97,6 @@ sha256sum DSH-X-<版本>-linux-x64.AppImage             # Linux
 
 </details>
 
----
-
 ## 使用速览
 
 ### 隔离方式
@@ -113,8 +116,6 @@ sha256sum DSH-X-<版本>-linux-x64.AppImage             # Linux
 - **打开方式与局域网**：支持内部标签页、独立窗口与系统浏览器；管理页默认端口 `3780`（冲突自动顺延），在「设置 → 高级 → Web 绑定」切换为局域网即可跨设备访问。
 - **备份与回退**：每次启动前自动留存配置层快照，可在实例页右上角或配置操作菜单一键恢复并重装依赖。
 
----
-
 ## 动态壁纸
 
 配套 Wallpaper Engine 壁纸[《DSH-X · 大肥鱼桌面终端》](https://steamcommunity.com/sharedfiles/filedetails/?id=3814706575)：含品牌开场、看板娘互动、本机时间与音频频谱，并随时间自动切换深浅主题。源码位于 [`wallpaper/`](wallpaper/)，执行 `node scripts/export-wallpaper.mjs` 可导出工程。
@@ -128,8 +129,6 @@ sha256sum DSH-X-<版本>-linux-x64.AppImage             # Linux
 
 </details>
 
----
-
 ## 开发与打包
 
 需要 **Node.js 22.18+**。后端服务与管理界面**零第三方运行时依赖**；运行 Electron 外壳或打包安装包前需先 `npm install`。
@@ -142,8 +141,6 @@ sha256sum DSH-X-<版本>-linux-x64.AppImage             # Linux
 | `npm run dist` | 构建当前平台的 `electron-builder` 安装包 |
 
 提交约定与目录结构见 [CONTRIBUTING.md](CONTRIBUTING.md)；发布清单私钥 `release/release-key.pem` 不入库，签名校验使用 `node scripts/release-manifest.mjs verify`。
-
----
 
 ## 社区与相关项目
 

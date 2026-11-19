@@ -3,17 +3,25 @@
 </p>
 
 <p align="center">
-  A desktop launcher for <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a> — multi-instance orchestration, environment isolation, online markets, and cross-platform shell.
+  A <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a> launcher —<br />
+  launch entries and multiple instances, version, plugin, instance, MCP and skill management.
 </p>
 
 <p align="center">
   <img alt="Windows" src="https://img.shields.io/badge/-Windows-0078D6?style=flat-square" />
   <img alt="macOS" src="https://img.shields.io/badge/-macOS-000000?style=flat-square&logo=apple&logoColor=white" />
   <img alt="Linux" src="https://img.shields.io/badge/-Linux-FCC624?style=flat-square&logo=linux&logoColor=black" />
-  <a href="https://github.com/yyh-001/DSH-X/releases"><img src="https://img.shields.io/github/v/release/yyh-001/DSH-X?label=Release&color=4D6BFE&style=flat-square" alt="Release" /></a>
-  <img src="https://img.shields.io/github/downloads/yyh-001/DSH-X/total?label=Downloads&color=4D6BFE&style=flat-square" alt="Downloads" />
-  <img src="https://img.shields.io/github/stars/yyh-001/DSH-X?label=Stars&color=4D6BFE&style=flat-square" alt="Stars" />
-  <img src="https://img.shields.io/badge/License-MIT-4D6BFE?style=flat-square" alt="License" />
+</p>
+
+<p align="center">
+  <a href="https://github.com/yyh-001/DSH-X/releases">
+    <img src="https://img.shields.io/github/v/release/yyh-001/DSH-X?label=Release&color=4D6BFE" alt="Release" />
+  </a>
+  <img src="https://img.shields.io/badge/license-MIT-4D6BFE" alt="License" />
+  <br>
+  <img src="https://img.shields.io/github/downloads/yyh-001/DSH-X/total?label=downloads&color=4D6BFE" alt="Downloads" />
+  <img src="https://img.shields.io/github/stars/yyh-001/DSH-X?label=stars&color=4D6BFE" alt="Stars" />
+  <img src="https://img.shields.io/github/contributors/yyh-001/DSH-X?label=contributors&color=4D6BFE" alt="Contributors" />
 </p>
 
 <p align="center">
@@ -21,21 +29,20 @@
 </p>
 
 > [!IMPORTANT]
-> **DSH-X launches DeepSeek Harness's own upstream Web UI.**
-> It only handles version installation, launch orchestration, and extension management without modifying or rewriting DSH's web pages. DSH-X is a community open-source project, not an official DeepSeek product.
+> **DSH-X starts DeepSeek Harness's own web page.**
+> It only handles version installation, launching and plugin management and never modifies or rewrites DSH's web UI. DSH-X is a community project, not an official DeepSeek product.
 
----
+## Features
 
-## Highlights
-
-- **Concurrent Launches & Windows** — Bind each launch entry to its own user home, profile, instance, and port; run multiple instances side by side with internal tabs or drag-to-detach standalone windows.
-- **Instances & Three-Tab Markets** — Manage Plugins, MCP servers, and Skills from each instance's **Installed / Curated / Market** tabs with live search, category filters, one-click install, and real plugin icons.
-- **Desktop Enhancements & Computer Use** — The shell provides desktop permissions for `dsh-x-computer-use` (enabled by default with first-use per-app authorization, global `Ctrl+Alt+Backspace` kill switch, and audit logs), alongside native notifications and sidebar browser plugins.
-- **WSL & SSH Remote Execution** — Run launch entries inside WSL distros or over SSH; `dsh-x-core` deploys automatically on first start and opens pages locally over an SSH tunnel.
-- **`.dspack` Packs & Upstream Tracking** — Pin DSH versions and plugin manifests per instance, import/export via files or GitHub `owner/repo`, and follow upstream releases while preserving local deltas.
-- **Version Management & Diagnostics** — Install, switch, or prune versions cleanly; inspect Raw Log, Time Breakdown, and Disk Usage tabs, with red badge alerts and repair plans on plugin errors.
-
----
+- 🚀 **Launch entries and multiple instances** — choose a user directory, profile, version and port per entry; start concurrently and add entries while DSH runs.
+- 📦 **Version management** — detect, install, remove and clean up dsh versions; pin a version per entry and inspect disk usage.
+- 🧩 **Plugins and instances** — instances lock a DSH version and plugins, import/export `.dspack`, follow upstream updates, and support one-click market install.
+- 🌐 **WSL and SSH remotes** — manage connections under Settings → Remote; launch entries can run on WSL or SSH hosts with `dsh-x-core` auto-installed and pages opened through an SSH tunnel.
+- 🔍 **Startup troubleshooting** — raw log / time breakdown / disk usage tabs, startup time and dependencies grouped per plugin, and a red log icon on plugin errors.
+- 🔄 **Updates and recovery** — self-update, recovery, profile backups and rollback, and old-version cleanup.
+- 🪟 **Opening modes and appearance** — internal tabs, system browser or standalone windows (with cross-window tab dragging); light/dark themes, transparency, background and animations.
+- 🛠️ **MCP, skills and desktop enhancements** — built-in MCP and Skills markets, `dsh-x-computer-use` enabled by default, plus first-party native notifications and sidebar browser plugins.
+- ⚙️ **Cross-platform and system switches** — Windows / macOS / Linux installers; hardware acceleration, update download, tray and launch at login.
 
 ## Getting Started
 
@@ -60,8 +67,6 @@ sha256sum DSH-X-<version>-linux-x64.AppImage             # Linux
 ```
 
 </details>
-
----
 
 ## Screenshots
 
@@ -92,8 +97,6 @@ sha256sum DSH-X-<version>-linux-x64.AppImage             # Linux
 
 </details>
 
----
-
 ## Usage Overview
 
 ### Isolation Modes
@@ -113,8 +116,6 @@ Choose an isolation level when adding a launch entry (user and version directori
 - **Opening Modes & LAN Access**: Switch between internal tabs, standalone windows, or system browser in Settings; the manager defaults to port `3780` and supports LAN binding under Settings → Advanced.
 - **Backups & Rollback**: Automatic config-layer snapshots are saved before every launch so you can roll back and reinstall dependencies in one click.
 
----
-
 ## Wallpaper
 
 Companion Wallpaper Engine project — [DSH-X · 大肥鱼桌面终端](https://steamcommunity.com/sharedfiles/filedetails/?id=3814706575): brand intro, mascot animation, clock, and audio spectrum with automatic light/dark palette switching. Sources live in [`wallpaper/`](wallpaper/); run `node scripts/export-wallpaper.mjs` to export.
@@ -128,8 +129,6 @@ Companion Wallpaper Engine project — [DSH-X · 大肥鱼桌面终端](https://
 
 </details>
 
----
-
 ## Development & Packaging
 
 Requires **Node.js 22.18+**. The backend and web UI have **zero third-party runtime dependencies**; install dev dependencies (`npm install`) before running the Electron shell or building installers.
@@ -142,8 +141,6 @@ Requires **Node.js 22.18+**. The backend and web UI have **zero third-party runt
 | `npm run dist` | Build `electron-builder` installer for current OS |
 
 See [CONTRIBUTING.en.md](CONTRIBUTING.en.md) for development, commit, and release conventions; verify release manifests with `node scripts/release-manifest.mjs verify` (keep `release/release-key.pem` backed up locally).
-
----
 
 ## Community & Related Projects
 
