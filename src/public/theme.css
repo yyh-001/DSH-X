@@ -47,7 +47,6 @@ html[data-color-scheme="dark"] #pane-control .card.home {
   border-color: rgba(116, 116, 122, .45);
   box-shadow: 0 20px 52px rgba(0, 0, 0, .34), 0 4px 14px rgba(0, 0, 0, .2);
 }
-html[data-color-scheme="dark"] .launch-preset:hover::before { background: rgba(255, 255, 255, .045); }
 html[data-color-scheme="dark"] main:not(.home) .settings-body {
   background: transparent;
 }

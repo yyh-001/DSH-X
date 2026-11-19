@@ -144,6 +144,8 @@ test('CSS 动效令牌、全局减少动态、暗色危险色与停止按钮色�
 
   assert.ok(page.indexOf('/motion.js') > 0 && page.indexOf('/motion.js') < page.indexOf('/launcher-boot.js'), 'index.html 应先于 launcher-boot.js 引入 /motion.js')
   assert.doesNotMatch(page, /id="launchMoreMenu"/, '不再保留首页 ⋯ 下拉菜单，动作直接展开在行尾')
+  assert.doesNotMatch(launcherCss, /\.launch-preset(?::hover)?::before/, '移除首页启动项鼠标悬浮背景铺底效果')
+  assert.doesNotMatch(themeCss, /\.launch-preset(?::hover)?::before/, '暗色主题同步移除首页启动项悬浮背景')
 })
 
 function homeHarness({
