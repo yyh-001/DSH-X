@@ -289,3 +289,118 @@ test('createPluginMarketClient 缓存检索且打包清单包含 plugin-market.j
   const packCommon = readFileSync(new URL('../scripts/pack-common.mjs', import.meta.url), 'utf8')
   assert.match(packCommon, /'plugin-market\.js'/)
 })
+
+test('curatedUrlCandidates 与 createCuratedPluginsClient 支持多镜像优先/直连失败回退', async () => {
+  const { CURATED_PLUGINS_URL, createCuratedPluginsClient, curatedUrlCandidates } = await import('../src/curated-plugins.js')
+  const expectedDirect = CURATED_PLUGINS_URL
+  const expectedJsdelivrFastly = 'https://fastly.jsdelivr.net/gh/yyh-001/DSH-X@main/docs/curated-plugins.json'
+  const expectedJsdelivrCdn = 'https://cdn.jsdelivr.net/gh/yyh-001/DSH-X@main/docs/curated-plugins.json'
+
+  const mirrorFirst = curatedUrlCandidates(expectedDirect, 'mirror')
+  assert.deepEqual(mirrorFirst, [
+    `https://gh-proxy.com/${expectedDirect}`,
+    `https://ghfast.top/${expectedDirect}`,
+    expectedJsdelivrFastly,
+    expectedJsdelivrCdn,
+    expectedDirect,
+  ])
+
+  const directFirst = curatedUrlCandidates(expectedDirect, 'direct')
+  assert.deepEqual(directFirst, [
+    expectedDirect,
+    `https://gh-proxy.com/${expectedDirect}`,
+    `https://ghfast.top/${expectedDirect}`,
+    expectedJsdelivrFastly,
+    expectedJsdelivrCdn,
+  ])
+
+  assert.deepEqual(
+    curatedUrlCandidates('http://127.0.0.1:8080/curated.json', 'mirror'),
+    ['http://127.0.0.1:8080/curated.json'],
+    '非 GitHub 地址不套镜像前缀',
+  )
+
+  const sample = {
+    version: 1,
+    updatedAt: '2026-11-20',
+    categories: [{ id: 'manage', zh: '管理', tone: 'blue' }],
+    plugins: [
+      { name: 'dshmarket', title: '市场', description: 'desc', category: 'manage', installSpec: 'dshmarket' },
+    ],
+  }
+
+  // 1) 直连模式下 raw.githubusercontent.com 不可达，自动回退到镜像并写缓存、命中 TTL
+  const root = mkdtempSync(join(tmpdir(), 'dsh-curated-mirror-'))
+  try {
+    const cacheFile = join(root, 'curated-cache.json')
+    const triedDirect = []
+    let nowMs = 1000
+    const directClient = createCuratedPluginsClient({
+      url: expectedDirect,
+      getUpdateSource: () => 'direct',
+      cacheFile,
+      fallbackFile: '',
+      ttlMs: 60_000,
+      now: () => nowMs,
+      fetchFn: async (candidate) => {
+        triedDirect.push(candidate)
+        if (candidate === expectedDirect) throw new Error('direct blocked')
+        return new Response(JSON.stringify(sample), { status: 200 })
+      },
+    })
+    const directFallback = await directClient.load()
+    assert.deepEqual(triedDirect, [expectedDirect, `https://gh-proxy.com/${expectedDirect}`])
+    assert.equal(directFallback.curatedSource, 'mirror')
+    assert.equal(directFallback.curatedUrl, `https://gh-proxy.com/${expectedDirect}`)
+    assert.equal(directFallback.curatedError, '')
+    assert.equal(directFallback.curated.length, 1)
+    assert.ok(readFileSync(cacheFile, 'utf8').includes('dshmarket'), '镜像拉取成功后写入磁盘缓存')
+
+    // TTL 内走内存缓存且保留镜像 source/url
+    const ttlHit = await directClient.load()
+    assert.equal(triedDirect.length, 2, 'TTL 内不重复发起网络请求')
+    assert.equal(ttlHit.curatedSource, 'mirror')
+    assert.equal(ttlHit.curatedUrl, `https://gh-proxy.com/${expectedDirect}`)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+
+  // 2) 镜像优先模式下，前序镜像 502 时顺延到 jsDelivr 成功，不打 raw.githubusercontent.com；
+  //    所有镜像均失败时再回退到直连 GitHub
+  const triedMirror = []
+  let failAllMirrors = false
+  const mirrorClient = createCuratedPluginsClient({
+    url: expectedDirect,
+    getUpdateSource: () => 'mirror',
+    fallbackFile: '',
+    fetchFn: async (candidate) => {
+      triedMirror.push(candidate)
+      if (!failAllMirrors) {
+        if (candidate === expectedJsdelivrFastly) {
+          return new Response(JSON.stringify(sample), { status: 200 })
+        }
+        return new Response('bad gateway', { status: 502, statusText: 'Bad Gateway' })
+      }
+      if (candidate === expectedDirect) {
+        return new Response(JSON.stringify(sample), { status: 200 })
+      }
+      throw new Error('mirror unreachable')
+    },
+  })
+  const viaJsdelivr = await mirrorClient.load()
+  assert.deepEqual(triedMirror, [
+    `https://gh-proxy.com/${expectedDirect}`,
+    `https://ghfast.top/${expectedDirect}`,
+    expectedJsdelivrFastly,
+  ])
+  assert.equal(triedMirror.includes(expectedDirect), false, '镜像成功时不触发直连 GitHub')
+  assert.equal(viaJsdelivr.curatedSource, 'mirror')
+  assert.equal(viaJsdelivr.curatedUrl, expectedJsdelivrFastly)
+
+  triedMirror.length = 0
+  failAllMirrors = true
+  const fallbackDirect = await mirrorClient.load({ refresh: true })
+  assert.deepEqual(triedMirror, mirrorFirst)
+  assert.equal(fallbackDirect.curatedSource, 'github')
+  assert.equal(fallbackDirect.curatedUrl, expectedDirect)
+})

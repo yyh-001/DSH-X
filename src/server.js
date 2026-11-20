@@ -10990,6 +10990,7 @@ async function handleApi(req, res, url) {
       const scope = String(url.searchParams.get('scope') || '').trim()
       curatedPluginsClientInstance ??= createCuratedPluginsClient({
         cacheFile: join(APP_DIR, 'curated-plugins-cache.json'),
+        getUpdateSource: () => UPDATE_SOURCE,
       })
       const curatedPromise = curatedPluginsClientInstance.load({ refresh })
       let marketResult = {
