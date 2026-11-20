@@ -91,7 +91,7 @@ test('目录的迟到响应不能覆盖另一次选择，目录检查后按新�
 })
 
 test('自定义档的用户目录交给目录下拉面板，底下的下拉只当真相源', () => {
-  const field = section('id="launchEnvField"', 'id="launchPort"')
+  const field = section('id="launchEnvField"', 'id="launchEnvironmentField"')
   // 一行「用户目录」触发器：只挑用户目录（不和下面的「用哪个实例」冲突）
   assert.match(field, /<label for="launchEnvPick" data-i18n="用户目录">用户目录<\/label>/)
   assert.doesNotMatch(field, /目录与 Profile|启动环境|目录与配置/, '旧叫法不再出现在这一格')

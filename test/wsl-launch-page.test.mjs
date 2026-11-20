@@ -224,7 +224,7 @@ test('所有浏览目录按钮都是文件夹图标，不再写「浏览…」',
   }
   assert.doesNotMatch(page, />浏览…<\/button>/, '不再有文字版浏览按钮')
   assert.match(css, /\.ghost\.browse-btn \{[\s\S]{0,200}?width: var\(--control-height\)/, '图标按钮和输入框同高')
-  assert.match(css, /#launchDialog \.control-row \.ghost\.browse-btn \{[\s\S]{0,120}?height: 42px/, '启动项弹窗里跟随 42px 控件')
+  assert.match(css, /#launchDialog \.control-row \.ghost\.browse-btn \{[\s\S]{0,120}?height: 38px/, '启动项弹窗里跟随 38px 控件')
 })
 
 test('选择窗的切换 / 增删动效：方向推入、删除淡出、新增高亮，且遵守减动效', () => {

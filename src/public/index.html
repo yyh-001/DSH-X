@@ -40,9 +40,9 @@
       })
     })()
   </script>
-  <link rel="stylesheet" href="/launcher.css?v=20261119s" />
+  <link rel="stylesheet" href="/launcher.css?v=20261120e" />
   <link rel="stylesheet" href="/mascot.css?v=20261119" />
-  <link rel="stylesheet" href="/theme.css?v=20261119s" />
+  <link rel="stylesheet" href="/theme.css?v=20261120e" />
   <link rel="stylesheet" href="/launcher-boot.css?v=20261119" />
 </head>
 <body>
@@ -388,7 +388,6 @@
               <div class="environment-plugin-subtabs" id="skillSubtabs" role="tablist" aria-label="技能视图" data-i18n-aria-label="技能视图">
                 <button type="button" class="environment-subtab is-active" role="tab" data-skill-subtab="installed" aria-selected="true"><span data-i18n="已安装">已安装</span><span class="environment-subtab-count" id="skillTotalCount">0</span></button>
                 <button type="button" class="environment-subtab" role="tab" data-skill-subtab="market" aria-selected="false"><span data-i18n="技能市场">技能市场</span></button>
-                <button type="button" class="environment-subtab" role="tab" data-skill-subtab="openai" aria-selected="false"><span data-i18n="OpenAI 精选">OpenAI 精选</span></button>
               </div>
               <div class="environment-market-tools">
                 <label class="plugin-market-search" aria-label="搜索技能" data-i18n-aria-label="搜索技能">
@@ -1009,6 +1008,12 @@
   <div class="project-device-panel" id="launchCopyPanel" hidden>
     <div class="project-device-list" id="launchCopyList" role="listbox" aria-label="选择一个实例…" data-i18n-aria-label="选择一个实例…"></div>
   </div>
+  <div class="project-device-panel" id="envLaunchHomePanel" hidden>
+    <div class="project-device-list" id="envLaunchHomeList" role="listbox" aria-label="用户目录" data-i18n-aria-label="用户目录"></div>
+  </div>
+  <div class="project-device-panel" id="envLaunchEnvPanel" hidden>
+    <div class="project-device-list" id="envLaunchEnvList" role="listbox" aria-label="用哪个实例" data-i18n-aria-label="用哪个实例"></div>
+  </div>
   <div class="ask" id="connectionProgressDialog" hidden>
     <div class="ask-card connection-progress-card" role="dialog" aria-modal="true" aria-labelledby="connectionProgressTitle" data-dialog-size="medium" tabindex="-1">
       <div class="connection-progress-head">
@@ -1169,31 +1174,31 @@
         <!-- 自定义档就是原来那张完整表单：版本、端口、名称、目录、Profile 全手动挑。切到「自定义」tab
              才显示，前两档整块藏起来（见 setLaunchIsolation）；编辑老启动项时直接露出来。 -->
         <div class="launch-custom-fields" id="launchCustomFields">
-          <div class="home-field launch-identity-field" id="launchIdentityField">
-            <label for="launchName" data-i18n="名称">名称</label>
-            <div class="launch-name-row"><button class="launch-icon-trigger" id="launchIconTrigger" type="button" title="修改图标" aria-label="修改图标" data-i18n-title="修改图标" data-i18n-aria-label="修改图标" aria-expanded="false" aria-controls="launchIconPopover"></button><input id="launchName" type="text" required maxlength="32" autocomplete="off" data-placeholder-i18n="例如：工作" /></div>
-            <div class="launch-icon-popover" id="launchIconPopover" hidden><div class="launch-icon-picker" id="launchIconPicker" role="group" aria-label="启动项图标"></div><div class="launch-icon-upload"><button class="ghost icon-btn" id="launchIconUpload" type="button" title="选择图片" aria-label="选择图片" data-i18n-title="选择图片" data-i18n-aria-label="选择图片"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-image"/></svg></button><button class="ghost icon-btn" id="launchIconReset" type="button" title="恢复默认" aria-label="恢复默认" data-i18n-title="恢复默认" data-i18n-aria-label="恢复默认"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-rotate-ccw"/></svg></button></div></div>
-            <input id="launchIconFile" type="file" accept="image/png,image/jpeg,image/webp" hidden /><span class="hint launch-icon-error" id="launchIconHint"></span>
-          </div>
-          <div class="home-pickers">
-            <div class="home-field" id="launchEnvField">
-              <!-- 自定义 / 编辑实例选用户目录（同引导页签的目录下拉面板）：触发器只显示「用户目录名 · 路径」，
-                   不再和下面的「用哪个实例」冲突；底下两个原生下拉仍留着当唯一真相源（回填、保存、恢复都读它们），只是藏起来。 -->
-              <label for="launchEnvPick" data-i18n="用户目录">用户目录</label>
-              <div class="project-device-control">
-                <button type="button" class="project-device-trigger" id="launchEnvPick" aria-haspopup="listbox" aria-expanded="false" aria-controls="launchGuideDirPanel">
-                  <svg class="project-device-kind-icon" id="launchEnvPickIcon" viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-folder"/></svg>
-                  <span class="project-device-label select-value" id="launchEnvPickValue"></span>
-                  <svg class="project-device-caret" viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-chevron-down"/></svg>
-                </button>
-              </div>
-              <select id="launchDshHome" aria-label="dsh 用户目录" data-i18n-aria-label="dsh 用户目录" hidden></select>
-              <select id="launchProfile" title="Profile" hidden></select>
+          <div class="launch-custom-grid-top">
+            <div class="home-field launch-identity-field" id="launchIdentityField">
+              <label for="launchName" data-i18n="名称">名称</label>
+              <div class="launch-name-row"><button class="launch-icon-trigger" id="launchIconTrigger" type="button" title="修改图标" aria-label="修改图标" data-i18n-title="修改图标" data-i18n-aria-label="修改图标" aria-expanded="false" aria-controls="launchIconPopover"></button><input id="launchName" type="text" required maxlength="32" autocomplete="off" data-placeholder-i18n="例如：工作" /></div>
+              <div class="launch-icon-popover" id="launchIconPopover" hidden><div class="launch-icon-picker" id="launchIconPicker" role="group" aria-label="启动项图标"></div><div class="launch-icon-upload"><button class="ghost icon-btn" id="launchIconUpload" type="button" title="选择图片" aria-label="选择图片" data-i18n-title="选择图片" data-i18n-aria-label="选择图片"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-image"/></svg></button><button class="ghost icon-btn" id="launchIconReset" type="button" title="恢复默认" aria-label="恢复默认" data-i18n-title="恢复默认" data-i18n-aria-label="恢复默认"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-rotate-ccw"/></svg></button></div></div>
+              <input id="launchIconFile" type="file" accept="image/png,image/jpeg,image/webp" hidden /><span class="hint launch-icon-error" id="launchIconHint"></span>
             </div>
             <div class="home-field port">
               <label for="launchPort" data-i18n="端口">端口</label>
               <input id="launchPort" type="number" min="1" max="65535" step="1" inputmode="numeric" />
             </div>
+          </div>
+          <div class="home-field" id="launchEnvField">
+            <!-- 自定义 / 编辑实例选用户目录（同引导页签的目录下拉面板）：触发器只显示「用户目录名 · 路径」，
+                 不再和下面的「用哪个实例」冲突；底下两个原生下拉仍留着当唯一真相源（回填、保存、恢复都读它们），只是藏起来。 -->
+            <label for="launchEnvPick" data-i18n="用户目录">用户目录</label>
+            <div class="project-device-control">
+              <button type="button" class="project-device-trigger" id="launchEnvPick" aria-haspopup="listbox" aria-expanded="false" aria-controls="launchGuideDirPanel">
+                <svg class="project-device-kind-icon" id="launchEnvPickIcon" viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-folder"/></svg>
+                <span class="project-device-label select-value" id="launchEnvPickValue"></span>
+                <svg class="project-device-caret" viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-chevron-down"/></svg>
+              </button>
+            </div>
+            <select id="launchDshHome" aria-label="dsh 用户目录" data-i18n-aria-label="dsh 用户目录" hidden></select>
+            <select id="launchProfile" title="Profile" hidden></select>
           </div>
           <!-- 启动项 = 实例 × 配置：实例定 DSH 版本和插件，选项由 environments-page.js 填。选了实例，下面的
                版本那一组整个藏起来（版本跟着实例走）；「自定义」（值为空）才自己挑版本，保存时按配置现有的
@@ -1544,15 +1549,26 @@
         </div>
         <div class="env-launch-grid-mid">
           <div class="environment-config-field">
-            <label for="envLaunchHome" data-i18n="用户目录">用户目录</label>
-            <div class="env-launch-dir-row">
-              <select id="envLaunchHome" aria-label="用户目录" data-i18n-aria-label="用户目录"></select>
-              <button class="ghost icon-btn" id="envLaunchBrowseHome" type="button" title="浏览…" aria-label="浏览…" data-i18n-title="浏览…" data-i18n-aria-label="浏览…"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-folder-plus"/></svg></button>
+            <label for="envLaunchHomePick" data-i18n="用户目录">用户目录</label>
+            <div class="project-device-control">
+              <button type="button" class="project-device-trigger" id="envLaunchHomePick" aria-haspopup="listbox" aria-expanded="false" aria-controls="envLaunchHomePanel">
+                <svg class="project-device-kind-icon" id="envLaunchHomePickIcon" viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-folder"/></svg>
+                <span class="project-device-label select-value" id="envLaunchHomePickValue"></span>
+                <svg class="project-device-caret" viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-chevron-down"/></svg>
+              </button>
             </div>
+            <select id="envLaunchHome" aria-label="用户目录" data-i18n-aria-label="用户目录" hidden></select>
           </div>
           <div class="environment-config-field">
-            <label for="envLaunchEnvironment" data-i18n="用哪个实例">用哪个实例</label>
-            <select id="envLaunchEnvironment" aria-label="用哪个实例" data-i18n-aria-label="用哪个实例"></select>
+            <label for="envLaunchEnvironmentPick" data-i18n="用哪个实例">用哪个实例</label>
+            <div class="project-device-control">
+              <button type="button" class="project-device-trigger" id="envLaunchEnvironmentPick" aria-haspopup="listbox" aria-expanded="false" aria-controls="envLaunchEnvPanel">
+                <svg class="project-device-kind-icon" id="envLaunchEnvironmentPickIcon" viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-package"/></svg>
+                <span class="project-device-label select-value" id="envLaunchEnvironmentPickValue"></span>
+                <svg class="project-device-caret" viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-chevron-down"/></svg>
+              </button>
+            </div>
+            <select id="envLaunchEnvironment" aria-label="用哪个实例" data-i18n-aria-label="用哪个实例" hidden></select>
           </div>
         </div>
         <div class="env-launch-toggles">
@@ -3092,7 +3108,6 @@
   "MCP 市场": "MCP Registry",
   "技能视图": "Skill view",
   "技能市场": "Skill Market",
-  "OpenAI 精选": "OpenAI Curated",
   "环境变量（可选，每行 KEY=VALUE）": "Environment variables (optional, KEY=VALUE per line)",
   "每行环境变量都要写 KEY=VALUE：{line}": "Each environment line must be KEY=VALUE: {line}",
   "配置并安装": "Configure",
@@ -3104,7 +3119,6 @@
   "暂时无法读取 MCP 市场": "Unable to load MCP Registry",
   "没有找到匹配的技能。": "No matching skills found.",
   "暂时无法读取技能市场": "Unable to load Skill Market",
-  "暂无 OpenAI 精选技能。": "No OpenAI curated skills available.",
   "已安装技能 {name}，dsh 在跑会热加载。": "Installed skill {name}. dsh reloads running sessions automatically.",
 }
 
@@ -6722,6 +6736,7 @@
         // 创建成功仍按独立流程收尾：选择窗和它下面的启动项表单一起收掉，别挂着旧表单。
         if (!profilePickDialogEl.hidden) void forceHidePackDialog(profilePickDialogEl)
         if (!launchDialogEl.hidden) void forceHidePackDialog(launchDialogEl)
+        if (typeof closeEnvLaunchConfig === 'function') void closeEnvLaunchConfig()
         render()
       } catch (error) {
         projectErrorEl.textContent = error.message
@@ -7200,14 +7215,14 @@
       const items = []
       const seen = new Set()
       const defaultHome = state.dshHome || ''
-      const addItem = (home, profile, realHome, remote = false, label = '') => {
+      const addItem = (home, profile, realHome, remote = false, label = '', versionLabel = '') => {
         const cleanProfile = String(profile || '').trim()
         if (!cleanProfile) return
         const normHome = remote ? String(home || '') : normalizeHomePath(home || defaultHome)
         const key = `${normHome}\0${cleanProfile}`
         if (seen.has(key)) return
         seen.add(key)
-        items.push({ home: home || '', profile: cleanProfile, label: String(label || cleanProfile), realHome: realHome || '~/.dsh', remote })
+        items.push({ home: home || '', profile: cleanProfile, label: String(label || cleanProfile), realHome: realHome || '~/.dsh', remote, versionLabel: String(versionLabel || '') })
       }
       const missingHomes = []
       const hasEnvList = typeof environmentState !== 'undefined' && Array.isArray(environmentState?.list)
@@ -7215,7 +7230,16 @@
         // 本机实例以「实例管理」里的清单为准，已删除实例留下的孤立目录不混进下拉框
         for (const env of environmentState.list) {
           const home = env.targetHome || defaultHome
-          addItem(home, env.targetProfile || env.name, home || '~/.dsh', false, env.name || env.targetProfile || '')
+          let versionLabel = ''
+          if (env.dshVersion) {
+            const channelKey = env.updateChannel || 'official'
+            const channelName = (typeof UPDATE_CHANNEL_NAMES === 'object' && UPDATE_CHANNEL_NAMES?.[channelKey])
+              || (channelKey === 'alpha' ? 'Alpha' : channelKey === 'rc' ? 'RC' : '正式版')
+            versionLabel = env.dshVersion === 'auto'
+              ? t('自动（{channel}）', { channel: t(channelName) })
+              : String(env.dshVersion)
+          }
+          addItem(home, env.targetProfile || env.name, home || '~/.dsh', false, env.name || env.targetProfile || '', versionLabel)
         }
       } else {
         const defaultWeb = (Array.isArray(state.webProfiles) && state.webProfiles.length ? state.webProfiles : (state.profiles || [])).map(String)
@@ -7272,7 +7296,8 @@
           : (Boolean(launchCopySource)
             && launchCopySource.profile === item.profile
             && (item.remote ? launchCopySource.home === item.home : sameHomePath(launchCopySource.home || defaultHome, item.home || defaultHome)))
-        return `<button class="project-device-option${selected ? ' is-selected' : ''}" type="button" role="option" aria-selected="${selected}" data-copy-index="${index}"><span class="project-device-option-icon">${item.remote ? serverIcon : packageIcon}</span><span class="project-device-option-text"><strong>${escapeHtml(item.label || item.profile)}</strong><small>${escapeHtml(item.realHome)}</small></span><span class="project-device-option-state">${selected ? `<span class="project-device-check">${check}</span>` : ''}</span></button>`
+        const subtext = forCustomEnv && item.versionLabel ? `${item.versionLabel} · ${item.realHome}` : item.realHome
+        return `<button class="project-device-option${selected ? ' is-selected' : ''}" type="button" role="option" aria-selected="${selected}" data-copy-index="${index}"><span class="project-device-option-icon">${item.remote ? serverIcon : packageIcon}</span><span class="project-device-option-text"><strong>${escapeHtml(item.label || item.profile)}</strong><small>${escapeHtml(subtext)}</small></span><span class="project-device-option-state">${selected ? `<span class="project-device-check">${check}</span>` : ''}</span></button>`
       }).join('')
       const manageHtml = `<button class="project-device-option is-add" type="button" role="option" data-env-manage="1"><span class="project-device-option-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-sliders-horizontal"/></svg></span><span class="project-device-option-text"><strong>${escapeHtml(t('管理实例'))}</strong></span></button>`
       launchCopyListEl.innerHTML = rowsHtml + manageHtml
@@ -7825,7 +7850,16 @@
       const profile = env ? (env.targetProfile || env.name || formProfile || 'web') : (formProfile || 'web')
       const home = env ? (env.targetHome || state.dshHome || '~/.dsh') : formHome
       const realPath = conn ? (connectionTarget(conn) || home || '~/.dsh') : (home || state.dshHome || '~/.dsh')
-      const text = profile ? (realPath ? `${profile} · ${realPath}` : profile) : t('选择一个实例…')
+      let text = profile ? (realPath ? `${profile} · ${realPath}` : profile) : t('选择一个实例…')
+      if (!remote && env?.dshVersion) {
+        const channelKey = env.updateChannel || 'official'
+        const channelName = (typeof UPDATE_CHANNEL_NAMES === 'object' && UPDATE_CHANNEL_NAMES?.[channelKey])
+          || (channelKey === 'alpha' ? 'Alpha' : channelKey === 'rc' ? 'RC' : '正式版')
+        const versionText = env.dshVersion === 'auto'
+          ? t('自动（{channel}）', { channel: t(channelName) })
+          : String(env.dshVersion)
+        text = `${env.name || profile} · ${versionText}`
+      }
       const iconEl = document.getElementById('launchEnvironmentPickIcon')
       iconEl?.querySelector('use')?.setAttribute('href', conn || remote ? '/icons.svg#lucide-server' : '/icons.svg#lucide-package')
       launchEnvironmentPickEl.classList.toggle('is-placeholder', !profile)
@@ -14697,8 +14731,6 @@
       marketTotal: 0,
       page: 0,
       hasMore: false,
-      openaiItems: [],
-      openaiLoaded: false,
       loading: false,
       loadingMore: false,
       error: '',
@@ -15099,15 +15131,7 @@
     function renderSkillMarket() {
       if (!skillMarketListEl) return
       if (skillRefreshEl) skillRefreshEl.classList.toggle('is-loading', skillMarketState.loading)
-      const isOpenAi = skillSubTab === 'openai'
-      const rawItems = isOpenAi ? skillMarketState.openaiItems : skillMarketState.marketItems
-      const terms = skillSearch.trim().toLowerCase().split(/\s+/).filter(Boolean)
-      const items = isOpenAi && terms.length
-        ? rawItems.filter((item) => {
-            const hay = `${item.title || ''}\n${item.skillId || ''}\n${item.description || ''}\n${item.source || ''}`.toLowerCase()
-            return terms.every((term) => hay.includes(term))
-          })
-        : rawItems
+      const items = skillMarketState.marketItems
 
       if (skillMarketErrorEl) {
         skillMarketErrorEl.textContent = skillMarketState.error || ''
@@ -15123,7 +15147,7 @@
         empty.className = 'plugin-empty'
         empty.textContent = skillMarketState.error
           ? t('暂时无法读取技能市场')
-          : (skillSearch.trim() ? t('没有找到匹配的技能。') : t(isOpenAi ? '暂无 OpenAI 精选技能。' : '没有找到匹配的技能。'))
+          : t('没有找到匹配的技能。')
         skillMarketListEl.append(empty)
         return
       }
@@ -15132,7 +15156,7 @@
       for (const item of items) grid.append(skillMarketCard(item))
       skillMarketListEl.append(grid)
 
-      if (!isOpenAi && skillMarketState.hasMore) {
+      if (skillMarketState.hasMore) {
         const moreBtn = document.createElement('button')
         moreBtn.type = 'button'
         moreBtn.className = 'ghost plugin-market-more'
@@ -15144,7 +15168,6 @@
     }
 
     async function loadSkillMarket({ refresh = false, append = false, page = 0 } = {}) {
-      const mode = skillSubTab === 'openai' ? 'openai' : 'market'
       const seq = ++skillMarketState.seq
       if (append) skillMarketState.loadingMore = true
       else {
@@ -15153,22 +15176,17 @@
       }
       renderSkillMarket()
       try {
-        const params = new URLSearchParams({ mode, page: String(page), limit: '30' })
-        if (mode === 'market' && skillSearch.trim()) params.set('q', skillSearch.trim())
+        const params = new URLSearchParams({ mode: 'market', page: String(page), limit: '30' })
+        if (skillSearch.trim()) params.set('q', skillSearch.trim())
         if (refresh) params.set('refresh', '1')
         const data = await getJson(`/api/skill-market?${params.toString()}`)
         if (seq !== skillMarketState.seq) return
         const nextItems = Array.isArray(data?.items) ? data.items : []
-        if (mode === 'openai') {
-          skillMarketState.openaiItems = nextItems
-          skillMarketState.openaiLoaded = true
-        } else {
-          skillMarketState.marketItems = append ? [...skillMarketState.marketItems, ...nextItems] : nextItems
-          skillMarketState.marketLoaded = true
-          skillMarketState.marketTotal = Number(data?.total) || 0
-          skillMarketState.page = Number(data?.page) || 0
-          skillMarketState.hasMore = Boolean(data?.hasMore)
-        }
+        skillMarketState.marketItems = append ? [...skillMarketState.marketItems, ...nextItems] : nextItems
+        skillMarketState.marketLoaded = true
+        skillMarketState.marketTotal = Number(data?.total) || 0
+        skillMarketState.page = Number(data?.page) || 0
+        skillMarketState.hasMore = Boolean(data?.hasMore)
         skillMarketState.error = data?.error || ''
       } catch (error) {
         if (seq !== skillMarketState.seq) return
@@ -15220,14 +15238,13 @@
     skillSubtabsEl?.addEventListener('click', (event) => {
       const btn = event.target.closest?.('[data-skill-subtab]')
       if (!btn) return
-      const next = btn.dataset.skillSubtab || 'installed'
+      const next = btn.dataset.skillSubtab === 'market' ? 'market' : 'installed'
       if (next === skillSubTab) return
       skillSubTab = next
       if (skillMarketErrorEl) skillMarketErrorEl.hidden = true
       renderSkillList()
       animateSubPane(next === 'installed' ? skillListEl : skillMarketPaneEl)
-      if (next === 'openai' && !skillMarketState.openaiLoaded) void loadSkillMarket()
-      else if (next === 'market' && (!skillMarketState.marketLoaded || skillSearch.trim())) void loadSkillMarket()
+      if (next === 'market' && (!skillMarketState.marketLoaded || skillSearch.trim())) void loadSkillMarket()
     })
     if (skillSearchEl) {
       skillSearchEl.oninput = () => {
@@ -15396,9 +15413,16 @@
       const iconHintEl = document.getElementById('envLaunchIconHint')
       const nameEl = document.getElementById('envLaunchName')
       const homeEl = document.getElementById('envLaunchHome')
-      const browseHomeEl = document.getElementById('envLaunchBrowseHome')
+      const homePickEl = document.getElementById('envLaunchHomePick')
+      const homePickValueEl = document.getElementById('envLaunchHomePickValue')
+      const homePanelEl = document.getElementById('envLaunchHomePanel')
+      const homeListEl = document.getElementById('envLaunchHomeList')
       const portEl = document.getElementById('envLaunchPort')
       const envSelectEl = document.getElementById('envLaunchEnvironment')
+      const envPickEl = document.getElementById('envLaunchEnvironmentPick')
+      const envPickValueEl = document.getElementById('envLaunchEnvironmentPickValue')
+      const envPanelEl = document.getElementById('envLaunchEnvPanel')
+      const envListEl = document.getElementById('envLaunchEnvList')
       const autoLaunchEl = document.getElementById('envLaunchAutoLaunch')
       const dshHomeEnvEl = document.getElementById('envLaunchDshHomeEnv')
       const recoverEl = document.getElementById('envLaunchRecover')
@@ -15406,12 +15430,11 @@
       const recoveryHintEl = document.getElementById('envLaunchRecoveryHint')
       if (!cardEl) return
 
-      if (homeEl) createUiSelect(homeEl)
-      if (envSelectEl) createUiSelect(envSelectEl)
-
       let iconDraft = 'terminal'
       let iconsOpen = false
       let iconMotion = null
+      let homePanelResize = null
+      let envPanelResize = null
       let activeLaunchEntry = null
       let currentEnvObj = null
       let syncedEntryKey = ''
@@ -15525,10 +15548,34 @@
         })
       }
 
-      if (iconTriggerEl) iconTriggerEl.onclick = () => setEnvLaunchIcons(!iconsOpen)
+      if (iconTriggerEl) iconTriggerEl.onclick = () => {
+        closeEnvLaunchHomePanel()
+        closeEnvLaunchEnvPanel()
+        setEnvLaunchIcons(!iconsOpen)
+      }
       document.addEventListener('pointerdown', (event) => {
-        if (identityEl && !identityEl.contains(event.target)) closeEnvLaunchIcons()
+        if (identityEl && !identityEl.contains?.(event.target)) closeEnvLaunchIcons()
+        if (homePanelEl && !homePanelEl.hidden && !homePanelEl.contains?.(event.target) && !homePickEl?.contains?.(event.target)) {
+          closeEnvLaunchHomePanel()
+        }
+        if (envPanelEl && !envPanelEl.hidden && !envPanelEl.contains?.(event.target) && !envPickEl?.contains?.(event.target)) {
+          closeEnvLaunchEnvPanel()
+        }
       })
+      document.addEventListener('scroll', (event) => {
+        if (homePanelEl && !homePanelEl.hidden && !homePanelEl.contains?.(event.target)) {
+          closeEnvLaunchHomePanel()
+        }
+        if (envPanelEl && !envPanelEl.hidden && !envPanelEl.contains?.(event.target)) {
+          closeEnvLaunchEnvPanel()
+        }
+      }, true)
+      if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+        window.addEventListener('resize', () => {
+          if (homePanelEl && !homePanelEl.hidden) alignEnvLaunchHomePanel()
+          if (envPanelEl && !envPanelEl.hidden) alignEnvLaunchEnvPanel()
+        })
+      }
       if (identityEl) {
         identityEl.onkeydown = (event) => {
           if (event.key === 'Escape' && iconPopoverEl && !iconPopoverEl.hidden) {
@@ -15579,28 +15626,203 @@
         }
       }
 
+      function homeBaseName(path) {
+        if (typeof folderBaseName === 'function') return folderBaseName(path)
+        const trimmed = String(path || '').replace(/[\\/]+$/, '')
+        return trimmed.split(/[\\/]/).filter(Boolean).pop() || ''
+      }
+
+      function isSameHome(a, b) {
+        return normalizeHomePath(a || state.dshHome || '') === normalizeHomePath(b || state.dshHome || '')
+      }
+
+      function normalizeSelectedHome(raw) {
+        const clean = String(raw || '').trim()
+        if (!clean) return ''
+        if (state.dshHome && normalizeHomePath(clean) === normalizeHomePath(state.dshHome)) return ''
+        return clean
+      }
+
+      function homeTitleOf(real) {
+        return (typeof pluginHomeName === 'function' ? pluginHomeName(real, '') : '') || homeBaseName(real) || t('本机')
+      }
+
+      function paintHomeTrigger(selectedHome) {
+        if (!homePickEl || !homePickValueEl) return
+        const real = normalizeSelectedHome(selectedHome) || state.dshHome || '~/.dsh'
+        const name = homeTitleOf(real)
+        const text = real && real !== name ? `${name} · ${real}` : name
+        homePickEl.classList?.remove?.('is-placeholder')
+        homePickValueEl.textContent = text
+        homePickEl.title = text
+        homePickEl.setAttribute?.('aria-label', text)
+      }
+
+      function paintHomeList(selectedHome = homeEl?.value || '') {
+        if (!homeListEl) return
+        const current = normalizeSelectedHome(selectedHome)
+        const localHomes = ['']
+        for (const [home] of homeOptions(current)) {
+          if (!localHomes.some((one) => isSameHome(one, home))) localHomes.push(home)
+        }
+        const folderIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-folder"/></svg>'
+        const check = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-check"/></svg>'
+        const rows = localHomes.map((home) => {
+          const selected = isSameHome(home, current)
+          const real = home || state.dshHome || '~/.dsh'
+          const name = homeTitleOf(real)
+          return `<button class="project-device-option${selected ? ' is-selected' : ''}" type="button" role="option" aria-selected="${selected}" data-env-home="${escapeHtml(home)}"><span class="project-device-option-icon">${folderIcon}</span><span class="project-device-option-text"><strong>${escapeHtml(name)}</strong><small>${escapeHtml(real)}</small></span><span class="project-device-option-state">${selected ? `<span class="project-device-check">${check}</span>` : ''}</span></button>`
+        })
+        rows.push(`<button class="project-device-option is-add" type="button" role="option" data-env-home-create><span class="project-device-option-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-folder-plus"/></svg></span><span class="project-device-option-text"><strong>${escapeHtml(t('创建项目'))}</strong></span></button>`)
+        homeListEl.innerHTML = rows.join('')
+      }
+
+      function alignEnvLaunchHomePanel() {
+        if (typeof alignFloatingPanel === 'function' && homePanelEl && homePickEl) {
+          alignFloatingPanel(homePanelEl, homePickEl)
+        }
+      }
+
+      function openEnvLaunchHomePanel() {
+        if (!homePanelEl || !homePanelEl.hidden || !homePickEl) return
+        if (typeof closeUiSelect === 'function') closeUiSelect()
+        closeEnvLaunchIcons()
+        closeEnvLaunchEnvPanel()
+        paintHomeList(homeEl?.value || '')
+        homePanelEl.hidden = false
+        homePickEl.setAttribute?.('aria-expanded', 'true')
+        alignEnvLaunchHomePanel()
+        if (typeof ResizeObserver === 'function' && !homePanelResize) {
+          homePanelResize = new ResizeObserver(() => {
+            if (homePanelEl && !homePanelEl.hidden) alignEnvLaunchHomePanel()
+          })
+          homePanelResize.observe(homePickEl)
+        }
+      }
+
+      function closeEnvLaunchHomePanel() {
+        if (!homePanelEl || homePanelEl.hidden) return
+        homePanelEl.hidden = true
+        homePickEl?.setAttribute?.('aria-expanded', 'false')
+        homePanelResize?.disconnect()
+        homePanelResize = null
+      }
+
+      function selectEnvLaunchHome(rawHome) {
+        const prevHome = normalizeSelectedHome(homeEl?.value || '')
+        const nextHome = normalizeSelectedHome(rawHome)
+        paintHomes(nextHome)
+        if (nextHome !== prevHome) void flushEnvLaunchSave({ dshHome: nextHome })
+      }
+
       function paintHomes(selectedHome) {
-        if (!homeEl) return
-        const homes = homeOptions(selectedHome)
-        const defaultLabel = homeOptionLabel(state.dshHome, pluginHomeName(state.dshHome, t('全局目录')))
-        homeEl.innerHTML = `<option value="">${escapeHtml(defaultLabel)}</option>`
-          + [...homes].map(([home, label]) => `<option value="${escapeHtml(home)}">${escapeHtml(homeOptionLabel(home, label))}</option>`).join('')
-        homeEl.value = selectedHome || ''
-        syncUiSelect(homeEl)
+        const selected = normalizeSelectedHome(selectedHome)
+        if (homeEl) {
+          const homes = homeOptions(selected)
+          const defaultLabel = homeOptionLabel(state.dshHome, pluginHomeName(state.dshHome, t('全局目录')))
+          homeEl.innerHTML = `<option value="">${escapeHtml(defaultLabel)}</option>`
+            + [...homes].map(([home, label]) => `<option value="${escapeHtml(home)}">${escapeHtml(homeOptionLabel(home, label))}</option>`).join('')
+          homeEl.value = selected
+        }
+        paintHomeTrigger(selected)
+        if (homePanelEl && !homePanelEl.hidden) paintHomeList(selected)
         paintDshHomeEnv()
       }
 
-      function paintEnvironments(currentEnvId, envObj = null) {
-        if (!envSelectEl) return
+      function envChoices(currentEnvId = envSelectEl?.value || '', envObj = currentEnvObj) {
         const list = Array.isArray(environmentState?.list) ? environmentState.list : []
         const hasSelected = Boolean(currentEnvId) && list.some((item) => item.id === currentEnvId)
         const options = [...list]
         if (currentEnvId && !hasSelected && envObj) options.unshift(envObj)
-        envSelectEl.innerHTML = options.length
-          ? options.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(`${item.name} · ${envVersionLabel(item)}`)}</option>`).join('')
-          : (currentEnvId ? `<option value="${escapeHtml(currentEnvId)}">${escapeHtml(currentEnvId)}</option>` : '')
-        envSelectEl.value = currentEnvId || (envObj?.id || options[0]?.id || '')
-        syncUiSelect(envSelectEl)
+        return options
+      }
+
+      function envOptionSubtext(item) {
+        if (!item) return ''
+        const ver = envVersionLabel(item)
+        const home = item.targetHome || state.dshHome || ''
+        return ver && home ? `${ver} · ${home}` : (ver || home)
+      }
+
+      function paintEnvTrigger(currentEnvId, envObj = null) {
+        if (!envPickEl || !envPickValueEl) return
+        const options = envChoices(currentEnvId, envObj)
+        const selectedId = currentEnvId || (envObj?.id || options[0]?.id || '')
+        const found = options.find((item) => item.id === selectedId) || null
+        const text = found ? `${found.name || found.id} · ${envVersionLabel(found)}` : (selectedId || t('选择一个实例…'))
+        envPickEl.classList?.toggle?.('is-placeholder', !found && !selectedId)
+        envPickValueEl.textContent = text
+        envPickEl.title = text
+        envPickEl.setAttribute?.('aria-label', text)
+      }
+
+      function paintEnvList(currentEnvId = envSelectEl?.value || '', envObj = currentEnvObj) {
+        if (!envListEl) return
+        const options = envChoices(currentEnvId, envObj)
+        const selectedId = currentEnvId || (envObj?.id || options[0]?.id || '')
+        const packageIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-package"/></svg>'
+        const check = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-check"/></svg>'
+        const rows = options.map((item) => {
+          const selected = item.id === selectedId
+          const subtext = envOptionSubtext(item)
+          return `<button class="project-device-option${selected ? ' is-selected' : ''}" type="button" role="option" aria-selected="${selected}" data-env-id="${escapeHtml(item.id)}"><span class="project-device-option-icon">${packageIcon}</span><span class="project-device-option-text"><strong>${escapeHtml(item.name || item.id)}</strong>${subtext ? `<small>${escapeHtml(subtext)}</small>` : ''}</span><span class="project-device-option-state">${selected ? `<span class="project-device-check">${check}</span>` : ''}</span></button>`
+        })
+        rows.push(`<button class="project-device-option is-add" type="button" role="option" data-env-manage="1"><span class="project-device-option-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-sliders-horizontal"/></svg></span><span class="project-device-option-text"><strong>${escapeHtml(t('管理实例'))}</strong></span></button>`)
+        envListEl.innerHTML = rows.join('')
+      }
+
+      function alignEnvLaunchEnvPanel() {
+        if (typeof alignFloatingPanel === 'function' && envPanelEl && envPickEl) {
+          alignFloatingPanel(envPanelEl, envPickEl)
+        }
+      }
+
+      function openEnvLaunchEnvPanel() {
+        if (!envPanelEl || !envPanelEl.hidden || !envPickEl) return
+        if (typeof closeUiSelect === 'function') closeUiSelect()
+        closeEnvLaunchIcons()
+        closeEnvLaunchHomePanel()
+        paintEnvList(envSelectEl?.value || '', currentEnvObj)
+        envPanelEl.hidden = false
+        envPickEl.setAttribute?.('aria-expanded', 'true')
+        alignEnvLaunchEnvPanel()
+        if (typeof ResizeObserver === 'function' && !envPanelResize) {
+          envPanelResize = new ResizeObserver(() => {
+            if (envPanelEl && !envPanelEl.hidden) alignEnvLaunchEnvPanel()
+          })
+          envPanelResize.observe(envPickEl)
+        }
+      }
+
+      function closeEnvLaunchEnvPanel() {
+        if (!envPanelEl || envPanelEl.hidden) return
+        envPanelEl.hidden = true
+        envPickEl?.setAttribute?.('aria-expanded', 'false')
+        envPanelResize?.disconnect()
+        envPanelResize = null
+      }
+
+      function selectEnvLaunchEnvironment(nextId) {
+        const clean = String(nextId || '')
+        if (!clean) return
+        const prevId = envSelectEl?.value || ''
+        const matched = envChoices(clean, currentEnvObj).find((item) => item.id === clean) || null
+        if (matched) currentEnvObj = matched
+        paintEnvironments(clean, matched || currentEnvObj)
+        if (clean !== prevId) void flushEnvLaunchSave({ environment: clean })
+      }
+
+      function paintEnvironments(currentEnvId, envObj = null) {
+        const options = envChoices(currentEnvId, envObj)
+        const selectedId = currentEnvId || (envObj?.id || options[0]?.id || '')
+        if (envSelectEl) {
+          envSelectEl.innerHTML = options.length
+            ? options.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(`${item.name} · ${envVersionLabel(item)}`)}</option>`).join('')
+            : (currentEnvId ? `<option value="${escapeHtml(currentEnvId)}">${escapeHtml(currentEnvId)}</option>` : '')
+          envSelectEl.value = selectedId
+        }
+        paintEnvTrigger(selectedId, envObj)
+        if (envPanelEl && !envPanelEl.hidden) paintEnvList(selectedId, envObj)
       }
 
       function paintRecovery() {
@@ -15884,31 +16106,121 @@
       }
       if (homeEl) {
         homeEl.onchange = () => {
+          paintHomeTrigger(homeEl.value || '')
           paintDshHomeEnv()
           void flushEnvLaunchSave()
         }
       }
-      if (browseHomeEl) {
-        browseHomeEl.onclick = async () => {
-          const entry = liveLaunchEntry()
-          if (!canManageLaunchEntry(entry)) return
-          const picked = await pickDirectoryPath(homeEl?.value || entry.dshHome || state.dshHome || '')
-          if (picked.canceled || !picked.path) {
-            if (picked.error) paintSaveStatus('error', t('保存失败：{error}', { error: picked.error }))
+      if (homePickEl) {
+        homePickEl.onclick = (event) => {
+          event?.stopPropagation?.()
+          if (homePanelEl && !homePanelEl.hidden) closeEnvLaunchHomePanel()
+          else openEnvLaunchHomePanel()
+        }
+        homePickEl.onkeydown = (event) => {
+          if (event.key === 'Escape' && homePanelEl && !homePanelEl.hidden) {
+            event.preventDefault()
+            event.stopPropagation()
+            closeEnvLaunchHomePanel()
             return
           }
-          paintHomes(picked.path)
-          if (homeEl) {
-            homeEl.value = picked.path
-            syncUiSelect(homeEl)
+          if (event.key === 'Tab') {
+            closeEnvLaunchHomePanel()
+            return
           }
-          void flushEnvLaunchSave({ dshHome: picked.path })
+          if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && homePanelEl?.hidden) {
+            event.preventDefault()
+            openEnvLaunchHomePanel()
+          }
+        }
+      }
+      if (homePanelEl) {
+        homePanelEl.onkeydown = (event) => {
+          if (event.key === 'Escape') {
+            event.preventDefault()
+            event.stopPropagation()
+            closeEnvLaunchHomePanel()
+            homePickEl?.focus?.()
+          }
+        }
+      }
+      if (homeListEl) {
+        homeListEl.onclick = (event) => {
+          const create = event.target?.closest?.('[data-env-home-create]')
+          if (create) {
+            closeEnvLaunchHomePanel()
+            if (typeof openProjectDialog === 'function') openProjectDialog()
+            return
+          }
+          const option = event.target?.closest?.('[data-env-home]')
+          if (!option) return
+          closeEnvLaunchHomePanel()
+          selectEnvLaunchHome(option.dataset?.envHome ?? '')
+          homePickEl?.focus?.()
         }
       }
       if (envSelectEl) {
         envSelectEl.onchange = () => {
           const nextId = envSelectEl.value
+          const matched = envChoices(nextId, currentEnvObj).find((item) => item.id === nextId) || null
+          if (matched) currentEnvObj = matched
+          paintEnvTrigger(nextId, matched || currentEnvObj)
           if (nextId) void flushEnvLaunchSave({ environment: nextId })
+        }
+      }
+      if (envPickEl) {
+        envPickEl.onclick = (event) => {
+          event?.stopPropagation?.()
+          if (envPanelEl && !envPanelEl.hidden) closeEnvLaunchEnvPanel()
+          else openEnvLaunchEnvPanel()
+        }
+        envPickEl.onkeydown = (event) => {
+          if (event.key === 'Escape' && envPanelEl && !envPanelEl.hidden) {
+            event.preventDefault()
+            event.stopPropagation()
+            closeEnvLaunchEnvPanel()
+            return
+          }
+          if (event.key === 'Tab') {
+            closeEnvLaunchEnvPanel()
+            return
+          }
+          if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && envPanelEl?.hidden) {
+            event.preventDefault()
+            openEnvLaunchEnvPanel()
+          }
+        }
+      }
+      if (envPanelEl) {
+        envPanelEl.onkeydown = (event) => {
+          if (event.key === 'Escape') {
+            event.preventDefault()
+            event.stopPropagation()
+            closeEnvLaunchEnvPanel()
+            envPickEl?.focus?.()
+          }
+        }
+      }
+      if (envListEl) {
+        envListEl.onclick = (event) => {
+          const manage = event.target?.closest?.('[data-env-manage]')
+          if (manage) {
+            closeEnvLaunchEnvPanel()
+            void (async () => {
+              if (dialogEl && !dialogEl.hidden) await closeEnvLaunchConfig()
+              if (typeof launchPluginsDialogEl !== 'undefined' && launchPluginsDialogEl && !launchPluginsDialogEl.hidden && typeof closeLaunchPlugins === 'function') {
+                await closeLaunchPlugins()
+              }
+              if (typeof environmentState !== 'undefined') environmentState?.closeDetail?.()
+              if (typeof showPane === 'function') await showPane('environments')
+            })()
+            return
+          }
+          const option = event.target?.closest?.('[data-env-id]')
+          if (!option) return
+          closeEnvLaunchEnvPanel()
+          selectEnvLaunchEnvironment(option.dataset?.envId ?? '')
+          envPickEl?.focus?.()
         }
       }
       if (autoLaunchEl) {
@@ -15947,6 +16259,8 @@
           cardEl.hidden = true
           syncedEntryKey = ''
           closeEnvLaunchIcons(true)
+          closeEnvLaunchHomePanel()
+          closeEnvLaunchEnvPanel()
           if (recoveryHintEl) recoveryHintEl.hidden = true
           return
         }
@@ -15980,6 +16294,8 @@
         }
         if (typeof closeUiSelect === 'function') closeUiSelect()
         closeEnvLaunchIcons(true)
+        closeEnvLaunchHomePanel()
+        closeEnvLaunchEnvPanel()
         if (typeof hidePackDialog === 'function') {
           if (!(await hidePackDialog(dialogEl))) return
         } else {

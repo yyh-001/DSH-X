@@ -554,10 +554,11 @@ test('实例详情页：4 签切换（配置签）、已安装/市场子签切�
   assert.match(css, /#launchPluginsDialog\s+#environmentDuplicate,\s*#launchPluginsDialog\s+#environmentDelete\s*\{\s*display:\s*none;\s*\}/)
   assert.match(themeCss, /html\[data-color-scheme="dark"\]\s*\.environment-plugin-subtabs\.has-pill::before\s*\{/)
 
-  // MCP 与技能切齐为「已安装 / 精选 / 市场」三签 + 在线市场卡片 + 环境变量框
+  // MCP 保留「已安装 / 精选 / 市场」三签；技能收敛为「已安装 / 技能市场」两签 + 在线市场卡片 + 环境变量框
   assert.match(html, /id="mcpSubtabs"[\s\S]*?data-mcp-subtab="installed"[\s\S]*?data-mcp-subtab="curated"[\s\S]*?data-mcp-subtab="market"[\s\S]*?id="mcpSearch"[\s\S]*?id="mcpMarketPane"/)
   assert.match(html, /id="mcpEnv"/)
-  assert.match(html, /id="skillSubtabs"[\s\S]*?data-skill-subtab="installed"[\s\S]*?data-skill-subtab="market"[\s\S]*?data-skill-subtab="openai"[\s\S]*?id="skillSearch"[\s\S]*?id="skillMarketPane"/)
+  assert.match(html, /id="skillSubtabs"[\s\S]*?data-skill-subtab="installed"[\s\S]*?data-skill-subtab="market"[\s\S]*?id="skillSearch"[\s\S]*?id="skillMarketPane"/)
+  assert.doesNotMatch(html, /data-skill-subtab="openai"/)
   assert.match(html, /function mcpRow\(server\)[\s\S]*?plugin-installed-card mcp-card[\s\S]*?plugin-installed-head[\s\S]*?plugin-installed-actions/)
   assert.match(html, /function skillRow\(skill\)[\s\S]*?plugin-installed-card skill-card[\s\S]*?plugin-installed-head[\s\S]*?plugin-installed-actions[\s\S]*?class="skill-open-desc"[^>]*><span class="plugin-desc plugin-installed-desc">/)
   assert.match(css, /#mcpList,\s*#skillList\s*\{[^}]*display:\s*grid;\s*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/)
@@ -577,7 +578,21 @@ test('实例详情页：4 签切换（配置签）、已安装/市场子签切�
   const envConfigSlice = html.slice(html.indexOf('id="environmentConfigBox"'), html.indexOf('<section class="pane fill" id="pane-mcp">'))
   assert.doesNotMatch(envConfigSlice, /id="envLaunchConfigCard"/, '实例配置签不再内嵌启动项配置卡片')
   assert.match(envConfigSlice, /id="environmentConfigBox"[\s\S]*?id="environmentEditForm"[\s\S]*?class="environment-config-inline-grid"[\s\S]*?id="environmentSaveStatus"[^>]*\shidden[\s\S]*?class="environment-config-info"/)
-  assert.match(html, /id="envLaunchConfigDialog"[\s\S]*?id="envLaunchConfigTitle"[\s\S]*?id="envLaunchConfigCard"[\s\S]*?class="env-launch-grid-top"[\s\S]*?id="envLaunchName"[\s\S]*?id="envLaunchPort"[\s\S]*?class="env-launch-grid-mid"[\s\S]*?id="envLaunchHome"[\s\S]*?id="envLaunchEnvironment"[\s\S]*?id="envLaunchAutoLaunch"[\s\S]*?id="envLaunchDshHomeEnv"[\s\S]*?id="envLaunchRecover"[\s\S]*?id="envLaunchDelete"[\s\S]*?id="envLaunchSaveStatus"[^>]*\shidden/)
+  assert.match(html, /id="envLaunchHomePanel"[^>]*\shidden[\s\S]*?class="project-device-list"\s+id="envLaunchHomeList"\s+role="listbox"/)
+  assert.match(html, /id="envLaunchEnvPanel"[^>]*\shidden[\s\S]*?class="project-device-list"\s+id="envLaunchEnvList"\s+role="listbox"/)
+  assert.match(html, /id="envLaunchConfigDialog"[\s\S]*?id="envLaunchConfigTitle"[\s\S]*?id="envLaunchConfigCard"[\s\S]*?class="env-launch-grid-top"[\s\S]*?id="envLaunchName"[\s\S]*?id="envLaunchPort"[\s\S]*?class="env-launch-grid-mid"[\s\S]*?for="envLaunchHomePick"[\s\S]*?class="project-device-control"[\s\S]*?class="project-device-trigger"\s+id="envLaunchHomePick"[\s\S]*?lucide-folder[\s\S]*?id="envLaunchHomePickValue"[\s\S]*?lucide-chevron-down[\s\S]*?id="envLaunchHome"[^>]*\shidden[\s\S]*?for="envLaunchEnvironmentPick"[\s\S]*?class="project-device-control"[\s\S]*?class="project-device-trigger"\s+id="envLaunchEnvironmentPick"[\s\S]*?lucide-package[\s\S]*?id="envLaunchEnvironmentPickValue"[\s\S]*?lucide-chevron-down[\s\S]*?id="envLaunchEnvironment"[^>]*\shidden[\s\S]*?id="envLaunchAutoLaunch"[\s\S]*?id="envLaunchDshHomeEnv"[\s\S]*?id="envLaunchRecover"[\s\S]*?id="envLaunchDelete"[\s\S]*?id="envLaunchSaveStatus"[^>]*\shidden/)
+  assert.doesNotMatch(html, /id="envLaunchBrowseHome"/)
+  assert.doesNotMatch(html, /createUiSelect\(homeEl\)/)
+  assert.doesNotMatch(html, /createUiSelect\(envSelectEl\)/)
+  assert.match(html, /data-env-home-create[\s\S]*?创建项目/)
+  assert.match(html, /if\s*\(!launchDialogEl\.hidden\)\s*void\s*forceHidePackDialog\(launchDialogEl\)[\s\S]*?closeEnvLaunchConfig\(\)/)
+  assert.match(css, /\.environment-launch-card\s+\.project-device-trigger/)
+  assert.match(css, /\.env-launch-grid-mid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/)
+  assert.doesNotMatch(css, /#launchDialog\s+\.launch-icon-choice\b/)
+  assert.match(css, /^\.launch-icon-choice\s*\{/m)
+  assert.match(css, /^\.launch-icon-popover\s+\.launch-icon-upload\s+\.icon-btn\s*\{/m)
+  assert.match(themeCss, /html\[data-color-scheme="dark"\]\s+\.launch-icon-choice\[aria-pressed="true"\]/)
+  assert.match(themeCss, /html\[data-color-scheme="dark"\]\s+\.launch-icon-popover\s+\.launch-icon-upload\s+\.icon-btn\s*\{/)
   assert.doesNotMatch(html, /id="environmentSave"\b/, '移除手动保存按钮，改为自动保存')
   assert.doesNotMatch(html, /environment-autosave-badge/, '不展示常驻「自动保存」徽章')
   assert.match(css, /\.environment-config-field\s+\.launch-name-row\s+input\[type=text\]\s*\{[^}]*flex:\s*1\s+1\s+0;[^}]*width:\s*auto;[^}]*min-width:\s*0/)
@@ -613,8 +628,11 @@ test('启动项配置卡：设为环境变量 DSH_HOME 开关跟随当前用户�
         checked: false,
         innerHTML: '',
         textContent: '',
+        attributes: {},
         classList: { add() {}, remove() {}, toggle() {} },
-        setAttribute() {},
+        setAttribute(name, val) { this.attributes[name] = val },
+        contains: () => false,
+        focus() {},
         querySelectorAll: () => [],
         addEventListener() {},
       })
@@ -623,15 +641,23 @@ test('启动项配置卡：设为环境变量 DSH_HOME 开关跟随当前用户�
   }
   byId('envLaunchConfigDialog').hidden = true
   byId('launchPluginsDialog').hidden = true
+  byId('envLaunchHomePanel').hidden = true
+  byId('envLaunchEnvPanel').hidden = true
 
   let launchEntry = { id: '0000000000000000', name: 'web', profile: 'web', dshHome: '', environment: 'env-1', version: 'auto', autoLaunch: false }
   const posts = []
-  let postHandler = async (url, payload) => {
+  let projectDialogCalls = 0
+  let closeDetailCalls = 0
+  const shownPanes = []
+  const defaultPostHandler = async (url, payload) => {
     posts.push({ url, payload: JSON.parse(JSON.stringify(payload)) })
     if (url === '/api/dsh-homes/env') return { ok: true, mode: 'automatic', userDshHome: payload.home }
-    if (url === '/api/launch-presets') return { entry: { ...launchEntry, dshHome: payload.dshHome } }
+    if (url === '/api/launch-presets') {
+      return { entry: { ...launchEntry, dshHome: payload.dshHome, ...(payload.environment ? { environment: payload.environment } : {}) } }
+    }
     return {}
   }
+  let postHandler = defaultPostHandler
 
   const context = vm.createContext({
     document: {
@@ -648,6 +674,9 @@ test('启动项配置卡：设为环境变量 DSH_HOME 开关跟随当前用户�
     createUiSelect() {},
     syncUiSelect() {},
     closeUiSelect() {},
+    alignFloatingPanel() {},
+    openProjectDialog() { projectDialogCalls += 1 },
+    showPane: async (pane) => { shownPanes.push(pane) },
     showPackDialog(dialog) { if (dialog) dialog.hidden = false },
     hidePackDialog: async (dialog) => { if (dialog) dialog.hidden = true; return true },
     trapPackDialog() {},
@@ -667,8 +696,15 @@ test('启动项配置卡：设为环境变量 DSH_HOME 开关跟随当前用户�
     launchEntries: () => [launchEntry],
     pluginLaunchEntry: null,
     launchPluginsDialogEl: byId('launchPluginsDialog'),
+    packBusy: false,
     state: { dshHome: 'C:/Users/yyh/.dsh', userDshHome: '', dshHomes: ['D:/work'] },
-    environmentState: { list: [{ id: 'env-1', name: '默认实例', dshVersion: 'auto', updateChannel: 'official' }] },
+    environmentState: {
+      list: [
+        { id: 'env-1', name: '默认实例', dshVersion: 'auto', updateChannel: 'official', targetHome: 'C:/Users/yyh/.dsh' },
+        { id: 'env-2', name: 'work2', dshVersion: '0.2.2', updateChannel: 'official', targetHome: 'D:/work' },
+      ],
+      closeDetail() { closeDetailCalls += 1 },
+    },
     getJson: async () => ({ profile: 'web', backups: [] }),
     post: (url, payload) => postHandler(url, payload),
     globalThis: null,
@@ -678,12 +714,24 @@ test('启动项配置卡：设为环境变量 DSH_HOME 开关跟随当前用户�
 
   const toggle = byId('envLaunchDshHomeEnv')
   const homeSelect = byId('envLaunchHome')
+  const homePick = byId('envLaunchHomePick')
+  const homePickValue = byId('envLaunchHomePickValue')
+  const homePanel = byId('envLaunchHomePanel')
+  const homeList = byId('envLaunchHomeList')
   const envSelect = byId('envLaunchEnvironment')
+  const envPick = byId('envLaunchEnvironmentPick')
+  const envPickValue = byId('envLaunchEnvironmentPickValue')
+  const envPanel = byId('envLaunchEnvPanel')
+  const envList = byId('envLaunchEnvList')
   const statusEl = byId('envLaunchSaveStatus')
 
   await context.openEnvLaunchConfig(launchEntry)
   assert.equal(byId('envLaunchConfigDialog').hidden, false)
   assert.equal(envSelect.value, 'env-1')
+  assert.equal(envPickValue.textContent, '默认实例 · 自动（正式版）')
+  assert.equal(envPanel.hidden, true)
+  assert.equal(homePickValue.textContent, '.dsh · C:/Users/yyh/.dsh')
+  assert.equal(homePanel.hidden, true)
   assert.equal(toggle.checked, false)
   assert.equal(toggle.disabled, false)
 
@@ -725,4 +773,83 @@ test('启动项配置卡：设为环境变量 DSH_HOME 开关跟随当前用户�
   assert.equal(statusEl.textContent, '写用户环境变量 DSH_HOME 失败')
   assert.equal(toggle.checked, true)
   assert.equal(toggle.disabled, false)
+
+  // 还原正常请求处理器，验证富目录下拉面板的打开、渲染、切换与创建项目
+  postHandler = defaultPostHandler
+  launchEntry = { ...launchEntry, dshHome: '' }
+  context.state.userDshHome = 'D:/work'
+  await context.openEnvLaunchConfig(launchEntry)
+  assert.equal(homePickValue.textContent, '.dsh · C:/Users/yyh/.dsh')
+
+  homePick.onclick({ stopPropagation() {} })
+  assert.equal(homePanel.hidden, false)
+  assert.equal(homePick.attributes['aria-expanded'], 'true')
+  assert.match(homeList.innerHTML, /<button class="project-device-option is-selected"[^>]*data-env-home="">[\s\S]*?lucide-folder[\s\S]*?<strong>\.dsh<\/strong><small>C:\/Users\/yyh\/\.dsh<\/small>[\s\S]*?lucide-check/)
+  assert.match(homeList.innerHTML, /<button class="project-device-option"[^>]*data-env-home="D:\/work">[\s\S]*?<strong>work<\/strong><small>D:\/work<\/small>/)
+  assert.match(homeList.innerHTML, /<button class="project-device-option is-add"[^>]*data-env-home-create>[\s\S]*?lucide-folder-plus[\s\S]*?<strong>创建项目<\/strong>/)
+
+  // 点击 D:/work 项：关闭面板、同步触发器与 DSH_HOME 开关并保存启动项
+  homeList.onclick({
+    target: {
+      closest: (selector) => (selector === '[data-env-home]' ? { dataset: { envHome: 'D:/work' } } : null),
+    },
+  })
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.equal(homePanel.hidden, true)
+  assert.equal(homePick.attributes['aria-expanded'], 'false')
+  assert.equal(homeSelect.value, 'D:/work')
+  assert.equal(homePickValue.textContent, 'work · D:/work')
+  assert.equal(toggle.checked, true)
+  assert.equal(posts.at(-1)?.url, '/api/launch-presets')
+  assert.equal(posts.at(-1)?.payload?.dshHome, 'D:/work')
+
+  // 点击「创建项目」：关闭面板并调用 openProjectDialog，不改当前目录也不发保存请求
+  const postCountBeforeCreate = posts.length
+  homePick.onclick({ stopPropagation() {} })
+  assert.equal(homePanel.hidden, false)
+  homeList.onclick({
+    target: {
+      closest: (selector) => (selector === '[data-env-home-create]' ? { dataset: {} } : null),
+    },
+  })
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.equal(homePanel.hidden, true)
+  assert.equal(projectDialogCalls, 1)
+  assert.equal(homeSelect.value, 'D:/work')
+  assert.equal(homePickValue.textContent, 'work · D:/work')
+  assert.equal(posts.length, postCountBeforeCreate)
+
+  // 打开「用哪个实例」富下拉：验证选项、切换实例并触发保存，以及底部的「管理实例」入口
+  envPick.onclick({ stopPropagation() {} })
+  assert.equal(envPanel.hidden, false)
+  assert.equal(envPick.attributes['aria-expanded'], 'true')
+  assert.match(envList.innerHTML, /<button class="project-device-option is-selected"[^>]*data-env-id="env-1">[\s\S]*?lucide-package[\s\S]*?<strong>默认实例<\/strong><small>自动（正式版） · C:\/Users\/yyh\/\.dsh<\/small>[\s\S]*?lucide-check/)
+  assert.match(envList.innerHTML, /<button class="project-device-option"[^>]*data-env-id="env-2">[\s\S]*?<strong>work2<\/strong><small>0\.2\.2 · D:\/work<\/small>/)
+  assert.match(envList.innerHTML, /<button class="project-device-option is-add"[^>]*data-env-manage="1">[\s\S]*?lucide-sliders-horizontal[\s\S]*?<strong>管理实例<\/strong>/)
+
+  envList.onclick({
+    target: {
+      closest: (selector) => (selector === '[data-env-id]' ? { dataset: { envId: 'env-2' } } : null),
+    },
+  })
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.equal(envPanel.hidden, true)
+  assert.equal(envPick.attributes['aria-expanded'], 'false')
+  assert.equal(envSelect.value, 'env-2')
+  assert.equal(envPickValue.textContent, 'work2 · 0.2.2')
+  assert.equal(posts.at(-1)?.url, '/api/launch-presets')
+  assert.equal(posts.at(-1)?.payload?.environment, 'env-2')
+
+  envPick.onclick({ stopPropagation() {} })
+  assert.equal(envPanel.hidden, false)
+  envList.onclick({
+    target: {
+      closest: (selector) => (selector === '[data-env-manage]' ? { dataset: { envManage: '1' } } : null),
+    },
+  })
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.equal(envPanel.hidden, true)
+  assert.equal(byId('envLaunchConfigDialog').hidden, true)
+  assert.equal(closeDetailCalls, 1)
+  assert.deepEqual(shownPanes, ['environments'])
 })

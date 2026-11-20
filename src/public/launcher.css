@@ -757,7 +757,9 @@ html.reduce-motion .launch-status.is-working::before { animation: none; }
 #pane-control #hint:empty { display: none; }
 /* 正文只纵向滚动；给焦点描边留出空间，避免边缘控件触发横向滚动或被裁掉。 */
 .launch-modal-fields { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 14px; margin: -2px; padding: 2px; flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; }
-#launchDialog .home-field > label { font-size: 12px; letter-spacing: 0; }
+#launchDialog .home-field { display: grid; gap: 6px; min-width: 0; }
+#launchDialog .home-field[hidden] { display: none; }
+#launchDialog .home-field > label { margin: 0; font-size: 12px; font-weight: 550; color: var(--muted); line-height: 1.3; letter-spacing: 0; }
 /* 运行位置下面再挂 WSL 的发行版；与其它字段保持同一段间距。 */
 /* .home-pickers 自带 display:flex，会盖掉浏览器对 hidden 的默认 display:none；这里补一条，
    否则 WSL 模式整组藏起来时仍会占一行高度。 */
@@ -811,6 +813,7 @@ html.reduce-motion .launch-status.is-working::before { animation: none; }
 .control-row .ghost { flex: 0 0 auto; height: var(--control-height); padding: 0 12px; }
 .launch-isolation-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .launch-custom-fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.launch-custom-grid-top { display: grid; grid-template-columns: minmax(0, 1fr) 136px; gap: 12px; align-items: start; }
 .launch-custom-fields[hidden] { display: none; }
 /* 切到自定义时字段淡入落位；引导档不做入场，避免点新建就闪一下 */
 .launch-custom-fields:not([hidden]) { animation: launch-custom-in var(--motion-fast) var(--ease-decelerate) both; }
@@ -1707,12 +1710,12 @@ html.reduce-motion #launchLogDialog .launch-log-card[data-log-panel][data-dir]:n
   border-radius: 10px;
 }
 .ghost.browse-btn svg { width: 17px; height: 17px; }
-/* 启动项弹窗里的控件是 42px，浏览钮跟着长高，别比输入框矮一截。 */
+/* 启动项弹窗里的控件是 38px，浏览钮跟着对齐高度与圆角，与编辑启动项弹窗保持一致。 */
 #launchDialog .control-row .ghost.browse-btn {
-  width: 42px;
-  min-width: 42px;
-  height: 42px;
-  border-radius: 11px;
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  border-radius: 10px;
 }
 #launchDialog .control-row .ghost.browse-btn svg { width: 18px; height: 18px; }
 #pane-plugins { overflow-x: hidden; }
@@ -2772,18 +2775,24 @@ html[data-color-scheme="dark"] .launch-compatibility { --compatibility-success: 
 #launchCompatibilityAgent[hidden] { display: none; }
 #launchCompatibilityPrompt { width: 100%; box-sizing: border-box; resize: vertical; min-height: 130px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--text); font: 12px/1.6 ui-monospace, monospace; }
 #launchCopyCompatibilityPrompt { justify-self: start; }
-#launchDialog .launch-compatibility-check { flex: 0 0 42px; width: 42px; height: 42px; padding: 10px; border-radius: 10px; align-self: flex-start; }
+#launchDialog .ask-card { --dialog-width: 600px; padding: 20px 22px; }
+#launchDialog .dialog-heading { margin-bottom: 14px; }
+#launchDialog .launch-name-row { width: 100%; min-width: 0; }
+#launchDialog .launch-name-row input[type=text] { flex: 1 1 0; width: auto; min-width: 0; }
+#launchDialog .launch-compatibility-check { flex: 0 0 38px; width: 38px; height: 38px; padding: 9px; border-radius: 10px; align-self: flex-start; }
 #launchDialog .launch-compatibility-check svg { width: 20px; height: 20px; }
-#launchDialog .launch-manage-version { flex: 0 0 42px; width: 42px; height: 42px; padding: 11px; border-radius: 10px; align-self: flex-end; }
+#launchDialog .launch-manage-version { flex: 0 0 38px; width: 38px; height: 38px; padding: 9px; border-radius: 10px; align-self: flex-end; }
 #launchDialog .launch-manage-version svg { width: 18px; height: 18px; }
-#launchDialog .select-trigger, #launchDialog .project-device-trigger { min-height: 42px; height: 42px; padding: 0 12px; border-radius: 10px; font-size: 13px; }
-#launchDialog input[type=text], #launchDialog input[type=number], #launchDialog select { height: 42px; border-radius: 10px; font-size: 13px; }
+#launchDialog .launch-channel-control { height: 38px; border-radius: 10px; }
+#launchDialog .select-trigger, #launchDialog .project-device-trigger { min-height: 38px; height: 38px; padding: 0 12px; border-radius: 10px; font-size: 13px; }
+#launchDialog input[type=text], #launchDialog input[type=number], #launchDialog select { height: 38px; padding: 0 12px; border-radius: 10px; font-size: 13px; }
 /* 版本候选在内容区内展开，避免固定弹窗的滚动边界裁掉菜单。 */
 #launchDialog .select-panel { position: static; margin: 6px 0 0; max-height: min(250px, 32vh); box-shadow: 0 12px 32px #0003; }
 /* 启动项弹窗的版本下拉保留宽松行高与徽章；紧凑控件只压设置行和筛选框。 */
 #versionPanel .select-option { padding: 9px 11px; font-size: 14px; }
 #versionPanel .select-option.more { font-size: 13px; }
 #launchDialog .ask-title, #launchDialog .launch-save-actions { flex: 0 0 auto; }
+#launchDialog .launch-save-actions { margin-top: 14px; padding-top: 12px; border-top: 1px solid color-mix(in srgb, var(--line) 65%, transparent); }
 .pack-source button { height: 36px; border-radius: 9px; }
 .pack-import-card .pack-source { margin: 0 0 10px; }
 .pack-import-card .pack-source input { height: var(--control-height); font-size: var(--control-font-size); }
@@ -2977,18 +2986,20 @@ html .set-row:focus-within { background: transparent; box-shadow: none; }
 .launch-identity-field { position: relative; }
 .launch-name-row { display: flex; align-items: center; gap: 10px; }
 .launch-name-row input { min-width: 0; flex: 1; }
-.launch-icon-trigger { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 42px; width: 42px; height: 42px; padding: 9px; border: 1px solid var(--line); border-radius: 11px; color: var(--muted); background: var(--accent-soft); cursor: pointer; }
+.launch-icon-trigger { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 38px; width: 38px; height: 38px; padding: 8px; border: 1px solid var(--line); border-radius: 10px; color: var(--muted); background: var(--accent-soft); cursor: pointer; }
 .launch-icon-trigger:hover, .launch-icon-trigger[aria-expanded=true] { border-color: var(--accent); color: var(--accent); }
-.launch-icon-trigger svg, .launch-icon-trigger img { display: block; width: 24px; height: 24px; flex: 0 0 24px; object-fit: contain; }
-.launch-icon-popover { position: absolute; z-index: 5; top: calc(100% + 6px); left: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; max-width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: 0 8px 24px #00000020; }
+.launch-icon-trigger svg, .launch-icon-trigger img { display: block; width: 20px; height: 20px; flex: 0 0 20px; object-fit: contain; }
+.launch-icon-popover { position: absolute; z-index: 20; top: calc(100% + 6px); left: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; width: max-content; max-width: 100%; padding: 6px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: 0 18px 44px rgba(0, 0, 0, .28); }
 .launch-icon-popover[hidden] { display: none; }
 .launch-icon-picker { display: flex; flex-wrap: wrap; gap: 4px; }
-#launchDialog .launch-icon-choice { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 6px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; }
-#launchDialog .launch-icon-choice[aria-pressed=true] { background: var(--accent-soft); color: var(--accent); }
-.launch-icon-choice svg, .launch-icon-choice img { display: block; flex: 0 0 20px; width: 20px; height: 20px; object-fit: contain; }
+.launch-icon-choice { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 32px; width: 32px; height: 32px; padding: 6px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
+.launch-icon-choice[aria-pressed="true"] { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); color: var(--accent); }
+.launch-icon-choice:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.launch-icon-choice svg, .launch-icon-choice img { display: block; flex: 0 0 18px; width: 18px; height: 18px; object-fit: contain; }
 .launch-app-icon img { width: 30px; height: 30px; object-fit: contain; }
-.launch-icon-upload { display: flex; align-items: center; gap: 4px; padding-left: 8px; border-left: 1px solid var(--line); }
-#launchDialog .launch-icon-upload button { width: 32px; height: 32px; padding: 7px; border: 0; background: transparent; }
+.launch-icon-upload { display: flex; align-items: center; gap: 4px; padding-left: 6px; border-left: 1px solid color-mix(in srgb, var(--line) 70%, transparent); }
+.launch-icon-popover .launch-icon-upload .icon-btn { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 32px; width: 32px; height: 32px; min-width: 32px; padding: 6px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--muted); }
+.launch-icon-popover .launch-icon-upload .icon-btn:hover:not(:disabled) { background: var(--accent-soft); border-color: transparent; color: var(--accent); }
 .launch-icon-upload svg { width: 18px; height: 18px; }
 .launch-icon-error:empty { display: none; }
 .launch-icon-error { color: #e5484d; margin: 6px 0 0; }
@@ -3044,17 +3055,17 @@ html .set-row:focus-within { background: transparent; box-shadow: none; }
 .skill-install-card .skill-import-list { max-height: 210px; }
 
 
-html.reduce-motion #launchIconPopover { animation: none; }
-@media (prefers-reduced-motion: reduce) { #launchIconPopover { animation: none; } }
+html.reduce-motion .launch-icon-popover { animation: none; }
+@media (prefers-reduced-motion: reduce) { .launch-icon-popover { animation: none; } }
 
 /* 名称图标与图标选择共用轻量反馈。 */
-#launchIconTrigger, #launchDialog .launch-icon-choice { transition: transform var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard), background var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard); }
-#launchIconTrigger:hover:not(:disabled) { transform: translateY(-1px) scale(1.04); color: var(--accent); background: var(--accent-soft); }
-#launchDialog .launch-icon-choice:hover { transform: translateY(-2px); background: var(--accent-soft); }
-#launchIconTrigger:active:not(:disabled), #launchDialog .launch-icon-choice:active { transform: scale(.92); }
+.launch-icon-trigger, .launch-icon-choice, .launch-icon-popover .launch-icon-upload .icon-btn { transition: transform var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard), background var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard); }
+.launch-icon-trigger:hover:not(:disabled) { transform: translateY(-1px) scale(1.04); color: var(--accent); background: var(--accent-soft); }
+.launch-icon-choice:hover { transform: translateY(-1px); background: var(--accent-soft); color: var(--text); }
+.launch-icon-trigger:active:not(:disabled), .launch-icon-choice:active, .launch-icon-popover .launch-icon-upload .icon-btn:active:not(:disabled) { transform: scale(.92); }
 .launch-icon-popover { transform-origin: top left; }
-html.reduce-motion #launchIconTrigger, html.reduce-motion #launchDialog .launch-icon-choice { transition: none; transform: none; }
-@media (prefers-reduced-motion: reduce) { #launchIconTrigger, #launchDialog .launch-icon-choice { transition: none; transform: none !important; } }
+html.reduce-motion .launch-icon-trigger, html.reduce-motion .launch-icon-choice, html.reduce-motion .launch-icon-popover .launch-icon-upload .icon-btn { transition: none; transform: none; }
+@media (prefers-reduced-motion: reduce) { .launch-icon-trigger, .launch-icon-choice, .launch-icon-popover .launch-icon-upload .icon-btn { transition: none; transform: none !important; } }
 
 #skillInstallDialog .skill-source-tabs button { background: transparent; box-shadow: none; }
 #skillInstallDialog .skill-source-tabs button:hover:not(:disabled) { color: var(--accent); background: transparent; border-bottom-color: var(--muted); }
@@ -3275,26 +3286,29 @@ html.reduce-motion .environment-market-tools .icon-btn.is-loading svg { animatio
 .environment-launch-card .launch-icon-trigger { flex: 0 0 38px; width: 38px; height: 38px; padding: 8px; border-radius: 10px; }
 .environment-launch-card .launch-icon-trigger svg,
 .environment-launch-card .launch-icon-trigger img { width: 20px; height: 20px; flex-basis: 20px; }
-.env-launch-grid-mid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 12px; align-items: start; }
-.env-launch-dir-row { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; }
+.env-launch-grid-mid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; }
+.environment-launch-card .project-device-control { width: 100%; min-width: 0; }
 .environment-launch-card .ui-select { width: 100%; }
-.env-launch-dir-row .ui-select { flex: 1 1 200px; width: auto; min-width: 180px; }
 .env-launch-toggles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.toggle.env-launch-auto-toggle {
+.toggle.env-launch-auto-toggle,
+#launchDialog .toggle.launch-auto-launch {
   margin: 0; padding: 10px 13px; gap: 10px; min-height: 42px;
-  display: flex; align-items: center; justify-content: space-between;
   border-radius: 10px; border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
   background: color-mix(in srgb, var(--accent-soft) 28%, var(--card));
   font-size: 12.5px; font-weight: 500; cursor: pointer;
   transition: border-color var(--motion-fast) var(--ease-standard), background-color var(--motion-fast) var(--ease-standard);
 }
-.toggle.env-launch-auto-toggle:hover {
+.toggle.env-launch-auto-toggle:hover,
+#launchDialog .toggle.launch-auto-launch:hover {
   border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
   background: color-mix(in srgb, var(--accent-soft) 45%, var(--card));
 }
-.toggle.env-launch-auto-toggle input[type="checkbox"] { flex: 0 0 auto; width: 36px; height: 21px; }
-.toggle.env-launch-auto-toggle input[type="checkbox"]::after { top: 2.5px; left: 2.5px; width: 16px; height: 16px; }
-.toggle.env-launch-auto-toggle input[type="checkbox"]:checked::after { transform: translateX(15px); }
+.toggle.env-launch-auto-toggle input[type="checkbox"],
+#launchDialog .toggle.launch-auto-launch input[type="checkbox"] { flex: 0 0 auto; width: 36px; height: 21px; }
+.toggle.env-launch-auto-toggle input[type="checkbox"]::after,
+#launchDialog .toggle.launch-auto-launch input[type="checkbox"]::after { top: 2.5px; left: 2.5px; width: 16px; height: 16px; }
+.toggle.env-launch-auto-toggle input[type="checkbox"]:checked::after,
+#launchDialog .toggle.launch-auto-launch input[type="checkbox"]:checked::after { transform: translateX(15px); }
 .env-launch-footer-row {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
   padding-top: 12px; border-top: 1px solid color-mix(in srgb, var(--line) 65%, transparent);
@@ -3327,9 +3341,12 @@ html.reduce-motion .environment-market-tools .icon-btn.is-loading svg { animatio
 .environment-config-inline-grid { display: grid; grid-template-columns: minmax(170px, 220px) minmax(0, 1fr); gap: 12px; align-items: start; }
 .environment-config-version-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100%; }
 .environment-config-version-row .ui-select { flex: 1 1 240px; width: auto; min-width: 220px; }
+.environment-launch-card .project-device-trigger,
 .environment-launch-card .ui-select .select-trigger,
 .environment-config-version-row .ui-select .select-trigger,
 .environment-config-history .ui-select .select-trigger { height: 38px; min-height: 38px; border-radius: 10px; }
+.environment-launch-card .project-device-trigger { padding: 0 12px; font-size: 13px; }
+.environment-launch-card .project-device-trigger.is-placeholder .project-device-label { color: var(--muted); }
 .environment-config-version-row .launch-channel-control { flex: 0 0 150px; height: 38px; border-radius: 10px; }
 .environment-config-card .icon-btn { flex: 0 0 38px; width: 38px; height: 38px; padding: 8px; border-radius: 10px; }
 .environment-config-extra {
@@ -3634,6 +3651,7 @@ html.reduce-motion .plugin-market-head-actions .icon-btn.is-loading svg { animat
   #skillList,
   .plugin-market-grid { grid-template-columns: minmax(0, 1fr); }
   .plugin-market-head { flex-wrap: wrap; }
+  .launch-custom-grid-top,
   .env-launch-grid-top,
   .env-launch-grid-mid,
   .env-launch-toggles,

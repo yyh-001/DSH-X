@@ -1018,7 +1018,9 @@ ${functionSource('selectGuideLocalHome')}`,
 })
 
 test('自定义档的「用哪个实例」改用同款应用内下拉面板：复用 launchCopyPanel，显示「实例名 · 路径」', () => {
-  const envField = section('id="launchEnvField"', 'id="launchPort"')
+  const customBlock = section('<div class="launch-custom-fields" id="launchCustomFields">', '<!-- /launch-custom-fields -->')
+  assert.match(customBlock, /class="launch-custom-grid-top"[\s\S]*?id="launchIdentityField"[\s\S]*?id="launchPort"[\s\S]*?<\/div>\s*<div class="home-field" id="launchEnvField"/)
+  const envField = section('id="launchEnvField"', 'id="launchEnvironmentField"')
   assert.match(envField, /class="project-device-trigger" id="launchEnvPick"/)
   const field = section('<div class="home-field" id="launchEnvironmentField">', '<!-- 本机版本整组')
   assert.match(field, /class="project-device-trigger" id="launchEnvironmentPick" aria-haspopup="listbox" aria-expanded="false" aria-controls="launchCopyPanel"/)
@@ -1026,7 +1028,8 @@ test('自定义档的「用哪个实例」改用同款应用内下拉面板：�
   assert.match(field, /id="launchEnvironmentPickValue"/)
   assert.match(field, /<select id="launchEnvironment" hidden>/)
   assert.match(css, /#launchEnvironmentField \.ui-select, #launchEnvironmentField > select, #launchEnvironmentHint/)
-  assert.match(css, /#launchDialog \.select-trigger, #launchDialog \.project-device-trigger \{ min-height: 42px; height: 42px; padding: 0 12px; border-radius: 10px; font-size: 13px; \}/)
+  assert.match(css, /#launchDialog \.ask-card \{ --dialog-width: 600px; padding: 20px 22px; \}/)
+  assert.match(css, /#launchDialog \.select-trigger, #launchDialog \.project-device-trigger \{ min-height: 38px; height: 38px; padding: 0 12px; border-radius: 10px; font-size: 13px; \}/)
 
   const iconUse = { href: '', setAttribute(k, v) { if (k === 'href') this.href = v } }
   const pickEl = { classList: { toggle() {} }, setAttribute(k, v) { this[k] = v }, title: '' }
@@ -1098,6 +1101,62 @@ ${functionSource('paintLaunchEnvironmentPick')}`,
   assert.match(section("launchCopyListEl?.addEventListener('click'", '    function selectGuideLocalHome('), /data-env-manage[\s\S]*showPane\('environments'\)/)
   assert.match(page, new RegExp(`class="ghost icon-btn(?: action-icon)?" id="environmentRestore"[^>]*>[\\s\\S]{0,120}#lucide-rotate-ccw`), 'environmentRestore 统一用图标按钮')
   assert.match(page, /class="hint environment-config-error" id="environmentSaveStatus" role="alert" hidden/, '实例配置静默自动保存，仅失败时展示错误行')
+
+  // 实例带 dshVersion / updateChannel 时：触发器与列表副标题对齐编辑启动项弹窗的格式
+  const versionedCtx = vm.createContext({
+    state: { dshHome: 'C:\\global', profiles: [], webProfiles: [], profilesByHome: {}, webProfilesByHome: {}, dshHomes: [], launchPresets: [] },
+    environmentState: {
+      list: [
+        { id: 'env-web', name: 'web', targetProfile: 'web', targetHome: 'C:\\global', dshVersion: 'auto', updateChannel: 'alpha' },
+        { id: 'env-pin', name: 'work', targetProfile: 'work', targetHome: 'C:\\global', dshVersion: '0.2.2', updateChannel: 'official' },
+      ],
+    },
+    UPDATE_CHANNEL_NAMES: { official: '正式版', rc: 'RC', alpha: 'Alpha' },
+    launchEntries: () => versionedCtx.state.launchPresets,
+    homeOptions: () => new Map(),
+    launchBackendIsRemote: () => false,
+    connectionById: () => null,
+    launchConnectionIdEl: { value: '' },
+    launchRemoteHomeEl: { value: '' },
+    launchWslHomeEl: { value: '' },
+    launchDshHomeEl: { value: '' },
+    launchProfile: 'web',
+    launchCopySource: null,
+    launchCopyCandidates: [],
+    launchCopyAnchorEl: pickEl,
+    launchCopyPickEl: { setAttribute() {} },
+    launchEnvironmentPickEl: pickEl,
+    launchEnvironmentPickValueEl: valueEl,
+    launchCopyListEl: listEl,
+    connectionForHomeKey: () => null,
+    parseSshHomeKey: () => null,
+    parseWslHomeKey: () => null,
+    connectionTarget: () => '',
+    launchHomeOf: () => '',
+    escapeHtml: (v) => String(v),
+    t: (text, vars = {}) => String(text).replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? ''),
+    document: {
+      getElementById: (id) => (
+        id === 'launchEnvironmentPickIcon'
+          ? { querySelector: () => iconUse }
+          : id === 'launchEnvironment'
+            ? { value: 'env-web' }
+            : null
+      ),
+    },
+  })
+  vm.runInContext(
+    `${pathHelpers}
+${functionSource('collectLaunchCopyItems')}
+${functionSource('paintLaunchCopyList')}
+${functionSource('paintLaunchEnvironmentPick')}`,
+    versionedCtx,
+  )
+  versionedCtx.paintLaunchEnvironmentPick()
+  assert.equal(valueEl.textContent, 'web · 自动（Alpha）')
+  versionedCtx.paintLaunchCopyList()
+  assert.match(listEl.innerHTML, /<button class="project-device-option is-selected"[^>]*data-copy-index="0"[\s\S]*?<strong>web<\/strong><small>自动（Alpha） · C:\\global<\/small>/)
+  assert.match(listEl.innerHTML, /<button class="project-device-option"[^>]*data-copy-index="1"[\s\S]*?<strong>work<\/strong><small>0\.2\.2 · C:\\global<\/small>/)
 })
 
 test('新建实例时隐藏「打开启动器时启动」，仅编辑已有启动项时展示；编辑窗不再放「桌面增强」开关', () => {
