@@ -293,8 +293,8 @@ test('createPluginMarketClient 缓存检索且打包清单包含 plugin-market.j
 test('curatedUrlCandidates 与 createCuratedPluginsClient 支持多镜像优先/直连失败回退', async () => {
   const { CURATED_PLUGINS_URL, createCuratedPluginsClient, curatedUrlCandidates } = await import('../src/curated-plugins.js')
   const expectedDirect = CURATED_PLUGINS_URL
-  const expectedJsdelivrFastly = 'https://fastly.jsdelivr.net/gh/yyh-001/DSH-X@main/docs/curated-plugins.json'
-  const expectedJsdelivrCdn = 'https://cdn.jsdelivr.net/gh/yyh-001/DSH-X@main/docs/curated-plugins.json'
+  const expectedJsdelivrFastly = 'https://fastly.jsdelivr.net/gh/yyh-001/DSH-X@Staging/docs/curated-plugins.json'
+  const expectedJsdelivrCdn = 'https://cdn.jsdelivr.net/gh/yyh-001/DSH-X@Staging/docs/curated-plugins.json'
 
   const mirrorFirst = curatedUrlCandidates(expectedDirect, 'mirror')
   assert.deepEqual(mirrorFirst, [
