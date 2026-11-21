@@ -652,6 +652,16 @@ async function start() {
   // 源码 `npm run electron` 不算打包态（PACKAGED 为 false），否则开发时也会去查 npm 核心更新。
   if (app.isPackaged) process.env.DSH_CORE = '1'
   process.env.DSH_SHELL_VERSION = VERSION
+  // 「系统默认」语言交给核心判断，但核心只能看 Intl：从 Finder / 程序坞启动的应用没有 LANG，
+  // ICU 量出来是 en-US（Windows 上 ICU 跟的是区域格式而不是界面语言），中文系统也会变英文。
+  // 外壳拿得到系统的首选语言列表，在核心求值（server.js 加载时就定了 LANG）之前放进环境变量；
+  // 已经 ready 了，getPreferredSystemLanguages 可以安全调用。开发时手动设的值不覆盖。
+  if (!process.env.DSH_SYSTEM_LANGS) {
+    try {
+      const langs = app.getPreferredSystemLanguages().map((item) => String(item || '').trim()).filter(Boolean)
+      if (langs.length) process.env.DSH_SYSTEM_LANGS = langs.join(',')
+    } catch { /* 取不到就让核心退回 Intl */ }
+  }
   // 核心的 node/ 包装脚本转调外壳的 Electron 本体
   process.env.DSH_ELECTRON_BIN = process.execPath
   console.log(`DSH-X ${VERSION} · core ${coreDir} (Electron ${process.versions.electron}, Chromium ${process.versions.chrome})`)

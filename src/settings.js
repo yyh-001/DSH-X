@@ -969,14 +969,30 @@ export function safeLangPref(value) {
   return safeLang(value) || 'system'
 }
 
+const ZH_RE = /^zh(?:[-_]|$)/i
+const EN_RE = /^en(?:[-_]|$)/i
+
+/**
+ * 外壳传进来的系统首选语言（DSH_SYSTEM_LANGS，逗号分隔，来自 Electron 的 getPreferredSystemLanguages）。
+ * 界面只有中英两种：按用户排的顺序找第一个中文或英文，[ja-JP, zh-Hans-CN] 选中文，
+ * [en-US, zh-Hans-CN] 仍是英文；一个都不是就返回 en。没有这个变量（旧外壳、npm start）返回空串。
+ */
+function preferredSystemLocale(env = process.env) {
+  const langs = String(env.DSH_SYSTEM_LANGS || '').split(',').map((item) => item.trim()).filter(Boolean)
+  if (!langs.length) return ''
+  return langs.find((item) => ZH_RE.test(item) || EN_RE.test(item)) || 'en'
+}
+
 /**
  * 系统界面语言：中文环境用 zh，其余（含 C / POSIX / 空值）一律 en。
  * AppImage / deb 没有安装器写 lang.txt，换了 electron-builder 之后的 Windows /
- * macOS 也不再写，所以首次启动的默认语言靠这个决定。locale 默认取 ICU 解析出的
- * 系统 locale（Windows 看显示语言，Linux / macOS 看 LANG / LC_*）。
+ * macOS 也不再写，所以首次启动的默认语言靠这个决定。
+ * 先认外壳给的系统首选语言（见 preferredSystemLocale）：从 Finder / 程序坞启动时没有 LANG，
+ * ICU 会量成 en-US，Windows 上 ICU 又跟着区域格式走，都不等于用户的界面语言。
+ * 没有外壳的值时才用 ICU 解析出的 locale（源码运行、旧外壳）。
  */
-export function systemLang(locale = Intl.DateTimeFormat().resolvedOptions().locale) {
-  return /^zh(?:[-_]|$)/i.test(String(locale ?? '')) ? 'zh' : 'en'
+export function systemLang(locale = preferredSystemLocale() || Intl.DateTimeFormat().resolvedOptions().locale) {
+  return ZH_RE.test(String(locale ?? '')) ? 'zh' : 'en'
 }
 
 /** 页面外观：跟随系统、浅色或深色；历史脏值回到跟随系统。 */
