@@ -66,19 +66,27 @@ export class WindowsFileManager extends FileManager {
   }
 
   async autoStartEnabled() {
+    if (this._autoStartCache && Date.now() - this._autoStartCache.at < 5000) {
+      return this._autoStartCache.value
+    }
+    let value = false
     try {
       await this.exec('reg.exe', ['query', RUN_REG, '/v', RUN_NAME], { windowsHide: true, encoding: 'utf8' })
-      return true
+      value = true
     } catch {
-      return false
+      value = false
     }
+    this._autoStartCache = { value, at: Date.now() }
+    return value
   }
 
   async setAutoStart(enabled) {
+    this._autoStartCache = null
     const on = await this.autoStartEnabled()
     if (on === Boolean(enabled)) return
     if (enabled) {
       await this.exec('reg.exe', ['add', RUN_REG, '/v', RUN_NAME, '/t', 'REG_SZ', '/d', this.launchCommand(), '/f'], { windowsHide: true, encoding: 'utf8' })
+      this._autoStartCache = { value: true, at: Date.now() }
       return
     }
     try {
@@ -86,6 +94,7 @@ export class WindowsFileManager extends FileManager {
     } catch {
       // 已经不在了
     }
+    this._autoStartCache = { value: false, at: Date.now() }
   }
 
   /**
@@ -123,17 +132,23 @@ export class WindowsFileManager extends FileManager {
   }
 
   async pickFile({ save = false, defaultName = '', filter = '', title = '' } = {}) {
-    // 注入到 PowerShell 里的字符串先把单引号去掉——它们都是单引号包裹的
-    const name = String(defaultName || '').replace(/'/g, '')
+    // 参数统一走 UTF-8 Base64 + -EncodedCommand：避免 PowerShell 单引号/Unicode 引号注入，
+    // 并强制 UTF-8 输出编码，避免中文 Windows 路径在 GBK 下乱码。
+    const b64 = (value) => Buffer.from(String(value || ''), 'utf8').toString('base64')
+    const decode = (encoded) => `[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${encoded}'))`
     const script = [
+      "$ErrorActionPreference = 'Stop'",
+      "$ProgressPreference = 'SilentlyContinue'",
+      '[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)',
       'Add-Type -AssemblyName System.Windows.Forms | Out-Null',
       `$d = New-Object System.Windows.Forms.${save ? 'SaveFileDialog' : 'OpenFileDialog'}`,
-      save ? `$d.FileName = '${name}'; $d.OverwritePrompt = $true` : '',
-      filter ? `$d.Filter = '${String(filter).replace(/'/g, '')}'` : '',
-      title ? `$d.Title = '${String(title).replace(/'/g, '')}'` : '',
-      'if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($d.FileName) }',
+      save ? `$d.FileName = ${decode(b64(defaultName))}; $d.OverwritePrompt = $true` : '',
+      filter ? `$d.Filter = ${decode(b64(filter))}` : '',
+      title ? `$d.Title = ${decode(b64(title))}` : '',
+      'try { if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($d.FileName) } } finally { $d.Dispose() }',
     ].filter(Boolean).join('; ')
-    const out = await this.exec('powershell', ['-STA', '-NoProfile', '-Command', script], { windowsHide: true, timeout: FILE_TIMEOUT, encoding: 'utf8' })
+    const encoded = Buffer.from(script, 'utf16le').toString('base64')
+    const out = await this.exec('powershell', ['-STA', '-NoProfile', '-EncodedCommand', encoded], { windowsHide: true, timeout: FILE_TIMEOUT, encoding: 'utf8' })
     return out.trim()
   }
 

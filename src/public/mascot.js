@@ -100,7 +100,7 @@
     && !document.documentElement.classList.contains('launcher-idle')
     && !document.body.classList.contains('subpage-open') && !document.documentElement.classList.contains('internal-dsh-active');
   const refreshRect = () => { rect = host.getBoundingClientRect(); };
-  new ResizeObserver(refreshRect).observe(host);
+  const ro = new ResizeObserver(refreshRect); ro.observe(host);
   window.addEventListener('resize', refreshRect);
   function neutral() {
     // 清空积存的速度，恢复动画时从静止姿态进入，避免暂停前的甩动突然重放。
@@ -123,14 +123,15 @@
   if (shared?.onReduceChange) shared.onReduceChange(sync);
   else reduced.addEventListener('change', sync);
   document.addEventListener('visibilitychange', sync);
-  new MutationObserver(sync).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-  new MutationObserver(sync).observe(document.body, { attributes: true, attributeFilter: ['class'] });
-  window.addEventListener('pointermove', event => {
+  const rootObs = new MutationObserver(sync); rootObs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+  const bodyObs = new MutationObserver(sync); bodyObs.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+  const onPointerMove = event => {
     if (!active() || event.pointerType === 'touch') return;
     pointerAt = clock;
     targetX = clamp((event.clientX - rect.left - rect.width * .4) / (innerWidth * .55), -1, 1);
     targetY = clamp((event.clientY - rect.top - rect.height * .62) / (innerHeight * .55), -1, 1);
-  }, { passive: true });
+  };
+  window.addEventListener('pointermove', onPointerMove, { passive: true });
   const relax = () => { targetX = 0; targetY = 0; };
   document.documentElement.addEventListener('pointerleave', relax);
   window.addEventListener('blur', relax);
@@ -265,7 +266,14 @@
   for (const file of layers) {
     const probe = new Image();
     probe.onerror = () => {
+      if (failed) return;
       failed = true; sync(); host.remove();
+      ro.disconnect(); rootObs.disconnect(); bodyObs.disconnect();
+      window.removeEventListener('resize', refreshRect);
+      window.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('visibilitychange', sync);
+      document.documentElement.removeEventListener('pointerleave', relax);
+      window.removeEventListener('blur', relax);
       const fallback = document.querySelector('.backdrop-character');
       if (fallback) fallback.style.display = 'block';
     };

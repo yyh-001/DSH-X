@@ -115,15 +115,22 @@
     frame=requestAnimationFrame(tick);
   }
   function sync(){cancelAnimationFrame(frame);frame=0;last=0;if(!lost)draw();if(active())frame=requestAnimationFrame(tick);}
-  window.addEventListener('pointerdown',e=>{
+  const onPointerDown = e => {
     if(!active()||e.button!==0||time-lastRipple<.08||e.target.closest('button,a,input,select,textarea,.card,nav'))return;
     const size=Math.min(innerWidth,innerHeight);
     ripples[slot*3]=e.clientX/size;ripples[slot*3+1]=(innerHeight-e.clientY)/size;ripples[slot*3+2]=time;
     slot=(slot+1)%6;lastRipple=time;
-  },{passive:true});
-  new MutationObserver(sync).observe(document.documentElement,{attributes:true,attributeFilter:['class','data-color-scheme']});
+  };
+  window.addEventListener('pointerdown',onPointerDown,{passive:true});
+  const obs = new MutationObserver(sync);obs.observe(document.documentElement,{attributes:true,attributeFilter:['class','data-color-scheme']});
   document.addEventListener('visibilitychange',sync);if(shared?.onReduceChange)shared.onReduceChange(sync);else reduced.addEventListener('change',sync);
   window.addEventListener('resize',resize);
-  canvas.addEventListener('webglcontextlost',()=>{lost=true;canvas.hidden=true;sync();});
+  canvas.addEventListener('webglcontextlost',()=>{
+    lost=true;canvas.hidden=true;sync();
+    obs.disconnect();
+    window.removeEventListener('pointerdown',onPointerDown);
+    window.removeEventListener('resize',resize);
+    document.removeEventListener('visibilitychange',sync);
+  });
   resize();sync();
 })();

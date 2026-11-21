@@ -72,6 +72,7 @@ export function readZip(input) {
 
   const entries = []
   let cursor = offset
+  let totalUncompressed = 0
   for (let index = 0; index < count; index += 1) {
     if (cursor + 46 > buffer.length || buffer.readUInt32LE(cursor) !== SIG_CENTRAL) {
       throw new Error('ZIP 中央目录损坏')
@@ -102,9 +103,15 @@ export function readZip(input) {
     const from = localOffset + 30 + localNameLength + localExtraLength
     if (from + compressedSize > buffer.length) throw new Error(`ZIP 条目数据越界：${name}`)
     const raw = buffer.subarray(from, from + compressedSize)
+    // 防 zip bomb：单条目与累计解压字节都设上限，避免小包在 inflateRawSync 里直接把进程 OOM 打崩
+    const maxEntryBytes = 64 * 1024 * 1024
+    const maxTotalBytes = 128 * 1024 * 1024
+    if (uncompressedSize > maxEntryBytes) throw new Error(`ZIP 条目过大（超过 64 MB）：${name}`)
+    totalUncompressed += uncompressedSize
+    if (totalUncompressed > maxTotalBytes) throw new Error('ZIP 解压后总大小超过 128 MB，已拒绝读取')
     let data
     try {
-      data = method === 0 ? Buffer.from(raw) : inflateRawSync(raw)
+      data = method === 0 ? Buffer.from(raw) : inflateRawSync(raw, { maxOutputLength: maxEntryBytes })
     } catch (error) {
       // zlib 报的是它自己的话（invalid code lengths set 之类），这里换成能看懂的说法
       throw new Error(`ZIP 条目解压失败（文件损坏？）：${name} —— ${error.message}`)

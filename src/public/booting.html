@@ -352,8 +352,12 @@
   }
 
   // 秒表自己走：状态只在事件点推送，等状态推过来再画秒数会一格一格地跳。
-  setInterval(() => {
-    if (failed || opened) return
+  const stopTimers = () => {
+    clearInterval(clockTimer)
+    clearInterval(timer)
+  }
+  const clockTimer = setInterval(() => {
+    if (failed || opened) { stopTimers(); return }
     const live = findInstance()
     const row = live?.status === 'starting' ? live : null
     const meta = row ? [profile, elapsedText(row.startedAt)].filter(Boolean).join(' · ')
@@ -363,13 +367,14 @@
   }, 250)
 
   async function poll() {
-    if (failed || opened) return
+    if (failed || opened) { stopTimers(); return }
     try {
       const response = await fetch('/api/state', { cache: 'no-store' })
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
       snapshot = await response.json()
       offline = false
       render()
+      if (failed || opened) stopTimers()
     } catch {
       if (!offline) {
         offline = true
@@ -382,8 +387,8 @@
   // 800ms 一次：服务端的启动阶段是在日志行上推断的，不会每次都推状态，
   // 轮询比 SSE 更稳地跟住「启动进程 → 加载插件」这两级。
   const timer = setInterval(poll, 800)
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) void poll() })
-  window.addEventListener('pagehide', () => clearInterval(timer), { once: true })
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && !failed && !opened) void poll() })
+  window.addEventListener('pagehide', stopTimers, { once: true })
   void poll()
 })()
 </script>

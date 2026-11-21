@@ -66,10 +66,23 @@ function relaunch() {
   }
 }
 
+/** Windows 上父进程刚退出时目录句柄可能延迟释放，遇 EBUSY/EPERM 短退避重试。 */
+async function renameWithRetry(from, to, attempts = 15) {
+  for (let i = 0; ; i += 1) {
+    try {
+      renameSync(from, to)
+      return
+    } catch (error) {
+      if (!['EBUSY', 'EPERM', 'EACCES'].includes(error?.code) || i >= attempts - 1) throw error
+      await sleep(200)
+    }
+  }
+}
+
 /** 跨卷时 rename 会 EXDEV：先复制再删源。暂存目录在 %TEMP%，可能在另一个盘上。 */
-function move(from, to) {
+async function move(from, to) {
   try {
-    renameSync(from, to)
+    await renameWithRetry(from, to)
   } catch (error) {
     if (error?.code !== 'EXDEV') throw error
     cpSync(from, to, { recursive: true })
@@ -77,22 +90,22 @@ function move(from, to) {
   }
 }
 
-function swapIn() {
+async function swapIn() {
   if (existsSync(backupDir)) rmSync(backupDir, { recursive: true, force: true })
-  renameSync(appDir, backupDir)
+  await renameWithRetry(appDir, backupDir)
   try {
-    move(stagedDir, appDir)
+    await move(stagedDir, appDir)
   } catch (error) {
     // 新目录换不上：把备份挪回去，保持旧版本可用
-    try { renameSync(backupDir, appDir) } catch { /* 尽力而为 */ }
+    try { await renameWithRetry(backupDir, appDir, 5) } catch { /* 尽力而为 */ }
     throw error
   }
 }
 
-function rollback() {
+async function rollback() {
   try {
     if (existsSync(appDir)) rmSync(appDir, { recursive: true, force: true })
-    renameSync(backupDir, appDir)
+    await renameWithRetry(backupDir, appDir, 10)
     log('已回滚到更新前的版本')
     return true
   } catch (error) {
@@ -115,7 +128,7 @@ async function main() {
   try { rmSync(marker, { force: true }) } catch { /* 没有就算了 */ }
   log(`替换 ${appDir}`)
   try {
-    swapIn()
+    await swapIn()
   } catch (error) {
     log(`替换失败：${error?.message || error}`)
     return 1
@@ -130,7 +143,7 @@ async function main() {
   log('新版本 45 秒内没有启动成功，开始回滚')
   try { if (child && child.pid) process.kill(child.pid) } catch { /* 可能已经退出 */ }
   await sleep(1500)
-  if (rollback()) {
+  if (await rollback()) {
     relaunch()
     log('已重启旧版本')
   }

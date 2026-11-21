@@ -45,10 +45,12 @@
       }
       update?.(state)
     }
+    let noticeTimer = 0
     window.notifyError = (error) => {
       const notice = document.getElementById('windowNotice')
       notice.textContent = error.message; notice.hidden = false
-      setTimeout(() => { notice.hidden = true }, 5000)
+      clearTimeout(noticeTimer)
+      noticeTimer = setTimeout(() => { notice.hidden = true }, 5000)
     }
     // 重新请求一次，避免顶栏脚本先发 ready、外壳回执先于主题包装器安装。
     send('internal-tabs-ready')

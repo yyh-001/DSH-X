@@ -181,10 +181,16 @@ export async function downloadCoreTarball(url, dest, { integrity = '', shasum = 
   const digest = hash.digest('base64')
   if (integrity) {
     const expected = String(integrity).replace(/^sha512-/, '')
-    if (digest !== expected) throw new Error('核心包的 sha512 校验失败')
+    if (digest !== expected) {
+      rmSync(dest, { force: true })
+      throw new Error('核心包的 sha512 校验失败')
+    }
   } else if (shasum) {
     const sha1 = createHash('sha1').update(readFileSync(dest)).digest('hex')
-    if (sha1 !== String(shasum).toLowerCase()) throw new Error('核心包的 sha1 校验失败')
+    if (sha1 !== String(shasum).toLowerCase()) {
+      rmSync(dest, { force: true })
+      throw new Error('核心包的 sha1 校验失败')
+    }
   }
   return { bytes: done, sha512: digest }
 }
@@ -195,7 +201,9 @@ export function tarCommand() {
     const system = join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe')
     return existsSync(system) ? system : 'tar'
   }
-  return '/usr/bin/tar'
+  if (existsSync('/usr/bin/tar')) return '/usr/bin/tar'
+  if (existsSync('/bin/tar')) return '/bin/tar'
+  return 'tar'
 }
 
 /** 在 Windows 上打的 tarball 里 POSIX 包装可能没有可执行位；解到 mac 后补上。 */
@@ -211,6 +219,7 @@ export function extractCoreTarball(tarball, dest) {
   rmSync(dest, { recursive: true, force: true })
   mkdirSync(dest, { recursive: true })
   const result = spawnSync(tarCommand(), ['-xzf', tarball, '-C', dest, '--strip-components=1'], { windowsHide: true, encoding: 'utf8' })
+  if (result.error) throw new Error(`无法启动 tar 解压核心包：${result.error.message}`)
   if (result.status !== 0) throw new Error(`解压核心包失败：${String(result.stderr || result.status).trim()}`)
   if (!existsSync(join(dest, 'server.js')) || !existsSync(join(dest, 'package.json'))) {
     throw new Error('核心包里缺少 server.js 或 package.json')

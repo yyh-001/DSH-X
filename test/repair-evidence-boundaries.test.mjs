@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { buildRepairPresentation } from '../src/repair-evidence.js'
 import { DiagnosticRepairs } from '../src/repair-actions.js'
-import { mkdtempSync, mkdirSync, writeFileSync, realpathSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -23,8 +23,9 @@ test('verified resolution remains factual when the action is forbidden', () => {
   assert.equal(result.problems[0].unknowns.some(item => item.code === 'source_unconfirmed'), false)
 })
 
-test('history sorts before truncating and direct record lookup ignores the display cap', () => {
+test('history sorts before truncating and direct record lookup ignores the display cap', (t) => {
   const root = mkdtempSync(join(realpathSync.native(tmpdir()), 'd12-history-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
   const repairs = new DiagnosticRepairs({ dataDir: () => root })
   const directory = join(repairs.root(), 'history')
   mkdirSync(directory, { recursive: true })
@@ -38,10 +39,11 @@ test('history sorts before truncating and direct record lookup ignores the displ
   assert.equal(repairs.readRecord('../bad'), null)
 })
 
-test('package rollback resumes recording only with prior persisted intent and matching original bytes', async () => {
+test('package rollback resumes recording only with prior persisted intent and matching original bytes', async (t) => {
   const { packageFingerprint } = await import('../src/diagnostic-repair.js')
   for (const priorIntent of [false, true]) {
     const root = mkdtempSync(join(realpathSync.native(tmpdir()), 'd12-rollback-'))
+    t.after(() => rmSync(root, { recursive: true, force: true }))
     const target = { home: root, profile: 'desktop', version: '2', harnessEntry: '/runtime' }
     const id = 'a'.repeat(32)
     const name = '@deepseek-ai/example'
@@ -80,11 +82,12 @@ test('package rollback resumes recording only with prior persisted intent and ma
   }
 })
 
-test('accepted patch trust is independent of the displayed history cap', async () => {
+test('accepted patch trust is independent of the displayed history cap', async (t) => {
   const { createHash } = await import('node:crypto')
   const { appendRowBlock } = await import('../src/plugins.js')
   const hash = text => createHash('sha256').update(text).digest('hex')
   const root = mkdtempSync(join(realpathSync.native(tmpdir()), 'd12-patch-history-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
   const target = { home: root, profile: 'desktop', version: '2', harnessEntry: '/runtime' }
   const repairs = new DiagnosticRepairs({ dataDir: () => join(root, 'data') })
   const id = '0'.repeat(32)

@@ -328,8 +328,18 @@ function openTunnel(proxyUrl, target, signal) {
       // SNI 不能是 IP：填 IP 的代理目标（少见）就不发 servername
       const servername = /^[\d.]+$/.test(target.hostname) || target.hostname.includes(':') ? undefined : target.hostname
       const socket2 = tlsConnect({ socket, servername })
-      socket2.once('secureConnect', () => resolve(socket2))
-      socket2.once('error', reject)
+      const onAbort = () => socket2.destroy(signal?.reason || new Error('请求已取消'))
+      signal?.addEventListener?.('abort', onAbort, { once: true })
+      socket2.setTimeout(TUNNEL_TIMEOUT_MS, () => socket2.destroy(new Error(`TLS 握手超时（${TUNNEL_TIMEOUT_MS / 1000} 秒）`)))
+      socket2.once('secureConnect', () => {
+        socket2.setTimeout(0)
+        signal?.removeEventListener?.('abort', onAbort)
+        resolve(socket2)
+      })
+      socket2.once('error', (error) => {
+        signal?.removeEventListener?.('abort', onAbort)
+        reject(error)
+      })
     })
     request.once('error', reject)
     request.end()
@@ -373,6 +383,11 @@ function requestOnce(target, init, proxy) {
     }
 
     const send = (socket) => {
+      if (proxyUrl && !secure) {
+        // 明文 http 走带鉴权的代理也要带 Proxy-Authorization，否则代理直接回 407
+        const auth = proxyAuthorization(proxyUrl)
+        if (auth && !hasHeader(headers, 'proxy-authorization')) headers['proxy-authorization'] = auth
+      }
       const options = proxyUrl && !secure
         // 明文 http 走代理：请求行用绝对地址，连接给代理（这是 HTTP 代理的规矩）
         ? { method, headers, host: proxyUrl.hostname, port: Number(proxyUrl.port) || 80, path: target.href }
@@ -425,9 +440,10 @@ async function followRedirects(startUrl, init, proxy) {
   let current = startUrl
   let method = String(init.method || 'GET').toUpperCase()
   let body = init.body
+  let headers = headerObject(init.headers)
   for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
     const target = new URL(current)
-    const response = await requestOnce(target, { ...init, method, body }, hostBypassed(target.hostname, proxy) ? null : proxy)
+    const response = await requestOnce(target, { ...init, method, body, headers }, hostBypassed(target.hostname, proxy) ? null : proxy)
     if (init.redirect === 'manual' || !REDIRECT_STATUS.has(response.status)) return response
     const location = response.headers.get('location')
     if (!location) return response
@@ -435,7 +451,17 @@ async function followRedirects(startUrl, init, proxy) {
     try {
       await response.body?.cancel()
     } catch { /* 已经关了就无所谓 */ }
-    current = new URL(location, current).href
+    const next = new URL(location, current)
+    // 跨源重定向时剥离敏感认证头与旧 Host，防止向第三方站点泄漏凭据
+    if (next.origin !== target.origin) {
+      for (const key of Object.keys(headers)) {
+        const lower = key.toLowerCase()
+        if (lower === 'authorization' || lower === 'cookie' || lower === 'proxy-authorization' || lower === 'host') {
+          delete headers[key]
+        }
+      }
+    }
+    current = next.href
     // 303 一律转 GET；301/302 对 POST 也转 GET（和浏览器一致）
     if (response.status === 303 || ((response.status === 301 || response.status === 302) && method === 'POST')) {
       method = 'GET'

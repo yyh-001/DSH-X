@@ -133,7 +133,13 @@ export function upstreamHeaders(headers, addresses, clientAddress) {
  */
 export function isTokenExchange(requestUrl, statusCode, setCookie) {
   if (statusCode !== HTTP_SEE_OTHER) return false
-  if (!new URL(requestUrl ?? '/', URL_BASE).searchParams.has(TOKEN_PARAM)) return false
+  let parsed
+  try {
+    parsed = new URL(requestUrl ?? '/', URL_BASE)
+  } catch {
+    return false
+  }
+  if (!parsed.searchParams.has(TOKEN_PARAM)) return false
   return [].concat(setCookie ?? []).some((cookie) => String(cookie).startsWith(AUTH_COOKIE_PREFIX))
 }
 
@@ -191,6 +197,8 @@ export function startLanProxy({ lanHost, port, upstreamHost = '127.0.0.1', onErr
       if (res.headersSent) res.destroy()
       else res.writeHead(HTTP_BAD_GATEWAY).end()
     })
+    // 客户端中途断开（如 SSE / 大响应中断）时同步销毁上游连接，避免泄漏句柄
+    res.on('close', () => { if (!res.writableEnded) upstream.destroy() })
     req.pipe(upstream)
   })
 

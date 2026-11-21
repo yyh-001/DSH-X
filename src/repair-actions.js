@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, sep } from 'node:path'
 import { archivePackage, compatibleUpgrade, clientVersionEvidence, ordinaryPath, packageFingerprint, probePackageSources, restorePackage } from './diagnostic-repair.js'
 import { checkedRepairPlan, profileFingerprint } from './repair-plan.js'
@@ -51,8 +51,22 @@ function digest(value) {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex')
 }
 
-function readOptional(path) {
-  ordinaryPath(path, true)
+/** 父目录已通过 ordinaryPath 校验时，只需检查目标叶子本身不是符号链接，避免重复走 10 层 realpathSync。 */
+function ordinaryLeaf(path, allowMissing = false) {
+  try {
+    const info = lstatSync(path)
+    if (info.isSymbolicLink()) {
+      throw new Error('拒绝在符号链接或挂载重定向路径上读写修复记录。')
+    }
+  } catch (error) {
+    if (allowMissing && error?.code === 'ENOENT') return
+    throw error
+  }
+}
+
+function readOptional(path, { trustedParent = false } = {}) {
+  if (trustedParent) ordinaryLeaf(path, true)
+  else ordinaryPath(path, true)
   return existsSync(path) ? readFileSync(path, 'utf8') : null
 }
 
@@ -103,20 +117,20 @@ export class DiagnosticRepairs {
     ordinaryPath(directory, true)
     mkdirSync(directory, { recursive: true, mode: 0o700 })
     const destination = join(directory, `${record.id}.json`)
-    ordinaryPath(destination, true)
+    ordinaryLeaf(destination, true)
     const temporary = join(directory, `${record.id}.pending`)
-    ordinaryPath(temporary, true)
+    ordinaryLeaf(temporary, true)
     writeFileSync(temporary, JSON.stringify(record, null, 2), { mode: 0o600 })
     renameSync(temporary, destination)
   }
 
   /** 按安全标识读取原始记录，回退不受展示条数限制。 */
-  readRecord(id) {
+  readRecord(id, { trustedParent = false } = {}) {
     if (!ID_PATTERN.test(id || '')) {
       return null
     }
     try {
-      const record = JSON.parse(readOptional(join(this.root(), 'history', `${id}.json`)))
+      const record = JSON.parse(readOptional(join(this.root(), 'history', `${id}.json`), { trustedParent }))
       return record?.id === id ? record : null
     } catch {
       return null
@@ -137,7 +151,7 @@ export class DiagnosticRepairs {
       if (!/^[a-f0-9]{32}\.json$/.test(name)) {
         continue
       }
-      const record = this.readRecord(name.slice(0, -5))
+      const record = this.readRecord(name.slice(0, -5), { trustedParent: true })
       if (record) {
         yield record
       }

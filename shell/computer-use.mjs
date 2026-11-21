@@ -228,7 +228,7 @@ export function createComputerUseHost(options = {}) {
     if (driver) return driver
     if (driverInit) return driverInit
     const epoch = generation
-    driverInit = (async () => {
+    const pending = (async () => {
       try {
         const mod = await loadDriver()
         if (epoch !== generation || !enabled || halted) {
@@ -255,10 +255,12 @@ export function createComputerUseHost(options = {}) {
         driverError = message
         throw new ComputerUseError('DRIVER_UNAVAILABLE', `桌面操作驱动不可用：${message}`)
       } finally {
-        driverInit = null
+        // 避免 stop() 后新一轮 ensureDriver() 的 promise 被上一轮的 finally 覆盖清空
+        if (driverInit === pending) driverInit = null
       }
     })()
-    return driverInit
+    driverInit = pending
+    return pending
   }
 
   async function callDriverTool(activeDriver, toolName, args, signal) {
@@ -463,7 +465,7 @@ export function createComputerUseHost(options = {}) {
     const windowId = Number(params.windowId)
     const x = finiteNumber(params.x)
     const y = finiteNumber(params.y)
-    if (params.relative !== true) return { windowId, x, y }
+    if (params.relative !== true) return { windowId, x, y, targetWindow: null }
     const windows = await resolveWindowsForApp(activeDriver, app, signal)
     const target = windows.find((w) => w.windowId === windowId)
     if (!target) throw new ComputerUseError('WINDOW_CHANGED', `窗口 ${windowId} 已关闭或不可见`)
@@ -471,20 +473,23 @@ export function createComputerUseHost(options = {}) {
       windowId,
       x: Math.round((target.bounds.width * x) / 1000),
       y: Math.round((target.bounds.height * y) / 1000),
+      targetWindow: target,
     }
   }
 
   function mapModifiers(modifiers) {
     if (!Array.isArray(modifiers) || !modifiers.length) return []
+    const superKey = platform === 'darwin' ? 'cmd' : 'win'
     const table = {
-      command: 'win',
+      command: superKey,
+      cmd: superKey,
       control: 'ctrl',
       option: 'alt',
       shift: 'shift',
       ctrl: 'ctrl',
       alt: 'alt',
       win: 'win',
-      meta: 'win',
+      meta: superKey,
     }
     return modifiers.map((item) => table[String(item).toLowerCase()] || String(item).toLowerCase()).filter(Boolean)
   }
@@ -616,6 +621,12 @@ export function createComputerUseHost(options = {}) {
           idHash: authId,
           running: chosen.running && chosen.pid > 0,
         })
+        // 限制已绑定句柄上限，防止长时间运行的会话持续积累泄漏内存
+        while (apps.size > 64) {
+          const oldest = apps.keys().next().value
+          if (oldest === appHandle) break
+          apps.delete(oldest)
+        }
         currentApp = chosen.name
         return {
           appHandle,
@@ -831,18 +842,22 @@ export function createComputerUseHost(options = {}) {
         currentApp = app.name
         if (params.elementId) {
           const { snap, token } = resolveSnapshotElement(params)
-          await callDriverTool(activeDriver, 'move_cursor', {
-            target: { kind: 'window', pid: snap.pid, window_id: snap.windowId },
-            element_token: token,
-            scope: params.useSystemPointer ? 'desktop' : 'window',
-          }, signal).catch(async () => {
-            // 某些版本 move_cursor 仅接坐标，回退不做强求
-          })
+          try {
+            await callDriverTool(activeDriver, 'move_cursor', {
+              target: { kind: 'window', pid: snap.pid, window_id: snap.windowId },
+              element_token: token,
+              scope: params.useSystemPointer ? 'desktop' : 'window',
+            }, signal)
+          } catch (error) {
+            // 急停 / 取消 / 锁屏 / 提权窗口阻断不能被吞掉，只有驱动不支持按元素移动时才宽容降级
+            if (error instanceof ComputerUseError && ['COMPUTER_USE_STOPPED', 'NATIVE_CANCELLED', 'SESSION_LOCKED', 'ELEVATED_WINDOW_BLOCKED'].includes(error.code)) {
+              throw error
+            }
+          }
           return { dispatched: true, hoverRoute: params.useSystemPointer ? 'system-pointer' : 'accessibility', systemPointerMoved: Boolean(params.useSystemPointer) }
         }
         const coords = await resolveCoordinates(activeDriver, app, params, signal)
-        const windows = await resolveWindowsForApp(activeDriver, app, signal)
-        const win = windows.find((w) => w.windowId === coords.windowId)
+        const win = coords.targetWindow || (await resolveWindowsForApp(activeDriver, app, signal)).find((w) => w.windowId === coords.windowId)
         const screenX = (win?.bounds?.x || 0) + coords.x
         const screenY = (win?.bounds?.y || 0) + coords.y
         await callDriverTool(activeDriver, 'move_cursor', {
@@ -997,7 +1012,7 @@ export function createComputerUseHost(options = {}) {
       }
 
       case 'selectText':
-        throw new ComputerUseError('UNSUPPORTED_OPERATION', '当前 Windows 驱动暂不支持 selectText，请改用 click + typeText / paste')
+        throw new ComputerUseError('UNSUPPORTED_OPERATION', '当前桌面操作驱动暂不支持 selectText，请改用 click + typeText / paste')
 
       default:
         throw new ComputerUseError('UNKNOWN_METHOD', `不支持的电脑操作方法：${method}`)

@@ -155,6 +155,9 @@ export class ManagerAuth {
       // 已经带着有效 cookie 的直接放行：换完 cookie 那一跳回到的就是不带 token 的地址，
       // 这里再 303 回去就成了死循环（Electron 窗口 ERR_TOO_MANY_REDIRECTS，整片空白）。
       const authority = requestAuthority(req)
+      const fetchSite = String(req.headers['sec-fetch-site'] || '').trim().toLowerCase()
+      // 拒绝跨站页面通过新开标签页触发自动 303 种 cookie；地址栏/Electron/无头客户端的 sec-fetch-site 为 none、same-origin 或缺省
+      if (fetchSite === 'cross-site' || fetchSite === 'same-site') return false
       if (!authority || !isLoopbackAuthority(authority) || !isTopLevelNavigation(req) || this.isAuthenticated(req)) return false
       const rest = new URLSearchParams(url.searchParams)
       rest.set(TOKEN_PARAM, this.launchToken)

@@ -528,7 +528,6 @@ export class S3 {
       headers,
     })
     const queryText = canonicalQuery(query)
-    const url = `${this.endpoint.protocol}//${this.host}${path}${queryText ? `?${queryText}` : ''}`
     const options = {
       method,
       host: this.connectHost,
@@ -1040,8 +1039,7 @@ export class LocalDir {
     if (mkdirTo) await mkdir(dirname(dest), { recursive: true })
     const temp = `${dest}.sync-part`
     await copyFile(source, temp)
-    await rm(dest, { force: true })
-    await rename(temp, dest)
+    await replaceFileAtomic(temp, dest)
     await touch(dest, lastModifiedMs)
     return bytes
   }
@@ -1183,8 +1181,7 @@ export class ZipStore {
       await rm(temp, { force: true })
       throw error
     }
-    await rm(dest, { force: true })
-    await rename(temp, dest)
+    await replaceFileAtomic(temp, dest)
     await touch(dest, lastModifiedMs || entry.mtime.getTime())
     return entry.size
   }
@@ -1345,6 +1342,7 @@ export function parsePropfindXml(xml, basePathDecoded = '/') {
       path = decodePathname(href)
     }
     if (path.startsWith(basePathDecoded)) path = path.slice(basePathDecoded.length)
+    else if (basePathDecoded.endsWith('/') && `${path}/` === basePathDecoded) path = ''
     path = path.replace(/^\/+/, '').replace(/\/+$/, '')
     const size = Number(pick('getcontentlength'))
     results.push({
@@ -1406,6 +1404,23 @@ function readAll(stream) {
   })
 }
 
+/** 原子替换目标文件：直接 rename 覆盖（Windows 遇文件占用短退避重试），不在替换前先 rm 破坏原件。 */
+async function replaceFileAtomic(temp, dest) {
+  let last
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      await rename(temp, dest)
+      return
+    } catch (error) {
+      last = error
+      if (!['EPERM', 'EACCES', 'EBUSY'].includes(error?.code) || attempt === 4) break
+      await new Promise((resolve) => setTimeout(resolve, 40 * (attempt + 1)))
+    }
+  }
+  await rm(temp, { force: true }).catch(() => {})
+  throw last
+}
+
 /**
  * 响应流落到本地文件：先写 .sync-part 再改名，下载中途断了不会留下半个文件冒充完整的；
  * 最后把 mtime 对齐成远端给的时间（否则刚拉下来的文件会被下一次上传当成「本机更新」）。
@@ -1424,8 +1439,7 @@ async function writeStreamToFile(stream, dest, { lastModifiedMs = 0, mkdirTo = t
     await rm(temp, { force: true })
     throw error
   }
-  await rm(dest, { force: true })
-  await rename(temp, dest)
+  await replaceFileAtomic(temp, dest)
   if (lastModifiedMs) {
     const seconds = lastModifiedMs / 1000
     try {
@@ -1918,8 +1932,15 @@ export async function runSync({
         log(`[同步] 上传 ${shortKey(item.key)}（${item.reason === 'changed' ? '内容有变' : item.reason === 'newer' ? '本机更新' : item.reason === 'force' ? '强制' : '新增'}）`)
         continue
       }
-      const dest = localPathFor(relativeKeyOf(item.key, client.namespace), targets)
-        || join(context.home, ...relativeKeyOf(item.key, client.namespace).split('/'))
+      const relKey = relativeKeyOf(item.key, client.namespace)
+      const dest = localPathFor(relKey, targets)
+      if (!dest) {
+        // 拒绝路径穿越（..）或白名单之外的远端键，绝不回落到裸 join 写出 DSH_HOME
+        report.skipped += 1
+        summary.skipped += 1
+        log(`[同步] 跳过非法或不在同步白名单内的远端路径：${shortKey(item.key)}`)
+        continue
+      }
       if (item.action === 'download' || item.action === 'duplicate') {
         const target = item.action === 'duplicate' ? `${dest}.remote-${stamp()}` : dest
         const bytes = await guard('下载', () => client.getFile(item.key, target, { lastModifiedMs: item.remote.lastModifiedMs }))

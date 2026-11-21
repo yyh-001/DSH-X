@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process'
 import { closeSync, fstatSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync } from 'node:fs'
 import { dirname, join, parse, resolve } from 'node:path'
 import { parseVer, cmpVer } from './version.js'
+import { RUNTIME_NODE, RUNTIME_NODE_ENV } from './platform.js'
 
 const PACKAGE_MAX_BYTES = 64 * 1024 * 1024
 const PACKAGE_MAX_FILES = 4096
@@ -188,8 +189,10 @@ export function probePackageSources(target, names) {
     for (const name of ['HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'DSH_HOME', 'TEMP', 'TMP']) {
       env[name] = target.home
     }
-    env.PATH = dirname(process.execPath)
-    const child = spawn(process.execPath, [join(import.meta.dirname, 'repair-probe.mjs')], {
+    // Electron 打包版里 process.execPath 是 GUI 壳本身，必须走 RUNTIME_NODE + RUNTIME_NODE_ENV（含 ELECTRON_RUN_AS_NODE=1）
+    Object.assign(env, RUNTIME_NODE_ENV)
+    env.PATH = dirname(RUNTIME_NODE)
+    const child = spawn(RUNTIME_NODE, [join(import.meta.dirname, 'repair-probe.mjs')], {
       cwd: target.home, env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true,
     })
     let output = ''

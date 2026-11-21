@@ -9,10 +9,12 @@ import { fileURLToPath } from 'node:url'
 
 const read = (path) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8')
 const html = read('../src/public/index.html')
+const enJs = read('../src/public/i18n-en.js')
+const mcpSkillsJs = read('../src/public/mcp-skills-page.js')
 const envPage = read('../src/public/environments-page.js')
 const css = read('../src/public/launcher.css')
 const markup = html.slice(html.indexOf('<body'), html.indexOf('<script src="/log-view.js"'))
-const EN_KEYS = new Set([...html.matchAll(/^ {2}"((?:[^"\\]|\\.)+)":/gm)].map((match) => match[1]))
+const EN_KEYS = new Set([...enJs.matchAll(/^ {2}"((?:[^"\\]|\\.)+)":/gm)].map((match) => match[1]))
 
 test('S1：配置名的 pattern 在浏览器的 v 模式下能编译，真的拦得住坏名字', () => {
   const statics = [...html.matchAll(/id="profileName"[^>]*pattern="([^"]+)"/g)].map((match) => match[1])
@@ -31,7 +33,7 @@ test('S1：配置名的 pattern 在浏览器的 v 模式下能编译，真的拦
 
 test('S2：历史、MCP 弹窗能按 Esc 关；下拉没展开时不吞 Esc；焦点丢了也有兜底', () => {
   assert.match(html, /trapPackDialog\(backupDialogEl, closeProfileBackups\)/)
-  assert.match(html, /trapPackDialog\(mcpDialogEl, closeMcpDialog\)/)
+  assert.match(mcpSkillsJs, /trapPackDialog\(mcpDialogEl, closeMcpDialog\)/)
   assert.match(html, /if \(event\.key === 'Escape'\) \{ if \(openUiSelect === item\) \{ closeUiSelect\(\); event\.stopPropagation\(\) \} return \}/)
   assert.doesNotMatch(html, /if \(event\.key === 'Escape'\) \{ closeUiSelect\(\); event\.stopPropagation\(\); return \}/)
   // 关闭按钮挪位置会失焦（焦点落回 body，弹窗的 keydown 就收不到 Esc）
@@ -42,7 +44,7 @@ test('S2：历史、MCP 弹窗能按 Esc 关；下拉没展开时不吞 Esc；�
 })
 
 test('S3：切语言之后重画动态列表（两处改语言的地方都调）', () => {
-  const calls = [...html.matchAll(/lang = data\.lang === 'en' \? 'en' : 'zh'\n\s+applyLang\(\)\n\s+repaintForLang\(\)/g)]
+  const calls = [...html.matchAll(/lang = data\.lang === 'en' \? 'en' : 'zh'\r?\n\s+applyLang\(\)\r?\n\s+repaintForLang\(\)/g)]
   assert.equal(calls.length, 2)
   const body = html.slice(html.indexOf('function repaintForLang()'), html.indexOf('// ---- 版本下拉'))
   for (const painter of ['paintLaunchHome', 'renderMcp', 'renderSkillList', 'renderPackGrid', 'environmentState.repaint']) {

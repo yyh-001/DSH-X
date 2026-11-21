@@ -1289,7 +1289,8 @@ async function saveSettingsNow(patch) {
   // 读者包括同步的启动配置查询；用替换文件避免它读到写入一半的 JSON 后退回默认值。
   const temporary = `${SETTINGS_FILE}.${process.pid}.tmp`
   try {
-    await writeFile(temporary, JSON.stringify(merged, null, 2))
+    // 含 S3/WebDAV 凭据：POSIX 下只给属主读写权限（0600），避免同机其他用户读取
+    await writeFile(temporary, JSON.stringify(merged, null, 2), { mode: 0o600 })
     // Windows 的短暂读句柄可能拒绝替换，等读者放手再试；始终保留原文件供读取。
     // 全量测试并行跑（几十个服务同时起落）时这种争用会持续更久，所以多留几轮退避。
     for (let attempt = 0; ; attempt++) {

@@ -53,6 +53,17 @@ SET "NPX_CLI_JS=%~dp0\\node_modules\\npm\\bin\\npx-cli.js"
 
 export { cmpVer, parseVer } from './version.js'
 
+/** 4xx 客户端错误（408/429 除外）属于确定性失败，重试只会白等 4 秒。 */
+function isRetryableHttpStatus(status) {
+  return status === 408 || status === 429 || status >= 500
+}
+
+function retryDelayMs(attempt) {
+  const base = Number(process.env.DSH_REGISTRY_RETRY_MS)
+  const unit = Number.isFinite(base) && base >= 0 ? base : 400
+  return unit * (attempt + 1)
+}
+
 async function registryGet(url) {
   let last
   for (let attempt = 0; attempt < 4; attempt += 1) {
@@ -63,11 +74,16 @@ async function registryGet(url) {
           'user-agent': USER_AGENT,
         },
       })
-      if (!res.ok) throw new Error(`registry ${res.status} ${url}`)
+      if (!res.ok) {
+        const err = new Error(`registry ${res.status} ${url}`)
+        err.retryable = isRetryableHttpStatus(res.status)
+        throw err
+      }
       return await res.json()
     } catch (error) {
       last = error
-      await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)))
+      if (error?.retryable === false || attempt >= 3) break
+      await new Promise((resolve) => setTimeout(resolve, retryDelayMs(attempt)))
     }
   }
   throw last
@@ -130,7 +146,11 @@ async function fetchToFile(url, dest) {
   for (let attempt = 0; attempt < 4; attempt += 1) {
     try {
       const res = await netFetch(url, { headers: { 'user-agent': USER_AGENT } })
-      if (!res.ok) throw new Error(`tarball ${res.status} ${url}`)
+      if (!res.ok) {
+        const err = new Error(`tarball ${res.status} ${url}`)
+        err.retryable = isRetryableHttpStatus(res.status)
+        throw err
+      }
       const expected = Number(res.headers.get('content-length')) || 0
       await pipeline(Readable.fromWeb(res.body), createWriteStream(dest))
       const fh = await open(dest, 'r')
@@ -148,7 +168,8 @@ async function fetchToFile(url, dest) {
     } catch (error) {
       last = error
       try { await rm(dest, { force: true }) } catch { /* ignore */ }
-      await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)))
+      if (error?.retryable === false || attempt >= 3) break
+      await new Promise((resolve) => setTimeout(resolve, retryDelayMs(attempt)))
     }
   }
   throw last
@@ -184,8 +205,13 @@ async function extractTarball(url, dest) {
   await mkdir(unpacked)
   try {
     await fetchToFile(url, archive)
+    // Windows 优先用系统自带的 bsdtar：PATH 里若排着 Git 的 GNU tar，会把 C:\... 里的冒号当远程主机名。
+    const winTar = process.platform === 'win32'
+      ? join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe')
+      : ''
+    const tarBin = winTar && existsSync(winTar) ? winTar : 'tar'
     await new Promise((resolve, reject) => {
-      const child = spawn('tar', ['-x', '-f', archive, '-C', unpacked], {
+      const child = spawn(tarBin, ['-x', '-f', archive, '-C', unpacked], {
         windowsHide: true,
         stdio: ['ignore', 'pipe', 'pipe'],
       })

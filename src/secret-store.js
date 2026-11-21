@@ -33,6 +33,8 @@ function unpack(text) {
 
 const DPAPI_PROTECT = [
   '$ErrorActionPreference = "Stop"',
+  '[Console]::InputEncoding = New-Object System.Text.UTF8Encoding($false)',
+  '[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)',
   'Add-Type -AssemblyName System.Security',
   '$plain = [Console]::In.ReadToEnd()',
   '$bytes = [Text.Encoding]::UTF8.GetBytes($plain)',
@@ -42,6 +44,8 @@ const DPAPI_PROTECT = [
 
 const DPAPI_REVEAL = [
   '$ErrorActionPreference = "Stop"',
+  '[Console]::InputEncoding = New-Object System.Text.UTF8Encoding($false)',
+  '[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)',
   'Add-Type -AssemblyName System.Security',
   '$text = [Console]::In.ReadToEnd().Trim()',
   '$bytes = [Convert]::FromBase64String($text)',
@@ -120,6 +124,9 @@ export function createSecretStore({ keyFile = '', forceFileKey = false } = {}) {
     const text = String(value ?? '')
     if (!text) return ''
     if (useDpapi) {
+      if (!text.startsWith(`${VERSION}:`)) {
+        throw new Error('连接凭据格式无法识别，请重新输入密码')
+      }
       try { return dpapiReveal(text.slice(VERSION.length + 1)) } catch (error) {
         // DPAPI 解不开（换了 Windows 用户/机器）时，别把密文透给上层。
         throw new Error(`连接凭据无法解密，请重新输入密码（${error.message}）`)

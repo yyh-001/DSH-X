@@ -87,9 +87,10 @@ async function ensureRemoteNode(backend) {
     `  if command -v curl >/dev/null 2>&1; then curl -fsSL -o ${shellQuote(file)} ${shellQuote(`${base}/${file}`)};`,
     `  else wget -qO ${shellQuote(file)} ${shellQuote(`${base}/${file}`)}; fi`,
     'fi',
-    `if command -v sha256sum >/dev/null 2>&1; then`,
+    `if command -v sha256sum >/dev/null 2>&1 || command -v shasum >/dev/null 2>&1; then`,
     `  if command -v curl >/dev/null 2>&1; then curl -fsSL -o SHASUMS256.txt ${shellQuote(`${base}/SHASUMS256.txt`)}; else wget -qO SHASUMS256.txt ${shellQuote(`${base}/SHASUMS256.txt`)}; fi`,
-    `  grep ${shellQuote(` ${file}$`)} SHASUMS256.txt > node.sha256 && sha256sum -c node.sha256`,
+    `  grep ${shellQuote(` ${file}$`)} SHASUMS256.txt > node.sha256`,
+    `  if command -v sha256sum >/dev/null 2>&1; then sha256sum -c node.sha256; else shasum -a 256 -c node.sha256; fi`,
     'fi',
     `tar -xJf ${shellQuote(file)} -C ${shellQuote(`${baseDir}/node`)}`,
     `test -x ${shellQuote(nodeBin)}`,
@@ -205,13 +206,6 @@ export class SshRemoteCore {
       const ready = new Promise((resolve, reject) => {
         let settled = false
         const timer = setTimeout(() => finish(new Error(`等待 SSH 远端 dsh-x-core 就绪超时（端口 ${port}）`)), 60000)
-        const finish = (error, value) => {
-          if (settled) return
-          settled = true
-          clearTimeout(timer)
-          if (error) reject(error)
-          else resolve(value)
-        }
         const onData = (chunk) => {
           this.output += Buffer.from(chunk).toString('utf8')
           const parsed = parseRemoteCoreReady(this.output)
@@ -221,6 +215,18 @@ export class SshRemoteCore {
             finish(null, parsed)
           }
         }
+        const finish = (error, value) => {
+          if (settled) return
+          settled = true
+          clearTimeout(timer)
+          // 就绪或失败后摘掉启动监听，避免长期把远端 stdout 堆进 this.output 造成内存泄漏
+          child.stdout?.off?.('data', onData)
+          child.stderr?.off?.('data', onData)
+          child.stdout?.resume?.()
+          child.stderr?.resume?.()
+          if (error) reject(error)
+          else resolve(value)
+        }
         child.stdout?.on('data', onData)
         child.stderr?.on('data', onData)
         child.once?.('close', (code) => {
@@ -228,10 +234,20 @@ export class SshRemoteCore {
           if (!this.token) finish(new Error(`SSH 远端 dsh-x-core 启动失败（退出码 ${code}）：${this.output.split(/\r?\n/).filter(Boolean).slice(-6).join('\n')}`))
         })
       })
-      await ready
-      this.tunnel = await this.backend.openTunnel(this.port)
-      this.baseUrl = `http://127.0.0.1:${this.tunnel.port}`
-      await this.request('/api/state', { timeoutMs: 10000 })
+      try {
+        await ready
+        this.tunnel = await this.backend.openTunnel(this.port)
+        this.baseUrl = `http://127.0.0.1:${this.tunnel.port}`
+        await this.request('/api/state', { timeoutMs: 10000 })
+      } catch (error) {
+        try { this.tunnel?.close() } catch { /* ignore */ }
+        this.tunnel = null
+        this.baseUrl = ''
+        try { child.close?.() } catch { /* ignore */ }
+        try { child.kill?.() } catch { /* ignore */ }
+        if (this.child === child) this.child = null
+        throw error
+      }
       return this
     })()
     try {

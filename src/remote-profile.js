@@ -4,13 +4,22 @@ import { shellQuote } from './remote.js'
 function expandHomeScript(home) {
   return [
     `h=${shellQuote(String(home || '').trim() || '~/.dsh')}`,
-    'case "$h" in "~") h="$HOME" ;; "~/"*) h="$HOME/${h:2}" ;; esac',
+    // 用 POSIX 参数展开 ${h#~/}，避免 dash/ash 等 /bin/sh 报 bashism Bad substitution
+    'case "$h" in "~") h="$HOME" ;; "~/"*) h="$HOME/${h#~/}" ;; esac',
   ].join('\n')
 }
 
-export async function readRemoteProfile(backend, home, profile) {
+function validRemoteProfileName(profile) {
   const name = String(profile || '').trim()
   if (!name) throw new Error('Profile 名称不能为空')
+  if (name === '.' || name === '..' || /[/\\]/.test(name) || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(name)) {
+    throw new Error(`Profile 名称不合法：${name}`)
+  }
+  return name
+}
+
+export async function readRemoteProfile(backend, home, profile) {
+  const name = validRemoteProfileName(profile)
   const script = [
     'set -e',
     `p=${shellQuote(name)}`,
@@ -36,8 +45,7 @@ export async function readRemoteProfile(backend, home, profile) {
 }
 
 export async function removeRemoteProfile(backend, home, profile) {
-  const name = String(profile || '').trim()
-  if (!name) throw new Error('Profile 名称不能为空')
+  const name = validRemoteProfileName(profile)
   const script = [
     'set -e',
     `p=${shellQuote(name)}`,

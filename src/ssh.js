@@ -107,8 +107,16 @@ export function createSshBackend(connection, { password = '', passphrase = '' } 
       client.on('keyboard-interactive', (_name, _instructions, _lang, prompts, done) => {
         done((Array.isArray(prompts) ? prompts : []).map(() => password))
       })
-      client.once('ready', () => finish())
-      client.once('error', (error) => {
+      client.once('ready', () => {
+        // 断线/关闭后立刻清掉缓存连接，否则后续 connect() 永远拿到死连接
+        const drop = () => { if (state.client === client) state.client = null }
+        client.once('close', drop)
+        client.once('end', drop)
+        finish()
+      })
+      // 用 on 而不是 once：ready 之后发生的断线 error 也必须被接住，否则 Node 会当未捕获异常崩进程
+      client.on('error', (error) => {
+        if (state.client === client) state.client = null
         if (state.hostKeyChanged) {
           finish(remoteError(REMOTE_REASON.sshHostKeyChanged,
             `SSH 主机指纹变了（原 ${state.hostKeyChanged.expected}，现在 ${state.hostKeyChanged.actual}）。` +
@@ -260,35 +268,46 @@ export function createSshBackend(connection, { password = '', passphrase = '' } 
    * 在 127.0.0.1 上开一个本地端口，每次连接用 ssh2 的 direct-tcpip channel 转到远端回环端口。
    * 远端 core 的 cookie/HTTP 客户端因此完全不用改。
    */
+  const tunnelPending = new Map()
   async function openTunnel(remotePort) {
     const target = Number(remotePort)
     if (state.tunnels.has(target)) return state.tunnels.get(target)
-    const client = await connect()
-    const sockets = new Set()
-    const server = createServer((socket) => {
-      sockets.add(socket)
-      socket.once('close', () => sockets.delete(socket))
-      client.forwardOut('127.0.0.1', 0, '127.0.0.1', target, (error, stream) => {
-        if (error) { socket.destroy(); return }
-        socket.pipe(stream).pipe(socket)
-        stream.once('close', () => socket.destroy())
-        socket.once('error', () => stream.destroy())
+    if (tunnelPending.has(target)) return tunnelPending.get(target)
+    const opening = (async () => {
+      const client = await connect()
+      const sockets = new Set()
+      const server = createServer((socket) => {
+        sockets.add(socket)
+        socket.once('close', () => sockets.delete(socket))
+        client.forwardOut('127.0.0.1', 0, '127.0.0.1', target, (error, stream) => {
+          if (error) { socket.destroy(); return }
+          socket.pipe(stream).pipe(socket)
+          stream.once('close', () => socket.destroy())
+          stream.once('error', () => socket.destroy())
+          socket.once('error', () => stream.destroy())
+        })
       })
-    })
-    const port = await new Promise((resolve, reject) => {
-      server.once('error', reject)
-      server.listen(0, '127.0.0.1', () => resolve(server.address().port))
-    })
-    const tunnel = {
-      port,
-      close: () => {
-        for (const socket of sockets) { try { socket.destroy() } catch { /* 已关闭 */ } }
-        try { server.close() } catch { /* 已关闭 */ }
-        state.tunnels.delete(target)
-      },
+      const port = await new Promise((resolve, reject) => {
+        server.once('error', reject)
+        server.listen(0, '127.0.0.1', () => resolve(server.address().port))
+      })
+      const tunnel = {
+        port,
+        close: () => {
+          for (const socket of sockets) { try { socket.destroy() } catch { /* 已关闭 */ } }
+          try { server.close() } catch { /* 已关闭 */ }
+          state.tunnels.delete(target)
+        },
+      }
+      state.tunnels.set(target, tunnel)
+      return tunnel
+    })()
+    tunnelPending.set(target, opening)
+    try {
+      return await opening
+    } finally {
+      tunnelPending.delete(target)
     }
-    state.tunnels.set(target, tunnel)
-    return tunnel
   }
 
   function dispose() {

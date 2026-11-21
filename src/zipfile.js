@@ -182,17 +182,24 @@ export async function readZipEntry(file, entry, onChunk) {
     }
     const stream = handle.createReadStream({ start, end: start + entry.compressedSize - 1 })
     const source = entry.method === METHOD_DEFLATE ? stream.pipe(createInflateRaw()) : stream
-    if (!onChunk) {
-      const chunks = []
-      for await (const chunk of source) chunks.push(chunk)
-      const data = Buffer.concat(chunks)
-      if (entry.size !== undefined && data.length !== entry.size) {
-        throw new Error(`ZIP 里的 ${entry.name} 解出来是 ${data.length} 字节，应该是 ${entry.size} 字节`)
+    // pipe 不会自动把上游 readStream 错误转到 inflate 流；手动转发，避免未捕获 error 崩进程
+    if (source !== stream) stream.on('error', (error) => source.destroy(error))
+    try {
+      if (!onChunk) {
+        const chunks = []
+        for await (const chunk of source) chunks.push(chunk)
+        const data = Buffer.concat(chunks)
+        if (entry.size !== undefined && data.length !== entry.size) {
+          throw new Error(`ZIP 里的 ${entry.name} 解出来是 ${data.length} 字节，应该是 ${entry.size} 字节`)
+        }
+        return data
       }
-      return data
+      for await (const chunk of source) onChunk(chunk)
+      return null
+    } finally {
+      source.destroy()
+      stream.destroy()
     }
-    for await (const chunk of source) onChunk(chunk)
-    return null
   } finally {
     await handle.close()
   }
@@ -351,8 +358,16 @@ export async function writeZip(target, entries) {
     await new Promise((resolve, reject) => sink.end((error) => (error ? reject(error) : resolve())))
     await handle.close()
     closed = true
-    await rm(target, { force: true })
-    await rename(temp, target)
+    // 直接 rename 原子替换（Windows 遇占用短退避重试），不要在 rename 前 rm 破坏旧档案
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        await rename(temp, target)
+        break
+      } catch (error) {
+        if (!['EPERM', 'EACCES', 'EBUSY'].includes(error?.code) || attempt >= 5) throw error
+        await new Promise((resolve) => setTimeout(resolve, 40 * (attempt + 1)))
+      }
+    }
     return { entries: central.length, size: offset }
   } catch (error) {
     if (handle && !closed) await handle.close().catch(() => {})

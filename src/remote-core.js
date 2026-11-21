@@ -219,13 +219,6 @@ export class WslRemoteCore {
       const ready = new Promise((resolve, reject) => {
         let settled = false
         const timer = setTimeout(() => finish(new Error(`等待 WSL 里的 dsh-x-core 就绪超时（端口 ${port}）`)), 45000)
-        const finish = (error, value) => {
-          if (settled) return
-          settled = true
-          clearTimeout(timer)
-          if (error) reject(error)
-          else resolve(value)
-        }
         const onText = (text) => {
           if (!text) return
           this.output += text
@@ -239,20 +232,40 @@ export class WslRemoteCore {
         }
         // wsl.exe 自己的报错（发行版不存在、虚拟机起不来）是 UTF-16LE，按 UTF-8 读就是乱码，
         // 而这段输出正是启动失败时页面上显示的原因；每条流各一个解码器，跨块的半个字符也接得住。
-        const decoders = [child.stdout, child.stderr].filter(Boolean).map((stream) => {
+        const handlers = [child.stdout, child.stderr].filter(Boolean).map((stream) => {
           const decoder = createWslOutputDecoder()
-          stream.on('data', (chunk) => onText(decoder.write(chunk)))
-          return decoder
+          const onData = (chunk) => onText(decoder.write(chunk))
+          stream.on('data', onData)
+          return { stream, decoder, onData }
         })
+        const finish = (error, value) => {
+          if (settled) return
+          settled = true
+          clearTimeout(timer)
+          // 就绪或失败后摘掉启动期监听并保持排空，避免后续日志把 this.output 无限撑大
+          for (const item of handlers) {
+            item.stream.off('data', item.onData)
+            item.stream.resume()
+          }
+          if (error) reject(error)
+          else resolve(value)
+        }
         child.once('error', (error) => finish(error))
         child.once('close', (code) => {
-          for (const decoder of decoders) onText(decoder.end())
+          for (const item of handlers) onText(item.decoder.end())
           this.child = null
           if (!this.baseUrl) finish(new Error(`WSL 里的 dsh-x-core 启动失败（退出码 ${code}）：${this.output.split(/\r?\n/).filter(Boolean).slice(-6).join('\n')}`))
         })
       })
-      await ready
-      await this.request('/api/state', { timeoutMs: 10000 })
+      try {
+        await ready
+        await this.request('/api/state', { timeoutMs: 10000 })
+      } catch (error) {
+        this.baseUrl = ''
+        try { child.kill() } catch { /* ignore */ }
+        if (this.child === child) this.child = null
+        throw error
+      }
       return this
     })()
     try {

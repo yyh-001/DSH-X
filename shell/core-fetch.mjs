@@ -12,7 +12,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
 const IS_WINDOWS = process.platform === 'win32'
-const IS_MAC = process.platform === 'darwin'
+
 
 /** 核心包上限：app 层约 15 MB，超过这个数八成是错误页或别的文件。 */
 export const CORE_MAX_BYTES = 128 * 1024 * 1024
@@ -217,7 +217,8 @@ export async function downloadCoreTarball(url, dest, { integrity = '', onProgres
     chunks.push(chunk)
     hash.update(chunk)
     done += chunk.length
-    if (typeof onProgress === 'function') onProgress({ done, total: total || done })
+    if (done > limit) throw new Error(`核心包太大（超过上限 ${Math.round(limit / 1048576)} MB），已停下`)
+    if (typeof onProgress === 'function') onProgress({ done, total })
   }
   const bytes = Buffer.concat(chunks)
   const expected = String(integrity || '').replace(/^sha512-/, '')

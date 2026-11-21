@@ -97,6 +97,8 @@ export async function createInstanceLink({ entry, profile, profileArgIndex = 0, 
             child.adoptionTimer = setInterval(adopt, LINK.pollMs).unref()
             child.adoptionDeadline = setTimeout(() => {
               clearInterval(child.adoptionTimer)
+              clearInterval(child.timer)
+              if (candidate === child) candidate = null
               socket.destroy()
             }, timeoutMs).unref()
             child.once('exit', () => {
