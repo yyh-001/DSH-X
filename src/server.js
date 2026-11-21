@@ -2561,19 +2561,52 @@ export function trayStateText() {
   ].join('\n')
 }
 
+/** 启动项落在哪个 DSH_HOME：远端是合成键，本机留空就是默认目录。 */
+function presetHomeOf(preset) {
+  return preset.backend === 'wsl' || preset.backend === 'ssh'
+    ? presetScope(preset).home
+    : preset.dshHome || defaultHome()
+}
+
+/** 启动项现在指向的那个实例（版本 × 配置 × 目录都对上才算）；versionOverride 给托盘的「重启途中」用。 */
+function presetInstance(preset, all, versions, versionOverride = '') {
+  const home = presetHomeOf(preset)
+  const version = versionOverride || resolvePresetVersion(preset, home, null, versions)
+  const proc = all.find((item) => item.home === home && item.version === version && item.profile === preset.profile)
+  return { home, version, proc }
+}
+
+/** 没有任何启动项指向的实例：删掉入口、或改了入口的版本之后，旧进程就落在这里。 */
+function unmatchedInstances(presets = safeLaunchPresets(loadSettingsSync().launchPresets)) {
+  const versions = trayInstalledVersions()
+  const all = instanceList()
+  const matched = new Set(presets.map((preset) => presetInstance(preset, all, versions).proc).filter(Boolean))
+  return all.filter((proc) => !matched.has(proc))
+}
+
+/**
+ * 改启动项的版本（编辑弹窗或实例页的版本下拉）不会顺手换掉正在跑的进程：旧版本那份还占着
+ * 固定端口，卡片却已经指向新版本，首页找不到它、停止按钮也够不着，下次启动就撞「端口被占用」。
+ * 这里只停「这次保存之前还有入口、保存之后没入口了」的实例；本来就没入口的（删掉入口留下的）不动。
+ */
+async function stopInstancesOrphanedBy(before) {
+  const orphans = unmatchedInstances().filter((proc) => !before.has(proc) && proc.status !== 'stopping')
+  for (const proc of orphans) {
+    pushLog(`[实例] ${proc.version}/${proc.profile} 已没有启动项指向它（版本改了），先停掉，免得占着端口`)
+    try { await stop(proc.version, proc.profile, proc.home) } catch (error) { pushLog(`[实例] 停止 ${proc.version}/${proc.profile} 失败：${error.message}`) }
+  }
+}
+
 /** 删除入口不会停止实例；这类运行项仍要能从托盘找回和单独停止。 */
 function trayLaunches() {
   const versions = trayInstalledVersions()
   const all = instanceList()
   const matched = new Set()
   const rows = safeLaunchPresets(loadSettingsSync().launchPresets).map((preset) => {
-    const home = preset.backend === 'wsl' || preset.backend === 'ssh'
-      ? presetScope(preset).home
-      : preset.dshHome || defaultHome()
+    const home = presetHomeOf(preset)
     const pending = [...trayActions.values()].find((item) => item.id === preset.id && item.home === home && item.profile === preset.profile)
     // 自动版本重启途中暂时没有实例，继续显示原版本，避免跳到最高已装版本。
-    const version = pending?.version || resolvePresetVersion(preset, home, null, versions)
-    const proc = all.find((item) => item.home === home && item.version === version && item.profile === preset.profile)
+    const { version, proc } = presetInstance(preset, all, versions, pending?.version)
     if (proc) matched.add(proc)
     return { id: preset.id, name: preset.name, version, profile: preset.profile, home, preset, proc }
   })
@@ -2705,6 +2738,7 @@ function recordLaunchUse(id, version) { return withLaunchPresetWrite(() => recor
 
 async function saveLaunchPresetNow(body) {
   if (installing) throw new Error('正在安装，稍后再编辑启动项')
+  const orphansBefore = new Set(unmatchedInstances())
   const name = String(body.name ?? '').trim()
   if (!name || name.length > 32) throw new Error('启动项名称请填 1-32 个字符')
   let version = safeVersion(body.version)
@@ -2898,6 +2932,7 @@ async function saveLaunchPresetNow(body) {
     if (changedVersion) store.save(bound)
     return result
   })
+  await stopInstancesOrphanedBy(orphansBefore)
   await emitState()
   return { ok: true, entry: safeLaunchPresets(saved.launchPresets).find((item) => item.id === id) }
 }
@@ -3523,12 +3558,15 @@ async function syncPresetVersions(store, changed) {
   const envs = new Map(store.list().map((env) => [env.id, env]))
   envs.set(changed.id, changed)
   const config = await loadConfig()
+  const orphansBefore = new Set(unmatchedInstances())
   await saveSettings((current) => {
     const presets = safeLaunchPresets(current.launchPresets)
     const next = withEnvironmentVersions(presets, envs)
     assertEntriesApart(presets, next, config)
     return presetsEqual(next, presets) ? {} : { launchPresets: next }
   })
+  // 实例页换版本走的是这条，和编辑弹窗一样要把旧版本那份停掉（见 stopInstancesOrphanedBy）
+  await stopInstancesOrphanedBy(orphansBefore)
 }
 
 /**
@@ -5504,7 +5542,11 @@ async function restoreProfileConfig(profile, id) {
   const manifest = readBackupManifest(source)
   if (!manifest) throw new Error('找不到这份备份')
   if (!manifest.files.some((file) => file.name === 'package.json')) throw new Error('这份备份里没有 package.json，回退会让配置起不来')
-  if (instanceList().some((proc) => proc.profile === name && ['starting', 'running', 'stopping'].includes(proc.status))) throw new Error('请先停止这个配置的实例再回退')
+  // 只拦「同一个 DSH_HOME 里的同名配置」：web 这类模板名在每个目录里都有一份，只比名字的话，
+  // 另一个目录的 web 在跑也会把这个已经停掉的实例拦下来（「remote」停着、主实例跑着时回退不了）。
+  const busy = startingProfiles.has(profileKey(name))
+    || instanceList().some((proc) => proc.profile === name && fileManager.samePath(proc.home || defaultHome(), home) && ['starting', 'running', 'stopping'].includes(proc.status))
+  if (busy) throw new Error('请先停止这个配置的实例再回退')
   const dir = profileDirOf(name)
   const saved = await snapshotProfileConfig(name, { force: true })
   for (const file of PROFILE_BACKUP_FILES) {

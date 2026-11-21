@@ -56,7 +56,7 @@
   </div>
   <script src="/motion.js?v=20261119"></script>
   <script src="/launcher-boot.js?v=20261119"></script>
-  <script src="/launch-list.js?v=20261119"></script>
+  <script src="/launch-list.js?v=20261121a"></script>
   <div class="backdrop" aria-hidden="true">
     <canvas class="water-surface" aria-hidden="true"></canvas>
     <div class="backdrop-character"></div>
@@ -9674,6 +9674,8 @@
       if (launchPresetsEl.dataset?.sorting) return
       // 保存/删除会先收到状态推送；等编辑弹窗退场再更新列表，避免动效被弹窗挡住。
       if (!launchDialogEl.hidden && (launchSaveEl.disabled || launchDeleteEl.disabled || launchDialogClosing)) return
+      // 有启动项认领的实例；剩下的（删了入口、或入口改了版本留下的）在列表末尾单独列出来
+      const claimed = new Set()
       const markup = launchEntries().map((rawEntry) => {
         // 远端启动项的 home 是合成键：复制一份带上，让下面这条 runningInfo 也能按它找到实例。
         const entry = rawEntry.backend === 'wsl' || rawEntry.backend === 'ssh' ? { ...rawEntry, dshHome: launchHomeOf(rawEntry) } : rawEntry
@@ -9681,6 +9683,7 @@
         const wsl = entry.backend === 'wsl'
         const remote = wsl || entry.backend === 'ssh'
         const live = runningInfo(version, entry.profile, entry.dshHome || state.dshHome)
+        if (live) claimed.add(live)
         // 这个启动项自己的实例有插件报错时点红点；日志里看过同一组问题就不再点。
         const issueWarning = live?.diagnosticWarning
         const issueRows = issueWarning ? diagnosisIssueRows(issueWarning.diagnosis) : []
@@ -9764,7 +9767,7 @@
               : '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5a1 1 0 0 1 1.5-.86l10 6.5a1 1 0 0 1 0 1.72l-10 6.5A1 1 0 0 1 8 18.5Z"/></svg>'}</button>
           ${live?.status === 'running' && live.url ? `<span class="launch-link-popover" role="group" aria-label="${escapeHtml(t('访问链接'))}"><span class="launch-link-head"><span>${escapeHtml(t('访问链接'))}</span><button class="launch-link-copy" type="button" data-copy-launch-link title="${escapeHtml(t('复制链接'))}" aria-label="${escapeHtml(t('复制链接'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-copy"/></svg></button></span><a class="launch-link-value" href="${escapeHtml(live.url)}" data-copy-url="${escapeHtml(live.lanUrl || live.url)}" target="_blank" rel="noopener">${escapeHtml(live.lanUrl || live.url)}</a>${live.lanError ? `<span class="launch-link-note">${escapeHtml(lanErrorText(live.lanError))}</span>` : ''}</span>` : ''}</span></span>
         </div>`
-      }).join('')
+      }).join('') + orphanInstanceRows(claimed)
       // 状态推送很频繁；内容没变就保留节点，避免悬停动效和键盘焦点反复重置。
       if (markup !== launchHomeMarkup) {
         const addFocused = document.activeElement === launchAddEl
@@ -9851,11 +9854,54 @@
       launchPresetsEl.querySelectorAll('[data-stop-id]').forEach((button) => {
         button.onclick = () => manageLaunchEntry(button.dataset.stopId, false)
       })
+      launchPresetsEl.querySelectorAll('[data-orphan-stop]').forEach((button) => {
+        button.onclick = async () => {
+          if (action) return
+          button.disabled = true
+          try { await post('/api/stop', { version: button.dataset.version, profile: button.dataset.profile, home: button.dataset.home }) }
+          catch (error) { notify(error.message); button.disabled = false }
+        }
+      })
+      launchPresetsEl.querySelectorAll('[data-orphan-open]').forEach((button) => {
+        button.onclick = () => { void openInstance(button.dataset.orphanOpen) }
+      })
       launchAddEl.disabled = Boolean(action) || Boolean(state.installing)
       launchAddEl.title = launchAddEl.ariaLabel = t('添加实例')
     }
 
+    /**
+     * 没有启动项指向、却还在跑的本机实例：删掉入口或改了入口的版本都会留下它们，以前首页
+     * 不显示，停止按钮也够不着，只能等它占着端口让下一次启动撞墙。这里给它们一行，只能停止或打开。
+     */
+    function orphanInstanceRows(claimed) {
+      const live = (state.instances || []).filter((item) => item && !claimed.has(item)
+        && ['running', 'starting', 'stopping'].includes(item.status))
+      return live.map((item) => {
+        const home = item.home || state.dshHome || ''
+        const key = `orphan:${home}\0${item.version}\0${item.profile}`
+        const busy = item.status !== 'running'
+        const homeShort = typeof pluginHomeName === 'function' ? pluginHomeName(home, '') : ''
+        const meta = [item.version, item.profile, homeShort].filter(Boolean)
+          .map((part) => `<span class="launch-meta-home">${escapeHtml(part)}</span>`)
+          .join('<span class="launch-meta-sep" aria-hidden="true">·</span>')
+        const status = item.status === 'stopping' ? 'stopping' : item.status === 'starting' ? 'starting' : 'running'
+        return `<div class="launch-preset launch-orphan" data-status="${status}" data-launch-key="${escapeHtml(key)}">
+          <span class="launch-app-icon" title="${escapeHtml(home)}">${launchIconMarkup('terminal')}<span class="launch-status-dot" aria-hidden="true"></span></span>
+          <span class="launch-preset-copy"><span class="launch-preset-heading">
+            <span class="launch-preset-name">${escapeHtml(`${item.profile} · ${item.version}`)}</span><span class="launch-builtin">${escapeHtml(t('无启动项'))}</span></span>
+            <span class="launch-preset-meta" title="${escapeHtml(t('没有启动项指向这个实例（启动项被删掉或改了版本），停掉它就不会再占着端口。'))}">${meta}</span></span>
+          <span class="launch-actions">
+            <button class="icon-btn launch-action launch-stop" type="button" data-orphan-stop data-version="${escapeHtml(item.version)}" data-profile="${escapeHtml(item.profile)}" data-home="${escapeHtml(home)}" title="${escapeHtml(t('停止'))}" aria-label="${escapeHtml(t('停止'))}" ${action || busy ? 'disabled' : ''}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-square"/></svg></button>
+            ${item.url ? `<button class="primary icon-btn launch-primary" type="button" data-orphan-open="${escapeHtml(item.url)}" title="${escapeHtml(t('打开'))}" aria-label="${escapeHtml(t('打开'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-external-link"/></svg></button>` : ''}
+          </span>
+        </div>`
+      }).join('')
+    }
+
     async function saveLaunchOrder(ids) {
+      // 孤儿实例那几行不是启动项，排序时跳过
+      ids = ids.filter((id) => !String(id).startsWith('orphan:'))
       launchPresetsEl.dataset.sorting = 'saving'
       try {
         const data = await post('/api/launch-presets/reorder', { ids })

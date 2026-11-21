@@ -13,6 +13,8 @@ test('服务端拒绝普通或显式打开时展示原错误，不再弹窗重�
     const message = '当前平台暂不支持已有页面跨窗迁移，请先关闭此标签后重新打开'
     const context = vm.createContext({
       fetch: async (...args) => { requests.push(args); return { ok: false, status: 400, json: async () => ({ error: message }) } },
+      // post 会把服务端报错过一遍词典 t()；这里只验错误原样透出，给个原样返回的 t
+      t: (text) => text,
       apiScopeHeaders: () => ({}), notifyError: error => errors.push(error), window: { open: (...args) => browser.push(args) },
     })
     vm.runInContext(postSource + '\n' + openSource, context)
