@@ -11690,7 +11690,11 @@ async function handleApi(req, res, url) {
   if (req.method === 'POST' && url.pathname === '/api/profile-backups/snapshot') {
     try {
       const profile = safeProfile(String(body.profile || ''))
-      send(res, 200, { ok: true, backup: await snapshotProfileConfig(profile, { force: body.force === true }) })
+      const backup = await snapshotProfileConfig(profile, { force: body.force === true })
+      // 没建出备份有两种原因：配置没变，或配置还没初始化（新建的实例没启动过，目录里没有 package.json）。
+      // 页面要分开说，否则「配置没有变化」配上空列表自相矛盾。
+      const reason = backup ? undefined : existsSync(join(profileDirOf(profile), 'package.json')) ? 'unchanged' : 'uninitialized'
+      send(res, 200, { ok: true, backup, ...(reason ? { reason } : {}) })
     } catch (error) { send(res, 400, { error: error instanceof Error ? error.message : String(error) }) }
     return
   }

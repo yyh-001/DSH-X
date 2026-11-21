@@ -2,14 +2,17 @@
   const assetRoot = new URL('./mascot/', document.currentScript.src);
   const host = document.createElement('aside');
   host.className = 'mascot';
-  host.setAttribute('aria-label', '互动看板娘');
+  // 管理页的 t() 是主脚本的全局；单独嵌在别处时没有它，就留中文。带上 data-i18n-aria-label，切语言时 applyLang 会再翻一次
+  const mascotLabel = typeof globalThis.t === 'function' ? globalThis.t('互动看板娘') : '互动看板娘';
+  host.setAttribute('aria-label', mascotLabel);
+  host.dataset.i18nAriaLabel = '互动看板娘';
   // v8（蓝发，浅色）/ v9（黑白，深色）分层素材（docs/mascot-design/）：同位矩形，
   // 靠 mascot.css 的 light/dark 类切换。ear 在头图层后面（发锁从主头发后面伸出），
   // bow 画在头图层上面、整只可见（对齐旧版观感：约 200x201、结心 (1028,820)）；
   // 眼睛仍由代码画（素材是无眼版）；完整头件向左延伸，以保留原版探头构图。
   // ear 按旧版可见范围拟合（1.15 倍，发锁尖 (1216,1095)、上端从发带右端下探出）。
   host.innerHTML = `
-    <button class="mascot-puppet" type="button" aria-label="互动看板娘">
+    <button class="mascot-puppet" type="button" aria-label="${mascotLabel}" data-i18n-aria-label="互动看板娘">
       <svg viewBox="0 0 1254 1254" aria-hidden="true">
         <defs>
           <linearGradient id="mascot-eye" x2="1" y2="1"><stop stop-color="#141a32"/><stop offset="1" stop-color="#242b49"/></linearGradient>

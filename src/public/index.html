@@ -40,7 +40,7 @@
       })
     })()
   </script>
-  <link rel="stylesheet" href="/launcher.css?v=20261120e" />
+  <link rel="stylesheet" href="/launcher.css?v=20261121b" />
   <link rel="stylesheet" href="/mascot.css?v=20261119" />
   <link rel="stylesheet" href="/theme.css?v=20261120e" />
   <link rel="stylesheet" href="/launcher-boot.css?v=20261119" />
@@ -75,7 +75,7 @@
     </div>
     <div class="internal-tabs-area" id="internalTabsArea" hidden>
       <div class="internal-tab-list" id="internalTabList" role="tablist" aria-label="DSH-X"></div>
-      <button type="button" class="gear-btn internal-tab-reload" id="internalTabReload" title="刷新页面" aria-label="刷新页面">
+      <button type="button" class="gear-btn internal-tab-reload" id="internalTabReload" title="刷新页面" aria-label="刷新页面" data-i18n-title="刷新页面" data-i18n-aria-label="刷新页面">
         <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-rotate-cw"/></svg>
       </button>
     </div>
@@ -86,13 +86,13 @@
       </button>
       <!-- app 窗口模式才显示：原生标题栏被去掉了，最小化/最大化/关闭由页面接管 -->
       <div class="win-controls">
-        <button type="button" class="win-btn" id="winMin" title="最小化" aria-label="最小化">
+        <button type="button" class="win-btn" id="winMin" title="最小化" aria-label="最小化" data-i18n-title="最小化" data-i18n-aria-label="最小化">
           <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M0 5.5h10" stroke="currentColor" stroke-width="1.1" fill="none"/></svg>
         </button>
-        <button type="button" class="win-btn" id="winMax" title="最大化" aria-label="最大化">
+        <button type="button" class="win-btn" id="winMax" title="最大化" aria-label="最大化" data-i18n-title="最大化" data-i18n-aria-label="最大化">
           <svg viewBox="0 0 10 10" aria-hidden="true"><rect x=".7" y=".7" width="8.6" height="8.6" fill="none" stroke="currentColor" stroke-width="1.1"/></svg>
         </button>
-        <button type="button" class="win-btn close" id="winClose" title="关闭" aria-label="关闭">
+        <button type="button" class="win-btn close" id="winClose" title="关闭" aria-label="关闭" data-i18n-title="关闭" data-i18n-aria-label="关闭">
           <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M.7.7l8.6 8.6M9.3.7L.7 9.3" stroke="currentColor" stroke-width="1.1" fill="none"/></svg>
         </button>
       </div>
@@ -100,7 +100,7 @@
   </header>
   <main class="home">
     <div class="shell">
-      <aside class="settings-nav has-pill" aria-label="设置导航">
+      <aside class="settings-nav has-pill" aria-label="设置导航" data-i18n-aria-label="设置导航">
         <div class="nav-pill" aria-hidden="true"></div>
         <div class="nav-group">
           <button type="button" class="nav-item nav-back" data-pane="control">
@@ -226,7 +226,7 @@
                 <!-- 实例自己的动作，图标按钮同配置详情那排（pack-tool）。「更新实例」只给跟随上游的实例：
                      从上游源拉新版本，本地实例没有源可更新，整个按钮不出现。 -->
                 <div class="pack-detail-actions">
-                  <button class="ghost icon-btn pack-tool" id="environmentApplyUpdate" type="button" title="更新实例" aria-label="更新实例" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-download"/></svg></button>
+                  <button class="ghost icon-btn pack-tool" id="environmentApplyUpdate" type="button" title="更新实例" aria-label="更新实例" hidden data-i18n-title="更新实例" data-i18n-aria-label="更新实例"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-download"/></svg></button>
                   <button class="ghost icon-btn pack-tool" id="environmentBackups" type="button" title="备份与回退" aria-label="备份与回退" data-i18n-title="备份与回退" data-i18n-aria-label="备份与回退"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-history"/></svg></button>
                   <button class="ghost icon-btn pack-tool" id="environmentExport" type="button" title="导出镜像" aria-label="导出镜像" data-i18n-title="导出镜像" data-i18n-aria-label="导出镜像"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-upload"/></svg></button>
                   <button class="ghost icon-btn pack-tool" id="environmentDuplicate" type="button" title="复制实例" aria-label="复制实例" data-i18n-title="复制实例" data-i18n-aria-label="复制实例"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-copy"/></svg></button>
@@ -827,7 +827,7 @@
     <div class="ask-card pack-import-card" id="packImportCard" role="dialog" aria-modal="true" aria-labelledby="packImportTitle" tabindex="-1" data-dialog-size="medium">
       <div class="dialog-heading">
         <div><h2 class="ask-title" id="packImportTitle" data-i18n="导入镜像">导入镜像</h2><p class="dialog-subtitle" data-i18n="从镜像文件（.dspack）或 GitHub 仓库导入，检查之后才动文件。">从镜像文件（.dspack）或 GitHub 仓库导入，检查之后才动文件。</p></div>
-        <button type="button" class="ghost icon-btn dialog-close" id="packImportClose" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button>
+        <button type="button" class="ghost icon-btn dialog-close" id="packImportClose" title="关闭" aria-label="关闭" data-i18n-title="关闭" data-i18n-aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button>
       </div>
       <div class="pack-source"><input id="packSource" type="text" data-placeholder-i18n="文件路径或 GitHub 仓库（owner/repo）" aria-label="镜像文件或 GitHub 仓库" data-i18n-aria-label="镜像文件或 GitHub 仓库" autocomplete="off" spellcheck="false" /><button class="ghost" id="packPick" type="button" data-i18n="选文件…">选文件…</button><button class="ghost" id="packCheck" type="button" data-i18n="继续">继续</button></div>
       <p class="hint" data-i18n="GitHub 仓库取它最新 Release 里的镜像文件，导入后跟随它更新。">GitHub 仓库取它最新 Release 里的镜像文件，导入后跟随它更新。</p>
@@ -836,7 +836,7 @@
   </div>
   <div class="ask" id="packInstallDialog" hidden>
     <div class="ask-card pack-confirm-card" role="dialog" aria-modal="true" aria-labelledby="packInstallTitle" data-dialog-size="medium">
-      <div class="dialog-heading"><div><h2 class="ask-title" id="packInstallTitle" data-i18n="确认导入">确认导入</h2><p class="dialog-subtitle" data-i18n="看清要用的 DSH 版本和插件，确认后导入成一个实例。">看清要用的 DSH 版本和插件，确认后导入成一个实例。</p></div><button class="ghost icon-btn dialog-close" id="packInstallClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
+      <div class="dialog-heading"><div><h2 class="ask-title" id="packInstallTitle" data-i18n="确认导入">确认导入</h2><p class="dialog-subtitle" data-i18n="看清要用的 DSH 版本和插件，确认后导入成一个实例。">看清要用的 DSH 版本和插件，确认后导入成一个实例。</p></div><button class="ghost icon-btn dialog-close" id="packInstallClose" type="button" title="关闭" aria-label="关闭" data-i18n-title="关闭" data-i18n-aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
       <div class="pack-preparing" id="packPreparing" hidden><span class="spin" aria-hidden="true"></span><span data-i18n="正在读取实例文件…">正在读取实例文件…</span></div>
       <div class="pack-detail" id="packInspect" hidden></div>
       <div class="pack-install-footer">
@@ -874,7 +874,7 @@
   </div>
   <div class="ask" id="projectDialog" hidden>
     <form class="ask-card" id="projectForm" role="dialog" aria-modal="true" aria-labelledby="projectDialogTitle" data-dialog-size="small">
-      <div class="dialog-heading"><h2 class="ask-title" id="projectDialogTitle" data-i18n="创建项目">创建项目</h2><button class="ghost icon-btn dialog-close" id="projectDialogClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
+      <div class="dialog-heading"><h2 class="ask-title" id="projectDialogTitle" data-i18n="创建项目">创建项目</h2><button class="ghost icon-btn dialog-close" id="projectDialogClose" type="button" title="关闭" aria-label="关闭" data-i18n-title="关闭" data-i18n-aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
       <div class="launch-modal-fields">
         <div class="home-field">
           <label for="projectName" data-i18n="项目名称">项目名称</label>
@@ -885,7 +885,7 @@
           <div class="project-device-control">
             <button class="project-device-trigger" id="projectDeviceTrigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="projectDevicePanel">
               <svg class="project-device-kind-icon" id="projectDeviceIcon" viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-app-window"/></svg>
-              <span class="project-device-label" id="projectDeviceLabel">此电脑</span>
+              <span class="project-device-label" id="projectDeviceLabel" data-i18n="此电脑">此电脑</span>
               <span class="project-device-status" id="projectDeviceStatus" hidden></span>
               <svg class="project-device-caret" viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-chevron-down"/></svg>
             </button>
@@ -910,7 +910,7 @@
   </div>
   <div class="ask" id="connectionDialog" hidden>
     <form class="ask-card" id="connectionForm" role="dialog" aria-modal="true" aria-labelledby="connectionDialogTitle" data-dialog-size="medium">
-      <div class="dialog-heading"><h2 class="ask-title" id="connectionDialogTitle" data-i18n="新建连接">新建连接</h2><button class="ghost icon-btn dialog-close" id="connectionDialogClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
+      <div class="dialog-heading"><h2 class="ask-title" id="connectionDialogTitle" data-i18n="新建连接">新建连接</h2><button class="ghost icon-btn dialog-close" id="connectionDialogClose" type="button" title="关闭" aria-label="关闭" data-i18n-title="关闭" data-i18n-aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
       <p class="dialog-subtitle" id="connectionDialogSubtitle"></p>
       <div class="connection-top">
         <div class="connection-kind-tabs" id="connectionKindTabs" role="tablist" aria-label="连接类型" data-i18n-aria-label="连接类型">
@@ -1085,7 +1085,7 @@
   </div>
   <div class="ask" id="launchDialog" hidden>
     <form class="ask-card" id="launchForm" role="dialog" aria-modal="true" aria-labelledby="launchDialogTitle" data-dialog-size="medium">
-      <div class="dialog-heading launch-dialog-heading"><h2 class="ask-title" id="launchDialogTitle" data-i18n="编辑实例">编辑实例</h2><button class="ghost icon-btn dialog-close" id="launchDialogClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
+      <div class="dialog-heading launch-dialog-heading"><h2 class="ask-title" id="launchDialogTitle" data-i18n="编辑实例">编辑实例</h2><button class="ghost icon-btn dialog-close" id="launchDialogClose" type="button" title="关闭" aria-label="关闭" data-i18n-title="关闭" data-i18n-aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
       <!-- 新建启动项先问「怎么隔离」：三档用 tab 切换。前两档什么都不用填（版本、名称、目录、Profile
            都由页面代算），直接保存就新建；想指定 Profile 名、或者照抄一份现成的，用后面那条两档 tab，
            留空还是自动取名。第三档「自定义」才是原来那张完整表单。编辑老启动项时引导整块藏起来、
@@ -1143,7 +1143,7 @@
                 <div class="project-device-control">
                   <button class="project-device-trigger" id="launchGuideDirTrigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="launchGuideDirPanel" aria-label="用户目录" data-i18n-aria-label="用户目录">
                     <svg class="project-device-kind-icon" id="launchGuideDirIcon" viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-folder"/></svg>
-                    <span class="project-device-label" id="launchGuideDirLabel">此电脑</span>
+                    <span class="project-device-label" id="launchGuideDirLabel" data-i18n="此电脑">此电脑</span>
                     <span class="project-device-status" id="launchGuideDirStatus" hidden></span>
                     <svg class="project-device-caret" viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-chevron-down"/></svg>
                   </button>
@@ -1178,7 +1178,7 @@
             <div class="home-field launch-identity-field" id="launchIdentityField">
               <label for="launchName" data-i18n="名称">名称</label>
               <div class="launch-name-row"><button class="launch-icon-trigger" id="launchIconTrigger" type="button" title="修改图标" aria-label="修改图标" data-i18n-title="修改图标" data-i18n-aria-label="修改图标" aria-expanded="false" aria-controls="launchIconPopover"></button><input id="launchName" type="text" required maxlength="32" autocomplete="off" data-placeholder-i18n="例如：工作" /></div>
-              <div class="launch-icon-popover" id="launchIconPopover" hidden><div class="launch-icon-picker" id="launchIconPicker" role="group" aria-label="启动项图标"></div><div class="launch-icon-upload"><button class="ghost icon-btn" id="launchIconUpload" type="button" title="选择图片" aria-label="选择图片" data-i18n-title="选择图片" data-i18n-aria-label="选择图片"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-image"/></svg></button><button class="ghost icon-btn" id="launchIconReset" type="button" title="恢复默认" aria-label="恢复默认" data-i18n-title="恢复默认" data-i18n-aria-label="恢复默认"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-rotate-ccw"/></svg></button></div></div>
+              <div class="launch-icon-popover" id="launchIconPopover" hidden><div class="launch-icon-picker" id="launchIconPicker" role="group" aria-label="启动项图标" data-i18n-aria-label="启动项图标"></div><div class="launch-icon-upload"><button class="ghost icon-btn" id="launchIconUpload" type="button" title="选择图片" aria-label="选择图片" data-i18n-title="选择图片" data-i18n-aria-label="选择图片"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-image"/></svg></button><button class="ghost icon-btn" id="launchIconReset" type="button" title="恢复默认" aria-label="恢复默认" data-i18n-title="恢复默认" data-i18n-aria-label="恢复默认"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-rotate-ccw"/></svg></button></div></div>
               <input id="launchIconFile" type="file" accept="image/png,image/jpeg,image/webp" hidden /><span class="hint launch-icon-error" id="launchIconHint"></span>
             </div>
             <div class="home-field port">
@@ -1297,7 +1297,7 @@
   </div>
   <div class="ask" id="profilePickDialog" hidden>
     <div class="ask-card profile-pick-card" role="dialog" aria-modal="true" aria-labelledby="profilePickTitle" data-dialog-size="xlarge" tabindex="-1">
-      <div class="dialog-heading"><div><h2 class="ask-title" id="profilePickTitle" data-i18n="选择配置">选择配置</h2><p class="dialog-subtitle" id="profilePickSubtitle" data-i18n="左边挑用户目录，中间挑配置，右边是它装着的插件。">左边挑用户目录，中间挑配置，右边是它装着的插件。</p></div><button class="ghost icon-btn dialog-close" id="profilePickClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
+      <div class="dialog-heading"><div><h2 class="ask-title" id="profilePickTitle" data-i18n="选择配置">选择配置</h2><p class="dialog-subtitle" id="profilePickSubtitle" data-i18n="左边挑用户目录，中间挑配置，右边是它装着的插件。">左边挑用户目录，中间挑配置，右边是它装着的插件。</p></div><button class="ghost icon-btn dialog-close" id="profilePickClose" type="button" title="关闭" aria-label="关闭" data-i18n-title="关闭" data-i18n-aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
       <!-- 三栏并排（跟资源管理器一个路子）：左栏用户目录、中栏该目录里的 Profile、右栏它装了什么。
            两栏各自能在原地加/改/删，省得为了复制或新建再跳回环境页；不能起网页的 Profile 仍列出但不可选。 -->
       <div class="profile-pick">
@@ -1332,7 +1332,7 @@
   </div>
   <div class="ask" id="pickHomeAddDialog" hidden>
     <div class="ask-card" role="dialog" aria-modal="true" aria-labelledby="pickHomeAddTitle" data-dialog-size="small" tabindex="-1">
-      <div class="dialog-heading"><h2 class="ask-title" id="pickHomeAddTitle" data-i18n="添加目录">添加目录</h2><button class="ghost icon-btn dialog-close" id="pickHomeAddClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
+      <div class="dialog-heading"><h2 class="ask-title" id="pickHomeAddTitle" data-i18n="添加目录">添加目录</h2><button class="ghost icon-btn dialog-close" id="pickHomeAddClose" type="button" title="关闭" aria-label="关闭" data-i18n-title="关闭" data-i18n-aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
       <div class="dialog-body">
         <p class="dialog-subtitle" data-i18n="本机目录，或已保存连接里的目录。">本机目录，或已保存连接里的目录。</p>
         <div class="pick-home-tabs" id="pickHomeTabs" role="tablist" aria-label="目录类型" data-i18n-aria-label="目录类型" data-active="local">
@@ -1372,7 +1372,7 @@
   </div>
   <div class="ask" id="versionManageDialog" hidden>
     <div class="ask-card version-manage-card" role="dialog" aria-modal="true" aria-labelledby="versionManageTitle" data-dialog-size="medium">
-      <div class="dialog-heading"><h2 class="ask-title" id="versionManageTitle" data-i18n="版本管理">版本管理</h2><div class="version-manage-heading-actions"><button class="ghost version-manage-check" id="versionManageCheck" type="button" title="检测版本" aria-label="检测版本" data-i18n-title="检测版本" data-i18n-aria-label="检测版本"><span class="spin" aria-hidden="true"></span><svg class="version-manage-check-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-rotate-cw"/></svg><span data-i18n="检测版本">检测版本</span></button><button class="ghost icon-btn dialog-close" id="versionManageClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div></div>
+      <div class="dialog-heading"><h2 class="ask-title" id="versionManageTitle" data-i18n="版本管理">版本管理</h2><div class="version-manage-heading-actions"><button class="ghost version-manage-check" id="versionManageCheck" type="button" title="检测版本" aria-label="检测版本" data-i18n-title="检测版本" data-i18n-aria-label="检测版本"><span class="spin" aria-hidden="true"></span><svg class="version-manage-check-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-rotate-cw"/></svg><span data-i18n="检测版本">检测版本</span></button><button class="ghost icon-btn dialog-close" id="versionManageClose" type="button" title="关闭" aria-label="关闭" data-i18n-title="关闭" data-i18n-aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div></div>
       <form class="version-manage-install" id="versionInstallForm">
         <label class="sr-only" for="versionInstallSelect" data-i18n="安装版本">安装版本</label>
         <div class="version-manage-install-row"><select id="versionInstallSelect"></select><button class="primary" id="versionManageInstall" type="submit" title="安装" aria-label="安装" data-i18n-title="安装" data-i18n-aria-label="安装"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-download"/></svg></button></div>
@@ -1385,7 +1385,7 @@
   </div>
   <div class="ask" id="launchLogDialog" hidden>
     <div class="ask-card" role="dialog" aria-modal="true" aria-labelledby="launchLogTitle" data-dialog-size="large">
-      <div class="dialog-heading"><div><h2 class="ask-title" id="launchLogTitle" data-i18n="启动项日志">启动项日志</h2><p class="dialog-subtitle" id="launchLogSubtitle"></p></div><button class="ghost icon-btn dialog-close" id="launchLogClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
+      <div class="dialog-heading"><div><h2 class="ask-title" id="launchLogTitle" data-i18n="启动项日志">启动项日志</h2><p class="dialog-subtitle" id="launchLogSubtitle"></p></div><button class="ghost icon-btn dialog-close" id="launchLogClose" type="button" title="关闭" aria-label="关闭" data-i18n-title="关闭" data-i18n-aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
       <div class="dialog-body">
         <div class="launch-log-tools" id="launchLogTools" hidden><span class="hint" id="launchLogHint"></span></div>
         <div class="launch-log-tabs" id="launchLogTabs" role="tablist" aria-label="启动项日志视图" data-i18n-aria-label="启动项日志视图">
@@ -1428,10 +1428,10 @@
   </div>
   <div class="ask" id="profileDialog" hidden>
     <form class="ask-card profile-dialog-card" id="profileForm" role="dialog" aria-modal="true" aria-labelledby="profileDialogTitle" data-dialog-size="small">
-      <div class="dialog-heading"><h2 class="ask-title" id="profileDialogTitle" data-i18n="新建配置">新建配置</h2><button class="ghost icon-btn dialog-close" id="profileDialogClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
+      <div class="dialog-heading"><h2 class="ask-title" id="profileDialogTitle" data-i18n="新建配置">新建配置</h2><button class="ghost icon-btn dialog-close" id="profileDialogClose" type="button" title="关闭" aria-label="关闭" data-i18n-title="关闭" data-i18n-aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
       <div class="dialog-body">
       <label for="profileName" data-i18n="配置名称">配置名称</label>
-      <input id="profileName" type="text" required maxlength="32" pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,31}" autocomplete="off" placeholder="my-work" />
+      <input id="profileName" type="text" required maxlength="32" pattern="[A-Za-z0-9][A-Za-z0-9._\-]{0,31}" autocomplete="off" placeholder="my-work" />
       <p class="dialog-subtitle" id="profileDialogNote"></p>
       <p class="hint profile-error" id="profileDialogError" role="alert" hidden></p>
       </div>
@@ -1440,7 +1440,7 @@
   </div>
   <div class="ask" id="backupDialog" hidden>
     <div class="ask-card" role="dialog" aria-modal="true" aria-labelledby="backupDialogTitle" data-dialog-size="medium">
-      <div class="dialog-heading"><h2 class="ask-title" id="backupDialogTitle" data-i18n="配置备份与回退">配置备份与回退</h2><button class="ghost icon-btn dialog-close" id="backupClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
+      <div class="dialog-heading"><h2 class="ask-title" id="backupDialogTitle" data-i18n="配置备份与回退">配置备份与回退</h2><button class="ghost icon-btn dialog-close" id="backupClose" type="button" title="关闭" aria-label="关闭" data-i18n-title="关闭" data-i18n-aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
       <p class="dialog-subtitle" id="backupDialogHint"></p>
       <div class="backup-progress" id="backupProgress" hidden>
         <span class="spin" aria-hidden="true"></span>
@@ -1459,7 +1459,7 @@
         <div>
           <h2 class="sr-only" id="launchPluginsTitle" data-i18n="管理插件">管理插件</h2>
         </div>
-        <button class="ghost icon-btn" id="launchPluginsClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button>
+        <button class="ghost icon-btn" id="launchPluginsClose" type="button" title="关闭" aria-label="关闭" data-i18n-title="关闭" data-i18n-aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button>
       </div>
       <div class="launch-plugins-loading plugin-empty-state" id="launchPluginsLoading" hidden>
         <span class="plugin-empty-spinner" aria-hidden="true"></span>
@@ -1470,7 +1470,7 @@
   </div>
   <div class="ask" id="skillDetailDialog" hidden>
     <div class="ask-card skill-detail-card" role="dialog" aria-modal="true" aria-labelledby="skillDetailTitle" data-dialog-size="large">
-      <div class="dialog-heading"><h2 class="ask-title" id="skillDetailTitle" data-i18n="技能详情">技能详情</h2><button class="ghost icon-btn dialog-close" id="skillDetailClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
+      <div class="dialog-heading"><h2 class="ask-title" id="skillDetailTitle" data-i18n="技能详情">技能详情</h2><button class="ghost icon-btn dialog-close" id="skillDetailClose" type="button" title="关闭" aria-label="关闭" data-i18n-title="关闭" data-i18n-aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div>
       <p class="skill-detail-path" id="skillDetailPath"></p>
       <p class="skill-detail-description" id="skillDetailDescription"></p>
       <pre class="skill-detail-content" id="skillDetailContent" tabindex="0"></pre>
@@ -1478,16 +1478,16 @@
   </div>
   <div class="ask" id="skillInstallDialog" hidden>
     <form class="ask-card skill-editor-card skill-install-card" id="skillInstallForm" role="dialog" aria-modal="true" aria-labelledby="skillInstallTitle" data-dialog-size="medium">
-      <div class="dialog-heading"><h2 class="ask-title" id="skillInstallTitle" data-i18n="安装技能">安装技能</h2><div class="skill-install-heading-actions"><a class="skill-catalog-link" href="https://github.com/openai/skills/tree/main/skills/.curated" target="_blank" rel="noopener noreferrer" title="浏览 Codex 技能库" aria-label="浏览 Codex 技能库" data-i18n-title="浏览 Codex 技能库" data-i18n-aria-label="浏览 Codex 技能库"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-book-open"/></svg></a><button class="ghost icon-btn dialog-close" id="skillInstallClose" type="button" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div></div>
+      <div class="dialog-heading"><h2 class="ask-title" id="skillInstallTitle" data-i18n="安装技能">安装技能</h2><div class="skill-install-heading-actions"><a class="skill-catalog-link" href="https://github.com/openai/skills/tree/main/skills/.curated" target="_blank" rel="noopener noreferrer" title="浏览 Codex 技能库" aria-label="浏览 Codex 技能库" data-i18n-title="浏览 Codex 技能库" data-i18n-aria-label="浏览 Codex 技能库"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-book-open"/></svg></a><button class="ghost icon-btn dialog-close" id="skillInstallClose" type="button" title="关闭" aria-label="关闭" data-i18n-title="关闭" data-i18n-aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button></div></div>
       <div class="dialog-body">
-      <div class="skill-source-tabs" role="group" aria-label="安装来源"><button class="ghost" type="button" data-skill-source="github" aria-pressed="true">GitHub</button><button class="ghost" type="button" data-skill-source="local" aria-pressed="false" data-i18n="本地导入">本地导入</button></div>
+      <div class="skill-source-tabs" role="group" aria-label="安装来源" data-i18n-aria-label="安装来源"><button class="ghost" type="button" data-skill-source="github" aria-pressed="true">GitHub</button><button class="ghost" type="button" data-skill-source="local" aria-pressed="false" data-i18n="本地导入">本地导入</button></div>
       <div id="skillGithubFields"><label class="sr-only" for="skillSource" data-i18n="仓库或技能目录链接">仓库或技能目录链接</label><input id="skillSource" type="text" placeholder="owner/repo 或 GitHub 技能链接" data-placeholder-i18n="owner/repo 或 GitHub 技能链接" autocomplete="off" /><details class="skill-install-advanced"><summary data-i18n="指定分支">指定分支</summary><input id="skillRef" type="text" data-placeholder-i18n="留空使用链接中的分支或仓库默认分支" /></details></div>
       <div id="skillLocalFields" hidden><div class="skill-file-actions"><button class="ghost" id="skillChooseFolder" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-folder"/></svg><span data-i18n="选择文件夹">选择文件夹</span></button><button class="ghost" id="skillChooseZip" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-file-archive"/></svg><span data-i18n="选择 ZIP">选择 ZIP</span></button></div><input id="skillFolderFiles" type="file" webkitdirectory multiple hidden /><input id="skillZipFile" type="file" accept=".zip" hidden /><p class="hint" id="skillLocalName" data-i18n="导入包含 SKILL.md 的文件夹或 ZIP">导入包含 SKILL.md 的文件夹或 ZIP</p></div>
       <div class="skill-install-check"><button class="ghost icon-btn" id="skillInspect" type="button" title="检查来源" aria-label="检查来源" data-i18n-title="检查来源" data-i18n-aria-label="检查来源"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-arrow-right"/></svg><span class="spin" aria-hidden="true"></span></button><span class="hint" id="skillInspectHint" role="status"></span></div>
       <div class="skill-import-list" id="skillImportList" hidden></div>
       <p class="skill-form-error" id="skillInstallError" role="alert"></p>
       </div>
-      <div class="ask-actions skill-install-footer"><label class="skill-install-destination"><span class="sr-only" data-i18n="安装到">安装到</span><select id="skillInstallRoot" title="安装到" aria-label="安装到"><option value="dsh">.dsh / skills</option><option value="agents">.agents / skills</option></select></label><button class="ghost" id="skillInstallCancel" type="button" data-i18n="取消">取消</button><button class="primary" id="skillInstallGo" type="submit" disabled><span data-i18n="安装">安装</span><span class="spin" aria-hidden="true"></span></button></div>
+      <div class="ask-actions skill-install-footer"><label class="skill-install-destination"><span class="sr-only" data-i18n="安装到">安装到</span><select id="skillInstallRoot" title="安装到" aria-label="安装到" data-i18n-title="安装到" data-i18n-aria-label="安装到"><option value="dsh">.dsh / skills</option><option value="agents">.agents / skills</option></select></label><button class="ghost" id="skillInstallCancel" type="button" data-i18n="取消">取消</button><button class="primary" id="skillInstallGo" type="submit" disabled><span data-i18n="安装">安装</span><span class="spin" aria-hidden="true"></span></button></div>
     </form>
   </div>
   <div class="ask" id="skillEditorDialog" hidden>
@@ -1992,6 +1992,11 @@
   "装好了。": "Done.",
   "保存": "Save",
   "关闭": "Close",
+  "刷新页面": "Reload page",
+  "这个配置还没有可备份的内容：启动一次实例后才会生成配置文件。": "Nothing to back up yet: the config files are created the first time the instance starts.",
+  "设置导航": "Settings navigation",
+  "安装来源": "Install source",
+  "互动看板娘": "Interactive mascot",
   "关闭页面": "Close page",
   "兼容模式": "Compatibility mode",
   "刷新": "Refresh",
@@ -2070,11 +2075,11 @@
   "独立桌面窗口": "Separate desktop window",
   "DSH-X 内部标签页": "Tabs inside DSH-X",
   "返回启动器主页": "Back to launcher home",
-  "内部标签页需使用新版 DSH-X 桌面端；当前使用浏览器标签页。": "Internal tabs require the updated DSH-X desktop app; this session uses browser tabs.",
+  "已选「DSH-X 内部标签页」；这个管理页开在浏览器里，所以这里会用浏览器标签页，在 DSH-X 桌面端里才按所选打开。": "Tabs inside DSH-X is selected, but this page is open in a browser, so dsh opens in a browser tab here. The choice applies in the DSH-X desktop app.",
   "用 Chrome/Edge 的独立窗口打开：没有地址栏和标签栏。": "Opens in a standalone Chrome/Edge window: no address bar or tab strip.",
   "启动器自己开一个窗口承载 dsh 界面，关窗口只是藏起来；没有原生外壳（源码运行）时退回标签页。": "The launcher hosts the dsh UI in its own window; closing it only hides the window. Falls back to a tab when there is no native shell (running from source).",
   "用系统默认浏览器的标签页打开。": "Opens in a tab of your default browser.",
-  "当前预览使用浏览器标签页。": "This preview opens in a browser tab.",
+  "已选「独立桌面窗口」；这个管理页开在浏览器里，所以这里会用浏览器标签页，在 DSH-X 桌面端里才按所选打开。": "Separate desktop window is selected, but this page is open in a browser, so dsh opens in a browser tab here. The choice applies in the DSH-X desktop app.",
   "已保存。下次打开 dsh 就走新的方式。": "Saved. The next time dsh opens it uses the new way.",
   "更新下载源": "Update download source",
   "网络代理": "Network proxy",
@@ -2680,6 +2685,7 @@
   "立即备份": "Back up now",
   "还没有备份。每次启动会存一份，也可以点「立即备份」。": "No backups yet. One is saved before each launch, or click “Back up now”.",
   "配置「{profile}」的配置层快照 · 最多保留 10 份 / 30 天": "Config-layer snapshots of {profile} · latest 10 / 30 days kept",
+  "实例「{name}」（配置 {profile}）的配置层快照 · 最多保留 10 份 / 30 天": "Config-layer snapshots of instance {name} (config {profile}) · latest 10 / 30 days kept",
   "配置「{profile}」的配置层快照：补丁、依赖清单和 npmrc；回退时会按清单重装依赖，node_modules 本身不在备份里。最多保留最近 10 份，超过 30 天的自动清理。": "Config-layer snapshots of {profile}: patch, dependency manifest and npmrc. Restoring also reinstalls dependencies from the manifest; node_modules itself is not backed up. The latest 10 are kept; snapshots older than 30 days are removed automatically.",
   "回退到这份备份？当前配置会先自动存一份，回退后会自动重装依赖（可能比较慢），并需要重启这个配置的实例才生效。": "Restore this backup? The current config is backed up first, dependencies are reinstalled afterwards (this can take a while), and the profile's instance must be restarted to apply it.",
   "已回退。重启这个配置的实例后生效。": "Restored. Restart this profile's instance to apply it.",
@@ -3120,6 +3126,234 @@
   "没有找到匹配的技能。": "No matching skills found.",
   "暂时无法读取技能市场": "Unable to load Skill Market",
   "已安装技能 {name}，dsh 在跑会热加载。": "Installed skill {name}. dsh reloads running sessions automatically.",
+  "这个安装形态（macOS / deb）不能自动换外壳：点按钮下载新的安装包，退出 DSH-X 后安装即可。数据和设置都会保留。": "This install (macOS / deb) cannot replace its shell automatically: click to download the new installer, then quit DSH-X and install it. Your data and settings are kept.",
+  "选择一个发行版…": "Choose a distro…",
+  "WSL 里的 Profile": "Profiles in WSL",
+  "这个 Profile 还没初始化": "This profile has not been initialized",
+  "更新外壳": "Update shell",
+  "更新核心到 {latest}": "Update core to {latest}",
+  // 服务端报错原句（post / getJson 会把 data.error 过一遍 t()）
+  "连接已不存在，请刷新后重新选择": "This connection no longer exists. Refresh and choose again.",
+  "非法版本号": "Invalid version number.",
+  "非法插件源": "Invalid plugin source.",
+  "请填写插件包名或地址": "Enter a plugin package name or address.",
+  "从源码运行时不能自更新：请用 git pull 更新，或到发布页下载 dmg": "Self-update is not available when running from source. Update with git pull, or download the dmg from the releases page.",
+  "更新正在下载，请稍候": "The update is downloading. Please wait.",
+  "更新包还没下载好": "The update package has not finished downloading.",
+  "仍有重启中的实例，请先停止这个配置的实例": "Some instances are still restarting. Stop the instances of this profile first.",
+  "目标运行时位置已变化，请重新诊断。": "The target runtime location has changed. Run the diagnosis again.",
+  "目标正在启动或修改，稍后重新预览。": "The target is starting or being modified. Preview again later.",
+  "同一配置有其他实例使用，禁止修复共享目录。": "Other instances use the same profile, so the shared directory cannot be repaired.",
+  "目标已有修改操作。": "The target already has a modification in progress.",
+  "目标进程尚未确认退出，未修改文件。": "The target process has not been confirmed to exit. No files were changed.",
+  "卸载目标与当前独占范围不一致。": "The uninstall target does not match the current exclusive scope.",
+  "启动项已不存在，请重新打开托盘菜单": "This launch entry no longer exists. Reopen the tray menu.",
+  "未知托盘操作": "Unknown tray action.",
+  "启动项状态已变化，请重新打开托盘菜单": "The launch entry state has changed. Reopen the tray menu.",
+  "该启动项正在操作，请稍后再试": "This launch entry is busy. Try again later.",
+  "该启动项尚未启动完成": "This launch entry has not finished starting.",
+  "该启动项已经在运行或启动中": "This launch entry is already running or starting.",
+  "该启动项没有运行实例": "This launch entry has no running instance.",
+  "请先在启动器中安装此版本": "Install this version in the launcher first.",
+  "启动器已退出，取消自动启动": "The launcher has exited. Auto-start cancelled.",
+  "正在安装，稍后再编辑启动项": "Installing. Edit the launch entry later.",
+  "这个实例已不存在，请刷新后重新选择": "This instance no longer exists. Refresh and choose again.",
+  "这个连接已不存在，请刷新后重新选择": "This connection no longer exists. Refresh and choose again.",
+  "连接类型和启动项的运行位置不一致": "The connection type does not match where the launch entry runs.",
+  "先选择一个 SSH 连接": "Choose an SSH connection first.",
+  "这个启动项已不存在，请刷新后重试": "This launch entry no longer exists. Refresh and try again.",
+  "最多保存 20 个启动项": "You can save up to 20 launch entries.",
+  "这个目录中的版本与配置已有启动项，编辑现有的即可": "A launch entry already exists for this version and profile in this directory. Edit the existing one.",
+  "默认启动项不能删除，可以编辑它": "The default launch entry cannot be deleted, but you can edit it.",
+  "正在修改插件，等操作结束再启动": "Plugins are being modified. Start after it finishes.",
+  "这个实例已不存在，请刷新后重试": "This instance no longer exists. Refresh and try again.",
+  "本地插件请写绝对路径（实例会写进不同的配置目录，相对路径在每个目录里指的地方都不一样）": "Use an absolute path for local plugins (instances write to different profile directories, so a relative path points somewhere different in each).",
+  "官方组件不提供开关": "Official components cannot be toggled.",
+  "没有这个内置实例": "No such built-in instance.",
+  "这个包的配置之后又导入过别的包，先撤销后面那次再重导": "Another pack was imported into this profile afterwards. Undo that import first, then import again.",
+  "这个包里没有能导进配置的配置": "This pack has no profile that can be imported.",
+  "这个实例跟着最新版本走，但本机还没装这一类的 DSH：先装一个版本，或在实例里钉一个版本再导出": "This instance follows the latest version, but no DSH of this kind is installed here. Install a version, or pin one in the instance, then export.",
+  "版本号只能用字母、数字和 . _ + - （不超过 24 个字符）": "Version can only use letters, numbers and . _ + - (up to 24 characters).",
+  "仓库要写成 owner/repo": "Write the repository as owner/repo.",
+  "这个实例在检查之后换过上游版本，重新检查一次再更新": "The upstream version of this instance changed after the check. Check again before updating.",
+  "这个实例不跟随上游": "This instance does not follow upstream.",
+  "这个实例已经不跟随上游了": "This instance no longer follows upstream.",
+  "正在确认修复或回退，结束后再修改启动设置。": "A repair or rollback is being confirmed. Change launch settings after it finishes.",
+  "请先停止再改版本目录": "Stop it first before changing the version directory.",
+  "正在安装，稍后再改版本目录": "Installing. Change the version directory later.",
+  "备份编号不对": "Invalid backup ID.",
+  "找不到这份备份": "Backup not found.",
+  "这份备份里没有 package.json，回退会让配置起不来": "This backup has no package.json. Rolling back would leave the profile unable to start.",
+  "请先停止这个配置的实例再回退": "Stop the instances of this profile before rolling back.",
+  "上一次同步还没结束": "The previous sync has not finished yet.",
+  "正在装插件或版本，等它结束再同步": "A plugin or version is being installed. Sync after it finishes.",
+  "正在优化此版本的依赖，请稍后再试": "Dependencies of this version are being optimized. Try again later.",
+  "还没有下载好的应用更新": "No app update has been downloaded yet.",
+  "暂存目录不完整，重新下载一次": "The staging directory is incomplete. Download again.",
+  "诊断卸载的目标身份不一致。": "The diagnosed uninstall target identity does not match.",
+  "正在安装插件": "A plugin is being installed.",
+  "找不到官方入口 lib/bin.js": "Official entry lib/bin.js not found.",
+  "正在安装或卸载插件": "A plugin is being installed or uninstalled.",
+  "没有可用的 dsh 版本，插件页暂时用不了": "No dsh version is available, so the plugins page cannot be used for now.",
+  "取 release 信息失败": "Failed to fetch release info.",
+  "这个来源没有可下载的地址": "This source has no download URL.",
+  "安装完成但找不到 lib/bin.js": "Installation finished, but lib/bin.js was not found.",
+  "正在安装或启动，请稍后再优化依赖": "Installing or starting. Optimize dependencies later.",
+  "请先停止此版本的所有实例再优化依赖": "Stop all instances of this version before optimizing dependencies.",
+  "只能优化启动器管理的已安装版本": "Only installed versions managed by the launcher can be optimized.",
+  "整理后找不到官方入口 lib/bin.js": "Official entry lib/bin.js not found after cleanup.",
+  "还没有选择 WSL 发行版（先在连接里选一个发行版，或给启动项指定连接）": "No WSL distro selected (choose a distro in the connection, or assign a connection to the launch entry).",
+  "SSH 连接已不存在，请重新选择": "This SSH connection no longer exists. Choose again.",
+  "还没有选择 WSL 发行版": "No WSL distro selected.",
+  "远端 core 里还没有可用的 dsh 版本，请先在版本管理里安装一个": "The remote core has no usable dsh version. Install one in version management first.",
+  "远端 core 没有返回 dsh 地址": "The remote core did not return a dsh address.",
+  "正在优化此版本的依赖，请稍后再启动": "Dependencies of this version are being optimized. Start later.",
+  "这个名称是系统保留名称，请换一个配置名称": "This name is reserved by the system. Choose another profile name.",
+  "正在修改这个配置，等操作结束再试": "This profile is being modified. Try again after it finishes.",
+  "先给一个路径": "Provide a path first.",
+  "这个路径不存在": "This path does not exist.",
+  "只支持显示整合包自己的文件": "Only the modpack's own files can be shown.",
+  "只能打开本机地址": "Only local addresses can be opened.",
+  "未知窗口打开方式": "Unknown window open mode.",
+  "独立实例窗口需要更新 DSH-X 桌面端": "Separate instance windows require an updated DSH-X desktop app.",
+  "无法识别此实例，请刷新启动器后重试": "This instance cannot be identified. Refresh the launcher and try again.",
+  "正在优化此版本的依赖，请稍后再移除": "Dependencies of this version are being optimized. Remove it later.",
+  "请先停止再移除": "Stop it first before removing.",
+  "技能上传内容过大": "The skill upload is too large.",
+  "这个连接已不存在，请刷新后重试": "This connection no longer exists. Refresh and try again.",
+  "连接类型不能修改，请新建一个连接": "The connection type cannot be changed. Create a new connection.",
+  "已经有一个相同目标的连接": "A connection to the same target already exists.",
+  "连接 id 不合法": "Invalid connection ID.",
+  "这个连接已不存在": "This connection no longer exists.",
+  "这个连接还有实例在跑，先停止再删除": "This connection still has running instances. Stop them before deleting.",
+  "这个连接现在不在等待安装确认": "This connection is not waiting for install confirmation.",
+  "这个连接没有正在进行的准备流程": "This connection has no setup in progress.",
+  "请选择一个 WSL 发行版": "Choose a WSL distro.",
+  "请选择连接类型": "Choose a connection type.",
+  "SSH 主机和用户名要填完整": "Enter both the SSH host and username.",
+  "这个 WSL 发行版还有启动项在用，先改启动项": "Launch entries still use this WSL distro. Update those launch entries first.",
+  "WSL 发行版名称不合法": "Invalid WSL distro name.",
+  "这个配置正在运行，先停止再删除": "This profile is running. Stop it before deleting.",
+  "路径太长": "Path is too long.",
+  "官方组件随 dsh 安装，不能单独添加": "Official components are installed with dsh and cannot be added separately.",
+  "请选择要卸载的插件": "Choose a plugin to uninstall.",
+  "官方组件随 dsh 安装，不能在这里卸载": "Official components are installed with dsh and cannot be uninstalled here.",
+  "版本号不正确": "Invalid version number.",
+  "没有可自动升级的官方插件，请在插件市场里处理": "No official plugins can be upgraded automatically. Handle them in the plugin market.",
+  "缺少技能来源或名称": "Missing skill source or name.",
+  "技能预览已过期，请重新检查来源": "The skill preview has expired. Check the source again.",
+  "没有可用端口": "No port available.",
+  "node 路径太长": "Node path is too long.",
+  "只支持 http 代理：请填代理软件里的 http（混合）端口，socks 端口连不上": "Only HTTP proxies are supported. Use the HTTP (mixed) port from your proxy app; a SOCKS port will not work.",
+  "代理地址填得不对，形如 http://127.0.0.1:7890": "Invalid proxy address. Use a form like http://127.0.0.1:7890.",
+  "dsh 用户目录填一个路径，别填别的": "The dsh home directory must be a path.",
+  "请使用绝对路径（例如 D:\\dsh-home）": "Use an absolute path (for example D:\\dsh-home).",
+  "项目目录填一个路径，别填别的": "The project directory must be a path.",
+  "请使用绝对路径（例如 D:\\projects\\demo）": "Use an absolute path (for example D:\\projects\\demo).",
+  "WSL 发行版填一个名称，别填别的": "The WSL distro must be a name.",
+  "WSL 用户填一个用户名，别填别的": "The WSL user must be a username.",
+  "WSL 用户名不合法（1-64 个字符，不能含 : / \\ 和控制字符）": "Invalid WSL username (1-64 characters, no : / \\ or control characters).",
+  "连接名称填一个名字，别填别的": "The connection name must be a name.",
+  "连接名称不合法（1-32 个字符）": "Invalid connection name (1-32 characters).",
+  "SSH 主机填一个地址，别填别的": "The SSH host must be an address.",
+  "SSH 主机地址不合法": "Invalid SSH host address.",
+  "SSH 端口应为 1 到 65535": "SSH port must be between 1 and 65535.",
+  "SSH 用户名填一个用户名，别填别的": "The SSH username must be a username.",
+  "SSH 用户名不合法": "Invalid SSH username.",
+  "私钥路径填一个路径，别填别的": "The private key path must be a path.",
+  "私钥路径要用绝对路径（例如 ~/.ssh/id_ed25519）": "The private key path must be absolute (for example ~/.ssh/id_ed25519).",
+  "插件源请填写地址列表": "Enter a list of plugin source addresses.",
+  "插件源最多 32 个": "Up to 32 plugin sources are allowed.",
+  "插件源请填写完整的 HTTP/HTTPS 索引地址": "Enter a full HTTP/HTTPS index URL for the plugin source.",
+  "插件源仅支持无账号密码、无片段的 HTTP/HTTPS 索引地址": "Plugin sources only support HTTP/HTTPS index URLs without credentials or fragments.",
+  "配置名只能用字母、数字、点、下划线、连字符（1-32 个字符）": "Profile names can only use letters, numbers, dots, underscores and hyphens (1-32 characters).",
+  "版本类型只能是正式版、RC 或 Alpha": "Version type must be Stable, RC or Alpha.",
+  "保留版本数量应为 1 到 20": "The number of versions to keep must be between 1 and 20.",
+  "图标图片过大或格式不支持": "The icon image is too large or its format is not supported.",
+  "图标只支持 PNG、JPEG 或 WebP 图片": "Icons must be PNG, JPEG or WebP images.",
+  "图标图片格式无效": "Invalid icon image format.",
+  "额外启动参数太长了（上限 2000 字符）": "Extra launch arguments are too long (up to 2000 characters).",
+  "Web 绑定只能选 回环(loopback) 或 局域网(lan)": "Web binding must be loopback or lan.",
+  "请使用绝对路径": "Use an absolute path.",
+  "整合包是空的": "The modpack is empty.",
+  "这不是整合包：里面没有 manifest.json": "This is not a modpack: it has no manifest.json.",
+  "这个目录里没有 manifest.json，不是整合包": "This directory has no manifest.json, so it is not a modpack.",
+  "先给一个整合包：本地文件、链接，或者 owner/repo": "Provide a modpack first: a local file, a link, or owner/repo.",
+  "认不出这个来源：给本地文件路径、http(s) 链接，或者 GitHub 的 owner/repo": "Unrecognized source. Use a local file path, an http(s) link, or a GitHub owner/repo.",
+  "启动命令的引号没有闭合": "The launch command has an unclosed quote.",
+  "stdio 传输需要填写启动命令": "The stdio transport requires a launch command.",
+  "名称只能用字母、数字、下划线、连字符（1-32 个字符）": "Names can only use letters, numbers, underscores and hyphens (1-32 characters).",
+  "dsh 的 MCP 客户端只支持 stdio 和 streamable-http：SSE 服务请填 http(s) 地址并把传输选成 HTTP": "The dsh MCP client only supports stdio and streamable-http. For an SSE server, enter its http(s) address and set the transport to HTTP.",
+  "streamable-http 传输需要 http(s) 服务地址": "The streamable-http transport requires an http(s) server address.",
+  "failOnStartupError 只能是 true 或 false": "failOnStartupError must be true or false.",
+  "reconnect 要是一个对象，例如 {\"maxAttempts\":5}": "reconnect must be an object, for example {\"maxAttempts\":5}.",
+  "reconnect.enabled 只能是 true 或 false": "reconnect.enabled must be true or false.",
+  "键名里不能有换行或等号": "Key names cannot contain line breaks or equals signs.",
+  "未知的技能目录": "Unknown skill directory.",
+  "不支持的技能路径": "Unsupported skill path.",
+  "路径越界": "Path is out of bounds.",
+  "技能文件不存在": "Skill file does not exist.",
+  "技能名称只支持小写字母、数字和连字符，最多 64 个字符，如 my-skill": "Skill names can only use lowercase letters, numbers and hyphens, up to 64 characters, like my-skill.",
+  "请填写技能说明（最多 4096 个字符）": "Enter a skill description (up to 4096 characters).",
+  "请填写技能正文（最多 256K 个字符）": "Enter the skill body (up to 256K characters).",
+  "同名技能已存在": "A skill with the same name already exists.",
+  "SKILL.md 没有 YAML frontmatter（文件要以 --- 开头，且第一行不能有 BOM），无法开关": "SKILL.md has no YAML frontmatter (the file must start with --- and the first line cannot have a BOM), so it cannot be toggled.",
+  "技能文件路径无效": "Invalid skill file path.",
+  "请选择技能文件夹或 ZIP（最多 2000 个文件）": "Choose a skill folder or ZIP (up to 2000 files).",
+  "技能包有重名文件": "The skill package has duplicate file names.",
+  "技能包过大：单文件最多 2 MB，总计最多 16 MB": "The skill package is too large: up to 2 MB per file and 16 MB in total.",
+  "没有找到 SKILL.md，请选择完整技能文件夹或包含技能的 ZIP": "SKILL.md not found. Choose a complete skill folder or a ZIP that contains skills.",
+  "技能目录路径无效": "Invalid skill directory path.",
+  "请填写 GitHub 仓库或技能目录链接": "Enter a GitHub repository or skill directory link.",
+  "请使用 https://github.com 的技能目录链接": "Use a skill directory link on https://github.com.",
+  "请填写仓库或 tree 目录链接，不能使用文件链接": "Enter a repository or tree directory link, not a file link.",
+  "分支名称无效": "Invalid branch name.",
+  "技能文件解压后过大": "The skill files are too large after extraction.",
+  "技能 ZIP 文件校验失败": "Skill ZIP verification failed.",
+  "仓库没有默认分支": "The repository has no default branch.",
+  "仓库 ZIP 超过 32 MB，请改为导入技能文件夹": "The repository ZIP exceeds 32 MB. Import a skill folder instead.",
+  "请至少选择一个技能": "Choose at least one skill.",
+  "选中的技能无效，请检查 SKILL.md": "The selected skill is invalid. Check its SKILL.md.",
+  "选中的技能名称重复": "The selected skills have duplicate names.",
+  "桶名只能用字母、数字、点、下划线、连字符": "Bucket names can only use letters, numbers, dots, underscores and hyphens.",
+  "桶内前缀不能包含 ..": "The bucket prefix cannot contain \"..\".",
+  "存储端点要像 https://s3.us-east-1.amazonaws.com 这样": "The storage endpoint should look like https://s3.us-east-1.amazonaws.com.",
+  "存储端点不是个能解析的地址": "The storage endpoint is not a valid address.",
+  "导出目录要填绝对路径（例如 D:\\dsh-backup）": "The export directory must be an absolute path (for example D:\\dsh-backup).",
+  "ZIP 文件要填绝对路径（例如 D:\\dsh-backup.zip）": "The ZIP file must be an absolute path (for example D:\\dsh-backup.zip).",
+  "ZIP 文件要以 .zip 结尾": "The ZIP file name must end with .zip.",
+  "目录前缀不能包含 ..": "The directory prefix cannot contain \"..\".",
+  "WebDAV 地址要像 https://dav.jianguoyun.com/dav/你的目录 这样（带 http/https）": "The WebDAV address should look like https://dav.jianguoyun.com/dav/your-folder (with http/https).",
+  "WebDAV 地址不是个能解析的地址": "The WebDAV address is not a valid address.",
+  "还没填存储端点": "No storage endpoint entered yet.",
+  "连接空闲超时（网络太慢或端点不通）": "Connection idle timeout (the network is too slow or the endpoint is unreachable).",
+  "还没填 WebDAV 地址": "No WebDAV address entered yet.",
+  "连接空闲超时（网络太慢或服务端不通）": "Connection idle timeout (the network is too slow or the server is unreachable).",
+  "WebDAV 地址打不开：服务端说找不到这个集合（检查地址里的目录名对不对）": "Cannot open the WebDAV address: the server says this collection was not found (check the folder name in the address).",
+  "还没选导出目录": "No export directory chosen yet.",
+  "本地目录还没选：填一个目录，或点「浏览…」": "No local directory chosen yet. Enter a directory, or click “Browse…”.",
+  "还没选 ZIP 文件": "No ZIP file chosen yet.",
+  "ZIP 文件还没选：填一个 .zip 路径，或点「浏览…」": "No ZIP file chosen yet. Enter a .zip path, or click “Browse…”.",
+  "先选一个要同步的范围": "Choose what to sync first.",
+  "配置锁被占用，稍后再试": "The profile lock is in use. Try again later.",
+  "另一个配置操作正在进行，稍后再试": "Another profile operation is in progress. Try again later.",
+  "配置锁不是普通文件": "The profile lock is not a regular file.",
+  "只认配置目录里的补丁层备份（cordis.patch.yml.bak-<时间戳>）": "Only patch-layer backups in the profile directory are accepted (cordis.patch.yml.bak-<timestamp>).",
+  "tarball 不是 gzip": "The tarball is not gzip.",
+  "tarball 为空": "The tarball is empty.",
+  "通知要有标题或内容": "A notification needs a title or body.",
+  "通知的点击地址必须是 http(s) 链接": "The notification click URL must be an http(s) link.",
+  "只能打开 http(s) 链接": "Only http(s) links can be opened.",
+  "要给一个路径": "A path is required.",
+  "路径必须是绝对路径": "The path must be absolute.",
+  "text 必须是字符串": "text must be a string.",
+  "kind 只能是 open / save / message": "kind must be open / save / message.",
+  "对话框要有 message": "A dialog needs a message.",
+  "op 只能是 status / rpc / cancel / closeSession": "op must be status / rpc / cancel / closeSession.",
+  "cancel 需要请求 id": "cancel requires a request id.",
+  "rpc 需要 method": "rpc requires a method.",
+  "无启动项": "No launch entry",
+  "没有启动项指向这个实例（启动项被删掉或改了版本），停掉它就不会再占着端口。": "No launch entry points at this instance (its entry was deleted or switched version). Stop it so it stops holding the port.",
 }
 
     function t(zh, vars) {
@@ -3164,6 +3398,30 @@
       syncUiSelects()
       // 引导说明是动态写的，切换语言后要重画
       paintLaunchIsolation()
+      // 左上角更新按钮只有图标，状态文案在 title / aria-label 里；上面按 data-i18n-title
+      // 统一翻译会把它打回静态的「更新」，这里按当前状态重画一次。首屏调用时按钮相关的
+      // 变量可能还没初始化（TDZ），那时也没有状态可画，跳过即可。
+      try { paintSelfPill() } catch { /* 还没初始化 */ }
+    }
+
+    /**
+     * 切语言之后把已经画出来的动态列表重画一遍：applyLang 只认静态的 data-i18n 标记，
+     * 首页启动项行、实例页、MCP / 技能列表的提示和徽章都是拼字符串时 t() 过的，不重画就停在旧语言。
+     * 首屏 applyLang 不调这里（那时列表还没数据）；各块可能还没初始化，单独 try 一下互不牵连。
+     */
+    function repaintForLang() {
+      const painters = [
+        () => paintLaunchHome(),
+        () => render(),
+        () => { if (!versionManageDialogEl.hidden) paintVersionManager() },
+        () => renderMcp(),
+        () => renderSkillList(),
+        () => renderPackGrid(),
+        () => environmentState.repaint?.(),
+      ]
+      for (const paint of painters) {
+        try { paint() } catch { /* 这一块还没初始化 */ }
+      }
     }
 
     // ---- 版本下拉（自绘，替代原生 select）----
@@ -3656,7 +3914,8 @@
       select.addEventListener('change', () => syncUiSelect(select))
       trigger.addEventListener('click', () => openUiSelect === item ? closeUiSelect() : openUiSelectPanel(item))
       trigger.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape') { closeUiSelect(); event.stopPropagation(); return }
+        // 面板没开时 Esc 要冒泡给所在的弹窗去关它；只有收面板这一下才吞掉
+        if (event.key === 'Escape') { if (openUiSelect === item) { closeUiSelect(); event.stopPropagation() } return }
         if (event.key === 'Tab') { closeUiSelect(); return }
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
           event.preventDefault()
@@ -4816,7 +5075,14 @@
       }
       else if (!versionManageDialogEl.hidden) void closeVersionManager()
       else if (!launchDialogEl.hidden) closeLaunchEditor()
+      else if (!document.activeElement || document.activeElement === document.body) {
+        // 焦点掉回 body 时（弹窗里的按钮被重画/挪走）弹窗自己的 keydown 收不到 Esc，这里兜一下最上层那个
+        const open = [...escDialogClosers].filter(([dialog]) => !dialog.hidden && !dialog.dataset.dialogClosing && !dialog.classList.contains('is-underlay'))
+        open.at(-1)?.[1]()
+      }
     })
+    /** 弹窗 → 关闭函数；trapPackDialog 登记，供上面焦点丢失时的 Esc 兜底。 */
+    const escDialogClosers = new Map()
 
     // app 窗口模式：最小化/最大化/关闭和拖动标题栏都由页面自己接。ipc 是 wry 注入的桥，
     // 浏览器里没有这个对象，所以只在这一模式下用。
@@ -4869,7 +5135,9 @@
     }).then(async (res) => {
       const data = await res.json()
       if (!res.ok) {
-        const error = new Error(data.error || res.statusText)
+        // 服务端的报错文案是中文原句：在这一个口子上过一遍词典，英文界面就不会冒出整句中文。
+        // 调用处再 t() 一次也无妨（英文原句查不到词条，原样返回）。
+        const error = new Error(t(data.error || res.statusText))
         // 区分服务端明确拒绝与网络中断；前者不能换个入口重试同一动作。
         error.status = res.status
         // 启动失败时服务端会把 dsh 的输出尾巴一起带回来（见 showFailure）
@@ -6381,6 +6649,10 @@
       projectDeviceListEl.innerHTML = rows.join('')
 
       projectDeviceLabelEl.textContent = pickedConnection ? projectDeviceLabel(pickedConnection) : t('此电脑')
+      if (projectDeviceLabelEl.dataset) {
+        if (pickedConnection) delete projectDeviceLabelEl.dataset.i18n
+        else projectDeviceLabelEl.dataset.i18n = '此电脑'
+      }
       projectDeviceIconEl.querySelector('use')?.setAttribute('href', pickedConnection ? '/icons.svg#lucide-server' : '/icons.svg#lucide-app-window')
       const status = pickedConnection ? projectDeviceRuntime(pickedConnection).status : ''
       projectDeviceStatusEl.hidden = !status || status === 'offline'
@@ -7123,6 +7395,8 @@
         const real = localHome || state.dshHome || '~/.dsh'
         label = (pluginHomeName(real, '') || folderBaseName(real) || t('本机')) + (real && real !== (pluginHomeName(real, '') || folderBaseName(real)) ? ` · ${real}` : '')
       }
+      // 一旦画成真实目录就不再是静态文案，去掉标记免得切语言时被 applyLang 打回「此电脑」
+      if (launchGuideDirLabelEl.dataset) delete launchGuideDirLabelEl.dataset.i18n
       launchGuideDirLabelEl.textContent = label
       launchGuideDirIconEl.querySelector('use')?.setAttribute('href', connection ? '/icons.svg#lucide-server' : '/icons.svg#lucide-folder')
       const pickedStatus = connection ? connectionRuntime[connection.id]?.status : ''
@@ -11206,7 +11480,7 @@
     function getJson(path, options = {}) {
       return fetch(path, { cache: 'no-store', headers: apiScopeHeaders(path, options) }).then(async (res) => {
         const data = await res.json()
-        if (!res.ok) throw new Error(data.error || res.statusText)
+        if (!res.ok) throw new Error(t(data.error || res.statusText))
         return data
       })
     }
@@ -11313,14 +11587,14 @@
         const pct = Math.round(shell.progress?.percent || 0)
         if (shell.status === 'downloading') set('downloading', `${t('正在后台下载新版本')}${pct ? ` · ${pct}%` : ''}`)
         else if (shell.status === 'ready') set('ready', t('新版本已下载，点这里完成安装'))
-        else set('available', latest ? `更新外壳到 ${latest}` : t('更新外壳'))
+        else set('available', latest ? t('更新外壳到 {latest}', { latest }) : t('更新外壳'))
         return
       }
       const latest = selfState.coreLatest || selfState.latest || ''
       const downloaded = Boolean(selfState.ready || selfState.appStaged)
       if (downloaded) set('ready', t('新版本已下载，点这里完成安装'))
       else if (selfState.downloading) set('downloading', `${t('正在后台下载新版本')}${selfState.pct ? ` · ${selfState.pct}%` : ''}`)
-      else set('available', latest ? `更新核心到 ${latest}` : t('更新核心'))
+      else set('available', latest ? t('更新核心到 {latest}', { latest }) : t('更新核心'))
     }
 
     /**
@@ -12028,7 +12302,7 @@
     const openModeHint = document.getElementById('openModeHint')
     let internalTabsAvailable = false
     const describeOpenMode = (mode) => mode === 'internal' && !internalTabsAvailable
-      ? t('内部标签页需使用新版 DSH-X 桌面端；当前使用浏览器标签页。')
+      ? t('已选「DSH-X 内部标签页」；这个管理页开在浏览器里，所以这里会用浏览器标签页，在 DSH-X 桌面端里才按所选打开。')
       : ''
     // ---- 跑 dsh 的 Node ----
     const nodeRuntimeEl = document.getElementById('nodeRuntime')
@@ -12169,6 +12443,7 @@
       if ('lang' in data && data.lang && (data.lang === 'en' ? 'en' : 'zh') !== lang) {
         lang = data.lang === 'en' ? 'en' : 'zh'
         applyLang()
+        repaintForLang()
       }
       if ('theme' in data) {
         savedTheme = data.theme === 'light' || data.theme === 'dark' ? data.theme : 'system'
@@ -12236,10 +12511,11 @@
         openModeEl.innerHTML = modes.map((item) => `<option value="${escapeHtml(item.id)}" data-i18n="${escapeHtml(item.label)}">${escapeHtml(t(item.label))}</option>`).join('')
         openModeEl.value = String(data.openMode || 'internal')
         // 选了桌面窗口但当前没有原生外壳（源码运行 / npm start）：如实说明会落到哪里
+        // 下拉显示的是存下来的偏好，提示说的是这一次实际会怎样；两句要能对上，别让人以为设置没生效
         openModeHint.textContent = openModeEl.value === 'internal' && data.openModeInternal === false
-          ? t('内部标签页需使用新版 DSH-X 桌面端；当前使用浏览器标签页。')
+          ? t('已选「DSH-X 内部标签页」；这个管理页开在浏览器里，所以这里会用浏览器标签页，在 DSH-X 桌面端里才按所选打开。')
           : openModeEl.value === 'window' && data.openModeWindow === false
-          ? t('当前预览使用浏览器标签页。')
+          ? t('已选「独立桌面窗口」；这个管理页开在浏览器里，所以这里会用浏览器标签页，在 DSH-X 桌面端里才按所选打开。')
           : describeOpenMode(openModeEl.value)
       }
       if ('proxyMode' in data || 'proxyUrl' in data) {
@@ -12331,6 +12607,7 @@
         if ('lang' in patch && data.lang && (data.lang === 'en' ? 'en' : 'zh') !== lang) {
           lang = data.lang === 'en' ? 'en' : 'zh'
           applyLang()
+          repaintForLang()
         }
         if ('theme' in patch) {
           if (!('theme' in data)) throw new Error(t('当前启动器服务尚未更新，请重启启动器后重试。'))
@@ -12649,7 +12926,7 @@
       // 这个弹窗只管理启动项对应的环境，新建入口留在设置页的环境列表。
       paneTopEl.hidden = true
       document.getElementById('launchPluginsTitle').textContent = `${entry.name} · ${t('插件')}`
-      launchPluginsCardEl.querySelector('.launch-plugins-head').append(document.getElementById('launchPluginsClose'))
+      moveKeepingFocus(launchPluginsCardEl.querySelector('.launch-plugins-head'), document.getElementById('launchPluginsClose'))
       const loadingEl = document.getElementById('launchPluginsLoading')
       if (loadingEl) loadingEl.hidden = true
       const hostEl = document.getElementById('launchPluginsHost')
@@ -12732,6 +13009,7 @@
     globalThis.closeLaunchPlugins = closeLaunchPlugins
     document.getElementById('launchPluginsClose').onclick = closeLaunchPlugins
     launchPluginsDialogEl.onclick = (event) => { if (event.target === launchPluginsDialogEl) closeLaunchPlugins() }
+    escDialogClosers.set(launchPluginsDialogEl, closeLaunchPlugins)
     launchPluginsDialogEl.onkeydown = (event) => {
       if (event.key === 'Escape') { closeLaunchPlugins(); event.stopPropagation(); return }
       if (event.key !== 'Tab' || openUiSelect) return
@@ -13144,7 +13422,8 @@
       label.textContent = t(label.dataset.i18n)
       profileNameEl.maxLength = homeName ? 64 : 32
       if (homeName) profileNameEl.removeAttribute('pattern')
-      else profileNameEl.pattern = '[A-Za-z0-9][A-Za-z0-9._-]{0,31}'
+      // pattern 按 v 标志编译：字符类里的 - 必须转义，否则整条规则无效、浏览器什么都不拦
+      else profileNameEl.pattern = '[A-Za-z0-9][A-Za-z0-9._\\-]{0,31}'
       const wslTarget = Boolean(profileDialogFromPicker && parseWslHomeKey(profileDialogHome))
       document.getElementById('profileDialogNote').textContent = wslTarget
         ? renaming ? t('重命名后，对应启动项会自动使用新名称。')
@@ -13330,13 +13609,17 @@
         if (request === backupListRequest) backupListLoading = false
       }
     }
-    function openProfileBackups(profile, home = '') {
+    function openProfileBackups(profile, home = '', instanceName = '') {
       if (!profile || packBusy) return
       backupProfile = profile
       backupHome = String(home || '')
       backupPhase = ''
       // 说明只留一行保留策略；补丁/清单这些细节挂 title，鼠标停一下就能看全
-      backupHintEl.textContent = t('配置「{profile}」的配置层快照 · 最多保留 10 份 / 30 天', { profile })
+      // 从实例进来时先说实例名：实例和配置拆开以后，只写配置名（web）用户认不出是哪个
+      const named = instanceName && instanceName !== profile
+      backupHintEl.textContent = named
+        ? t('实例「{name}」（配置 {profile}）的配置层快照 · 最多保留 10 份 / 30 天', { name: instanceName, profile })
+        : t('配置「{profile}」的配置层快照 · 最多保留 10 份 / 30 天', { profile })
       backupHintEl.title = t('配置「{profile}」的配置层快照：补丁、依赖清单和 npmrc；回退时会按清单重装依赖，node_modules 本身不在备份里。最多保留最近 10 份，超过 30 天的自动清理。', { profile })
       paintProfileBackups([])
       // 上次关窗时可能停在列表中间，重新打开从最新一份看起
@@ -13348,7 +13631,7 @@
     function closeProfileBackups() {
       void hidePackDialog(backupDialogEl)
     }
-    globalThis.openProfileBackupsForInstance = (profile, home = '') => openProfileBackups(profile, home)
+    globalThis.openProfileBackupsForInstance = (profile, home = '', instanceName = '') => openProfileBackups(profile, home, instanceName)
     async function restoreProfileBackup(id) {
       if (!backupProfile || !id || backupLoading) return
       const ok = await appConfirm(t('回退到这份备份？当前配置会先自动存一份，回退后会自动重装依赖（可能比较慢），并需要重启这个配置的实例才生效。'))
@@ -13401,7 +13684,9 @@
       paintBackupProgress()
       try {
         const data = await post('/api/profile-backups/snapshot', { profile: backupProfile }, ...(scope ? [scope] : []))
-        notify(data.backup ? t('已生成新备份。') : t('配置没有变化，不需要新备份。'), t('备份'))
+        notify(data.backup ? t('已生成新备份。')
+          : data.reason === 'uninitialized' ? t('这个配置还没有可备份的内容：启动一次实例后才会生成配置文件。')
+            : t('配置没有变化，不需要新备份。'), t('备份'))
         await loadProfileBackups()
       } catch (error) {
         notify(error.message)
@@ -13413,7 +13698,7 @@
     }
     backupRefreshEl.onclick = () => { void loadProfileBackups() }
     document.getElementById('backupClose').onclick = closeProfileBackups
-    backupDialogEl.onclick = (event) => { if (event.target === backupDialogEl) closeProfileBackups() }
+    trapPackDialog(backupDialogEl, closeProfileBackups)
 
     /** 卡片保留唯一主入口，复制与删除收进角落的菜单。 */
     function renderPackGrid() {
@@ -13539,7 +13824,7 @@
       pluginOverviewEl.hidden = true
       packViewEl.hidden = false
       // 关闭按钮参加同一行布局，避免标题两行高时与工具按钮错开。
-      if (!launchPluginsDialogEl.hidden) packViewEl.querySelector('.pack-detail-top').append(document.getElementById('launchPluginsClose'))
+      if (!launchPluginsDialogEl.hidden) moveKeepingFocus(packViewEl.querySelector('.pack-detail-top'), document.getElementById('launchPluginsClose'))
       // 详情自带返回与操作那行，页顶标题整条让位，环境名跟着返回图标走
       paneTopEl.hidden = true
       if (packDetailNameEl) packDetailNameEl.textContent = item.profile
@@ -13713,7 +13998,16 @@
         }
       }
     }
-    function trapPackDialog(dialog, close) {      dialog.addEventListener('keydown', (event) => {
+    /** 挪 DOM 节点会让它失焦；关闭按钮换行位时把焦点带过去，否则焦点落回 body，弹窗的 Esc 就失灵了。 */
+    function moveKeepingFocus(parent, element) {
+      if (!parent || !element) return
+      const focused = document.activeElement === element
+      parent.append(element)
+      if (focused) element.focus({ preventScroll: true })
+    }
+    function trapPackDialog(dialog, close) {
+      escDialogClosers.set(dialog, close)
+      dialog.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); return }
         if (event.key !== 'Tab' || openUiSelect) return
         const controls = [...dialog.querySelectorAll('button, input, textarea, select:not(.ui-select-native), summary, a[href], [tabindex="0"]')].filter((el) => !el.disabled && el.getClientRects().length)
@@ -14728,6 +15022,7 @@
 
     document.getElementById('mcpAdd').onclick = () => openMcpDialog(null)
     document.getElementById('mcpCancel').onclick = closeMcpDialog
+    trapPackDialog(mcpDialogEl, closeMcpDialog)
     mcpTransportEl.onchange = syncMcpRows
     document.getElementById('mcpSave').onclick = saveMcp
     const mcpAdvancedEl = document.getElementById('mcpAdvanced')
@@ -15359,7 +15654,7 @@
       pluginLaunchEntry = entry || null
       launchPluginScope = entry?.id || ''
       document.getElementById('launchPluginsTitle').textContent = entry?.name ? `${entry.name} · ${t('实例')}` : t('实例')
-      launchPluginsCardEl.querySelector('.launch-plugins-head').append(document.getElementById('launchPluginsClose'))
+      moveKeepingFocus(launchPluginsCardEl.querySelector('.launch-plugins-head'), document.getElementById('launchPluginsClose'))
       const loadingEl = document.getElementById('launchPluginsLoading')
       launchPluginsCardEl.classList.add('is-loading')
       if (loadingEl) loadingEl.hidden = false
@@ -15376,7 +15671,7 @@
       if (loadingEl) loadingEl.hidden = true
       host.hidden = false
       const top = envPanel.querySelector('#environmentView .pack-detail-top')
-      if (top) top.append(document.getElementById('launchPluginsClose'))
+      if (top) moveKeepingFocus(top, document.getElementById('launchPluginsClose'))
       const subtabs = envPanel.querySelector('#environmentPluginSubtabs')
       if (subtabs) requestAnimationFrame(() => globalThis.syncSubtabPill?.(subtabs))
       const viewEl = envPanel.querySelector('#environmentView')
@@ -16413,7 +16708,7 @@
     loadSettings()
   </script>
   <!-- 环境页：用上面主脚本的全局（t / post / paneLoaders …），所以排在它后面、不加 defer -->
-  <script src="/environments-page.js?v=20261119r"></script>
+  <script src="/environments-page.js?v=20261121b"></script>
   <script src="/idle.js" defer></script>
   <script src="/mascot.js" defer></script>
   <script src="/water.js" defer></script>

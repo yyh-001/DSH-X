@@ -54,9 +54,20 @@ test('Profile 配置层备份：快照去重、列表、回退与参数校验', 
     assert.equal(first.backup.files.some((file) => /node_modules/.test(file.name)), false, 'node_modules 不进备份')
     const again = await api('/api/profile-backups/snapshot', { profile: 'web' })
     assert.equal(again.backup, null, '内容没变时不该堆新备份')
+    assert.equal(again.reason, 'unchanged', '页面据此说「配置没有变化」')
     const list = await api('/api/profile-backups?profile=web')
     assert.equal(list.backups.length, 1)
     assert.equal(list.backups[0].id, firstId)
+  })
+
+  await t.test('还没初始化的配置（只有空 skills/）：不建备份，并说明是没有可备份的内容而不是「没变化」', async () => {
+    mkdirSync(join(home, 'profiles', 'fresh', 'skills'), { recursive: true })
+    const result = await api('/api/profile-backups/snapshot', { profile: 'fresh' })
+    assert.equal(result.status, 200)
+    assert.equal(result.backup, null)
+    assert.equal(result.reason, 'uninitialized')
+    const list = await api('/api/profile-backups?profile=fresh')
+    assert.deepEqual(list.backups, [])
   })
 
   await t.test('自动清理：打开列表 / 内容没变时都清掉超过 30 天的备份，最新一份再旧也留着', async () => {
