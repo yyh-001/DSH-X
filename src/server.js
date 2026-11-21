@@ -1126,6 +1126,11 @@ const SIZE_CACHE_MAX = 40
 let sizeCache = null
 const sizeScans = new Map()
 let sizeCacheWrite = null
+/**
+ * 每个目录被 forget 过几次。遍历开始时记下，结束时对不上就不写缓存：优化（去重）和统计
+ * 并发时，统计可能读到改了一半的 node_modules，而去重不一定动锁文件，指纹认不出来。
+ */
+const sizeGenerations = new Map()
 
 function loadSizeCache() {
   if (sizeCache) return sizeCache
@@ -1140,6 +1145,18 @@ function loadSizeCache() {
     }
   } catch { /* 没有或坏了：重新统计一遍就有了 */ }
   return sizeCache
+}
+
+/**
+ * 写一条缓存，并把内存里的条目数压回 SIZE_CACHE_MAX（按最近统计时间留新的）。
+ * 以前只在落盘时截断，内存里的 Map 只增不减：装过、删过的版本和 profile 每个都留着整张包表与依赖图。
+ */
+function rememberSizeStats(nodeModules, entry) {
+  const cache = loadSizeCache()
+  cache.set(nodeModules, entry)
+  if (cache.size <= SIZE_CACHE_MAX) return
+  const oldest = [...cache.entries()].sort((a, b) => a[1].at - b[1].at).slice(0, cache.size - SIZE_CACHE_MAX)
+  for (const [dir] of oldest) cache.delete(dir)
 }
 
 /** 缓存只是加速：写不进去不影响结果。合并成一次写，免得同时开几个弹窗时反复落盘。 */
@@ -1167,10 +1184,14 @@ async function nodeModulesStats(root) {
   if (hit && hit.fp === fp) return hit
   const key = `${nodeModules}\0${fp}`
   if (!sizeScans.has(key)) {
+    const generation = sizeGenerations.get(nodeModules) || 0
     sizeScans.set(key, scanNodeModules(nodeModules).then((result) => {
       const entry = { fp, at: Date.now(), ...result }
-      loadSizeCache().set(nodeModules, entry)
-      scheduleSizeCacheWrite()
+      // 遍历期间被 forget 过（优化跑完/失败了）：这次结果可能是半截的，返回给这次请求，但不进缓存
+      if ((sizeGenerations.get(nodeModules) || 0) === generation) {
+        rememberSizeStats(nodeModules, entry)
+        scheduleSizeCacheWrite()
+      }
       return entry
     }).finally(() => sizeScans.delete(key)))
   }
@@ -1179,7 +1200,21 @@ async function nodeModulesStats(root) {
 
 /** 改了 node_modules 却不一定动锁文件的操作（依赖去重会把重复包换成链接）结束后调一下，下次重新统计。 */
 function forgetNodeModulesStats(root) {
-  if (loadSizeCache().delete(join(root, 'node_modules'))) scheduleSizeCacheWrite()
+  const nodeModules = join(root, 'node_modules')
+  sizeGenerations.set(nodeModules, (sizeGenerations.get(nodeModules) || 0) + 1)
+  if (loadSizeCache().delete(nodeModules)) scheduleSizeCacheWrite()
+}
+
+/** 版本目录下、但已经不是已装版本的缓存条目（删掉的版本）：版本列表一刷新就清掉。 */
+function pruneVersionSizeStats(installed) {
+  const root = join(DATA, 'versions')
+  const keep = new Set(installed.map((version) => join(versionDir(version), 'node_modules')))
+  let changed = false
+  for (const dir of [...loadSizeCache().keys()]) {
+    if (dirname(dirname(dir)) === root && !keep.has(dir)) changed = loadSizeCache().delete(dir) || changed
+  }
+  for (const dir of [...sizeGenerations.keys()]) if (dirname(dirname(dir)) === root && !keep.has(dir)) sizeGenerations.delete(dir)
+  if (changed) scheduleSizeCacheWrite()
 }
 
 /** 每个直接插件能到达哪些包；共用包按引用它的插件数量均摊。 */
@@ -1272,6 +1307,7 @@ async function storageBreakdown(version, profile) {
 /** 已装版本各自占多少（只算 DATA/versions 下受管版本；系统全局装的不归启动器管）。 */
 async function versionSizes() {
   const versions = scanInstalled().filter(isManaged)
+  pruneVersionSizeStats(versions)
   const entries = []
   // 版本各扫各的会把所有版本的 node_modules 同时铺开：一次只让 3 个版本进遍历，
   // 其余排队（每个版本内部再按 mapLimit 限量）。
@@ -11226,8 +11262,16 @@ async function handleApi(req, res, url) {
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/versions/optimize') {
-    const result = await optimizeVersion(body.version)
-    forgetNodeModulesStats(versionDir(safeVersion(body.version)))
+    let dir = ''
+    try { dir = versionDir(safeVersion(body.version)) } catch { /* 非法版本号：optimizeVersion 自己会报 */ }
+    let result
+    try {
+      result = await optimizeVersion(body.version)
+    } finally {
+      // 去重做到一半失败时 node_modules 也已经改了（部分重复包换成了链接），而且不一定动锁文件，
+      // 指纹认不出来：成功失败都要让下次重新统计
+      if (dir) forgetNodeModulesStats(dir)
+    }
     send(res, 200, result)
     return
   }
