@@ -13,8 +13,8 @@
 # - 核心：npm 上的 dsh-x-core，由独立的 core-package job 打包发布，和安装包无关
 # 只有「外壳层」变了才出安装包（shell/、外壳/安装包图标、Electron 版本、electron-builder 配置、
 # 打包脚本）。纯核心发版跳过三个平台的 dist job（测试照跑），Release 标 --latest=false、
-# 安装包资产沿用上一次；预发布通道会在新 release 里放一份上次的 latest.yml，否则
-# electron-updater 在最新 tag 上找不到清单会直接报错。
+# 安装包资产沿用上一次；预发布通道会在新 release 里放一份上次的 latest*.yml 和它引用的安装包，
+# 否则 electron-updater 在最新 tag 上找不到清单（或按清单去下包时 404）会直接报错。
 name: build
 
 on:
@@ -127,25 +127,62 @@ jobs:
               ;;
           esac
           gh release create "$tag" "${args[@]}"
-          # 预发布通道不看 /releases/latest，而是按通道在 release 列表里挑最新的 rc/alpha tag。
-          # 纯核心的预发布 tag 上没有安装包，把上一次外壳发版的 latest.yml / latest-linux.yml 原样放一份，
-          # electron-updater 读到的是旧版本号 → 正常判「已是最新」，不会报「找不到 latest.yml」。
-          # 几个文件各找各的：Linux 的 AppImage 通道读 latest-linux.yml（arm64 读 latest-linux-arm64.yml），
-          # 只补 Windows 那份 Linux 会照样报错。还没出过 arm64 外壳的旧 tag 上没有那份，找不到就跳过。
-          if [[ "$tag" == *-* ]] && [ "${{ steps.installers.outputs.shell_changed }}" = "0" ]; then
-            mkdir -p "$RUNNER_TEMP/shell-yml"
-            for yml in latest.yml latest-linux.yml latest-linux-arm64.yml; do
-              for t in $(git tag --sort=-v:refname | head -20); do
-                [ "$t" = "$tag" ] && continue
-                if gh release view "$t" --json assets --jq '.assets[].name' 2>/dev/null | grep -qx "$yml"; then
-                  gh release download "$t" --pattern "$yml" --dir "$RUNNER_TEMP/shell-yml" --clobber
-                  gh release upload "$tag" "$RUNNER_TEMP/shell-yml/$yml" --clobber
-                  echo "已把 $t 的 $yml 复制到 $tag（外壳版本没变，预发布通道照旧）"
-                  break
-                fi
+
+  # 预发布通道不看 /releases/latest，而是按通道在 release 列表里挑最新的 rc/alpha tag。
+  # 纯核心的预发布 tag 上没有安装包，要把上一次外壳发版的 latest.yml / latest-linux.yml 放一份过来，
+  # electron-updater 读到旧外壳版本号 → 已是这个版本的用户正常判「已是最新」，不会报「找不到 latest.yml」。
+  # 几个文件各找各的：Linux 的 AppImage 通道读 latest-linux.yml（arm64 读 latest-linux-arm64.yml），
+  # 只补 Windows 那份 Linux 会照样报错。还没出过 arm64 外壳的旧 tag 上没有那份，找不到就跳过。
+  #
+  # 只复制 yml 不够：比上次外壳还旧的用户会判「有更新」，按清单里的文件名去**当前 tag** 下载，
+  # 那里没有安装包 → 404。清单里写上一次 release 的绝对地址也不行：electron-updater 的
+  # GitHubProvider 会把 files[].url 无条件拼到 `/releases/download/<当前 tag>/` 后面
+  # （6.x 的 resolveFiles + getBaseDownloadPath），绝对地址会被拼成一串坏路径。
+  # 所以把清单引用的安装包和 .blockmap 一起复制过来：多占一份 release 空间，但不依赖
+  # electron-updater 的内部实现，换 provider 或升级它也照样成立。
+  # 单独一个 job：要搬上百 MB 的安装包，别拖住后面三个平台的测试。
+  shell-feed:
+    needs: prepare
+    if: startsWith(github.ref, 'refs/tags/v') && contains(github.ref_name, '-') && needs.prepare.outputs.shell_changed == '0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 要按版本号列出之前的 tag
+
+      - name: 复制上一次外壳发版的更新清单与安装包
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          for yml in latest.yml latest-linux.yml latest-linux-arm64.yml; do
+            for t in $(git tag --sort=-v:refname | head -20); do
+              [ "$t" = "$tag" ] && continue
+              assets="$(gh release view "$t" --json assets --jq '.assets[].name' 2>/dev/null || true)"
+              grep -qxF "$yml" <<<"$assets" || continue
+              dir="$RUNNER_TEMP/shell-feed/$t"
+              mkdir -p "$dir"
+              gh release download "$t" --pattern "$yml" --dir "$dir" --clobber
+              # 清单里引用的文件：files[].url 与（旧格式的）顶层 path，去重；值可能带引号
+              refs="$(sed -nE 's/^[[:space:]]*(-[[:space:]]+)?(url|path):[[:space:]]*["'"'"']?([^"'"'"'[:space:]]+)["'"'"']?[[:space:]]*$/\3/p' "$dir/$yml" | sort -u)"
+              # 先传安装包、最后传清单：客户端看到清单时，它指的文件已经在了
+              for ref in $refs; do
+                for name in "$ref" "$ref.blockmap"; do
+                  if grep -qxF "$name" <<<"$assets"; then
+                    gh release download "$t" --pattern "$name" --dir "$dir" --clobber
+                    gh release upload "$tag" "$dir/$name" --clobber
+                  elif [ "$name" = "$ref" ]; then
+                    echo "::warning::$t 上没有 $yml 引用的 $name，比它更旧的外壳从 $tag 更新会 404"
+                  fi
+                done
               done
+              gh release upload "$tag" "$dir/$yml" --clobber
+              echo "已把 $t 的 $yml 及其安装包复制到 $tag（外壳版本没变，预发布通道照旧）"
+              break
             done
-          fi
+          done
 
   windows:
     needs: prepare
@@ -385,12 +422,14 @@ jobs:
 
   # 核心 npm 包：和安装包完全独立。纯核心发版时三个平台的 dist job 全跳过，这里照发 dsh-x-core；
   # 以前这一步挂在 mac arm64 job 里，跳过 mac 就等于核心发不出去。
-  # 等 Windows / Linux 的整套测试过了再发：首启和核心更新都从 npm 取最新核心，
-  # 测试没过的 tag 一旦发出去，所有新装用户会同时拿到它。这两个 job 纯核心发版时也照跑测试。
+  # 等 Windows 的整套测试过了再发，Linux 那份测试在本 job 里自己跑：首启和核心更新都从 npm 取最新核心，
+  # 测试没过的 tag 一旦发出去，所有新装用户会同时拿到它。
+  # 不再 needs 整个 linux 矩阵：Actions 没法只依赖矩阵里的一格，arm64 runner 排队或抽风
+  # 就会把每一次核心发版都卡住，而核心包本身只在 ubuntu x64 上组装，跟 arm64 无关。
   core-package:
-    needs: [prepare, windows, linux]
+    needs: [prepare, windows]
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
     # npm trusted publishing：用 OIDC 换一次性发布凭据，不再依赖 NPM_TOKEN。
     # job 级 permissions 会覆盖顶层的 contents: write，checkout 需要显式给 contents: read。
     permissions:
@@ -414,6 +453,16 @@ jobs:
       # 不需要 Electron 本体，跳过它的下载脚本
       - name: 安装打包依赖（跳过 Electron 下载）
         run: npm ci --ignore-scripts
+
+      # 代替原来对 linux 矩阵的依赖：同一套用例在 ubuntu x64 上过一遍再发（npm test 用不到 Electron 本体）
+      - name: 跑测试
+        run: |
+          for attempt in 1 2 3; do
+            npm test -- --test-timeout=120000 && exit 0
+            if [ "$attempt" -eq 3 ]; then exit 1; fi
+            echo "第 $attempt 次测试失败，5 秒后重试整套"
+            sleep 5
+          done
 
       # 核心层：APP_FILES + public/compat/perf/packs + node 包装（npm/pnpm 的 JS）。
       # --stage-only 只组装这一层，不碰外壳、不跑 electron-builder。
