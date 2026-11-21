@@ -101,8 +101,8 @@ test('本地占位页桥只发送启动与返回管理页，不开放管理消�
 test('外壳把两份预加载各装到该装的地方，右侧栏 webview 的 guest 拿不到', () => {
   const main = read('shell/main.mjs')
   assert.match(main, /const BROWSER_PRELOAD = join\(HERE, 'preload-browser\.cjs'\)/)
-  assert.match(main, /function remotePreferences\(\)[\s\S]*?preload: BROWSER_PRELOAD/, '内部标签页用浏览器预加载')
-  assert.match(main, /new WebContentsView\(\{ webPreferences: remotePreferences\(\) \}\)/,
+  assert.match(main, /function remotePreferences\(target = null\)[\s\S]*?preload: BROWSER_PRELOAD/, '内部标签页用浏览器预加载')
+  assert.match(main, /new WebContentsView\(\{ webPreferences: remotePreferences\(target\) \}\)/,
     '两种宿主共用带路径桥的视图预加载，迁移不更换预加载')
 
   // guest 的 webPreferences 在主进程里清空，只剩 Electron 自己的 disablePopups：
@@ -111,4 +111,52 @@ test('外壳把两份预加载各装到该装的地方，右侧栏 webview 的 g
   assert.match(guests, /for \(const key of Object\.keys\(preferences\)\) \{\s*if \(key !== 'disablePopups'\) Reflect\.deleteProperty\(preferences, key\)/,
     'will-attach-webview 删掉渲染进程传来的全部偏好')
   assert.match(guests, /webviewTag: false, plugins: false, navigateOnDragDrop: false/)
+})
+
+test('WSL 实例：拖进来的 Windows 路径换成 /mnt/<盘符>/…，UNC 的 \\\\wsl$ 换成发行版里的绝对路径', () => {
+  const paths = {
+    'a.png': 'C:\\Users\\me\\Desktop\\a.png',
+    'D-root': 'D:\\',
+    'long': '\\\\?\\E:\\Work\\x.txt',
+    'wsl': '\\\\wsl$\\Ubuntu\\home\\me\\notes.md',
+    'wsl-local': '\\\\wsl.localhost\\ubuntu\\etc\\hosts',
+    'other-distro': '\\\\wsl.localhost\\Debian\\home\\me\\x',
+    'share': '\\\\server\\share\\doc.txt',
+    'linux': '/home/me/a.txt',
+  }
+  const pathForFile = (file) => paths[file.name]
+  const exposed = runPreload('shell/preload-browser.cjs', { argv: ['--dsh-x-wsl=Ubuntu'], pathForFile })
+  const pathFor = (name) => exposed.__DSH_HOST_PATHS__.pathFor({ name })
+  assert.equal(pathFor('a.png'), '/mnt/c/Users/me/Desktop/a.png')
+  assert.equal(pathFor('D-root'), '/mnt/d')
+  assert.equal(pathFor('long'), '/mnt/e/Work/x.txt')
+  assert.equal(pathFor('wsl'), '/home/me/notes.md')
+  assert.equal(pathFor('wsl-local'), '/etc/hosts', '发行版名不分大小写')
+  assert.equal(pathFor('other-distro'), paths['other-distro'], '别的发行版没有对应路径，原样交回')
+  assert.equal(pathFor('share'), paths.share, '网络共享原样交回')
+  assert.equal(pathFor('linux'), '/home/me/a.txt')
+
+  // 默认发行版（参数里名字为空）：认不出名字时 \\wsl$ 也照换
+  const anyDistro = runPreload('shell/preload-browser.cjs', { argv: ['--dsh-x-wsl='], pathForFile })
+  assert.equal(anyDistro.__DSH_HOST_PATHS__.pathFor({ name: 'other-distro' }), '/home/me/x')
+
+  // 本机实例（没有参数）不换算
+  const local = runPreload('shell/preload-browser.cjs', { pathForFile })
+  assert.equal(local.__DSH_HOST_PATHS__.pathFor({ name: 'a.png' }), paths['a.png'])
+})
+
+test('外壳按实例身份决定 WSL 参数：home 是 wsl:// 的视图才带 --dsh-x-wsl', () => {
+  const main = read('shell/main.mjs')
+  const start = main.indexOf('function wslDistroOfHome(')
+  const end = main.indexOf('/**', main.indexOf('function remotePreferences('))
+  const context = { BROWSER_PRELOAD: '/x/preload-browser.cjs' }
+  vm.runInNewContext(main.slice(start, end) + '\nglobalThis.check = (target) => remotePreferences(target)', context)
+  // vm 里造的数组是另一个 realm 的，展开成本 realm 的再比
+  const args = (target) => { const value = context.check(target).additionalArguments; return value && [...value] }
+  assert.deepEqual(args({ home: 'wsl://Ubuntu/~%2F.dsh' }), ['--dsh-x-wsl=Ubuntu'])
+  assert.deepEqual(args({ home: 'wsl:///~%2F.dsh' }), ['--dsh-x-wsl='], '默认发行版名字为空也算 WSL')
+  assert.equal(args({ home: 'C:\\Users\\me\\.dsh' }), undefined)
+  assert.equal(args(null), undefined)
+  const views = read('shell/instance-views.mjs')
+  assert.match(views, /this\.hooks\.createView\(record\.viewId, target\)/, '建视图时把实例身份交给外壳')
 })

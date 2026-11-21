@@ -7726,21 +7726,30 @@
       return draftWslUserValue()
     }
 
+    // 每次读 Profile 摘要都换一个号：在 web 和 acp 之间快速来回点时，先发的请求可能后回来，
+    // 只认最后一次发出的那个，不然右栏会列出另一个 Profile 的插件。
+    let pickerWslProfileToken = 0
     async function loadPickerWslProfile() {
-      const connection = connectionForHomeKey(pickerHome)
-      const parsed = parseSshHomeKey(pickerHome) || parseWslHomeKey(pickerHome)
-      if (!connection || !parsed || !pickerProfile) { pickerWslProfileInfo = null; return }
-      const key = `${connection.id}\u0000${parsed.home}\u0000${pickerProfile}`
+      const home = pickerHome
+      const profile = pickerProfile
+      const token = ++pickerWslProfileToken
+      const connection = connectionForHomeKey(home)
+      const parsed = parseSshHomeKey(home) || parseWslHomeKey(home)
+      if (!connection || !parsed || !profile) { pickerWslProfileInfo = null; return }
+      const key = `${connection.id}\u0000${parsed.home}\u0000${profile}`
       const cached = pickerWslProfileCache.get(key)
       if (cached) { pickerWslProfileInfo = cached; return }
       pickerWslProfileInfo = null
+      let info
       try {
-        const data = await getJson(`/api/remote/profile?connectionId=${encodeURIComponent(connection.id)}&home=${encodeURIComponent(parsed.home)}&profile=${encodeURIComponent(pickerProfile)}`)
-        pickerWslProfileCache.set(key, data)
-        pickerWslProfileInfo = data
+        info = await getJson(`/api/remote/profile?connectionId=${encodeURIComponent(connection.id)}&home=${encodeURIComponent(parsed.home)}&profile=${encodeURIComponent(profile)}`)
+        pickerWslProfileCache.set(key, info)
       } catch (error) {
-        pickerWslProfileInfo = { ok: false, error: error.message }
+        info = { ok: false, error: error.message }
       }
+      // 缓存照样写（下次点回来不用再问），但只有选中的还是这一项时才放进右栏。
+      if (token !== pickerWslProfileToken || home !== pickerHome || profile !== pickerProfile) return
+      pickerWslProfileInfo = info
     }
     // 每次切目录都会发请求，晚回来的旧响应不能盖掉新目录的列表
     let pickerRevision = 0
@@ -8125,7 +8134,7 @@
         }
         if (!info.ok) {
           profilePickMetaEl.textContent = version
-          return render(`<p class="profile-pick-note">${escapeHtml(info.error || t('这个配置还没初始化'))}</p>`)
+          return render(`<p class="profile-pick-note">${escapeHtml(t(info.error || '这个配置还没初始化'))}</p>`)
         }
         const plugins = Array.isArray(info.plugins) ? info.plugins : []
         profilePickMetaEl.textContent = [version, t('{n} 个插件', { n: plugins.length })].filter(Boolean).join(' · ')

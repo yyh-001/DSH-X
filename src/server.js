@@ -233,7 +233,7 @@ import {
   saveSettings,
   VERSION_RE,
 } from './settings.js'
-import { allocateWslPort, createWslBackend, inspectWslDistro, invalidateWslCache, listWslDistros, parseWslHomeKey, resolveWslHome, readWslProfile, removeWslProfile, startWslInstance, stopWslInstance, wslAvailable, wslHomeKey, wslPath, wslPortAvailable } from './wsl.js'
+import { allocateWslPort, createWslBackend, inspectWslDistro, invalidateWslCache, listWslDistros, parseWslHomeKey, reapWslOrphans, resolveWslHome, readWslProfile, removeWslProfile, sameWslDistro, startWslInstance, stopWslInstance, wslAvailable, wslHomeKey, wslPath, wslPortAvailable, wslTextStream } from './wsl.js'
 import { getWslRemoteCore, resolveWslInstallRoot, stopAllRemoteCores, stopWslRemoteCore } from './remote-core.js'
 import { getSshRemoteCore, stopAllSshRemoteCores, stopSshRemoteCore } from './ssh-core.js'
 import { createSshBackend, testSshConnection } from './ssh.js'
@@ -2264,12 +2264,19 @@ async function applyDataDir(dir) {
   pushLog(`版本目录 ${DATA}`)
 }
 
+/** 设置页等 wsl.exe 列发行版最多等多久；正常机器 ~100ms 就回来了。 */
+const WSL_SETTINGS_WAIT_MS = 1500
+
 async function publicSettings() {
   const stored = await loadSettings()
   // 别的实例（安装版 / 另一个窗口）可能刚改了 settings.json：读设置时把运行时语言对齐，
   // 否则会出现「下拉写 English、界面还是中文」这种 LANG 与文件不一致的状态。
   LANG = resolveLang(stored.lang)
-  const wslProbe = wslAvailable() ? await listWslDistros() : { available: false, distros: [], error: '当前不是 Windows，或找不到 wsl.exe' }
+  // 设置页读和存都走这里：WSL 服务卡住时 wsl.exe 要 15 秒才超时，不能让整页设置陪它等。
+  // 最多等一小会儿，等不到就交上一次的列表（或者先不交），探测留在后台跑完进缓存。
+  const wslProbe = wslAvailable()
+    ? await listWslDistros({ waitMs: WSL_SETTINGS_WAIT_MS })
+    : { available: false, distros: [], error: '当前不是 Windows，或找不到 wsl.exe' }
   let dshHomeValue = ''
   try { dshHomeValue = safeDshHome(stored.dshHome) } catch { /* 失效目录不阻断读取设置 */ }
   return {
@@ -2332,7 +2339,13 @@ async function publicSettings() {
     profile: PROFILE_NAME,
     profiles: listProfiles(),
     launchPresets: safeLaunchPresets(stored.launchPresets),
-    wsl: { ...safeWslSettings(stored.wsl), available: wslProbe.available, distros: wslProbe.distros, error: wslProbe.error },
+    // pending 且没有上一次的结果时不带 distros / error：页面按字段合并 state.wsl，
+    // 带个空列表过去会把它已经拿到的发行版清掉。
+    wsl: {
+      ...safeWslSettings(stored.wsl),
+      available: wslProbe.available,
+      ...(wslProbe.pending && !wslProbe.distros.length ? { pending: true } : { distros: wslProbe.distros, error: wslProbe.error }),
+    },
     wslPorts: WSL_PORTS,
     // 回显用户填的原文（带引号），不能回显 parse 后的数组，否则含空格的值再存一次就被拆开了
     args: stored.args ?? '',
@@ -2385,14 +2398,35 @@ async function setInstancePortNow(version, profile, port) {
   const prof = safeProfile(profile)
   const key = `${ver}@${prof}`
   const home = homeDir()
+  const kind = launchKind()
   const extra = home !== defaultHome()
-  const wsl = launchIsRemote()
-  const distro = launchDistro()
-  const map = { ...(wsl ? (WSL_PORTS[distro] || {}) : extra ? ENVIRONMENT_PORTS[home] : INSTANCE_PORTS) }
-  const savePorts = async (next) => {
-    if (wsl) {
-      const saved = await saveSettings({ wslPorts: { ...WSL_PORTS, [distro]: next } })
+  // WSL 的钉子按完整的 wsl:// 目录键存（同一个发行版里两个 DSH_HOME 各钉各的）；
+  // 老设置里按发行版名存的那份只当兜底读，这次写到哪个组合就把那个组合从老表里挪出来。
+  const distro = kind === 'wsl' ? launchDistro() : ''
+  const legacy = kind === 'wsl' ? { ...(WSL_PORTS[distro] || {}) } : {}
+  const sshId = kind === 'ssh' ? (launchConnection()?.id || safeConnectionId(launchScope.getStore()?.connectionId)) : ''
+  if (kind === 'ssh' && !sshId) throw new Error('SSH 连接已不存在，请重新选择')
+  const map = kind === 'wsl' ? { ...(WSL_PORTS[home] || {}) }
+    : kind === 'ssh' ? { ...(SSH_PORTS[sshId] || {}) }
+      : { ...(extra ? ENVIRONMENT_PORTS[home] : INSTANCE_PORTS) }
+  const pinOf = (other) => map[other] || legacy[other] || 0
+  const savePorts = async (next, migrated = []) => {
+    if (kind === 'wsl') {
+      const ports = { ...WSL_PORTS, [home]: next }
+      const rest = migrated.reduce((left, other) => mapWithout(left, other), legacy)
+      if (distro && WSL_PORTS[distro]) {
+        if (Object.keys(rest).length) ports[distro] = rest
+        else delete ports[distro]
+      }
+      if (!Object.keys(next).length) delete ports[home]
+      const saved = await saveSettings({ wslPorts: ports })
       WSL_PORTS = safeWslPorts(saved.wslPorts)
+      return
+    }
+    if (kind === 'ssh') {
+      // 以前 SSH 也走 WSL 那支、写进 wslPorts[''] 又被校验丢掉，等于没存；pinnedPort 读的是 sshPorts。
+      const saved = await saveSettings({ sshPorts: { ...SSH_PORTS, [sshId]: next } })
+      SSH_PORTS = safeSshPorts(saved.sshPorts)
       return
     }
     const saved = await saveSettings(extra
@@ -2403,39 +2437,61 @@ async function setInstancePortNow(version, profile, port) {
   }
   const text = String(port ?? '').trim()
   if (!text || Number(text) === 0) {
-    await savePorts(mapWithout(map, key))
+    await savePorts(mapWithout(map, key), [key])
     pushLog(`取消固定端口：${key}`)
     await emitState()
     return { key, port: 0, busy: false }
   }
   const value = safePort(text)
-  if (!wsl && !bootsWebApp(prof)) throw new Error(`配置 ${prof} 不起 web 应用，端口对它没用`)
+  if (kind === 'local' && !bootsWebApp(prof)) throw new Error(`配置 ${prof} 不起 web 应用，端口对它没用`)
   let configured = 0
   try { configured = safePort(loadSettingsSync().port) } catch { configured = DEFAULT_PORT }
   if (value === PORT || value === configured) {
     throw new Error(`端口 ${value} 是管理页自己在用的，换一个`)
   }
+  // 每条钉子带上它所在的目录键：本机 / 环境是目录，WSL 是 wsl:// 键（老表是发行版名），SSH 是连接。
+  // 当前作用域的键必须和 home 用同一种写法，否则「同一个组合再钉一次」会被当成别人钉的。
+  const legacyTag = (name) => `wsl-distro:${name}`
+  const sshTag = (id) => `ssh-connection:${id}`
+  const ownTag = kind === 'ssh' ? sshTag(sshId) : home
   const allPorts = [
     ...Object.entries(INSTANCE_PORTS).map(([other, otherPort]) => [defaultHome(), other, otherPort]),
     ...Object.entries(ENVIRONMENT_PORTS).flatMap(([dir, ports]) => Object.entries(ports).map(([other, otherPort]) => [dir, other, otherPort])),
-    ...Object.entries(WSL_PORTS).flatMap(([name, ports]) => Object.entries(ports).map(([other, otherPort]) => ['wsl://' + name, other, otherPort])),
+    ...Object.entries(WSL_PORTS).flatMap(([name, ports]) => Object.entries(ports)
+      .map(([other, otherPort]) => [name.startsWith('wsl://') ? name : legacyTag(name), other, otherPort])),
+    // SSH 的端口在远端主机上，跟本机 / WSL 的回环互不相干：只和同一个连接里的钉子比。
+    ...(kind === 'ssh' ? Object.entries(map).map(([other, otherPort]) => [ownTag, other, otherPort]) : []),
   ]
   // 启动项换了 DSH 版本后，它上次启动用的旧版本（usedVersion / prevVersion）还钉着这个端口：
   // 那是同一个启动项留下的，跟着版本挪过来，而不是拦住启动。别的组合钉着的端口照旧拒绝。
   const launch = safeLaunchPresets(loadSettingsSync().launchPresets).find((item) => item.id === launchScope.getStore()?.launchId)
   const moved = launch?.profile === prof
     ? [launch.usedVersion, launch.prevVersion].filter(Boolean).map((used) => `${used}@${prof}`)
-      .filter((other) => other !== key && map[other] === value)
+      .filter((other) => other !== key && pinOf(other) === value)
     : []
-  const taken = allPorts.find(([dir, other, otherPort]) => otherPort === value && !(dir === home && (other === key || moved.includes(other))))
-  if (taken) throw new Error(`端口 ${value} 已经钉给 ${taken[1]}（${taken[0]}）了，换一个`)
+  // 老表里同一个组合的钉子算自己的：这次就是把它挪到目录键下。
+  const ours = (dir) => dir === ownTag || (kind === 'wsl' && distro && dir === legacyTag(distro))
+  const taken = allPorts.find(([dir, other, otherPort]) => otherPort === value && !(ours(dir) && (other === key || moved.includes(other))))
+  if (taken) throw new Error(`端口 ${value} 已经钉给 ${taken[1]}（${describePortScope(taken[0])}）了，换一个`)
   for (const other of moved) delete map[other]
   map[key] = value
-  await savePorts(map)
+  await savePorts(map, [key, ...moved])
   pushLog(`固定端口：${key} → ${value}（下次启动生效）${moved.length ? `，从 ${moved.join('、')} 挪过来` : ''}`)
   await emitState()
-  const ours = instanceOnPort(value)
-  return { key, port: value, busy: !ours && !(await portAvailable(value)) }
+  const live = instanceOnPort(value)
+  return { key, port: value, busy: kind !== 'ssh' && !live && !(await portAvailable(value)) }
+}
+
+/** 报错里的目录键说人话：wsl:// 键是 URL 编码过的，原样贴出来用户认不出是哪个目录。 */
+function describePortScope(tag) {
+  const wsl = parseWslHomeKey(tag)
+  if (wsl) return `WSL ${wsl.distro} · ${wsl.home}`
+  if (tag.startsWith('wsl-distro:')) return `WSL ${tag.slice('wsl-distro:'.length)}`
+  if (tag.startsWith('ssh-connection:')) {
+    const id = tag.slice('ssh-connection:'.length)
+    return `SSH ${CONNECTIONS.find((item) => item.id === id)?.name || id}`
+  }
+  return tag
 }
 
 /**
@@ -2598,6 +2654,12 @@ async function launchStartupPresets(presets) {
   const generation = startupGeneration
   await Promise.all(trayLaunches().filter((row) => row.preset?.autoLaunch).map(async (row) => {
     if (row.proc || row.busy) return
+    // 设置同步会把 Windows 上建的 WSL 启动项带到 mac / Linux：这里没有 wsl.exe，
+    // 硬起只会落一条 spawn wsl.exe ENOENT 的「启动失败」。
+    if (row.preset?.backend === 'wsl' && !wslAvailable()) {
+      pushLog(`自动启动「${row.name}」已跳过：这是 WSL 启动项，当前系统没有 WSL（只在 Windows 上可用）`)
+      return
+    }
     if (!row.installed) {
       pushLog(`自动启动「${row.name}」已跳过：请先安装${row.version ? ` ${row.version}` : '内核'}`)
       return
@@ -5777,8 +5839,15 @@ function bootArgs(profile = PROFILE_NAME, pinned = 0) {
 
 /** 这个「版本 × profile」手工固定的端口（0 = 自动分配并记忆）。 */
 function pinnedPort(version, profile) {
+  // 远端 core 收到的一次性固定端口（WSL 启动项的钉子在 Windows 侧，随 /api/start 带过来）
+  const oneShot = launchScope.getStore()?.oneShotPort
+  if (oneShot > 0) return oneShot
   const kind = launchKind()
-  if (kind === 'wsl') return WSL_PORTS[launchDistro()]?.[`${version}@${profile}`] || 0
+  // WSL 先认完整目录键；老设置按发行版名存的那份只兜底，下次钉/取消钉时会挪到目录键下。
+  if (kind === 'wsl') {
+    const key = `${version}@${profile}`
+    return WSL_PORTS[homeDir()]?.[key] || WSL_PORTS[launchDistro()]?.[key] || 0
+  }
   if (kind === 'ssh') {
     const id = launchConnection()?.id || safeConnectionId(launchScope.getStore()?.connectionId)
     return id ? SSH_PORTS[id]?.[`${version}@${profile}`] || 0 : 0
@@ -7820,7 +7889,7 @@ function notifyInstance(kind, proc, extra = {}) {
   } catch { /* 通知失败不能影响实例本身 */ }
 }
 
-function attachProcess(version, profile, child, diagnosticContext, instanceLink) {
+function attachProcess(version, profile, child, diagnosticContext, instanceLink, options = {}) {
   const key = instanceKey(version, profile)
   let ready
   const proc = {
@@ -7901,7 +7970,12 @@ function attachProcess(version, profile, child, diagnosticContext, instanceLink)
     }
   }
   // 管道的 chunk 没有行/UTF-8 边界；逐块 split 会截断中文、错误码，甚至整个就绪 URL。
-  const readers = [child.stdout, child.stderr].map((input) => createInterface({ input, crlfDelay: Infinity }).on('line', onLine))
+  // wsl.exe 这扇门自己的报错是 UTF-16LE（发行版不存在、虚拟机起不来），按 UTF-8 切行就成了乱码，
+  // 而启动进度页和失败报告显示的正是这几行：WSL 的输出先过一道按块识别编码的解码。
+  const readers = [child.stdout, child.stderr].map((input) => createInterface({
+    input: options.wslOutput ? wslTextStream(input) : input,
+    crlfDelay: Infinity,
+  }).on('line', onLine))
   // 进程退出时管道里可能还有最后几行没读完（失败前的错误行往往就是最后一行）。
   // 等两条输出流都 close 再收尾，最多等 200ms：既不让诊断尾部丢行，也不被孙进程拖住。
   let readersClosed = 0
@@ -8243,6 +8317,22 @@ async function bootOnce(ver, prof, onStarted) {
 }
 
 /**
+ * 挑端口前收掉上次崩溃遗留在 WSL 里的 dsh（同 Profile + DSH_HOME）。启动器还管着的
+ * WSL 实例 id 作为保留名单传过去，不能误杀正在跑的。收不成不挡启动：最坏就是
+ * 回到原来的行为（换个端口起），比起不来强。
+ */
+async function reapWslLeftovers(distro, user, home, profile) {
+  const keep = [...instances.values()].filter((item) => item.backend === 'wsl' && item.instanceId).map((item) => item.instanceId)
+  try {
+    const result = await reapWslOrphans({ distro, user, home, profile, keep })
+    const note = String(result.stderr || '').trim()
+    if (note) pushLog(`WSL ${distro}：${note}`)
+  } catch (error) {
+    pushLog(`WSL ${distro}：清理遗留 dsh 失败：${error instanceof Error ? error.message : error}`)
+  }
+}
+
+/**
  * 起一个 WSL 里的 dsh。wsl.exe 只是一扇门，stdout/stderr 仍然是 dsh 的，
  * 所以沿用 attachProcess 那套就绪识别；但不走 createInstanceLink——那条通道靠
  * Windows 侧注入 compat 钩子，WSL 里没有这些文件。
@@ -8263,9 +8353,17 @@ async function bootWslOnce(ver, prof, context, onStarted) {
   try {
     const preferred = pinned || remembered.port
     if (remembered.port) pushLog(`复用 WSL 自动端口：${remembered.key} → ${remembered.port}`)
-    const port = await allocateWslPort(distro, preferred, (candidate) => portAvailable(candidate))
-    if (pinned && port !== pinned) pushLog(`固定端口 ${pinned} 在 WSL 或 Windows 侧被占用，这次改用 ${port}`)
-    else if (remembered.port && port !== remembered.port) pushLog(`WSL 自动端口 ${remembered.port} 已不可用，这次改用 ${port}`)
+    await reapWslLeftovers(distro, wslUser, wslHome, prof)
+    // 钉住的端口被占时 allocateWslPort 直接报错（点名端口和占用者），不再悄悄换一个：
+    // 钉端口就是为了地址每次都一样，换了等于钉子白钉。只有自动端口才允许顺延。
+    const port = await allocateWslPort(distro, preferred, (candidate) => portAvailable(candidate), {
+      pinned: Boolean(pinned),
+      windowsHolder: (candidate) => {
+        const who = instanceOnPort(candidate)
+        return who ? `${who.version}/${who.profile} 正在用它` : ''
+      },
+    })
+    if (remembered.port && port !== remembered.port) pushLog(`WSL 自动端口 ${remembered.port} 已不可用，这次改用 ${port}`)
     pushLog(`启动 ${ver} · 配置 ${prof} · WSL ${distro}${wslUser ? ` · 用户 ${wslUser}` : ''}${workdir ? ` · 项目目录 ${workdir}` : ''}${pinned ? ` · 固定端口 ${pinned}` : ''}`)
     assertStartupActive()
     const diagnosticContext = {
@@ -8290,8 +8388,12 @@ async function bootWslOnce(ver, prof, context, onStarted) {
         // 代理探测放在 WSL 里做：Windows 侧的 localhost 在 NAT 模式到不了，
         // 探不通时改用宿主网关；两边都不通就不注代理（注死地址比不注更糟）。
         proxy: resolveProxy(),
+        // 前面那次检查之后还要写脚本、探代理（来回几趟 wsl.exe，最长 20 秒）；
+        // 这期间退出启动器的话，到真正拉起 dsh 之前再拦一次。
+        beforeSpawn: () => assertStartupActive(),
       })
     } catch (error) {
+      if (error?.code === 'STARTUP_CANCELLED') throw error
       lastFailure = {
         at: Date.now(),
         version: ver,
@@ -8311,7 +8413,7 @@ async function bootWslOnce(ver, prof, context, onStarted) {
       pushLog(`Windows 侧代理 ${formatProxyForLog(started.proxy.original)} 在 WSL 里连不上，本次不带代理启动`)
     }
     const spawnAt = performance.now()
-    const proc = attachProcess(ver, prof, started.child, diagnosticContext, null)
+    const proc = attachProcess(ver, prof, started.child, diagnosticContext, null, { wslOutput: true })
     Object.assign(proc, {
       backend: 'wsl',
       distro: started.distro || distro,
@@ -8389,6 +8491,8 @@ async function startRemoteNow(version, profile = PROFILE_NAME, onStarted) {
   try {
     return await startRemoteInner(version, profile, onStarted)
   } catch (error) {
+    // 退出启动器取消的自动启动不是「启动失败」，别给页面留一条失败记录。
+    if (error?.code === 'STARTUP_CANCELLED') throw error
     if (!error?.failure) {
       lastFailure = {
         at: Date.now(),
@@ -8594,6 +8698,9 @@ async function startRemoteViaCore({ requested, profile, channel = DEFAULT_UPDATE
     effective = latestRemoteFor({ tags: check?.tags, versions: check?.versions }, (version) => versionInChannel(activeChannel, version))
   }
   if (!effective) throw new Error('远端 core 里还没有可用的 dsh 版本，请先在版本管理里安装一个')
+  // 起远端 core、读它的状态都要来回 wsl.exe / SSH（首次要装 core，可能好几分钟）：
+  // 自动启动途中用户退出了启动器，就别再去装 dsh、更别把它拉起来。
+  assertStartupActive()
   if (!remoteInstalled.includes(effective)) {
     pushLog(`远端 core 里没有 dsh ${effective}，开始自动安装…`)
     await core.json('/api/install', {
@@ -8609,10 +8716,24 @@ async function startRemoteViaCore({ requested, profile, channel = DEFAULT_UPDATE
   // dsh 的输出只在远端 core 的日志里：在发启动请求前就连上它的日志流，
   // 按版本/profile 把启动阶段的输出抄回这个启动项（首批历史行由订阅端跳过）。
   attachRemoteLogRoute(core, { version: effective, profile, launchId: launchScope.getStore()?.launchId || '' })
+  // WSL 的固定端口记在 Windows 这边（wslPorts 按目录键），远端 core 自己的设置里没有它：
+  // 不带过去的话钉子形同虚设，每次都是远端现挑一个端口。跟着这次启动请求一起发过去，远端只在这一次
+  // 启动里当固定端口用、不写进它的设置——远端没有启动项上下文，存成它的钉子会在自动版本升级时撞上
+  // 「已固定给旧版本」。auto 版本在前端拿不到实际版本，再按启动项自己的 port 兜一次（和 bootWslOnce 一样）。
+  // SSH 不带：页面走的是本机隧道端口，钉远端端口换不来固定的链接。
+  let pinned = 0
+  if (kind === 'wsl') {
+    const launchId = launchScope.getStore()?.launchId
+    const preset = launchId ? safeLaunchPresets(loadSettingsSync().launchPresets).find((item) => item.id === launchId) : null
+    pinned = pinnedPort(effective, profile) || (preset?.port > 0 ? preset.port : 0)
+    if (pinned) pushLog(`WSL 固定端口 ${pinned}：随启动请求交给远端 core`)
+  }
+  // 真正拉起 dsh 的就是下面这个请求：前面装 dsh 也可能耗上好几分钟，紧挨着它再看一次。
+  assertStartupActive()
   const started = await core.json('/api/start', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ version: effective, profile }),
+    body: JSON.stringify({ version: effective, profile, ...(pinned ? { port: pinned } : {}) }),
   })
   if (!started?.url) throw new Error('远端 core 没有返回 dsh 地址')
   // /api/start 返回时实例已经就绪；从 core 的 state 里取实际版本（auto 时尤其需要）。
@@ -10925,7 +11046,8 @@ async function handleApi(req, res, url) {
       if (profile.startsWith('.') || profile.toLowerCase() === 'node_modules' || CLI_BLOCKED_PROFILES.has(profile.toLowerCase())) {
         throw new Error(`「${profile}」不能作为配置删除`)
       }
-      const running = instanceList().some((proc) => proc.backend === 'wsl' && proc.distro === distro && proc.profile === profile
+      // 发行版名不分大小写：页面传 ubuntu、实例记的是 Ubuntu 也是同一个发行版，不能放过去删掉它脚下的配置。
+      const running = instanceList().some((proc) => proc.backend === 'wsl' && sameWslDistro(proc.distro, distro) && proc.profile === profile
         && (proc.wslUser || '') === user
         && (proc.status === 'running' || proc.status === 'starting'))
       if (running) throw new Error('这个配置正在运行，先停止再删除')
@@ -11278,7 +11400,12 @@ async function handleApi(req, res, url) {
   if (req.method === 'POST' && url.pathname === '/api/start') {
     // 先记后启：启动项这次实际用的版本要留给清理规则当「当前用」。
     await recordLaunchUse(launchScope.getStore()?.launchId, body.version)
-    send(res, 200, await start(body.version, body.profile))
+    // port：Windows 侧把 WSL 启动项的固定端口随启动请求带过来（见 startRemoteViaCore），只管这一次、
+    // 不写设置。管理页自己的端口不能给 dsh（两者撞了管理页就没了）。
+    const oneShotPort = body.port === undefined || body.port === 0 ? 0 : safePort(body.port)
+    if (oneShotPort && oneShotPort === PORT) throw new Error(`端口 ${oneShotPort} 是管理页自己在用的，换一个`)
+    const run = () => start(body.version, body.profile)
+    send(res, 200, oneShotPort ? await launchScope.run({ ...(launchScope.getStore() || {}), oneShotPort }, run) : await run())
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/profiles/rename') {

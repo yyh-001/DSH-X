@@ -1103,16 +1103,32 @@ function managerPreferences() {
 }
 
 /**
+ * 实例的 home 是 wsl://发行版/目录 时返回发行版名（默认发行版是空串），否则 null。
+ * 外壳不能 import 核心的 parseWslHomeKey（拆包后互不存在），这里只认同一个前缀。
+ */
+function wslDistroOfHome(home) {
+  const match = /^wsl:\/\/([^/]*)\//.exec(String(home || ''))
+  if (!match) return null
+  try { return decodeURIComponent(match[1]) } catch { return '' }
+}
+
+/**
  * 远端 dsh 页面：只装右侧栏浏览器的预加载。webviewTag 也只在 dsh 标签页开——
  * 每次 attach 都要主进程核对一次性租约，页面自己伪造一个 webview 会被拒绝（见 browser-guests.mjs）。
+ *
+ * WSL 实例额外带一个 `--dsh-x-wsl=<发行版>` 参数：预加载拿到拖进来的 C:\… 路径要换成
+ * /mnt/c/…，WSL 里的 agent 才打得开。页面地址都是 127.0.0.1:端口，从 URL 分不出是不是
+ * WSL；视图按实例身份建、身份里带 home，所以在建视图时一次定好，迁移窗口也不变。
  */
-function remotePreferences() {
+function remotePreferences(target = null) {
+  const wslDistro = wslDistroOfHome(target?.home)
   return {
     preload: BROWSER_PRELOAD,
     sandbox: true,
     contextIsolation: true,
     nodeIntegration: false,
     webviewTag: true,
+    ...(wslDistro === null ? {} : { additionalArguments: [`--dsh-x-wsl=${wslDistro}`] }),
   }
 }
 
@@ -1167,8 +1183,8 @@ function shortcutAction(input, inTab) {
   return null
 }
 
-function createTabView(id) {
-  const view = new WebContentsView({ webPreferences: remotePreferences() })
+function createTabView(id, target = null) {
+  const view = new WebContentsView({ webPreferences: remotePreferences(target) })
   const contents = view.webContents
   // 右侧栏浏览器：这块 WebContents 是 guest 的唯一 owner，页面销毁时租约自己释放。
   browserGuests.bind(contents)

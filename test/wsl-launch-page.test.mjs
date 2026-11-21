@@ -252,3 +252,24 @@ test('复制档不选设备：目标环境跟着来源三级菜单走', () => {
   assert.match(page, /launchSourceMode === 'copy' && earlyCopy && \(parseSshHomeKey\(earlyCopy\.home\) \|\| parseWslHomeKey\(earlyCopy\.home\)\)/, '来源是远端时走远端建 Profile')
   assert.match(page, /connectionHomeKey\(connection, guideRemoteHomeValue\(\)\)/, 'WSL / SSH 都按连接 home 键定位远端目录')
 })
+
+test('WSL Profile 摘要：晚回来的旧请求不能把别的 Profile 的插件写进右栏', () => {
+  const start = at('async function loadPickerWslProfile()')
+  const body = page.slice(start, page.indexOf('\n    }\n', start))
+  assert.match(body, /const token = \+\+pickerWslProfileToken/, '每次请求换号')
+  assert.match(body, /const profile = pickerProfile/, '请求前先记下要读的是哪个 Profile')
+  assert.match(body, /if \(token !== pickerWslProfileToken \|\| home !== pickerHome \|\| profile !== pickerProfile\) return\n\s*pickerWslProfileInfo = info/,
+    '只有选中的还是这一项才落到右栏')
+})
+
+test('WSL / 更新按钮的英文文案：词条齐全，状态 tooltip 走 t()', () => {
+  const enStart = at('const EN = {')
+  const en = page.slice(enStart, page.indexOf('\n}\n', enStart))
+  for (const key of ['选择一个发行版…', 'WSL 里的 Profile', '这个 Profile 还没初始化', '更新外壳', '更新外壳到 {latest}', '更新核心', '更新核心到 {latest}', '更新']) {
+    assert.ok(en.includes(`  ${JSON.stringify(key)}: `), `EN 缺 ${key}`)
+  }
+  assert.doesNotMatch(page, /`更新(外壳|核心)到 \$\{latest\}`/, '更新按钮的 title 不能绕过 t()')
+  assert.match(page, /escapeHtml\(t\(info\.error \|\| '这个配置还没初始化'\)\)/, '远端返回的「还没初始化」也要翻译')
+  const applyStart = at('function applyLang()')
+  assert.match(page.slice(applyStart, page.indexOf('\n    }\n', applyStart)), /paintSelfPill\(\)/, '切语言后按状态重画更新按钮的 tooltip')
+})

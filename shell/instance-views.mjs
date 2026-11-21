@@ -70,7 +70,8 @@ export class InstanceViews {
       this.views.set(record.viewId, record)
       this.targets.set(target.id, record)
       try {
-        record.view = this.hooks.createView(record.viewId)
+        // 带上实例身份：WSL 实例的视图要在创建时就定好路径换算（见 main.mjs 的 remotePreferences）。
+        record.view = this.hooks.createView(record.viewId, target)
         record.view.setBackgroundColor(tabBaseColor(this.dark))
         this.transferView(record.viewId, this.hooks.createHost(presentation), { activate: false })
         this.update(record, target)

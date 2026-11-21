@@ -352,12 +352,25 @@ export function safeWslSettings(value) {
 }
 
 /** WSL 固定端口按发行版分开存：同一个版本@profile 在不同的发行版里可以各占一个端口。 */
+/**
+ * WSL 固定端口表。键有两种：
+ * - `wsl://<发行版>/<目录>`（wsl.js 的 wslHomeKey）：现在的写法，同一个发行版里不同 DSH_HOME 各钉各的；
+ * - 裸发行版名：老写法（整个发行版共用一份），读的时候只当兜底，写的时候逐条挪到目录键下。
+ */
 export function safeWslPorts(value) {
   const out = {}
   if (!value || typeof value !== 'object' || Array.isArray(value)) return out
-  for (const [rawDistro, ports] of Object.entries(value)) {
+  for (const [rawKey, ports] of Object.entries(value)) {
+    const homeKey = /^wsl:\/\/([^/]*)\/(.+)$/.exec(String(rawKey))
+    if (homeKey) {
+      try {
+        if (!safeWslDistro(decodeURIComponent(homeKey[1])) || !decodeURIComponent(homeKey[2]).trim()) continue
+      } catch { continue }
+      out[rawKey] = safeInstancePorts(ports)
+      continue
+    }
     let distro = ''
-    try { distro = safeWslDistro(rawDistro) } catch { continue }
+    try { distro = safeWslDistro(rawKey) } catch { continue }
     if (distro) out[distro] = safeInstancePorts(ports)
   }
   return out

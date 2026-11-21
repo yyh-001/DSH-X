@@ -279,6 +279,37 @@ test('stopWslInstance：停止脚本也按启动时的用户进发行版', async
   assert.match(String(calls[0].at(-1)), /exec "\$script" stop 'abc' '42000'/)
 })
 
+test('reapWslOrphans：安装脚本和 reap 合成一次不加载登录 profile 的调用，保留名单只放实例 id', async () => {
+  const calls = []
+  const run = (args) => {
+    calls.push(args)
+    return { ok: true, stdout: '', stderr: 'dsh-x: 发现上次遗留的 dsh（PID 12，Profile web），先停掉它\n' }
+  }
+  const { reapWslOrphans } = await import('../src/wsl.js')
+  const result = await reapWslOrphans({ distro: 'Debian', user: 'root', home: '~/.dsh', profile: 'web', keep: ['cafe01', "x'; rm -rf /"], run })
+  assert.equal(result.ok, true)
+  assert.match(result.stderr, /遗留的 dsh/)
+  assert.equal(calls.length, 1, '一次 wsl.exe 调用')
+  assert.deepEqual(calls[0].slice(0, 4), ['-d', 'Debian', '-u', 'root'])
+  assert.ok(calls[0].includes('--noprofile'))
+  const script = String(calls[0].at(-1))
+  assert.match(script, /mkdir "\$lock"/, '老发行版先装上带 reap 的脚本')
+  assert.match(script, /exec "\$HOME\/\.dsh-x\/bin\/dsh-x-wsl\.sh" reap 'web' '~\/\.dsh' 'cafe01'$/)
+  assert.doesNotMatch(script, /rm -rf \//, '非法 id 直接丢掉')
+  assert.deepEqual(await reapWslOrphans({ distro: '', profile: 'web', run }), { ok: true, skipped: true })
+})
+
+test('bootWslOnce 在挑端口之前收遗留 dsh，保留启动器还管着的 WSL 实例', () => {
+  const source = readFileSync(new URL('../src/server.js', import.meta.url), 'utf8')
+  const start = source.indexOf('async function bootWslOnce')
+  const body = source.slice(start, source.indexOf('/** 从 WSL 里已安装的 dsh 起一个实例', start))
+  const reap = body.indexOf('await reapWslLeftovers(')
+  assert.ok(reap >= 0 && reap < body.indexOf('await allocateWslPort('), '先收再挑端口')
+  const helper = source.slice(source.indexOf('async function reapWslLeftovers'), start)
+  assert.match(helper, /item\.backend === 'wsl' && item\.instanceId/)
+  assert.match(helper, /catch \(error\)/, '收不成不挡启动')
+})
+
 test('启动项保存 wslUser：合法值原样保留，非法值让 safeWslUser 报错', () => {
   const presets = safeLaunchPresets([{
     id: '0123456789abcdef', name: 'WSL 测试', version: 'auto', profile: 'web', port: 0,

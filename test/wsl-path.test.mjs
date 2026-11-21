@@ -96,7 +96,8 @@ test('removeWslProfile：在发行版里删 Profile 目录；没初始化 / 执�
 test('删除 WSL Profile 的路由：本机路由、运行中先拦、删完让探测缓存失效', () => {
   const server = readFileSync(new URL('../src/server.js', import.meta.url), 'utf8')
   assert.match(server, /url\.pathname === '\/api\/wsl\/profile\/remove'/)
-  assert.match(server, /proc\.backend === 'wsl' && proc\.distro === distro && proc\.profile === profile/, '正在跑的实例先拦住')
+  // 发行版名不分大小写：页面传 ubuntu、实例记的是 Ubuntu 也得拦住。
+  assert.match(server, /proc\.backend === 'wsl' && sameWslDistro\(proc\.distro, distro\) && proc\.profile === profile/, '正在跑的实例先拦住')
   assert.match(server, /if \(result\.ok\) invalidateWslCache\(\)/, '删完刷新 WSL 探测缓存')
   assert.match(server, /'\/api\/wsl\/profile\/remove',/, 'WSL 作用域的本地文件路由也挡住')
 })
