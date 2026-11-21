@@ -647,6 +647,7 @@ test('启动项配置卡：设为环境变量 DSH_HOME 开关跟随当前用户�
   let launchEntry = { id: '0000000000000000', name: 'web', profile: 'web', dshHome: '', environment: 'env-1', version: 'auto', autoLaunch: false }
   const posts = []
   let projectDialogCalls = 0
+  let pluginHomesDialogCalls = 0
   let closeDetailCalls = 0
   const shownPanes = []
   const defaultPostHandler = async (url, payload) => {
@@ -676,6 +677,7 @@ test('启动项配置卡：设为环境变量 DSH_HOME 开关跟随当前用户�
     closeUiSelect() {},
     alignFloatingPanel() {},
     openProjectDialog() { projectDialogCalls += 1 },
+    openPluginHomesDialog() { pluginHomesDialogCalls += 1 },
     showPane: async (pane) => { shownPanes.push(pane) },
     showPackDialog(dialog) { if (dialog) dialog.hidden = false },
     hidePackDialog: async (dialog) => { if (dialog) dialog.hidden = true; return true },
@@ -787,6 +789,7 @@ test('启动项配置卡：设为环境变量 DSH_HOME 开关跟随当前用户�
   assert.match(homeList.innerHTML, /<button class="project-device-option is-selected"[^>]*data-env-home="">[\s\S]*?lucide-folder[\s\S]*?<strong>\.dsh<\/strong><small>C:\/Users\/yyh\/\.dsh<\/small>[\s\S]*?lucide-check/)
   assert.match(homeList.innerHTML, /<button class="project-device-option"[^>]*data-env-home="D:\/work">[\s\S]*?<strong>work<\/strong><small>D:\/work<\/small>/)
   assert.match(homeList.innerHTML, /<button class="project-device-option is-add"[^>]*data-env-home-create>[\s\S]*?lucide-folder-plus[\s\S]*?<strong>创建项目<\/strong>/)
+  assert.match(homeList.innerHTML, /<button class="project-device-option is-manage"[^>]*data-env-home-manage>[\s\S]*?lucide-sliders-horizontal[\s\S]*?<strong>管理目录<\/strong>/)
 
   // 点击 D:/work 项：关闭面板、同步触发器与 DSH_HOME 开关并保存启动项
   homeList.onclick({
@@ -818,6 +821,23 @@ test('启动项配置卡：设为环境变量 DSH_HOME 开关跟随当前用户�
   assert.equal(homeSelect.value, 'D:/work')
   assert.equal(homePickValue.textContent, 'work · D:/work')
   assert.equal(posts.length, postCountBeforeCreate)
+
+  // 点击「管理目录」：关闭面板并打开目录管理弹窗，改名后经 syncEnvLaunchHomes 立即同步触发器
+  homePick.onclick({ stopPropagation() {} })
+  assert.equal(homePanel.hidden, false)
+  homeList.onclick({
+    target: {
+      closest: (selector) => (selector === '[data-env-home-manage]' ? { dataset: {} } : null),
+    },
+  })
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.equal(homePanel.hidden, true)
+  assert.equal(pluginHomesDialogCalls, 1)
+  assert.equal(posts.length, postCountBeforeCreate)
+  context.pluginHomeName = (h, fallback) => (h === 'D:/work' ? '我的工作区' : fallback)
+  context.syncEnvLaunchHomes()
+  assert.equal(homePickValue.textContent, '我的工作区 · D:/work')
+  context.pluginHomeName = (_h, fallback) => fallback
 
   // 打开「用哪个实例」富下拉：验证选项、切换实例并触发保存，以及底部的「管理实例」入口
   envPick.onclick({ stopPropagation() {} })

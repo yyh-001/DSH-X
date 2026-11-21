@@ -626,7 +626,7 @@ main.home .settings-body { padding-top: 34px; }
 .home-field.port { flex: 0 1 108px; }
 .home-field .ui-select { width: 100%; flex: 1 1 auto; }
 /* 首页统一为启动项列表；参数在编辑窗口里一次保存。 */
-.launch-presets { display: grid; position: relative; align-content: start; }
+.launch-presets { display: grid; grid-template-columns: minmax(0, 1fr); position: relative; align-content: start; }
 .launch-preset { position: relative; display: flex; align-items: center; gap: 14px; padding: 14px 0; min-width: 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 65%, transparent); }
 .launch-preset:last-child { border-bottom: 0; }
 .launch-preset[data-launch-last] { border-bottom: 0; }
@@ -1898,8 +1898,8 @@ html.reduce-motion .connection-import-caret { transition: none; }
 .project-device-dot.is-error { background: var(--danger); }
 .project-device-panel { position: fixed; z-index: 60; display: flex; flex-direction: column; max-height: min(340px, calc(100dvh - 24px)); padding: 6px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: 0 18px 44px rgba(0, 0, 0, .28); animation: connection-import-in var(--motion-instant) var(--ease-standard); }
 .project-device-panel[hidden] { display: none; }
-.project-device-list { display: grid; align-content: start; gap: 2px; flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
-.project-device-option { display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 8px; border: 0; border-radius: 8px; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.project-device-list { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 2px; flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+.project-device-option { display: flex; align-items: center; gap: 10px; width: 100%; min-width: 0; padding: 7px 8px; border: 0; border-radius: 8px; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
 .project-device-option:hover, .project-device-option.is-selected { background: var(--accent-soft); }
 .project-device-option:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .project-device-option-icon { display: inline-grid; place-items: center; flex: 0 0 28px; width: 28px; height: 28px; border-radius: 7px; background: var(--accent-soft); color: var(--accent); }

@@ -7083,7 +7083,8 @@
         rows.push(`<button class="project-device-option${autoSelected ? ' is-selected' : ''}" type="button" role="option" aria-selected="${autoSelected}" data-guide-home=""><span class="project-device-option-icon">${folderIcon}</span><span class="project-device-option-text"><strong>${escapeHtml(t('自动新建'))}</strong><small>${escapeHtml(autoPath)}</small></span><span class="project-device-option-state">${autoSelected ? `<span class="project-device-check">${check}</span>` : ''}</span></button>`)
         for (const [home, homeName] of homeOptions(customHome)) {
           const selected = !connection && Boolean(customHome) && sameHomePath(home, customHome)
-          const title = pluginHomeName(home, homeName) || folderBaseName(home) || t('本机')
+          const fallbackTitle = homeName && !sameHomePath(homeName, home) ? homeName : ''
+          const title = pluginHomeName(home, fallbackTitle) || folderBaseName(home) || t('本机')
           rows.push(`<button class="project-device-option${selected ? ' is-selected' : ''}" type="button" role="option" aria-selected="${selected}" data-guide-home="${escapeHtml(home)}"><span class="project-device-option-icon">${folderIcon}</span><span class="project-device-option-text"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(home)}</small></span><span class="project-device-option-state">${selected ? `<span class="project-device-check">${check}</span>` : ''}</span></button>`)
         }
       } else {
@@ -7102,6 +7103,7 @@
         }
       }
       rows.push(`<button class="project-device-option is-add" type="button" role="option" data-guide-create><span class="project-device-option-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-folder-plus"/></svg></span><span class="project-device-option-text"><strong>${escapeHtml(t('创建项目'))}</strong></span></button>`)
+      rows.push(`<button class="project-device-option is-manage" type="button" role="option" data-guide-manage><span class="project-device-option-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-sliders-horizontal"/></svg></span><span class="project-device-option-text"><strong>${escapeHtml(t('管理目录'))}</strong></span></button>`)
       launchGuideDirListEl.innerHTML = rows.join('')
       launchGuideDeviceEl.innerHTML = [
         `<option value="local">${escapeHtml(t('此电脑'))}</option>`,
@@ -7427,6 +7429,8 @@
     launchGuideDirListEl?.addEventListener('click', (event) => {
       const create = event.target.closest?.('[data-guide-create]')
       if (create) { closeLaunchGuideDirPanel(); openProjectDialog(); return }
+      const manage = event.target.closest?.('[data-guide-manage]')
+      if (manage) { closeLaunchGuideDirPanel(); openPluginHomesDialog(); return }
       const local = event.target.closest?.('[data-guide-home]')
       if (local) {
         if (launchIsGuided()) selectGuideLocalHome(local.dataset.guideHome)
@@ -8364,6 +8368,7 @@
         paintGuideTarget()
       }
       paintPluginHomes()
+      globalThis.syncEnvLaunchHomes?.()
     }
 
     /** 左栏的「+ 添加目录」：挑一个磁盘目录登记进来，然后直接停在新目录上。 */
@@ -10944,6 +10949,7 @@
       paintLaunchProfiles()
       // 新建面板开着时目录/Profile 可能在别处变了（比如刚在「管理目录」里加了目录），补一次候选
       if (!launchDialogEl.hidden) paintLaunchIsolation()
+      globalThis.syncEnvLaunchHomes?.()
       if (state.userDshHome !== previousUserDshHome) {
         globalThis.syncEnvLaunchDshHomeEnv?.()
       }
@@ -11800,9 +11806,10 @@
     }
     function pluginHomeName(home, fallback) {
       const name = Object.entries(state.dshHomeNames || {}).find(([path]) => path === home || path.toLowerCase() === home.toLowerCase())?.[1] || ''
-      // 名字被登记成路径本身（旧的重命名对话框会拿路径当建议名）时等于没名字：
-      // 卡片和下拉只显示短名，整条路径会把卡片顶出面板（#122）。
-      return name && normalizeHomePath(name) !== normalizeHomePath(home) ? name : fallback
+      // 名字被登记成路径本身、或旧重命名弹窗预填路径后改出来的绝对路径（如 C:\...\dsh1\0.2.2-rc.3）时
+      // 等于没名字：卡片和下拉只显示短名，整条路径会把卡片顶出面板（#122）。
+      const looksLikePath = /^(?:[A-Za-z]:[\\/]|\\\\|\/|~[\\/])/.test(name.trim())
+      return name && !looksLikePath && normalizeHomePath(name) !== normalizeHomePath(home) ? name : fallback
     }
     function paintPluginHomes() {
       const homes = pluginHomes()
@@ -11875,6 +11882,8 @@
           // 只清显示名：失效条目的目录早就不在登记表里了，删不掉也改不了
           const cleared = await post('/api/dsh-homes/forget-name', { home })
           state.dshHomeNames = cleared.dshHomeNames || {}
+          globalThis.syncEnvLaunchHomes?.()
+          if (typeof paintLaunchHome === 'function') paintLaunchHome()
           return
         }
         const data = await post(`/api/dsh-homes/${action}`, { home })
@@ -13161,6 +13170,16 @@
         }
         await hidePackDialog(profileDialogEl)
         applyPluginPayload(data)
+        if (homeName) {
+          paintPluginHomes()
+          if (!launchDialogEl.hidden) {
+            paintLaunchHomes(launchHomePicked)
+            paintLaunchHomeCustom()
+            paintGuideTarget()
+          }
+          globalThis.syncEnvLaunchHomes?.()
+          if (typeof paintLaunchHome === 'function') paintLaunchHome()
+        }
         if (renaming) void loadPlugins()
         // 从选择窗来的（新建/复制/重命名/目录改名）：那一份缓存作废，刷完停在结果上
         if (profileDialogFromPicker) {
@@ -15678,6 +15697,7 @@
           return `<button class="project-device-option${selected ? ' is-selected' : ''}" type="button" role="option" aria-selected="${selected}" data-env-home="${escapeHtml(home)}"><span class="project-device-option-icon">${folderIcon}</span><span class="project-device-option-text"><strong>${escapeHtml(name)}</strong><small>${escapeHtml(real)}</small></span><span class="project-device-option-state">${selected ? `<span class="project-device-check">${check}</span>` : ''}</span></button>`
         })
         rows.push(`<button class="project-device-option is-add" type="button" role="option" data-env-home-create><span class="project-device-option-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-folder-plus"/></svg></span><span class="project-device-option-text"><strong>${escapeHtml(t('创建项目'))}</strong></span></button>`)
+        rows.push(`<button class="project-device-option is-manage" type="button" role="option" data-env-home-manage><span class="project-device-option-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-sliders-horizontal"/></svg></span><span class="project-device-option-text"><strong>${escapeHtml(t('管理目录'))}</strong></span></button>`)
         homeListEl.innerHTML = rows.join('')
       }
 
@@ -16156,6 +16176,12 @@
             if (typeof openProjectDialog === 'function') openProjectDialog()
             return
           }
+          const manage = event.target?.closest?.('[data-env-home-manage]')
+          if (manage) {
+            closeEnvLaunchHomePanel()
+            if (typeof openPluginHomesDialog === 'function') openPluginHomesDialog()
+            return
+          }
           const option = event.target?.closest?.('[data-env-home]')
           if (!option) return
           closeEnvLaunchHomePanel()
@@ -16254,6 +16280,12 @@
             paintDshHomeEnv()
           }
         }
+      }
+
+      globalThis.syncEnvLaunchHomes = () => {
+        const entry = liveLaunchEntry()
+        if (!canManageLaunchEntry(entry)) return
+        paintHomes(homeEl?.value ?? entry.dshHome ?? '')
       }
 
       globalThis.syncEnvLaunchConfig = (env = null) => {
