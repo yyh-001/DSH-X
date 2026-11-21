@@ -68,23 +68,24 @@ function start(entry, config) {
 
 test('同步启动块超过 connectTimeoutMs 时，preload 不自杀（#87）', async (t) => {
   const link = await launcher(t)
-  // 阻塞发生在 preload 排好握手帧之后，等价于 dsh 把事件循环占住；比 5 秒的计时器多 800ms。
-  const blockMs = LINK.connectTimeoutMs + 800
+  // 用较短的 connectTimeoutMs 复现同一竞争（阻塞超过计时器），不必把单核白白占满 6 秒。
+  const connectTimeoutMs = 250
+  const blockMs = connectTimeoutMs + 250
   const entry = fixture(t, `
     const end = Date.now() + ${blockMs}
     while (Date.now() < end) {}
     console.log('dsh web: http://127.0.0.1:43210/?token=slow')
     setInterval(() => {}, 1000)
   `)
-  const config = { port: link.port, secret, entry, profile: 'web', profileArgIndex: 0 }
+  const config = { port: link.port, secret, entry, profile: 'web', profileArgIndex: 0, connectTimeoutMs }
   const { child, read } = start(entry, config)
   t.after(() => { try { child.kill('SIGKILL') } catch { /* 已退出 */ } })
 
   const deadline = Date.now() + blockMs + 10_000
-  while (!read().stdout.includes('dsh web:') && Date.now() < deadline) await delay(100)
+  while (!read().stdout.includes('dsh web:') && Date.now() < deadline) await delay(40)
   assert.match(read().stdout, /dsh web: http:\/\/127\.0\.0\.1:43210\/\?token=slow/, '阻塞结束后应正常打印就绪地址')
   // 再过一小会儿确认计时器没有在事件循环恢复后补刀
-  await delay(500)
+  await delay(150)
   assert.equal(child.exitCode, null, '计时器到点不等于失去监管，进程必须还活着')
   assert.doesNotMatch(read().stderr, /实例管道/, '不该走失败退出路径')
   assert.equal(link.frames.length, 2, '握手帧应在阻塞前发出，就绪帧在阻塞后补上')

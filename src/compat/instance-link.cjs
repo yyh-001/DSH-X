@@ -40,12 +40,13 @@ if (isMainThread && config && process.argv[1] && resolve(process.argv[1]) === co
   // 这条计时器只兜「连接真的没建立」，不能当成握手截止时间：dsh 的同步启动阶段会把事件
   // 循环占住几十秒，TCP 连接其实早已完成，只是 connect 回调排在定时器后面。让这一轮 poll
   // 先跑完再判断——连上了就不算失去监管（见 #87）。
+  const connectTimeoutMs = Number(config.connectTimeoutMs) > 0 ? Number(config.connectTimeoutMs) : LINK.connectTimeoutMs
   const timer = setTimeout(() => {
     setImmediate(() => {
       if (socket.readyState === 'open') return
       fail('没有连上启动器（连接超时）')
     })
-  }, LINK.connectTimeoutMs).unref()
+  }, connectTimeoutMs).unref()
   socket.on('error', (error) => fail(`出错（${error?.code || error?.message || '连接失败'}）`))
   socket.on('close', () => fail('已断开（启动器退出或撤销了这次启动）'))
   // 先排入握手帧，再包装输出：极快的启动可能在 TCP connect 回调之前就打印 ready。

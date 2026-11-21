@@ -18,7 +18,7 @@
     "dev:app": "node scripts/dev.mjs app",
     "icons": "node scripts/make-icon-sprite.mjs",
     "stage:core": "node scripts/pack.mjs --stage-only",
-    "test": "node --test",
+    "test": "node scripts/run-tests.mjs",
     "dist": "node scripts/pack.mjs",
     "release:manifest": "node scripts/release-manifest.mjs make",
     "release:sbom": "node scripts/release-sbom.mjs",
