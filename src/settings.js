@@ -610,6 +610,141 @@ export function defaultDshHome() {
   return join(homedir(), '.dsh')
 }
 
+/** 远程访问与公网隧道默认配置（默认关闭，不打开任何新端口，对现有用户零行为变化）。 */
+export const REMOTE_TUNNEL_MODES = Object.freeze(['quick', 'worker', 'token'])
+export const REMOTE_EDGE_IP_VERSIONS = Object.freeze(['auto', '4', '6'])
+export const REMOTE_TUNNEL_PROTOCOLS = Object.freeze(['', 'http2', 'quic', 'auto'])
+export const DEFAULT_REMOTE_ACCESS = {
+  enabled: false,
+  gatewayPort: 0,
+  bindLan: false,
+  customPublicUrl: '',
+  tunnel: {
+    enabled: false,
+    mode: 'quick',
+    workerUrl: '',
+    inviteCode: '',
+    publicUrl: '',
+    edgeIPVersion: 'auto',
+    protocol: '',
+    region: '',
+    dnsResolvers: '',
+  },
+}
+
+function safeOptionalHttpUrl(value, label, { strict = false } = {}) {
+  if (value === undefined || value === null) return ''
+  const text = String(value).trim()
+  if (!text) return ''
+  if (text.length > 2048 || /[\s\x00-\x1f\x7f]/.test(text)) {
+    if (strict) throw new Error(`${label}格式无效`)
+    return ''
+  }
+  let parsed
+  try {
+    parsed = new URL(text)
+  } catch {
+    if (strict) throw new Error(`${label}必须是有效的 http:// 或 https:// 地址`)
+    return ''
+  }
+  if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:') || parsed.username || parsed.password || parsed.hash) {
+    if (strict) throw new Error(`${label}仅支持无账号密码、无片段的 http:// 或 https:// 地址`)
+    return ''
+  }
+  return parsed.href.replace(/\/+$/, '')
+}
+
+/**
+ * 远程访问配置校验：
+ * - strict=false（读盘兜底）：坏字段退回默认值，避免历史脏配置让启动器打不开；
+ * - strict=true（用户保存）：显式填错时把中文原因抛回页面；
+ * - 安全红线：永远剥离 `tunnel.token`，防止 Cloudflare Tunnel 明文凭证落进 settings.json。
+ */
+export function safeRemoteAccess(value, { strict = false } = {}) {
+  const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+  const rawTunnel = source.tunnel && typeof source.tunnel === 'object' && !Array.isArray(source.tunnel)
+    ? source.tunnel
+    : {}
+
+  let gatewayPort = 0
+  if (source.gatewayPort !== undefined && source.gatewayPort !== null && source.gatewayPort !== '') {
+    const num = Number(source.gatewayPort)
+    if (Number.isInteger(num) && num >= 0 && num <= 65535) {
+      gatewayPort = num
+    } else if (strict) {
+      throw new Error('远程网关端口应为 0（自动）或 1-65535 之间的整数')
+    }
+  }
+
+  const customPublicUrl = safeOptionalHttpUrl(source.customPublicUrl, '自定义访问地址', { strict })
+
+  const rawMode = String(rawTunnel.mode ?? '').trim().toLowerCase()
+  let mode = DEFAULT_REMOTE_ACCESS.tunnel.mode
+  if (rawMode) {
+    if (REMOTE_TUNNEL_MODES.includes(rawMode)) mode = rawMode
+    else if (strict) throw new Error('隧道模式只能选 quick、worker 或 token')
+  }
+
+  const workerUrl = safeOptionalHttpUrl(rawTunnel.workerUrl, 'Worker 地址', { strict })
+  const publicUrl = safeOptionalHttpUrl(rawTunnel.publicUrl, '绑定域名地址', { strict })
+
+  const inviteRaw = String(rawTunnel.inviteCode ?? '').trim()
+  let inviteCode = ''
+  if (inviteRaw) {
+    if (inviteRaw.length > 256 || /[\x00-\x1f\x7f]/.test(inviteRaw)) {
+      if (strict) throw new Error('邀请码格式无效（上限 256 字符）')
+    } else {
+      inviteCode = inviteRaw
+    }
+  }
+
+  const rawEdge = String(rawTunnel.edgeIPVersion ?? '').trim().toLowerCase()
+  let edgeIPVersion = DEFAULT_REMOTE_ACCESS.tunnel.edgeIPVersion
+  if (rawEdge) {
+    if (REMOTE_EDGE_IP_VERSIONS.includes(rawEdge)) edgeIPVersion = rawEdge
+    else if (strict) throw new Error('边缘 IP 策略只能选 auto、4 或 6')
+  }
+
+  const rawProto = String(rawTunnel.protocol ?? '').trim().toLowerCase()
+  let protocol = ''
+  if (rawProto) {
+    if (REMOTE_TUNNEL_PROTOCOLS.includes(rawProto)) protocol = rawProto
+    else if (strict) throw new Error('隧道协议只能选留空、http2、quic 或 auto')
+  }
+
+  const rawRegion = String(rawTunnel.region ?? '').trim()
+  let region = ''
+  if (rawRegion) {
+    if (/^[A-Za-z0-9_-]{1,32}$/.test(rawRegion)) region = rawRegion
+    else if (strict) throw new Error('边缘区域参数格式无效')
+  }
+
+  const rawDns = String(rawTunnel.dnsResolvers ?? '').trim()
+  let dnsResolvers = ''
+  if (rawDns) {
+    if (rawDns.length <= 512 && !/[\x00-\x1f\x7f]/.test(rawDns)) dnsResolvers = rawDns
+    else if (strict) throw new Error('自定义 DNS 解析器格式无效')
+  }
+
+  return {
+    enabled: source.enabled === true,
+    gatewayPort,
+    bindLan: source.bindLan === true,
+    customPublicUrl,
+    tunnel: {
+      enabled: rawTunnel.enabled === true,
+      mode,
+      workerUrl,
+      inviteCode,
+      publicUrl,
+      edgeIPVersion,
+      protocol,
+      region,
+      dnsResolvers,
+    },
+  }
+}
+
 export const DEFAULTS = {
   dataDir: '',
   port: DEFAULT_PORT,
@@ -704,6 +839,11 @@ export const DEFAULTS = {
   zip: {},
   // 同步范围与冲突策略
   sync: {},
+  // 移动与远程访问（默认关闭；Cloudflare Tunnel token 单独加密存储，不落进 settings.json）
+  remoteAccess: {
+    ...DEFAULT_REMOTE_ACCESS,
+    tunnel: { ...DEFAULT_REMOTE_ACCESS.tunnel },
+  },
 }
 
 /** 下载源只认内置选项，历史文件里的脏值回默认镜像。 */
@@ -1121,6 +1261,7 @@ function mergeStoredSettings(stored) {
   const migrated = migrateLegacyWslPresets(merged.launchPresets, merged.connections, merged.wsl)
   merged.launchPresets = migrated.presets
   merged.connections = safeConnections(migrated.connections)
+  merged.remoteAccess = safeRemoteAccess(merged.remoteAccess)
   return merged
 }
 
@@ -1281,6 +1422,7 @@ async function saveSettingsNow(patch) {
   merged.folder = safeFolderConfig('folder' in patch ? patch.folder : merged.folder)
   merged.zip = safeZipConfig('zip' in patch ? patch.zip : merged.zip)
   merged.sync = safeSyncSettings('sync' in patch ? patch.sync : merged.sync)
+  merged.remoteAccess = safeRemoteAccess('remoteAccess' in patch ? patch.remoteAccess : merged.remoteAccess, { strict: 'remoteAccess' in patch })
   // 已废弃的 AI 修复配置：清掉历史文件里的残留字段
   for (const key of ['aiRepair', 'aiModel', 'aiBaseURL', 'aiApiKey', 'aiMaxRounds', 'aiAllowDestructive']) {
     delete merged[key]

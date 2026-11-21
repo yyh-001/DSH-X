@@ -121,6 +121,10 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-server"/></svg>
             <span data-i18n="远程">远程</span>
           </button>
+          <button type="button" class="nav-item" data-pane="settings" data-category="remote-access">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-globe"/></svg>
+            <span data-i18n="移动与远程访问" data-i18n-en="Mobile & Remote">移动与远程访问</span>
+          </button>
           <button type="button" hidden class="nav-item" data-pane="plugins">
             <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-box"/></svg>
             <span data-i18n="配置">配置</span>
@@ -742,6 +746,262 @@
                   </div>
                   <div class="set-control">
                     <button class="ghost" id="copySelfcheckPrompt" type="button" data-i18n="复制自检请求">复制自检请求</button>
+                  </div>
+                </div>
+              </div>
+            </section>
+            <section class="set-section" data-category="remote-access" aria-labelledby="settingsRemoteAccessTitle" hidden>
+              <div class="set-label" id="settingsRemoteAccessTitle" data-i18n="移动与远程访问">移动与远程访问</div>
+
+              <!-- 卡片 1：移动与远程网关开关与状态 -->
+              <div class="set-caption ra-section-head">
+                <span data-i18n="远程网关">远程网关</span>
+                <span class="ra-host-chip" id="raHostChip" hidden></span>
+              </div>
+              <div class="set-group">
+                <div class="set-row ra-status-row">
+                  <div class="ra-status-summary">
+                    <span class="ra-pill is-stopped" id="raGatewayPill"><span class="ra-dot" aria-hidden="true"></span><span id="raGatewayPillText" data-i18n="未启动">未启动</span></span>
+                    <span class="ra-meta-inline" id="raGatewayPortBadge" hidden></span>
+                  </div>
+                  <div class="set-control">
+                    <button class="ghost icon-btn ra-icon-sm" id="raRefreshBtn" type="button" title="刷新状态" aria-label="刷新状态" data-i18n-title="刷新状态" data-i18n-aria-label="刷新状态"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-refresh-cw"/></svg></button>
+                  </div>
+                </div>
+                <div class="ra-banner is-error" id="raGatewayError" role="alert" hidden>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-triangle-alert"/></svg>
+                  <span id="raGatewayErrorText"></span>
+                </div>
+                <div class="set-row stacked ra-endpoints-row" id="raEndpointsRow" hidden>
+                  <div class="ra-endpoint-list" id="raEndpointList"></div>
+                </div>
+                <label class="toggle set-row">
+                  <span class="set-text">
+                    <span class="set-name" data-i18n="启用移动与远程网关">启用移动与远程网关</span>
+                    <span class="set-desc" data-i18n="开启本机远程代理网关，为手机端 PWA 与外网隧道提供统一安全入口。">开启本机远程代理网关，为手机端 PWA 与外网隧道提供统一安全入口。</span>
+                  </span>
+                  <input id="raEnabled" type="checkbox" />
+                </label>
+                <label class="toggle set-row">
+                  <span class="set-text">
+                    <span class="set-name" data-i18n="允许局域网接入">允许局域网接入</span>
+                    <span class="set-desc" data-i18n="允许同一局域网下的手机直接通过本机 IP 访问，无需经过外网隧道。">允许同一局域网下的手机直接通过本机 IP 访问，无需经过外网隧道。</span>
+                  </span>
+                  <input id="raBindLan" type="checkbox" />
+                </label>
+                <div class="set-row">
+                  <div class="set-text">
+                    <label class="set-name" for="raGatewayPort" data-i18n="固定网关端口">固定网关端口</label>
+                    <span class="set-desc" data-i18n="填 0 或留空表示自动分配端口；指定固定端口便于局域网书签或反向代理转发。">填 0 或留空表示自动分配端口；指定固定端口便于局域网书签或反向代理转发。</span>
+                  </div>
+                  <input id="raGatewayPort" type="number" min="0" max="65535" step="1" inputmode="numeric" placeholder="0" />
+                </div>
+                <div class="set-row stacked">
+                  <div class="set-text">
+                    <label class="set-name" for="raCustomPublicUrl" data-i18n="自定义公网 HTTPS 地址（可选）">自定义公网 HTTPS 地址（可选）</label>
+                    <span class="set-desc" data-i18n="如已通过 Tailscale、frp 或自建反向代理暴露此网关，填外部 HTTPS 地址以生成配对二维码。">如已通过 Tailscale、frp 或自建反向代理暴露此网关，填外部 HTTPS 地址以生成配对二维码。</span>
+                  </div>
+                  <div class="set-control">
+                    <input id="raCustomPublicUrl" type="text" spellcheck="false" autocomplete="off" placeholder="https://dsh.example.com" data-placeholder-i18n="https://dsh.example.com（可选）" />
+                  </div>
+                </div>
+                <div class="set-row ra-action-row">
+                  <p class="hint ra-inline-hint" id="raGatewayHint" role="status" aria-live="polite"></p>
+                  <div class="set-control">
+                    <button class="primary" id="raGatewaySave" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-save"/></svg><span data-i18n="保存设置">保存设置</span></button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 卡片 2：手机扫码配对 -->
+              <div class="set-caption" data-i18n="手机扫码配对">手机扫码配对</div>
+              <div class="set-group">
+                <div class="set-row">
+                  <div class="set-text">
+                    <span class="set-name" data-i18n="配对二维码">配对二维码</span>
+                    <span class="set-desc" data-i18n="打开手机浏览器或相机扫码即可进入 DSH-X 手机版 PWA。">打开手机浏览器或相机扫码即可进入 DSH-X 手机版 PWA。</span>
+                  </div>
+                  <div class="set-control">
+                    <button class="primary" id="raGeneratePair" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-refresh-cw"/></svg><span data-i18n="生成配对二维码 (5分钟有效)">生成配对二维码 (5分钟有效)</span></button>
+                  </div>
+                </div>
+                <div class="ra-banner is-info" id="raPairNeedGateway" hidden>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-info"/></svg>
+                  <span data-i18n="请先开启上方的「启用移动与远程网关」，网关运行后即可生成手机配对二维码。">请先开启上方的「启用移动与远程网关」，网关运行后即可生成手机配对二维码。</span>
+                </div>
+                <div class="set-row stacked ra-pairing-row" id="raPairingBox" hidden>
+                  <div class="ra-pair-tabs" id="raPairSourceTabs" role="tablist" aria-label="二维码入口" data-i18n-aria-label="二维码入口" hidden>
+                    <button type="button" class="ra-seg-btn is-active" role="tab" data-pair-source="primary" aria-selected="true" data-i18n="公网 / 主入口">公网 / 主入口</button>
+                    <button type="button" class="ra-seg-btn" role="tab" data-pair-source="lan" aria-selected="false" data-i18n="局域网直连">局域网直连</button>
+                  </div>
+                  <div class="ra-qr-layout">
+                    <div class="ra-qr-frame" id="raQrFrame" aria-label="手机配对二维码" data-i18n-aria-label="手机配对二维码"></div>
+                    <div class="ra-qr-meta">
+                      <div class="ra-qr-countdown-row">
+                        <span class="ra-pill is-running" id="raPairCountdownPill"><span class="ra-dot" aria-hidden="true"></span><span id="raPairCountdown"></span></span>
+                      </div>
+                      <div class="ra-copy-field">
+                        <span class="ra-copy-label" data-i18n="配对码">配对码</span>
+                        <div class="ra-copy-box">
+                          <code class="ra-code-value" id="raPairCode"></code>
+                          <button class="ghost icon-btn ra-icon-sm" id="raCopyPairCode" type="button" title="复制配对码" aria-label="复制配对码" data-i18n-title="复制配对码" data-i18n-aria-label="复制配对码"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-copy"/></svg></button>
+                        </div>
+                      </div>
+                      <div class="ra-copy-field">
+                        <span class="ra-copy-label" data-i18n="配对链接">配对链接</span>
+                        <div class="ra-copy-box">
+                          <code class="ra-url-value" id="raPairUrl"></code>
+                          <button class="ghost icon-btn ra-icon-sm" id="raCopyPairUrl" type="button" title="复制链接" aria-label="复制链接" data-i18n-title="复制链接" data-i18n-aria-label="复制链接"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-copy"/></svg></button>
+                          <button class="ghost icon-btn ra-icon-sm" id="raOpenPairUrl" type="button" title="在浏览器打开" aria-label="在浏览器打开" data-i18n-title="在浏览器打开" data-i18n-aria-label="在浏览器打开"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-external-link"/></svg></button>
+                        </div>
+                      </div>
+                      <p class="hint ra-qr-tip" data-i18n="打开手机浏览器或相机扫码即可进入 DSH-X 手机版 PWA。每个配对码仅限单次使用。">打开手机浏览器或相机扫码即可进入 DSH-X 手机版 PWA。每个配对码仅限单次使用。</p>
+                    </div>
+                  </div>
+                </div>
+                <p class="hint ra-card-hint" id="raPairHint" role="status" aria-live="polite" hidden></p>
+              </div>
+
+              <!-- 卡片 3：已配对设备管理 -->
+              <div class="set-caption ra-section-head">
+                <span class="ra-section-title-group">
+                  <span data-i18n="已配对设备">已配对设备</span>
+                  <span class="ra-count-badge" id="raDeviceCount">0</span>
+                </span>
+              </div>
+              <div class="set-group">
+                <div class="set-row ra-devices-header">
+                  <div class="set-text">
+                    <span class="set-name" data-i18n="授权移动设备">授权移动设备</span>
+                    <span class="set-desc" data-i18n="可重命名或随时吊销设备访问权限；吊销后会立即断开该设备的实时连接。">可重命名或随时吊销设备访问权限；吊销后会立即断开该设备的实时连接。</span>
+                  </div>
+                  <div class="set-control">
+                    <button class="ghost danger" id="raRevokeAll" type="button" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-trash-2"/></svg><span data-i18n="吊销全部设备">吊销全部设备</span></button>
+                  </div>
+                </div>
+                <div class="ra-device-list" id="raDeviceList"></div>
+                <p class="hint ra-card-hint" id="raDevicesHint" role="status" aria-live="polite" hidden></p>
+              </div>
+
+              <!-- 卡片 4：Cloudflare 外网隧道 -->
+              <div class="set-caption" data-i18n="Cloudflare 外网隧道">Cloudflare 外网隧道</div>
+              <div class="set-group">
+                <div class="set-row ra-tunnel-head">
+                  <div class="ra-status-summary">
+                    <span class="ra-pill is-stopped" id="raTunnelPill"><span class="ra-dot" aria-hidden="true"></span><span id="raTunnelPillText" data-i18n="已停止">已停止</span></span>
+                    <div class="ra-colo-list" id="raTunnelLocations" hidden></div>
+                  </div>
+                  <div class="set-control">
+                    <button class="primary" id="raTunnelStart" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-globe"/></svg><span data-i18n="启动隧道">启动隧道</span></button>
+                    <button class="ghost danger" id="raTunnelStop" type="button" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg><span data-i18n="停止隧道">停止隧道</span></button>
+                  </div>
+                </div>
+                <div class="ra-banner is-error" id="raTunnelError" role="alert" hidden>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-triangle-alert"/></svg>
+                  <span id="raTunnelErrorText"></span>
+                </div>
+                <div class="set-row stacked ra-tunnel-url-row" id="raTunnelUrlRow" hidden>
+                  <div class="ra-copy-field">
+                    <span class="ra-copy-label" data-i18n="公网 HTTPS 地址">公网 HTTPS 地址</span>
+                    <div class="ra-copy-box">
+                      <code class="ra-url-value" id="raTunnelPublicUrlDisplay"></code>
+                      <button class="ghost icon-btn ra-icon-sm" id="raCopyTunnelUrl" type="button" title="复制公网地址" aria-label="复制公网地址" data-i18n-title="复制公网地址" data-i18n-aria-label="复制公网地址"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-copy"/></svg></button>
+                      <button class="ghost icon-btn ra-icon-sm" id="raOpenTunnelUrl" type="button" title="打开手机版预览" aria-label="打开手机版预览" data-i18n-title="打开手机版预览" data-i18n-aria-label="打开手机版预览"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-external-link"/></svg></button>
+                    </div>
+                  </div>
+                </div>
+                <div class="set-row stacked">
+                  <div class="set-text">
+                    <span class="set-name" data-i18n="隧道模式">隧道模式</span>
+                    <span class="set-desc" data-i18n="无需公网 IP 或路由器端口映射，通过 Cloudflare 边缘网络穿透到本机网关。">无需公网 IP 或路由器端口映射，通过 Cloudflare 边缘网络穿透到本机网关。</span>
+                  </div>
+                  <div class="ra-mode-grid" role="radiogroup" aria-label="隧道模式" data-i18n-aria-label="隧道模式">
+                    <label class="ra-mode-option">
+                      <input type="radio" name="raTunnelMode" value="quick" checked />
+                      <span class="ra-mode-title" data-i18n="临时体验">临时体验</span>
+                      <span class="ra-mode-desc" data-i18n="零配置即开即用，重启后随机域名会变化">零配置即开即用，重启后随机域名会变化</span>
+                    </label>
+                    <label class="ra-mode-option">
+                      <input type="radio" name="raTunnelMode" value="worker" />
+                      <span class="ra-mode-title" data-i18n="自建 Worker">自建 Worker</span>
+                      <span class="ra-mode-desc" data-i18n="通过自建 Cloudflare Worker 分配永久子域名">通过自建 Cloudflare Worker 分配永久子域名</span>
+                    </label>
+                    <label class="ra-mode-option">
+                      <input type="radio" name="raTunnelMode" value="token" />
+                      <span class="ra-mode-title" data-i18n="已有 Tunnel">已有 Tunnel</span>
+                      <span class="ra-mode-desc" data-i18n="使用已创建的 Cloudflare Tunnel Token 与绑定域名">使用已创建的 Cloudflare Tunnel Token 与绑定域名</span>
+                    </label>
+                  </div>
+                </div>
+                <div class="set-row stacked" id="raWorkerUrlRow" hidden>
+                  <div class="set-text">
+                    <label class="set-name" for="raWorkerUrl" data-i18n="Worker 地址">Worker 地址</label>
+                    <span class="set-desc" data-i18n="填写你部署的 Cloudflare Worker 控制端 URL。">填写你部署的 Cloudflare Worker 控制端 URL。</span>
+                  </div>
+                  <div class="set-control">
+                    <input id="raWorkerUrl" type="text" spellcheck="false" autocomplete="off" placeholder="https://dsh-tunnel.example.workers.dev" />
+                  </div>
+                </div>
+                <div class="set-row stacked" id="raInviteCodeRow" hidden>
+                  <div class="set-text">
+                    <label class="set-name" for="raInviteCode" data-i18n="邀请码（可选）">邀请码（可选）</label>
+                    <span class="set-desc" data-i18n="如果自建 Worker 启用了访问邀请码，请在此填写。">如果自建 Worker 启用了访问邀请码，请在此填写。</span>
+                  </div>
+                  <div class="set-control">
+                    <input id="raInviteCode" type="password" spellcheck="false" autocomplete="new-password" data-placeholder-i18n="留空表示无需邀请码" placeholder="留空表示无需邀请码" />
+                  </div>
+                </div>
+                <div class="set-row stacked" id="raTokenRow" hidden>
+                  <div class="set-text ra-token-label-row">
+                    <div>
+                      <label class="set-name" for="raTunnelToken" data-i18n="Tunnel Token">Tunnel Token</label>
+                      <span class="set-desc" data-i18n="仅安全保存在本机受保护凭据存储中，界面不会回显明文。">仅安全保存在本机受保护凭据存储中，界面不会回显明文。</span>
+                    </div>
+                    <span class="ra-token-status" id="raTokenStatus" hidden>
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-shield-check"/></svg>
+                      <span data-i18n="已配置">已配置</span>
+                    </span>
+                  </div>
+                  <div class="set-control">
+                    <input id="raTunnelToken" type="password" spellcheck="false" autocomplete="new-password" data-placeholder-i18n="粘贴 Cloudflare Tunnel Token" placeholder="粘贴 Cloudflare Tunnel Token" />
+                    <button class="ghost danger" id="raClearToken" type="button" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-trash-2"/></svg><span data-i18n="清除">清除</span></button>
+                  </div>
+                </div>
+                <div class="set-row stacked" id="raTokenPublicUrlRow" hidden>
+                  <div class="set-text">
+                    <label class="set-name" for="raTunnelPublicUrl" data-i18n="绑定公网域名">绑定公网域名</label>
+                    <span class="set-desc" data-i18n="填写该 Cloudflare Tunnel 路由规则绑定的 HTTPS 域名，用于生成配对二维码。">填写该 Cloudflare Tunnel 路由规则绑定的 HTTPS 域名，用于生成配对二维码。</span>
+                  </div>
+                  <div class="set-control">
+                    <input id="raTunnelPublicUrl" type="text" spellcheck="false" autocomplete="off" placeholder="https://dsh.yourdomain.com" />
+                  </div>
+                </div>
+                <div class="set-row">
+                  <div class="set-text">
+                    <label class="set-name" for="raEdgeIpVersion" data-i18n="边缘 IP 策略">边缘 IP 策略</label>
+                    <span class="set-desc" data-i18n="选择连接 Cloudflare 边缘节点时使用的 IP 协议版本；可点「边缘测速」检测延迟与污染。">选择连接 Cloudflare 边缘节点时使用的 IP 协议版本；可点「边缘测速」检测延迟与污染。</span>
+                  </div>
+                  <div class="set-control">
+                    <select id="raEdgeIpVersion" aria-label="边缘 IP 策略" data-i18n-aria-label="边缘 IP 策略">
+                      <option value="auto" data-i18n="自动优选">自动优选</option>
+                      <option value="4" data-i18n="仅 IPv4">仅 IPv4</option>
+                      <option value="6" data-i18n="仅 IPv6">仅 IPv6</option>
+                    </select>
+                    <button class="ghost" id="raTunnelProbe" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-refresh-cw"/></svg><span data-i18n="边缘测速">边缘测速</span></button>
+                  </div>
+                </div>
+                <div class="ra-probe-result" id="raEdgeProbeBox" hidden></div>
+                <label class="toggle set-row">
+                  <span class="set-text">
+                    <span class="set-name" data-i18n="随远程网关自动启动隧道">随远程网关自动启动隧道</span>
+                    <span class="set-desc" data-i18n="开启远程网关或启动器重启时自动拉起 Cloudflare 隧道。">开启远程网关或启动器重启时自动拉起 Cloudflare 隧道。</span>
+                  </span>
+                  <input id="raTunnelAutoStart" type="checkbox" />
+                </label>
+                <div class="set-row ra-action-row">
+                  <p class="hint ra-inline-hint" id="raTunnelHint" role="status" aria-live="polite"></p>
+                  <div class="set-control">
+                    <button class="ghost" id="raTunnelSave" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-save"/></svg><span data-i18n="保存隧道配置">保存隧道配置</span></button>
                   </div>
                 </div>
               </div>
@@ -1693,6 +1953,7 @@
         () => renderSkillList(),
         () => renderPackGrid(),
         () => environmentState.repaint?.(),
+        () => globalThis.remoteAccessUi?.repaint?.(),
       ]
       for (const paint of painters) {
         try { paint() } catch { /* 这一块还没初始化 */ }
@@ -3436,6 +3697,7 @@
     let currentSettingsCategory = 'general'
     const settingsCategories = {
       general: ['常规', '设置启动器的启动方式、界面语言，以及 dsh 的插件与启动配置。'],
+      'remote-access': ['移动与远程访问', '通过手机 PWA 或 Cloudflare 隧道安全访问本机 DSH-X 实例。'],
       appearance: ['外观', '选择启动器的外观；跟随系统会在系统主题变化时自动切换。'],
       browser: ['浏览器控制', '内置浏览器的开关、证书校验与浏览数据。'],
       advanced: ['高级', ''],
@@ -3543,6 +3805,7 @@
         pane.classList.add('active')
         paneLoaders[name]?.()
       }
+      globalThis.remoteAccessUi?.onViewChange?.(name, currentSettingsCategory)
       // 主页的毛玻璃需要直接采样整页背景；给祖先做透明度动画会隔断采样，直到动画取消才恢复。
       // 来回切换都只动画启动项内容，卡片与父面板保持原位，设置页仍沿用原来的滑动。
       const enterTarget = name === 'control' ? pane.querySelector('.launch-presets') : pane
@@ -9621,6 +9884,13 @@
           // ignore
         }
       })
+      events.addEventListener('remoteAccess', (event) => {
+        try {
+          globalThis.remoteAccessUi?.applyStatus?.(JSON.parse(event.data))
+        } catch {
+          // ignore
+        }
+      })
       events.addEventListener('log', (event) => {
         let data
         try { data = JSON.parse(event.data) } catch { return }
@@ -12773,6 +13043,7 @@
   <script src="/mcp-skills-page.js?v=20261121"></script>
   <script src="/env-launch-config.js?v=20261121"></script>
   <script src="/environments-page.js?v=20261121b"></script>
+  <script src="/remote-access.js?v=20261121"></script>
   <script src="/idle.js" defer></script>
   <script src="/mascot.js" defer></script>
   <script src="/water.js" defer></script>

@@ -1,0 +1,20 @@
+{
+  "name": "DSH-X Mobile",
+  "short_name": "DSH-X",
+  "description": "DSH-X 移动端远程控制台，支持多主机多链路自动选路与实例管理",
+  "start_url": "/_dshx/m/",
+  "id": "/_dshx/m/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#18181b",
+  "theme_color": "#18181b",
+  "icons": [
+    {
+      "src": "/_dshx/m/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

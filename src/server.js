@@ -6,7 +6,7 @@ import { createServer as createNetServer } from 'node:net'
 import { createInterface } from 'node:readline'
 import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { accessSync, chmodSync, closeSync, constants as fsConstants, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
-import { homedir, tmpdir } from 'node:os'
+import { homedir, hostname, tmpdir } from 'node:os'
 import { createRequire } from 'node:module'
 import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -210,6 +210,7 @@ import {
   safeSyncSettings,
   safeTheme,
   safeUpdateSource,
+  UPDATE_SOURCES,
   updateSourceForDownload,
   updateUrlCandidates,
   safePanelTransparency,
@@ -248,6 +249,7 @@ import { detectCapabilities } from './capabilities.js'
 import { ManagerAuth } from './manager-auth.js'
 import { createSecretStore } from './secret-store.js'
 import { lanUrlOf, pickLanAddress, startLanProxy } from './lan-proxy.js'
+import { createRemoteAccessController } from './remote-access.js'
 import { DESKTOP_API_VERSION, DESKTOP_CAPABILITIES, parseDesktopRequest } from './desktop.js'
 import { checkCoreUpdate, downloadCoreTarball, extractCoreTarball, stagingExists, stagingStats } from './core-npm.js'
 import { writeElectronBinMarker } from './electron-bin.js'
@@ -293,6 +295,156 @@ const PORT_SCAN = 20
  * 页面导航要带 cookie，本机无 Origin 的调用（外壳、插件、curl）不受影响。
  */
 let managerAuth = null
+/** 移动与远程访问总控（见 remote-access.js）：默认关闭，仅在用户开启 remoteAccess 时监听网关与隧道。 */
+let remoteAccess = null
+
+/**
+ * 给远程网关与手机端用的 URL 安全实例键：
+ * 为什么不直接暴露内部 proc.key：内部键含 `\0` 与本地完整目录路径，既会被部分反代/WAF 拦掉，
+ * 也会把本机用户名路径带进 URL 和 Cookie；这里对默认目录输出 `版本@profile`，额外目录追加 8 位哈希区分。
+ */
+function remoteInstanceKey(proc) {
+  const base = `${proc.version}@${proc.profile}`
+  if (!proc.home || proc.home === defaultHome()) return base
+  const suffix = createHash('sha256').update(String(proc.home)).digest('hex').slice(0, 8)
+  return `${base}~${suffix}`
+}
+
+function remoteTargetForProc(proc) {
+  if (proc.backend === 'wsl') return { type: 'wsl', label: proc.distro || '' }
+  if (proc.backend === 'ssh') {
+    const conn = proc.connectionId ? CONNECTIONS.find((c) => c.id === proc.connectionId) : null
+    return { type: 'ssh', label: conn?.name || '' }
+  }
+  return 'local'
+}
+
+function remoteTargetForPreset(preset) {
+  if (preset?.backend === 'wsl') return { type: 'wsl', label: preset.wslDistro || WSL_SETTINGS.defaultDistro || '' }
+  if (preset?.backend === 'ssh') {
+    const conn = preset.connectionId ? CONNECTIONS.find((c) => c.id === preset.connectionId) : null
+    return { type: 'ssh', label: conn?.name || '' }
+  }
+  return 'local'
+}
+
+function ensureRemoteAccess() {
+  if (remoteAccess) return remoteAccess
+  remoteAccess = createRemoteAccessController({
+    appDir: APP_DIR,
+    publicDir: PUBLIC,
+    getSettings: () => loadSettingsSync(),
+    updateSettings: async (nextRemoteAccess) => {
+      await saveSettings({ remoteAccess: nextRemoteAccess })
+    },
+    getHostInfo: () => ({
+      hostName: hostname(),
+      version: APP_VERSION,
+    }),
+    getInstances: () => instanceList().map((proc) => {
+      const port = proc.url ? (urlPortOf(proc.url) || 0) : 0
+      return {
+        key: remoteInstanceKey(proc),
+        version: proc.version,
+        profile: proc.profile,
+        name: launchNameOf(proc),
+        status: proc.status,
+        ready: proc.status === 'running' && port > 0,
+        port,
+        url: proc.url || '',
+        startedAt: proc.startedAt,
+        target: remoteTargetForProc(proc),
+      }
+    }),
+    getLaunches: () => trayLaunches()
+      .filter((row) => Boolean(row.preset))
+      .map((row) => ({
+        id: row.id,
+        name: row.name,
+        version: row.version,
+        profile: row.profile,
+        target: remoteTargetForPreset(row.preset),
+        runningKey: row.proc ? remoteInstanceKey(row.proc) : '',
+      })),
+    startLaunch: async ({ launchId, version, profile }) => {
+      if (launchId) return trayAction({ id: launchId, action: 'start' })
+      if (!version) throw new Error('请指定启动项或版本')
+      return start(version, profile || PROFILE_NAME)
+    },
+    stopInstance: async ({ key, version, profile }) => {
+      const target = key
+        ? instanceList().find((proc) => remoteInstanceKey(proc) === key)
+        : instanceList().find((proc) => proc.version === version && (!profile || proc.profile === profile))
+      if (!target) throw new Error('未找到对应的运行中实例')
+      await stop(target.version, target.profile, target.home)
+    },
+    getLogs: ({ key, limit }) => {
+      const target = key ? instanceList().find((proc) => remoteInstanceKey(proc) === key) : null
+      if (target && Array.isArray(target.tail)) return target.tail.slice(-limit)
+      return logs.slice(-limit)
+    },
+    getMirrorPrefix: () => UPDATE_SOURCES[safeUpdateSource(UPDATE_SOURCE)] || [],
+    onLog: (msg) => pushLog(`[远程访问] ${msg}`),
+    onChange: () => { void emitState() },
+  })
+  return remoteAccess
+}
+
+async function handleRemoteAccessApi(req, res, url) {
+  const ctrl = ensureRemoteAccess()
+  const path = url.pathname
+  try {
+    if (req.method === 'GET' && path === '/api/remote-access/status') {
+      send(res, 200, ctrl.getStatus())
+      return
+    }
+    if (req.method === 'POST' && path === '/api/remote-access/config') {
+      const body = await readJson(req)
+      send(res, 200, await ctrl.applyConfig(body))
+      return
+    }
+    if (req.method === 'POST' && path === '/api/remote-access/pair') {
+      send(res, 200, { ok: true, pairing: ctrl.createPairing() })
+      return
+    }
+    if (req.method === 'GET' && path === '/api/remote-access/devices') {
+      send(res, 200, { ok: true, devices: ctrl.listDevices() })
+      return
+    }
+    if (req.method === 'DELETE' && path === '/api/remote-access/devices') {
+      send(res, 200, ctrl.revokeAllDevices())
+      return
+    }
+    if (path.startsWith('/api/remote-access/devices/')) {
+      const id = decodeURIComponent(path.slice('/api/remote-access/devices/'.length))
+      if (req.method === 'PATCH') {
+        const body = await readJson(req)
+        send(res, 200, { ok: true, device: ctrl.renameDevice(id, body.deviceName) })
+        return
+      }
+      if (req.method === 'DELETE') {
+        send(res, 200, ctrl.revokeDevice(id))
+        return
+      }
+    }
+    if (req.method === 'POST' && path === '/api/remote-access/tunnel/start') {
+      send(res, 200, await ctrl.startTunnel())
+      return
+    }
+    if (req.method === 'POST' && path === '/api/remote-access/tunnel/stop') {
+      send(res, 200, await ctrl.stopTunnel())
+      return
+    }
+    if (req.method === 'POST' && path === '/api/remote-access/tunnel/probe') {
+      send(res, 200, await ctrl.probeEdge())
+      return
+    }
+    send(res, 404, { error: 'not found' })
+  } catch (error) {
+    const status = Number.isInteger(error?.statusCode) && error.statusCode >= 400 && error.statusCode < 600 ? error.statusCode : 400
+    send(res, status, { error: error instanceof Error ? error.message : String(error) })
+  }
+}
 
 /**
  * 带 launch token 的管理页地址。外壳窗口、start.js 开浏览器、被唤醒的那个实例都从这里拿：
@@ -7570,6 +7722,9 @@ function attachProcess(version, profile, child, diagnosticContext, instanceLink,
       // 只有失败 / 意外退出（下面那条）才值得打断。
       emitState()
       void openLanProxy(proc, tag)
+      if (typeof remoteAccess !== 'undefined' && remoteAccess && typeof remoteInstanceKey === 'function') {
+        remoteAccess.clearInstanceCookies(remoteInstanceKey(proc))
+      }
     }
   }
   // 管道的 chunk 没有行/UTF-8 边界；逐块 split 会截断中文、错误码，甚至整个就绪 URL。
@@ -7596,6 +7751,9 @@ function attachProcess(version, profile, child, diagnosticContext, instanceLink,
     proc.diagnosticTimer = null
     proc.exit = { code, signal }
     void closeLanProxy(proc)
+    if (typeof remoteAccess !== 'undefined' && remoteAccess && typeof remoteInstanceKey === 'function') {
+      remoteAccess.clearInstanceCookies(remoteInstanceKey(proc))
+    }
     instanceLink?.exited(child)
     ready()
     pushLog(`${tag}已退出 code=${code ?? '-'} signal=${signal ?? '-'}`)
@@ -9315,6 +9473,9 @@ async function stop(version, profile = '', targetHome = '') {
   await Promise.all(targets.map(async (proc) => {
     const label = `${proc.version}/${proc.profile}`
     if (await terminateProcess(proc)) {
+      if (typeof remoteAccess !== 'undefined' && remoteAccess && typeof remoteInstanceKey === 'function') {
+        remoteAccess.clearInstanceCookies(remoteInstanceKey(proc))
+      }
       // 'exit' 处理器会删记录，这里兜底：事件已经错过时别留下幽灵条目
       if (instances.get(proc.key)?.child === proc.child) instances.delete(proc.key)
       return
@@ -10100,6 +10261,10 @@ async function handleApi(req, res, url) {
   // 统一在这里挡住本地文件路由，避免把 wsl:// 键当成 Windows 路径。
   if (launchIsRemote() && isRemoteLocalApiRoute(url.pathname)) {
     send(res, 400, { error: 'WSL 启动项的配置、插件和整合包文件都在 WSL 内，当前版本不支持在 Windows 侧直接管理；请进入该发行版操作。' })
+    return
+  }
+  if (url.pathname === '/api/remote-access' || url.pathname.startsWith('/api/remote-access/')) {
+    await handleRemoteAccessApi(req, res, url)
     return
   }
   if (req.method === 'GET' && url.pathname === '/api/remote') {
@@ -12040,6 +12205,7 @@ export async function startServer() {
   // 管理页访问令牌：签名密钥跨重启保留（老 cookie 继续有效），launch token 每次启动重新生成。
   await mkdir(APP_DIR, { recursive: true })
   managerAuth = ManagerAuth.load(APP_DIR)
+  ensureRemoteAccess()
   // 默认 16KB 的请求头上限会被浏览器里堆积的 cookie 顶爆（HTTP 431），放宽到 128KB
   const handler = async (req, res) => {
     try {
@@ -12214,6 +12380,7 @@ export async function startServer() {
     console.log(`dsh-versions data: ${DATA}`)
     console.log(`dsh-versions home: ${homeDir()}`)
     void launchStartupPresets(stored.launchPresets).catch((error) => pushLog(`读取自动启动项失败：${error instanceof Error ? error.message : error}`))
+    await remoteAccess?.start().catch((error) => pushLog(`[远程访问] 启动失败：${error instanceof Error ? error.message : error}`))
     return `http://127.0.0.1:${PORT}`
   }
   throw lastError ?? new Error('没有可用端口')
@@ -12239,6 +12406,11 @@ export async function stopAll() {
   instances.clear()
   if (typeof stopAllRemoteCores === 'function') await stopAllRemoteCores().catch(() => {})
   if (typeof stopAllSshRemoteCores === 'function') await stopAllSshRemoteCores().catch(() => {})
+  if (typeof remoteAccess !== 'undefined' && remoteAccess) {
+    const controller = remoteAccess
+    remoteAccess = null
+    await controller.stop().catch(() => {})
+  }
   logWriter.flush()
   flushLogEvents()
   for (const res of clients) {

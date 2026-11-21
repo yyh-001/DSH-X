@@ -3600,5 +3600,509 @@ html.reduce-motion .plugin-market-head-actions .icon-btn.is-loading svg { animat
   .env-launch-grid-mid,
   .env-launch-toggles,
   .environment-config-inline-grid,
-  .environment-config-history { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .environment-config-history,
+  .ra-mode-grid,
+  .ra-qr-layout { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .ra-endpoint-item { flex-wrap: wrap; }
+  .ra-device-row { flex-direction: column; align-items: stretch; }
+  .ra-device-actions { justify-content: flex-end; }
+}
+
+/* ---- 设置页「移动与远程访问」 ---- */
+.set-section[data-category="remote-access"] .set-caption:first-of-type { margin-top: 4px; }
+.ra-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.ra-section-title-group { display: inline-flex; align-items: center; gap: 8px; }
+.ra-host-chip,
+.ra-count-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.ra-host-chip[hidden],
+.ra-banner[hidden],
+.ra-colo-list[hidden],
+.ra-token-status[hidden],
+.ra-probe-result[hidden],
+.ra-pair-tabs[hidden],
+.ra-card-hint[hidden] { display: none; }
+.set-section[data-category="remote-access"] button.primary,
+.set-section[data-category="remote-access"] button.ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.set-section[data-category="remote-access"] button.primary svg,
+.set-section[data-category="remote-access"] button.ghost svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+}
+.set-section[data-category="remote-access"] .ra-icon-sm {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 8px;
+  flex: 0 0 auto;
+}
+.set-section[data-category="remote-access"] .ra-icon-sm svg { width: 15px; height: 15px; }
+.set-section[data-category="remote-access"] .ra-icon-sm.is-copied {
+  color: var(--status-running);
+  border-color: color-mix(in srgb, var(--status-running) 45%, var(--line));
+}
+.set-section[data-category="remote-access"] .is-spinning svg {
+  animation: ra-spin var(--motion-spin) linear infinite;
+}
+@keyframes ra-spin { to { transform: rotate(360deg); } }
+.ra-status-row,
+.ra-tunnel-head { padding-top: 14px; padding-bottom: 14px; }
+.ra-status-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+}
+.ra-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 26px;
+  padding: 0 11px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--accent-soft);
+  color: var(--muted);
+}
+.ra-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 auto;
+}
+.ra-pill.is-running {
+  background: rgba(22, 163, 74, 0.12);
+  color: var(--status-running);
+}
+.ra-pill.is-pending {
+  background: rgba(217, 119, 6, 0.13);
+  color: var(--status-starting);
+}
+.ra-pill.is-pending .ra-dot {
+  animation: self-update-pulse var(--motion-pulse) ease-in-out infinite;
+}
+.ra-pill.is-error {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.ra-pill.is-stopped {
+  background: rgba(107, 125, 156, 0.12);
+  color: var(--muted);
+}
+.ra-meta-inline {
+  font-size: 12.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.ra-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 11px 20px;
+  border-top: 1px solid #edf1f9;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.ra-banner svg {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  flex: 0 0 auto;
+}
+.ra-banner.is-error {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.ra-banner.is-info {
+  background: color-mix(in srgb, var(--accent-soft) 65%, transparent);
+  color: var(--muted);
+}
+.ra-banner.is-info svg { color: var(--accent); }
+.ra-endpoint-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ra-endpoint-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent-soft) 35%, var(--card));
+}
+.ra-endpoint-label {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  min-width: 72px;
+}
+.ra-endpoint-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.ra-url-value,
+.ra-code-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.ra-code-value {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+.ra-action-row {
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+.ra-inline-hint {
+  margin: 0 !important;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.ra-card-hint {
+  margin: 0;
+  padding: 10px 20px 14px;
+  border-top: 1px solid #edf1f9;
+}
+.ra-inline-hint.is-error,
+.ra-card-hint.is-error { color: var(--danger); }
+
+/* 配对二维码卡片 */
+.ra-pair-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  margin-bottom: 14px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+}
+.ra-seg-btn {
+  border: 0;
+  border-radius: 8px;
+  padding: 5px 12px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
+}
+.ra-seg-btn:hover { color: var(--text); }
+.ra-seg-btn.is-active {
+  background: var(--card);
+  color: var(--accent);
+  box-shadow: 0 1px 4px rgba(22, 35, 61, 0.08);
+}
+.ra-qr-layout {
+  display: grid;
+  grid-template-columns: 184px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+/* 二维码始终白底黑码并留白边，深色模式下手机相机也能稳定扫码 */
+.ra-qr-frame {
+  width: 184px;
+  height: 184px;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity var(--motion-base) var(--ease-standard), filter var(--motion-base) var(--ease-standard);
+}
+.ra-qr-frame.is-expired { opacity: 0.35; filter: grayscale(1); }
+.ra-qr-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.ra-qr-empty { font-size: 12px; color: #6b7d9c; text-align: center; }
+.ra-qr-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  min-width: 0;
+}
+.ra-copy-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.ra-copy-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.ra-copy-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 6px 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent-soft) 28%, var(--card));
+}
+.ra-qr-tip { margin: 2px 0 0 !important; }
+
+/* 已配对设备列表 */
+.ra-device-list { border-top: 1px solid #edf1f9; }
+.ra-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 26px 20px;
+  color: var(--muted);
+}
+.ra-empty-icon {
+  width: 28px;
+  height: 28px;
+  color: var(--accent);
+  opacity: 0.72;
+}
+.ra-empty-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.ra-empty-desc {
+  margin: 0;
+  font-size: 12.5px;
+  max-width: 420px;
+}
+.ra-device-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 20px;
+}
+.ra-device-row + .ra-device-row { border-top: 1px solid #edf1f9; }
+.ra-device-info {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ra-device-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ra-device-name {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.ra-platform-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.ra-device-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.ra-meta-sep { opacity: 0.55; }
+.ra-device-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.ra-device-rename-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  max-width: 380px;
+}
+.ra-device-rename-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 32px !important;
+}
+
+/* Cloudflare 隧道模式卡片与边缘测速 */
+.ra-colo-list {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ra-colo-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--accent-soft) 35%, var(--card));
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.ra-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+.ra-mode-option {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 12px 13px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  cursor: pointer;
+  transition: border-color var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard), background var(--motion-fast) var(--ease-standard);
+}
+.ra-mode-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.ra-mode-option:hover { border-color: var(--accent); }
+.ra-mode-option:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ra-mode-option:has(input:checked) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent-soft) 50%, var(--card));
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.ra-mode-title {
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--text);
+}
+.ra-mode-desc {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.ra-token-label-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ra-token-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: rgba(22, 163, 74, 0.12);
+  color: var(--status-running);
+  font-size: 12px;
+  font-weight: 600;
+  flex: 0 0 auto;
+}
+.ra-token-status svg { width: 14px; height: 14px; }
+.ra-probe-result {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 20px 14px;
+  border-top: 1px solid #edf1f9;
+  background: color-mix(in srgb, var(--accent-soft) 24%, transparent);
+}
+.ra-probe-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ra-probe-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  font-size: 12px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.ra-probe-key { color: var(--muted); }
+.ra-probe-warn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 11px;
+  border-radius: 9px;
+  background: rgba(217, 119, 6, 0.13);
+  color: var(--status-starting);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.ra-probe-warn svg { width: 15px; height: 15px; flex: 0 0 auto; }
+html.reduce-motion .set-section[data-category="remote-access"] .is-spinning svg,
+html.reduce-motion .ra-pill.is-pending .ra-dot { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .set-section[data-category="remote-access"] .is-spinning svg,
+  .ra-pill.is-pending .ra-dot { animation: none; }
 }

@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="auto" data-color-scheme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#eef3fd" id="metaThemeColor" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="DSH-X" />
+  <title>DSH-X Mobile</title>
+  <link rel="manifest" href="/_dshx/m/manifest.json" />
+  <link rel="icon" type="image/png" href="/_dshx/m/icon.png" />
+  <link rel="apple-touch-icon" href="/_dshx/m/icon.png" />
+  <script>
+    // 首屏防闪烁：在样式绘制前按本地偏好确定亮暗色与状态栏主题色
+    (() => {
+      const root = document.documentElement
+      const saved = (() => {
+        try { return localStorage.getItem('dshx_mobile_theme') || 'auto' } catch { return 'auto' }
+      })()
+      const mode = saved === 'light' || saved === 'dark' ? saved : 'auto'
+      const dark = mode === 'dark' || (mode === 'auto' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
+      root.dataset.theme = mode
+      root.dataset.colorScheme = dark ? 'dark' : 'light'
+      const meta = document.getElementById('metaThemeColor')
+      if (meta) meta.setAttribute('content', dark ? '#18181b' : '#eef3fd')
+    })()
+  </script>
+  <link rel="stylesheet" href="/_dshx/m/style.css" />
+</head>
+<body>
+  <!-- ===== 已配对控制台外壳 ===== -->
+  <div id="consoleShell" hidden>
+    <header class="app-header">
+      <div class="header-inner">
+        <div class="header-left">
+          <span class="brand-mark" aria-hidden="true">DX</span>
+          <div class="host-select-wrap">
+            <select id="hostSelect" class="host-select" aria-label="切换主机"></select>
+            <svg class="icon host-select-caret" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </div>
+        </div>
+        <div class="header-right">
+          <button type="button" id="connChip" class="conn-chip" title="链路状态">
+            <span id="connDot" class="conn-dot probing" aria-hidden="true"></span>
+            <span id="connLabel">连接中</span>
+            <span id="connRtt" class="conn-rtt"></span>
+          </button>
+          <button type="button" id="refreshBtn" class="icon-btn" aria-label="刷新" title="刷新">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+              <path d="M21 3v6h-6" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- 多链路智能选路提示条 -->
+    <div id="routeBanner" class="route-banner" hidden role="status">
+      <div class="route-banner-text">
+        <span id="routeBannerTitle" class="route-banner-title"></span>
+        <span id="routeBannerSub" class="route-banner-sub"></span>
+      </div>
+      <div id="routeBannerActions" class="route-banner-actions"></div>
+    </div>
+
+    <main class="app-main">
+      <!-- Tab 1: 实例 -->
+      <section id="panel-instances" class="tab-panel" role="tabpanel" aria-labelledby="tab-instances">
+        <div class="section">
+          <div class="section-head">
+            <h2 class="section-title">
+              <span data-i18n="runningInstances">运行中实例</span>
+              <span id="runningCount" class="count-pill">0</span>
+            </h2>
+          </div>
+          <div id="runningList" class="card-stack"></div>
+        </div>
+
+        <div class="section">
+          <div class="section-head">
+            <h2 class="section-title">
+              <span data-i18n="configuredLaunches">启动项</span>
+              <span id="launchesCount" class="count-pill">0</span>
+            </h2>
+          </div>
+          <div id="launchesList" class="card-stack"></div>
+        </div>
+      </section>
+
+      <!-- Tab 2: 日志 -->
+      <section id="panel-logs" class="tab-panel" role="tabpanel" aria-labelledby="tab-logs" hidden>
+        <div class="log-toolbar">
+          <div class="log-select-row">
+            <select id="logInstanceSelect" class="select-input" aria-label="选择实例"></select>
+            <button type="button" id="logRefreshBtn" class="icon-btn" aria-label="刷新日志" title="刷新日志">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                <path d="M21 3v6h-6" />
+              </svg>
+            </button>
+          </div>
+          <div class="log-controls">
+            <div class="chip-toggle-group">
+              <button type="button" id="logAutoRefreshBtn" class="chip-btn" aria-pressed="true">
+                <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                  <path d="M3 3v5h5" />
+                  <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+                  <path d="M16 16h5v5" />
+                </svg>
+                <span data-i18n="autoRefresh">自动刷新</span>
+              </button>
+              <button type="button" id="logAutoScrollBtn" class="chip-btn" aria-pressed="true">
+                <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 5v14" />
+                  <path d="m19 12-7 7-7-7" />
+                </svg>
+                <span data-i18n="autoScroll">自动滚动</span>
+              </button>
+            </div>
+            <button type="button" id="logCopyBtn" class="btn btn-sm btn-ghost">
+              <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+                <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+              </svg>
+              <span data-i18n="copyLogs">复制</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="log-shell">
+          <div class="log-meta-bar">
+            <span id="logMetaKey">—</span>
+            <span id="logMetaLines">0 lines</span>
+          </div>
+          <pre id="logOutput" class="log-output"></pre>
+        </div>
+      </section>
+
+      <!-- Tab 3: 设备与设置 -->
+      <section id="panel-settings" class="tab-panel" role="tabpanel" aria-labelledby="tab-settings" hidden>
+        <!-- 链路与测速 -->
+        <div class="section">
+          <div class="section-head">
+            <h2 class="section-title" data-i18n="routesSection">链路与测速</h2>
+            <button type="button" id="probeRoutesBtn" class="btn btn-sm btn-ghost">
+              <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+              </svg>
+              <span data-i18n="probeRoutes">测速选路</span>
+            </button>
+          </div>
+          <div class="card list-card">
+            <div id="endpointsList"></div>
+            <div class="list-row list-row-col">
+              <div class="row-info">
+                <div class="row-title" data-i18n="customEndpointLabel">自定义地址（Tailscale / 自建反代）</div>
+                <div class="row-sub" data-i18n="customEndpointHint">保存后会参与当前主机的并发测速选路</div>
+              </div>
+              <form id="customEndpointForm" class="endpoint-form">
+                <input
+                  id="customEndpointInput"
+                  type="url"
+                  class="text-input mono"
+                  placeholder="https://my-host.ts.net"
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+                <button type="submit" class="btn btn-sm btn-primary" data-i18n="save">保存</button>
+              </form>
+            </div>
+            <div class="list-row">
+              <div class="row-info">
+                <div class="row-title" data-i18n="autoSwitchRoute">自动切换更快链路</div>
+                <div class="row-sub" data-i18n="autoSwitchRouteDesc">同网段检测到更低延迟链路时自动跳转</div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="autoSwitchToggle" />
+                <span class="switch-track"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- 已配对设备 -->
+        <div class="section">
+          <div class="section-head">
+            <h2 class="section-title">
+              <span data-i18n="pairedDevices">已配对设备</span>
+              <span id="devicesCount" class="count-pill">0</span>
+            </h2>
+          </div>
+          <div id="devicesList" class="card list-card"></div>
+        </div>
+
+        <!-- 主机管理 -->
+        <div class="section">
+          <div class="section-head">
+            <h2 class="section-title" data-i18n="hostsSection">已保存主机</h2>
+            <button type="button" id="addHostBtn" class="btn btn-sm btn-primary">
+              <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 5v14" />
+                <path d="M5 12h14" />
+              </svg>
+              <span data-i18n="addHost">配对新主机</span>
+            </button>
+          </div>
+          <div id="hostsList" class="card list-card"></div>
+        </div>
+
+        <!-- 外观与偏好 -->
+        <div class="section">
+          <div class="section-head">
+            <h2 class="section-title" data-i18n="preferencesSection">外观与语言</h2>
+          </div>
+          <div class="card list-card">
+            <div class="list-row">
+              <div class="row-info">
+                <div class="row-title" data-i18n="themeLabel">主题</div>
+              </div>
+              <div class="segmented" role="group" aria-label="Theme">
+                <button type="button" class="seg-btn" data-theme-opt="auto" data-i18n="themeAuto">自动</button>
+                <button type="button" class="seg-btn" data-theme-opt="light" data-i18n="themeLight">浅色</button>
+                <button type="button" class="seg-btn" data-theme-opt="dark" data-i18n="themeDark">深色</button>
+              </div>
+            </div>
+            <div class="list-row">
+              <div class="row-info">
+                <div class="row-title" data-i18n="languageLabel">语言</div>
+              </div>
+              <div class="segmented" role="group" aria-label="Language">
+                <button type="button" class="seg-btn" data-lang-opt="zh">中文</button>
+                <button type="button" class="seg-btn" data-lang-opt="en">English</button>
+              </div>
+            </div>
+            <div class="list-row">
+              <div class="row-info">
+                <div class="row-title" data-i18n="unpairTitle">退出当前设备</div>
+                <div class="row-sub" data-i18n="unpairDesc">吊销本机在此主机上的会话并返回配对页</div>
+              </div>
+              <button type="button" id="unpairSelfBtn" class="btn btn-sm btn-danger" data-i18n="unpairBtn">退出配对</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="appFooterNote" class="footer-note"></div>
+      </section>
+    </main>
+
+    <!-- 底部导航栏 -->
+    <nav class="tab-bar" role="tablist" aria-label="主导航">
+      <div class="tab-bar-inner">
+        <button type="button" id="tab-instances" class="tab-btn" role="tab" aria-selected="true" aria-controls="panel-instances" data-tab="instances">
+          <svg class="icon icon-lg" viewBox="0 0 24 24" aria-hidden="true">
+            <rect width="18" height="7" x="3" y="3" rx="2" />
+            <rect width="18" height="7" x="3" y="14" rx="2" />
+            <line x1="7" x2="7.01" y1="6.5" y2="6.5" />
+            <line x1="7" x2="7.01" y1="17.5" y2="17.5" />
+          </svg>
+          <span data-i18n="tabInstances">实例</span>
+        </button>
+        <button type="button" id="tab-logs" class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-logs" data-tab="logs">
+          <svg class="icon icon-lg" viewBox="0 0 24 24" aria-hidden="true">
+            <polyline points="4 17 10 11 4 5" />
+            <line x1="12" x2="20" y1="19" y2="19" />
+          </svg>
+          <span data-i18n="tabLogs">日志</span>
+        </button>
+        <button type="button" id="tab-settings" class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-settings" data-tab="settings">
+          <svg class="icon icon-lg" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+          <span data-i18n="tabSettings">设备与设置</span>
+        </button>
+      </div>
+    </nav>
+  </div>
+
+  <!-- ===== 配对页（未登录时全屏展示，已登录点「配对新主机」时以弹层展示） ===== -->
+  <section id="pairView" class="pair-view" hidden>
+    <div class="pair-container">
+      <div id="pairTopbar" class="pair-topbar">
+        <div class="pair-brand">
+          <span class="brand-mark" aria-hidden="true">DX</span>
+          <h1>DSH-X Mobile</h1>
+        </div>
+        <div class="header-right">
+          <button type="button" id="pairLangBtn" class="btn btn-sm btn-ghost">EN</button>
+          <button type="button" id="pairThemeBtn" class="icon-btn" aria-label="切换主题" title="切换主题">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="4" />
+              <path d="M12 2v2" />
+              <path d="M12 20v2" />
+              <path d="m4.93 4.93 1.41 1.41" />
+              <path d="m17.66 17.66 1.41 1.41" />
+              <path d="M2 12h2" />
+              <path d="M20 12h2" />
+              <path d="m6.34 17.66-1.41 1.41" />
+              <path d="m19.07 4.93-1.41 1.41" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="card pair-card">
+        <div class="pair-heading">
+          <div>
+            <h2 id="pairTitle" data-i18n="pairTitle">配对此设备</h2>
+            <p id="pairSubtitle" data-i18n="pairSubtitle">在电脑端 DSH-X「远程访问」中生成配对二维码或配对码</p>
+          </div>
+          <button type="button" id="pairCloseBtn" class="icon-btn" hidden aria-label="关闭">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div id="pairAutoNotice" class="pair-auto-pill" hidden>
+          <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M20 6 9 17l-5-5" />
+          </svg>
+          <span id="pairAutoNoticeText"></span>
+        </div>
+
+        <form id="pairForm" class="card-stack">
+          <div class="field">
+            <label for="pairCodeInput" data-i18n="pairCodeLabel">配对码</label>
+            <input
+              id="pairCodeInput"
+              type="text"
+              class="text-input mono"
+              autocomplete="one-time-code"
+              autocapitalize="off"
+              spellcheck="false"
+              required
+            />
+          </div>
+
+          <div class="field">
+            <label for="pairDeviceNameInput" data-i18n="deviceNameLabel">设备名称</label>
+            <input
+              id="pairDeviceNameInput"
+              type="text"
+              class="text-input"
+              maxlength="64"
+              required
+            />
+          </div>
+
+          <div class="field">
+            <label for="pairServerUrlInput" data-i18n="serverUrlLabel">服务器地址（可选）</label>
+            <input
+              id="pairServerUrlInput"
+              type="url"
+              class="text-input mono"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <span id="pairServerHint" class="field-hint"></span>
+          </div>
+
+          <div id="pairError" class="form-error" hidden role="alert"></div>
+
+          <button type="submit" id="pairSubmitBtn" class="btn btn-primary pair-submit" data-i18n="pairSubmit">
+            立即配对
+          </button>
+        </form>
+      </div>
+
+      <!-- 未登录态若本地保存过其他主机，允许一键跳过去 -->
+      <div id="pairSavedHostsBox" class="saved-hosts-box" hidden>
+        <div class="saved-hosts-title" data-i18n="switchSavedHost">或切换到已保存的主机</div>
+        <div id="pairSavedHostsList" class="card list-card"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 通用确认弹窗 ===== -->
+  <div id="confirmDialog" class="dialog-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+    <div class="dialog-card">
+      <h3 id="confirmTitle" class="dialog-title"></h3>
+      <p id="confirmBody" class="dialog-body"></p>
+      <div class="dialog-actions">
+        <button type="button" id="confirmCancelBtn" class="btn btn-sm btn-ghost"></button>
+        <button type="button" id="confirmOkBtn" class="btn btn-sm btn-danger"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Toast 容器 ===== -->
+  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
+  <script type="module" src="/_dshx/m/app.js"></script>
+</body>
+</html>
