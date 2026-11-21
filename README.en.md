@@ -37,12 +37,10 @@
 - 🚀 **Launch entries and multiple instances** — choose a user directory, profile, version and port per entry; start concurrently and add entries while DSH runs.
 - 📦 **Version management** — detect, install, remove and clean up dsh versions; pin a version per entry and inspect disk usage.
 - 🧩 **Plugins and instances** — instances lock a DSH version and plugins, import/export `.dspack`, follow upstream updates, and support one-click market install.
-- 🌐 **WSL and SSH remotes** — manage connections under Settings → Remote; launch entries can run on WSL or SSH hosts with `dsh-x-core` auto-installed and pages opened through an SSH tunnel.
+- 🌐 **WSL and SSH remotes** — launch entries can run on WSL or SSH hosts with `dsh-x-core` auto-installed and pages opened through a local tunnel.
 - 🔍 **Startup troubleshooting** — raw log / time breakdown / disk usage tabs, startup time and dependencies grouped per plugin, and a red log icon on plugin errors.
-- 🔄 **Updates and recovery** — self-update, recovery, profile backups and rollback, and old-version cleanup.
-- 🪟 **Opening modes and appearance** — internal tabs, system browser or standalone windows (with cross-window tab dragging); light/dark themes, transparency, background and animations.
+- 🔄 **Updates and recovery** — self-update, recovery, profile backups and rollback.
 - 🛠️ **MCP, skills and desktop enhancements** — built-in MCP and Skills markets, `dsh-x-computer-use` enabled by default, plus first-party native notifications and sidebar browser plugins.
-- ⚙️ **Cross-platform and system switches** — Windows / macOS / Linux installers; hardware acceleration, update download, tray and launch at login.
 
 ## Getting Started
 
@@ -112,7 +110,6 @@ Choose an isolation level when adding a launch entry (user and version directori
 ### Key Workflows
 
 - **Instances & Built-in Recipes**: Manage plugins per instance using the [DSH-PackForge](https://github.com/DSH-PackForge/DSH-PackForge) `.dspack` v5 format; includes built-in [Recommended](src/packs/dsh-x-recommended/manifest.json) and [Desktop Workbench](src/packs/dsh-x-workbench/README.md) recipes (`node scripts/make-pack.mjs` builds `.dspack` archives).
-- **Desktop Enhancement Plugins**: Install [Native Notifications (`dsh-x-desktop-notify`)](https://www.npmjs.com/package/dsh-x-desktop-notify), [Sidebar Browser (`dsh-x-sidebar-browser`)](https://www.npmjs.com/package/dsh-x-sidebar-browser), and Computer Use (`dsh-x-computer-use`) via npm from the Curated tab or Settings.
 - **Opening Modes & LAN Access**: Switch between internal tabs, standalone windows, or system browser in Settings; the manager defaults to port `3780` and supports LAN binding under Settings → Advanced.
 - **Backups & Rollback**: Automatic config-layer snapshots are saved before every launch so you can roll back and reinstall dependencies in one click.
 
