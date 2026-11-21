@@ -152,22 +152,61 @@ test('profile 锁：有人在用就拒绝，僵死锁清掉重来', async () => 
   assert.equal(existsSync(lockPath), false)
 })
 
-test('连着安全启动两次：提示指向最早那份（用户真正的配置），还原后整串收掉，不会冒出旧的', async () => {
+test('连着安全启动两次（中间 dsh 重建了空补丁、没再装插件）：提示指向最早那份，还原后整串收掉', async () => {
   const dir = makeProfile({ bundles: ['@deepseek-ai/dsh-web-app', 'plugin-a'], patch: 'user-config\n' })
   const first = await sanitizeProfile(dir)
-  // 中间 dsh 自己重建了补丁层，用户又装了一个插件，再安全启动一次
+  // 中间 dsh 自己重建了空补丁层，用户什么都没装，再安全启动一次：第二份摘掉列表为空
+  writeFileSync(patchOf(dir), '[]\n')
+  const second = await sanitizeProfile(dir)
+  assert.notEqual(first.backup, second.backup)
+  assert.deepEqual(second.dropped, [])
+  const found = latestRecovery(dir)
+  assert.equal(found.backup, first.backup, '最早那份里才是用户的补丁层')
+  assert.deepEqual(found.dropped, ['plugin-a'])
+  const result = await restoreProfileBackup(dir, found.backup)
+  assert.equal(readFileSync(patchOf(dir), 'utf8'), 'user-config\n')
+  assert.deepEqual(result.restoredBundles, ['plugin-a'])
+  assert.deepEqual(bundlesOf(dir), ['@deepseek-ai/dsh-web-app', 'plugin-a'])
+  assert.equal(latestRecovery(dir), null, '还原了一份，这一串都算处理过了')
+})
+
+test('连着安全启动两次、后一次摘过插件：链在后一次结束，不跳回更早的', async () => {
+  const dir = makeProfile({ bundles: ['@deepseek-ai/dsh-web-app', 'plugin-a'], patch: 'user-config\n' })
+  const first = await sanitizeProfile(dir)
   writeFileSync(patchOf(dir), '[]\n')
   writeFileSync(join(dir, 'package.json'), `${JSON.stringify({ name: 'web', dsh: { profile: { bundles: ['@deepseek-ai/dsh-web-app', 'plugin-b'] } } }, null, 2)}\n`)
   const second = await sanitizeProfile(dir)
-  assert.notEqual(first.backup, second.backup)
   const found = latestRecovery(dir)
-  assert.equal(found.backup, first.backup, '最早那份里才是用户的补丁层')
-  assert.deepEqual(found.dropped.sort(), ['plugin-a', 'plugin-b'], '两次摘掉的 bundle 合起来')
+  assert.equal(found.backup, second.backup, '后一次摘过东西，说明那是用户之后的真实状态')
+  assert.deepEqual(found.dropped, ['plugin-b'])
+  assert.notEqual(found.backup, first.backup)
+})
+
+test('还原不会把旧配置和已卸载的插件翻出来（A 摘 x、y → 卸 x、配新补丁 P2 → B 备份 P2）', async () => {
+  const manifest = (bundles, dependencies) => `${JSON.stringify({ name: 'web', dependencies, dsh: { profile: { bundles } } }, null, 2)}\n`
+  const dir = makeProfile({ patch: 'config-A\n' })
+  writeFileSync(join(dir, 'package.json'), manifest(['@deepseek-ai/dsh-web-app', 'x', 'y'], { '@deepseek-ai/dsh-web-app': '1.0.0', x: '1.0.0', y: '1.0.0' }))
+  const a = await sanitizeProfile(dir)
+  assert.deepEqual(a.dropped, ['x', 'y'])
+  // 用户卸了 x（依赖表里没了），自己写了一份新的补丁层 P2；bundles 里没再加第三方，B 的摘掉列表为空
+  writeFileSync(join(dir, 'package.json'), manifest(['@deepseek-ai/dsh-web-app'], { '@deepseek-ai/dsh-web-app': '1.0.0', y: '1.0.0' }))
+  writeFileSync(patchOf(dir), '- id: provider\n  config:\n    key: P2\n')
+  const b = await sanitizeProfile(dir)
+  assert.deepEqual(b.dropped, [])
+
+  const found = latestRecovery(dir)
+  assert.equal(found.backup, b.backup, 'P2 有内容：链停在 B，不跳回 A 把 P2 埋掉')
   const result = await restoreProfileBackup(dir, found.backup)
-  assert.equal(readFileSync(patchOf(dir), 'utf8'), 'user-config\n')
-  assert.deepEqual(result.restoredBundles.sort(), ['plugin-a', 'plugin-b'])
-  assert.deepEqual(bundlesOf(dir).sort(), ['@deepseek-ai/dsh-web-app', 'plugin-a', 'plugin-b'])
-  assert.equal(latestRecovery(dir), null, '还原了一份，这一串都算处理过了')
+  assert.match(readFileSync(patchOf(dir), 'utf8'), /key: P2/)
+  assert.deepEqual(bundlesOf(dir), ['@deepseek-ai/dsh-web-app'], 'B 没摘东西，bundles 不动')
+  assert.deepEqual(result.restoredBundles, [])
+
+  // 手工点 A 那份还原：只放回依赖表里还在的 y，已卸掉的 x 不再挂回去
+  const fromA = await restoreProfileBackup(dir, a.backup)
+  assert.equal(readFileSync(patchOf(dir), 'utf8'), 'config-A\n')
+  assert.deepEqual(fromA.restoredBundles, ['y'])
+  assert.deepEqual(fromA.skippedBundles, ['x'])
+  assert.deepEqual(bundlesOf(dir), ['@deepseek-ai/dsh-web-app', 'y'])
 })
 
 test('备份列表：同一毫秒撞名的 -1 序号按时间排在原备份之后（更新），不沉到最旧', () => {

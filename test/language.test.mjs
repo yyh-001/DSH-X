@@ -91,6 +91,45 @@ test('系统语言只有中文环境选 zh，其余（含 C / POSIX / 空值）�
   }
 })
 
+test('外壳给的系统首选语言优先于 Intl：Finder 启动没有 LANG 时中文系统仍是中文', (t) => {
+  const saved = process.env.DSH_SYSTEM_LANGS
+  t.after(() => {
+    if (saved === undefined) delete process.env.DSH_SYSTEM_LANGS
+    else process.env.DSH_SYSTEM_LANGS = saved
+  })
+  for (const [langs, expected] of [
+    ['zh-Hans-CN,en-US', 'zh'],
+    ['zh-Hant-TW', 'zh'],
+    ['ja-JP,zh-Hans-CN', 'zh'],
+    ['en-US,zh-Hans-CN', 'en'],
+    ['ja-JP,fr-FR', 'en'],
+    [' zh_CN , en ', 'zh'],
+  ]) {
+    process.env.DSH_SYSTEM_LANGS = langs
+    assert.equal(systemLang(), expected, langs)
+  }
+  // 显式传 locale 时不看环境变量（判断函数本身的口径不变）
+  process.env.DSH_SYSTEM_LANGS = 'zh-Hans-CN'
+  assert.equal(systemLang('en-US'), 'en')
+  // 没有（旧外壳 / npm start）或只有空白时退回 Intl
+  const intl = /^zh(?:[-_]|$)/i.test(Intl.DateTimeFormat().resolvedOptions().locale) ? 'zh' : 'en'
+  for (const value of ['', ' , ']) {
+    process.env.DSH_SYSTEM_LANGS = value
+    assert.equal(systemLang(), intl, JSON.stringify(value))
+  }
+  delete process.env.DSH_SYSTEM_LANGS
+  assert.equal(systemLang(), intl)
+})
+
+test('外壳在加载核心之前把 getPreferredSystemLanguages 放进 DSH_SYSTEM_LANGS', () => {
+  const main = readFileSync(new URL('../shell/main.mjs', import.meta.url), 'utf8')
+  const start = main.slice(main.indexOf('async function start()'))
+  const set = start.indexOf('process.env.DSH_SYSTEM_LANGS = ')
+  assert.ok(set > 0, '外壳要设 DSH_SYSTEM_LANGS')
+  assert.match(start, /app\.getPreferredSystemLanguages\(\)/)
+  assert.ok(set < start.indexOf("import(pathToFileURL(join(coreDir, 'server.js'))"), '必须在 server.js 求值之前')
+})
+
 test('用户语言未设置且安装语言缺失或无效时，跟随系统语言', async () => {
   const expected = systemLang()
   for (const installed of [null, 'invalid']) {

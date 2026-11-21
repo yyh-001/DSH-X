@@ -6,9 +6,9 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { pathToFileURL } from 'node:url'
 
-import { createCoreRecovery, isEnvironmentStartupError } from '../shell/core-recovery.mjs'
+import { RECOVERY_RELAUNCH_LIMIT, RECOVERY_WINDOW_MS, createCoreRecovery, isEnvironmentStartupError } from '../shell/core-recovery.mjs'
 
-function fixture(t, { pending = true, previous = true } = {}) {
+function fixture(t, { pending = true, previous = true, now } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'dsh-core-recovery-'))
   t.after(() => rmSync(root, { recursive: true, force: true, maxRetries: 5 }))
   const appDir = join(root, 'DSH'), current = join(appDir, 'core', 'current'), old = join(appDir, 'core', 'previous')
@@ -18,7 +18,7 @@ function fixture(t, { pending = true, previous = true } = {}) {
   if (pending) writeFileSync(join(appDir, 'core', 'pending'), JSON.stringify({ version: '0.1.26-rc.4', at: 1 }))
   writeFileSync(join(appDir, 'core', 'bootstrap.json'), JSON.stringify({ version: '0.1.25', failed: ['0.1.25'], at: 0 }))
   let relaunches = 0
-  const recovery = createCoreRecovery({ appDir, relaunch: () => { relaunches++ }, log() {} })
+  const recovery = createCoreRecovery({ appDir, relaunch: () => { relaunches++ }, log() {}, ...(now ? { now } : {}) })
   const files = ['core/current/server.js', 'core/previous/server.js', 'core/pending', 'core/bootstrap.json']
   const snapshot = () => files.map(file => existsSync(join(appDir, file)) ? readFileSync(join(appDir, file), 'utf8') : null)
   return { root, appDir, current, old, recovery, snapshot, relaunches: () => relaunches }
@@ -28,7 +28,7 @@ const systemError = (code, syscall, path) => Object.assign(new Error(`${code}: $
 
 test('原生权限/磁盘/资源错误保留核心，模块错误与代码错误仍可恢复', () => {
   const core = join(tmpdir(), 'DSH', 'core', 'current')
-  for (const code of ['EACCES', 'EPERM', 'EROFS', 'ENOSPC', 'EDQUOT', 'EMFILE', 'ENFILE', 'ENOMEM', 'EIO', 'ENODEV', 'ENXIO', 'EBUSY', 'ESTALE']) {
+  for (const code of ['EACCES', 'EPERM', 'EROFS', 'ENOSPC', 'EDQUOT', 'EMFILE', 'ENFILE', 'ENOMEM', 'EIO', 'ENODEV', 'ENXIO', 'EBUSY', 'ESTALE', 'UNKNOWN', 'EINVAL', 'EXDEV', 'ETIMEDOUT']) {
     assert.equal(isEnvironmentStartupError(systemError(code, 'open', join(core, 'server.js')), core), true, code)
   }
   for (const error of [new TypeError('broken'), new ReferenceError('broken'), new SyntaxError('broken'), { code: 'ERR_MODULE_NOT_FOUND' }, { code: 'ERR_REQUIRE_ESM' }, { code: 'EACCES' }, new TypeError('bad code', { cause: systemError('EACCES', 'open', '/data') })]) {
@@ -38,6 +38,17 @@ test('原生权限/磁盘/资源错误保留核心，模块错误与代码错误
   assert.equal(isEnvironmentStartupError(systemError('EADDRNOTAVAIL', 'listen'), core), true)
   assert.equal(isEnvironmentStartupError(systemError('EAFNOSUPPORT', 'listen'), core), true)
   assert.equal(isEnvironmentStartupError(systemError('EADDRINUSE', 'open'), core), false)
+})
+
+test('Windows junction 的 UNKNOWN（-4094）按 errno 也认作环境错误，包括核心目录里的路径', () => {
+  const core = join(tmpdir(), 'DSH', 'core', 'current')
+  const junction = Object.assign(systemError('UNKNOWN', 'scandir', join(core, 'node_modules', '.pnpm')), { errno: -4094 })
+  assert.equal(isEnvironmentStartupError(junction, core), true)
+  assert.equal(isEnvironmentStartupError(Object.assign(systemError('EOTHER', 'lstat', join(core, 'x')), { errno: -4094 }), core), true, '只有 errno 也认')
+  for (const code of ['EINVAL', 'EXDEV', 'ETIMEDOUT']) {
+    assert.equal(isEnvironmentStartupError(systemError(code, 'rename', join(core, 'state.json')), core), true, code)
+  }
+  assert.equal(isEnvironmentStartupError({ code: 'UNKNOWN', errno: -4094 }, core), false, '没有 syscall 的不是系统调用错误')
 })
 
 test('缺核心文件仍回退，外部数据路径和 mkdir 失败不误删核心', () => {
@@ -79,6 +90,54 @@ test('待验证核心的代码错误仍拉黑并回退到 previous', (t) => {
   assert.equal(existsSync(join(f.appDir, 'core', 'pending')), false)
   assert.deepEqual(f.recovery.failedCoreVersions(), ['0.1.25', '0.1.26-rc.4'])
   assert.equal(f.relaunches(), 1)
+})
+
+test('短时间内自动恢复到上限后不再删核心、不再重启，过了时间窗才重新允许', (t) => {
+  let clock = 1_000_000
+  const f = fixture(t, { previous: false, now: () => clock })
+  const reinstall = (version) => {
+    mkdirSync(f.current, { recursive: true })
+    writeFileSync(join(f.current, 'server.js'), `core ${version}`)
+    writeFileSync(join(f.appDir, 'core', 'pending'), JSON.stringify({ version }))
+  }
+  const versions = ['0.1.30', '0.1.29', '0.1.28']
+  for (const version of versions.slice(0, RECOVERY_RELAUNCH_LIMIT)) {
+    reinstall(version)
+    assert.equal(f.recovery.recoverCore(f.current, { pendingOnly: true, error: new TypeError(`误判 ${version}`) }), true, version)
+    clock += 1000
+  }
+  assert.equal(f.relaunches(), RECOVERY_RELAUNCH_LIMIT)
+  assert.equal(f.recovery.recentRelaunches().length, RECOVERY_RELAUNCH_LIMIT, '重启次数落盘，跨进程数得清')
+  // 第三次：留住核心和 pending，不再拉黑，交给外壳报错
+  reinstall(versions[2])
+  const before = f.snapshot()
+  assert.equal(f.recovery.recoverCore(f.current, { pendingOnly: true, error: new TypeError('第三次') }), false)
+  assert.deepEqual(f.snapshot(), before)
+  assert.equal(f.relaunches(), RECOVERY_RELAUNCH_LIMIT)
+  assert.ok(!f.recovery.failedCoreVersions().includes(versions[2]), '到上限后不再拉黑新的版本')
+  // 时间窗过了（比如用户第二天再开）：允许再自动恢复一次
+  clock += RECOVERY_WINDOW_MS
+  assert.equal(f.recovery.recoverCore(f.current, { pendingOnly: true, error: new TypeError('隔天') }), true)
+  assert.equal(f.relaunches(), RECOVERY_RELAUNCH_LIMIT + 1)
+})
+
+test('成功启动后 markHealthy 清掉黑名单和重启计数，旧格式标记也能清', (t) => {
+  const f = fixture(t, { previous: false })
+  assert.equal(f.recovery.recoverCore(f.current, { pendingOnly: true, error: new TypeError('bad') }), true)
+  assert.deepEqual(f.recovery.failedCoreVersions(), ['0.1.25', '0.1.26-rc.4'])
+  assert.equal(f.recovery.recentRelaunches().length, 1)
+  f.recovery.markHealthy()
+  assert.deepEqual(f.recovery.failedCoreVersions(), [])
+  assert.deepEqual(f.recovery.recentRelaunches(), [])
+  assert.equal(existsSync(join(f.appDir, 'core', 'bootstrap.json')), false)
+  f.recovery.markHealthy()
+})
+
+test('外壳在核心成功启动后调用 markHealthy', () => {
+  const main = readFileSync(new URL('../shell/main.mjs', import.meta.url), 'utf8')
+  const started = main.slice(main.indexOf("managerBase = `${await server.startServer()}/`"))
+  assert.ok(started.indexOf('markHealthy()') > started.indexOf("rmSync(join(APP_DIR, 'core', 'pending')"), '清 pending 之后、继续启动时清黑名单')
+  assert.ok(started.indexOf('markHealthy()') < started.indexOf('createUpdater('))
 })
 
 test('没有 pending 的旧核心启动失败不回退，源码/CLI 目录不被删除', (t) => {

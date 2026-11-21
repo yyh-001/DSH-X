@@ -8,7 +8,7 @@
  */
 import { spawn } from 'node:child_process'
 import { createServer } from 'node:net'
-import { allocateWslPort, buildWslArgs, createWslBackend, WSL_EXE } from './wsl.js'
+import { allocateWslPort, buildWslArgs, createWslBackend, createWslOutputDecoder, WSL_EXE } from './wsl.js'
 import { buildExportsScript, shellQuote } from './remote.js'
 import { proxyEnv } from './proxy.js'
 
@@ -226,8 +226,9 @@ export class WslRemoteCore {
           if (error) reject(error)
           else resolve(value)
         }
-        const onData = (chunk) => {
-          this.output += chunk.toString('utf8')
+        const onText = (text) => {
+          if (!text) return
+          this.output += text
           const parsed = parseRemoteCoreReady(this.output)
           if (parsed) {
             this.port = parsed.port
@@ -236,10 +237,16 @@ export class WslRemoteCore {
             finish(null, parsed)
           }
         }
-        child.stdout?.on('data', onData)
-        child.stderr?.on('data', onData)
+        // wsl.exe 自己的报错（发行版不存在、虚拟机起不来）是 UTF-16LE，按 UTF-8 读就是乱码，
+        // 而这段输出正是启动失败时页面上显示的原因；每条流各一个解码器，跨块的半个字符也接得住。
+        const decoders = [child.stdout, child.stderr].filter(Boolean).map((stream) => {
+          const decoder = createWslOutputDecoder()
+          stream.on('data', (chunk) => onText(decoder.write(chunk)))
+          return decoder
+        })
         child.once('error', (error) => finish(error))
         child.once('close', (code) => {
+          for (const decoder of decoders) onText(decoder.end())
           this.child = null
           if (!this.baseUrl) finish(new Error(`WSL 里的 dsh-x-core 启动失败（退出码 ${code}）：${this.output.split(/\r?\n/).filter(Boolean).slice(-6).join('\n')}`))
         })

@@ -74,10 +74,42 @@ function isLoopbackDshPage() {
 // 文件夹变成目录引用；没有桥（旧行为）只能走上传，文件夹直接报「仅桌面端支持」。
 // 只暴露 pathFor 一个函数；右侧栏 webview 的 guest 是另一块 WebContents，
 // will-attach-webview 已把预加载清掉（browser-guests.mjs），拿不到这个桥。
+// WSL 实例由外壳在建视图时传 `--dsh-x-wsl=<发行版>`（默认发行版是空串）；没有这个参数就是
+// 本机实例。沙盒预加载 require 不了本地模块，换算只能写在这份文件里。
+const WSL_ARG = '--dsh-x-wsl='
+const wslArg = (Array.isArray(process.argv) ? process.argv : []).find((value) => typeof value === 'string' && value.startsWith(WSL_ARG))
+const wslDistro = typeof wslArg === 'string' ? wslArg.slice(WSL_ARG.length) : null
+
+/**
+ * 把 Windows 路径换成 WSL 里的路径：WSL 里的 agent 拿到 C:\… 打不开。
+ * - `C:\a\b` → `/mnt/c/a/b`（WSL 默认的 automount 位置；改过 automount root 的极少数人不管）。
+ * - `\\wsl$\<发行版>\a`、`\\wsl.localhost\<发行版>\a` → `/a`，但只认本实例的发行版：
+ *   别的发行版里的文件在这个发行版里没有对应路径，硬换会指到同名的另一个文件，原样交回更安全；
+ *   实例用的是默认发行版（名字不知道）时照换。
+ * - 其他 UNC（网络共享）WSL 里也没有对应位置，原样交回。
+ */
+function toWslPath(value, distro) {
+  let text = String(value || '').replace(/\\/g, '/')
+  // \\?\C:\… 是长路径前缀，去掉后就是普通盘符路径
+  if (/^\/\/\?\/[A-Za-z]:/.test(text)) text = text.slice(4)
+  const drive = /^([A-Za-z]):(?:\/(.*))?$/.exec(text)
+  if (drive) {
+    const rest = (drive[2] || '').replace(/\/+$/, '')
+    return rest ? `/mnt/${drive[1].toLowerCase()}/${rest}` : `/mnt/${drive[1].toLowerCase()}`
+  }
+  const unc = /^\/\/wsl(?:\$|\.localhost)\/([^/]+)(?:\/(.*))?$/i.exec(text)
+  if (unc && (!distro || unc[1].toLowerCase() === distro.toLowerCase())) {
+    return '/' + (unc[2] || '').replace(/\/+$/, '')
+  }
+  return String(value || '')
+}
+
 if (isLoopbackDshPage()) {
   contextBridge.exposeInMainWorld('__DSH_HOST_PATHS__', {
     pathFor(file) {
-      try { return webUtils.getPathForFile(file) } catch { return '' }
+      let path = ''
+      try { path = webUtils.getPathForFile(file) } catch { return '' }
+      return wslDistro === null || !path ? path : toWslPath(path, wslDistro)
     },
   })
 }

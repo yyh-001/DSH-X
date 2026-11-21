@@ -76,10 +76,15 @@ export function parseCuratedPluginsManifest(raw) {
     const stars = Number.isFinite(Number(item.stars)) ? Math.max(0, Math.min(5, Math.round(Number(item.stars)))) : 0
     const icon = cleanIcon(item.icon)
     const sourceTag = cleanText(item.sourceTag, 24)
+    // 清单里的标题、简介原本只有中文，英文界面照搬就是整片中文；可选的英文字段缺了页面再回退中文
+    const titleEn = cleanText(item.titleEn, 120)
+    const descriptionEn = cleanText(item.descriptionEn, 320)
     plugins.push({
       name,
       title: cleanText(item.title || name, 120),
       description: cleanText(item.description, 320),
+      ...(titleEn ? { titleEn } : {}),
+      ...(descriptionEn ? { descriptionEn } : {}),
       category,
       installSpec,
       ...(stars ? { stars } : {}),

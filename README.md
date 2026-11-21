@@ -37,12 +37,10 @@
 - 🚀 **启动项与多实例** — 按项选用户目录、配置、版本和端口，支持并行启动与运行中新增。
 - 📦 **版本管理** — 检测、安装、卸载和清理 dsh 版本，为启动项钉版本、查看磁盘占用。
 - 🧩 **插件与实例** — 实例锁定 DSH 版本与插件，可导入导出、跟随上游更新；插件按配置开关并支持在线市场一键安装。
-- 🌐 **WSL 与 SSH 远端** — 在设置 → 远程管理连接；启动项可跑在 WSL / SSH 主机上，远端自动安装 dsh-x-core，页面经 SSH 隧道在本机打开。
+- 🌐 **WSL 与 SSH 远端** — 启动项可跑在 WSL / SSH 主机上，远端自动安装 dsh-x-core，页面经隧道在本机打开。
 - 🔍 **启动排查** — 日志分原始 / 耗时 / 空间三页，按插件归并耗时和依赖；插件报错时日志图标点红。
-- 🔄 **更新与恢复** — 自更新、故障恢复、配置备份与回退、旧版本清理。
-- 🪟 **打开方式与外观** — 内部标签页 / 系统浏览器 / 独立窗口（支持跨窗拖拽）；深浅色、透明度、背景与动画。
+- 🔄 **更新与恢复** — 自更新、故障恢复、配置备份与回退。
 - 🛠️ **MCP、技能与桌面增强** — 内置 MCP / 技能在线市场，默认启用 `dsh-x-computer-use` 电脑操作，支持原生通知、侧栏浏览器等首方插件。
-- ⚙️ **跨平台与系统开关** — Windows / macOS / Linux 安装包；硬件加速、自动下载更新、托盘常驻、开机自启。
 
 ## 快速开始
 
@@ -112,7 +110,6 @@ sha256sum DSH-X-<版本>-linux-x64.AppImage             # Linux
 ### 常见操作
 
 - **实例与配方**：在「实例」页安装/管理插件与依赖，兼容 [DSH-PackForge](https://github.com/DSH-PackForge/DSH-PackForge) `.dspack` v5 格式；仓库内置 [推荐实例](src/packs/dsh-x-recommended/manifest.json) 与 [桌面工作台](src/packs/dsh-x-workbench/README.md) 配方，运行 `node scripts/make-pack.mjs` 可本地打包。
-- **桌面增强插件**：在实例精选或设置中按需安装 [原生通知（dsh-x-desktop-notify）](https://www.npmjs.com/package/dsh-x-desktop-notify)、[侧栏浏览器（dsh-x-sidebar-browser）](https://www.npmjs.com/package/dsh-x-sidebar-browser) 与电脑操作（`dsh-x-computer-use`），均从 npm 分发。
 - **打开方式与局域网**：支持内部标签页、独立窗口与系统浏览器；管理页默认端口 `3780`（冲突自动顺延），在「设置 → 高级 → Web 绑定」切换为局域网即可跨设备访问。
 - **备份与回退**：每次启动前自动留存配置层快照，可在实例页右上角或配置操作菜单一键恢复并重装依赖。
 

@@ -243,6 +243,11 @@
           row.node.innerHTML = html
           row.html = html
         }
+        // 状态点的颜色挂在行本身的 data-status 上，不在 innerHTML 里：只换内容的话，启动中→运行中
+        // 这种变化里点永远停在上一个颜色（只有整行重建时才对）。
+        const status = fresh.dataset.status
+        if (status === undefined) delete row.node.dataset.status
+        else if (row.node.dataset.status !== status) row.node.dataset.status = status
         while (cursor?.dataset.launchRemoving === 'true') cursor = cursor.nextElementSibling
         if (row.node !== cursor) container.insertBefore(row.node, cursor)
         else cursor = cursor.nextElementSibling

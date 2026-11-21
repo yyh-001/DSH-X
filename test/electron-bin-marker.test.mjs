@@ -75,6 +75,20 @@ test('node 包装：先认 DSH_ELECTRON_BIN，再认标记，最后回退旧安�
   assert.match(posix, /\$dir\/\.\.\/\.\.\/\.\.\/MacOS\/DSH/)
 })
 
+test('Windows 包装：只在读标记那一行前后切 65001，并在转调前切回原代码页', () => {
+  const lines = nodeShimWindows().split('\r\n')
+  const read = lines.findIndex((line) => line.startsWith('SET /p DSH_NODE_BIN=<'))
+  assert.ok(read > 0, '还是靠 SET /p 读标记')
+  assert.equal(lines[read - 1], 'IF DEFINED DSH_CP chcp 65001 >nul', '读之前切到 UTF-8（标记是 UTF-8 写的）')
+  assert.equal(lines[read + 1], 'IF DEFINED DSH_CP chcp %DSH_CP% >nul', '读完马上切回，子进程不继承 65001')
+  const exec = lines.indexOf('"%DSH_NODE_BIN%" %*')
+  assert.ok(exec > read + 1, '切回在转调之前')
+  // 原代码页取不到纯数字就不切：先清空，再由 chcp 赋值，非数字时清掉
+  assert.ok(lines.indexOf('SET "DSH_CP="') < lines.findIndex((line) => line.includes("IN ('chcp")))
+  assert.ok(lines.some((line) => line.includes('"delims=0123456789"') && line.endsWith('SET "DSH_CP="')))
+  assert.ok(lines.every((line) => /^[\x20-\x7e]*$/.test(line)), '脚本本身只有 ASCII，切代码页前后都读得对')
+})
+
 test('打包的文件清单要带 electron-bin.js，否则核心包起不来', () => {
   assert.match(readFileSync(new URL('../scripts/pack-common.mjs', import.meta.url), 'utf8'), /'electron-bin\.js',/)
   assert.match(readFileSync(new URL('../src/server.js', import.meta.url), 'utf8'), /writeElectronBinMarker\(\{ coreDir: ROOT, execPath: process\.execPath, inElectron: IN_ELECTRON \}\)/)
@@ -98,6 +112,34 @@ test('Windows 包装脚本经标记转调目标并透传退出码', { skip: proc
     const result = spawnSync('cmd.exe', ['/d', '/c', 'node.cmd', '--version'], { cwd: nodeDir, env, encoding: 'utf8', windowsHide: true })
     assert.match(String(result.stdout), /fake-electron --version/, result.stderr || String(result.status))
     assert.equal(result.status, 5)
+  } finally {
+    cleanup()
+  }
+})
+
+// 用户名带中文时（%APPDATA% 和安装盘都可能是非 ASCII），标记按 UTF-8 写、cmd 默认按 936 读会乱码。
+test('Windows 包装脚本：标记里是中文路径也能转调，且不改调用方的代码页', { skip: process.platform !== 'win32' }, () => {
+  const { root, cleanup } = scratch()
+  try {
+    const core = join(root, '张三', 'DSH', 'core', 'current')
+    const nodeDir = join(core, 'node')
+    mkdirSync(nodeDir, { recursive: true })
+    writeFileSync(join(nodeDir, 'node.cmd'), nodeShimWindows())
+    const fakeDir = join(root, '安装盘', 'DSH')
+    mkdirSync(fakeDir, { recursive: true })
+    const fake = join(fakeDir, 'fake-electron.cmd')
+    writeFileSync(fake, '@ECHO off\r\nECHO fake-electron %*\r\nEXIT /b 7\r\n')
+    writeFileSync(join(root, '张三', 'DSH', 'core', ELECTRON_BIN_FILE), `${fake}\n`)
+
+    const env = { ...process.env }
+    delete env.DSH_ELECTRON_BIN
+    // 同一个 cmd 会话里前后各跑一次 chcp：参数里没有空格，Node 不会加引号，& 原样交给 cmd
+    const result = spawnSync('cmd.exe', ['/d', '/c', 'chcp', '&', 'node.cmd', '--version', '&', 'chcp'], { cwd: nodeDir, env, encoding: 'utf8', windowsHide: true })
+    const out = String(result.stdout)
+    assert.match(out, /fake-electron --version/, result.stderr || String(result.status))
+    const pages = out.split(/\r?\n/).filter((line) => !line.includes('fake-electron')).map((line) => /(\d+)\.?\s*$/.exec(line)?.[1]).filter(Boolean)
+    assert.equal(pages.length, 2, out)
+    assert.equal(pages[1], pages[0], '跑完代码页要切回原样')
   } finally {
     cleanup()
   }

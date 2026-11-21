@@ -509,6 +509,18 @@
     globalThis.syncEnvironmentToolTab?.(tab, env, subTab)
   }
 
+  /**
+   * 分类芯片一行横滑、滚动条藏起来了；两头还有没露出来的芯片时给对应一侧加渐隐，
+   * 否则被裁成「Identity & C…」的半个芯片看起来像排版坏了，也看不出还能往右滑。
+   */
+  function syncCategoryFade() {
+    const row = el.addCategories
+    if (!row?.classList) return
+    const max = (row.scrollWidth || 0) - (row.clientWidth || 0)
+    row.classList.toggle('fade-start', max > 1 && row.scrollLeft > 1)
+    row.classList.toggle('fade-end', max > 1 && row.scrollLeft < max - 1)
+  }
+
   function paint() {
     renderGrid()
     renderView()
@@ -607,7 +619,7 @@
   if (el.backups) {
     el.backups.onclick = () => {
       const env = opened()
-      globalThis.openProfileBackupsForInstance?.(env?.targetProfile || 'web', env?.targetHome || '')
+      globalThis.openProfileBackupsForInstance?.(env?.targetProfile || 'web', env?.targetHome || '', env?.name || '')
     }
   }
   el.tabs?.querySelectorAll?.('[data-env-tab]')?.forEach((button) => {
@@ -921,8 +933,10 @@
   }
   function marketCardHtml(item, installedMap, { localizeDesktop = false, tone = '', index = 0 } = {}) {
     const name = String(item.name || '')
-    const title = localizeDesktop ? t(item.title || name) : (item.title || name)
-    const desc = localizeDesktop ? t(item.description || '') : (item.description || '')
+    // 精选清单带了英文字段（titleEn / descriptionEn）就在英文界面用它，没带才退回中文原文
+    const english = document.documentElement.lang === 'en'
+    const title = localizeDesktop ? t(item.title || name) : ((english && item.titleEn) || item.title || name)
+    const desc = localizeDesktop ? t(item.description || '') : ((english && item.descriptionEn) || item.description || '')
     const existing = installedMap.get(name)
     const realIcon = (typeof item.icon === 'string' && !item.icon.startsWith('lucide-') ? item.icon : '')
       || marketState.marketIcons[name]
@@ -957,7 +971,7 @@
     const terms = String(q || '').trim().toLowerCase().split(/\s+/).filter(Boolean)
     if (!terms.length) return items
     return items.filter((item) => {
-      const hay = `${item.name}\n${item.title}\n${localize ? t(item.title) : ''}\n${item.description}\n${localize ? t(item.description) : ''}`.toLowerCase()
+      const hay = `${item.name}\n${item.title}\n${item.titleEn || ''}\n${localize ? t(item.title) : ''}\n${item.description}\n${item.descriptionEn || ''}\n${localize ? t(item.description) : ''}`.toLowerCase()
       return terms.every((term) => hay.includes(term))
     })
   }
@@ -1006,6 +1020,9 @@
         const subBtns = marketState.indexCategories.map((item) => `<button type="button" class="plugin-market-tab${marketState.indexCategory === item.id ? ' is-active' : ''}" data-index-cat="${escapeHtml(item.id)}">${escapeHtml(item.title)}</button>`).join('')
         el.addCategories.innerHTML = allBtn + subBtns
         el.addCategories.scrollLeft = prevScrollLeft
+        syncCategoryFade()
+        // 刚从 hidden 放出来那一帧还量不到宽度，下一帧再量一次
+        globalThis.requestAnimationFrame?.(syncCategoryFade)
       } else {
         el.addCategories.innerHTML = ''
       }
@@ -1231,6 +1248,8 @@
       marketState.animate = true
       void loadMarketIndex({ offset: 0 })
     }
+    el.addCategories.addEventListener?.('scroll', syncCategoryFade, { passive: true })
+    globalThis.addEventListener?.('resize', syncCategoryFade)
     el.addCategories.addEventListener?.('wheel', (event) => {
       if (!event || el.addCategories.scrollWidth <= el.addCategories.clientWidth) return
       const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY
@@ -1284,6 +1303,8 @@
     void checkUpdates()
   }
   environmentState.reload = load
+  // 切语言时主脚本叫这个重画：列表和详情的文案都是 paint 里 t() 拼的
+  environmentState.repaint = () => paint()
   environmentState.closeDetail = () => { openedId = ''; activeTab = 'plugins'; pluginSubTab = 'installed'; paint() }
   environmentState.flushConfigSave = () => flushEnvAutoSave()
   environmentState.openId = (id, { keepTab = '' } = {}) => {

@@ -64,7 +64,7 @@ test('桌面窗口模式只在原生外壳托管时成立', () => {
 test('设置页在「选了桌面窗口但没有原生外壳」时如实说明会落到标签页', () => {
   const html = readFileSync(fileURLToPath(new URL('../src/public/index.html', import.meta.url)), 'utf8')
   assert.match(html, /openModeEl\.value === 'window' && data\.openModeWindow === false/, '按服务端给的可用性判断')
-  assert.match(html, /当前预览使用浏览器标签页/, '说明会退回浏览器标签页')
+  assert.match(html, /已选「独立桌面窗口」；这个管理页开在浏览器里，所以这里会用浏览器标签页/, '说明所选偏好和这次实际会落到浏览器标签页')
   assert.match(html, /打开 dsh 的方式[\s\S]{0,400}?<select id="openMode"><\/select>/, '还是同一个下拉')
 })
 

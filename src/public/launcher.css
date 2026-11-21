@@ -1310,6 +1310,8 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 .set-control select { width: 150px; }
 .set-control .ui-select { width: 160px; }
 .set-control .ui-select:has(#webBind) { width: 206px; }
+/* 英文的选项名（Standalone browser window / Tabs inside DSH-X）在 160px 里会被截成省略号 */
+.set-control .ui-select:has(#openMode) { width: 220px; }
 /* 运行 dsh 的 Node：下拉固定在行尾；切到「系统 Node」时路径输入在它下面展开，不再整行竖排 */
 #nodeRuntimeRow .set-control { flex-direction: column; align-items: flex-end; width: 340px; }
 #nodeRuntimeRow .set-control .ui-select { width: 160px; }
@@ -3381,7 +3383,11 @@ html.reduce-motion .environment-market-tools .icon-btn.is-loading svg { animatio
   resize: vertical;
 }
 #mcpDialog .mcp-field textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); }
-#pane-environments .plugin-market-scroll { max-height: min(56vh, 520px); }
+/* 实例页本身就是滚动容器：市场列表跟「已安装」一样随页面一起滚，不再套一层封顶的内滚动。
+   以前封在 520px，窗口再高也只露出一截，看着像被截断（精选 / 插件市场 / MCP / 技能市场都中招）。
+   弹窗里卡片是定高的，那边仍由 #launchPluginsDialog 的规则让列表内部滚。 */
+#pane-environments .plugin-market-body { overflow: visible; }
+#pane-environments .plugin-market-scroll { flex: 0 0 auto; max-height: none; overflow: visible; }
 #environmentMcpHost, #environmentSkillsHost { margin-top: 0; }
 #environmentMcpHost[hidden], #environmentSkillsHost[hidden] { display: none; }
 #environmentMcpHost .pane-inner.fill, #environmentSkillsHost .pane-inner.fill { height: auto; gap: 10px; }
@@ -3480,6 +3486,10 @@ html.reduce-motion .environment-market-tools .icon-btn.is-loading svg { animatio
   overflow-x: auto; overflow-y: hidden; scrollbar-width: none; scroll-behavior: smooth;
 }
 .plugin-market-tabs::-webkit-scrollbar { display: none; }
+/* 还有被裁掉的芯片时两头渐隐（environments-page.js 的 syncCategoryFade 按滚动位置切类） */
+.plugin-market-tabs.fade-end { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); }
+.plugin-market-tabs.fade-start { -webkit-mask-image: linear-gradient(to right, transparent, #000 36px); mask-image: linear-gradient(to right, transparent, #000 36px); }
+.plugin-market-tabs.fade-start.fade-end { -webkit-mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); }
 .plugin-market-tabs[hidden] { display: none; }
 .plugin-market-tab-sep {
   width: 1px; height: 14px; background: var(--line); margin: 0 4px; opacity: 0.65; flex: 0 0 auto;

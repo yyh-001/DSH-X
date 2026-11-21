@@ -3,7 +3,7 @@
  * 只统计 DATA/versions 下、带 @deepseek-ai/dsh 入口的版本；符号链接跳过（由 directoryBytes 负责）。
  */
 import assert from 'node:assert/strict'
-import { existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -67,4 +67,25 @@ test('版本管理返回每个版本的目录占用和总计', async (t) => {
   assert.equal(await sizes(), unit + 1024 + 4096 + 'layoutVersion: 5\n'.length, '标记变了：重新走一遍')
   await new Promise((resolve) => setTimeout(resolve, 700))
   assert.ok(existsSync(join(app, 'size-cache.json')), '结果落盘，管理器重启后照样命中')
+  const cachedDirs = () => Object.keys(JSON.parse(readFileSync(join(app, 'size-cache.json'), 'utf8')).entries)
+  assert.ok(cachedDirs().some((dir) => dir.includes('0.2.0')))
+
+  // 删掉的版本：下一次统计就把它的缓存条目清掉，内存和落盘都不再留着
+  rmSync(join(data, 'versions', '0.2.0'), { recursive: true, force: true })
+  const after = await (await fetch(base + '/api/versions/sizes', { headers: { origin: base } })).json()
+  assert.equal(after.versions['0.2.0'], undefined)
+  await new Promise((resolve) => setTimeout(resolve, 700))
+  assert.ok(!cachedDirs().some((dir) => dir.includes('0.2.0')), '已卸载版本的条目被清掉')
+  assert.ok(cachedDirs().some((dir) => dir.includes('0.1.0')), '还在的版本照旧缓存')
+})
+
+test('优化依赖：成功失败都在 finally 里作废这个版本的统计缓存', () => {
+  const source = readFileSync(new URL('../src/server.js', import.meta.url), 'utf8')
+  const route = source.slice(source.indexOf("url.pathname === '/api/versions/optimize'"))
+  const body = route.slice(0, route.indexOf('return\n'))
+  assert.match(body, /finally \{[\s\S]*forgetNodeModulesStats\(dir\)[\s\S]*\}/, 'forget 要放在 finally 里')
+  assert.ok(body.indexOf('forgetNodeModulesStats') < body.indexOf('send(res, 200'), '先作废再回包：页面收到回包立刻重查时不会读到旧值')
+  // 内存缓存有上限：写入都走 rememberSizeStats，它按 SIZE_CACHE_MAX 淘汰最旧的
+  assert.doesNotMatch(source, /loadSizeCache\(\)\.set\(/, '别绕过 rememberSizeStats 直接往缓存里塞')
+  assert.match(source, /function rememberSizeStats[\s\S]*?SIZE_CACHE_MAX/)
 })

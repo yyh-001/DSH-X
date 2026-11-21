@@ -296,39 +296,26 @@ test('状态：纯核心发版（shell_changed=0）两台 runner 仍跑测试，
   assert.doesNotMatch(stepIf(testStep), /shell_changed/, '测试 step 不受 shell_changed 影响')
 })
 
-// ---------- prepare job：纯核心预发布 tag 上补上一次外壳发版的更新清单 ----------
+// ---------- shell-feed job：纯核心预发布 tag 上补上一次外壳发版的更新清单与安装包 ----------
 
 // 预发布通道的 electron-updater 不看 /releases/latest，而是在最新的 rc/alpha tag 上找自己那份清单；
 // 纯核心的 rc tag 没有安装包，清单得从上一次外壳发版抄过来。三份清单各对应一种架构/平台，
 // 少抄一份，那个平台的用户在这个 tag 上就会报「找不到 latest*.yml」。
 const COPIED_FEEDS = ['latest.yml', FEED.x64, FEED.arm64]
 
-const prepareReleaseStep = () => {
-  const step = stepsOf(jobBlock('prepare')).find((s) => /gh release create/.test(s))
-  assert.ok(step, 'prepare job 里找不到建 Release 的 step')
-  return step
-}
+const SHELL_FEED = jobBlock('shell-feed')
+const jobIf = (block) => stripComments(block.split(/^\s*steps:\s*$/m)[0]).match(/^\s{4}if:\s*(.+)$/m)?.[1] ?? ''
 
-/** 抄清单的那段：`for <变量> in <列表>; do` 所在行，连同它外层最近的那条 `if`。 */
+/** 抄清单的那段：`for <变量> in <列表>; do` 所在行到 step 结尾。 */
 function feedCopyBlock() {
-  const lines = stripComments(prepareReleaseStep()).split('\n')
+  const step = stepsOf(SHELL_FEED).find((s) => /gh release upload/.test(s))
+  assert.ok(step, 'shell-feed job 里找不到上传清单的 step')
+  const lines = stripComments(step).split('\n')
   const at = lines.findIndex((line) => /^\s*for\s+\w+\s+in\s+[^;]*latest[^;]*\.yml/.test(line))
-  assert.ok(at >= 0, '建 Release 的 step 里找不到遍历更新清单的 for 循环')
+  assert.ok(at >= 0, '找不到遍历更新清单的 for 循环')
   const [, variable, list] = lines[at].match(/^\s*for\s+(\w+)\s+in\s+([^;]+);/) ?? []
   assert.ok(variable, `for 循环写法认不出来：${lines[at].trim()}`)
-  let guardAt = at - 1
-  while (guardAt >= 0 && !(indentOf(lines[guardAt]) < indentOf(lines[at]) && /^\s*if\s/.test(lines[guardAt]))) guardAt--
-  assert.ok(guardAt >= 0, '抄清单的 for 循环外面没有 if 门控')
-  let end = at + 1
-  while (end < lines.length && !(lines[end].trim() && indentOf(lines[end]) <= indentOf(lines[guardAt]))) end++
-  return {
-    variable,
-    feeds: list.trim().split(/\s+/).map(unquote),
-    guard: lines[guardAt].trim(),
-    body: lines.slice(at, end).join('\n'),
-    createAt: lines.findIndex((line) => /gh release create/.test(line)),
-    loopAt: at,
-  }
+  return { variable, feeds: list.trim().split(/\s+/).map(unquote), body: lines.slice(at).join('\n') }
 }
 
 test('纯核心预发布 tag 抄的清单齐三份：latest.yml + latest-linux.yml + latest-linux-arm64.yml', () => {
@@ -346,15 +333,37 @@ test('抄清单的循环真的按每份清单去 download / upload（列表不�
   assert.doesNotMatch(body, /--pattern\s+["']?latest\.yml/, 'download 不能写死 latest.yml')
 })
 
-test('抄清单只在「预发布 tag 且 shell_changed == 0」时做，且在 Release 建好之后', () => {
-  const { guard, createAt, loopAt } = feedCopyBlock()
+test('清单引用的安装包（和 blockmap）一起抄过来，并且先于清单上传', () => {
+  // 只抄清单时，比上次外壳更旧的用户按清单去当前 tag 下载安装包会 404
+  const { variable, body } = feedCopyBlock()
+  assert.match(body, /\(url\|path\)/, '要从清单里取 files[].url 与顶层 path 引用的文件名')
+  assert.match(body, /\.blockmap/, '差分更新要的 .blockmap 一起抄')
+  const lines = body.split('\n')
+  const assetUpload = lines.findIndex((line) => /gh release upload/.test(line) && !line.includes(variable))
+  const feedUpload = lines.findIndex((line) => /gh release upload/.test(line) && line.includes(variable))
+  assert.ok(assetUpload >= 0, '没有上传安装包的那一行')
+  assert.ok(feedUpload > assetUpload, '清单要最后传：客户端看到清单时，它指的文件已经在了')
+})
+
+test('抄清单只在「预发布 tag 且 shell_changed == 0」时做，且在 prepare 建好 Release 之后', () => {
+  const guard = jobIf(SHELL_FEED)
   // 正式版有 /releases/latest 兜底，外壳发版有自己的新清单：这两种情况再抄旧清单会把新版本号盖回去
-  assert.match(guard, /\$\{?tag\}?"?\s*==\s*\*-\*/, `门控要判断 tag 带连字符（预发布），实际：${guard}`)
-  assert.match(guard, /shell_changed\s*\}\}"?\s*=\s*"?0"?/, `门控要判断 shell_changed 为 0，实际：${guard}`)
-  assert.match(guard, /&&/, `两个条件要同时成立，实际：${guard}`)
+  assert.match(guard, /refs\/tags\/v/, `只在 tag 构建时做，实际：${guard}`)
+  assert.match(guard, /contains\(github\.ref_name,\s*'-'\)/, `门控要判断 tag 带连字符（预发布），实际：${guard}`)
+  assert.match(guard, /shell_changed\s*==\s*'0'/, `门控要判断 shell_changed 为 0，实际：${guard}`)
   assert.doesNotMatch(guard, /\|\|/, `不能用 || 放宽门控，实际：${guard}`)
-  assert.ok(createAt >= 0 && createAt < loopAt, '先 gh release create，再往上面抄清单')
-  assert.match(stepIf(prepareReleaseStep()), /refs\/tags\/v/, '建 Release 这一步只在 tag 构建时跑')
+  assert.match(stripComments(SHELL_FEED), /^\s{4}needs:\s*\[?\s*prepare/m, 'prepare 建好 Release 之后才往上抄')
+})
+
+test('核心发布不等 Linux 矩阵（arm64 runner 抽风不该卡住核心），但自己跑一遍测试', () => {
+  const core = jobBlock('core-package')
+  const needs = stripComments(core).match(/^\s{4}needs:\s*(.+)$/m)?.[1] ?? ''
+  assert.doesNotMatch(needs, /\blinux\b/, `core-package 不能 needs linux，实际：${needs}`)
+  assert.match(needs, /\bwindows\b/, 'Windows 那套测试仍要先过')
+  const steps = stepsOf(core)
+  const testAt = steps.findIndex((step) => /npm test/.test(step))
+  const publishAt = steps.findIndex((step) => /npm publish/.test(step))
+  assert.ok(testAt >= 0 && testAt < publishAt, '发布前要在本 job 里跑测试')
 })
 
 // ---------- docs/index.html 的 assetOf：落地页按钮挑哪个资产 ----------

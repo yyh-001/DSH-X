@@ -67,7 +67,7 @@ const RUNTIME_NODE = process.env.DSH_RUNTIME_NODE || process.execPath
 const ACTIVE_CORE = join(APP_DIR, 'core', 'current')
 /** 上一份核心：新核心起不来时 recoverCore 会把它换回来，成功启动后删掉。 */
 const PREVIOUS_CORE = join(APP_DIR, 'core', 'previous')
-const { recoverCore, failedCoreVersions } = createCoreRecovery({ appDir: APP_DIR, relaunch: relaunchApp })
+const { recoverCore, failedCoreVersions, markHealthy } = createCoreRecovery({ appDir: APP_DIR, relaunch: relaunchApp })
 /** 源码运行（npm run electron）用仓库自己的核心；安装版不带核心，靠 setupCore 从 npm 取。 */
 const SOURCE_CORE = existsSync(join(ROOT, 'src', 'server.js')) ? join(ROOT, 'src') : ''
 /** 和 preload.cjs 的 IPC_CHANNEL 一致。 */
@@ -652,6 +652,16 @@ async function start() {
   // 源码 `npm run electron` 不算打包态（PACKAGED 为 false），否则开发时也会去查 npm 核心更新。
   if (app.isPackaged) process.env.DSH_CORE = '1'
   process.env.DSH_SHELL_VERSION = VERSION
+  // 「系统默认」语言交给核心判断，但核心只能看 Intl：从 Finder / 程序坞启动的应用没有 LANG，
+  // ICU 量出来是 en-US（Windows 上 ICU 跟的是区域格式而不是界面语言），中文系统也会变英文。
+  // 外壳拿得到系统的首选语言列表，在核心求值（server.js 加载时就定了 LANG）之前放进环境变量；
+  // 已经 ready 了，getPreferredSystemLanguages 可以安全调用。开发时手动设的值不覆盖。
+  if (!process.env.DSH_SYSTEM_LANGS) {
+    try {
+      const langs = app.getPreferredSystemLanguages().map((item) => String(item || '').trim()).filter(Boolean)
+      if (langs.length) process.env.DSH_SYSTEM_LANGS = langs.join(',')
+    } catch { /* 取不到就让核心退回 Intl */ }
+  }
   // 核心的 node/ 包装脚本转调外壳的 Electron 本体
   process.env.DSH_ELECTRON_BIN = process.execPath
   console.log(`DSH-X ${VERSION} · core ${coreDir} (Electron ${process.versions.electron}, Chromium ${process.versions.chrome})`)
@@ -716,6 +726,8 @@ async function start() {
   // 核心已经成功启动：新版本通过验收，清掉「待验证」标记和回滚用的上一份
   try { rmSync(join(APP_DIR, 'core', 'pending'), { force: true }) } catch { /* ignore */ }
   try { rmSync(PREVIOUS_CORE, { recursive: true, force: true }) } catch { /* ignore */ }
+  // 黑名单和自动重启计数也一起清：它们只为挡住「这一轮」起不来的版本，留着会让一次误判永久生效
+  markHealthy()
   updater = createUpdater({
     version: VERSION,
     onBeforeInstall: async () => {
@@ -1091,16 +1103,32 @@ function managerPreferences() {
 }
 
 /**
+ * 实例的 home 是 wsl://发行版/目录 时返回发行版名（默认发行版是空串），否则 null。
+ * 外壳不能 import 核心的 parseWslHomeKey（拆包后互不存在），这里只认同一个前缀。
+ */
+function wslDistroOfHome(home) {
+  const match = /^wsl:\/\/([^/]*)\//.exec(String(home || ''))
+  if (!match) return null
+  try { return decodeURIComponent(match[1]) } catch { return '' }
+}
+
+/**
  * 远端 dsh 页面：只装右侧栏浏览器的预加载。webviewTag 也只在 dsh 标签页开——
  * 每次 attach 都要主进程核对一次性租约，页面自己伪造一个 webview 会被拒绝（见 browser-guests.mjs）。
+ *
+ * WSL 实例额外带一个 `--dsh-x-wsl=<发行版>` 参数：预加载拿到拖进来的 C:\… 路径要换成
+ * /mnt/c/…，WSL 里的 agent 才打得开。页面地址都是 127.0.0.1:端口，从 URL 分不出是不是
+ * WSL；视图按实例身份建、身份里带 home，所以在建视图时一次定好，迁移窗口也不变。
  */
-function remotePreferences() {
+function remotePreferences(target = null) {
+  const wslDistro = wslDistroOfHome(target?.home)
   return {
     preload: BROWSER_PRELOAD,
     sandbox: true,
     contextIsolation: true,
     nodeIntegration: false,
     webviewTag: true,
+    ...(wslDistro === null ? {} : { additionalArguments: [`--dsh-x-wsl=${wslDistro}`] }),
   }
 }
 
@@ -1155,8 +1183,8 @@ function shortcutAction(input, inTab) {
   return null
 }
 
-function createTabView(id) {
-  const view = new WebContentsView({ webPreferences: remotePreferences() })
+function createTabView(id, target = null) {
+  const view = new WebContentsView({ webPreferences: remotePreferences(target) })
   const contents = view.webContents
   // 右侧栏浏览器：这块 WebContents 是 guest 的唯一 owner，页面销毁时租约自己释放。
   browserGuests.bind(contents)
