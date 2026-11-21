@@ -46,12 +46,19 @@ export function coreDistTag(channel = VERSION_CHANNEL.OFFICIAL) {
   return CHANNEL_TAG[channel] || 'latest'
 }
 
-/** 从 npm 元数据里挑当前通道对应的版本；挑不到返回 null。 */
-export function resolveCoreRelease(metadata, channel = VERSION_CHANNEL.OFFICIAL) {
-  const tags = metadata?.['dist-tags'] || {}
-  const version = String(tags[coreDistTag(channel)] || tags.latest || '')
-  const info = version ? metadata?.versions?.[version] : null
-  if (!info) return null
+/**
+ * 每个通道看哪几个 dist-tag：越不稳定的通道，越稳定的 tag 也照收（和 version.js 的 channelIncludes、
+ * 外壳 core-fetch.mjs 的 acceptsChannel 同一口径）。只看自己那个 tag 不够——rc 发完转正以后
+ * `rc` 往往停在旧的 0.1.26-rc.6，而 `latest` 已经是 0.1.27，rc 外壳就永远收不到更新；
+ * mac / deb 没有外壳自更新，会一直卡在旧核心上，而首启（pickCoreRelease）早就会挑 0.1.27。
+ */
+const CHANNEL_REACH = {
+  [VERSION_CHANNEL.OFFICIAL]: ['latest'],
+  [VERSION_CHANNEL.RC]: ['rc', 'latest'],
+  [VERSION_CHANNEL.ALPHA]: ['alpha', 'rc', 'latest'],
+}
+
+function releaseOf(version, info) {
   const dist = info.dist || {}
   return {
     version,
@@ -62,6 +69,34 @@ export function resolveCoreRelease(metadata, channel = VERSION_CHANNEL.OFFICIAL)
     // 发布脚本写进核心 package.json：这份核心是按哪个 Electron 版本构建/验证的
     electron: String(info.dshX?.electron || ''),
   }
+}
+
+/**
+ * 从 npm 元数据里挑当前通道能收的最高版本；挑不到返回 null。
+ * - 候选是本通道能收的几个 dist-tag 的头部（见 CHANNEL_REACH），取最新的那个；
+ *   deprecated 的跳过，和首启的 pickCoreRelease 一致。
+ * - `current`：只看比它新的候选（查更新用）。
+ * - `electron`：优先挑和当前外壳 Electron 兼容的（没声明 dshX.electron 也算兼容，同 pickCoreRelease）；
+ *   一个兼容的都没有时仍返回最新那个，调用方据此提示「先更新外壳」，而不是装不上又不说原因。
+ */
+export function resolveCoreRelease(metadata, channel = VERSION_CHANNEL.OFFICIAL, { current = '', electron = '' } = {}) {
+  const tags = metadata?.['dist-tags'] || {}
+  const versions = metadata?.versions || {}
+  const floor = current ? parseVer(current) : null
+  const seen = new Set()
+  const candidates = []
+  for (const tag of CHANNEL_REACH[channel] || CHANNEL_REACH[VERSION_CHANNEL.OFFICIAL]) {
+    const version = String(tags[tag] || '')
+    const info = version ? versions[version] : null
+    const parsed = info ? parseVer(version) : null
+    if (!parsed || seen.has(version) || info.deprecated) continue
+    seen.add(version)
+    if (floor && cmpVer(parsed, floor) <= 0) continue
+    candidates.push({ parsed, release: releaseOf(version, info) })
+  }
+  candidates.sort((a, b) => cmpVer(b.parsed, a.parsed))
+  const fits = ({ release }) => !electron || !release.electron || release.electron === String(electron)
+  return (candidates.find(fits) || candidates[0])?.release || null
 }
 
 export async function fetchCoreMetadata({ registry = coreRegistry(), name = CORE_PACKAGE, signal } = {}) {
@@ -75,14 +110,19 @@ export async function fetchCoreMetadata({ registry = coreRegistry(), name = CORE
   return res.json()
 }
 
-/** 查核心更新：返回 { available, current, latest, release }。 */
-export async function checkCoreUpdate({ current, source = 'official', channel = VERSION_CHANNEL.OFFICIAL, signal } = {}) {
+/**
+ * 查核心更新：返回 { available, current, latest, release }。
+ * 传了 `electron` 时优先给兼容当前外壳的版本；只有不兼容的更新时照样返回，
+ * 由调用方按 release.electron 提示更新外壳。挑法和首启的 pickCoreRelease 对齐，两条路给的版本不打架。
+ */
+export async function checkCoreUpdate({ current, source = 'official', channel = VERSION_CHANNEL.OFFICIAL, electron = '', signal } = {}) {
   const metadata = await fetchCoreMetadata({ registry: coreRegistry(source), signal })
-  const release = resolveCoreRelease(metadata, channel)
-  if (!release) return { available: false, current, latest: '' }
-  const next = parseVer(release.version)
   const cur = parseVer(current)
-  return { available: Boolean(next && cur && cmpVer(next, cur) > 0), current, latest: release.version, release }
+  const release = cur ? resolveCoreRelease(metadata, channel, { current, electron }) : null
+  if (release) return { available: true, current, latest: release.version, release }
+  // 没有更新时 latest 仍报通道里的最高版本，页面拿它显示「已是最新」
+  const head = resolveCoreRelease(metadata, channel, { electron })
+  return { available: false, current, latest: head?.version || '' }
 }
 
 /**

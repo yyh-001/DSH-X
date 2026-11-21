@@ -6290,11 +6290,14 @@ async function checkAppUpdate({ force = false } = {}) {
   let result
   try {
     // 通道取外壳和核心里更激进的那档：rc 外壳沿用了旧的正式版核心时，也要继续收到 rc 核心更新。
+    // rc 通道同时看 rc 和 latest 两个 tag、取新的那个（rc 转正后 rc tag 会停在旧版，见 core-npm.js）；
+    // 传 Electron 版本让它优先挑本外壳跑得动的，和首启的 pickCoreRelease 同一口径。
     const channel = leastStableChannel([SHELL_VERSION, APP_VERSION])
     result = await checkCoreUpdate({
       current: APP_VERSION,
       source: UPDATE_SOURCE,
       channel,
+      electron: String(process.versions.electron || ''),
     })
   } catch (error) {
     return remember({ available: false, reason: 'manifest', latest, error: error?.message || String(error) })

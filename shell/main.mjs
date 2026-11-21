@@ -67,7 +67,7 @@ const RUNTIME_NODE = process.env.DSH_RUNTIME_NODE || process.execPath
 const ACTIVE_CORE = join(APP_DIR, 'core', 'current')
 /** 上一份核心：新核心起不来时 recoverCore 会把它换回来，成功启动后删掉。 */
 const PREVIOUS_CORE = join(APP_DIR, 'core', 'previous')
-const { recoverCore, failedCoreVersions } = createCoreRecovery({ appDir: APP_DIR, relaunch: relaunchApp })
+const { recoverCore, failedCoreVersions, markHealthy } = createCoreRecovery({ appDir: APP_DIR, relaunch: relaunchApp })
 /** 源码运行（npm run electron）用仓库自己的核心；安装版不带核心，靠 setupCore 从 npm 取。 */
 const SOURCE_CORE = existsSync(join(ROOT, 'src', 'server.js')) ? join(ROOT, 'src') : ''
 /** 和 preload.cjs 的 IPC_CHANNEL 一致。 */
@@ -716,6 +716,8 @@ async function start() {
   // 核心已经成功启动：新版本通过验收，清掉「待验证」标记和回滚用的上一份
   try { rmSync(join(APP_DIR, 'core', 'pending'), { force: true }) } catch { /* ignore */ }
   try { rmSync(PREVIOUS_CORE, { recursive: true, force: true }) } catch { /* ignore */ }
+  // 黑名单和自动重启计数也一起清：它们只为挡住「这一轮」起不来的版本，留着会让一次误判永久生效
+  markHealthy()
   updater = createUpdater({
     version: VERSION,
     onBeforeInstall: async () => {
