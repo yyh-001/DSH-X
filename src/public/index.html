@@ -11799,7 +11799,10 @@
       return !name || name === home ? home : t('{name}（{home}）', { name, home })
     }
     function pluginHomeName(home, fallback) {
-      return Object.entries(state.dshHomeNames || {}).find(([path]) => path === home || path.toLowerCase() === home.toLowerCase())?.[1] || fallback
+      const name = Object.entries(state.dshHomeNames || {}).find(([path]) => path === home || path.toLowerCase() === home.toLowerCase())?.[1] || ''
+      // 名字被登记成路径本身（旧的重命名对话框会拿路径当建议名）时等于没名字：
+      // 卡片和下拉只显示短名，整条路径会把卡片顶出面板（#122）。
+      return name && normalizeHomePath(name) !== normalizeHomePath(home) ? name : fallback
     }
     function paintPluginHomes() {
       const homes = pluginHomes()
@@ -13094,7 +13097,8 @@
           : renaming ? t('重命名后，对应启动项会自动使用新名称。请先停止这个配置的全部实例。') : source
             ? t('复制「{profile}」的插件与配置，依赖会重新安装，可能需要一些时间。技能与 Prompt 设置不随之复制。', { profile: source })
             : t('新建一个配置：它放配置和数据，插件跟着启动项选的实例走。名称只支持字母、数字、点、下划线和连字符。')
-      let proposed = homeName ? pluginHomeName(source, source === state.dshHome ? t('全局目录') : pluginHomes().get(source) || t('用户目录')) : renaming ? source : source ? `${source.slice(0, 27)}-copy` : ''
+      // 建议名只能是短名：目录没有登记名字时用最后一段，别把整条路径预填成名字（#122）
+      let proposed = homeName ? pluginHomeName(source, source === state.dshHome ? t('全局目录') : folderBaseName(source) || t('用户目录')) : renaming ? source : source ? `${source.slice(0, 27)}-copy` : ''
       // 复制建议名要避开目标目录里已有的 Profile：选择窗里改的是它挑的那份，环境页里改的是当前那份
       const siblings = profileDialogFromPicker
         ? pickerRows.map((row) => row.name)

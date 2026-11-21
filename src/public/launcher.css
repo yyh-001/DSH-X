@@ -627,7 +627,7 @@ main.home .settings-body { padding-top: 34px; }
 .home-field .ui-select { width: 100%; flex: 1 1 auto; }
 /* 首页统一为启动项列表；参数在编辑窗口里一次保存。 */
 .launch-presets { display: grid; position: relative; align-content: start; }
-.launch-preset { position: relative; display: flex; align-items: center; gap: 14px; padding: 14px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 65%, transparent); }
+.launch-preset { position: relative; display: flex; align-items: center; gap: 14px; padding: 14px 0; min-width: 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 65%, transparent); }
 .launch-preset:last-child { border-bottom: 0; }
 .launch-preset[data-launch-last] { border-bottom: 0; }
 .launch-preset-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }

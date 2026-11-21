@@ -8,6 +8,8 @@ const section = (from, to) => page.slice(page.indexOf(from), page.indexOf(to, pa
 const homes = section('    function paintLaunchHomePath()', '    // ---- 连接管理')
 // 目录下拉的候选列表和「环境」页共用一份实现，一起装进沙箱。
 const homeList = section('    function homeOptions(current)', '    function paintPluginHomes()')
+// 显示名会跳过「名字就是路径」的脏数据，判定要跟页面用同一份路径归一化。
+const pathHelpers = section('    const normalizeHomePath =', '    const sameHomePath =')
 const recovery = section('    function recoveryOptions()', '    function renderRecovery()')
 const save = section('    launchFormEl.onsubmit = async', '    launchDeleteEl.onclick = async')
 
@@ -30,7 +32,7 @@ function editor(getJson = async () => ({ home: 'D:/isolated', profiles: ['web'],
     PLUGIN_HOME_MANAGE: '__manage__', openPluginHomesDialog() {},
     parseWslHomeKey: (key) => String(key).startsWith('wsl://') ? { distro: 'Debian', home: '~/.dsh' } : null,
   })
-  vm.runInContext(homeList + recovery + homes, context)
+  vm.runInContext(pathHelpers + homeList + recovery + homes, context)
   return { context, elements, calls }
 }
 
