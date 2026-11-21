@@ -921,8 +921,10 @@
   }
   function marketCardHtml(item, installedMap, { localizeDesktop = false, tone = '', index = 0 } = {}) {
     const name = String(item.name || '')
-    const title = localizeDesktop ? t(item.title || name) : (item.title || name)
-    const desc = localizeDesktop ? t(item.description || '') : (item.description || '')
+    // 精选清单带了英文字段（titleEn / descriptionEn）就在英文界面用它，没带才退回中文原文
+    const english = document.documentElement.lang === 'en'
+    const title = localizeDesktop ? t(item.title || name) : ((english && item.titleEn) || item.title || name)
+    const desc = localizeDesktop ? t(item.description || '') : ((english && item.descriptionEn) || item.description || '')
     const existing = installedMap.get(name)
     const realIcon = (typeof item.icon === 'string' && !item.icon.startsWith('lucide-') ? item.icon : '')
       || marketState.marketIcons[name]
@@ -957,7 +959,7 @@
     const terms = String(q || '').trim().toLowerCase().split(/\s+/).filter(Boolean)
     if (!terms.length) return items
     return items.filter((item) => {
-      const hay = `${item.name}\n${item.title}\n${localize ? t(item.title) : ''}\n${item.description}\n${localize ? t(item.description) : ''}`.toLowerCase()
+      const hay = `${item.name}\n${item.title}\n${item.titleEn || ''}\n${localize ? t(item.title) : ''}\n${item.description}\n${item.descriptionEn || ''}\n${localize ? t(item.description) : ''}`.toLowerCase()
       return terms.every((term) => hay.includes(term))
     })
   }
