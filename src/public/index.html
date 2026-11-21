@@ -11250,7 +11250,8 @@
     let askSelfButton = null
     let askShellButton = null
 
-    const shellActive = () => Boolean(selfState.shell && ['available', 'downloading', 'ready'].includes(selfState.shell.status))
+    // manual：外壳不能自更新（mac / deb），服务端在发布页找到了更新的安装包，按钮改成打开下载地址
+    const shellActive = () => Boolean(selfState.shell && ['available', 'downloading', 'ready', 'manual'].includes(selfState.shell.status))
 
     function paintSelfPill() {
       if (!selfUpdateEl || selfUpdateEl.hidden) return
@@ -11460,7 +11461,7 @@
           const shell = await post('/api/shell-update/check').catch(() => null)
           applySelfUpdate({ ...data, shell: shell || data.shell })
           const shellState = shell || data.shell || null
-          const shellReady = shellState && ['available', 'downloading', 'ready'].includes(shellState.status)
+          const shellReady = shellState && ['available', 'downloading', 'ready', 'manual'].includes(shellState.status)
           const coreReady = Boolean(data.app?.available)
           if (shellReady) {
             aboutUpdateHintEl.textContent = t('发现外壳新版本 {latest}，正在打开更新窗口…', { latest: shellState.latest || '' })
@@ -11620,8 +11621,13 @@
           shell.current,
           shell.latest || t('最新'),
           ready ? t('安装并重启') : downloading ? t('正在下载…') : t('更新外壳到 {latest}', { latest: shell.latest || '' }),
-          (event) => { void startShellUpdate(event.currentTarget) },
-          t('外壳更新会替换整个安装包（Electron 和启动器代码），安装完成后会自动打开。'),
+          (event) => {
+            if (shell.status === 'manual') { window.open(shell.url || shell.releaseUrl, '_blank', 'noopener'); return }
+            void startShellUpdate(event.currentTarget)
+          },
+          shell.status === 'manual'
+            ? t('这个安装形态（macOS / deb）不能自动换外壳：点按钮下载新的安装包，退出 DSH-X 后安装即可。数据和设置都会保留。')
+            : t('外壳更新会替换整个安装包（Electron 和启动器代码），安装完成后会自动打开。'),
         )
         askShellButton = shellRow.action
         askShellButton.disabled = downloading

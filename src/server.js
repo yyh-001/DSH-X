@@ -12,6 +12,7 @@ import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep 
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import { cmpVer, currentRegistry, describeNpmFailure, installSpec, listPackage, optimizeDependencies, packDirectory, parsePnpmProgress, parseVer } from './registry.js'
+import { manualShellAssetMatcher, pickManualShellRelease } from './shell-release.js'
 import { VERSION_CHANNEL, VERSION_CHANNELS, effectiveChannel, isExactVersion, leastStableChannel, satisfiesRange, versionChannel, versionInChannel } from './version.js'
 import { CORE_VERSION } from './app-version.js'
 import { createLogWriter } from './log-writer.js'
@@ -6229,6 +6230,33 @@ async function checkSelfUpdate({ force = false } = {}) {
   }
 }
 
+/**
+ * 外壳不能自更新的安装形态（macOS 临时签名、deb）：electron-updater 关着，核心照常走 npm 更新，
+ * 结果外壳永远停在装机那一版——跨窗拖出标签这类外壳能力，Windows 早就有了，mac 上一直没有，
+ * 用户也不知道该去换包。这里在核心里补一道「有更新的安装包」提醒：按发布页里带本平台安装包的
+ * 版本比外壳版本，有更新就给下载地址（页面打开浏览器，用户自己装）。
+ * 放在核心里是因为旧外壳不会再更新，只有核心能把这句话带给它们。
+ */
+let manualShellCache = { at: 0, data: null }
+async function checkManualShellUpdate({ force = false } = {}) {
+  const match = manualShellAssetMatcher()
+  if (!match || process.env.DSH_CORE !== '1') return null
+  if (!force && manualShellCache.data !== null && Date.now() - manualShellCache.at < 30 * 60 * 1000) return manualShellCache.data || null
+  // 预发布外壳 / 预发布核心（rc 通道）都继续收预发布；正式版只看正式版
+  const allowPrerelease = SHELL_VERSION.includes('-') || APP_VERSION.includes('-')
+  const apiUrl = `https://api.github.com/repos/${APP_REPO}/releases?per_page=30`
+  for (const url of updateUrlCandidates(apiUrl, UPDATE_SOURCE)) {
+    try {
+      const res = await netFetch(url, { headers: { accept: 'application/vnd.github+json', 'user-agent': 'dsh-launcher' } })
+      if (!res.ok) continue
+      const found = pickManualShellRelease(await res.json(), { current: SHELL_VERSION, allowPrerelease, match })
+      manualShellCache = { at: Date.now(), data: found || false }
+      return found
+    } catch { /* 换下一个候选 */ }
+  }
+  return null
+}
+
 /** 核心（app 层）更新：npm 元数据缓存与暂存状态（见 core-npm.js 与 apply-update.mjs）。 */
 let stagedApp = null
 let pendingAppUpdate = null
@@ -10489,7 +10517,13 @@ async function handleApi(req, res, url) {
     const info = await checkSelfUpdate({ force: refresh })
     // staged / downloading 让页面重载后也能知道下载进度：下载在服务端跑，和弹窗开不开无关
     const app = await checkAppUpdate({ force: refresh }).catch((error) => ({ available: false, reason: 'error', error: error?.message || String(error) }))
-    send(res, 200, { ...info, shell: host.shellUpdate?.state() || null, staged: stagedUpdate?.latest || '', downloading: selfDownloadInFlight, app, appStaged: stagedApp?.version || '' })
+    let shell = host.shellUpdate?.state() || null
+    // 外壳自更新关着（mac / deb）：发布页有更新的安装包时报成 manual，页面给下载链接（见 checkManualShellUpdate）
+    if (shell?.status === 'disabled') {
+      const manual = await checkManualShellUpdate({ force: refresh }).catch(() => null)
+      if (manual) shell = { ...shell, status: 'manual', latest: manual.latest, url: manual.asset || manual.url, releaseUrl: manual.url }
+    }
+    send(res, 200, { ...info, shell, staged: stagedUpdate?.latest || '', downloading: selfDownloadInFlight, app, appStaged: stagedApp?.version || '' })
     return
   }
   if (req.method === 'GET' && url.pathname === '/api/shell-update') {
