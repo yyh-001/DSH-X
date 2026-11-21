@@ -11431,7 +11431,7 @@ async function handleApi(req, res, url) {
       const result = await restoreProfileBackup(dir, body.backup)
       if (result.restoredBundles.length) await restoreRecordedOrder(homeDir(), profile)
       if (lastRecovery?.home === homeDir()) lastRecovery = null
-      pushLog(`[恢复] 已还原补丁层 ${result.restored}${result.movedAside ? `（还原前的补丁挪到了 ${basename(result.movedAside)}）` : ''}${result.restoredBundles.length ? `，放回 bundle ${result.restoredBundles.length} 个` : ''}`)
+      pushLog(`[恢复] 已还原补丁层 ${result.restored}${result.movedAside ? `（还原前的补丁挪到了 ${basename(result.movedAside)}）` : ''}${result.restoredBundles.length ? `，放回 bundle ${result.restoredBundles.length} 个` : ''}${result.skippedBundles?.length ? `；${result.skippedBundles.join('、')} 已不在依赖里，没放回` : ''}`)
       send(res, 200, { ok: true, ...packsPayload(), ...result, ...listPlugins(dir), profile, autoFix: autoFixForHome(), recovery: recoveryPayload(profile) })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)

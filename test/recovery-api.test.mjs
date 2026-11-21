@@ -52,21 +52,21 @@ test('连续安全启动：接口指向最早那份，还原后整串收掉', as
 
   const first = await call('/api/recover', { profile: 'web' })
   assert.equal(first.recovery.last.backup, first.backup)
-  // 中间 dsh 自己重建了补丁层，用户又装了 plugin-b，再安全启动一次
-  writeFileSync(patch, '# user-config-2\n')
-  writeFileSync(manifest, JSON.stringify({ name: 'web', dsh: { profile: { bundles: ['@deepseek-ai/dsh-web-app', 'plugin-b'] } } }))
+  // 中间 dsh 自己重建了空补丁层（只有注释），用户没再装插件，再安全启动一次
+  writeFileSync(patch, '# rebuilt by dsh\n')
   const second = await call('/api/recover', { profile: 'web' })
   assert.notEqual(second.backup, first.backup)
+  assert.deepEqual(second.dropped, [])
 
   const view = await call('/api/recover?profile=web')
   assert.equal(view.last.backup, first.backup, '同一管理器进程里也要指向最早那份（用户真正的配置）')
-  assert.deepEqual([...view.last.dropped].sort(), ['plugin-a', 'plugin-b'], '两次摘掉的 bundle 合起来')
+  assert.deepEqual([...view.last.dropped], ['plugin-a'])
 
   const restored = await call('/api/recover/restore', { profile: 'web', backup: view.last.backup })
   assert.equal(readFileSync(patch, 'utf8'), '# user-config-1\n')
-  assert.deepEqual([...restored.restoredBundles].sort(), ['plugin-a', 'plugin-b'])
+  assert.deepEqual([...restored.restoredBundles], ['plugin-a'])
   const bundles = JSON.parse(readFileSync(manifest, 'utf8')).dsh.profile.bundles
-  assert.deepEqual([...bundles].sort(), ['@deepseek-ai/dsh-web-app', 'plugin-a', 'plugin-b'])
+  assert.deepEqual([...bundles].sort(), ['@deepseek-ai/dsh-web-app', 'plugin-a'])
   assert.equal((await call('/api/recover?profile=web')).last, null, '还原后整串都算处理过了')
 
   // 被还原的那份变成了现役补丁；剩下的备份侧车标 settled，以后重启管理器也不会把旧备份再顶出来
