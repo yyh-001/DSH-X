@@ -17,9 +17,10 @@
  * 原地重载（新条目启动、改动条目重连），不用重启。（注意：profile 的 package.json 里那个
  * `patchReload: live` 不是 dsh 认识的键，热重载跟它无关。）
  */
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { spawn, execFile } from 'node:child_process'
 import { delimiter, dirname, isAbsolute, join, resolve } from 'node:path'
+import { backupOnce } from './fs-utils.js'
 import { looksLikeEntryList } from './plugins.js'
 // 探测远端 MCP 端点也走带代理的 fetch（本机端点它自动直连）
 import { netFetch } from './proxy.js'
@@ -308,14 +309,6 @@ export function listMcpServers(patchPath) {
     }
   })
   return { servers, patchExists: true }
-}
-
-function backupOnce(patchPath) {
-  try {
-    if (existsSync(patchPath)) copyFileSync(patchPath, `${patchPath}.bak`)
-  } catch {
-    // 备份失败不阻塞写入本身
-  }
 }
 
 /** 写之前把结果整份过一遍条目数组校验，宁可拒绝也不写出让 profile 起不来的文件。 */
@@ -608,11 +601,21 @@ async function probeStdio(spec, options) {
   const args = (Array.isArray(spec.args) ? spec.args : []).map((item) => String(item))
   // Windows 上 npx/npm 这类是 .cmd 批处理，不能直接 CreateProcess，得借 cmd.exe 跑
   const needsShell = process.platform === 'win32' && /\.(cmd|bat)$/i.test(resolved)
+  if (needsShell && [resolved, ...args].some((part) => /[\r\n\0]/.test(part))) {
+    return { ok: false, stage: 'config', detail: '命令参数包含非法控制字符' }
+  }
+  // cmd.exe 元字符（& | < > ^ ( ) % ! 空白 引号）必须整体加引号，并用 ^ 转义 % 防止环境变量展开与命令注入
+  const quoteCmdArg = (part) => {
+    const text = String(part)
+    if (!text) return '""'
+    if (!/[\s"&|<>^()%!]/.test(text)) return text
+    return `"${text.replace(/"/g, '""').replace(/%/g, '%%')}"`
+  }
   const child = needsShell
     // Windows 上经 cmd 起进程：命令行里带空格的路径必须自己加引号，否则 C:\Program Files\...
     // 会被 cmd 当成 `C:\Program` + 参数（npx/pnpm 这些 .cmd 包装器全在带空格的目录里）。
     // 每个参数单独加引号，再按 cmd 的规矩把整行包一层（cmd /s /c "…"）。
-    ? spawn(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', `"${[resolved, ...args].map((part) => (/[\s"]/.test(part) ? `"${String(part).replace(/"/g, '""')}"` : part)).join(' ')}"`], {
+    ? spawn(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', `"${[resolved, ...args].map(quoteCmdArg).join(' ')}"`], {
       cwd,
       env,
       windowsHide: true,

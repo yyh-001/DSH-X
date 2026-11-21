@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
+import { readEnSource } from './helpers/frontend-source.mjs'
 import vm from 'node:vm'
 
 const page = readFileSync(new URL('../src/public/index.html', import.meta.url), 'utf8')
@@ -192,7 +193,7 @@ test('修复提示说「配置」：刚修过、只剩备份两种情形都不�
   c.renderRecovery()
   assert.equal(c.recoveryHintEl.hidden, false)
   assert.match(c.recoveryHintEl.innerHTML, /^配置 web 有一份配置备份，可还原。/, '只剩备份时的提示把 dsh profile 叫配置')
-  assert.match(page, /"配置 \{profile\} 有一份配置备份，可还原。": "Profile \{profile\} [^"]+"/, '英文仍叫 Profile')
+  assert.match(readEnSource(), /"配置 \{profile\} 有一份配置备份，可还原。": "Profile \{profile\} [^"]+"/, '英文仍叫 Profile')
   assert.doesNotMatch(c.recoveryHintEl.innerHTML, /Profile/, '修复提示里不再写 Profile')
 })
 
@@ -324,7 +325,7 @@ test('编辑配置…：还没初始化过的配置只提示怎么让它出现',
   await c.openProfileInEnvironment()
   assert.equal(opened, '', '没卡片时不能凭空打开详情')
   assert.match(calls.at(-1), /^配置「qa」还没初始化：先用它启动一次/)
-  assert.match(page, /"编辑配置…": "Edit profile…"/, '英文文案跟着补，英文仍叫 profile')
+  assert.match(readEnSource(), /"编辑配置…": "Edit profile…"/, '英文文案跟着补，英文仍叫 profile')
 })
 
 test('目录候选列表不把 SSH / WSL 合成键当成 Windows 目录', () => {

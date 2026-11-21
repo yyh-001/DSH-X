@@ -7,6 +7,7 @@
  * package.json / node_modules，并按命令记录调用参数。
  */
 import assert from 'node:assert/strict'
+import { readEnDict } from './helpers/frontend-source.mjs'
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -243,7 +244,7 @@ test('界面入口与文案：加入 / 移除插件在实例页（市场子页�
   assert.doesNotMatch(page, /\/api\/plugins\/(?:add|remove)'/, '页面不再直接装 / 卸进配置')
   assert.doesNotMatch(css, /\.plugin-remove \{|#pluginAddDialog/, '配置页卸载钮和添加弹窗的样式跟着撤了')
 
-  const dict = new Function(`return (${page.match(/const EN = (\{[\s\S]*?\n\})/)[1]})`)()
+  const dict = readEnDict()
   for (const key of ['加入插件', '移除', '插件', '市场', '已安装', '插件名，可带版本：dsh-x-memory@0.1.1']) {
     assert.equal(typeof dict[key], 'string', `缺少英文翻译：${key}`)
   }

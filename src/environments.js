@@ -4,8 +4,9 @@
 // 这个文件只放纯规则和清单读写：插件清单的比较 / 合并、上游 + 本地增量的折算、迁移规划、
 // 环境清单的落盘。装依赖、起实例这些副作用都在 server.js，那边按这里的结果去动 profile 目录。
 import { createHash, randomBytes } from 'node:crypto'
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, renameSync, rmSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
+import { writeJsonAtomicSync as writeJsonAtomic } from './fs-utils.js'
 import { PROFILE_SKELETON_BUNDLES } from './packs.js'
 import { VERSION_CHANNELS, VERSION_RE } from './version.js'
 
@@ -818,14 +819,6 @@ function recordPackSources(ctx, packs) {
 export function effectiveList(env) {
   const { dependencies, bundles } = effectivePlugins(env)
   return { dependencies, bundles }
-}
-
-/** 原子写：先写临时文件再改名，进程半路被杀也不会留下半截 JSON。 */
-function writeJsonAtomic(file, value) {
-  mkdirSync(dirname(file), { recursive: true })
-  const temp = `${file}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`
-  writeFileSync(temp, `${JSON.stringify(value, null, 2)}\n`)
-  renameSync(temp, file)
 }
 
 function readJson(file) {

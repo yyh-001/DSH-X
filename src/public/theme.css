@@ -50,8 +50,7 @@ html[data-color-scheme="dark"] #pane-control .card.home {
 html[data-color-scheme="dark"] main:not(.home) .settings-body {
   background: transparent;
 }
-html[data-color-scheme="dark"] .nav-item:hover,
-html[data-color-scheme="dark"] .set-row:focus-within { background: #36373b; }
+html[data-color-scheme="dark"] .nav-item:hover { background: #36373b; }
 html[data-color-scheme="dark"] .nav-item.active {
   background: #38393e;
   border-color: #6b6c72;
@@ -74,7 +73,6 @@ html[data-color-scheme="dark"] .plugin-update {
   color: #7eb2ff;
 }
 html[data-color-scheme="dark"] .plugin-update:hover:not(:disabled) { background: rgba(59, 130, 246, 0.28); border-color: rgba(96, 165, 250, 0.52); color: #a5cbff; }
-html[data-color-scheme="dark"] .set-row:focus-within { box-shadow: inset 3px 0 0 var(--accent); }
 html[data-color-scheme="dark"] .nav-item.active svg { color: var(--accent); }
 html[data-color-scheme="dark"] .set-group,
 html[data-color-scheme="dark"] .theme-option,

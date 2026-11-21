@@ -251,6 +251,8 @@ import { lanUrlOf, pickLanAddress, startLanProxy } from './lan-proxy.js'
 import { DESKTOP_API_VERSION, DESKTOP_CAPABILITIES, parseDesktopRequest } from './desktop.js'
 import { checkCoreUpdate, downloadCoreTarball, extractCoreTarball, stagingExists, stagingStats } from './core-npm.js'
 import { writeElectronBinMarker } from './electron-bin.js'
+import { createStorageStats } from './storage-stats.js'
+import { createProfileBackups } from './profile-backups.js'
 import { IN_ELECTRON, IS_LINUX, IS_MAC, IS_WINDOWS, LAUNCHER_NAME, MAC_APP_NAME, PACKAGED, RUNTIME_NODE, RUNTIME_NODE_ENV } from './platform.js'
 
 const execFileAsync = promisify(execFile)
@@ -497,7 +499,8 @@ function attachRemoteLogRoute(core, route) {
 }
 
 /** 记一次启动的阶段耗时（最近 20 次，新的在前），给日志弹窗画分段条。 */
-function recordLaunchRun(id, run) {  if (!id || !LAUNCH_ID_RE.test(id)) return
+function recordLaunchRun(id, run) {
+  if (!id || !LAUNCH_ID_RE.test(id)) return
   const file = join(LAUNCH_LOG_DIR, `launch-${id}.json`)
   let runs = []
   try {
@@ -513,6 +516,23 @@ function recordLaunchRun(id, run) {  if (!id || !LAUNCH_ID_RE.test(id)) return
     writeFileSync(file, `${JSON.stringify({ runs }, null, 2)}\n`)
   } catch {
     // 记录不是启动的依赖，写不进去只影响可视化
+  }
+}
+
+/** 异步回填启动时的 RSS，避免同步 tasklist 卡住启动返回和事件循环。 */
+function patchLaunchRunRss(id, at, rssMB) {
+  if (!id || !LAUNCH_ID_RE.test(id) || rssMB === null || shuttingDown) return
+  const file = join(LAUNCH_LOG_DIR, `launch-${id}.json`)
+  try {
+    if (!existsSync(file)) return
+    const parsed = JSON.parse(readFileSync(file, 'utf8'))
+    if (!Array.isArray(parsed?.runs)) return
+    const item = parsed.runs.find((entry) => entry && entry.at === at)
+    if (!item) return
+    item.startupRssMB = rssMB
+    writeFileSync(file, `${JSON.stringify({ runs: parsed.runs }, null, 2)}\n`)
+  } catch {
+    // 记录文件可能已被清理，忽略即可
   }
 }
 process.on('exit', () => {
@@ -955,372 +975,21 @@ function scanInstalled() {
  * `withFsSlot` 限住的是「正在跑」的 fs 操作，管不到排队：大 node_modules 里几万个文件
  * 如果都先变成 Promise 再排队，光是闭包和 async 上下文就能堆出上百 MB。
  */
-async function mapLimit(items, limit, task) {
-  let index = 0
-  const workers = Array.from({ length: Math.min(limit, items.length || 1) }, async () => {
-    while (index < items.length) {
-      const item = items[index]
-      index += 1
-      await task(item)
-    }
-  })
-  await Promise.all(workers)
-}
-/**
- * 磁盘占用统计。三件事让它便宜：
- * 1. 每棵树只走一遍：包大小、依赖图、node_modules 总量在同一次遍历里得出（以前同一份 node_modules 要走 3–4 遍）；
- * 2. 全局限流：所有统计共用 FS_SLOTS 个文件系统操作名额，不会把 libuv 线程池占满、拖慢管理页的其它请求；
- * 3. 指纹缓存：node_modules 只在安装后才变。先 stat 几个安装器每次都会改的文件（锁文件、pnpm 的
- *    .modules.yaml、目录本身），对得上就直接用上次的结果，对不上才重走——相当于「先问版本号再决定要不要重算」。
- *    结果落盘（size-cache.json），管理器重启后照样命中。同一时刻对同一棵树的请求共用一次遍历。
- * profile 里 node_modules 以外的部分（补丁层、清单）很小，每次现算。
- */
-const FS_SLOTS = 16
-let fsActive = 0
-const fsWaiters = []
-async function withFsSlot(task) {
-  // 名额直接交接给排队的人（不先减再加），否则新来的会趁空插队，实际并发超过上限
-  if (fsActive < FS_SLOTS) fsActive += 1
-  else await new Promise((resolve) => fsWaiters.push(resolve))
-  try {
-    return await task()
-  } finally {
-    const next = fsWaiters.shift()
-    if (next) next()
-    else fsActive -= 1
-  }
-}
-
-/**
- * 目录的逻辑占用。符号链接跳过：pnpm 的 node_modules 里大量是链接，顺着走会把共享 store
- * 里的同一份包重复算进每个版本。`skip` 是顶层要跳过的子目录名（单独统计的 node_modules）。
- */
-async function directoryBytes(root, { skip = [] } = {}) {
-  const skipped = new Set(skip)
-  let total = 0
-  const walk = async (dir, top) => {
-    let entries
-    try { entries = await withFsSlot(() => readdir(dir, { withFileTypes: true })) } catch { return }
-    // 只收集名字，不在这里启动：每层按上限取任务（目录 8 个、文件 32 个），
-    // 否则一个宽目录会瞬间生成几千个 wait 中的 Promise。
-    const files = []
-    const dirs = []
-    for (const entry of entries) {
-      if (entry.isSymbolicLink()) continue
-      if (entry.isDirectory()) {
-        if (!(top && skipped.has(entry.name))) dirs.push(entry.name)
-      } else if (entry.isFile()) {
-        files.push(entry.name)
-      }
-    }
-    await mapLimit(files, 32, async (name) => {
-      // 先 await 拿到大小再累加：`total += (await ...).size` 会在 await 之前就读走 total，
-      // 并发任务各自读到同一个旧值，最后只留下一个文件的大小（这里是真踩过的坑）
-      let size = 0
-      try { size = (await withFsSlot(() => stat(join(dir, name)))).size } catch { /* 文件刚好被删 */ }
-      total += size
-    })
-    await mapLimit(dirs, 8, (name) => walk(join(dir, name), false))
-  }
-  await walk(root, true)
-  return total
-}
-
-/** .pnpm 目录名 → 包名：`pkg@1.2.3`、`@scope+pkg@1.2.3(peer@x)`。 */
-function pnpmPackageName(entry) {
-  const raw = String(entry).replace(/\(.*$/, '')
-  const at = raw.lastIndexOf('@')
-  return (at > 0 ? raw.slice(0, at) : raw).replace(/\+/g, '/')
-}
-
-/**
- * 一个 node_modules 走一遍：各包大小（pnpm 的 .pnpm 虚拟目录按包名合并）、包名 → 声明的依赖、总字节数。
- * 目录名和 package.json 的 name 不一定一样（平台二进制 wrapper 常见），按真实包名归并，
- * 这样依赖图（按 name 建）和大小才对得上。
- */
-async function scanNodeModules(nodeModules) {
-  const sizes = new Map()
-  const graph = new Map()
-  let bytes = 0
-  const manifestOf = async (dir) => {
-    try { return JSON.parse(await withFsSlot(() => readFile(join(dir, 'package.json'), 'utf8'))) } catch { return null }
-  }
-  const addGraph = (pkg) => {
-    if (!pkg?.name) return
-    graph.set(pkg.name, [...new Set([
-      ...(pkg.dependencies ? Object.keys(pkg.dependencies) : []),
-      ...(pkg.optionalDependencies ? Object.keys(pkg.optionalDependencies) : []),
-    ])])
-  }
-  const addSize = (name, size) => {
-    sizes.set(name, (sizes.get(name) || 0) + size)
-    bytes += size
-  }
-  const children = async (dir) => (await withFsSlot(() => readdir(dir, { withFileTypes: true })).catch(() => []))
-    .filter((entry) => !entry.isSymbolicLink())
-  const hoisted = async (dir, fallback) => {
-    const [pkg, size] = await Promise.all([manifestOf(dir), directoryBytes(dir)])
-    addSize(pkg?.name || fallback, size)
-    addGraph(pkg)
-  }
-  // pnpm 隔离布局：.pnpm/<pkg>@<ver>/ 整个目录算这个包；依赖图读里面 node_modules/<pkg>/package.json
-  const virtual = async (dir, entry) => {
-    const name = pnpmPackageName(entry)
-    const [size, inner] = await Promise.all([directoryBytes(dir), children(join(dir, 'node_modules'))])
-    if (name) addSize(name, size)
-    else bytes += size
-    const manifests = []
-    for (const sub of inner) {
-      if (!sub.isDirectory()) continue
-      const subDir = join(dir, 'node_modules', sub.name)
-      if (sub.name.startsWith('@')) {
-        for (const child of await children(subDir)) if (child.isDirectory()) manifests.push(manifestOf(join(subDir, child.name)))
-      } else manifests.push(manifestOf(subDir))
-    }
-    for (const pkg of await Promise.all(manifests)) addGraph(pkg)
-  }
-  const jobs = []
-  // 队列里放的是「还没开始的函数」：一个 node_modules 几千个包，全部先变成 running 的
-  // Promise 会在主进程里堆出很大的峰值内存（见 mapLimit 的注释）。
-  const later = (job) => jobs.push(job)
-  for (const entry of await children(nodeModules)) {
-    const path = join(nodeModules, entry.name)
-    if (entry.isFile()) {
-      later(() => withFsSlot(() => stat(path)).then((info) => { bytes += info.size }, () => {}))
-    } else if (!entry.isDirectory()) {
-      continue
-    } else if (entry.name === '.pnpm') {
-      for (const item of await children(path)) {
-        const itemPath = join(path, item.name)
-        if (item.isDirectory()) later(() => virtual(itemPath, item.name))
-        else if (item.isFile()) later(() => withFsSlot(() => stat(itemPath)).then((info) => { bytes += info.size }, () => {}))
-      }
-    } else if (entry.name.startsWith('.')) {
-      // .bin、.cache 之类：算进总量，不归到任何包
-      later(() => directoryBytes(path).then((size) => { bytes += size }))
-    } else if (entry.name.startsWith('@')) {
-      for (const sub of await children(path)) {
-        if (sub.isDirectory()) later(() => hoisted(join(path, sub.name), `${entry.name}/${sub.name}`))
-      }
-    } else {
-      later(() => hoisted(path, entry.name))
-    }
-  }
-  await mapLimit(jobs, 8, (job) => job())
-  return { bytes, sizes, graph }
-}
-
-/** 安装器每次装/删都会改的几个位置；全对得上就说明 node_modules 没变过。 */
-const SIZE_PROBES = [
-  'package.json', 'pnpm-lock.yaml', 'package-lock.json',
-  'node_modules', 'node_modules/.modules.yaml', 'node_modules/.package-lock.json',
-  'node_modules/.pnpm', 'node_modules/.pnpm/lock.yaml',
-]
-async function sizeFingerprint(root) {
-  const parts = await Promise.all(SIZE_PROBES.map((name) =>
-    withFsSlot(() => stat(join(root, name))).then((info) => `${Math.round(info.mtimeMs)}:${info.size}`, () => '-')))
-  return parts.join('|')
-}
-
-const SIZE_CACHE_FILE = join(APP_DIR, 'size-cache.json')
-const SIZE_CACHE_MAX = 40
-let sizeCache = null
-const sizeScans = new Map()
-let sizeCacheWrite = null
-/**
- * 每个目录被 forget 过几次。遍历开始时记下，结束时对不上就不写缓存：优化（去重）和统计
- * 并发时，统计可能读到改了一半的 node_modules，而去重不一定动锁文件，指纹认不出来。
- */
-const sizeGenerations = new Map()
-
-function loadSizeCache() {
-  if (sizeCache) return sizeCache
-  sizeCache = new Map()
-  try {
-    const parsed = JSON.parse(readFileSync(SIZE_CACHE_FILE, 'utf8'))
-    if (parsed?.v === 1 && parsed.entries && typeof parsed.entries === 'object') {
-      for (const [dir, entry] of Object.entries(parsed.entries)) {
-        if (typeof entry?.fp !== 'string' || !Array.isArray(entry.sizes) || !Array.isArray(entry.graph)) continue
-        sizeCache.set(dir, { fp: entry.fp, at: Number(entry.at) || 0, bytes: Number(entry.bytes) || 0, sizes: new Map(entry.sizes), graph: new Map(entry.graph) })
-      }
-    }
-  } catch { /* 没有或坏了：重新统计一遍就有了 */ }
-  return sizeCache
-}
-
-/**
- * 写一条缓存，并把内存里的条目数压回 SIZE_CACHE_MAX（按最近统计时间留新的）。
- * 以前只在落盘时截断，内存里的 Map 只增不减：装过、删过的版本和 profile 每个都留着整张包表与依赖图。
- */
-function rememberSizeStats(nodeModules, entry) {
-  const cache = loadSizeCache()
-  cache.set(nodeModules, entry)
-  if (cache.size <= SIZE_CACHE_MAX) return
-  const oldest = [...cache.entries()].sort((a, b) => a[1].at - b[1].at).slice(0, cache.size - SIZE_CACHE_MAX)
-  for (const [dir] of oldest) cache.delete(dir)
-}
-
-/** 缓存只是加速：写不进去不影响结果。合并成一次写，免得同时开几个弹窗时反复落盘。 */
-function scheduleSizeCacheWrite() {
-  if (sizeCacheWrite) return
-  sizeCacheWrite = setTimeout(async () => {
-    sizeCacheWrite = null
-    const kept = [...loadSizeCache().entries()].sort((a, b) => b[1].at - a[1].at).slice(0, SIZE_CACHE_MAX)
-    const entries = Object.fromEntries(kept.map(([dir, entry]) => [dir, { fp: entry.fp, at: entry.at, bytes: entry.bytes, sizes: [...entry.sizes], graph: [...entry.graph] }]))
-    const temp = `${SIZE_CACHE_FILE}.${process.pid}.tmp`
-    try {
-      await mkdir(dirname(SIZE_CACHE_FILE), { recursive: true })
-      await writeFile(temp, JSON.stringify({ v: 1, entries }))
-      renameSync(temp, SIZE_CACHE_FILE)
-    } catch { try { rmSync(temp, { force: true }) } catch { /* ignore */ } }
-  }, 500)
-  sizeCacheWrite.unref?.()
-}
-
-/** 某个目录下 node_modules 的统计结果：指纹没变用缓存，变了（或没算过）走一遍；并发请求共用一次遍历。 */
-async function nodeModulesStats(root) {
-  const nodeModules = join(root, 'node_modules')
-  const fp = await sizeFingerprint(root)
-  const hit = loadSizeCache().get(nodeModules)
-  if (hit && hit.fp === fp) return hit
-  const key = `${nodeModules}\0${fp}`
-  if (!sizeScans.has(key)) {
-    const generation = sizeGenerations.get(nodeModules) || 0
-    sizeScans.set(key, scanNodeModules(nodeModules).then((result) => {
-      const entry = { fp, at: Date.now(), ...result }
-      // 遍历期间被 forget 过（优化跑完/失败了）：这次结果可能是半截的，返回给这次请求，但不进缓存
-      if ((sizeGenerations.get(nodeModules) || 0) === generation) {
-        rememberSizeStats(nodeModules, entry)
-        scheduleSizeCacheWrite()
-      }
-      return entry
-    }).finally(() => sizeScans.delete(key)))
-  }
-  return sizeScans.get(key)
-}
-
-/** 改了 node_modules 却不一定动锁文件的操作（依赖去重会把重复包换成链接）结束后调一下，下次重新统计。 */
-function forgetNodeModulesStats(root) {
-  const nodeModules = join(root, 'node_modules')
-  sizeGenerations.set(nodeModules, (sizeGenerations.get(nodeModules) || 0) + 1)
-  if (loadSizeCache().delete(nodeModules)) scheduleSizeCacheWrite()
-}
-
-/** 版本目录下、但已经不是已装版本的缓存条目（删掉的版本）：版本列表一刷新就清掉。 */
-function pruneVersionSizeStats(installed) {
-  const root = join(DATA, 'versions')
-  const keep = new Set(installed.map((version) => join(versionDir(version), 'node_modules')))
-  let changed = false
-  for (const dir of [...loadSizeCache().keys()]) {
-    if (dirname(dirname(dir)) === root && !keep.has(dir)) changed = loadSizeCache().delete(dir) || changed
-  }
-  for (const dir of [...sizeGenerations.keys()]) if (dirname(dirname(dir)) === root && !keep.has(dir)) sizeGenerations.delete(dir)
-  if (changed) scheduleSizeCacheWrite()
-}
-
-/** 每个直接插件能到达哪些包；共用包按引用它的插件数量均摊。 */
-function attributePlugins(graph, direct, sizes) {
-  const parents = new Map()
-  for (const start of direct) {
-    const seen = new Set([start])
-    const queue = [start]
-    while (queue.length) {
-      const current = queue.shift()
-      for (const next of graph.get(current) || []) {
-        if (seen.has(next)) continue
-        seen.add(next)
-        queue.push(next)
-      }
-    }
-    for (const name of seen) {
-      if (name === start) continue
-      const owners = parents.get(name) || new Set()
-      owners.add(start)
-      parents.set(name, owners)
-    }
-  }
-  const totals = new Map()
-  for (const name of direct) totals.set(name, sizes.get(name) || 0)
-  let depsBytes = 0
-  for (const [name, owners] of parents) {
-    if (direct.includes(name)) continue
-    const size = sizes.get(name) || 0
-    if (!size) continue
-    depsBytes += size
-    const share = size / owners.size
-    for (const owner of owners) totals.set(owner, (totals.get(owner) || 0) + share)
-  }
-  const plugins = [...totals.entries()]
-    .map(([name, bytes]) => ({ name, bytes: Math.round(bytes) }))
-    .filter((plugin) => plugin.bytes >= 1)
-    .sort((left, right) => right.bytes - left.bytes)
-  return { plugins, depsBytes }
-}
-
-/**
- * 一个启动项（版本 + profile）的空间构成：版本目录 + 这个 profile 目录的逻辑大小。
- * 插件只算 profile 的直接依赖；pnpm 共享 store 不在这些目录里，不重复计入。
- */
-async function storageBreakdown(version, profile) {
-  const versionPath = versionDir(version)
-  const profilePath = join(homeDir(), 'profiles', safeProfile(profile))
-  const [versionModules, versionRest, profileModules, dataBytes] = await Promise.all([
-    nodeModulesStats(versionPath),
-    directoryBytes(versionPath, { skip: ['node_modules'] }),
-    nodeModulesStats(profilePath),
-    directoryBytes(profilePath, { skip: ['node_modules'] }),
-  ])
-  const versionPackages = versionModules.sizes
-  const profilePackages = profileModules.sizes
-  const direct = new Set(Object.keys(profileDependencies(profilePath)))
-  const { plugins, depsBytes: pluginDepsBytes } = attributePlugins(profileModules.graph, [...direct], profilePackages)
-  let pluginOwnBytes = 0
-  for (const name of direct) pluginOwnBytes += profilePackages.get(name) || 0
-  let runtimeBytes = 0
-  let runtimeDepsBytes = 0
-  for (const [name, bytes] of versionPackages) {
-    if (name.startsWith('@deepseek-ai/')) runtimeBytes += bytes
-    else runtimeDepsBytes += bytes
-  }
-  const total = versionModules.bytes + versionRest + profileModules.bytes + dataBytes
-  // 到不了的 profile 包（残留/未声明）和版本目录非 node_modules 的部分都算「未归类」
-  const restBytes = Math.max(0, total - pluginOwnBytes - pluginDepsBytes - runtimeBytes - runtimeDepsBytes - dataBytes)
-  const segments = [
-    { key: 'plugin', bytes: pluginOwnBytes },
-    { key: 'plugin-deps', bytes: pluginDepsBytes },
-    { key: 'runtime', bytes: runtimeBytes },
-    { key: 'runtime-deps', bytes: runtimeDepsBytes },
-    { key: 'data', bytes: dataBytes },
-    { key: 'rest', bytes: restBytes },
-  ].filter((segment) => segment.bytes >= 1)
-  const combined = new Map()
-  for (const [name, bytes] of versionPackages) combined.set(name, { name, bytes, plugin: false })
-  for (const [name, bytes] of profilePackages) {
-    const item = combined.get(name) || { name, bytes: 0, plugin: false }
-    item.bytes += bytes
-    item.plugin = item.plugin || direct.has(name)
-    combined.set(name, item)
-  }
-  const items = [...combined.values()].sort((left, right) => right.bytes - left.bytes).slice(0, 5)
-  return { version, profile, total, segments, plugins, items }
-}
-
-/** 已装版本各自占多少（只算 DATA/versions 下受管版本；系统全局装的不归启动器管）。 */
-async function versionSizes() {
-  const versions = scanInstalled().filter(isManaged)
-  pruneVersionSizeStats(versions)
-  const entries = []
-  // 版本各扫各的会把所有版本的 node_modules 同时铺开：一次只让 3 个版本进遍历，
-  // 其余排队（每个版本内部再按 mapLimit 限量）。
-  await mapLimit(versions, 3, async (version) => {
-    const dir = versionDir(version)
-    const [modules, rest] = await Promise.all([nodeModulesStats(dir), directoryBytes(dir, { skip: ['node_modules'] })])
-    entries.push([version, modules.bytes + rest])
-  })
-  const sizes = Object.fromEntries(entries)
-  const total = entries.reduce((sum, [, bytes]) => sum + bytes, 0)
-  return { versions: sizes, total }
-}
+/** 磁盘占用统计与指纹缓存实现收拢在 storage-stats.js。 */
+const {
+  forgetNodeModulesStats,
+  storageBreakdown,
+  versionSizes,
+} = createStorageStats({
+  appDir: APP_DIR,
+  getDataDir: () => DATA,
+  versionDir,
+  homeDir,
+  safeProfile,
+  profileDependencies,
+  scanInstalled,
+  isManaged,
+})
 
 function listedVersions(config) {
   const onDisk = new Set(scanInstalled())
@@ -1497,7 +1166,17 @@ function pushLog(line) {
 
 function emit(event, data) {
   const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`
-  for (const res of clients) res.write(payload)
+  for (const res of clients) {
+    if (res.destroyed || res.writableEnded) {
+      clients.delete(res)
+      continue
+    }
+    try {
+      res.write(payload)
+    } catch {
+      clients.delete(res)
+    }
+  }
 }
 
 /**
@@ -1576,13 +1255,6 @@ export function macSignatureAllowsIncremental(text) {
   if (/Signature=adhoc/.test(output)) return { ok: true, identity: '-' }
   if (/not signed at all/.test(output)) return { ok: true, identity: '-' }
   return { ok: false, reason: 'signed', error: '当前包使用固定证书签名，增量更新会破坏签名，请用完整安装包' }
-}
-
-function macIncrementalReadiness() {
-  const bundle = fileManager.appBundle()
-  if (!bundle) return { ok: false, reason: 'source' }
-  const result = spawnSync('codesign', ['-dv', '--verbose=4', bundle], { encoding: 'utf8' })
-  return { ...macSignatureAllowsIncremental(`${result.stdout || ''}${result.stderr || ''}`), bundle }
 }
 
 /** URL 的主机名，只用于日志（解析不了就原样返回）。 */
@@ -1913,30 +1585,40 @@ function liveInstanceList() {
 }
 
 /**
- * 读一个进程的常驻内存（RSS，MB）。跨平台各用系统自带的查询，不引原生依赖。
+ * 异步读一个进程的常驻内存（RSS，MB）。跨平台各用系统自带的查询，不引原生依赖。
  *
+ * 异步执行避免 Windows 的 tasklist.exe 同步阻塞事件循环 400-500ms 拖慢实例启动返回。
  * 只给进程级数字：dsh 的插件都在同一个 Node 进程里，操作系统的 RSS 没有插件维度。
  *
  * @param {number} pid - 进程号。
- * @returns {number|null} MB，读不到时 null。
+ * @returns {Promise<number|null>} MB，读不到时 null。
  */
 function readProcessRssMB(pid) {
-  if (!Number.isInteger(pid) || pid <= 0) return null
-  try {
-    if (IS_WINDOWS) {
-      // "DSH.exe","1234","Console","1","123,456 K"
-      const out = spawnSync('tasklist', ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH'], { encoding: 'utf8', windowsHide: true, timeout: 4000 }).stdout || ''
-      const match = /^"[^"]*","[^"]*","[^"]*","[^"]*","([\d.,]+) K"/m.exec(out)
-      if (!match) return null
-      const kb = Number(match[1].replace(/[.,]/g, ''))
-      return Number.isFinite(kb) ? Math.round(kb / 1024) : null
-    }
-    const out = spawnSync('ps', ['-o', 'rss=', '-p', String(pid)], { encoding: 'utf8', windowsHide: true, timeout: 4000 }).stdout || ''
-    const kb = Number(out.trim())
-    return Number.isFinite(kb) && kb > 0 ? Math.round(kb / 1024) : null
-  } catch {
-    return null
+  if (!Number.isInteger(pid) || pid <= 0 || process.env.DSH_SKIP_RSS_PROBE === '1') {
+    return Promise.resolve(null)
   }
+  return new Promise((resolve) => {
+    const cmd = IS_WINDOWS ? 'tasklist' : 'ps'
+    const args = IS_WINDOWS ? ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH'] : ['-o', 'rss=', '-p', String(pid)]
+    try {
+      execFile(cmd, args, { encoding: 'utf8', windowsHide: true, timeout: 4000 }, (error, stdout) => {
+        if (error) { resolve(null); return }
+        const out = String(stdout || '')
+        if (IS_WINDOWS) {
+          // "DSH.exe","1234","Console","1","123,456 K"
+          const match = /^"[^"]*","[^"]*","[^"]*","[^"]*","([\d.,]+) K"/m.exec(out)
+          if (!match) { resolve(null); return }
+          const kb = Number(match[1].replace(/[.,]/g, ''))
+          resolve(Number.isFinite(kb) ? Math.round(kb / 1024) : null)
+          return
+        }
+        const kb = Number(out.trim())
+        resolve(Number.isFinite(kb) && kb > 0 ? Math.round(kb / 1024) : null)
+      })
+    } catch {
+      resolve(null)
+    }
+  })
 }
 
 /**
@@ -5199,9 +4881,11 @@ export function manualPathMessage(enabled, dir) {
 
 /** 读/写用户级 PATH（Windows：HKCU\Environment，按 REG_EXPAND_SZ 原样写，不展开变量）。 */
 function readUserPath() {
-  const out = spawnSync('reg', ['query', 'HKCU\\Environment', '/v', 'Path'], { encoding: 'utf8', windowsHide: true })
+  // 不传 encoding: 'utf8'，让 decodeProcessOutput 按中文 Windows 的本地代码页解码，避免写回时把中文路径变成 U+FFFD
+  const out = spawnSync('reg', ['query', 'HKCU\\Environment', '/v', 'Path'], { windowsHide: true })
   if (out.status !== 0) return ''
-  const line = (out.stdout || '').split(/\r?\n/).find((item) => /\bPath\b\s+REG_/i.test(item))
+  const text = out.stdout ? decodeProcessOutput(out.stdout) : ''
+  const line = text.split(/\r?\n/).find((item) => /\bPath\b\s+REG_/i.test(item))
   if (!line) return ''
   return line.replace(/^.*?REG_(?:EXPAND_)?SZ\s+/i, '').trim()
 }
@@ -5221,7 +4905,7 @@ export function applySystemPath(enabled) {
     return { ok: false, dir, message: manualPathMessage(enabled, dir) }
   }
   const next = pathWithEntry(readUserPath(), dir, enabled)
-  if (!writeUserPath(next)) return { ok: false, dir, message: '写用户 PATH 失败（注册表 HKCU\Environment 不可写？）' }
+  if (!writeUserPath(next)) return { ok: false, dir, message: '写用户 PATH 失败（注册表 HKCU\\Environment 不可写？）' }
   pushLog(enabled ? `已把 ${dir} 加到用户 PATH（新开的终端生效）` : `已把 ${dir} 从用户 PATH 移除`)
   return { ok: true, dir }
 }
@@ -5346,6 +5030,11 @@ const nodeVersionCache = new Map()
 export function nodeVersionOf(file) {
   if (!file) return ''
   if (nodeVersionCache.has(file)) return nodeVersionCache.get(file)
+  // 指向当前 Node 进程本身时直接读 process.versions.node，省一次同步 spawnSync
+  if (!IN_ELECTRON && fileManager.samePath(file, process.execPath) && process.versions?.node) {
+    nodeVersionCache.set(file, process.versions.node)
+    return process.versions.node
+  }
   let version = ''
   try {
     const out = spawnSync(file, ['--version'], { encoding: 'utf8', timeout: 5000, windowsHide: true })
@@ -5437,178 +5126,32 @@ function profileDir() {
   return profileDirOf(PROFILE_NAME)
 }
 
-// ---- profile 配置层备份（每次启动前快照，出事了能回退） ----
-// 为什么不整目录复制：profile 里的 node_modules 动辄几百 MB，每次启动都复制不现实；
-// 真正会被改坏、回退时值得救的是配置层（补丁层、依赖清单、npmrc），加起来几十 KB。
-// 备份放在数据目录 backups/profiles/<用户目录指纹>/<profile>/<时间戳>/，跟数据一起走；
-// 多个 dsh 用户目录里同名 profile 靠指纹分开，互不覆盖。
-const PROFILE_BACKUP_FILES = ['cordis.patch.yml', 'package.json', 'pnpm-lock.yaml', '.npmrc']
-const PROFILE_BACKUP_KEEP = 10
-/** 超过这个岁数的备份自动清掉（最新一份永远留着，回退入口不能凭空消失）。 */
-const PROFILE_BACKUP_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000
-const PROFILE_BACKUP_ID = /^\d{8}-\d{6}(?:-\d+)?$/
-
-function homeStamp(home = homeDir()) {
-  return createHash('sha1').update(IS_WINDOWS ? home.toLowerCase() : home).digest('hex').slice(0, 12)
-}
-
-function profileBackupRoot(profile, home = homeDir()) {
-  return join(DATA, 'backups', 'profiles', homeStamp(home), safeProfile(profile))
-}
-
-function profileBackupTimestamp(now = new Date()) {
-  const pad = (value) => String(value).padStart(2, '0')
-  return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
-}
-
-function readBackupManifest(dir) {
-  try {
-    const manifest = JSON.parse(readFileSync(join(dir, 'manifest.json'), 'utf8'))
-    if (!manifest || !Array.isArray(manifest.files)) return null
-    return manifest
-  } catch { return null }
-}
-
-/** 最近的排前面。目录名是时间戳，但 createdAt 才是权威（手改目录名也不会乱序）。 */
-function listProfileBackups(profile, home = homeDir()) {
-  const root = profileBackupRoot(profile, home)
-  if (!existsSync(root)) return []
-  return readdirSync(root, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && PROFILE_BACKUP_ID.test(entry.name))
-    .map((entry) => ({ id: entry.name, ...readBackupManifest(join(root, entry.name)) }))
-    .filter((item) => item.files && item.createdAt)
-    .sort((left, right) => (right.createdAt || 0) - (left.createdAt || 0))
-}
-
-function profileConfigSnapshot(profileDirPath) {
-  const files = []
-  for (const name of PROFILE_BACKUP_FILES) {
-    const file = join(profileDirPath, name)
-    if (!existsSync(file)) continue
-    try { files.push({ name, content: readFileSync(file) }) } catch { /* 读不了就跳过，别拦启动 */ }
-  }
-  const hash = createHash('sha256')
-  for (const file of files) hash.update(file.name).update('\0').update(file.content)
-  return { files, signature: hash.digest('hex') }
-}
-
-async function rotateProfileBackups(profile, home = homeDir()) {
-  const root = profileBackupRoot(profile, home)
-  const backups = listProfileBackups(profile, home)
-  const expiredBefore = Date.now() - PROFILE_BACKUP_MAX_AGE_MS
-  // 两类都清：超出保留份数的，以及太旧的。第 0 份是最新那份，年龄再大也不清。
-  const stale = backups.filter((item, index) => index >= PROFILE_BACKUP_KEEP || (index > 0 && item.createdAt < expiredBefore))
-  for (const item of stale) await rm(join(root, item.id), { recursive: true, force: true })
-}
-
-/**
- * 给 profile 的配置层拍一份快照；内容跟最近一份一样就不重复存（每次启动都会调用它）。
- * force 用在回退之前：那份「回退前」的备份即使内容没变也要留着，回退本身才可逆。
- */
-async function snapshotProfileConfig(profile, { force = false } = {}) {
-  const name = safeProfile(profile || PROFILE_NAME)
-  const dir = profileDirOf(name)
-  if (!existsSync(join(dir, 'package.json'))) return null   // 还没初始化，没什么可救
-  const { files, signature } = profileConfigSnapshot(dir)
-  if (!files.length) return null
-  const home = homeDir()
-  const root = profileBackupRoot(name, home)
-  const latest = listProfileBackups(name, home)[0]
-  if (!force && latest?.signature === signature) {
-    // 内容没变不建新备份，但过期清理照做：不然不改配置就永远清不掉旧备份。
-    await rotateProfileBackups(name, home)
-    return null
-  }
-  await mkdir(root, { recursive: true })
-  const stamp = profileBackupTimestamp()
-  let id = stamp
-  for (let index = 2; existsSync(join(root, id)); index += 1) id = `${stamp}-${index}`
-  const target = join(root, id)
-  await mkdir(target)
-  for (const file of files) await writeFile(join(target, file.name), file.content)
-  const manifest = { profile: name, home, createdAt: Date.now(), signature, files: files.map((file) => ({ name: file.name, size: file.content.length })) }
-  await writeFile(join(target, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`)
-  await rotateProfileBackups(name, home)
-  return { id, ...manifest }
-}
-
-/** 回退到某份配置快照：先给当前状态再存一份，所以回退本身也能再退回来。 */
-async function restoreProfileConfig(profile, id) {
-  const name = safeProfile(profile || PROFILE_NAME)
-  if (!PROFILE_BACKUP_ID.test(String(id || ''))) throw new Error('备份编号不对')
-  const home = homeDir()
-  const root = profileBackupRoot(name, home)
-  const source = join(root, String(id))
-  const manifest = readBackupManifest(source)
-  if (!manifest) throw new Error('找不到这份备份')
-  if (!manifest.files.some((file) => file.name === 'package.json')) throw new Error('这份备份里没有 package.json，回退会让配置起不来')
-  // 只拦「同一个 DSH_HOME 里的同名配置」：web 这类模板名在每个目录里都有一份，只比名字的话，
-  // 另一个目录的 web 在跑也会把这个已经停掉的实例拦下来（「remote」停着、主实例跑着时回退不了）。
-  const busy = startingProfiles.has(profileKey(name))
-    || instanceList().some((proc) => proc.profile === name && fileManager.samePath(proc.home || defaultHome(), home) && ['starting', 'running', 'stopping'].includes(proc.status))
-  if (busy) throw new Error('请先停止这个配置的实例再回退')
-  const dir = profileDirOf(name)
-  const saved = await snapshotProfileConfig(name, { force: true })
-  for (const file of PROFILE_BACKUP_FILES) {
-    const target = join(dir, file)
-    const included = manifest.files.some((entry) => entry.name === file)
-    if (included) await writeFile(target, readFileSync(join(source, file)))
-    else if (existsSync(target)) await rm(target, { force: true })
-  }
-  pushLog(`[备份] 配置 ${name} 回退到 ${id}${saved ? `（回退前已存一份 ${saved.id}）` : ''}`)
-  return { ok: true, restored: String(id), backup: saved }
-}
-
-/** 手动删掉一份配置快照：只认这个 profile 备份根目录下的合法时间戳目录。 */
-async function deleteProfileBackup(profile, id) {
-  const name = safeProfile(profile || PROFILE_NAME)
-  const backupId = String(id || '')
-  if (!PROFILE_BACKUP_ID.test(backupId)) throw new Error('备份编号不对')
-  const target = join(profileBackupRoot(name, homeDir()), backupId)
-  if (!readBackupManifest(target)) throw new Error('找不到这份备份')
-  await rm(target, { recursive: true, force: true })
-  pushLog(`[备份] 配置 ${name} 删除备份 ${backupId}`)
-  return { ok: true, deleted: backupId }
-}
-
-/**
- * 配置层回退之后再按清单把依赖装齐。
- *
- * 备份里只有配置文件，node_modules 不在其中；回退可能让 package.json 重新引用已经卸掉的
- * 包，插件页就会整片「包不可用」。这里跑一次 `dsh plugin install`，让 node_modules 和
- * 还原后的清单对齐。装失败不影响回退本身，只把原因带回去给页面显示。
- */
-async function reinstallAfterRollback(profile) {
-  let manifest
-  try {
-    manifest = JSON.parse(readFileSync(join(profileDirOf(profile), 'package.json'), 'utf8'))
-  } catch {
-    // 还原后没有（或读不了）清单：没东西可装。明确回 skipped，页面才不会说「已重装依赖」
-    return { ok: true, skipped: true }
-  }
-  const dependencies = manifest?.dependencies
-  // 没有直接依赖就没什么可装的（官方 bundle 由 dsh 自己带），别白起一次 pnpm。
-  if (!dependencies || typeof dependencies !== 'object' || !Object.keys(dependencies).length) return { ok: true, skipped: true }
-  if (pluginBusy) return { ok: false, error: '正在装插件或整合包，跳过依赖重装' }
-  let version
-  try {
-    version = await pluginCommandVersion(profile)
-  } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error) }
-  }
-  pluginBusy = true
-  try {
-    await runProfileInstall(version, { profile })
-    pushLog(`[备份] 配置 ${profile} 回退后已重装依赖`)
-    return { ok: true }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    pushLog(`[备份] 配置 ${profile} 回退后重装依赖失败：${message}`)
-    return { ok: false, error: message }
-  } finally {
-    pluginBusy = false
-  }
-}
+// ---- profile 配置层备份（实现收拢在 profile-backups.js） ----
+const {
+  listProfileBackups,
+  rotateProfileBackups,
+  snapshotProfileConfig,
+  restoreProfileConfig,
+  deleteProfileBackup,
+  reinstallAfterRollback,
+} = createProfileBackups({
+  isWindows: IS_WINDOWS,
+  getDataDir: () => DATA,
+  homeDir,
+  defaultHome,
+  getDefaultProfile: () => PROFILE_NAME,
+  safeProfile,
+  profileDirOf,
+  profileKey,
+  startingProfiles,
+  instanceList,
+  samePath: (a, b) => fileManager.samePath(a, b),
+  pushLog,
+  isPluginBusy: () => pluginBusy,
+  setPluginBusy: (v) => { pluginBusy = v },
+  pluginCommandVersion,
+  runProfileInstall,
+})
 
 /**
  * 这次启动要不要开局域网代理：只看设置里的 Web 绑定。
@@ -5632,9 +5175,6 @@ function targetMcpProfile(url, body) {
 }
 function patchFileFor(profile = PROFILE_NAME) {
   return join(profileDirOf(profile), 'cordis.patch.yml')
-}
-function patchFile() {
-  return patchFileFor(PROFILE_NAME)
 }
 
 /** 技能接口的统一载荷：列表 + 两个受管根 + 本地技能总开关状态。传了 profile 时走该实例独立的技能目录。 */
@@ -6775,6 +6315,8 @@ export function describePluginFailure(output, label, code) {
 
 /** 同一条子进程流可能混有 Node 的 UTF-8 和 cmd 的 GBK；逐行辨认，保留原始中文原因。 */
 export function decodeProcessOutput(bytes, platform = process.platform) {
+  if (typeof bytes === 'string') return bytes
+  if (!bytes) return ''
   try { return new TextDecoder('utf-8', { fatal: true }).decode(bytes) }
   catch { return platform === 'win32' ? new TextDecoder('gb18030').decode(bytes) : Buffer.from(bytes).toString('utf8') }
 }
@@ -6799,7 +6341,7 @@ async function runPluginCommand(ver, args, label, options = {}) {
       return
     }
     const child = target
-      ? spawn(process.execPath, [join(ROOT, 'repair-uninstall.mjs'), target.harnessEntry, target.home, profile, args[1]], { cwd: profileDirOf(profile), env: dshEnv(ver, { pnpmDir }), windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
+      ? spawn(RUNTIME_NODE, [join(ROOT, 'repair-uninstall.mjs'), target.harnessEntry, target.home, profile, args[1]], { cwd: profileDirOf(profile), env: { ...dshEnv(ver, { pnpmDir }), ...RUNTIME_NODE_ENV }, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
       : spawnDsh(ver, ['plugin', '--profile', cliProfile || profile, ...args], '', { pnpmDir })
     // 留一份输出尾巴挂在错误上：只报退出码的话调用方没法判断是哪种失败，只能瞎猜着重试
     const tail = []
@@ -7302,15 +6844,6 @@ async function repairProfileDeps(version, error, profile = PROFILE_NAME) {
     return false
   } finally {
     pluginBusy = false
-  }
-}
-
-/** 读一个目录下 package.json 的版本号（读不到给 null）。 */
-function readPackageVersion(dir) {
-  try {
-    return JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')).version ?? null
-  } catch {
-    return null
   }
 }
 
@@ -8332,8 +7865,10 @@ async function bootOnce(ver, prof, onStarted) {
     const prepareMs = Math.round(spawnAt - startedAt)
     const readyMs = Math.round(readyAt - spawnAt)
     const confirmMs = Math.round(confirmedAt - readyAt)
-    recordLaunchRun(launchScope.getStore()?.launchId, {
-      at: Date.now(),
+    const launchId = launchScope.getStore()?.launchId
+    const runAt = Date.now()
+    recordLaunchRun(launchId, {
+      at: runAt,
       version: ver,
       profile: prof,
       totalMs: Math.round(confirmedAt - startedAt),
@@ -8341,9 +7876,12 @@ async function bootOnce(ver, prof, onStarted) {
       readyMs,
       confirmMs,
       firstOutputMs: proc.firstOutputAt ? Math.round(proc.firstOutputAt - spawnAt) : null,
-      // 启动结算时读一次子进程 RSS：进程级常驻，够用的“大概”
-      startupRssMB: readProcessRssMB(proc.child?.pid),
+      // RSS 异步采样后回填，不让同步 tasklist 把每次启动的返回拖慢 500ms
+      startupRssMB: null,
     })
+    if (launchId && proc.child?.pid) {
+      void readProcessRssMB(proc.child.pid).then((rss) => patchLaunchRunRss(launchId, runAt, rss))
+    }
     pushLog(`启动耗时 ${ver}/${prof}：准备 ${prepareMs}ms，子进程就绪地址 ${readyMs}ms，确认 ${confirmMs}ms，总计 ${Math.round(confirmedAt - startedAt)}ms`)
     // 钉了端口却没落到上面（额外参数里另有 --port，或 dsh 自己顺延了）：如实说一句，
     // 否则用户以为存下来的地址还有效
@@ -9514,10 +9052,15 @@ function pickFile({ save = false, name = '' } = {}) {
  * 做成「能打开任意路径」等于给本机开了个文件管理器后门。
  */
 function revealPath(target) {
-  const value = String(target || '')
-  if (!value) throw new Error('先给一个路径')
+  const raw = String(target || '')
+  if (!raw) throw new Error('先给一个路径')
+  const value = resolve(raw)
   if (!existsSync(value)) throw new Error('这个路径不存在')
-  const allowed = value === lastExportPath || value === packsDir() || value.startsWith(`${packsDir()}${sep}`)
+  const packsRoot = resolve(packsDir())
+  const lastExport = lastExportPath ? resolve(lastExportPath) : ''
+  const allowed = (lastExport && fileManager.samePath(value, lastExport))
+    || fileManager.samePath(value, packsRoot)
+    || fileManager.pathKey(value).startsWith(`${fileManager.pathKey(packsRoot)}${sep}`)
   if (!allowed) throw new Error('只支持显示整合包自己的文件')
   return fileManager.revealPath(value)
 }
@@ -9721,7 +9264,8 @@ function sameSiteRequest(req) {
   if (!origin) return true
   try {
     const parsed = new URL(origin)
-    return LOCAL_HOSTS.has(parsed.hostname.toLowerCase()) && (!parsed.port || Number(parsed.port) === PORT)
+    const originPort = parsed.port ? Number(parsed.port) : (parsed.protocol === 'https:' ? 443 : 80)
+    return LOCAL_HOSTS.has(parsed.hostname.toLowerCase()) && originPort === PORT
   } catch {
     return false
   }
@@ -9833,15 +9377,24 @@ async function uninstall(version) {
 }
 
 async function readJson(req) {
+  const pathname = req.url?.split('?')[0] || ''
+  // 除技能包上传外统一限制 4 MB，避免超大 POST 把内存打满
+  const limit = pathname === '/api/skills/preview' ? 48 * 1024 * 1024 : 4 * 1024 * 1024
   const chunks = []
   let size = 0
   for await (const chunk of req) {
     size += chunk.length
-    if (req.url?.split('?')[0] === '/api/skills/preview' && size > 48 * 1024 * 1024) throw new Error('技能上传内容过大')
+    if (size > limit) {
+      throw Object.assign(new Error(pathname === '/api/skills/preview' ? '技能上传内容过大' : '请求体过大'), { statusCode: 413 })
+    }
     chunks.push(chunk)
   }
   if (!chunks.length) return {}
-  return JSON.parse(Buffer.concat(chunks).toString('utf8'))
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'))
+  } catch {
+    throw Object.assign(new Error('请求体不是有效的 JSON'), { statusCode: 400 })
+  }
 }
 
 /** MCP 检测同时跑几台；stdio 探测要起真进程，别一次全放出去。 */
@@ -11053,6 +10606,11 @@ async function handleApi(req, res, url) {
     return
   }
   if (req.method === 'GET' && url.pathname === '/api/events') {
+    let closed = false
+    req.on('close', () => {
+      closed = true
+      clients.delete(res)
+    })
     res.writeHead(200, {
       'content-type': 'text/event-stream',
       'cache-control': 'no-cache',
@@ -11062,16 +10620,17 @@ async function handleApi(req, res, url) {
     if (typeof res.flushHeaders === 'function') res.flushHeaders()
     // 先把旧批次交给既有连接，避免新连接先收回放、随后又收到同一批待发送日志。
     flushLogEvents()
+    const snap = await snapshot()
+    if (closed || res.destroyed || res.writableEnded) return
     res.write(`event: log\ndata: ${JSON.stringify({ lines: logs.slice(-120) })}\n\n`)
-    res.write(`event: state\ndata: ${JSON.stringify(await snapshot())}\n\n`)
+    res.write(`event: state\ndata: ${JSON.stringify(snap)}\n\n`)
     if (installProgress) res.write(`event: progress\ndata: ${JSON.stringify(installProgress)}\n\n`)
     if (pluginProgress) res.write(`event: progress\ndata: ${JSON.stringify({ ...pluginProgress, kind: 'plugin', name: pluginProgressName, profile: pluginProgressProfile })}\n\n`)
     // 整合包：检查和安装都可能几十秒（下载 + 解包 + pnpm），刷新页面要能接着显示
     if (packProgress) res.write(`event: progress\ndata: ${JSON.stringify({ ...packProgress, kind: 'pack', name: packProgressName })}\n\n`)
     // 同步跑得久，页面中途刷新也要能接着显示进度
     if (syncState) res.write(`event: sync\ndata: ${JSON.stringify(syncState)}\n\n`)
-    clients.add(res)
-    req.on('close', () => clients.delete(res))
+    if (!closed && !res.destroyed && !res.writableEnded) clients.add(res)
     return
   }
 
@@ -11651,7 +11210,7 @@ async function handleApi(req, res, url) {
     // 安全启动：把补丁层整体移出启动路径（备份即改名），清单里只留官方 bundle。
     // 这是逐行自动禁用都失效时的最后手段；备份路径要回给页面，方便一键还原。
     try {
-      const profile = body.profile ? String(body.profile) : PROFILE_NAME
+      const profile = body.profile ? safeProfile(String(body.profile)) : PROFILE_NAME
       const dir = profileDirOf(profile)
       if (maintainingProfiles.has(profileKey(profile))) throw new Error(`配置「${profile}」正在修改，稍后再试`)
       // 补丁层马上要改名移出 profile：先在启动器自己的配置备份里留一份（#88 里那次快照
@@ -11672,7 +11231,7 @@ async function handleApi(req, res, url) {
   }
   if (req.method === 'POST' && url.pathname === '/api/recover/restore') {
     try {
-      const profile = body.profile ? String(body.profile) : PROFILE_NAME
+      const profile = body.profile ? safeProfile(String(body.profile)) : PROFILE_NAME
       const dir = profileDirOf(profile)
       if (maintainingProfiles.has(profileKey(profile))) throw new Error(`配置「${profile}」正在修改，稍后再试`)
       const result = await restoreProfileBackup(dir, body.backup)
@@ -11743,6 +11302,10 @@ async function handleApi(req, res, url) {
       send(res, 400, { error: error instanceof Error ? error.message : String(error) })
       return
     }
+    if (pluginBusy) {
+      send(res, 409, { error: '正在装插件或整合包，等它结束再试' })
+      return
+    }
     const { installed, failed } = await installDesktopEnhance(profile, version)
     pushLog(`桌面增强：${profile} 安装完成，成功 ${installed.length} 个${failed.length ? `，失败 ${failed.length} 个` : ''}（下次启动时加载；正在运行的实例重启后生效）`)
     send(res, 200, { ok: failed.length === 0, installed, failed, desktopEnhance: desktopEnhanceSummary(profile), ...listPlugins(profileDirOf(profile)), profile })
@@ -11770,6 +11333,10 @@ async function handleApi(req, res, url) {
       version = await pluginCommandVersion(profile)
     } catch (error) {
       send(res, 400, { error: error instanceof Error ? error.message : String(error) })
+      return
+    }
+    if (pluginBusy) {
+      send(res, 409, { error: '正在装插件或整合包，等它结束再试' })
       return
     }
     const removed = []
@@ -11882,6 +11449,10 @@ async function handleApi(req, res, url) {
  */
   if (req.method === 'POST' && url.pathname === '/api/plugins/upgrade-incompatible') {
     try {
+      if (pluginBusy) {
+        send(res, 409, { error: '正在安装或卸载插件，等它结束再试' })
+        return
+      }
       const profile = safeProfile(String(body.profile || PROFILE_NAME))
       const version = String(body.version || '')
       if (!VERSION_RE.test(version)) throw new Error('版本号不正确')
@@ -11889,8 +11460,13 @@ async function handleApi(req, res, url) {
       const official = candidates.map((item) => item.name).filter((name) => name.startsWith('@deepseek-ai/'))
       const skipped = candidates.map((item) => item.name).filter((name) => !name.startsWith('@deepseek-ai/'))
       if (!official.length) throw new Error('没有可自动升级的官方插件，请在插件市场里处理')
-      for (const name of official) {
-        await runPluginCommand(version, ['add', `${name}@${version}`], `升级 ${name}`, { profile })
+      pluginBusy = true
+      try {
+        for (const name of official) {
+          await runPluginCommand(version, ['add', `${name}@${version}`], `升级 ${name}`, { profile })
+        }
+      } finally {
+        pluginBusy = false
       }
       pushLog(`插件升级到 ${version}：${official.join('、')}（重启实例后生效）`)
       send(res, 200, { ok: true, upgraded: official, skipped })
@@ -12537,22 +12113,28 @@ export async function startServer() {
         return
       }
       const file = url.pathname === '/' ? 'index.html' : url.pathname.slice(1)
+      const isIndex = file.toLowerCase() === 'index.html'
       // 管理页本身要令牌：页面里嵌着版本、实例和 dsh 的临时 token，不能靠「别人读不到」。
       // 静态资源（js/css/图片）不挡——它们不含数据，挡了只会让 401 页面变成空白。
-      if (file === 'index.html' && !managerAuth?.isAuthenticated(req)) {
+      if (isIndex && !managerAuth?.isAuthenticated(req)) {
         managerAuth?.unauthorized(res)
         return
       }
-      const path = join(PUBLIC, file)
-      if (!path.startsWith(PUBLIC) || !existsSync(path)) {
+      const path = resolve(PUBLIC, file)
+      const publicRoot = resolve(PUBLIC)
+      if (!fileManager.pathKey(path).startsWith(`${fileManager.pathKey(publicRoot)}${sep}`) || !existsSync(path)) {
+        send(res, 404, 'not found', 'text/plain; charset=utf-8')
+        return
+      }
+      const info = statSync(path)
+      if (!info.isFile()) {
         send(res, 404, 'not found', 'text/plain; charset=utf-8')
         return
       }
       const type = mime(path)
       // 首页嵌着即时设置，仍不缓存；静态资源允许条件重用，源码修改和升级都能立即生效。
       const headers = {}
-      if (file !== 'index.html') {
-        const info = statSync(path)
+      if (!isIndex) {
         headers['cache-control'] = 'no-cache'
         headers.etag = `W/"${info.size.toString(16)}-${info.mtimeMs.toString(16)}"`
       }
@@ -12564,7 +12146,7 @@ export async function startServer() {
       }
       if (isTextFile(file)) {
         let body = await readFile(path, 'utf8')
-        if (file === 'index.html') {
+        if (isIndex) {
           body = body.replaceAll('__APP_VERSION__', APP_VERSION).replaceAll('__APP_LANG__', LANG).replaceAll('__APP_THEME__', THEME).replaceAll('__APP_PANEL_TRANSPARENCY__', String(PANEL_TRANSPARENCY)).replaceAll('__APP_REDUCE_MOTION__', String(REDUCE_MOTION)).replaceAll('__APP_HIDE_BACKGROUND__', String(HIDE_BACKGROUND)).replaceAll('__APP_HIDE_BIG_FISH__', String(HIDE_BIG_FISH))
         }
         send(res, 200, body, `${type}; charset=utf-8`, headers)
@@ -12573,9 +12155,10 @@ export async function startServer() {
       send(res, 200, await readFile(path), type, headers)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      pushLog(`错误: ${message}`)
+      const status = Number.isInteger(error?.statusCode) && error.statusCode >= 400 && error.statusCode < 600 ? error.statusCode : 500
+      if (status >= 500) pushLog(`错误: ${message}`)
       const failure = publicFailure(error?.failure)
-      send(res, 500, failure ? { error: message, failure } : { error: message })
+      send(res, status, failure ? { error: message, failure } : { error: message })
     }
   }
 

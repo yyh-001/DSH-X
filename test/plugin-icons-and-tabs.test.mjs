@@ -559,8 +559,9 @@ test('实例详情页：4 签切换（配置签）、已安装/市场子签切�
   assert.match(html, /id="mcpEnv"/)
   assert.match(html, /id="skillSubtabs"[\s\S]*?data-skill-subtab="installed"[\s\S]*?data-skill-subtab="market"[\s\S]*?id="skillSearch"[\s\S]*?id="skillMarketPane"/)
   assert.doesNotMatch(html, /data-skill-subtab="openai"/)
-  assert.match(html, /function mcpRow\(server\)[\s\S]*?plugin-installed-card mcp-card[\s\S]*?plugin-installed-head[\s\S]*?plugin-installed-actions/)
-  assert.match(html, /function skillRow\(skill\)[\s\S]*?plugin-installed-card skill-card[\s\S]*?plugin-installed-head[\s\S]*?plugin-installed-actions[\s\S]*?class="skill-open-desc"[^>]*><span class="plugin-desc plugin-installed-desc">/)
+  const mcpSkillsJs = readFileSync(new URL('../src/public/mcp-skills-page.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+  assert.match(mcpSkillsJs, /function mcpRow\(server\)[\s\S]*?plugin-installed-card mcp-card[\s\S]*?plugin-installed-head[\s\S]*?plugin-installed-actions/)
+  assert.match(mcpSkillsJs, /function skillRow\(skill\)[\s\S]*?plugin-installed-card skill-card[\s\S]*?plugin-installed-head[\s\S]*?plugin-installed-actions[\s\S]*?class="skill-open-desc"[^>]*><span class="plugin-desc plugin-installed-desc">/)
   assert.match(css, /#mcpList,\s*#skillList\s*\{[^}]*display:\s*grid;\s*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/)
   assert.match(css, /#mcpList,\s*#skillList\s*\{[^}]*grid-auto-rows:\s*max-content/, '双列卡片的行高要按内容算，auto 行会被压成一行文字的高度')
   assert.match(css, /#mcpList:not\(\[hidden\]\):has\(>\s*\.plugin-empty\),\s*#skillList:not\(\[hidden\]\):has\(>\s*\.plugin-empty\)\s*\{\s*display:\s*block;?\s*\}/)
@@ -584,7 +585,8 @@ test('实例详情页：4 签切换（配置签）、已安装/市场子签切�
   assert.doesNotMatch(html, /id="envLaunchBrowseHome"/)
   assert.doesNotMatch(html, /createUiSelect\(homeEl\)/)
   assert.doesNotMatch(html, /createUiSelect\(envSelectEl\)/)
-  assert.match(html, /data-env-home-create[\s\S]*?创建项目/)
+  const envLaunchConfigJs = readFileSync(new URL('../src/public/env-launch-config.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+  assert.match(envLaunchConfigJs, /data-env-home-create[\s\S]*?创建项目/)
   assert.match(html, /if\s*\(!launchDialogEl\.hidden\)\s*void\s*forceHidePackDialog\(launchDialogEl\)[\s\S]*?closeEnvLaunchConfig\(\)/)
   assert.match(css, /\.environment-launch-card\s+\.project-device-trigger/)
   assert.match(css, /\.env-launch-grid-mid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/)
@@ -602,20 +604,15 @@ test('实例详情页：4 签切换（配置签）、已安装/市场子签切�
 
   // 实例配置弹窗打开瞬间先展示居中加载动画，数据就绪后再显现详情视图，避免空白闪烁
   assert.match(html, /id="launchPluginsLoading"[^>]*\shidden[\s\S]*?plugin-empty-spinner[\s\S]*?id="launchPluginsLoadingText"/)
-  assert.match(html, /globalThis\.openEnvironmentDetail\s*=[\s\S]*?launchPluginsCardEl\.classList\.add\('is-loading'\)[\s\S]*?host\.hidden\s*=\s*true[\s\S]*?await opening[\s\S]*?await reloading[\s\S]*?launchPluginsCardEl\.classList\.remove\('is-loading'\)[\s\S]*?host\.hidden\s*=\s*false/)
+  assert.match(mcpSkillsJs, /globalThis\.openEnvironmentDetail\s*=[\s\S]*?launchPluginsCardEl\.classList\.add\('is-loading'\)[\s\S]*?host\.hidden\s*=\s*true[\s\S]*?await opening[\s\S]*?await reloading[\s\S]*?launchPluginsCardEl\.classList\.remove\('is-loading'\)[\s\S]*?host\.hidden\s*=\s*false/)
   assert.match(envJs, /!byId\('launchPluginsCard'\)\?\.classList\?\.contains\?\.\('is-loading'\)/)
   assert.match(css, /#launchPluginsHost\[hidden\],\s*#launchPluginsLoading\[hidden\]\s*\{\s*display:\s*none;\s*\}/)
   assert.match(css, /\.launch-plugins-loading\s*\{[^}]*justify-content:\s*center/)
 })
 
 test('启动项配置卡：设为环境变量 DSH_HOME 开关跟随当前用户目录状态并支持开启、关闭与状态同步', async () => {
-  const html = readFileSync(new URL('../src/public/index.html', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
-  const startMark = '    // 实例详情「配置」页签顶部的启动项配置卡'
-  const endMark = '    applyLang()'
-  const start = html.indexOf(startMark)
-  const end = html.indexOf(endMark, start)
-  assert.ok(start >= 0 && end > start, '能找到启动项配置卡脚本片段')
-  const snippet = html.slice(start, end)
+  const snippet = readFileSync(new URL('../src/public/env-launch-config.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+  assert.ok(snippet.includes('envLaunchConfigDialog'), '能读到独立的启动项配置卡脚本')
 
   const elements = new Map()
   const byId = (id) => {

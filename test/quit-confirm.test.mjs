@@ -3,6 +3,7 @@
  * 三层分别在三个文件里，这里把接缝看住（页面里的弹框复用 appConfirm，不用系统原生框）。
  */
 import assert from 'node:assert/strict'
+import { readEnDict } from './helpers/frontend-source.mjs'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -44,7 +45,7 @@ test('管理页用样式化确认框回答外壳，换过的按钮文案会还�
   assert.match(html, /okButton\.textContent = okText \|\| t\(okButton\.dataset\.i18n \|\| '确定'\)/)
   // 确认框正被别的操作占着时先等它关掉，别抢走那个操作的回答
   assert.match(html, /while \(!confirmDialogEl\.hidden\) await new Promise/)
-  const dict = new vm.Script(`(${html.match(/const EN = (\{[\s\S]*?\n\})/)[1]})`).runInNewContext()
+  const dict = readEnDict()
   for (const text of ['退出 DSH-X', '停止并退出', '保留运行', '还有 1 个实例在运行，退出会先停止它。', '还有 {count} 个实例在运行，退出会先停止它们。']) {
     assert.ok(dict[text], `「${text}」缺英文`)
   }

@@ -5,6 +5,7 @@ import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
+import { readEnSource } from './helpers/frontend-source.mjs'
 import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
 
@@ -82,8 +83,9 @@ test('主界面留着上次启动失败的入口：托盘里点的启动没有�
     '那个组合没在跑、提示行也没被安装进度占着时才提示',
   )
   assert.match(html, /closest\('\[data-failure\]'\) && state\.failure\) showFailure\(state\.failure\)/, '点提示行上的入口重新打开那段输出')
+  const enSource = readEnSource()
   for (const key of ['启动失败', '{label} 启动失败', '{label} 启动超时', '{text}（退出码 {code}）', '{text}，以下是 dsh 退出前的输出：', '查看错误信息', '复制错误信息', '已复制']) {
-    assert.ok(html.includes(`  "${key}": "`), `英文界面要有「${key}」`)
+    assert.ok(enSource.includes(`  "${key}": "`), `英文界面要有「${key}」`)
   }
 })
 

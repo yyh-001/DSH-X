@@ -1994,33 +1994,6 @@ html.reduce-motion .remote-device-logs > summary svg { transition: none; }
 .remote-device-empty svg { width: 26px; height: 26px; opacity: .55; }
 .remote-device-empty strong { font-size: 13px; font-weight: 500; }
 .remote-device-empty small { font-size: 11.5px; }
-.remote-device-incomplete { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line); }
-.remote-device-incomplete[hidden] { display: none; }
-.remote-device-incomplete > summary { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; cursor: pointer; list-style: none; }
-.remote-device-incomplete > summary::-webkit-details-marker { display: none; }
-.remote-device-incomplete > summary svg { width: 14px; height: 14px; transition: transform var(--motion-fast) var(--ease-standard); }
-.remote-device-incomplete[open] > summary svg { transform: rotate(90deg); }
-.remote-device-incomplete-list { display: grid; gap: 4px; margin-top: 8px; }
-.remote-device-incomplete-row { padding: 10px 2px; }
-.remote-device-incomplete-row + .remote-device-incomplete-row { border-top: 1px solid var(--line); }
-.remote-device-incomplete-main { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
-.remote-device-incomplete-kind { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); font-size: 10.5px; font-weight: 600; }
-.remote-device-incomplete-kind.is-wsl { border-color: #b7d4a9; background: #eef8e8; color: #4f7d3b; }
-.remote-device-incomplete-kind.is-ssh { border-color: #b9c9e8; background: #eef3fd; color: #3d5f9e; }
-html[data-color-scheme="dark"] .remote-device-incomplete-kind.is-wsl { border-color: #3f5f36; background: #1d2c19; color: #9bc885; }
-html[data-color-scheme="dark"] .remote-device-incomplete-kind.is-ssh { border-color: #34445f; background: #1c2635; color: #a9c7f5; }
-.remote-device-incomplete-main strong { font-size: 12.5px; font-weight: 600; }
-.remote-device-incomplete-main small { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; }
-.remote-device-incomplete-error { flex-basis: 100%; order: 10; color: var(--muted); font-size: 11.5px; line-height: 1.5; overflow-wrap: anywhere; }
-.remote-device-incomplete-actions { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-left: auto; }
-.remote-device-incomplete-actions .ghost { height: 26px; padding: 0 9px; border-radius: 7px; font-size: 11.5px; }
-.remote-device-incomplete-actions .ghost.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, var(--line)); }
-.remote-device-incomplete-actions .ghost.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 10%, transparent); }
-.remote-device-incomplete-logs { margin-top: 5px; color: var(--muted); font-size: 11.5px; }
-.remote-device-incomplete-logs > summary { width: fit-content; cursor: pointer; list-style: none; }
-.remote-device-incomplete-logs > summary::-webkit-details-marker { display: none; }
-.remote-device-incomplete-logs pre { max-height: 110px; margin: 6px 0 0; padding: 8px 10px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface, var(--card)); color: var(--text); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10.5px; line-height: 1.6; white-space: pre-wrap; }
-.remote-device-incomplete-actions .ghost:first-child { border-color: var(--accent); color: var(--accent); }
 @media (max-width: 720px) {
   .remote-device-projects { display: none; }
   .remote-device-detail { padding-left: 12px; }
@@ -3425,43 +3398,7 @@ html.reduce-motion .environment-market-tools .icon-btn.is-loading svg { animatio
 }
 .plugin-market-tag.is-warn { background: rgba(245, 158, 11, 0.16); color: #d97706; }
 
-.computer-use-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.computer-use-badge {
-  display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px;
-  font-size: 12px; font-weight: 500; background: var(--accent-soft); color: var(--muted);
-}
-.computer-use-badge.is-running { background: rgba(45, 175, 110, 0.16); color: #2daf6e; }
-.computer-use-badge.is-stopped { background: rgba(229, 72, 77, 0.14); color: #e5484d; }
-.computer-use-audit { display: grid; gap: 6px; max-height: 220px; overflow: auto; margin-top: 8px; }
-.computer-use-audit-row {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  padding: 6px 10px; border-radius: 8px; background: var(--accent-soft); font-size: 12px;
-}
-.computer-use-audit-main { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
-.computer-use-audit-time { color: var(--muted); font-variant-numeric: tabular-nums; }
-.computer-use-audit-app { font-weight: 500; color: var(--text); }
-.computer-use-audit-action { color: var(--accent); }
-.computer-use-audit-detail { color: var(--muted); overflow-wrap: anywhere; }
-.computer-use-audit-result { flex: 0 0 auto; font-size: 11px; color: var(--muted); }
-.computer-use-audit-result.is-error { color: #e5484d; }
-
-/* 「加入插件」市场弹窗：对齐官方插件市场布局（折行分类胶囊、单行等高卡片、微动效） */
-.ask-card.plugin-market-dialog-card[data-dialog-size="large"] {
-  width: min(880px, 100%);
-  max-height: min(86vh, 740px);
-  padding: 22px 24px 18px;
-}
-.plugin-market-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-.plugin-market-title-wrap { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.plugin-market-title-wrap .ask-title { margin: 0; font-size: 17.5px; letter-spacing: -0.01em; }
 .plugin-market-source { width: auto; max-width: 220px; height: 32px; padding: 0 26px 0 10px; font-size: 12px; border-radius: 9px; }
-.plugin-market-head-actions { display: flex; align-items: center; gap: 8px; flex: 1 1 auto; justify-content: flex-end; min-width: 0; }
-.plugin-market-head-actions .icon-btn {
-  width: 34px; height: 34px; border-radius: 10px;
-  transition: background-color var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard), transform var(--motion-instant) var(--ease-standard);
-}
-.plugin-market-head-actions .icon-btn:active:not(:disabled) { transform: scale(0.94); }
-.plugin-market-head-actions .icon-btn.is-loading svg { animation: spin var(--motion-spin) linear infinite; }
 .plugin-market-search {
   display: inline-flex; align-items: center; gap: 7px; width: min(240px, 100%); height: 32px; margin: 0;
   padding: 0 10px; border: 1px solid color-mix(in srgb, var(--line) 75%, transparent); border-radius: 9px;
@@ -3491,9 +3428,6 @@ html.reduce-motion .environment-market-tools .icon-btn.is-loading svg { animatio
 .plugin-market-tabs.fade-start { -webkit-mask-image: linear-gradient(to right, transparent, #000 36px); mask-image: linear-gradient(to right, transparent, #000 36px); }
 .plugin-market-tabs.fade-start.fade-end { -webkit-mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); }
 .plugin-market-tabs[hidden] { display: none; }
-.plugin-market-tab-sep {
-  width: 1px; height: 14px; background: var(--line); margin: 0 4px; opacity: 0.65; flex: 0 0 auto;
-}
 .plugin-market-tab {
   display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: auto; height: 28px; padding: 0 11px; border-radius: 8px; border: 1px solid transparent;
   background: transparent; color: var(--muted); font-size: 12px; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer;

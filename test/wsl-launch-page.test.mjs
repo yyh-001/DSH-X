@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readEnSource } from './helpers/frontend-source.mjs'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
@@ -263,8 +264,7 @@ test('WSL Profile 摘要：晚回来的旧请求不能把别的 Profile 的插�
 })
 
 test('WSL / 更新按钮的英文文案：词条齐全，状态 tooltip 走 t()', () => {
-  const enStart = at('const EN = {')
-  const en = page.slice(enStart, page.indexOf('\n}\n', enStart))
+  const en = readEnSource()
   for (const key of ['选择一个发行版…', 'WSL 里的 Profile', '这个 Profile 还没初始化', '更新外壳', '更新外壳到 {latest}', '更新核心', '更新核心到 {latest}', '更新']) {
     assert.ok(en.includes(`  ${JSON.stringify(key)}: `), `EN 缺 ${key}`)
   }

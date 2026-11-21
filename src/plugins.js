@@ -10,8 +10,9 @@
  * - 删掉最后一行后恢复模板的 `[]` 占位，否则整个 profile 起不来；
  * - 官方包（@deepseek-ai/*）与市场自管行（mkt-/client-）不提供开关。
  */
-import { copyFileSync, existsSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { extname, isAbsolute, join, relative, resolve, sep, win32 } from 'node:path'
+import { backupOnce } from './fs-utils.js'
 
 const ROW_ID_RE = /^[A-Za-z0-9_.-]+$/
 const MAX_PLUGIN_ICON_BYTES = 256 * 1024
@@ -144,11 +145,6 @@ export function packageRowIds(profileDir, packageName) {
     // 没有传统位置的补丁
   }
   return [...ids]
-}
-
-function packageVersion(profileDir, name) {
-  const meta = packageMeta(profileDir, name)
-  return meta.version
 }
 
 function resolveExportedIconPath(entry) {
@@ -371,14 +367,6 @@ function ensurePlaceholder(text) {
   const revived = text.replace(/^[ \t]*#[ \t]*\[[ \t]*\][ \t]*(?:\r?\n|$)/mu, '[]\n')
   if (revived !== text) return revived
   return text === '' || text.endsWith('\n') ? `${text}[]\n` : `${text}\n[]\n`
-}
-
-function backupOnce(patchPath) {
-  try {
-    if (existsSync(patchPath)) copyFileSync(patchPath, `${patchPath}.bak`)
-  } catch {
-    // 备份失败不阻塞开关本身
-  }
 }
 
 /** 禁用一条 loader 行（幂等）。返回是否发生变化。 */

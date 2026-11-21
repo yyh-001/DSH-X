@@ -8,6 +8,7 @@
  * 和设置页那份测试同一种做法——直接读 index.html / environments-page.js 断言结构，交互函数抠出来放进 vm 里跑，不做浏览器渲染。
  */
 import assert from 'node:assert/strict'
+import { readEnDict, readEnSource } from './helpers/frontend-source.mjs'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import vm from 'node:vm'
@@ -531,7 +532,7 @@ test('导入成功跳到环境页打开新环境，真失败才弹「导入失�
 })
 
 test('环境与 Profile 相关的中文文案都有英文', () => {
-  const dict = new vm.Script(`(${html.match(/const EN = (\{[\s\S]*?\n\})/)[1]})`).runInNewContext()
+  const dict = readEnDict()
   const cjk = /[一-鿿]/
   const missing = new Set()
   const add = (text) => { if (cjk.test(text) && !dict[text]) missing.add(text) }
@@ -572,7 +573,7 @@ function uiSource(text) {
     .map((line) => line.replace(/\s\/\/\s.*$/, ''))
     .join('\n')
 }
-const enDict = () => new vm.Script(`(${html.match(/const EN = (\{[\s\S]*?\n\})/)[1]})`).runInNewContext()
+const enDict = () => readEnDict()
 
 // 中文界面的叫法：「实例」= 装好插件的 DSH（代码里仍叫 environment），「配置」= dsh profile；英文界面是 Instance / Profile。
 // 上游早先拿「环境」说 profile，这个分支又一度把新对象叫「环境」、把 profile 写成「Profile」；两边合并时最容易被旧文案冲回来，这里逐条钉住
@@ -943,8 +944,8 @@ test('配置页标题下有一行说明（和实例页一样）：配置 = dsh �
 })
 
 test('这次新加的文案有英文，返回按钮的提示可翻译，「修复配置」不再重复', () => {
-  const source = html.match(/const EN = (\{[\s\S]*?\n\})/)[1]
-  const dict = new vm.Script(`(${source})`).runInNewContext()
+  const source = readEnSource()
+  const dict = readEnDict()
   // 「复制来源目录 / 复制来源 Profile」那两个下拉已经换成两栏选择窗（见 launch-isolation-page），文案跟着撤了
   // 「已导入」是市场卡片上的按钮字，实例市场撤下后跟着撤了
   for (const key of ['撤销', '导入过的配置']) {

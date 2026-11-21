@@ -11,6 +11,7 @@
  * 启动器与 dsh 之间的协议是真的。
  */
 import assert from 'node:assert/strict'
+import { readEnDict } from './helpers/frontend-source.mjs'
 import { isolateUserHome } from './isolated-home.mjs'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
@@ -464,7 +465,7 @@ test('控制页有端口输入框，文案有英文', () => {
   assert.doesNotMatch(page, /launchPortEl\.onchange/, '弹窗里的端口是草稿，取消无需回滚已保存参数')
   assert.match(page, /await post\('\/api\/instance-port', \{ version, profile, port: presetPort \}, \{ launchId \}\)/, '启动前应用并等待目标环境的端口保存')
   assert.match(page, /launchFormEl\.onsubmit/, '所有参数统一由保存动作提交')
-  const dict = new vm.Script(`(${page.match(/const EN = (\{[\s\S]*?\n\})/)[1]})`).runInNewContext()
+  const dict = readEnDict()
   for (const text of [
     '端口',
     '端口被占用',

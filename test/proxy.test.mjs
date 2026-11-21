@@ -11,6 +11,7 @@
  * 「设置里选了什么，netFetch 就往哪走」，所以先把 APPDATA 指到临时目录，再动态导入。
  */
 import assert from 'node:assert/strict'
+import { readEnDict } from './helpers/frontend-source.mjs'
 import { isolateUserHome } from './isolated-home.mjs'
 import { createServer as createHttpServer, get } from 'node:http'
 import { createServer as createHttpsServer } from 'node:https'
@@ -471,7 +472,7 @@ test('设置页：网络代理一行齐全，改动即保存，文案都有英�
   const selectList = html.match(/document\.querySelectorAll\('([^']*#proxyMode[^']*)'\)/)?.[1] || ''
   assert.ok(selectList.includes('#proxyMode'), '网络代理也进自绘下拉名单')
   // 中文文案（这一行 + 这段 JS）都要有英文
-  const dict = new Function(`return (${html.match(/const EN = (\{[\s\S]*?\n\})/)[1]})`)()
+  const dict = readEnDict()
   const cjk = /[\u4e00-\u9fff]/
   const missing = []
   const check = (text) => { if (cjk.test(text) && !dict[text]) missing.push(text) }

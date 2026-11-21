@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
+import { readEnSource } from './helpers/frontend-source.mjs'
 import { fileURLToPath } from 'node:url'
 
 const html = readFileSync(fileURLToPath(new URL('../src/public/index.html', import.meta.url)), 'utf8')
@@ -35,7 +36,7 @@ test('首页的更新按钮只弹确认，不直接升级', () => {
 
 test('dsh 升级确认里写明了风险', () => {
   assert.ok(html.includes(`'${RISK}'`), '风险说明要作为 dsh 那一行的提示传进去')
-  assert.ok(html.includes('"Upgrading stops dsh and installs the new version.'), '英文界面要有对应文案')
+  assert.ok(readEnSource().includes('"Upgrading stops dsh and installs the new version.'), '英文界面要有对应文案')
   assert.match(css, /\.ask-risk \{/, '风险块要有自己的样式')
   assert.match(html, /t\('更新到 \{latest\}', \{ latest: update\.dsh\.latest \}\)/, '按钮文案用「更新到 x」')
 })

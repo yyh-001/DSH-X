@@ -5,6 +5,7 @@
  * 一个路子），交互函数抠出来放进 vm 里跑，不起服务。
  */
 import assert from 'node:assert/strict'
+import { readEnSource } from './helpers/frontend-source.mjs'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import vm from 'node:vm'
@@ -180,7 +181,7 @@ test('切档时字段块靠 hidden 显隐，tab 是胶囊分段：底槽 + 当�
 })
 
 test('英文界面有全部引导文案（t() 的字典里逐条存在，不能漏翻）', () => {
-  const dict = section('const EN = {', 'function t(zh, vars)')
+  const dict = readEnSource()
   for (const zh of EN_REQUIRED) assert.ok(dict.includes(`${JSON.stringify(zh)}: `), `缺少英文翻译：${zh}`)
 })
 
@@ -945,7 +946,7 @@ ${functionSource('paintLaunchCopy')}`,
 test('会话隔离的新建目录走统一下拉面板：包含自动新建、已有目录和创建项目，旧下拉藏起来', () => {
   assert.match(css, /#launchGuideDirField[^{]*\{\s*display:\s*none;\s*\}/, '旧原生下拉包装器通过 CSS 隐藏，只当真相源')
   assert.match(css, /#launchLocalVersionGroup[^{]*\{\s*display:\s*none;\s*\}/, '自定义表单不再展示版本与版本类型选择组')
-  assert.match(section('const EN = {', 'function t(zh, vars)'), /"自动新建":\s*"Create automatically",/)
+  assert.match(readEnSource(), /"自动新建":\s*"Create automatically",/)
   const iconUse = { href: '', setAttribute(k, v) { if (k === 'href') this.href = v } }
   const context = vm.createContext({
     state: { dshHome: 'C:\\global', dataDir: 'C:\\data', dshHomes: ['D:\\work'], dshHomeNames: { 'D:\\work': '工作目录' }, launchPresets: [] },

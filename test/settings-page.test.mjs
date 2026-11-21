@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readEnDict, readEnSource } from './helpers/frontend-source.mjs'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import vm from 'node:vm'
@@ -70,7 +71,10 @@ test('顶栏四个 tab 已取消，设置分类在左侧导航，主页右上角
   // 齿轮在设置与主界面之间切面板（设置不再开独立标签页：多一页渲染进程就多一百多兆）
   assert.match(html, /gearEl\.onclick = \(\) => showPane\(currentPane !== 'control' \? 'control' : 'settings', currentSettingsCategory\)/, '齿轮在设置与主界面间切换')
   assert.doesNotMatch(html, /settings-page|openSettingsTab/, '不再有「设置单独一页」那套')
-  assert.match(html, /const paneLoaders = \{[^}]*plugins: loadPlugins[^}]*mcp: loadMcp[^}]*\}/, '进面板时才按需加载')
+  assert.match(html, /const paneLoaders = \{[^}]*plugins: loadPlugins[^}]*settings: loadSettings[^}]*\}/, '进面板时才按需加载')
+  const mcpSkills = readFileSync(new URL('../src/public/mcp-skills-page.js', import.meta.url), 'utf8')
+  assert.match(mcpSkills, /paneLoaders\.mcp = loadMcp/)
+  assert.match(mcpSkills, /paneLoaders\.skills = loadSkills/)
 })
 
 test('设置页左侧导航靠底色和内容区分开，不画分隔线', () => {
@@ -130,7 +134,7 @@ test('自动清理旧版本：开关在 dsh 那组里，改动即保存，读设
   assert.match(settings, /autoCleanVersions: true,/, '默认值在 DEFAULTS 里')
   assert.match(settings, /merged\.autoCleanVersions = merged\.autoCleanVersions !== false/, '存盘时归一成布尔')
   // 英文也要有，否则界面切成英文这里还是中文
-  const dict = new vm.Script(`(${html.match(/const EN = (\{[\s\S]*?\n\})/)[1]})`).runInNewContext()
+  const dict = readEnDict()
   for (const key of ['自动清理旧版本', '保留最新版和最近安装的一版，运行中的版本不删除。']) {
     assert.ok(dict[key], `「${key.slice(0, 12)}…」有英文`)
   }
@@ -151,7 +155,7 @@ test('设置页有「关于」：核心/外壳版本，按钮主动检查更新'
   const server = readFileSync(fileURLToPath(new URL('../src/server.js', import.meta.url)), 'utf8')
   assert.match(server, /const refresh = url\.searchParams\.get\('refresh'\) === '1'/, 'refresh=1 解析成布尔')
   assert.match(server, /checkAppUpdate\(\{ force: refresh \}\)/, '核心清单也绕缓存')
-  const dict = new vm.Script(`(${html.match(/const EN = (\{[\s\S]*?\n\})/)[1]})`).runInNewContext()
+  const dict = readEnDict()
   for (const key of ['关于', '关于 DSH-X', '当前版本', '外壳版本', 'DSH-X 核心', '检查更新', '正在检查…', '发现新版本 {latest}，正在打开更新窗口…', '检查更新失败：{message}', '核心已是最新；外壳更新检查失败：{message}', '查看当前版本并检查更新。']) {
     assert.ok(dict[key], `「${key.slice(0, 12)}…」有英文`)
   }
@@ -174,7 +178,7 @@ test('设置页用一个下载源选择统管插件、实例文件和启动器�
   vm.runInContext(source.replace('const describeSource', 'globalThis.describeSource'), context)
   assert.equal(context.describeSource('official'), '用于版本、插件、实例文件和启动器更新。官方源更新及时，国内直连可能较慢。', '提示明确说明统管范围')
   assert.equal(context.describeSource('mirror'), '用于版本、插件、实例文件和启动器更新。镜像较快，新版本可能稍有延迟。')
-  const dict = new vm.Script(`(${html.match(/const EN = (\{[\s\S]*?\n\})/)[1]})`).runInNewContext()
+  const dict = readEnDict()
   assert.equal(dict['用于版本、插件、实例文件和启动器更新。'], 'Used for versions, plugins, instance files and launcher updates. ')
   assert.doesNotMatch(html, /用于版本、插件、整合包和启动器更新/, '旧说法连同英文词条一起撤掉')
 })
@@ -204,7 +208,7 @@ test('设置页有「复制自检请求」按钮：路径问技能清单，复�
   assert.match(html, /navigator\.clipboard\.writeText/, '优先用 Clipboard API')
   assert.match(html, /document\.execCommand\('copy'\)/, 'WebView 没有 Clipboard API 时退回选区复制')
   // 英文也要有，否则界面切成英文这里还是中文
-  const dict = new vm.Script(`(${html.match(/const EN = (\{[\s\S]*?\n\})/)[1]})`).runInNewContext()
+  const dict = readEnDict()
   // 「环境」现在专指 DSH 版本 + 插件的那个对象；体检查的是整个 DSH-X，所以这一行改说 DSH-X
   assert.match(html, /data-i18n="让 AI 给 DSH-X 做体检"/, '体检这一行的标题')
   for (const key of ['复制自检请求', '让 AI 给 DSH-X 做体检', '复制自检指令，发给 AI 检查 DSH-X。', '用 dsh-x-selfcheck 技能跑一次体检，命令：']) {
@@ -241,7 +245,7 @@ test('常规的系统组有六个桌面端开关，成败都按服务端回值�
   // 旧外壳 / 浏览器里整组禁用并说明原因（能力字段只在完整设置里，外观推送不带）
   assert.match(html, /if \(!\('desktopShell' in data\) && !\('shellPrefs' in data\)\) return/, '外观推送不能把整组误禁用')
   assert.match(html, /data\.desktopShell === true && data\.shellPrefs === true/, '能力判断用两个字段')
-  const dict = new vm.Script(`(${html.match(/const EN = (\{[\s\S]*?\n\})/)[1]})`).runInNewContext()
+  const dict = readEnDict()
   for (const key of ['系统', 'Chrome 硬件加速', '自动下载 DSH-X 更新', '任务通知', '通知声音', '关闭窗口时隐藏到托盘', '保持电脑运行']) {
     assert.ok(dict[key], `「${key}」有英文`)
   }
@@ -258,7 +262,7 @@ test('浏览器安全与数据放进常规：证书开关走统一保存链路�
   assert.match(html, /if \(!\('desktopShell' in data\) && !\('browserHost' in data\)\) return/, '外观推送不能把整组误禁用')
   assert.match(html, /data\.desktopShell === true && data\.browserHost === true/, '能力判断用 desktopShell + browserHost')
   assert.match(html, /if \(browserPrefRows\.some\(\(\[key\]\) => key in patch\)\) showBrowserPrefs\(data\)/, '保存后回显')
-  const dict = new vm.Script(`(${html.match(/const EN = (\{[\s\S]*?\n\})/)[1]})`).runInNewContext()
+  const dict = readEnDict()
   for (const key of ['浏览器', '忽略证书校验', '清除内置浏览器缓存', '清除全部浏览器数据', '清除缓存', '清除全部']) {
     assert.ok(dict[key], `「${key}」有英文`)
   }
@@ -270,7 +274,7 @@ test('界面语言有「系统默认」选项并默认选中', () => {
     /<select id="uiLang">\s*<option value="system" data-i18n="系统默认">系统默认<\/option>\s*<option value="zh">中文<\/option>\s*<option value="en">English<\/option>\s*<\/select>/,
     '系统默认排第一（默认选项），后面才是中文 / English',
   )
-  assert.match(html, /"系统默认": "System default",/, '英文界面有翻译')
+  assert.match(readEnSource(), /"系统默认": "System default",/, '英文界面有翻译')
   assert.match(html, /uiLangEl\.value = pref === 'zh' \|\| pref === 'en' \? pref : 'system'/, '回显时按偏好落位，缺省落在系统默认')
   assert.match(html, /if \('lang' in data && data\.lang &&[\s\S]{0,120}?applyLang\(\)/, '设置刷新时界面语言跟着运行时语言切，下拉和界面不能各说各话')
 })

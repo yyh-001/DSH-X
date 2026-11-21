@@ -4,6 +4,7 @@
  * 页面是无构建的原生 JS，这里读 HTML/CSS 源码做结构断言，纯函数抠进 vm 里跑，不起服务。
  */
 import assert from 'node:assert/strict'
+import { readEnSource } from './helpers/frontend-source.mjs'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import vm from 'node:vm'
@@ -302,7 +303,7 @@ test('样式与英文文案：列表限高滚动、行内按钮不换行，文�
   assert.match(styles, /\.backup-row \.backup-delete \{[^}]*width: 30px;[^}]*border-radius: 9px/)
   assert.match(styles, /\.backup-progress \{[^}]*display: flex/)
   assert.match(styles, /\.backup-progress \.spin \{[^}]*display: block/)
-  const en = page.slice(page.indexOf('const EN = {'), page.indexOf('\n}\n', page.indexOf('const EN = {')))
+  const en = readEnSource()
   for (const key of ['备份与回退', '配置备份与回退', '配置「{profile}」的配置层快照 · 最多保留 10 份 / 30 天', '回退到此备份', '删除这份备份', '删除这份备份？删除后不能再回退到它；当前配置不受影响。', '删除备份', '已删除备份。', '立即备份', '回退完成', '已生成新备份。', '配置没有变化，不需要新备份。', '备份', '正在回退配置…', '正在重装依赖…', '正在生成备份…']) {
     assert.ok(en.includes(`"${key}":`), `英文文案缺少「${key}」`)
   }

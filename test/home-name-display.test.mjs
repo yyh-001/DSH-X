@@ -67,7 +67,8 @@ test('启动项卡片行允许收缩，长文本走省略号而不是把按钮�
 })
 
 test('编辑启动项和添加启动项的用户目录下拉都保留「管理目录」入口，改名后立刻刷新视图（#122）', () => {
-  assert.match(page, /data-env-home-manage[\s\S]*?t\('管理目录'\)/, '编辑启动项的用户目录下拉提供管理目录入口')
+  const envLaunchConfig = readFileSync(new URL('../src/public/env-launch-config.js', import.meta.url), 'utf8')
+  assert.match(envLaunchConfig, /data-env-home-manage[\s\S]*?t\('管理目录'\)/, '编辑启动项的用户目录下拉提供管理目录入口')
   assert.match(page, /data-guide-manage[\s\S]*?t\('管理目录'\)/, '添加启动项的用户目录下拉提供管理目录入口')
   const homeSubmit = section("        if (homeName) state.dshHomeNames = data.dshHomeNames", "        if (renaming) void loadPlugins()")
   assert.match(homeSubmit, /paintPluginHomes\(\)/, '目录改名后刷新管理目录弹窗')

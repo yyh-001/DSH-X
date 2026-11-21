@@ -29,6 +29,7 @@ import { join, posix as posixPath } from 'node:path'
 import { Transform } from 'node:stream'
 import { StringDecoder } from 'node:string_decoder'
 import { WSL_AGENT_SCRIPT } from './wsl-scripts.js'
+import { readRemoteProfile, removeRemoteProfile } from './remote-profile.js'
 import { proxyEnv } from './proxy.js'
 import {
   REMOTE_REASON,
@@ -1079,39 +1080,28 @@ export async function reapWslOrphans(options) {
   return { ok: result.ok, stderr: cleanWslStderr(result) || result.stderr, stdout: result.stdout }
 }
 
+function wslProfileBackend(distro, options) {
+  const { run, user } = runnerOptions(options)
+  const backend = createWslBackend({ distro, user, run })
+  return {
+    async exec(script, execOptions) {
+      const result = await backend.exec(script, execOptions)
+      return {
+        ...result,
+        stdout: decodeWslOutput(result.stdout),
+        stderr: result.ok ? result.stderr : (wslFailureMessage(result) || result.stderr),
+      }
+    },
+  }
+}
+
 /**
  * 读一个 WSL Profile 里装了什么：package.json 的依赖 + dsh.profile.bundles。
  * 目录选择窗的右栏要和本机一样列出插件，WSL 侧没有 /api/packs，只能把清单读回来。
  */
 export async function readWslProfile(distro, home, profile, options = null) {
-  const name = String(profile || '').trim()
   if (!distro) throw new Error('先选择一个 WSL 发行版')
-  if (!name) throw new Error('配置名称不能为空')
-  const { run, user } = runnerOptions(options)
-  const script = [
-    'set -e',
-    `p=${shellQuote(name)}`,
-    `h=${shellQuote(String(home || '').trim() || '~/.dsh')}`,
-    'case "$h" in "~") h="$HOME" ;; "~/"*) h="$HOME/${h:2}" ;; esac',
-    'f="$h/profiles/$p/package.json"',
-    'if [ ! -f "$f" ]; then echo __DSHX_MISSING__; exit 0; fi',
-    'cat "$f"',
-  ].join(String.fromCharCode(10))
-  const backend = createWslBackend({ distro, user, run })
-  const result = await backend.exec(script, { timeoutMs: 10000 })
-  if (!result.ok) throw new Error(wslFailureMessage(result) || '读取 WSL 配置失败')
-  const text = decodeWslOutput(result.stdout).trim()
-  if (!text || text === '__DSHX_MISSING__') return { ok: false, profile: name, error: '这个配置还没初始化' }
-  let manifest = null
-  try { manifest = JSON.parse(text) } catch { return { ok: false, profile: name, error: '配置的 package.json 读不出来' } }
-  const dependencies = manifest?.dependencies && typeof manifest.dependencies === 'object' ? manifest.dependencies : {}
-  const bundles = Array.isArray(manifest?.dsh?.profile?.bundles) ? manifest.dsh.profile.bundles : null
-  const plugins = Object.keys(dependencies).sort().map((plugin) => ({
-    name: plugin,
-    version: String(dependencies[plugin] || ''),
-    mounted: !bundles || bundles.includes(plugin),
-  }))
-  return { ok: true, profile: name, home: String(home || '').trim() || '~/.dsh', plugins, bundles: bundles || [] }
+  return readRemoteProfile(wslProfileBackend(distro, options), home, profile)
 }
 
 /**
@@ -1119,26 +1109,8 @@ export async function readWslProfile(distro, home, profile, options = null) {
  * 名字由调用方用 safeProfile 校验过；这里只负责进发行版删目录，存在性由远端脚本判断。
  */
 export async function removeWslProfile(distro, home, profile, options = null) {
-  const name = String(profile || '').trim()
   if (!distro) throw new Error('先选择一个 WSL 发行版')
-  if (!name) throw new Error('配置名称不能为空')
-  const { run, user } = runnerOptions(options)
-  const script = [
-    'set -e',
-    `p=${shellQuote(name)}`,
-    `h=${shellQuote(String(home || '').trim() || '~/.dsh')}`,
-    'case "$h" in "~") h="$HOME" ;; "~/"*) h="$HOME/${h:2}" ;; esac',
-    'd="$h/profiles/$p"',
-    'if [ ! -d "$d" ]; then echo __DSHX_MISSING__; exit 0; fi',
-    'rm -rf -- "$d"',
-    'echo __DSHX_REMOVED__',
-  ].join(String.fromCharCode(10))
-  const backend = createWslBackend({ distro, user, run })
-  const result = await backend.exec(script, { timeoutMs: 10000 })
-  if (!result.ok) throw new Error(wslFailureMessage(result) || '删除 WSL 配置失败')
-  const text = decodeWslOutput(result.stdout)
-  if (text.includes('__DSHX_MISSING__')) return { ok: false, profile: name, error: '这个配置还没初始化' }
-  return { ok: true, profile: name }
+  return removeRemoteProfile(wslProfileBackend(distro, options), home, profile)
 }
 
 export { WSL_EXE, DEFAULT_HOME }

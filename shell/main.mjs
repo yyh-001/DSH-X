@@ -12,11 +12,11 @@ import { TabDragSession } from './tab-drag-session.mjs'
 import { WindowFade } from './window-fade.mjs'
 import { BROWSER_IPC, DesktopBrowserGuests } from './browser-guests.mjs'
 import { createCoreRecovery, isEnvironmentStartupError } from './core-recovery.mjs'
-import { corePackageName, channelOf, coreRegistries, fetchCoreMetadata, installCore, pickCoreRelease, tarballFor } from './core-fetch.mjs'
+import { createCoreBootstrap } from './core-bootstrap.mjs'
 import { createUpdater } from './updater.mjs'
 import { readPrefs } from './prefs.mjs'
 import { shellRelaunchOptions } from './relaunch.mjs'
-import { coreSetupPage, coreSetupPaintScript, dataUrl, errorPage, resolveDark, tabBaseColor, tabWindowFallbackPage, tabDragPreviewPage } from './pages.mjs'
+import { dataUrl, errorPage, resolveDark, tabBaseColor, tabWindowFallbackPage, tabDragPreviewPage } from './pages.mjs'
 import { clickTarget, dialogOptions, notificationDecision, notifyThrottled } from './desktop.mjs'
 import { COMPUTER_USE_SHORTCUT, createComputerUseHost } from './computer-use.mjs'
 import {
@@ -415,178 +415,20 @@ async function managerRequest(path, { method = 'GET', timeout = 30_000 } = {}) {
   return data
 }
 
-// ---- 首次启动取核心 ----
-// 安装包里不再带核心：第一次启动（或核心和当前 Electron 对不上）就从 npm 取一份，
-// 装进用户目录的 core/current。代价是装完第一次启动需要联网——和 npm 版一致；
-// 之后核心自己走 npm 更新，外壳可以很久不发版。
-
-/** 下载窗口：这时候还没有管理页，至少把等待和进度说清楚。 */
-function showCoreSetupWindow() {
-  const window = new BrowserWindow({
-    width: 480,
-    height: 280,
-    resizable: false,
-    title: 'DSH-X',
-    // 和错误窗口一样：macOS 用 hiddenInset，Windows 用无边框（页面里没有关闭按钮，下载完自己关）
-    ...(IS_MAC ? { titleBarStyle: 'hiddenInset' } : { frame: false }),
-    backgroundColor: '#15171c',
-    webPreferences: { sandbox: true, contextIsolation: true },
-  })
-  // 下载途中被用户关掉就没必要继续：没有窗口的外壳只会留在后台
-  const close = { byUser: false }
-  window.on('closed', () => { if (!close.byUser) app.exit(1) })
-  window.loadURL(dataUrl(coreSetupPage(state.lang)))
-  return {
-    window,
-    finish() {
-      close.byUser = true
-      if (!window.isDestroyed()) window.destroy()
-    },
-  }
-}
-
-let coreSetupPaintAt = 0
-let coreSetupPaintTimer = null
-let coreSetupPaintPending = null
-
-/**
- * 首启窗口的进度绘制：按 ~8fps 节流。
- * 以前每个 chunk 都 executeJavaScript 一次，下载快时会堆一长串跨进程调用，窗口看起来反而卡住；
- * 总大小未知时也别把进度条钉在 0%，切成不确定态动画并显示已下载字节数。
- */
-function paintCoreSetup(window, next, { immediate = false } = {}) {
-  if (!window || window.isDestroyed()) return Promise.resolve()
-  coreSetupPaintPending = { window, state: next }
-  if (immediate) return flushCoreSetupPaint()
-  const wait = Math.max(0, 120 - (Date.now() - coreSetupPaintAt))
-  if (wait === 0) return flushCoreSetupPaint()
-  if (!coreSetupPaintTimer) coreSetupPaintTimer = setTimeout(flushCoreSetupPaint, wait)
-  return Promise.resolve()
-}
-
-function flushCoreSetupPaint() {
-  coreSetupPaintTimer = null
-  const job = coreSetupPaintPending
-  coreSetupPaintPending = null
-  if (!job || !job.window || job.window.isDestroyed()) return Promise.resolve()
-  coreSetupPaintAt = Date.now()
-  const en = state.lang === 'en'
-  const { phase, done = 0, total = 0, version = '', source = '' } = job.state
-  const extracting = phase === 'extract'
-  const known = total > 0
-  // 解压没有细粒度进度：保持满格，别让进度条看起来从 0 重来
-  const percent = extracting ? 100 : known ? Math.max(0, Math.min(100, Math.round((done / total) * 100))) : 0
-  const mb = (value) => (value / 1048576).toFixed(1)
-  const hint = extracting
-    ? (en ? 'Installing the runtime core…' : '正在安装运行核心…')
-    : phase === 'download'
-      ? (en ? `Downloading the runtime core${version ? ` ${version}` : ''}…` : `正在下载运行核心${version ? ` ${version}` : ''}…`)
-      : (en ? 'Contacting the download source…' : '正在连接下载源…')
-  const detail = phase === 'download'
-    ? (known
-      ? `${mb(done)} MB / ${mb(total)} MB · ${percent}%`
-      : (en ? `Downloaded ${mb(done)} MB` : `已下载 ${mb(done)} MB`))
-    : extracting
-      ? (en ? 'Download complete, unpacking (a few seconds)…' : '下载完成，正在解压（通常几秒）…')
-      : ''
-  const sourceText = source ? (en ? `Source: ${source}` : `下载源：${source}`) : ''
-  return job.window.webContents.executeJavaScript(coreSetupPaintScript({
-    percent,
-    indeterminate: !extracting && !known,
-    hint,
-    detail,
-    source: sourceText,
-  })).catch(() => { /* 窗口已经关了 */ })
-}
-
-function registryHost(registry) {
-  try { return new URL(registry).host } catch { return String(registry) }
-}
-
-/** 按「镜像 → 官方」逐个问；慢镜像最多等 6 秒，别让首启窗口干等。 */
-async function chooseCoreRelease(fetchImpl) {
-  const registries = coreRegistries()
-  let last = null
-  for (const [index, registry] of registries.entries()) {
-    try {
-      const metadata = await fetchCoreMetadata(corePackageName(), {
-        fetchImpl,
-        registry,
-        timeoutMs: index === 0 ? 6_000 : 30_000,
-      })
-      const release = pickCoreRelease(metadata, {
-        electron: process.versions.electron,
-        channel: channelOf(VERSION),
-        skip: failedCoreVersions(),
-      })
-      if (release) return { release, registry }
-      last = new Error(`npm 上没有和当前外壳（Electron ${process.versions.electron}）兼容的核心版本`)
-    } catch (error) {
-      last = error
-    }
-  }
-  throw last || new Error('没有可用的核心下载源')
-}
-
-/**
- * 从 npm 取一份和当前 Electron 兼容的核心装进 core/current；返回核心目录，失败返回空。
- * 通道跟着外壳版本走：正式版外壳取正式版核心，rc 外壳取 rc（没有 rc 时退回正式版）。
- */
-async function setupCore() {
-  const setup = showCoreSetupWindow()
-  const shownAt = Date.now()
-  // 首启时还没有核心，读不到设置里的下载源/代理；用 Electron 的 net.fetch，至少跟随系统代理
-  const fetchImpl = (url, init) => net.fetch(url, init)
-  paintCoreSetup(setup.window, { phase: 'connect' })
-  try {
-    const { release, registry } = await chooseCoreRelease(fetchImpl)
-    let currentRegistry = registry
-    const paint = (next, options) => paintCoreSetup(setup.window, {
-      ...next,
-      version: release.version,
-      source: registryHost(currentRegistry),
-    }, options)
-    console.log(`下载核心 ${release.version}（${corePackageName()}，${registryHost(registry)}）`)
-    const install = (targetRelease) => installCore({
-      release: targetRelease,
-      target: ACTIVE_CORE,
-      previous: PREVIOUS_CORE,
-      fetchImpl,
-      // 解压是 spawnSync，会占住主进程；先把「正在安装」同步画上去并留一帧，别让窗口停在 100% 后消失
-      onPhase: async (phase) => {
-        await paint({ phase }, { immediate: true })
-        if (phase === 'extract') await new Promise((resolve) => setTimeout(resolve, 80))
-      },
-      onProgress: ({ done, total }) => paint({ phase: 'download', done, total }),
-    })
-    try {
-      await install(release)
-    } catch (error) {
-      // 镜像只同步了元数据、tarball 却拉不动（或反过来）时，换另一个源的重试一次
-      const alternate = coreRegistries().find((item) => item !== currentRegistry)
-      const tarball = alternate && tarballFor(alternate, corePackageName(), release.version)
-      if (!tarball) throw error
-      console.warn(`从 ${registryHost(currentRegistry)} 下载核心失败，换 ${registryHost(alternate)} 重试：${error?.message || error}`)
-      currentRegistry = alternate
-      paint({ phase: 'connect' })
-      await install({ ...release, tarball })
-    }
-    // 和核心更新（server.js 的 app-apply）写同一个「待验证」标记：首启下载的核心起不来时，
-    // recoverCore 才知道是哪个版本坏了并跳过它；不写的话会下载 → 起不来 → 删掉 → 再下载同一版地死循环。
-    try { writeFileSync(join(APP_DIR, 'core', 'pending'), JSON.stringify({ version: release.version, at: Date.now() })) } catch { /* 写不进去只是少了回退保护 */ }
-    console.log(`核心已就绪：${ACTIVE_CORE}（${release.version}，${registryHost(currentRegistry)}）`)
-    // 网快时 12 MB 一秒就下完，窗口一闪而过；至少留 1.2 秒把进度和结果展示完
-    const remain = 1_200 - (Date.now() - shownAt)
-    if (remain > 0) await new Promise((resolve) => setTimeout(resolve, remain))
-    return ACTIVE_CORE
-  } catch (error) {
-    setup.finish()
-    showStartupError('核心下载失败', '第一次启动需要从 npm 下载运行核心。', `${error?.message || error}\n\n检查网络后重新打开 DSH-X。`)
-    return ''
-  } finally {
-    setup.finish()
-  }
-}
+// ---- 首次启动取核心（实现收拢在 core-bootstrap.mjs） ----
+const { setupCore } = createCoreBootstrap({
+  app,
+  BrowserWindow,
+  net,
+  isMac: IS_MAC,
+  appDir: APP_DIR,
+  activeCore: ACTIVE_CORE,
+  previousCore: PREVIOUS_CORE,
+  version: VERSION,
+  getLang: () => state.lang,
+  failedCoreVersions,
+  showStartupError,
+})
 
 /** 核心（npm）自动更新：有更新就下（下载不打扰用户）；安装交给用户，不自动替换核心。 */
 async function autoUpdateTick() {
@@ -837,6 +679,8 @@ function createMainWindow() {
   window.on('closed', () => {
     if (mainWindow !== window) return
     shellLog(`管理页窗口已销毁${quitting ? '（正在退出）' : ''}，下次唤出时重建`)
+    // 窗口在等退出确认期间被销毁时立刻放行，否则 quitConfirm 会把后续退出挂死 30 秒
+    if (quitConfirm) settleQuitConfirm(true)
     const host = tabs
     mainWindow = null
     tabs = null
@@ -1658,14 +1502,16 @@ function installPermissionHandlers() {
     const device = en ? (camera ? 'camera' : 'microphone') : (camera ? '摄像头' : '麦克风')
     const host = new URL(origin).origin
     const owner = BrowserWindow.fromWebContents(contents) || (mainWindow && !mainWindow.isDestroyed() ? mainWindow : null)
-    dialog.showMessageBox(owner, {
+    const boxOptions = {
       type: 'question',
       buttons: en ? ['Allow', 'Deny'] : ['允许', '拒绝'],
       defaultId: 1,
       cancelId: 1,
       message: en ? `${host} wants to use your ${device}.` : `${host} 请求使用${device}。`,
       detail: en ? 'Allow access?' : '是否允许？',
-    }).then(({ response }) => callback(response === 0), () => callback(false))
+    }
+    ;(owner ? dialog.showMessageBox(owner, boxOptions) : dialog.showMessageBox(boxOptions))
+      .then(({ response }) => callback(response === 0), () => callback(false))
   })
 }
 
@@ -1688,11 +1534,13 @@ function installDownloadHandler() {
       })
     } catch { /* 设置建议路径失败不影响默认保存框 */ }
     item.once('done', (_event, status) => {
-      if (contents.isDestroyed()) return
+      const target = mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents : null
+      if (!target) return
       const filePath = item.getSavePath()
       const message = status === 'completed' ? (en ? `Saved to ${filePath}` : `已保存到 ${filePath}`)
         : status === 'cancelled' ? '' : (en ? 'Download failed' : '下载失败')
-      if (message) contents.executeJavaScript(`notify(${JSON.stringify(message)})`).catch(() => {})
+      // 只往管理页发 notify，避免在 dsh 标签页里调用不存在或重名的全局 notify
+      if (message) target.executeJavaScript(`typeof notify === 'function' && notify(${JSON.stringify(message)})`).catch(() => {})
     })
   })
 }
@@ -1764,6 +1612,7 @@ async function quit() {
   if (!(await confirmQuitWithInstances())) return
   quitting = true
   await fetch(`${managerUrl()}api/quit`, { method: 'POST', body: '{}', signal: AbortSignal.timeout(TRAY_REQUEST_TIMEOUT_MS) })
+    .then((res) => { if (!res.ok) throw new Error(`HTTP ${res.status}`) })
     .catch(() => server.shutdown().finally(() => exitApp(0)))
 }
 

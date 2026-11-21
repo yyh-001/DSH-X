@@ -13,6 +13,7 @@
  * 除此之外什么都不做——这条链路上只有启动器与 dsh 之间的协议是真的。
  */
 import assert from 'node:assert/strict'
+import { readEnDict } from './helpers/frontend-source.mjs'
 import { isolateUserHome } from './isolated-home.mjs'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
@@ -485,7 +486,7 @@ test('控制页只列启动项，不再单列其他实例', () => {
   assert.doesNotMatch(page, /paintInstances/, '实例专用渲染也一起撤掉')
   assert.match(page, /<div class="launch-presets" id="launchPresets"><\/div>/, '启动项列表还在')
   assert.match(page, /<div class="ask" id="launchLogDialog" hidden>/, '每个启动项有自己的日志弹窗')
-  assert.match(page, /data-log-id="\$\{entry\.id\}"/, '启动项行上有打开日志的按钮')
+  assert.match(page, /data-log-id="\$\{escapeHtml\(entry\.id\)\}"/, '启动项行上有打开日志的按钮')
   assert.match(page, /\/api\/launch-log\?id=\$\{encodeURIComponent\(entry\.id\)\}/, '日志按启动项 id 拉取')
   assert.match(page, /startupRssMB/, '启动结算时读一次子进程 RSS')
   assert.match(page, /id="launchLogRss"/, 'RSS 跟窗口/CPU 同一行显示')
@@ -507,7 +508,7 @@ test('控制页只列启动项，不再单列其他实例', () => {
 })
 
 test('多开相关的中文文案都有英文', () => {
-  const dict = new vm.Script(`(${page.match(/const EN = (\{[\s\S]*?\n\})/)[1]})`).runInNewContext()
+  const dict = readEnDict()
   for (const text of ['打开', '在跑的实例']) {
     assert.ok(dict[text], `「${text}」缺英文`)
   }

@@ -25,6 +25,7 @@
 import { chmodSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, rmdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join, resolve, sep } from 'node:path'
+import { backupOnce } from './fs-utils.js'
 import { crc32, readZipEntry, readZipIndex } from './zipfile.js'
 import { netFetch } from './proxy.js'
 import { patchPathOf, readPatchState, forceRowId } from './plugins.js'
@@ -381,14 +382,6 @@ export function removeSkill(rootDir, relPath) {
   if (linked) unlinkSync(target)
   else rmSync(target, { recursive: lstatSync(target).isDirectory() })
   return { linked }
-}
-
-function backupOnce(file) {
-  try {
-    if (existsSync(file)) copyFileSync(file, `${file}.bak`)
-  } catch {
-    // 备份失败不阻塞开关本身
-  }
 }
 
 /**

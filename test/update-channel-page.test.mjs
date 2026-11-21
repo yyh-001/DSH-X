@@ -27,6 +27,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
+import { readEnSource } from './helpers/frontend-source.mjs'
 import vm from 'node:vm'
 import { TYPES, expectedPlan, newestFirst } from './update-channel-fixture.mjs'
 
@@ -509,9 +510,10 @@ function dialogParts() {
 
 /** 用页面自己的 EN 词典和 t() 翻译，英文用例走的是真实的多语言路径。 */
 function pageTranslator(lang) {
-  const sources = ['EN', 't'].map((name) => sourceOf(name)?.code)
-  assert.ok(sources.every(Boolean), '找不到页面的 EN 词典或 t()')
-  return vm.runInContext(`${sources.join('\n')}\nt`, vm.createContext({ lang }))
+  const enSource = readEnSource()
+  const tSource = sourceOf('t')?.code
+  assert.ok(enSource && tSource, '找不到页面的 EN 词典或 t()')
+  return vm.runInContext(`${enSource}\n${tSource}\nt`, vm.createContext({ lang }))
 }
 
 test('三档开关仍是原生 range：0..2、步长 1，没被禁用、也没移出 Tab 顺序', () => {

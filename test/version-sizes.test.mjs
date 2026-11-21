@@ -86,6 +86,7 @@ test('优化依赖：成功失败都在 finally 里作废这个版本的统计�
   assert.match(body, /finally \{[\s\S]*forgetNodeModulesStats\(dir\)[\s\S]*\}/, 'forget 要放在 finally 里')
   assert.ok(body.indexOf('forgetNodeModulesStats') < body.indexOf('send(res, 200'), '先作废再回包：页面收到回包立刻重查时不会读到旧值')
   // 内存缓存有上限：写入都走 rememberSizeStats，它按 SIZE_CACHE_MAX 淘汰最旧的
-  assert.doesNotMatch(source, /loadSizeCache\(\)\.set\(/, '别绕过 rememberSizeStats 直接往缓存里塞')
-  assert.match(source, /function rememberSizeStats[\s\S]*?SIZE_CACHE_MAX/)
+  const storageSource = readFileSync(new URL('../src/storage-stats.js', import.meta.url), 'utf8')
+  assert.doesNotMatch(storageSource, /loadSizeCache\(\)\.set\(/, '别绕过 rememberSizeStats 直接往缓存里塞')
+  assert.match(storageSource, /function rememberSizeStats[\s\S]*?SIZE_CACHE_MAX/)
 })

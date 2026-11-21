@@ -261,13 +261,18 @@
   }
 
   const isAvatarIconUrl = (value) => /^https:\/\/(?:avatars\.githubusercontent\.com|github\.com)\//i.test(String(value || '').trim())
+  const safeIconUrl = (value) => {
+    const raw = String(value || '').trim()
+    return /^(?:https?:\/\/|data:image\/(?:png|jpeg|webp|gif|svg\+xml);base64,)/i.test(raw) ? raw : ''
+  }
 
   function renderPluginIconHtml({ realIcon = '', fallbackIcon = 'lucide-package', tone = 'blue' } = {}) {
     const cleanFallback = typeof fallbackIcon === 'string' && fallbackIcon.startsWith('lucide-') ? fallbackIcon : 'lucide-package'
     const cleanTone = ICON_TONES.includes(tone) ? tone : 'blue'
-    if (realIcon) {
-      const avatarClass = isAvatarIconUrl(realIcon) ? ' has-avatar' : ''
-      return `<div class="plugin-market-icon has-image${avatarClass}"><img src="${escapeHtml(realIcon)}" alt="" loading="lazy" referrerPolicy="no-referrer" data-fallback-icon="${escapeHtml(cleanFallback)}" data-fallback-tone="${escapeHtml(cleanTone)}" /></div>`
+    const safeReal = safeIconUrl(realIcon)
+    if (safeReal) {
+      const avatarClass = isAvatarIconUrl(safeReal) ? ' has-avatar' : ''
+      return `<div class="plugin-market-icon has-image${avatarClass}"><img src="${escapeHtml(safeReal)}" alt="" loading="lazy" referrerPolicy="no-referrer" data-fallback-icon="${escapeHtml(cleanFallback)}" data-fallback-tone="${escapeHtml(cleanTone)}" /></div>`
     }
     return `<div class="plugin-market-icon tone-${escapeHtml(cleanTone)}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#${escapeHtml(cleanFallback)}"/></svg></div>`
   }
@@ -790,33 +795,45 @@
       void saveEnvironmentConfigNow()
     }
   }
+  function captureEnvDraft() {
+    const env = opened()
+    if (!env) return null
+    return {
+      env,
+      nextName: String(el.name.value ?? '').trim(),
+      nextVersion: el.version.value || env.dshVersion,
+      nextChannel: switchChannel(el.channel),
+    }
+  }
   async function flushEnvAutoSave({ force = false } = {}) {
     if (envAutoSave.timer && typeof clearTimeout === 'function') {
       clearTimeout(envAutoSave.timer)
       envAutoSave.timer = null
     }
+    const draft = captureEnvDraft()
     if (envAutoSave.inFlight) {
       envAutoSave.queued = true
+      envAutoSave.queuedDraft = draft
       if (force) envAutoSave.forceQueued = true
       return envAutoSave.inFlight
     }
-    return saveEnvironmentConfigNow({ force })
+    return saveEnvironmentConfigNow({ force, draft })
   }
-  async function saveEnvironmentConfigNow({ force = false } = {}) {
+  async function saveEnvironmentConfigNow({ force = false, draft = null } = {}) {
     if (envAutoSave.inFlight) {
       envAutoSave.queued = true
+      envAutoSave.queuedDraft = draft || captureEnvDraft()
       if (force) envAutoSave.forceQueued = true
       return envAutoSave.inFlight
     }
-    const env = opened()
+    const snap = draft || captureEnvDraft()
+    const env = snap?.env
     if (!env || busy) return
-    const nextName = String(el.name.value ?? '').trim()
+    const { nextName, nextVersion, nextChannel } = snap
     if (!nextName) {
       paintEnvSaveStatus('error', t('实例名称不能为空'))
       return
     }
-    const nextVersion = el.version.value || env.dshVersion
-    const nextChannel = switchChannel(el.channel)
     if (!force && nextName === env.name && nextVersion === env.dshVersion && nextChannel === env.updateChannel) {
       paintEnvSaveStatus('idle')
       return
@@ -875,9 +892,11 @@
         envAutoSave.inFlight = null
         if (envAutoSave.queued) {
           const queuedForce = envAutoSave.forceQueued
+          const queuedDraft = envAutoSave.queuedDraft || null
           envAutoSave.queued = false
           envAutoSave.forceQueued = false
-          void saveEnvironmentConfigNow({ force: queuedForce })
+          envAutoSave.queuedDraft = null
+          void saveEnvironmentConfigNow({ force: queuedForce, draft: queuedDraft })
         }
       }
     })()

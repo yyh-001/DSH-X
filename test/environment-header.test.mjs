@@ -379,9 +379,10 @@ class FakeDocument extends FakeNode {
 }
 
 // ---- 页面上下文：主脚本的全局换成桩，GET / POST 由用例说了算 ----
+// 仅保留 DOM 标记部分供 FakeDocument 解析，避免每条用例反复用正则扫几百 KB 的内联脚本
+const markupOnlyHtml = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
 const settle = async () => {
-  for (let i = 0; i < 6; i++) {
-    await new Promise((resolve) => setTimeout(resolve, 0))
+  for (let i = 0; i < 4; i++) {
     await new Promise((resolve) => setImmediate(resolve))
   }
 }
@@ -406,7 +407,7 @@ const t = (zh, vars) => {
  * state.list 就是 GET /api/environments 的回包，路由里改它等于服务端那边改了数据。
  */
 async function openPage({ environments = [makeEnv('a', '甲')], nameMax = 24, routes = {} } = {}) {
-  const doc = new FakeDocument(html)
+  const doc = new FakeDocument(markupOnlyHtml)
   const state = { list: { environments, builtin: [], limits: { nameMax }, defaults: {} } }
   const calls = []
   const dialogOrigins = new Map()
@@ -500,7 +501,8 @@ async function openCreateDialog(h) {
 const page = new FakeDocument(html)
 const byId = (id) => page.getElementById(id)
 const header = page.querySelector('#pane-environments .pane-top')
-const EN = new vm.Script(`(${html.match(/const EN = (\{[\s\S]*?\n\})/)[1]})`).runInNewContext()
+import { readEnDict } from './helpers/frontend-source.mjs'
+const EN = readEnDict()
 const CJK = /[一-鿿]/
 /** 按钮上看得见的字：图标（svg）里的东西不算。 */
 const visibleText = (node) => node.childNodes.map((child) => (child.nodeType === 3 ? child.data : child.localName === 'svg' ? '' : visibleText(child))).join('')
@@ -940,5 +942,6 @@ test('实例详情使用 插件 / MCP / 技能 / 配置 4 个主签，插件区�
   assert.match(css, /\.environment-tabs\s*\{[^}]*width:\s*300px/)
   assert.match(css, /\.environment-tabs\[data-active="config"\]::after/)
   assert.match(css, /#environmentMcpHost \.pane-top,\s*#environmentSkillsHost \.pane-top\s*\{\s*display:\s*none;\s*\}/)
-  assert.match(html, /if \(tabActions\)\s*\{\s*const pluginActions = document\.getElementById\('environmentPluginActions'\)/)
+  const mcpSkillsJs = readFileSync(new URL('../src/public/mcp-skills-page.js', import.meta.url), 'utf8')
+  assert.match(mcpSkillsJs, /if \(tabActions\)\s*\{\s*const pluginActions = document\.getElementById\('environmentPluginActions'\)/)
 })

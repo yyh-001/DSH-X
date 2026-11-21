@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readEnDict } from './helpers/frontend-source.mjs'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import vm from 'node:vm'
@@ -279,7 +280,7 @@ test('主页卡片：5 种图标状态点、短目录名+完整路径 tooltip、
   h.context.paintLaunchHome()
   assert.doesNotMatch(h.list.innerHTML, /data-log-id="run"[^>]*has-issue|has-issue"[^>]*data-log-id="run"/)
 
-  const enDict = new vm.Script(`(${page.match(/const EN = (\{[\s\S]*?\n\})/)[1]})`).runInNewContext()
+  const enDict = readEnDict()
   for (const key of ['管理实例', '查看 {name} 的日志', '编辑 {name}', '重启', '有插件警告', '上次启动失败']) {
     assert.ok(enDict[key], `英文词典缺少「${key}」`)
   }

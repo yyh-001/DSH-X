@@ -1,10 +1,10 @@
 // 实例页面由登记器持有；宿主只借用视图，迁移不能触发 WebContents 的销毁。
 import { dataUrl, idlePage, stoppedPage, tabBaseColor } from './pages.mjs'
-import { followAction, isBootingUrl, parseTabTarget, sameOrigin } from './model.mjs'
+import { PAGE_TITLE_MAX, followAction, isBootingUrl, parseTabTarget, sameOrigin } from './model.mjs'
 
 export function cleanTitle(value) {
   return [...String(value || '').replace(/https?:\/\/\S+/gi, '').replace(/[\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g, '')]
-    .filter((char) => char >= ' ' && char !== '\u007f').slice(0, 160).join('').trim()
+    .filter((char) => char >= ' ' && char !== '\u007f').slice(0, PAGE_TITLE_MAX).join('').trim()
 }
 
 export function instanceWindowTitle(record, duplicates = false) {
