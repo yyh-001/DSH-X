@@ -177,9 +177,15 @@ export function summarize(cpuProfile, heapProfile, timing = { resolveCalls, load
     return row
   }
   let moduleTotalUs = 0
+  // 没有 parent 的 resolve 是进程入口（dsh 的 bin.js、保留 profile 的替身入口）：宿主遍历从这里起
+  const entryPackages = new Set()
   for (const call of timing.resolveCalls || []) {
     moduleTotalUs += call.us
-    if (!call.parent) continue
+    if (!call.parent) {
+      const entry = packageOf(call.url, names)
+      if (!names.has(entry)) entryPackages.add(entry)
+      continue
+    }
     const parent = packageOf(call.parent, names)
     if (parent === '(Node 内部)' || parent === '(原生/GC)') continue
     moduleRow(parent).resolveUs += call.us
@@ -195,12 +201,18 @@ export function summarize(cpuProfile, heapProfile, timing = { resolveCalls, load
     moduleRow(pkg).loadUs += call.us
   }
 
-  // 宿主（dsh 自己：官方 @deepseek-ai/* 包与归不了包的 dsh 源码）也会加载的包算框架开销，
-  // 不摊给插件：比如 cordis 每个插件都 import，但它本来就是 dsh 在驱动，卸掉插件它照样在。
-  // 插件只记「因为装了它才多出来」的那部分。宿主的遍历不往插件里走（loader 会 import 每个插件入口）。
+  // 宿主（dsh 自己的启动链）也会加载的包算框架开销，不摊给插件：比如 cordis 每个插件都 import，
+  // 但它本来就是 dsh 在驱动，卸掉插件它照样在。插件只记「因为装了它才多出来」的那部分。
+  // 宿主的遍历不往插件里走（loader 会 import 每个插件入口）。
+  //
+  // 起点只认 dsh 自己：进程入口、dsh CLI 包 @deepseek-ai/dsh、归不了包的 dsh 源码（其他）。
+  // 以前把所有 @deepseek-ai/* 都当起点，于是一个只有插件 import 的官方库（某个 SDK）连同它的整棵依赖
+  // 都被算成框架开销，插件反而显得很轻。现在 @deepseek-ai/* 只有从 dsh 启动链走得到时才算框架，
+  // 否则和第三方库一样，归给把它拉进来的插件。
   const PSEUDO = new Set(['(其他)', '(启动器钩子)', '(Node 内部)', '(原生/GC)'])
+  const HOST_ROOTS = new Set(['@deepseek-ai/dsh', '(其他)', ...entryPackages])
   const hostReach = new Set()
-  const hostQueue = [...moduleEdges.keys()].filter((pkg) => !names.has(pkg) && (/^@deepseek-ai\//.test(pkg) || pkg === '(其他)'))
+  const hostQueue = [...HOST_ROOTS].filter((pkg) => !names.has(pkg) && pkg !== '(启动器钩子)' && pkg !== '(Node 内部)' && pkg !== '(原生/GC)')
   for (const root of hostQueue) hostReach.add(root)
   while (hostQueue.length) {
     for (const next of moduleEdges.get(hostQueue.shift()) || []) {

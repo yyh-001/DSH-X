@@ -118,6 +118,57 @@ test('宿主也加载的框架包（@deepseek-ai/*、dsh 自身）不摊给插�
   assert.equal(plugin.runMs, 1, 'cordis 的 50ms 和 dsh 自身的 7ms 是框架开销，不算插件的')
 })
 
+test('只有插件 import 的 @deepseek-ai/* 库归给插件，不当框架开销', () => {
+  const url = (name) => `file:///profile/node_modules/${name}/index.js`
+  const cpuProfile = {
+    nodes: [
+      frame(1, '(root)', '', [2, 3, 4, 5, 6]),
+      frame(2, 'apply', url('demo-plugin')),
+      frame(3, 'emit', url('@deepseek-ai/cordis')),
+      frame(4, 'call', url('@deepseek-ai/sdk')),
+      frame(5, 'parse', url('sdk-dep')),
+      frame(6, 'main', url('@deepseek-ai/dsh')),
+    ],
+    samples: [2, 3, 4, 5, 6],
+    timeDeltas: [1000, 50000, 20000, 4000, 7000],
+  }
+  const timing = {
+    resolveCalls: [
+      // 进程入口：dsh 的 bin.js，没有 parent
+      { parent: '', specifier: '/profile/node_modules/@deepseek-ai/dsh/index.js', url: url('@deepseek-ai/dsh'), us: 10 },
+      { parent: url('@deepseek-ai/dsh'), specifier: '@deepseek-ai/cordis', url: url('@deepseek-ai/cordis'), us: 100 },
+      { parent: url('@deepseek-ai/cordis'), specifier: 'demo-plugin', url: url('demo-plugin'), us: 100 },
+      { parent: url('demo-plugin'), specifier: '@deepseek-ai/cordis', url: url('@deepseek-ai/cordis'), us: 100 },
+      // dsh 自己不加载的官方库：只有插件 import 它，它再带进来一个第三方依赖
+      { parent: url('demo-plugin'), specifier: '@deepseek-ai/sdk', url: url('@deepseek-ai/sdk'), us: 1000 },
+      { parent: url('@deepseek-ai/sdk'), specifier: 'sdk-dep', url: url('sdk-dep'), us: 1000 },
+    ],
+    loadCalls: [],
+  }
+  const plugin = summarize(cpuProfile, null, timing, ['demo-plugin']).plugins[0]
+  assert.equal(plugin.runMs, 1 + 20 + 4, '插件 1ms + 它拉进来的官方 SDK 20ms + SDK 的依赖 4ms；cordis 与 dsh 本体仍是框架')
+  assert.equal(plugin.loadMs, 1 + 1, 'SDK 和它依赖的 resolve 时间也归插件')
+})
+
+test('宿主自己也加载的 @deepseek-ai/* 库仍算框架，即使插件也 import 它', () => {
+  const url = (name) => `file:///profile/node_modules/${name}/index.js`
+  const cpuProfile = {
+    nodes: [frame(1, '(root)', '', [2, 3]), frame(2, 'apply', url('demo-plugin')), frame(3, 'call', url('@deepseek-ai/sdk'))],
+    samples: [2, 3],
+    timeDeltas: [1000, 20000],
+  }
+  const timing = {
+    resolveCalls: [
+      { parent: '', specifier: 'x', url: url('@deepseek-ai/dsh'), us: 10 },
+      { parent: url('@deepseek-ai/dsh'), specifier: '@deepseek-ai/sdk', url: url('@deepseek-ai/sdk'), us: 100 },
+      { parent: url('@deepseek-ai/dsh'), specifier: 'demo-plugin', url: url('demo-plugin'), us: 100 },
+      { parent: url('demo-plugin'), specifier: '@deepseek-ai/sdk', url: url('@deepseek-ai/sdk'), us: 100 },
+    ],
+    loadCalls: [],
+  }
+  assert.equal(summarize(cpuProfile, null, timing, ['demo-plugin']).plugins[0].runMs, 1)
+})
+
 test('报告文件名：ASCII 名字不变，中文按 UTF-8 转义，不再互相撞名', async () => {
   const { reportFileName } = await import('../src/perf/plugin-profile.mjs')
   assert.equal(reportFileName('0.2.1@web'), '0.2.1@web')
