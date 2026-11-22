@@ -709,7 +709,6 @@ const EN = {
   "还没有空间占用数据": "No disk usage data yet",
   "还没有日志": "No log yet",
   "这个启动项还没有日志。启动一次后，它自己的输出会出现在这里。": "This launch entry has no log yet. Start it once and its own output will show up here.",
-  "只显示最后 120 KB。": "Showing the last 120 KB only.",
   "上次启动": "Last start",
   "等待就绪里发生了什么": "What happened while waiting for ready",
   "按日志时间戳推算": "Estimated from log timestamps",

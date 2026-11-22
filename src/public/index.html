@@ -8186,7 +8186,7 @@
         launchLogTextCache.set(entry.id, logText)
         if (launchLogTextCache.size > 8) launchLogTextCache.delete(launchLogTextCache.keys().next().value)
         setLaunchLogHint(data.text
-          ? (data.clipped ? t('只显示最后 120 KB。') : '')
+          ? ''
           : t('这个启动项还没有日志。启动一次后，它自己的输出会出现在这里。'))
         const run = Array.isArray(data.runs) ? data.runs[0] : null
         if (run && Number.isFinite(Number(run.startupRssMB))) {
