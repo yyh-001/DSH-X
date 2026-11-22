@@ -378,6 +378,158 @@ a {
   flex-shrink: 0;
 }
 
+/* ===== PWA 安装 / HTTPS 引导横幅与分步弹窗 ===== */
+.pwa-banner {
+  max-width: 640px;
+  width: calc(100% - 28px);
+  margin: 10px auto 0;
+  padding: 11px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line-strong);
+  background: var(--accent-soft);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.pwa-banner-inline {
+  width: 100%;
+  margin: 0;
+}
+
+.pwa-banner.warn {
+  border-color: var(--status-starting);
+  background: var(--status-starting-soft);
+}
+
+.pwa-banner-lead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 180px;
+  flex: 1 1 200px;
+}
+
+.pwa-banner-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pwa-banner.warn .pwa-banner-icon {
+  background: var(--status-starting);
+  color: #ffffff;
+}
+
+html[data-color-scheme="dark"] .pwa-banner.warn .pwa-banner-icon {
+  color: var(--accent-contrast);
+}
+
+.pwa-banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pwa-banner-title {
+  font-weight: 650;
+  color: var(--text);
+  line-height: 1.35;
+}
+
+.pwa-banner-sub {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.pwa-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.pwa-close-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 150ms var(--ease), color 150ms var(--ease);
+}
+
+.pwa-close-btn:hover {
+  background: var(--card);
+  color: var(--text);
+}
+
+.pwa-guide-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  counter-reset: pwa-step;
+}
+
+.pwa-guide-steps li {
+  counter-increment: pwa-step;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.pwa-guide-steps li::before {
+  content: counter(pwa-step);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  border: 1px solid var(--line-strong);
+  color: var(--text);
+  font-size: 11.5px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.pwa-guide-note {
+  margin: 0;
+  padding: 9px 11px;
+  border-radius: var(--radius-sm);
+  background: var(--card-subtle);
+  border: 1px solid var(--line);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
 /* ===== 主内容区域 ===== */
 .app-main {
   flex: 1;

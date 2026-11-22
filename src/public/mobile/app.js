@@ -8,6 +8,7 @@ const STORAGE = {
   lang: 'dshx_mobile_lang',
   autoSwitch: 'dshx_mobile_auto_switch',
   lastLogKey: 'dshx_mobile_last_log_key',
+  pwaDismissed: 'dshx_mobile_pwa_dismissed',
 }
 
 const REDIRECT_GUARD_KEY = 'dshx_mobile_route_redirected'
@@ -140,7 +141,83 @@ const I18N = {
     targetWsl: 'WSL',
     targetSsh: 'SSH',
     footerVersion: 'DSH-X 网关 {version}',
-    footerPwaHint: '提示：可通过浏览器菜单「添加到主屏幕」以独立 App 形态使用',
+    footerPwaHint: '提示：可通过下方「安装为手机 App」或浏览器菜单添加到主屏幕',
+    pwaInstallTitle: '安装为手机 App（PWA）',
+    pwaInstalledToast: '已添加到主屏幕',
+    pwaDismiss: '关闭提示',
+    pwaClose: '知道了',
+    pwaBannerTitleNative: '安装 DSH-X 手机版',
+    pwaBannerSubNative: '添加到主屏幕后可全屏独立运行，打开更快',
+    pwaBannerBtnNative: '立即安装',
+    pwaSettingsDescNative: '支持一键添加到手机桌面，全屏独立运行',
+    pwaBannerTitleInApp: '请改用系统浏览器打开',
+    pwaBannerSubInApp: '微信、QQ 等内置浏览器不支持安装 PWA，点右上角菜单切换',
+    pwaBannerBtnInApp: '查看引导',
+    pwaSettingsDescInApp: '当前在应用内浏览器中，需改用 Safari 或 Chrome 安装',
+    pwaGuideTitleInApp: '切换系统浏览器以安装 PWA',
+    pwaGuideIntroInApp: '内置浏览器不支持安装独立 PWA 应用，请先切换到系统浏览器：',
+    pwaGuideInAppStep1: '点击右上角「⋯」或「⋮」菜单按钮',
+    pwaGuideInAppStep2: '选择「在 Safari 中打开」或「在默认浏览器打开」',
+    pwaGuideInAppStep3: '在系统浏览器打开后，再按「添加到主屏幕」安装',
+    pwaGuideInAppNote: '注：长期固定 PWA 建议通过固定 HTTPS 域名访问（可在电脑端「高级设置」配置自建 Worker / Tunnel / 反代）。',
+    pwaBannerTitleEphemeral: '临时体验域名不建议安装 PWA',
+    pwaBannerSubEphemeralHttps: '*.trycloudflare.com 每次重启都会换新地址，检测到已配置固定 HTTPS，切换后再安装。',
+    pwaBannerBtnEphemeralHttps: '切换固定 HTTPS',
+    pwaSettingsDescEphemeralHttps: '当前为临时域名；点击切换到固定 HTTPS 地址后可安装 PWA',
+    pwaBannerSubEphemeralNoHttps: '*.trycloudflare.com 每次重启都会换新地址，装到桌面的图标下次会打不开；配置固定 HTTPS 域名后再安装。',
+    pwaBannerBtnEphemeralNoHttps: '配置说明',
+    pwaSettingsDescEphemeralNoHttps: '临时随机域名重启后失效，配置固定 HTTPS 域名后再安装',
+    pwaGuideTitleEphemeral: '如何用固定域名安装为手机 PWA',
+    pwaGuideIntroEphemeral: 'Cloudflare 临时体验隧道（*.trycloudflare.com）每次重启都会生成新域名；PWA 图标绑定创建时的域名，下次重启就会打不开。配置固定公网域名后即可长期使用：',
+    pwaGuideEphemeralStep1: '在电脑端 DSH-X 打开「远程 → 手机访问」，展开「高级设置」',
+    pwaGuideEphemeralStep2: '选择「自建 Worker」或「已有 Tunnel」绑定永久域名，或在「自定义公网 HTTPS 地址」填入 Tailscale / 自建反代域名',
+    pwaGuideEphemeralStep3: '用手机打开该固定 https:// 地址后，再添加到主屏幕即可长期生效',
+    pwaGuideEphemeralNote: '临时体验适合快速扫码试用；需要常驻手机桌面图标时请先固定公网域名。',
+    pwaBannerTitleInsecureHttps: '局域网 HTTP 无法安装 PWA',
+    pwaBannerSubInsecureHttps: '检测到已配置固定 HTTPS，切换后即可安装为独立 App',
+    pwaBannerBtnInsecureHttps: '切换固定 HTTPS',
+    pwaSettingsDescInsecureHttps: '手机浏览器要求固定 HTTPS；点击可切换后安装',
+    pwaBannerTitleInsecureNoHttps: '为什么没看到 PWA？需要固定 HTTPS',
+    pwaBannerSubInsecureNoHttps: '手机浏览器仅在 HTTPS 下启用 PWA，局域网可先添加到浏览器书签',
+    pwaBannerBtnInsecureNoHttps: '查看原因',
+    pwaSettingsDescInsecureNoHttps: '当前为局域网 HTTP，浏览器已禁用 PWA 安装',
+    pwaGuideTitleInsecure: '局域网 HTTP 无法安装 PWA',
+    pwaGuideIntroInsecure: '受手机浏览器安全限制，http://192.168.x.x 等局域网 HTTP 地址不会激活 Service Worker 与 PWA 安装（局域网推荐直接收藏书签；如需独立 PWA 请使用固定 HTTPS）：',
+    pwaGuideInsecureStep1: '在电脑端 DSH-X 打开「远程 → 手机访问 → 高级设置」',
+    pwaGuideInsecureStep2: '配置「自建 Worker」「已有 Tunnel」或固定公网 HTTPS 域名（临时 *.trycloudflare.com 重启会变，不建议用来装 PWA）',
+    pwaGuideInsecureStep3: '用手机打开该固定 https:// 链接，即可安装为长期有效的桌面 App',
+    pwaGuideInsecureNoteHttps: '检测到可用固定 HTTPS 地址：{url}',
+    pwaGuideInsecureExtraBtn: '立即切换固定 HTTPS',
+    pwaBannerTitleIosSafari: '添加到主屏幕（PWA）',
+    pwaBannerSubIosSafari: '添加到主屏幕后可像原生 App 一样全屏运行',
+    pwaBannerBtnIosSafari: '查看步骤',
+    pwaSettingsDescIosSafari: '点 Safari 底部「分享」→「添加到主屏幕」即可安装',
+    pwaGuideTitleIosSafari: '在 iPhone / iPad 上安装 DSH-X',
+    pwaGuideIntroIosSafari: '在 Safari 浏览器中按以下步骤即可安装到主屏幕：',
+    pwaGuideIosSafariStep1: '点击浏览器底部的「分享」图标（方框带向上箭头）',
+    pwaGuideIosSafariStep2: '在弹出菜单中向下滑，点击「添加到主屏幕」',
+    pwaGuideIosSafariStep3: '确认名称后点击右上角「添加」即可完成',
+    pwaGuideIosSafariNote: '从主屏幕图标启动后将全屏独立运行，不显示浏览器地址栏。',
+    pwaBannerTitleIosOther: '使用 Safari 添加到主屏幕',
+    pwaBannerSubIosOther: '在 iOS 上通过分享菜单或 Safari 可安装为独立 App',
+    pwaBannerBtnIosOther: '查看步骤',
+    pwaSettingsDescIosOther: '点「分享 → 添加到主屏幕」，或改用 Safari 打开',
+    pwaGuideTitleIosOther: '在 iOS 浏览器安装 DSH-X',
+    pwaGuideIntroIosOther: 'iOS 设备需通过分享菜单或 Safari 将应用安装到主屏幕：',
+    pwaGuideIosOtherStep1: '点击地址栏旁或右上角的「分享」按钮',
+    pwaGuideIosOtherStep2: '在列表中找到并点击「添加到主屏幕」',
+    pwaGuideIosOtherStep3: '若当前浏览器无此选项，请复制地址改用 Safari 打开后重复上述步骤',
+    pwaGuideIosOtherNote: '请确保当前使用以 https:// 开头的安全地址访问。',
+    pwaBannerTitleManual: '安装 DSH-X 到桌面 / 主屏幕',
+    pwaBannerSubManual: '通过浏览器菜单「安装应用 / 添加到主屏幕」即可独立使用',
+    pwaBannerBtnManual: '查看步骤',
+    pwaSettingsDescManual: '点浏览器右上角菜单选择「安装应用 / 添加到主屏幕」',
+    pwaGuideTitleManual: '手动安装 DSH-X PWA',
+    pwaGuideIntroManual: '若浏览器未自动弹出安装窗口，可通过菜单手动添加：',
+    pwaGuideManualStep1: '点击浏览器右上角菜单图标（⋮ 或 ⋯）',
+    pwaGuideManualStep2: '选择「安装应用」或「添加到主屏幕」',
+    pwaGuideManualStep3: '在确认框中点击「安装 / 添加」即可在桌面打开',
+    pwaGuideManualNote: 'Android 设备建议使用 Chrome 或 Edge，可获得完整独立窗口体验。',
     defaultHostName: 'DSH-X 主机',
     noEndpoints: '暂未获取到链路地址',
   },
@@ -267,7 +344,83 @@ const I18N = {
     targetWsl: 'WSL',
     targetSsh: 'SSH',
     footerVersion: 'DSH-X Gateway {version}',
-    footerPwaHint: 'Tip: Use "Add to Home Screen" in your browser menu for standalone app mode',
+    footerPwaHint: 'Tip: Use "Install as Mobile App" below or your browser menu for standalone mode',
+    pwaInstallTitle: 'Install as Mobile App (PWA)',
+    pwaInstalledToast: 'Added to Home Screen',
+    pwaDismiss: 'Dismiss',
+    pwaClose: 'Got it',
+    pwaBannerTitleNative: 'Install DSH-X App',
+    pwaBannerSubNative: 'Add to Home Screen for full-screen standalone launch',
+    pwaBannerBtnNative: 'Install',
+    pwaSettingsDescNative: 'Ready to install to your Home Screen as a standalone app',
+    pwaBannerTitleInApp: 'Open in System Browser',
+    pwaBannerSubInApp: 'In-app browsers (WeChat/QQ) cannot install PWAs. Use top-right menu.',
+    pwaBannerBtnInApp: 'How to Open',
+    pwaSettingsDescInApp: 'Opened inside an in-app browser; switch to Safari or Chrome to install',
+    pwaGuideTitleInApp: 'Open in System Browser to Install PWA',
+    pwaGuideIntroInApp: 'This in-app browser disables PWA installation. Switch to your system browser first:',
+    pwaGuideInAppStep1: 'Tap the "⋯" or "⋮" menu button in the top-right corner',
+    pwaGuideInAppStep2: 'Choose "Open in Safari" or "Open in Browser"',
+    pwaGuideInAppStep3: 'Once opened there, add the page to your Home Screen',
+    pwaGuideInAppNote: 'Note: Installing a lasting PWA also requires a stable HTTPS URL (configure Worker / Tunnel / custom HTTPS in desktop Advanced Settings).',
+    pwaBannerTitleEphemeral: 'Temporary URL — Not Recommended for PWA',
+    pwaBannerSubEphemeralHttps: '*.trycloudflare.com changes on every restart. Switch to your stable HTTPS URL to install.',
+    pwaBannerBtnEphemeralHttps: 'Switch Stable HTTPS',
+    pwaSettingsDescEphemeralHttps: 'Temporary domain active; switch to your stable HTTPS URL to install PWA',
+    pwaBannerSubEphemeralNoHttps: '*.trycloudflare.com changes on every restart, breaking Home Screen icons. Configure a stable HTTPS domain first.',
+    pwaBannerBtnEphemeralNoHttps: 'Setup Guide',
+    pwaSettingsDescEphemeralNoHttps: 'Random tunnel domain expires on restart; configure a stable HTTPS domain first',
+    pwaGuideTitleEphemeral: 'Use a Stable HTTPS Domain for PWA',
+    pwaGuideIntroEphemeral: 'Cloudflare Quick Tunnels (*.trycloudflare.com) generate a new URL on every restart. Because a PWA icon stays bound to its creation origin, it stops working after a restart:',
+    pwaGuideEphemeralStep1: 'On DSH-X desktop, open Remote → Mobile Access and expand Advanced Settings',
+    pwaGuideEphemeralStep2: 'Use a Custom Worker or Named Tunnel for a permanent domain, or enter a Tailscale / reverse-proxy URL under Custom Public HTTPS URL',
+    pwaGuideEphemeralStep3: 'Open that fixed https:// URL on your phone and add it to your Home Screen',
+    pwaGuideEphemeralNote: 'Quick Tunnels work well for one-off scanning; bind a permanent domain if you want a lasting Home Screen app.',
+    pwaBannerTitleInsecureHttps: 'LAN HTTP cannot install PWA',
+    pwaBannerSubInsecureHttps: 'Stable HTTPS URL detected — switch over to install as a standalone app',
+    pwaBannerBtnInsecureHttps: 'Switch Stable HTTPS',
+    pwaSettingsDescInsecureHttps: 'Mobile browsers require stable HTTPS; switch to install PWA',
+    pwaBannerTitleInsecureNoHttps: 'Why no PWA? Stable HTTPS required',
+    pwaBannerSubInsecureNoHttps: 'Mobile browsers disable PWA over LAN HTTP. Bookmark it, or configure a fixed HTTPS URL.',
+    pwaBannerBtnInsecureNoHttps: 'See Why',
+    pwaSettingsDescInsecureNoHttps: 'Connected over LAN HTTP; mobile browsers disable PWA install',
+    pwaGuideTitleInsecure: 'LAN HTTP Cannot Install PWA',
+    pwaGuideIntroInsecure: 'Mobile browsers disable Service Workers and PWA installation on plain LAN HTTP URLs (such as http://192.168.x.x). Add a browser bookmark for LAN access, or set up a stable HTTPS domain for PWA:',
+    pwaGuideInsecureStep1: 'On DSH-X desktop, open Remote → Mobile Access → Advanced Settings',
+    pwaGuideInsecureStep2: 'Configure a Custom Worker, Named Tunnel, or stable HTTPS domain (avoid installing random *.trycloudflare.com URLs as they expire on restart)',
+    pwaGuideInsecureStep3: 'Open that fixed https:// link on your phone to install a permanent PWA',
+    pwaGuideInsecureNoteHttps: 'Stable HTTPS URL detected: {url}',
+    pwaGuideInsecureExtraBtn: 'Switch to Stable HTTPS',
+    pwaBannerTitleIosSafari: 'Add to Home Screen',
+    pwaBannerSubIosSafari: 'Install for full-screen native-like experience',
+    pwaBannerBtnIosSafari: 'Show Steps',
+    pwaSettingsDescIosSafari: 'Tap Share at the bottom of Safari and choose "Add to Home Screen"',
+    pwaGuideTitleIosSafari: 'Install DSH-X on iPhone / iPad',
+    pwaGuideIntroIosSafari: 'Follow these steps in Safari to install a standalone app icon:',
+    pwaGuideIosSafariStep1: 'Tap the Share icon (square with an upward arrow) at the bottom bar',
+    pwaGuideIosSafariStep2: 'Scroll down and tap "Add to Home Screen"',
+    pwaGuideIosSafariStep3: 'Confirm the name and tap "Add" in the top-right corner',
+    pwaGuideIosSafariNote: 'Opening from the Home Screen launches in full-screen standalone mode.',
+    pwaBannerTitleIosOther: 'Use Safari to Add to Home Screen',
+    pwaBannerSubIosOther: 'Install via the Share menu or reopen this page in Safari',
+    pwaBannerBtnIosOther: 'Show Steps',
+    pwaSettingsDescIosOther: 'Tap Share → "Add to Home Screen", or open in Safari',
+    pwaGuideTitleIosOther: 'Install DSH-X on iOS Browsers',
+    pwaGuideIntroIosOther: 'On iOS, installing to Home Screen requires the Share sheet or Safari:',
+    pwaGuideIosOtherStep1: 'Tap the Share icon next to the address bar or top bar',
+    pwaGuideIosOtherStep2: 'Find and tap "Add to Home Screen" in the sheet',
+    pwaGuideIosOtherStep3: 'If the option is missing, copy this link, open it in Safari, and repeat above',
+    pwaGuideIosOtherNote: 'Make sure the page URL begins with https://.',
+    pwaBannerTitleManual: 'Install DSH-X App',
+    pwaBannerSubManual: 'Open your browser menu and select Install App / Add to Home Screen',
+    pwaBannerBtnManual: 'Show Steps',
+    pwaSettingsDescManual: 'Open browser menu (⋮) and choose "Install app" or "Add to Home Screen"',
+    pwaGuideTitleManual: 'Install DSH-X PWA Manually',
+    pwaGuideIntroManual: 'If no install prompt popped up automatically, install from the browser menu:',
+    pwaGuideManualStep1: 'Tap the browser menu button (⋮ or ⋯) in the top right',
+    pwaGuideManualStep2: 'Tap "Install app" or "Add to Home Screen"',
+    pwaGuideManualStep3: 'Confirm "Install" or "Add" in the system dialog',
+    pwaGuideManualNote: 'Chrome or Edge on Android provides the best standalone PWA experience.',
     defaultHostName: 'DSH-X Host',
     noEndpoints: 'No route URLs configured yet',
   },
@@ -370,7 +523,7 @@ function normalizeOrigin(raw) {
 function isPrivateLanHost(hostname) {
   const h = (hostname || '').toLowerCase()
   if (!h) return false
-  if (h === 'localhost' || h === '::1' || h === '[::1]' || h.endsWith('.local') || h.endsWith('.lan')) return true
+  if (h === 'localhost' || h === '::1' || h.endsWith('.local') || h.endsWith('.lan') || h === '[::1]') return true
   const m = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/)
   if (!m) return false
   const a = Number(m[1])
@@ -379,6 +532,24 @@ function isPrivateLanHost(hostname) {
   if (a === 192 && b === 168) return true
   if (a === 172 && b >= 16 && b <= 31) return true
   return false
+}
+
+function isStandalonePwa() {
+  return Boolean(
+    (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+    window.navigator.standalone === true
+  )
+}
+
+function isEphemeralTunnelHost(hostname) {
+  return /\.trycloudflare\.com$/i.test(String(hostname || '').toLowerCase())
+}
+
+function isSecurePwaOrigin() {
+  return (
+    window.location.protocol === 'https:' ||
+    /^(localhost|127\.0\.0\.1|\[::1\]|::1)$/i.test(window.location.hostname || '')
+  )
 }
 
 function isTailscaleHost(hostname) {
@@ -608,6 +779,10 @@ const state = {
   probeResults: [],
   probing: false,
   bannerDismissedUrl: '',
+  deferredInstallPrompt: null,
+  pwaInstalled: isStandalonePwa(),
+  pwaDismissed: lsGet(STORAGE.pwaDismissed, '0') === '1',
+  pwaDialogScenario: '',
   instancesTimer: null,
   logsTimer: null,
 }
@@ -626,6 +801,10 @@ const el = {
   routeBannerTitle: document.getElementById('routeBannerTitle'),
   routeBannerSub: document.getElementById('routeBannerSub'),
   routeBannerActions: document.getElementById('routeBannerActions'),
+  pwaBanner: document.getElementById('pwaBanner'),
+  pwaBannerTitle: document.getElementById('pwaBannerTitle'),
+  pwaBannerSub: document.getElementById('pwaBannerSub'),
+  pwaBannerActions: document.getElementById('pwaBannerActions'),
 
   runningCount: document.getElementById('runningCount'),
   runningList: document.getElementById('runningList'),
@@ -650,6 +829,9 @@ const el = {
   devicesList: document.getElementById('devicesList'),
   addHostBtn: document.getElementById('addHostBtn'),
   hostsList: document.getElementById('hostsList'),
+  pwaSettingsRow: document.getElementById('pwaSettingsRow'),
+  pwaSettingsDesc: document.getElementById('pwaSettingsDesc'),
+  pwaSettingsBtn: document.getElementById('pwaSettingsBtn'),
   unpairSelfBtn: document.getElementById('unpairSelfBtn'),
   appFooterNote: document.getElementById('appFooterNote'),
 
@@ -669,6 +851,10 @@ const el = {
   pairServerHint: document.getElementById('pairServerHint'),
   pairError: document.getElementById('pairError'),
   pairSubmitBtn: document.getElementById('pairSubmitBtn'),
+  pairPwaBanner: document.getElementById('pairPwaBanner'),
+  pairPwaTitle: document.getElementById('pairPwaTitle'),
+  pairPwaSub: document.getElementById('pairPwaSub'),
+  pairPwaActions: document.getElementById('pairPwaActions'),
   pairSavedHostsBox: document.getElementById('pairSavedHostsBox'),
   pairSavedHostsList: document.getElementById('pairSavedHostsList'),
 
@@ -677,6 +863,13 @@ const el = {
   confirmBody: document.getElementById('confirmBody'),
   confirmCancelBtn: document.getElementById('confirmCancelBtn'),
   confirmOkBtn: document.getElementById('confirmOkBtn'),
+  pwaGuideDialog: document.getElementById('pwaGuideDialog'),
+  pwaGuideTitle: document.getElementById('pwaGuideTitle'),
+  pwaGuideIntro: document.getElementById('pwaGuideIntro'),
+  pwaGuideSteps: document.getElementById('pwaGuideSteps'),
+  pwaGuideNote: document.getElementById('pwaGuideNote'),
+  pwaGuideExtraBtn: document.getElementById('pwaGuideExtraBtn'),
+  pwaGuideCloseBtn: document.getElementById('pwaGuideCloseBtn'),
   toastContainer: document.getElementById('toastContainer'),
 }
 
@@ -729,6 +922,9 @@ function applyLanguage(lang) {
   el.pairServerUrlInput.placeholder = t('serverUrlPlaceholder', { origin: window.location.origin })
   updatePairServerHint()
   renderAll()
+  if (!el.pwaGuideDialog.hidden) {
+    openPwaGuideDialog(state.pwaDialogScenario)
+  }
 }
 
 // ===== 辅助 UI（Toast、确认弹窗、时间与节点构造） =====
@@ -1043,6 +1239,7 @@ async function probeHostRoutes({ allowAutoSwitch = false, manual = false } = {})
   renderConnectionChip()
   renderEndpointsPanel()
   evaluateSmartRouteBanner({ allowAutoSwitch })
+  renderPwaGuideUI()
   renderFooterNote()
 
   if (manual) showToast(t('probeDone'))
@@ -1402,12 +1599,14 @@ function showPairView({ modal = false, pairPayload = null, errorMessage = '' } =
 
   updatePairServerHint()
   renderPairSavedHosts()
+  renderPwaGuideUI()
 }
 
 function hidePairView() {
   state.pairModalOpen = false
   el.pairView.hidden = true
   el.consoleShell.hidden = false
+  renderPwaGuideUI()
 }
 
 async function handlePairSubmit(event) {
@@ -1991,15 +2190,329 @@ async function switchToSavedHost(host) {
   redirectToEndpoint(fastest ? fastest.url : (host.activeEndpoint || candidates[0]))
 }
 
+function findStableHttpsEndpoint() {
+  const host = state.authenticated ? getCurrentHostRecord() : null
+  const candidates = [
+    host?.endpoints?.custom,
+    host?.endpoints?.tunnel,
+    state.health?.tunnel?.publicUrl,
+    state.pendingUrlPair?.endpoints?.custom,
+    state.pendingUrlPair?.endpoints?.tunnel,
+    state.pendingUrlPair?.serverUrl,
+  ]
+  for (const raw of candidates) {
+    const origin = normalizeOrigin(raw)
+    if (!origin || !origin.startsWith('https://')) continue
+    try {
+      const { hostname } = new URL(origin)
+      if (!isEphemeralTunnelHost(hostname)) return origin
+    } catch {
+      // 忽略无效 URL
+    }
+  }
+  return ''
+}
+
+function switchToHttpsOrigin(httpsOrigin) {
+  const clean = normalizeOrigin(httpsOrigin)
+  if (!clean) return
+  const target = new URL('/_dshx/m/', clean)
+  const pendingCode = (el.pairCodeInput?.value || state.pendingUrlPair?.code || '').trim()
+  if (pendingCode) {
+    target.searchParams.set('pair', pendingCode)
+    const devName = (el.pairDeviceNameInput?.value || state.pendingUrlPair?.deviceName || '').trim()
+    if (devName) target.searchParams.set('name', devName)
+  } else if (window.location.search) {
+    target.search = window.location.search
+  }
+  window.location.href = target.toString()
+}
+
+function detectPwaScenario() {
+  if (state.pwaInstalled) return 'installed'
+  const ua = navigator.userAgent || ''
+  if (/MicroMessenger|QQ\/|DingTalk|Weibo|AlipayClient/i.test(ua)) return 'inApp'
+  if (isEphemeralTunnelHost(window.location.hostname)) return 'ephemeral'
+  if (!isSecurePwaOrigin()) return 'insecure'
+  if (state.deferredInstallPrompt) return 'native'
+  const isIos = deviceProfile.platform === 'ios' || /iPhone|iPad|iPod/i.test(ua)
+  if (isIos) {
+    const isSafari = /Safari/i.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS|DuckDuckGo/i.test(ua)
+    return isSafari ? 'iosSafari' : 'iosOther'
+  }
+  return 'manual'
+}
+
+function buildPwaScenarioDescriptor(scenario) {
+  const stableHttps = findStableHttpsEndpoint()
+
+  if (scenario === 'native') {
+    return {
+      warn: false,
+      title: t('pwaBannerTitleNative'),
+      sub: t('pwaBannerSubNative'),
+      primaryLabel: t('pwaBannerBtnNative'),
+      settingsDesc: t('pwaSettingsDescNative'),
+      onPrimaryAction: () => triggerNativeInstall(),
+      dialog: null,
+    }
+  }
+
+  if (scenario === 'inApp') {
+    return {
+      warn: true,
+      title: t('pwaBannerTitleInApp'),
+      sub: t('pwaBannerSubInApp'),
+      primaryLabel: t('pwaBannerBtnInApp'),
+      settingsDesc: t('pwaSettingsDescInApp'),
+      onPrimaryAction: () => openPwaGuideDialog('inApp'),
+      dialog: {
+        title: t('pwaGuideTitleInApp'),
+        intro: t('pwaGuideIntroInApp'),
+        steps: [t('pwaGuideInAppStep1'), t('pwaGuideInAppStep2'), t('pwaGuideInAppStep3')],
+        note: t('pwaGuideInAppNote'),
+      },
+    }
+  }
+
+  if (scenario === 'ephemeral') {
+    return {
+      warn: true,
+      title: t('pwaBannerTitleEphemeral'),
+      sub: stableHttps ? t('pwaBannerSubEphemeralHttps') : t('pwaBannerSubEphemeralNoHttps'),
+      primaryLabel: stableHttps ? t('pwaBannerBtnEphemeralHttps') : t('pwaBannerBtnEphemeralNoHttps'),
+      settingsDesc: stableHttps ? t('pwaSettingsDescEphemeralHttps') : t('pwaSettingsDescEphemeralNoHttps'),
+      onPrimaryAction: stableHttps
+        ? () => switchToHttpsOrigin(stableHttps)
+        : () => openPwaGuideDialog('ephemeral'),
+      dialog: {
+        title: t('pwaGuideTitleEphemeral'),
+        intro: t('pwaGuideIntroEphemeral'),
+        steps: [t('pwaGuideEphemeralStep1'), t('pwaGuideEphemeralStep2'), t('pwaGuideEphemeralStep3')],
+        note: stableHttps ? t('pwaGuideInsecureNoteHttps', { url: stableHttps }) : t('pwaGuideEphemeralNote'),
+        extraLabel: stableHttps ? t('pwaGuideInsecureExtraBtn') : '',
+        onExtraAction: stableHttps ? () => switchToHttpsOrigin(stableHttps) : null,
+      },
+    }
+  }
+
+  if (scenario === 'insecure') {
+    return {
+      warn: true,
+      title: stableHttps ? t('pwaBannerTitleInsecureHttps') : t('pwaBannerTitleInsecureNoHttps'),
+      sub: stableHttps ? t('pwaBannerSubInsecureHttps') : t('pwaBannerSubInsecureNoHttps'),
+      primaryLabel: stableHttps ? t('pwaBannerBtnInsecureHttps') : t('pwaBannerBtnInsecureNoHttps'),
+      settingsDesc: stableHttps ? t('pwaSettingsDescInsecureHttps') : t('pwaSettingsDescInsecureNoHttps'),
+      onPrimaryAction: stableHttps
+        ? () => switchToHttpsOrigin(stableHttps)
+        : () => openPwaGuideDialog('insecure'),
+      dialog: {
+        title: t('pwaGuideTitleInsecure'),
+        intro: t('pwaGuideIntroInsecure'),
+        steps: [t('pwaGuideInsecureStep1'), t('pwaGuideInsecureStep2'), t('pwaGuideInsecureStep3')],
+        note: stableHttps ? t('pwaGuideInsecureNoteHttps', { url: stableHttps }) : '',
+        extraLabel: stableHttps ? t('pwaGuideInsecureExtraBtn') : '',
+        onExtraAction: stableHttps ? () => switchToHttpsOrigin(stableHttps) : null,
+      },
+    }
+  }
+
+  if (scenario === 'iosSafari') {
+    return {
+      warn: false,
+      title: t('pwaBannerTitleIosSafari'),
+      sub: t('pwaBannerSubIosSafari'),
+      primaryLabel: t('pwaBannerBtnIosSafari'),
+      settingsDesc: t('pwaSettingsDescIosSafari'),
+      onPrimaryAction: () => openPwaGuideDialog('iosSafari'),
+      dialog: {
+        title: t('pwaGuideTitleIosSafari'),
+        intro: t('pwaGuideIntroIosSafari'),
+        steps: [t('pwaGuideIosSafariStep1'), t('pwaGuideIosSafariStep2'), t('pwaGuideIosSafariStep3')],
+        note: t('pwaGuideIosSafariNote'),
+      },
+    }
+  }
+
+  if (scenario === 'iosOther') {
+    return {
+      warn: false,
+      title: t('pwaBannerTitleIosOther'),
+      sub: t('pwaBannerSubIosOther'),
+      primaryLabel: t('pwaBannerBtnIosOther'),
+      settingsDesc: t('pwaSettingsDescIosOther'),
+      onPrimaryAction: () => openPwaGuideDialog('iosOther'),
+      dialog: {
+        title: t('pwaGuideTitleIosOther'),
+        intro: t('pwaGuideIntroIosOther'),
+        steps: [t('pwaGuideIosOtherStep1'), t('pwaGuideIosOtherStep2'), t('pwaGuideIosOtherStep3')],
+        note: t('pwaGuideIosOtherNote'),
+      },
+    }
+  }
+
+  return {
+    warn: false,
+    title: t('pwaBannerTitleManual'),
+    sub: t('pwaBannerSubManual'),
+    primaryLabel: t('pwaBannerBtnManual'),
+    settingsDesc: t('pwaSettingsDescManual'),
+    onPrimaryAction: () => openPwaGuideDialog('manual'),
+    dialog: {
+      title: t('pwaGuideTitleManual'),
+      intro: t('pwaGuideIntroManual'),
+      steps: [t('pwaGuideManualStep1'), t('pwaGuideManualStep2'), t('pwaGuideManualStep3')],
+      note: t('pwaGuideManualNote'),
+    },
+  }
+}
+
+async function triggerNativeInstall() {
+  const promptEvent = state.deferredInstallPrompt
+  // BeforeInstallPromptEvent 只能消费一次；无论用户是否接受都要先清掉防止重复调用报错
+  state.deferredInstallPrompt = null
+  if (!promptEvent || isEphemeralTunnelHost(window.location.hostname)) {
+    renderPwaGuideUI()
+    openPwaGuideDialog(detectPwaScenario())
+    return
+  }
+  try {
+    await promptEvent.prompt()
+    const choice = await promptEvent.userChoice
+    if (choice && choice.outcome === 'accepted') {
+      state.pwaInstalled = true
+    }
+  } catch {
+    openPwaGuideDialog('manual')
+  }
+  renderPwaGuideUI()
+}
+
+function openPwaGuideDialog(requestedScenario) {
+  const scenario = requestedScenario || detectPwaScenario()
+  const desc = buildPwaScenarioDescriptor(scenario)
+  if (!desc.dialog) {
+    desc.onPrimaryAction()
+    return
+  }
+  state.pwaDialogScenario = scenario
+  el.pwaGuideTitle.textContent = desc.dialog.title
+  el.pwaGuideIntro.textContent = desc.dialog.intro
+  el.pwaGuideSteps.replaceChildren(
+    ...desc.dialog.steps.map((step) => createEl('li', { text: step }))
+  )
+  if (desc.dialog.note) {
+    el.pwaGuideNote.textContent = desc.dialog.note
+    el.pwaGuideNote.hidden = false
+  } else {
+    el.pwaGuideNote.textContent = ''
+    el.pwaGuideNote.hidden = true
+  }
+  if (desc.dialog.extraLabel && typeof desc.dialog.onExtraAction === 'function') {
+    el.pwaGuideExtraBtn.textContent = desc.dialog.extraLabel
+    el.pwaGuideExtraBtn.onclick = () => {
+      closePwaGuideDialog()
+      desc.dialog.onExtraAction()
+    }
+    el.pwaGuideExtraBtn.hidden = false
+  } else {
+    el.pwaGuideExtraBtn.hidden = true
+    el.pwaGuideExtraBtn.onclick = null
+  }
+  el.pwaGuideCloseBtn.textContent = t('pwaClose')
+  el.pwaGuideDialog.hidden = false
+}
+
+function closePwaGuideDialog() {
+  el.pwaGuideDialog.hidden = true
+  state.pwaDialogScenario = ''
+}
+
+function dismissPwaBanner() {
+  state.pwaDismissed = true
+  lsSet(STORAGE.pwaDismissed, '1')
+  renderPwaGuideUI()
+}
+
+function renderPwaBannerSlot({ bannerEl, titleEl, subEl, actionsEl, descriptor, allowDismiss }) {
+  bannerEl.hidden = false
+  bannerEl.classList.toggle('warn', Boolean(descriptor.warn))
+  titleEl.textContent = descriptor.title
+  subEl.textContent = descriptor.sub
+  const buttons = [
+    createEl('button', {
+      type: 'button',
+      class: 'btn btn-sm btn-primary',
+      text: descriptor.primaryLabel,
+      onClick: descriptor.onPrimaryAction,
+    }),
+  ]
+  if (allowDismiss) {
+    buttons.push(
+      createEl('button', {
+        type: 'button',
+        class: 'pwa-close-btn',
+        'aria-label': t('pwaDismiss'),
+        title: t('pwaDismiss'),
+        onClick: dismissPwaBanner,
+      }, [
+        createSvgIcon(['M18 6 6 18', 'm6 6 12 12'], 'icon-sm'),
+      ])
+    )
+  }
+  actionsEl.replaceChildren(...buttons)
+}
+
+function renderPwaGuideUI() {
+  const scenario = detectPwaScenario()
+  if (scenario === 'installed') {
+    el.pwaBanner.hidden = true
+    el.pairPwaBanner.hidden = true
+    el.pwaSettingsRow.hidden = true
+    return
+  }
+
+  const descriptor = buildPwaScenarioDescriptor(scenario)
+
+  el.pwaSettingsRow.hidden = false
+  el.pwaSettingsDesc.textContent = descriptor.settingsDesc
+  el.pwaSettingsBtn.textContent = descriptor.primaryLabel
+
+  if (state.pwaDismissed) {
+    el.pwaBanner.hidden = true
+    el.pairPwaBanner.hidden = true
+    return
+  }
+
+  renderPwaBannerSlot({
+    bannerEl: el.pwaBanner,
+    titleEl: el.pwaBannerTitle,
+    subEl: el.pwaBannerSub,
+    actionsEl: el.pwaBannerActions,
+    descriptor,
+    allowDismiss: true,
+  })
+
+  if (state.pairModalOpen) {
+    el.pairPwaBanner.hidden = true
+  } else {
+    renderPwaBannerSlot({
+      bannerEl: el.pairPwaBanner,
+      titleEl: el.pairPwaTitle,
+      subEl: el.pairPwaSub,
+      actionsEl: el.pairPwaActions,
+      descriptor,
+      allowDismiss: true,
+    })
+  }
+}
+
 function renderFooterNote() {
   const parts = []
   if (state.health?.version) {
     parts.push(t('footerVersion', { version: state.health.version }))
   }
-  const standalone =
-    window.matchMedia?.('(display-mode: standalone)').matches ||
-    window.navigator.standalone === true
-  if (!standalone) {
+  if (!isStandalonePwa()) {
     parts.push(t('footerPwaHint'))
   }
   el.appFooterNote.textContent = parts.join(' · ')
@@ -2015,6 +2528,7 @@ function renderAll() {
   renderDevicesList()
   renderSavedHostsList()
   renderPairSavedHosts()
+  renderPwaGuideUI()
   renderFooterNote()
 }
 
@@ -2282,6 +2796,46 @@ function bindEvents() {
   el.confirmOkBtn.addEventListener('click', () => closeConfirm(true))
   el.confirmDialog.addEventListener('click', (e) => {
     if (e.target === el.confirmDialog) closeConfirm(false)
+  })
+
+  // PWA 安装引导弹窗与浏览器安装事件
+  el.pwaSettingsBtn.addEventListener('click', () => {
+    const scenario = detectPwaScenario()
+    if (scenario !== 'installed') {
+      buildPwaScenarioDescriptor(scenario).onPrimaryAction()
+    }
+  })
+  el.pwaGuideCloseBtn.addEventListener('click', closePwaGuideDialog)
+  el.pwaGuideDialog.addEventListener('click', (e) => {
+    if (e.target === el.pwaGuideDialog) closePwaGuideDialog()
+  })
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !el.pwaGuideDialog.hidden) {
+      closePwaGuideDialog()
+    }
+  })
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault()
+    // 临时体验域名重启即失效：拦下原生安装弹窗并不存储 prompt，防止引导用户装失效图标
+    if (isEphemeralTunnelHost(window.location.hostname)) return
+    state.deferredInstallPrompt = e
+    renderPwaGuideUI()
+  })
+
+  window.addEventListener('appinstalled', () => {
+    state.pwaInstalled = true
+    state.deferredInstallPrompt = null
+    closePwaGuideDialog()
+    renderPwaGuideUI()
+    renderFooterNote()
+    showToast(t('pwaInstalledToast'))
+  })
+
+  window.matchMedia?.('(display-mode: standalone)').addEventListener('change', (e) => {
+    state.pwaInstalled = Boolean(e.matches || window.navigator.standalone === true)
+    renderPwaGuideUI()
+    renderFooterNote()
   })
 
   // 页面从后台切回前台时立即刷新状态与路由延迟

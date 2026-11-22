@@ -67,6 +67,23 @@
       <div id="routeBannerActions" class="route-banner-actions"></div>
     </div>
 
+    <!-- PWA 安装 / HTTPS 引导横幅 -->
+    <div id="pwaBanner" class="pwa-banner" hidden role="region" aria-labelledby="pwaBannerTitle">
+      <div class="pwa-banner-lead">
+        <div class="pwa-banner-icon" aria-hidden="true">
+          <svg class="icon" viewBox="0 0 24 24">
+            <rect width="14" height="20" x="5" y="2" rx="2" ry="2" />
+            <path d="M12 18h.01" />
+          </svg>
+        </div>
+        <div class="pwa-banner-text">
+          <span id="pwaBannerTitle" class="pwa-banner-title"></span>
+          <span id="pwaBannerSub" class="pwa-banner-sub"></span>
+        </div>
+      </div>
+      <div id="pwaBannerActions" class="pwa-banner-actions"></div>
+    </div>
+
     <main class="app-main">
       <!-- Tab 1: 实例 -->
       <section id="panel-instances" class="tab-panel" role="tabpanel" aria-labelledby="tab-instances">
@@ -237,6 +254,13 @@
                 <button type="button" class="seg-btn" data-lang-opt="en">English</button>
               </div>
             </div>
+            <div id="pwaSettingsRow" class="list-row" hidden>
+              <div class="row-info">
+                <div class="row-title" data-i18n="pwaInstallTitle">安装为手机 App（PWA）</div>
+                <div id="pwaSettingsDesc" class="row-sub"></div>
+              </div>
+              <button type="button" id="pwaSettingsBtn" class="btn btn-sm btn-primary"></button>
+            </div>
             <div class="list-row">
               <div class="row-info">
                 <div class="row-title" data-i18n="unpairTitle">退出当前设备</div>
@@ -373,6 +397,23 @@
         </form>
       </div>
 
+      <!-- 配对页 PWA 安装 / HTTPS 引导横幅 -->
+      <div id="pairPwaBanner" class="pwa-banner pwa-banner-inline" hidden role="region" aria-labelledby="pairPwaTitle">
+        <div class="pwa-banner-lead">
+          <div class="pwa-banner-icon" aria-hidden="true">
+            <svg class="icon" viewBox="0 0 24 24">
+              <rect width="14" height="20" x="5" y="2" rx="2" ry="2" />
+              <path d="M12 18h.01" />
+            </svg>
+          </div>
+          <div class="pwa-banner-text">
+            <span id="pairPwaTitle" class="pwa-banner-title"></span>
+            <span id="pairPwaSub" class="pwa-banner-sub"></span>
+          </div>
+        </div>
+        <div id="pairPwaActions" class="pwa-banner-actions"></div>
+      </div>
+
       <!-- 未登录态若本地保存过其他主机，允许一键跳过去 -->
       <div id="pairSavedHostsBox" class="saved-hosts-box" hidden>
         <div class="saved-hosts-title" data-i18n="switchSavedHost">或切换到已保存的主机</div>
@@ -389,6 +430,20 @@
       <div class="dialog-actions">
         <button type="button" id="confirmCancelBtn" class="btn btn-sm btn-ghost"></button>
         <button type="button" id="confirmOkBtn" class="btn btn-sm btn-danger"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== PWA 安装分步引导弹窗 ===== -->
+  <div id="pwaGuideDialog" class="dialog-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="pwaGuideTitle">
+    <div class="dialog-card">
+      <h3 id="pwaGuideTitle" class="dialog-title"></h3>
+      <p id="pwaGuideIntro" class="dialog-body"></p>
+      <ol id="pwaGuideSteps" class="pwa-guide-steps"></ol>
+      <p id="pwaGuideNote" class="pwa-guide-note" hidden></p>
+      <div class="dialog-actions">
+        <button type="button" id="pwaGuideExtraBtn" class="btn btn-sm btn-primary" hidden></button>
+        <button type="button" id="pwaGuideCloseBtn" class="btn btn-sm btn-ghost"></button>
       </div>
     </div>
   </div>

@@ -2,7 +2,7 @@
 // 只负责缓存 /_dshx/m/ 移动端静态壳资源与对 /_dshx/api/* 做网络优先兜底；
 // 严禁拦截或缓存 / 及上游 dsh 实例路径，避免影响 dsh 实时会话、SSE 与 WebSocket。
 
-const SHELL_CACHE = 'dshx-mobile-shell-v1'
+const SHELL_CACHE = 'dshx-mobile-shell-v2'
 const API_CACHE = 'dshx-mobile-api-v1'
 
 const SHELL_CORE_URLS = [

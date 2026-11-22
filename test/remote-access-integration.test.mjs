@@ -701,3 +701,59 @@ test('桌面管理页 /api/remote-access/* 路由端到端：默认关闭、CSRF
   assert.equal(delAllRes.status, 200)
   assert.equal((await delAllRes.json()).removed, 0)
 })
+
+test('手机端 PWA 清单图标拆分与区分临时/固定域名安装引导资产完整可用', async () => {
+  const appDir = mkdtempSync(join(SUITE_ROOT, 'pwa-'))
+  let settingsState = {
+    remoteAccess: safeRemoteAccess({ enabled: true, gatewayPort: 0, bindLan: false }),
+  }
+
+  const ctrl = createRemoteAccessController({
+    appDir,
+    publicDir: PUBLIC_DIR,
+    getSettings: () => settingsState,
+    updateSettings: async (next) => { settingsState = { ...settingsState, remoteAccess: next } },
+    getHostInfo: () => ({ hostName: 'PWA-Box', version: '0.1.27-rc.7' }),
+    getInstances: () => [],
+    getLaunches: () => [],
+    startLaunch: async () => ({ started: false }),
+    stopInstance: async () => {},
+    getLogs: () => [],
+    pickLanAddressFn: () => '',
+  })
+
+  try {
+    const started = await ctrl.start()
+    assert.equal(started.gateway.running, true)
+    const gwPort = started.gateway.port
+
+    const mManifest = await rawHttpRequest(gwPort, { path: '/_dshx/m/manifest.json' })
+    assert.equal(mManifest.status, 200)
+    assert.match(mManifest.headers['content-type'], /application\/manifest\+json/i)
+    const manifest = JSON.parse(mManifest.body)
+    assert.equal(manifest.scope, '/')
+    assert.equal(manifest.start_url, '/_dshx/m/')
+    assert.ok(Array.isArray(manifest.icons))
+    assert.ok(manifest.icons.some((i) => i.sizes === '512x512' && i.purpose === 'any'))
+    assert.ok(manifest.icons.some((i) => i.sizes === '512x512' && i.purpose === 'maskable'))
+
+    const mIndex = await rawHttpRequest(gwPort, { path: '/_dshx/m/' })
+    assert.equal(mIndex.status, 200)
+    for (const marker of ['id="pwaBanner"', 'id="pairPwaBanner"', 'id="pwaSettingsRow"', 'id="pwaGuideDialog"', 'id="pwaGuideSteps"']) {
+      assert.ok(mIndex.body.includes(marker), `/_dshx/m/ 应包含 ${marker}`)
+    }
+
+    const mApp = await rawHttpRequest(gwPort, { path: '/_dshx/m/app.js' })
+    assert.equal(mApp.status, 200)
+    for (const marker of ['beforeinstallprompt', 'appinstalled', 'trycloudflare.com', 'isEphemeralTunnelHost', 'findStableHttpsEndpoint']) {
+      assert.ok(mApp.body.includes(marker), `/_dshx/m/app.js 应包含 ${marker}`)
+    }
+
+    const mSw = await rawHttpRequest(gwPort, { path: '/_dshx/m/sw.js' })
+    assert.equal(mSw.status, 200)
+    assert.ok(mSw.body.includes('dshx-mobile-shell-v2'))
+  } finally {
+    await ctrl.stop()
+    rmSync(appDir, { recursive: true, force: true })
+  }
+})
