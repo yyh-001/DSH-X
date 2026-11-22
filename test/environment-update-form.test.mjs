@@ -116,3 +116,107 @@ test('上游更新完成不覆盖已切换到另一实例的未保存输入', as
   assert.equal(h.el.name.value, '乙未保存')
   assert.equal(h.el.version.value, '1.0.0')
 })
+
+test('实例配置显式保存：接口仅返回存储原始对象时保留 plugins 等视图字段，切换版本不再报 filter 错误', async () => {
+  const html = readFileSync(new URL('../src/public/index.html', import.meta.url), 'utf8')
+  assert.match(html, /id="environmentManageVersions"[\s\S]{0,300}id="environmentSave"[^>]*type="submit"/)
+
+  const element = () => {
+    const classes = new Set()
+    const classList = {
+      add: (...names) => names.forEach((name) => classes.add(name)),
+      remove: (...names) => names.forEach((name) => classes.delete(name)),
+      contains: (name) => classes.has(name),
+      toggle: (name, force = !classes.has(name)) => { force ? classes.add(name) : classes.delete(name); return force },
+    }
+    return { dataset: {}, value: '', disabled: false, hidden: true, textContent: '', classList, setAttribute() {}, querySelectorAll: () => [] }
+  }
+  const el = new Proxy({}, { get: (obj, key) => obj[key] ||= element() })
+  const calls = []
+  const initialEnv = {
+    id: 'a',
+    name: 'web',
+    dshVersion: '0.2.2-rc.5',
+    updateChannel: 'official',
+    following: false,
+    plugins: [
+      { name: '@deepseek-ai/dsh-base', official: true },
+      { name: 'dsh-x-memory', official: false },
+    ],
+    usedBy: [{ name: 'web' }],
+    applied: [{ profile: 'web', home: '/fake' }],
+  }
+  const context = vm.createContext({
+    el, busy: false, checking: false, compat: { request: 0, busy: false },
+    updates: {}, updateCheck: null, AUTO_VERSION: 'auto', UPDATE_CHANNELS: ['official', 'rc', 'alpha'],
+    environments: [initialEnv],
+    opened: () => context.environments.find((item) => item.id === 'a') || null,
+    installedList: () => ['0.2.2-rc.5', '0.2.2'],
+    paintUpstream() {}, paintHistory() {}, paintChannelSwitch() {}, syncUiSelect() {}, byId: element,
+    renderGrid() {},
+    pluginRow: () => '',
+    versionText: (e) => e.dshVersion,
+    thirdParty: (e) => (Array.isArray(e?.plugins) ? e.plugins : []).filter((p) => !p.official),
+    switchChannel: (e) => ['official', 'rc', 'alpha'][Number(e.value)] || 'official',
+    recommendedVersion: () => '0.2.2',
+    t: (text, vars = {}) => {
+      let s = String(text)
+      for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, String(v))
+      return s
+    },
+    escapeHtml: String,
+    releaseLabel: () => '',
+    notify() {},
+    hideUpdateDialog() { context.updateCheck = null },
+    async post(url, payload) {
+      calls.push({ url, payload })
+      // 模拟真实后端 /api/environments/update：仅返回存储字段（无 plugins / usedBy / applied）
+      return {
+        ok: true,
+        environment: {
+          schemaVersion: 1,
+          id: payload.id,
+          name: payload.name,
+          dshVersion: payload.dshVersion,
+          updateChannel: payload.updateChannel,
+          base: { dshVersion: payload.dshVersion, bundles: [], dependencies: {} },
+        },
+      }
+    },
+    load: async () => { throw new Error('不该整页重载') },
+  })
+  for (const [from, to] of [
+    ['  function paintVersionOptions(', '  /**\n   * 兼容性检查'],
+    ['  function compatibilityTarget(', '  async function checkCompatibility('],
+    ['  function renderView() {', '  function paint() {'],
+    ['  async function run(', '  function open('],
+    ['  async function applyUpdate()', '  trapPackDialog(el.updateDialog'],
+    ['  el.editForm.onsubmit =', '  const DEFAULT_DESKTOP_ENHANCE ='],
+  ]) vm.runInContext(slice(from, to), context)
+
+  context.renderView()
+  assert.equal(el.save.disabled, true, '未改配置时保存按钮禁用')
+  assert.equal(el.save.textContent, '保存')
+
+  el.version.value = '0.2.2'
+  context.renderView()
+  assert.equal(calls.length, 0, '改版本不立即发保存请求')
+  assert.equal(el.save.disabled, false, '有未保存改动时启用保存按钮')
+
+  el.editForm.onsubmit({ preventDefault() {} })
+  await new Promise((resolve) => setImmediate(resolve))
+
+  assert.equal(calls.length, 1)
+  assert.deepEqual(JSON.parse(JSON.stringify(calls[0])), {
+    url: '/api/environments/update',
+    payload: { id: 'a', name: 'web', dshVersion: '0.2.2', updateChannel: 'official' },
+  })
+  assert.equal(el.saveStatus.textContent, '已保存')
+  assert.equal(el.saveStatus.classList.contains('is-saved'), true)
+  assert.equal(el.saveStatus.hidden, false)
+  assert.equal(el.detailSub.textContent, 'DSH 0.2.2 · 1 个插件')
+  assert.equal(context.environments[0].plugins.length, 2, '合并后不丢原有 plugins 视图字段')
+  assert.equal(context.environments[0].usedBy.length, 1, '合并后不丢原有 usedBy 视图字段')
+  assert.equal(el.save.disabled, true, '保存成功后恢复禁用')
+  assert.equal(el.save.textContent, '保存')
+})

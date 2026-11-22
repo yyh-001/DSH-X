@@ -595,10 +595,11 @@ test('实例详情页：4 签切换（配置签）、已安装/市场子签切�
   assert.match(css, /^\.launch-icon-popover\s+\.launch-icon-upload\s+\.icon-btn\s*\{/m)
   assert.match(themeCss, /html\[data-color-scheme="dark"\]\s+\.launch-icon-choice\[aria-pressed="true"\]/)
   assert.match(themeCss, /html\[data-color-scheme="dark"\]\s+\.launch-icon-popover\s+\.launch-icon-upload\s+\.icon-btn\s*\{/)
-  assert.doesNotMatch(html, /id="environmentSave"\b/, '移除手动保存按钮，改为自动保存')
+  assert.match(html, /id="environmentSave"[^>]*type="submit"/, '实例配置提供显式保存按钮')
   assert.doesNotMatch(html, /environment-autosave-badge/, '不展示常驻「自动保存」徽章')
   assert.match(css, /\.environment-config-field\s+\.launch-name-row\s+input\[type=text\]\s*\{[^}]*flex:\s*1\s+1\s+0;[^}]*width:\s*auto;[^}]*min-width:\s*0/)
-  assert.match(css, /\.environment-config-version-row\s+\.ui-select\s*\{[^}]*flex:\s*1\s+1\s+[^;]*;[^}]*min-width:\s*220px/)
+  assert.match(css, /\.environment-config-version-row\s+\.ui-select\s*\{[^}]*flex:\s*1\s+1\s+[^;]*;[^}]*min-width:\s*150px/)
+  assert.match(css, /\.environment-config-save\s*\{[^}]*height:\s*38px/)
   assert.ok(css.indexOf('.environment-config-history[hidden]') > css.indexOf('.environment-config-history {'), '.environment-config-history[hidden] 必须排在 .environment-config-history 之后才不会被 grid 覆盖')
   assert.match(themeCss, /html\[data-color-scheme="dark"\]\s+\.environment-config-extra,\s*html\[data-color-scheme="dark"\]\s+\.env-launch-footer-row/)
 

@@ -3452,8 +3452,16 @@ function updateEnvironmentNow(body) {
     const next = { ...env, updatedAt: new Date().toISOString() }
     if (environmentVersionKey(next) !== before) await syncPresetVersions(store, next)
     const saved = store.save(next)
+    const effective = effectivePlugins(saved)
     await emitState()
-    return { ok: true, environment: saved }
+    return {
+      ok: true,
+      environment: {
+        ...saved,
+        dshVersion: effective.dshVersion,
+        updateChannel: effective.updateChannel,
+      },
+    }
   }))
 }
 

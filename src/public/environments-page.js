@@ -39,6 +39,7 @@
     mcpHost: byId('environmentMcpHost'),
     skillsHost: byId('environmentSkillsHost'),
     editForm: byId('environmentEditForm'),
+    save: byId('environmentSave'),
     saveStatus: byId('environmentSaveStatus'),
     name: byId('environmentName'),
     version: byId('environmentVersion'),
@@ -107,7 +108,7 @@
 
   const opened = () => environments.find((env) => env.id === openedId) || null
   const versionText = (env) => (env.dshVersion === AUTO_VERSION ? t('自动（{channel}）', { channel: t(UPDATE_CHANNEL_NAMES[env.updateChannel] || env.updateChannel) }) : env.dshVersion)
-  const thirdParty = (env) => env.plugins.filter((plugin) => !plugin.official)
+  const thirdParty = (env) => (Array.isArray(env?.plugins) ? env.plugins : []).filter((plugin) => !plugin.official)
 
   // 上游的哪一版：release 的 tag，其次版本号（检查结果给 version，环境来源里记的是 packVersion）
   const releaseLabel = (item) => item?.release || item?.version || item?.packVersion || ''
@@ -406,15 +407,18 @@
       resetCompatibility()
       if (typeof paintEnvSaveStatus === 'function') paintEnvSaveStatus('idle')
     }
+    const plugins = Array.isArray(env.plugins) ? env.plugins : []
+    const usedBy = Array.isArray(env.usedBy) ? env.usedBy : []
+    const applied = Array.isArray(env.applied) ? env.applied : []
     paintChannelSwitch(el.channel, el.channelName)
-    if (el.installedCount) el.installedCount.textContent = String(env.plugins.length)
-    el.plugins.innerHTML = env.plugins.map((plugin) => pluginRow(plugin, env.id)).join('') || `<div class="plugin-empty">${escapeHtml(t('这个实例还没有插件。'))}</div>`
+    if (el.installedCount) el.installedCount.textContent = String(plugins.length)
+    el.plugins.innerHTML = plugins.map((plugin) => pluginRow(plugin, env.id)).join('') || `<div class="plugin-empty">${escapeHtml(t('这个实例还没有插件。'))}</div>`
     const hasPluginUpdate = (plugin) => {
       const upgradable = plugin.upgradable ?? (!plugin.official && !plugin.local && typeof exactVersionSpec === 'function' && exactVersionSpec(plugin.spec))
       const updateInfo = (typeof pluginUpdates !== 'undefined' && env.id ? pluginUpdates[env.id]?.[plugin.name] : null) || null
       return Boolean(upgradable && updateInfo?.available && updateInfo.latest)
     }
-    const updatableCount = env.plugins.filter(hasPluginUpdate).length
+    const updatableCount = plugins.filter(hasPluginUpdate).length
     if (el.upgrade) {
       el.upgrade.hidden = updatableCount === 0
       el.upgrade.disabled = busy
@@ -449,8 +453,8 @@
     el.plugins.querySelectorAll('[data-remove-plugin]').forEach((button) => {
       button.onclick = () => run(() => post('/api/environments/plugins/remove', { id: env.id, name: button.dataset.removePlugin }))
     })
-    const users = env.usedBy.map((entry) => entry.name).join('、')
-    const written = env.applied.map((item) => item.profile).join('、')
+    const users = usedBy.map((entry) => entry.name).join('、')
+    const written = applied.map((item) => item.profile).join('、')
     el.usage.textContent = [
       users ? t('在用的启动项：{names}', { names: users }) : t('还没有启动项用这个实例。'),
       written ? t('现在装在配置：{names}。', { names: written }) : '',
@@ -463,10 +467,11 @@
     // 版本类型只对「自动最新版本」有意义；钉了具体版本时它不影响选哪个版本
     el.channel.disabled = busy || el.version.value !== AUTO_VERSION
     syncUiSelect(el.version)
+    if (typeof syncEnvSaveButton === 'function') syncEnvSaveButton(env)
     const target = compatibilityTarget(env)
     el.checkCompatibility.disabled = busy || compat.busy || !target
     el.checkCompatibility.setAttribute('aria-busy', String(compat.busy))
-    const checkTitle = !env.applied.length ? t('还没有配置装过这个实例：用它启动一次后才能检查兼容性')
+    const checkTitle = !applied.length ? t('还没有配置装过这个实例：用它启动一次后才能检查兼容性')
       : target ? t('检查兼容性（查配置「{profile}」里装好的插件）', { profile: target.profile }) : t('检查兼容性')
     el.checkCompatibility.title = checkTitle
     el.checkCompatibility.setAttribute('aria-label', checkTitle)
@@ -476,9 +481,9 @@
       el.checkPluginUpdates.classList.toggle('is-checking', checkingNow)
       el.checkPluginUpdates.setAttribute('aria-busy', String(checkingNow))
     }
-    el.remove.disabled = busy || env.usedBy.length > 0
+    el.remove.disabled = busy || usedBy.length > 0
     // 图标按钮没字：不能删时说为什么，能删时就是它的名字
-    el.remove.title = env.usedBy.length ? t('还有启动项在用，先给它们换一个实例') : t('删除实例')
+    el.remove.title = usedBy.length ? t('还有启动项在用，先给它们换一个实例') : t('删除实例')
     if (el.backups) el.backups.disabled = busy
     const tab = typeof activeTab === 'string' ? activeTab : 'plugins'
     const subTab = typeof pluginSubTab === 'string' ? pluginSubTab : 'installed'
@@ -618,7 +623,7 @@
 
   // 和页面上其他下拉一样换成自绘菜单（原生 select 仍存值、仍触发 change）
   for (const select of [el.version, el.history, byId('launchEnvironment')]) createUiSelect(select)
-  el.back.onclick = () => { void flushEnvAutoSave(); openedId = ''; activeTab = 'plugins'; pluginSubTab = 'installed'; paint() }
+  el.back.onclick = () => { openedId = ''; activeTab = 'plugins'; pluginSubTab = 'installed'; paint() }
   el.importButton.onclick = () => openImportDialog()
   el.exportButton.onclick = () => exportEnvironment(opened())
   if (el.backups) {
@@ -631,7 +636,6 @@
     button.onclick = () => {
       const next = button.dataset.envTab || 'plugins'
       if (next === activeTab) return
-      if (activeTab === 'config') void flushEnvAutoSave()
       activeTab = next
       renderView()
     }
@@ -655,19 +659,21 @@
       }
     }
   })
-  // 改版本 / 版本类型：上一次的兼容性结果是按旧版本查的，作废；同时自动落盘配置
+  // 改版本 / 版本类型：上一次的兼容性结果是按旧版本查的，作废；刷新界面并在点「保存」后提交
   el.version.onchange = () => {
     resetCompatibility()
+    if (typeof paintEnvSaveStatus === 'function') paintEnvSaveStatus('idle')
     renderView()
-    void flushEnvAutoSave()
   }
   el.channel.oninput = () => {
     resetCompatibility()
+    if (typeof paintEnvSaveStatus === 'function') paintEnvSaveStatus('idle')
     renderView()
-    scheduleEnvAutoSave(180)
   }
   el.channel.onchange = () => {
-    void flushEnvAutoSave()
+    resetCompatibility()
+    if (typeof paintEnvSaveStatus === 'function') paintEnvSaveStatus('idle')
+    renderView()
   }
   el.manageVersions.onclick = () => openVersionManager()
   el.checkCompatibility.onclick = () => { void checkCompatibility() }
@@ -765,35 +771,53 @@
   }
   el.editForm.onsubmit = (event) => {
     event.preventDefault()
-    void flushEnvAutoSave({ force: true })
+    void saveEnvironmentConfigNow({ force: true })
   }
-  const envAutoSave = { timer: null, inFlight: null, queued: false, forceQueued: false }
+  const envAutoSave = { saving: false, savedTimer: null, inFlight: null }
   function paintEnvSaveStatus(kind = 'idle', detail = '') {
+    if (envAutoSave.savedTimer && typeof clearTimeout === 'function') {
+      clearTimeout(envAutoSave.savedTimer)
+      envAutoSave.savedTimer = null
+    }
     const badge = el.saveStatus || byId('environmentSaveStatus')
     if (!badge) return
     if (kind === 'error') {
+      badge.classList?.remove?.('is-saved')
       badge.textContent = detail || t('保存失败：{error}', { error: '' })
       badge.hidden = false
+    } else if (kind === 'saved') {
+      badge.classList?.add?.('is-saved')
+      badge.textContent = t('已保存')
+      badge.hidden = false
+      if (typeof setTimeout === 'function') {
+        envAutoSave.savedTimer = setTimeout(() => {
+          envAutoSave.savedTimer = null
+          if (badge.classList?.contains?.('is-saved')) {
+            badge.classList.remove('is-saved')
+            badge.textContent = ''
+            badge.hidden = true
+          }
+        }, 2000)
+      }
     } else {
+      badge.classList?.remove?.('is-saved')
       badge.textContent = ''
       badge.hidden = true
     }
   }
-  function scheduleEnvAutoSave(delay = 500) {
-    if (envAutoSave.timer && typeof clearTimeout === 'function') {
-      clearTimeout(envAutoSave.timer)
-      envAutoSave.timer = null
-    }
-    const env = opened()
-    if (!env) return
-    if (typeof setTimeout === 'function') {
-      envAutoSave.timer = setTimeout(() => {
-        envAutoSave.timer = null
-        void saveEnvironmentConfigNow()
-      }, delay)
-    } else {
-      void saveEnvironmentConfigNow()
-    }
+  function isEnvConfigDirty(env = opened()) {
+    if (!env) return false
+    const nextName = String(el.name.value ?? '').trim()
+    const nextVersion = el.version.value || env.dshVersion
+    const nextChannel = switchChannel(el.channel)
+    return nextName !== env.name || nextVersion !== env.dshVersion || nextChannel !== env.updateChannel
+  }
+  function syncEnvSaveButton(env = opened()) {
+    const button = el.save
+    if (!button) return
+    const saving = Boolean(envAutoSave.saving)
+    button.textContent = t(saving ? '保存中…' : '保存')
+    button.disabled = busy || saving || !env || !isEnvConfigDirty(env)
   }
   function captureEnvDraft() {
     const env = opened()
@@ -805,27 +829,8 @@
       nextChannel: switchChannel(el.channel),
     }
   }
-  async function flushEnvAutoSave({ force = false } = {}) {
-    if (envAutoSave.timer && typeof clearTimeout === 'function') {
-      clearTimeout(envAutoSave.timer)
-      envAutoSave.timer = null
-    }
-    const draft = captureEnvDraft()
-    if (envAutoSave.inFlight) {
-      envAutoSave.queued = true
-      envAutoSave.queuedDraft = draft
-      if (force) envAutoSave.forceQueued = true
-      return envAutoSave.inFlight
-    }
-    return saveEnvironmentConfigNow({ force, draft })
-  }
   async function saveEnvironmentConfigNow({ force = false, draft = null } = {}) {
-    if (envAutoSave.inFlight) {
-      envAutoSave.queued = true
-      envAutoSave.queuedDraft = draft || captureEnvDraft()
-      if (force) envAutoSave.forceQueued = true
-      return envAutoSave.inFlight
-    }
+    if (envAutoSave.inFlight) return envAutoSave.inFlight
     const snap = draft || captureEnvDraft()
     const env = snap?.env
     if (!env || busy) return
@@ -836,9 +841,12 @@
     }
     if (!force && nextName === env.name && nextVersion === env.dshVersion && nextChannel === env.updateChannel) {
       paintEnvSaveStatus('idle')
+      syncEnvSaveButton(env)
       return
     }
+    envAutoSave.saving = true
     paintEnvSaveStatus('saving')
+    syncEnvSaveButton(env)
     const runSave = (async () => {
       try {
         const res = await post('/api/environments/update', {
@@ -848,64 +856,78 @@
           updateChannel: nextChannel,
         })
         const savedEnv = res?.environment
+        let targetEnv = env
         if (savedEnv && typeof environments !== 'undefined' && Array.isArray(environments)) {
-          environments = environments.map((item) => (item.id === savedEnv.id ? savedEnv : item))
+          // /api/environments/update 返回存储原始结构，需保留前端列表上的 plugins / usedBy / applied 等视图字段
+          const prevEnv = environments.find((item) => item.id === savedEnv.id) || env
+          const mergedEnv = Array.isArray(savedEnv.plugins)
+            ? savedEnv
+            : {
+                ...prevEnv,
+                ...savedEnv,
+                name: savedEnv.name ?? nextName,
+                dshVersion: savedEnv.dshVersion ?? nextVersion,
+                updateChannel: savedEnv.updateChannel ?? nextChannel,
+                plugins: Array.isArray(prevEnv?.plugins) ? prevEnv.plugins : [],
+                usedBy: Array.isArray(prevEnv?.usedBy) ? prevEnv.usedBy : [],
+                applied: Array.isArray(prevEnv?.applied) ? prevEnv.applied : [],
+              }
+          targetEnv = mergedEnv
+          environments = environments.map((item) => (item.id === mergedEnv.id ? mergedEnv : item))
           if (typeof environmentState !== 'undefined') environmentState.list = environments
-          const stillSameEnv = opened()?.id === savedEnv.id
+          const stillSameEnv = opened()?.id === mergedEnv.id
           if (stillSameEnv) {
-            el.detailName.textContent = savedEnv.name
-            el.detailSub.textContent = t('DSH {version} · {count} 个插件', { version: versionText(savedEnv), count: thirdParty(savedEnv).length })
-            const inputsMatchSaved = String(el.name.value ?? '').trim() === savedEnv.name
-              && el.version.value === savedEnv.dshVersion
-              && switchChannel(el.channel) === savedEnv.updateChannel
+            el.detailName.textContent = mergedEnv.name
+            el.detailSub.textContent = t('DSH {version} · {count} 个插件', { version: versionText(mergedEnv), count: thirdParty(mergedEnv).length })
+            const inputsMatchSaved = String(el.name.value ?? '').trim() === mergedEnv.name
+              && el.version.value === mergedEnv.dshVersion
+              && switchChannel(el.channel) === mergedEnv.updateChannel
             if (inputsMatchSaved) {
-              el.name.value = savedEnv.name
-              el.editForm.dataset.environment = ''
+              el.name.value = mergedEnv.name
+              el.editForm.dataset.environment = mergedEnv.id
             }
           }
           if (typeof renderGrid === 'function') renderGrid()
           if (stillSameEnv) {
-            paintUpstream(savedEnv)
-            paintHistory(savedEnv)
-            if (typeof paintVersionOptions === 'function') paintVersionOptions(savedEnv)
+            paintUpstream(mergedEnv)
+            paintHistory(mergedEnv)
+            if (typeof paintVersionOptions === 'function') paintVersionOptions(mergedEnv)
             paintChannelSwitch(el.channel, el.channelName)
             el.channel.disabled = busy || el.version.value !== AUTO_VERSION
             syncUiSelect(el.version)
-            const users = (savedEnv.usedBy || []).map((entry) => entry.name).join('、')
-            const written = (savedEnv.applied || []).map((item) => item.profile).join('、')
+            const users = (mergedEnv.usedBy || []).map((entry) => entry.name).join('、')
+            const written = (mergedEnv.applied || []).map((item) => item.profile).join('、')
             el.usage.textContent = [
               users ? t('在用的启动项：{names}', { names: users }) : t('还没有启动项用这个实例。'),
               written ? t('现在装在配置：{names}。', { names: written }) : '',
-              savedEnv.following ? t('跟随上游 {repo}：这里的改动记成本地改动，上游更新后会重放。', { repo: savedEnv.source.repo }) : '',
+              mergedEnv.following ? t('跟随上游 {repo}：这里的改动记成本地改动，上游更新后会重放。', { repo: mergedEnv.source.repo }) : '',
               t('改动在下次用这个实例启动时生效。'),
             ].filter(Boolean).join(' ')
           }
-          globalThis.onEnvironmentConfigSaved?.(savedEnv)
+          globalThis.onEnvironmentConfigSaved?.(mergedEnv)
         } else {
           el.editForm.dataset.environment = ''
           await load()
+          targetEnv = opened() || env
         }
         paintEnvSaveStatus('saved')
+        envAutoSave.saving = false
+        syncEnvSaveButton(targetEnv)
       } catch (error) {
         paintEnvSaveStatus('error', t('保存失败：{error}', { error: error.message }))
       } finally {
+        envAutoSave.saving = false
         envAutoSave.inFlight = null
-        if (envAutoSave.queued) {
-          const queuedForce = envAutoSave.forceQueued
-          const queuedDraft = envAutoSave.queuedDraft || null
-          envAutoSave.queued = false
-          envAutoSave.forceQueued = false
-          envAutoSave.queuedDraft = null
-          void saveEnvironmentConfigNow({ force: queuedForce, draft: queuedDraft })
-        }
+        syncEnvSaveButton(opened())
       }
     })()
     envAutoSave.inFlight = runSave
     return runSave
   }
-  el.name.oninput = () => scheduleEnvAutoSave(500)
-  el.name.onblur = () => { void flushEnvAutoSave() }
-  el.name.onchange = () => { void flushEnvAutoSave() }
+  el.name.oninput = () => {
+    paintEnvSaveStatus('idle')
+    syncEnvSaveButton()
+  }
   const DEFAULT_DESKTOP_ENHANCE = [
     { name: 'dsh-x-desktop-notify', spec: '0.1.1', installSpec: 'dsh-x-desktop-notify@0.1.1', title: '原生通知', description: '调用系统原生通知', icon: 'lucide-info', tone: 'blue', officialTag: true },
     { name: 'dsh-x-sidebar-browser', spec: '0.1.1', installSpec: 'dsh-x-sidebar-browser@0.1.1', title: '侧栏浏览器', description: '让智能体查看并操作侧栏网页', icon: 'lucide-globe', tone: 'cyan', officialTag: true },
@@ -1325,11 +1347,10 @@
   // 切语言时主脚本叫这个重画：列表和详情的文案都是 paint 里 t() 拼的
   environmentState.repaint = () => paint()
   environmentState.closeDetail = () => { openedId = ''; activeTab = 'plugins'; pluginSubTab = 'installed'; paint() }
-  environmentState.flushConfigSave = () => flushEnvAutoSave()
+  environmentState.flushConfigSave = () => envAutoSave.inFlight || Promise.resolve()
   environmentState.openId = (id, { keepTab = '' } = {}) => {
     const nextId = String(id || '').trim()
     if (!nextId) return
-    void flushEnvAutoSave()
     openedId = nextId
     activeTab = keepTab || 'plugins'
     pluginSubTab = 'installed'

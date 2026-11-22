@@ -3317,6 +3317,7 @@ html.reduce-motion .environment-market-tools .icon-btn.is-loading svg { animatio
 .env-launch-action-btn svg { width: 15px; height: 15px; flex: 0 0 15px; }
 .env-launch-action-btn[hidden] { display: none; }
 .environment-config-error { margin: 0; font-size: 12px; line-height: 1.5; color: var(--danger); }
+.environment-config-error.is-saved { color: var(--status-running, #16a34a); }
 .environment-config-error[hidden] { display: none; }
 .env-launch-recovery-hint {
   margin: 0; font-size: 12px; line-height: 1.5; color: var(--muted);
@@ -3336,7 +3337,8 @@ html.reduce-motion .environment-market-tools .icon-btn.is-loading svg { animatio
 }
 .environment-config-inline-grid { display: grid; grid-template-columns: minmax(170px, 220px) minmax(0, 1fr); gap: 12px; align-items: start; }
 .environment-config-version-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100%; }
-.environment-config-version-row .ui-select { flex: 1 1 240px; width: auto; min-width: 220px; }
+.environment-config-version-row .ui-select { flex: 1 1 160px; width: auto; min-width: 150px; }
+.environment-config-save { flex: 0 0 auto; width: auto; height: 38px; padding: 0 14px; border-radius: 10px; font-size: 13px; white-space: nowrap; }
 .environment-launch-card .project-device-trigger,
 .environment-launch-card .ui-select .select-trigger,
 .environment-config-version-row .ui-select .select-trigger,

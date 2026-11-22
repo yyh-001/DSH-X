@@ -362,6 +362,8 @@ const EN = {
   "正在装依赖…": "Installing dependencies…",
   "装好了。": "Done.",
   "保存": "Save",
+  "保存中…": "Saving…",
+  "已保存": "Saved",
   "关闭": "Close",
   "刷新页面": "Reload page",
   "这个配置还没有可备份的内容：启动一次实例后才会生成配置文件。": "Nothing to back up yet: the config files are created the first time the instance starts.",
