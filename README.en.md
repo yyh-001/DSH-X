@@ -83,6 +83,7 @@ sha256sum DSH-X-<version>-linux-x64.AppImage             # Linux
 <p align="center"><img src="docs/screenshots/screenshot-profiles-dark-en.jpg" alt="Dark Profiles" width="820" /></p>
 <p align="center"><img src="docs/screenshots/screenshot-plugins-dark-en.jpg" alt="Dark Plugin Management" width="820" /></p>
 <p align="center"><img src="docs/screenshots/screenshot-settings-dark-en.jpg" alt="Dark General Settings" width="820" /></p>
+<p align="center"><img src="docs/screenshots/screenshot-remote-dark-en.jpg" alt="Dark Remote & Mobile Access" width="820" /></p>
 
 </details>
 
@@ -93,6 +94,18 @@ sha256sum DSH-X-<version>-linux-x64.AppImage             # Linux
 <p align="center"><img src="docs/screenshots/screenshot-profiles-en.jpg" alt="Light Profiles" width="820" /></p>
 <p align="center"><img src="docs/screenshots/screenshot-plugins-en.jpg" alt="Light Plugin Management" width="820" /></p>
 <p align="center"><img src="docs/screenshots/screenshot-settings-en.jpg" alt="Light General Settings" width="820" /></p>
+<p align="center"><img src="docs/screenshots/screenshot-remote-en.jpg" alt="Light Remote & Mobile Access" width="820" /></p>
+
+</details>
+
+<details>
+<summary>Mobile Web Console (expand to view)</summary>
+
+<p align="center">
+  <img src="docs/screenshots/screenshot-mobile-dark-en.jpg" alt="Mobile Web Console (Dark)" width="280" />
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/screenshot-mobile-en.jpg" alt="Mobile Web Console (Light)" width="280" />
+</p>
 
 </details>
 

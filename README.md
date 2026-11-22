@@ -83,6 +83,7 @@ sha256sum DSH-X-<版本>-linux-x64.AppImage             # Linux
 <p align="center"><img src="docs/screenshots/screenshot-profiles-dark.jpg" alt="深色配置列表" width="820" /></p>
 <p align="center"><img src="docs/screenshots/screenshot-plugins-dark.jpg" alt="深色插件管理" width="820" /></p>
 <p align="center"><img src="docs/screenshots/screenshot-settings-dark.jpg" alt="深色常规设置" width="820" /></p>
+<p align="center"><img src="docs/screenshots/screenshot-remote-dark.jpg" alt="深色远程与手机访问" width="820" /></p>
 
 </details>
 
@@ -93,6 +94,18 @@ sha256sum DSH-X-<版本>-linux-x64.AppImage             # Linux
 <p align="center"><img src="docs/screenshots/screenshot-profiles.jpg" alt="浅色配置列表" width="820" /></p>
 <p align="center"><img src="docs/screenshots/screenshot-plugins.jpg" alt="浅色插件管理" width="820" /></p>
 <p align="center"><img src="docs/screenshots/screenshot-settings.jpg" alt="浅色常规设置" width="820" /></p>
+<p align="center"><img src="docs/screenshots/screenshot-remote.jpg" alt="浅色远程与手机访问" width="820" /></p>
+
+</details>
+
+<details>
+<summary>手机端控制台（点击展开）</summary>
+
+<p align="center">
+  <img src="docs/screenshots/screenshot-mobile-dark.jpg" alt="手机端控制台（深色）" width="280" />
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/screenshot-mobile.jpg" alt="手机端控制台（浅色）" width="280" />
+</p>
 
 </details>
 
