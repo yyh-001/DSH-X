@@ -46,7 +46,10 @@ async function ensureNode() {
   if (existsSync(join(EXTRACTED, IS_WINDOWS ? 'node.exe' : 'bin/node'))) return
   const archive = join(VENDOR, ARCHIVE)
   await downloadNodeFile(ARCHIVE, archive)
-  if (IS_WINDOWS) run('powershell', ['-NoProfile', '-Command', `Expand-Archive -Force '${archive}' '${VENDOR}'`])
+  if (IS_WINDOWS) {
+    await rm(EXTRACTED, { recursive: true, force: true })
+    run('powershell', ['-NoProfile', '-Command', `$ErrorActionPreference = 'Stop'; Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::ExtractToDirectory('${archive}', '${VENDOR}')`])
+  }
   else run('tar', ['-xzf', archive, '-C', VENDOR])
 }
 

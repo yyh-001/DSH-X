@@ -126,8 +126,9 @@ test('坏输入给人话，不吐垃圾', async (t) => {
 })
 
 test('系统工具认我们写的包（PowerShell 解压出来内容一致）', { skip: WIN ? false : '只在 Windows 上验 PowerShell' }, async (t) => {
-  // Windows runner 的 TMP 可能是 8.3 短路径（如 RUNNER~1）；新版 PowerShell Archive 模块按字面
-  // 前缀做解压边界校验，展开为规范长路径可避免 Expand-Archive 静默跳过条目。
+  // Windows Server 2025 的 Windows PowerShell 5.1 自带 Expand-Archive 会误调 .NET Framework
+  // 不存在的 3 参数 ExtractToDirectory；直接调 .NET 原生 ZipFile::ExtractToDirectory 同样验证
+  // 系统工具互操作且兼容 PS 5.1 / 7。
   const dir = realpathSync.native(await mkdtemp(join(tmpdir(), 'zip-interop-')))
   t.after(() => rm(dir, { recursive: true, force: true }))
   const target = join(dir, 'out.zip')
@@ -136,7 +137,7 @@ test('系统工具认我们写的包（PowerShell 解压出来内容一致）', 
     { name: 'dsh-x/v1/sessions/proj/s1/session.jsonl.zstd', buffer: Buffer.from('系统工具也读得出来') },
     { name: 'dsh-x/v1/profiles/web/package.json', buffer: Buffer.from('{"a":1}') },
   ])
-  execFileSync('powershell', ['-NoProfile', '-Command', `$ErrorActionPreference = 'Stop'; Expand-Archive -LiteralPath '${target}' -DestinationPath '${out}' -Force`], { stdio: 'pipe' })
+  execFileSync('powershell', ['-NoProfile', '-Command', `$ErrorActionPreference = 'Stop'; Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::ExtractToDirectory('${target}', '${out}')`], { stdio: 'pipe' })
   assert.equal(readFileSync(join(out, 'dsh-x', 'v1', 'sessions', 'proj', 's1', 'session.jsonl.zstd'), 'utf8'), '系统工具也读得出来')
   assert.equal(readFileSync(join(out, 'dsh-x', 'v1', 'profiles', 'web', 'package.json'), 'utf8'), '{"a":1}')
 })

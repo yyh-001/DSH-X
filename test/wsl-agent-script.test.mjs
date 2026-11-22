@@ -16,6 +16,10 @@ import { buildAgentInstallScript } from '../src/wsl.js'
 const hasBash = process.platform !== 'win32' && spawnSync('bash', ['-c', 'exit 0']).status === 0
 const skip = hasBash ? false : '需要 bash'
 
+test('WSL_AGENT_SCRIPT：非 ASCII 字符前的变量必须用花括号包裹（防 macOS Bash 3.2 误吞字节）', () => {
+  assert.equal(WSL_AGENT_SCRIPT.match(/\$[A-Za-z_][A-Za-z0-9_]*[^\x00-\x7F]/g), null)
+})
+
 function sandbox() {
   const root = mkdtempSync(join(tmpdir(), 'dshx-wsl-agent-'))
   const script = join(root, 'dsh-x-wsl.sh')
