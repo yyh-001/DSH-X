@@ -86,3 +86,13 @@ test('设置里有独立的远程页：列表、搜索、新建', () => {
   assert.match(css, /\.remote-device-chip\.is-online/)
   assert.doesNotMatch(page, /id="connectionsManagerDialog"/, '独立弹窗已被设置页取代')
 })
+
+test('手机与外网远程访问已并入「远程」页签并精简展示', () => {
+  assert.doesNotMatch(page, /data-category="remote-access"/, '左侧导航和设置页不再单开「移动与远程访问」项')
+  assert.match(page, /id="remoteTabs"/)
+  assert.match(page, /data-remote-tab="devices"/)
+  assert.match(page, /data-remote-tab="mobile"/)
+  assert.match(page, /id="remoteDevicesPanel"/)
+  assert.match(page, /id="remoteMobilePanel"[\s\S]*id="raEnabled"[\s\S]*id="raActiveArea"[\s\S]*id="raGeneratePair"[\s\S]*id="raTunnelToggle"[\s\S]*id="raDeviceList"[\s\S]*id="raAdvanced"[\s\S]*id="raAdvSave"/)
+  assert.match(css, /#remoteMobilePanel \[hidden\]\s*\{\s*display:\s*none !important;\s*\}/, '确保 hidden 按钮不被 flex 规则覆盖显示')
+})

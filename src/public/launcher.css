@@ -1924,6 +1924,27 @@ html.reduce-motion .connection-import-caret { transition: none; }
 /* ---- 设置 → 远程设备 ---- */
 .remote-page-top { align-items: flex-start; }
 #pane-remote .pane-inner { max-width: 980px; margin: 0 auto; }
+.remote-device-add[hidden] { display: none; }
+.remote-toolbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin: 10px 0 0; padding: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 68%, transparent);
+}
+.remote-tabs {
+  flex: 0 0 auto; width: 200px; max-width: 100%; margin: 0; padding: 0; gap: 0;
+  border-radius: 0; background: transparent;
+}
+.remote-tabs::after {
+  top: auto; bottom: -1px; left: 0; width: 50%; height: 2px;
+  border-radius: 2px 2px 0 0; background: var(--accent); box-shadow: none;
+}
+.remote-tabs .launch-isolation-tab {
+  height: 36px; padding: 0 8px; border-radius: 0; font-size: 13px; font-weight: 500; color: var(--muted);
+}
+.remote-tabs .launch-isolation-tab:hover { color: var(--text); }
+.remote-tabs .launch-isolation-tab[aria-selected="true"] { color: var(--accent); font-weight: 600; }
+.remote-tabs[data-active="mobile"]::after { transform: translateX(100%); }
+.remote-tab-panel[hidden] { display: none; }
 .remote-device-add { width: auto; height: 34px; padding: 0 13px; border-radius: 9px; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; }
 .remote-device-add svg { width: 14px; height: 14px; }
 .remote-device-section { margin-top: 18px; }
@@ -3601,23 +3622,51 @@ html.reduce-motion .plugin-market-head-actions .icon-btn.is-loading svg { animat
   .env-launch-toggles,
   .environment-config-inline-grid,
   .environment-config-history,
-  .ra-mode-grid,
-  .ra-qr-layout { grid-template-columns: minmax(0, 1fr); gap: 8px; }
-  .ra-endpoint-item { flex-wrap: wrap; }
+  .ra-qr-layout { grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .ra-device-row { flex-direction: column; align-items: stretch; }
   .ra-device-actions { justify-content: flex-end; }
 }
 
-/* ---- 设置页「移动与远程访问」 ---- */
-.set-section[data-category="remote-access"] .set-caption:first-of-type { margin-top: 4px; }
-.ra-section-head {
+/* ---- 远程页「手机访问」Tab ---- */
+.ra-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 16px;
+}
+.ra-panel[hidden] { display: none; }
+#remoteMobilePanel [hidden] { display: none !important; }
+/* 局部归零全局 label / .toggle 的表单间距，避免污染分段胶囊与整行开关对齐 */
+#remoteMobilePanel label {
+  margin: 0;
+  letter-spacing: 0;
+  color: inherit;
+  font-size: inherit;
+}
+#remoteMobilePanel .toggle { margin: 0; }
+#remoteMobilePanel .set-row {
+  padding: 15px 18px;
+  gap: 16px;
+}
+#remoteMobilePanel .set-name {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--text);
+  line-height: 1.35;
+}
+#remoteMobilePanel .set-desc {
+  margin-top: 3px;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.ra-card { overflow: hidden; }
+.ra-title-line {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 .ra-section-title-group { display: inline-flex; align-items: center; gap: 8px; }
-.ra-host-chip,
 .ra-count-badge {
   display: inline-flex;
   align-items: center;
@@ -3630,62 +3679,60 @@ html.reduce-motion .plugin-market-head-actions .icon-btn.is-loading svg { animat
   font-weight: 600;
   letter-spacing: 0;
 }
-.ra-host-chip[hidden],
-.ra-banner[hidden],
-.ra-colo-list[hidden],
-.ra-token-status[hidden],
-.ra-probe-result[hidden],
-.ra-pair-tabs[hidden],
-.ra-card-hint[hidden] { display: none; }
-.set-section[data-category="remote-access"] button.primary,
-.set-section[data-category="remote-access"] button.ghost {
+#remoteMobilePanel button.primary,
+#remoteMobilePanel button.ghost {
+  width: auto;
+  height: 34px;
+  padding: 0 13px;
+  border-radius: 9px;
+  font-size: 12.5px;
+  font-weight: 550;
+  line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
 }
-.set-section[data-category="remote-access"] button.primary svg,
-.set-section[data-category="remote-access"] button.ghost svg {
-  width: 15px;
-  height: 15px;
+#remoteMobilePanel button.ra-btn-sm {
+  height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+#remoteMobilePanel button.primary svg,
+#remoteMobilePanel button.ghost svg {
+  width: 14px;
+  height: 14px;
   flex: 0 0 auto;
 }
-.set-section[data-category="remote-access"] .ra-icon-sm {
-  width: 32px;
-  height: 32px;
+#remoteMobilePanel .ra-icon-sm {
+  width: 30px;
+  height: 30px;
   padding: 0;
   border-radius: 8px;
   flex: 0 0 auto;
 }
-.set-section[data-category="remote-access"] .ra-icon-sm svg { width: 15px; height: 15px; }
-.set-section[data-category="remote-access"] .ra-icon-sm.is-copied {
+#remoteMobilePanel .ra-icon-sm svg { width: 14px; height: 14px; }
+#remoteMobilePanel .ra-icon-sm.is-copied {
   color: var(--status-running);
   border-color: color-mix(in srgb, var(--status-running) 45%, var(--line));
 }
-.set-section[data-category="remote-access"] .is-spinning svg {
+#remoteMobilePanel .is-spinning svg {
   animation: ra-spin var(--motion-spin) linear infinite;
 }
 @keyframes ra-spin { to { transform: rotate(360deg); } }
-.ra-status-row,
-.ra-tunnel-head { padding-top: 14px; padding-bottom: 14px; }
-.ra-status-summary {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  min-width: 0;
-}
 .ra-pill {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  height: 26px;
-  padding: 0 11px;
+  gap: 6px;
+  height: 22px;
+  padding: 0 9px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
   background: var(--accent-soft);
   color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 .ra-dot {
   width: 7px;
@@ -3713,16 +3760,11 @@ html.reduce-motion .plugin-market-head-actions .icon-btn.is-loading svg { animat
   background: rgba(107, 125, 156, 0.12);
   color: var(--muted);
 }
-.ra-meta-inline {
-  font-size: 12.5px;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
 .ra-banner {
   display: flex;
   align-items: flex-start;
   gap: 9px;
-  padding: 11px 20px;
+  padding: 11px 18px;
   border-top: 1px solid #edf1f9;
   font-size: 12.5px;
   line-height: 1.55;
@@ -3737,37 +3779,35 @@ html.reduce-motion .plugin-market-head-actions .icon-btn.is-loading svg { animat
   background: var(--danger-soft);
   color: var(--danger);
 }
-.ra-banner.is-info {
-  background: color-mix(in srgb, var(--accent-soft) 65%, transparent);
-  color: var(--muted);
+.ra-active-area {
+  border-top: 1px solid #edf1f9;
 }
-.ra-banner.is-info svg { color: var(--accent); }
-.ra-endpoint-list {
+.ra-qr-section {
+  background: color-mix(in srgb, var(--accent-soft) 18%, transparent);
+}
+.ra-qr-head {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.ra-qr-head-left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
-.ra-endpoint-item {
+.ra-copy-box {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 10px 8px 12px;
+  gap: 6px;
+  min-width: 0;
+  padding: 5px 7px 5px 10px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: color-mix(in srgb, var(--accent-soft) 35%, var(--card));
-}
-.ra-endpoint-label {
-  flex: 0 0 auto;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted);
-  min-width: 72px;
-}
-.ra-endpoint-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  flex: 0 0 auto;
+  background: var(--card);
 }
 .ra-url-value,
 .ra-code-value {
@@ -3783,9 +3823,15 @@ html.reduce-motion .plugin-market-head-actions .icon-btn.is-loading svg { animat
   user-select: text;
 }
 .ra-code-value {
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+.ra-tunnel-row {
+  border-top: 1px solid #edf1f9;
+}
+.ra-tunnel-url-row {
+  border-top: 1px solid #edf1f9;
 }
 .ra-action-row {
   padding-top: 12px;
@@ -3798,51 +3844,107 @@ html.reduce-motion .plugin-market-head-actions .icon-btn.is-loading svg { animat
 }
 .ra-card-hint {
   margin: 0;
-  padding: 10px 20px 14px;
+  padding: 10px 18px 12px;
   border-top: 1px solid #edf1f9;
 }
 .ra-inline-hint.is-error,
 .ra-card-hint.is-error { color: var(--danger); }
 
-/* 配对二维码卡片 */
-.ra-pair-tabs {
+/* 唯一折叠「高级设置」：独立卡片形态，未展开时只占一行 46px 高度 */
+.ra-advanced-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 12px 18px;
+  cursor: pointer;
+  list-style: none;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
+}
+.ra-advanced-summary::-webkit-details-marker { display: none; }
+.ra-advanced-summary:hover {
+  background: color-mix(in srgb, var(--accent-soft) 32%, transparent);
+  color: var(--text);
+}
+.ra-advanced-meta {
+  font-size: 11.5px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.ra-chevron {
+  width: 15px;
+  height: 15px;
+  margin-left: auto;
+  flex: 0 0 auto;
+  transition: transform var(--motion-fast) var(--ease-standard);
+}
+.ra-advanced[open] .ra-chevron { transform: rotate(180deg); }
+.ra-advanced-body {
+  border-top: 1px solid #edf1f9;
+  background: color-mix(in srgb, var(--accent-soft) 14%, transparent);
+}
+.ra-advanced-body .set-row { border-top-color: #edf1f9; }
+
+/* 分段切换胶囊 */
+.ra-pair-tabs,
+.ra-mode-seg {
   display: inline-flex;
-  gap: 4px;
+  align-items: center;
+  gap: 3px;
   padding: 3px;
-  margin-bottom: 14px;
   border-radius: 10px;
   background: var(--accent-soft);
 }
-.ra-seg-btn {
+.ra-seg-btn,
+.ra-mode-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 0;
   border-radius: 8px;
-  padding: 5px 12px;
+  padding: 5px 11px;
   background: transparent;
   color: var(--muted);
   font: inherit;
   font-size: 12.5px;
   font-weight: 550;
+  line-height: 1.2;
   cursor: pointer;
+  white-space: nowrap;
   transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
 }
-.ra-seg-btn:hover { color: var(--text); }
-.ra-seg-btn.is-active {
+.ra-mode-pill input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.ra-seg-btn:hover,
+.ra-mode-pill:hover { color: var(--text); }
+.ra-mode-pill:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ra-seg-btn.is-active,
+.ra-mode-pill:has(input:checked) {
   background: var(--card);
   color: var(--accent);
   box-shadow: 0 1px 4px rgba(22, 35, 61, 0.08);
 }
 .ra-qr-layout {
   display: grid;
-  grid-template-columns: 184px minmax(0, 1fr);
-  gap: 20px;
-  align-items: start;
+  grid-template-columns: 164px minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
 }
 /* 二维码始终白底黑码并留白边，深色模式下手机相机也能稳定扫码 */
 .ra-qr-frame {
-  width: 184px;
-  height: 184px;
-  padding: 10px;
-  border-radius: 14px;
+  width: 164px;
+  height: 164px;
+  padding: 8px;
+  border-radius: 12px;
   border: 1px solid var(--line);
   background: #fff;
   display: flex;
@@ -3860,13 +3962,13 @@ html.reduce-motion .plugin-market-head-actions .icon-btn.is-loading svg { animat
 .ra-qr-meta {
   display: flex;
   flex-direction: column;
-  gap: 11px;
+  gap: 10px;
   min-width: 0;
 }
 .ra-copy-field {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
   min-width: 0;
 }
 .ra-copy-label {
@@ -3874,50 +3976,21 @@ html.reduce-motion .plugin-market-head-actions .icon-btn.is-loading svg { animat
   font-weight: 600;
   color: var(--muted);
 }
-.ra-copy-box {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px 6px 11px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--accent-soft) 28%, var(--card));
-}
 .ra-qr-tip { margin: 2px 0 0 !important; }
 
 /* 已配对设备列表 */
 .ra-device-list { border-top: 1px solid #edf1f9; }
 .ra-empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 6px;
-  padding: 26px 20px;
-  color: var(--muted);
-}
-.ra-empty-icon {
-  width: 28px;
-  height: 28px;
-  color: var(--accent);
-  opacity: 0.72;
-}
-.ra-empty-title {
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--text);
-}
-.ra-empty-desc {
-  margin: 0;
+  padding: 13px 18px;
   font-size: 12.5px;
-  max-width: 420px;
+  color: var(--muted);
 }
 .ra-device-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  padding: 14px 20px;
+  padding: 13px 18px;
 }
 .ra-device-row + .ra-device-row { border-top: 1px solid #edf1f9; }
 .ra-device-info {
@@ -3981,7 +4054,7 @@ html.reduce-motion .plugin-market-head-actions .icon-btn.is-loading svg { animat
   height: 32px !important;
 }
 
-/* Cloudflare 隧道模式卡片与边缘测速 */
+/* Cloudflare 隧道机房与边缘测速 */
 .ra-colo-list {
   display: inline-flex;
   align-items: center;
@@ -4000,47 +4073,6 @@ html.reduce-motion .plugin-market-head-actions .icon-btn.is-loading svg { animat
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11.5px;
   font-weight: 600;
-}
-.ra-mode-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 12px;
-}
-.ra-mode-option {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 0;
-  padding: 12px 13px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--card);
-  cursor: pointer;
-  transition: border-color var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard), background var(--motion-fast) var(--ease-standard);
-}
-.ra-mode-option input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
-.ra-mode-option:hover { border-color: var(--accent); }
-.ra-mode-option:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
-.ra-mode-option:has(input:checked) {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent-soft) 50%, var(--card));
-  box-shadow: 0 0 0 2px var(--accent-soft);
-}
-.ra-mode-title {
-  font-size: 13.5px;
-  font-weight: 650;
-  color: var(--text);
-}
-.ra-mode-desc {
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--muted);
 }
 .ra-token-label-row {
   display: flex;
@@ -4066,7 +4098,7 @@ html.reduce-motion .plugin-market-head-actions .icon-btn.is-loading svg { animat
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 12px 20px 14px;
+  padding: 12px 18px 14px;
   border-top: 1px solid #edf1f9;
   background: color-mix(in srgb, var(--accent-soft) 24%, transparent);
 }
@@ -4100,9 +4132,9 @@ html.reduce-motion .plugin-market-head-actions .icon-btn.is-loading svg { animat
   line-height: 1.45;
 }
 .ra-probe-warn svg { width: 15px; height: 15px; flex: 0 0 auto; }
-html.reduce-motion .set-section[data-category="remote-access"] .is-spinning svg,
+html.reduce-motion #remoteMobilePanel .is-spinning svg,
 html.reduce-motion .ra-pill.is-pending .ra-dot { animation: none; }
 @media (prefers-reduced-motion: reduce) {
-  .set-section[data-category="remote-access"] .is-spinning svg,
+  #remoteMobilePanel .is-spinning svg,
   .ra-pill.is-pending .ra-dot { animation: none; }
 }

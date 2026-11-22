@@ -1,4 +1,4 @@
-// 设置页「移动与远程访问」交互模块：网关开关与状态、手机配对二维码、已配对设备管理、Cloudflare 外网隧道。
+// 「远程 → 手机访问」交互模块：手机访问开关与状态、手机扫码配对、已配对设备管理、Cloudflare 外网隧道。
 // 跑在 index.html 主脚本之后，复用主脚本的全局：t、appConfirm、createUiSelect、syncUiSelect。
 // 全部 DOM 走原生节点构建（textContent / createElement / createElementNS），不拼 innerHTML，
 // 配对二维码 SVG 通过 DOMParser + 严格白名单重建，防止任何不可信脚本或属性注入。
@@ -16,28 +16,18 @@
   const tr = (zh, vars) => (typeof t === 'function' ? t(zh, vars) : zh)
   const byId = (id) => document.getElementById(id)
 
-  const sectionEl = document.querySelector('#pane-settings .set-section[data-category="remote-access"]')
-  if (!sectionEl) return
+  const panelEl = byId('remoteMobilePanel')
+  if (!panelEl) return
 
   const dom = {
-    hostChip: byId('raHostChip'),
+    enabled: byId('raEnabled'),
     gatewayPill: byId('raGatewayPill'),
     gatewayPillText: byId('raGatewayPillText'),
-    gatewayPortBadge: byId('raGatewayPortBadge'),
-    refreshBtn: byId('raRefreshBtn'),
     gatewayError: byId('raGatewayError'),
     gatewayErrorText: byId('raGatewayErrorText'),
-    endpointsRow: byId('raEndpointsRow'),
-    endpointList: byId('raEndpointList'),
-    enabled: byId('raEnabled'),
-    bindLan: byId('raBindLan'),
-    gatewayPort: byId('raGatewayPort'),
-    customPublicUrl: byId('raCustomPublicUrl'),
-    gatewayHint: byId('raGatewayHint'),
-    gatewaySave: byId('raGatewaySave'),
+    activeArea: byId('raActiveArea'),
 
     generatePair: byId('raGeneratePair'),
-    pairNeedGateway: byId('raPairNeedGateway'),
     pairingBox: byId('raPairingBox'),
     pairSourceTabs: byId('raPairSourceTabs'),
     qrFrame: byId('raQrFrame'),
@@ -50,23 +40,30 @@
     openPairUrl: byId('raOpenPairUrl'),
     pairHint: byId('raPairHint'),
 
-    deviceCount: byId('raDeviceCount'),
-    revokeAll: byId('raRevokeAll'),
-    deviceList: byId('raDeviceList'),
-    devicesHint: byId('raDevicesHint'),
-
+    tunnelToggle: byId('raTunnelToggle'),
     tunnelPill: byId('raTunnelPill'),
     tunnelPillText: byId('raTunnelPillText'),
+    tunnelDesc: byId('raTunnelDesc'),
     tunnelLocations: byId('raTunnelLocations'),
-    tunnelStart: byId('raTunnelStart'),
-    tunnelStop: byId('raTunnelStop'),
     tunnelError: byId('raTunnelError'),
     tunnelErrorText: byId('raTunnelErrorText'),
     tunnelUrlRow: byId('raTunnelUrlRow'),
     tunnelPublicUrlDisplay: byId('raTunnelPublicUrlDisplay'),
     copyTunnelUrl: byId('raCopyTunnelUrl'),
     openTunnelUrl: byId('raOpenTunnelUrl'),
-    modeRadios: [...sectionEl.querySelectorAll('input[name="raTunnelMode"]')],
+
+    deviceCount: byId('raDeviceCount'),
+    revokeAll: byId('raRevokeAll'),
+    deviceList: byId('raDeviceList'),
+    devicesHint: byId('raDevicesHint'),
+
+    advDetails: byId('raAdvanced'),
+    advSummary: byId('raAdvSummary'),
+    bindLan: byId('raBindLan'),
+    gatewayPort: byId('raGatewayPort'),
+    customPublicUrl: byId('raCustomPublicUrl'),
+    modeRadios: [...panelEl.querySelectorAll('input[name="raTunnelMode"]')],
+    tunnelModeDesc: byId('raTunnelModeDesc'),
     workerUrlRow: byId('raWorkerUrlRow'),
     workerUrl: byId('raWorkerUrl'),
     inviteCodeRow: byId('raInviteCodeRow'),
@@ -81,8 +78,8 @@
     tunnelProbe: byId('raTunnelProbe'),
     edgeProbeBox: byId('raEdgeProbeBox'),
     tunnelAutoStart: byId('raTunnelAutoStart'),
-    tunnelHint: byId('raTunnelHint'),
-    tunnelSave: byId('raTunnelSave'),
+    advHint: byId('raAdvHint'),
+    advSave: byId('raAdvSave'),
   }
 
   // 页面状态：保留脏标记，防止后台轮询覆盖用户正在输入的字段
@@ -94,12 +91,14 @@
     pairing: null,
     pairSource: 'primary',
     lastProbe: null,
+    lastTunnelUrl: '',
     gatewayDirty: false,
     tunnelDirty: false,
     editingDeviceId: '',
     editingName: '',
     pollTimer: null,
     countdownTimer: null,
+    advHintTimer: null,
     busy: {
       gateway: false,
       pair: false,
@@ -253,11 +252,24 @@
     }
   }
 
+  const TRANSIENT_ADV_HINT_MS = 2500
+
   function showHint(el, message, isError = false) {
     if (!el) return
     el.textContent = message || ''
     el.hidden = !message
     el.classList.toggle('is-error', Boolean(message && isError))
+    if (el === dom.advHint) {
+      clearTimeout(state.advHintTimer)
+      state.advHintTimer = null
+      const text = String(message || '').trim()
+      if (text && !isError && !text.endsWith('…')) {
+        state.advHintTimer = setTimeout(() => {
+          state.advHintTimer = null
+          if (!dom.advHint.classList.contains('is-error')) showHint(dom.advHint, '')
+        }, TRANSIENT_ADV_HINT_MS)
+      }
+    }
   }
 
   function formatRelativeTime(timestamp) {
@@ -302,7 +314,16 @@
     updateTunnelModeFields(value)
   }
 
+  const TUNNEL_MODE_DESCS = {
+    quick: '零配置即开即用，重启后随机域名会变化',
+    worker: '通过自建 Cloudflare Worker 分配永久子域名',
+    token: '使用已创建的 Cloudflare Tunnel Token 与绑定域名',
+  }
+
   function updateTunnelModeFields(mode) {
+    if (dom.tunnelModeDesc) {
+      dom.tunnelModeDesc.textContent = tr(TUNNEL_MODE_DESCS[mode] || TUNNEL_MODE_DESCS.quick)
+    }
     dom.workerUrlRow.hidden = mode !== 'worker'
     dom.inviteCodeRow.hidden = mode !== 'worker'
     dom.tokenRow.hidden = mode !== 'token'
@@ -335,33 +356,20 @@
   function renderGatewayCard(st, forceFormSync) {
     const config = st.config || {}
     const gateway = st.gateway || {}
-    const host = st.host || {}
 
-    if (host.hostName) {
-      dom.hostChip.textContent = host.hostName
-      dom.hostChip.hidden = false
-    } else {
-      dom.hostChip.hidden = true
-    }
-
-    // 网关状态胶囊：运行中即便伴随局域网端口冲突告警（仍由下方横幅提示），主状态仍保持「运行中」
+    // 网关状态胶囊：运行中合并端口展示（如「运行中 · :3790」），不再叠额外灰字角标
     dom.gatewayPill.classList.remove('is-running', 'is-stopped', 'is-error', 'is-pending')
     if (gateway.running) {
       dom.gatewayPill.classList.add('is-running')
-      dom.gatewayPillText.textContent = tr('运行中')
+      dom.gatewayPillText.textContent = gateway.port
+        ? tr('运行中 · :{port}', { port: gateway.port })
+        : tr('运行中')
     } else if (gateway.error) {
       dom.gatewayPill.classList.add('is-error')
       dom.gatewayPillText.textContent = tr('启动异常')
     } else {
       dom.gatewayPill.classList.add('is-stopped')
       dom.gatewayPillText.textContent = tr('未启动')
-    }
-
-    if (gateway.running && gateway.port) {
-      dom.gatewayPortBadge.textContent = tr('端口 {port}', { port: gateway.port })
-      dom.gatewayPortBadge.hidden = false
-    } else {
-      dom.gatewayPortBadge.hidden = true
     }
 
     if (gateway.error) {
@@ -371,60 +379,8 @@
       dom.gatewayError.hidden = true
     }
 
-    // 入口地址列表：本机预览、局域网直连、自定义公网入口
-    const endpoints = []
-    if (gateway.running && gateway.localUrl) {
-      endpoints.push({ label: tr('本机预览'), url: mobileEntryUrl(gateway.localUrl) })
-    }
-    if (gateway.running && gateway.lanUrl) {
-      endpoints.push({ label: tr('局域网入口'), url: mobileEntryUrl(gateway.lanUrl) })
-    }
-    if (gateway.running && config.customPublicUrl) {
-      const custom = mobileEntryUrl(config.customPublicUrl)
-      if (custom) endpoints.push({ label: tr('自定义公网'), url: custom })
-    }
-
-    dom.endpointList.replaceChildren()
-    if (endpoints.length > 0) {
-      for (const item of endpoints) {
-        const row = document.createElement('div')
-        row.className = 'ra-endpoint-item'
-
-        const label = document.createElement('span')
-        label.className = 'ra-endpoint-label'
-        label.textContent = item.label
-
-        const code = document.createElement('code')
-        code.className = 'ra-url-value'
-        code.textContent = item.url
-        code.title = item.url
-
-        const actions = document.createElement('div')
-        actions.className = 'ra-endpoint-actions'
-
-        const copyBtn = document.createElement('button')
-        copyBtn.type = 'button'
-        copyBtn.className = 'ghost icon-btn ra-icon-sm'
-        copyBtn.title = tr('复制地址')
-        copyBtn.setAttribute('aria-label', tr('复制地址'))
-        copyBtn.append(makeIcon('lucide-copy'))
-        copyBtn.onclick = () => void copyText(item.url, copyBtn, dom.gatewayHint)
-
-        const openBtn = document.createElement('button')
-        openBtn.type = 'button'
-        openBtn.className = 'ghost icon-btn ra-icon-sm'
-        openBtn.title = tr('打开手机版预览')
-        openBtn.setAttribute('aria-label', tr('打开手机版预览'))
-        openBtn.append(makeIcon('lucide-external-link'))
-        openBtn.onclick = () => openExternalUrl(item.url)
-
-        actions.append(copyBtn, openBtn)
-        row.append(label, code, actions)
-        dom.endpointList.append(row)
-      }
-      dom.endpointsRow.hidden = false
-    } else {
-      dom.endpointsRow.hidden = true
+    if (dom.activeArea) {
+      dom.activeArea.hidden = !(config.enabled === true || gateway.running)
     }
 
     // 表单回填（仅在非脏状态且未聚焦时更新，防止打断用户输入）
@@ -442,7 +398,7 @@
 
     dom.enabled.disabled = state.busy.gateway
     dom.bindLan.disabled = state.busy.gateway
-    dom.gatewaySave.disabled = state.busy.gateway
+    if (dom.advSave) dom.advSave.disabled = state.busy.gateway || state.busy.tunnel
   }
 
   function activePairingEntry(pairing) {
@@ -464,11 +420,10 @@
 
   function renderPairingCard(st) {
     const gatewayRunning = Boolean(st?.gateway?.running)
-    dom.pairNeedGateway.hidden = gatewayRunning
     dom.generatePair.disabled = state.busy.pair || !gatewayRunning
 
     const pairing = state.pairing
-    if (!pairing || !pairing.code) {
+    if (!gatewayRunning || !pairing || !pairing.code) {
       dom.pairingBox.hidden = true
       stopCountdown()
       return
@@ -559,14 +514,7 @@
     if (devices.length === 0) {
       const empty = document.createElement('div')
       empty.className = 'ra-empty-state'
-      empty.append(makeIcon('lucide-shield-check', 'ra-empty-icon'))
-      const title = document.createElement('div')
-      title.className = 'ra-empty-title'
-      title.textContent = tr('暂未配对任何移动设备')
-      const desc = document.createElement('p')
-      desc.className = 'ra-empty-desc'
-      desc.textContent = tr('在上方生成配对二维码并用手机扫码后，设备会出现在这里。')
-      empty.append(title, desc)
+      empty.textContent = tr('暂未配对设备，开启后手机扫码即可添加。')
       dom.deviceList.append(empty)
       return
     }
@@ -712,12 +660,14 @@
       case 'starting': return tr('正在建立隧道…')
       case 'running': return tr('运行中')
       case 'error': return tr('连接异常')
-      default: return tr('已停止')
+      default: return tr('未开启')
     }
   }
 
   function renderTunnelCard(st, forceFormSync) {
-    const tCfg = st?.config?.tunnel || {}
+    const config = st?.config || {}
+    const gatewayRunning = Boolean(st?.gateway?.running)
+    const tCfg = config.tunnel || {}
     const tunnel = st?.tunnel || {}
     const tState = String(tunnel.state || 'stopped')
 
@@ -743,12 +693,12 @@
       dom.tunnelLocations.hidden = true
     }
 
-    // 启动 / 停止按钮显隐与禁用态
+    // 隧道开关：运行/启动中均视作开启
     const isActive = tState === 'running' || TRANSITIONAL_TUNNEL_STATES.has(tState)
-    dom.tunnelStart.hidden = isActive
-    dom.tunnelStop.hidden = !isActive
-    dom.tunnelStart.disabled = state.busy.tunnel
-    dom.tunnelStop.disabled = state.busy.tunnel
+    if (dom.tunnelToggle) {
+      dom.tunnelToggle.checked = isActive
+      dom.tunnelToggle.disabled = state.busy.tunnel || !gatewayRunning
+    }
 
     // 错误横幅
     if (tunnel.lastError) {
@@ -799,8 +749,23 @@
     const probe = tunnel.edgeProbe || state.lastProbe
     renderEdgeProbe(probe)
 
+    if (dom.advSummary) {
+      const parts = []
+      const savedPort = Number(config.gatewayPort) || 0
+      if (savedPort > 0) parts.push(tr('端口 {port}', { port: savedPort }))
+      if (config.customPublicUrl) parts.push(tr('自定义公网'))
+      if (tCfg.mode === 'worker') parts.push(tr('自建 Worker'))
+      else if (tCfg.mode === 'token') parts.push(tr('已有 Tunnel'))
+      if (tCfg.edgeIPVersion === '4') parts.push(tr('仅 IPv4'))
+      else if (tCfg.edgeIPVersion === '6') parts.push(tr('仅 IPv6'))
+      dom.advSummary.textContent = parts.join(' · ')
+      dom.advSummary.hidden = parts.length === 0
+    }
+
     dom.tunnelProbe.disabled = state.busy.probe
-    dom.tunnelSave.disabled = state.busy.tunnel
+    if (dom.advSave) dom.advSave.disabled = state.busy.gateway || state.busy.tunnel
+    dom.edgeIpVersion.disabled = state.busy.tunnel
+    dom.tunnelAutoStart.disabled = state.busy.tunnel
   }
 
   function renderEdgeProbe(probe) {
@@ -877,22 +842,28 @@
     if (next.tunnel?.edgeProbe) {
       state.lastProbe = next.tunnel.edgeProbe
     }
+    const nextTunnelUrl = safeHttpUrl(next.tunnel?.publicUrl)
+    const tunnelUrlChanged = nextTunnelUrl && nextTunnelUrl !== state.lastTunnelUrl
+    state.lastTunnelUrl = nextTunnelUrl
     renderAll({ forceFormSync })
+
+    // 网关运行中但页面尚未拿到二维码（首次进页或隧道拿到公网域名时）自动生成一次
+    if (state.visible && next.gateway?.running && !state.busy.pair && (!state.pairing || tunnelUrlChanged)) {
+      void generatePairing({ silent: true })
+    }
   }
 
   async function loadStatus({ forceFormSync = false, silent = false } = {}) {
     if (state.loading) return
     state.loading = true
-    dom.refreshBtn.classList.add('is-spinning')
     try {
       const data = await requestJson('/api/remote-access/status')
       applyStatus(data, { forceFormSync: forceFormSync || !state.loaded })
-      if (!silent) showHint(dom.gatewayHint, '')
+      if (!silent) showHint(dom.advHint, '')
     } catch (error) {
-      if (!silent) showHint(dom.gatewayHint, error.message, true)
+      if (!silent) showHint(dom.advHint, error.message, true)
     } finally {
       state.loading = false
-      dom.refreshBtn.classList.remove('is-spinning')
     }
   }
 
@@ -958,6 +929,44 @@
     return { tunnel: tunnelPatch }
   }
 
+  async function toggleMasterEnabled(checked) {
+    if (state.busy.gateway) {
+      dom.enabled.checked = !checked
+      return
+    }
+    state.busy.gateway = true
+    dom.enabled.disabled = true
+    dom.bindLan.disabled = true
+    if (dom.advSave) dom.advSave.disabled = true
+    const patch = { enabled: checked }
+    // 一键开启时若尚未配置局域网/公网/隧道，顺带打开局域网直连，保证同 Wi-Fi 扫码立即可用
+    const cur = state.status?.config || {}
+    if (checked && !cur.bindLan && !cur.customPublicUrl && !cur.tunnel?.enabled) {
+      patch.bindLan = true
+    }
+    try {
+      const data = await requestJson('/api/remote-access/config', {
+        method: 'POST',
+        body: patch,
+      })
+      if (!checked) {
+        state.pairing = null
+        state.lastTunnelUrl = ''
+        showHint(dom.pairHint, '')
+      }
+      applyStatus(data, { forceFormSync: !state.gatewayDirty })
+      if (checked && data?.gateway?.running && !state.pairing) {
+        await generatePairing({ silent: true })
+      }
+    } catch (error) {
+      dom.enabled.checked = !checked
+      showHint(dom.pairHint, error.message, true)
+    } finally {
+      state.busy.gateway = false
+      renderGatewayCard(state.status || {}, false)
+    }
+  }
+
   async function saveGatewayToggle(field, checked, inputEl) {
     if (state.busy.gateway) {
       inputEl.checked = !checked
@@ -966,56 +975,70 @@
     state.busy.gateway = true
     dom.enabled.disabled = true
     dom.bindLan.disabled = true
-    dom.gatewaySave.disabled = true
-    showHint(dom.gatewayHint, tr('正在应用设置…'))
+    if (dom.advSave) dom.advSave.disabled = true
+    showHint(dom.advHint, tr('正在应用设置…'))
     try {
       const data = await requestJson('/api/remote-access/config', {
         method: 'POST',
         body: { [field]: checked },
       })
       applyStatus(data, { forceFormSync: !state.gatewayDirty })
-      showHint(dom.gatewayHint, tr('已更新。'))
+      showHint(dom.advHint, tr('已更新。'))
     } catch (error) {
       inputEl.checked = !checked
-      showHint(dom.gatewayHint, error.message, true)
+      showHint(dom.advHint, error.message, true)
     } finally {
       state.busy.gateway = false
       renderGatewayCard(state.status || {}, false)
     }
   }
 
-  async function saveGatewayForm() {
+  async function saveAdvancedForm({ silent = false } = {}) {
     let patch
     try {
-      patch = collectGatewayPatch()
+      const gwPatch = collectGatewayPatch()
+      const tunnelPatch = collectTunnelPatch()
+      patch = { ...gwPatch, ...tunnelPatch }
     } catch (error) {
-      showHint(dom.gatewayHint, error.message, true)
-      return
+      showHint(dom.advHint, error.message, true)
+      return false
     }
     state.busy.gateway = true
-    renderGatewayCard(state.status || {}, false)
-    showHint(dom.gatewayHint, tr('正在保存设置…'))
+    state.busy.tunnel = true
+    if (state.status) {
+      renderGatewayCard(state.status, false)
+      renderTunnelCard(state.status, false)
+    }
+    if (!silent) showHint(dom.advHint, tr('正在保存设置…'))
     try {
       const data = await requestJson('/api/remote-access/config', {
         method: 'POST',
         body: patch,
       })
+      dom.tunnelToken.value = ''
       state.gatewayDirty = false
+      state.tunnelDirty = false
       applyStatus(data, { forceFormSync: true })
-      showHint(dom.gatewayHint, tr('已保存网关设置。'))
+      if (!silent) showHint(dom.advHint, tr('已保存高级设置。'))
+      return true
     } catch (error) {
-      showHint(dom.gatewayHint, error.message, true)
+      showHint(dom.advHint, error.message, true)
+      return false
     } finally {
       state.busy.gateway = false
-      renderGatewayCard(state.status || {}, false)
+      state.busy.tunnel = false
+      if (state.status) {
+        renderGatewayCard(state.status, false)
+        renderTunnelCard(state.status, false)
+      }
     }
   }
 
-  async function generatePairing() {
+  async function generatePairing({ silent = false } = {}) {
     if (state.busy.pair) return
     state.busy.pair = true
     dom.generatePair.disabled = true
-    showHint(dom.pairHint, tr('正在生成配对二维码…'))
+    if (!silent) showHint(dom.pairHint, tr('正在生成配对二维码…'))
     try {
       const data = await requestJson('/api/remote-access/pair', { method: 'POST', body: {} })
       if (!data?.pairing) throw new Error(tr('服务端未返回配对信息。'))
@@ -1120,12 +1143,12 @@
     try {
       patch = collectTunnelPatch()
     } catch (error) {
-      showHint(dom.tunnelHint, error.message, true)
+      showHint(dom.advHint, error.message, true)
       return false
     }
     state.busy.tunnel = true
     renderTunnelCard(state.status || {}, false)
-    if (!silent) showHint(dom.tunnelHint, tr('正在保存隧道配置…'))
+    if (!silent) showHint(dom.advHint, tr('正在保存隧道配置…'))
     try {
       const data = await requestJson('/api/remote-access/config', {
         method: 'POST',
@@ -1135,14 +1158,38 @@
       dom.tunnelToken.value = ''
       state.tunnelDirty = false
       applyStatus(data, { forceFormSync: true })
-      if (!silent) showHint(dom.tunnelHint, tr('已保存隧道配置。'))
+      if (!silent) showHint(dom.advHint, tr('已保存隧道配置。'))
       return true
     } catch (error) {
-      showHint(dom.tunnelHint, error.message, true)
+      showHint(dom.advHint, error.message, true)
       return false
     } finally {
       state.busy.tunnel = false
       renderTunnelCard(state.status || {}, false)
+    }
+  }
+
+  async function saveTunnelQuickPatch(tunnelPatch, rollback) {
+    if (state.busy.tunnel) {
+      rollback?.()
+      return
+    }
+    state.busy.tunnel = true
+    if (state.status) renderTunnelCard(state.status, false)
+    showHint(dom.advHint, tr('正在应用设置…'))
+    try {
+      const data = await requestJson('/api/remote-access/config', {
+        method: 'POST',
+        body: { tunnel: tunnelPatch },
+      })
+      applyStatus(data, { forceFormSync: !state.tunnelDirty })
+      showHint(dom.advHint, tr('已更新。'))
+    } catch (error) {
+      rollback?.()
+      showHint(dom.advHint, error.message, true)
+    } finally {
+      state.busy.tunnel = false
+      if (state.status) renderTunnelCard(state.status, false)
     }
   }
 
@@ -1156,7 +1203,7 @@
     if (!ok) return
 
     state.busy.tunnel = true
-    showHint(dom.tunnelHint, tr('正在清除 Token…'))
+    showHint(dom.advHint, tr('正在清除 Token…'))
     try {
       const data = await requestJson('/api/remote-access/config', {
         method: 'POST',
@@ -1164,9 +1211,9 @@
       })
       dom.tunnelToken.value = ''
       applyStatus(data, { forceFormSync: !state.tunnelDirty })
-      showHint(dom.tunnelHint, tr('已清除 Tunnel Token。'))
+      showHint(dom.advHint, tr('已清除 Tunnel Token。'))
     } catch (error) {
-      showHint(dom.tunnelHint, error.message, true)
+      showHint(dom.advHint, error.message, true)
     } finally {
       state.busy.tunnel = false
       renderTunnelCard(state.status || {}, false)
@@ -1178,11 +1225,13 @@
     // 用户改了隧道参数或刚粘贴 Token 还没点保存，启动前顺手保存，避免用旧配置拉起隧道
     if (state.tunnelDirty || dom.tunnelToken.value.trim()) {
       const saved = await saveTunnelForm({ silent: true })
-      if (!saved) return
+      if (!saved) {
+        if (dom.tunnelToggle) dom.tunnelToggle.checked = false
+        return
+      }
     }
     state.busy.tunnel = true
     renderTunnelCard(state.status || {}, false)
-    showHint(dom.tunnelHint, tr('正在启动 Cloudflare 隧道…'))
     try {
       const data = await requestJson('/api/remote-access/tunnel/start', { method: 'POST', body: {} })
       if (state.status) {
@@ -1190,10 +1239,13 @@
         if (data.gateway) state.status.gateway = data.gateway
         renderAll()
       }
-      showHint(dom.tunnelHint, '')
       await loadStatus({ silent: true })
     } catch (error) {
-      showHint(dom.tunnelHint, error.message, true)
+      if (dom.tunnelToggle) dom.tunnelToggle.checked = false
+      if (dom.tunnelErrorText && dom.tunnelError) {
+        dom.tunnelErrorText.textContent = error.message
+        dom.tunnelError.hidden = false
+      }
       await loadStatus({ silent: true })
     } finally {
       state.busy.tunnel = false
@@ -1205,17 +1257,19 @@
     if (state.busy.tunnel) return
     state.busy.tunnel = true
     renderTunnelCard(state.status || {}, false)
-    showHint(dom.tunnelHint, tr('正在停止隧道…'))
     try {
       const data = await requestJson('/api/remote-access/tunnel/stop', { method: 'POST', body: {} })
       if (state.status && data.tunnel) {
         state.status.tunnel = data.tunnel
         renderAll()
       }
-      showHint(dom.tunnelHint, tr('隧道已停止。'))
       await loadStatus({ silent: true })
     } catch (error) {
-      showHint(dom.tunnelHint, error.message, true)
+      if (dom.tunnelToggle) dom.tunnelToggle.checked = true
+      if (dom.tunnelErrorText && dom.tunnelError) {
+        dom.tunnelErrorText.textContent = error.message
+        dom.tunnelError.hidden = false
+      }
     } finally {
       state.busy.tunnel = false
       if (state.status) renderTunnelCard(state.status, false)
@@ -1227,19 +1281,19 @@
     state.busy.probe = true
     dom.tunnelProbe.disabled = true
     dom.tunnelProbe.classList.add('is-spinning')
-    showHint(dom.tunnelHint, tr('正在探测 Cloudflare 边缘节点延迟…'))
+    showHint(dom.advHint, tr('正在探测 Cloudflare 边缘节点延迟…'))
     try {
       const data = await requestJson('/api/remote-access/tunnel/probe', { method: 'POST', body: {} })
       if (data?.edgeProbe) {
         state.lastProbe = data.edgeProbe
         if (state.status?.tunnel) state.status.tunnel.edgeProbe = data.edgeProbe
         renderEdgeProbe(data.edgeProbe)
-        showHint(dom.tunnelHint, tr('边缘测速完成。'))
+        showHint(dom.advHint, tr('边缘测速完成。'))
       } else {
-        showHint(dom.tunnelHint, tr('未获取到测速结果。'), true)
+        showHint(dom.advHint, tr('未获取到测速结果。'), true)
       }
     } catch (error) {
-      showHint(dom.tunnelHint, error.message, true)
+      showHint(dom.advHint, error.message, true)
     } finally {
       state.busy.probe = false
       dom.tunnelProbe.disabled = false
@@ -1249,12 +1303,10 @@
 
   // ---- 事件绑定 ----
 
-  dom.refreshBtn.onclick = () => void loadStatus()
-  dom.enabled.onchange = () => void saveGatewayToggle('enabled', dom.enabled.checked, dom.enabled)
+  dom.enabled.onchange = () => void toggleMasterEnabled(dom.enabled.checked)
   dom.bindLan.onchange = () => void saveGatewayToggle('bindLan', dom.bindLan.checked, dom.bindLan)
   dom.gatewayPort.oninput = () => { state.gatewayDirty = true }
   dom.customPublicUrl.oninput = () => { state.gatewayDirty = true }
-  dom.gatewaySave.onclick = () => void saveGatewayForm()
 
   dom.generatePair.onclick = () => void generatePairing()
   dom.pairSourceTabs.onclick = (event) => {
@@ -1269,26 +1321,49 @@
   dom.copyPairUrl.onclick = () => void copyText(dom.pairUrl.textContent, dom.copyPairUrl, dom.pairHint)
   dom.openPairUrl.onclick = () => openExternalUrl(dom.pairUrl.textContent)
 
+  dom.tunnelToggle.onchange = () => {
+    if (dom.tunnelToggle.checked) void startTunnel()
+    else void stopTunnel()
+  }
+
   dom.revokeAll.onclick = () => void confirmRevokeAllDevices()
 
   for (const radio of dom.modeRadios) {
     radio.onchange = () => {
-      state.tunnelDirty = true
-      updateTunnelModeFields(radio.value)
+      const nextMode = radio.value
+      updateTunnelModeFields(nextMode)
+      if (nextMode === 'quick') {
+        // 临时体验模式零参数：切过来即保存
+        const prevMode = state.status?.config?.tunnel?.mode || 'quick'
+        state.tunnelDirty = false
+        void saveTunnelQuickPatch({ mode: 'quick' }, () => setSelectedTunnelMode(prevMode))
+      } else {
+        state.tunnelDirty = true
+      }
     }
   }
   dom.workerUrl.oninput = () => { state.tunnelDirty = true }
   dom.inviteCode.oninput = () => { state.tunnelDirty = true }
   dom.tunnelToken.oninput = () => { state.tunnelDirty = true }
   dom.tunnelPublicUrl.oninput = () => { state.tunnelDirty = true }
-  dom.edgeIpVersion.onchange = () => { state.tunnelDirty = true }
-  dom.tunnelAutoStart.onchange = () => { state.tunnelDirty = true }
+  dom.edgeIpVersion.onchange = () => {
+    const prev = state.status?.config?.tunnel?.edgeIPVersion || 'auto'
+    const next = dom.edgeIpVersion.value || 'auto'
+    void saveTunnelQuickPatch({ edgeIPVersion: next }, () => {
+      dom.edgeIpVersion.value = prev
+      if (typeof syncUiSelect === 'function') syncUiSelect(dom.edgeIpVersion)
+    })
+  }
+  dom.tunnelAutoStart.onchange = () => {
+    const checked = dom.tunnelAutoStart.checked
+    void saveTunnelQuickPatch({ enabled: checked }, () => {
+      dom.tunnelAutoStart.checked = !checked
+    })
+  }
   dom.clearToken.onclick = () => void clearSavedToken()
-  dom.tunnelSave.onclick = () => void saveTunnelForm()
-  dom.tunnelStart.onclick = () => void startTunnel()
-  dom.tunnelStop.onclick = () => void stopTunnel()
+  dom.advSave.onclick = () => void saveAdvancedForm()
   dom.tunnelProbe.onclick = () => void probeEdge()
-  dom.copyTunnelUrl.onclick = () => void copyText(dom.tunnelPublicUrlDisplay.textContent, dom.copyTunnelUrl, dom.tunnelHint)
+  dom.copyTunnelUrl.onclick = () => void copyText(dom.tunnelPublicUrlDisplay.textContent, dom.copyTunnelUrl, dom.pairHint)
   dom.openTunnelUrl.onclick = () => openExternalUrl(mobileEntryUrl(dom.tunnelPublicUrlDisplay.textContent))
 
   document.addEventListener('visibilitychange', () => {
@@ -1302,8 +1377,8 @@
 
   // 暴露给 index.html 的面板切换、语言重绘与 SSE 回调
   globalThis.remoteAccessUi = {
-    onViewChange(paneName, settingsCategory) {
-      const nowVisible = paneName === 'settings' && settingsCategory === 'remote-access'
+    onViewChange(paneName, remoteTab) {
+      const nowVisible = paneName === 'remote' && remoteTab === 'mobile'
       const becameVisible = nowVisible && !state.visible
       state.visible = nowVisible
       if (becameVisible) {
@@ -1311,6 +1386,8 @@
       } else if (!nowVisible) {
         clearTimeout(state.pollTimer)
         state.pollTimer = null
+        clearTimeout(state.advHintTimer)
+        state.advHintTimer = null
         stopCountdown()
       }
     },
@@ -1318,6 +1395,9 @@
       applyStatus(payload)
     },
     repaint() {
+      if (dom.advHint && !dom.advHint.classList.contains('is-error')) {
+        showHint(dom.advHint, '')
+      }
       if (state.status) renderAll()
     },
   }
