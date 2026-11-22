@@ -4,7 +4,7 @@
  */
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -126,7 +126,9 @@ test('坏输入给人话，不吐垃圾', async (t) => {
 })
 
 test('系统工具认我们写的包（PowerShell 解压出来内容一致）', { skip: WIN ? false : '只在 Windows 上验 PowerShell' }, async (t) => {
-  const dir = await mkdtemp(join(tmpdir(), 'zip-interop-'))
+  // Windows runner 的 TMP 可能是 8.3 短路径（如 RUNNER~1）；新版 PowerShell Archive 模块按字面
+  // 前缀做解压边界校验，展开为规范长路径可避免 Expand-Archive 静默跳过条目。
+  const dir = realpathSync.native(await mkdtemp(join(tmpdir(), 'zip-interop-')))
   t.after(() => rm(dir, { recursive: true, force: true }))
   const target = join(dir, 'out.zip')
   const out = join(dir, 'expanded')
@@ -134,7 +136,7 @@ test('系统工具认我们写的包（PowerShell 解压出来内容一致）', 
     { name: 'dsh-x/v1/sessions/proj/s1/session.jsonl.zstd', buffer: Buffer.from('系统工具也读得出来') },
     { name: 'dsh-x/v1/profiles/web/package.json', buffer: Buffer.from('{"a":1}') },
   ])
-  execFileSync('powershell', ['-NoProfile', '-Command', `Expand-Archive -LiteralPath '${target}' -DestinationPath '${out}' -Force`], { stdio: 'pipe' })
+  execFileSync('powershell', ['-NoProfile', '-Command', `$ErrorActionPreference = 'Stop'; Expand-Archive -LiteralPath '${target}' -DestinationPath '${out}' -Force`], { stdio: 'pipe' })
   assert.equal(readFileSync(join(out, 'dsh-x', 'v1', 'sessions', 'proj', 's1', 'session.jsonl.zstd'), 'utf8'), '系统工具也读得出来')
   assert.equal(readFileSync(join(out, 'dsh-x', 'v1', 'profiles', 'web', 'package.json'), 'utf8'), '{"a":1}')
 })

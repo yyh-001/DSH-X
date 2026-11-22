@@ -1292,22 +1292,26 @@ export class CloudflareTunnelManager {
     if (child && child.exitCode == null && child.signalCode == null) {
       await new Promise((resolve) => {
         let settled = false
+        let forceTimer = null
+        let fallbackTimer = null
         const done = () => {
           if (settled) return
           settled = true
           clearTimeout(forceTimer)
+          clearTimeout(fallbackTimer)
           resolve()
         }
         child.once('exit', done)
         child.once('close', done)
 
         this._terminateChild(child)
-        const forceTimer = setTimeout(() => {
-          try { child.kill('SIGKILL') } catch { /* ignore */ }
-          // 给事件循环一次机会派发 exit；若假进程不派发也绝不卡死 stop()
-          setTimeout(done, 20).unref?.()
-        }, this._killGraceMs)
-        forceTimer.unref?.()
+        if (!settled) {
+          forceTimer = setTimeout(() => {
+            try { child.kill('SIGKILL') } catch { /* ignore */ }
+            // 给事件循环一次机会派发 exit；若假进程不派发也绝不卡死 stop()
+            if (!settled) fallbackTimer = setTimeout(done, 20)
+          }, this._killGraceMs)
+        }
       })
     }
 

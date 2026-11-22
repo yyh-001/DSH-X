@@ -101,7 +101,7 @@ test('reap：同 Profile + DSH_HOME 的遗留 dsh 被停掉；保留名单、别
     // 等四个都真正 exec 成 dsh 再收，免得在 bash 阶段就被杀、看不出效果
     assert.ok(await waitFor(() => existsSync(box.log) && readFileSync(box.log, 'utf8').trim().split('\n').length === 4))
     const result = box.run('reap', 'web', '~/.dsh', 'cafe01')
-    assert.equal(result.status, 0)
+    assert.equal(result.status, 0, result.stderr || result.stdout)
     assert.match(result.stderr, /遗留的 dsh/)
     assert.ok(await waitFor(() => !alive(orphan.pid)), '遗留的同 Profile dsh 要停掉')
     assert.equal(existsSync(join(box.runDir, '0rphan.pid')), false)
