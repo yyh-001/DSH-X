@@ -4,7 +4,7 @@
 
 <p align="center">
   A <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a> launcher —<br />
-  launch entries and multiple instances, version, plugin, instance, MCP and skill management.
+  launch entries and multiple instances, version, plugin, instance, remote & mobile access, MCP and skill management.
 </p>
 
 <p align="center">
@@ -38,6 +38,7 @@
 - 📦 **Version management** — detect, install, remove and clean up dsh versions; pin a version per entry and inspect disk usage.
 - 🧩 **Plugins and instances** — instances lock a DSH version and plugins, import/export `.dspack`, follow upstream updates, and support one-click market install.
 - 🌐 **WSL and SSH remotes** — launch entries can run on WSL or SSH hosts with `dsh-x-core` auto-installed and pages opened through a local tunnel.
+- 📱 **Mobile remote access** — QR pairing and device management with built-in Cloudflare Tunnel to view logs, start/stop, and open DSH instances from your phone.
 - 🔍 **Startup troubleshooting** — raw log / time breakdown / disk usage tabs, startup time and dependencies grouped per plugin, and a red log icon on plugin errors.
 - 🔄 **Updates and recovery** — self-update, recovery, profile backups and rollback.
 - 🛠️ **MCP, skills and desktop enhancements** — built-in MCP and Skills markets, `dsh-x-computer-use` enabled by default, plus first-party native notifications and sidebar browser plugins.
@@ -49,8 +50,8 @@ Download the installer for your OS from [Releases](https://github.com/yyh-001/DS
 | Platform | Installer | Notes & First Launch |
 | --- | --- | --- |
 | **Windows** (10+ x64) | `DSH-X-<version>-win-x64.exe` | Install and launch **DSH-X**. Not Authenticode-signed yet; if SmartScreen prompts, verify SHA256 or report false positives to [Microsoft](https://www.microsoft.com/en-us/wdsi/filesubmission). |
-| **macOS** (13+) | `DSH-X-<version>-mac-arm64.dmg`<br>`DSH-X-<version>-mac-x64.dmg` | Drag into Applications. Ad-hoc signed and unnotarized; right-click Open or run:<br>`xattr -dr com.apple.quarantine /Applications/DSH-X.app`. Shell auto-update is currently disabled; core updates still come from npm. |
-| **Linux** (x64) | `DSH-X-<version>-linux-x64.AppImage`<br>`DSH-X-<version>-linux-x64.deb` | Make AppImage executable and run (pass `--appimage-extract-and-run` without FUSE), or install deb via `sudo apt install ./DSH-X-<version>-linux-x64.deb` (no shell auto-update). Settings live in `~/.config/DSH`. |
+| **macOS** (13+) | `DSH-X-<version>-mac-arm64.dmg`<br>`DSH-X-<version>-mac-x64.dmg` | Drag into Applications. Ad-hoc signed and unnotarized; right-click Open or run:<br>`xattr -dr com.apple.quarantine /Applications/DSH-X.app`. Shell auto-update is currently disabled (home page prompts on new builds); core updates still come from npm. |
+| **Linux** (x64 / arm64) | `DSH-X-<version>-linux-<arch>.AppImage`<br>`DSH-X-<version>-linux-<arch>.deb` | Make AppImage executable and run (pass `--appimage-extract-and-run` without FUSE), or install deb via `sudo apt install ./DSH-X-<version>-linux-<arch>.deb` (no shell auto-update; home page prompts on new builds). Settings live in `~/.config/DSH`. |
 
 > [!NOTE]
 > The installer bundles **only the Electron shell**, not the core. On first launch it fetches `dsh-x-core` for your channel from npm with live progress. Core and shell update independently so UI/backend updates avoid re-downloading 100MB+ installers.
@@ -110,7 +111,7 @@ Choose an isolation level when adding a launch entry (user and version directori
 ### Key Workflows
 
 - **Instances & Built-in Recipes**: Manage plugins per instance using the [DSH-PackForge](https://github.com/DSH-PackForge/DSH-PackForge) `.dspack` v5 format; includes built-in [Recommended](src/packs/dsh-x-recommended/manifest.json) and [Desktop Workbench](src/packs/dsh-x-workbench/README.md) recipes (`node scripts/make-pack.mjs` builds `.dspack` archives).
-- **Opening Modes & LAN Access**: Switch between internal tabs, standalone windows, or system browser in Settings; the manager defaults to port `3780` and supports LAN binding under Settings → Advanced.
+- **Opening Modes & Mobile Access**: Switch between internal tabs, standalone windows, or system browser; the manager defaults to port `3780`, with one-click QR pairing and Cloudflare Tunnel in **Remote → Mobile Access** (PWA install on permanent HTTPS domains) or LAN binding under Settings → Advanced.
 - **Backups & Rollback**: Automatic config-layer snapshots are saved before every launch so you can roll back and reinstall dependencies in one click.
 
 ## Wallpaper

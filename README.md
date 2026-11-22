@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a> 启动器 ——<br />
-  启动项与多实例，版本、插件、实例、远端连接、MCP 和技能管理。
+  启动项与多实例，版本、插件、实例、远端与手机访问、MCP 和技能管理。
 </p>
 
 <p align="center">
@@ -38,6 +38,7 @@
 - 📦 **版本管理** — 检测、安装、卸载和清理 dsh 版本，为启动项钉版本、查看磁盘占用。
 - 🧩 **插件与实例** — 实例锁定 DSH 版本与插件，可导入导出、跟随上游更新；插件按配置开关并支持在线市场一键安装。
 - 🌐 **WSL 与 SSH 远端** — 启动项可跑在 WSL / SSH 主机上，远端自动安装 dsh-x-core，页面经隧道在本机打开。
+- 📱 **手机远程访问** — 扫码配对与设备管理，内置 Cloudflare 外网穿透，可在手机端查看日志、启停和打开 DSH 实例。
 - 🔍 **启动排查** — 日志分原始 / 耗时 / 空间三页，按插件归并耗时和依赖；插件报错时日志图标点红。
 - 🔄 **更新与恢复** — 自更新、故障恢复、配置备份与回退。
 - 🛠️ **MCP、技能与桌面增强** — 内置 MCP / 技能在线市场，默认启用 `dsh-x-computer-use` 电脑操作，支持原生通知、侧栏浏览器等首方插件。
@@ -49,8 +50,8 @@
 | 平台 | 安装包 | 说明与首次运行 |
 | --- | --- | --- |
 | **Windows** (10+ x64) | `DSH-X-<版本>-win-x64.exe` | 安装后从桌面打开 **DSH-X**；暂无 Authenticode 签名，若 SmartScreen 提示未知发布者可核对 SHA256 或向[微软](https://www.microsoft.com/en-us/wdsi/filesubmission)反馈误报。 |
-| **macOS** (13+) | `DSH-X-<版本>-mac-arm64.dmg`<br>`DSH-X-<版本>-mac-x64.dmg` | 拖入「应用程序」；因使用 ad-hoc 签名未公证，若拦截请右键打开或执行：<br>`xattr -dr com.apple.quarantine /Applications/DSH-X.app`。暂不提供外壳自更新，核心仍走 npm 更新。 |
-| **Linux** (x64) | `DSH-X-<版本>-linux-x64.AppImage`<br>`DSH-X-<版本>-linux-x64.deb` | AppImage 赋予执行权限后直接运行（无 FUSE 加 `--appimage-extract-and-run`）；deb 可用 `sudo apt install ./DSH-X-<版本>-linux-x64.deb` 安装（无外壳自更新）。数据目录：`~/.config/DSH`。 |
+| **macOS** (13+) | `DSH-X-<版本>-mac-arm64.dmg`<br>`DSH-X-<版本>-mac-x64.dmg` | 拖入「应用程序」；因使用 ad-hoc 签名未公证，若拦截请右键打开或执行：<br>`xattr -dr com.apple.quarantine /Applications/DSH-X.app`。暂不提供外壳自更新（有新版会在首页提示下载），核心仍走 npm 更新。 |
+| **Linux** (x64 / arm64) | `DSH-X-<版本>-linux-<架构>.AppImage`<br>`DSH-X-<版本>-linux-<架构>.deb` | AppImage 赋予执行权限后直接运行（无 FUSE 加 `--appimage-extract-and-run`）；deb 可用 `sudo apt install ./DSH-X-<版本>-linux-<架构>.deb` 安装（无外壳自更新，有新版会在首页提示下载）。数据目录：`~/.config/DSH`。 |
 
 > [!NOTE]
 > 安装包仅含 Electron 外壳，**不内置核心**。首次启动会联网从 npm 拉取当前通道的 `dsh-x-core` 并显示实时进度；后续核心与外壳各自独立更新，网页或后端优化无需重新下载 100MB+ 安装包。
@@ -110,7 +111,7 @@ sha256sum DSH-X-<版本>-linux-x64.AppImage             # Linux
 ### 常见操作
 
 - **实例与配方**：在「实例」页安装/管理插件与依赖，兼容 [DSH-PackForge](https://github.com/DSH-PackForge/DSH-PackForge) `.dspack` v5 格式；仓库内置 [推荐实例](src/packs/dsh-x-recommended/manifest.json) 与 [桌面工作台](src/packs/dsh-x-workbench/README.md) 配方，运行 `node scripts/make-pack.mjs` 可本地打包。
-- **打开方式与局域网**：支持内部标签页、独立窗口与系统浏览器；管理页默认端口 `3780`（冲突自动顺延），在「设置 → 高级 → Web 绑定」切换为局域网即可跨设备访问。
+- **打开方式与手机访问**：支持内部标签页、独立窗口与系统浏览器；管理页默认端口 `3780`（冲突自动顺延），可在「远程 → 手机访问」一键扫码配对与开启 Cloudflare 穿透（固定 HTTPS 域名支持 PWA），或在「设置 → 高级 → Web 绑定」开启局域网访问。
 - **备份与回退**：每次启动前自动留存配置层快照，可在实例页右上角或配置操作菜单一键恢复并重装依赖。
 
 ## 动态壁纸
