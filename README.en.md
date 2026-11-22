@@ -56,6 +56,15 @@ Download the installer for your OS from [Releases](https://github.com/yyh-001/DS
 > [!NOTE]
 > The installer bundles **only the Electron shell**, not the core. On first launch it fetches `dsh-x-core` for your channel from npm with live progress. Core and shell update independently so UI/backend updates avoid re-downloading 100MB+ installers.
 
+### Run via npm (No Installer)
+
+If you already have **Node.js 22.18+** or run on a headless server / container without the Electron shell, you can launch the web manager directly via npm:
+
+```sh
+npm i -g dsh-x-core && dsh-x-core   # or run directly: npx dsh-x-core (pre-release channel: dsh-x-core@rc)
+DSH_NO_OPEN=1 dsh-x-core            # headless / server mode: start without opening a browser (set PORT to customize)
+```
+
 <details>
 <summary>Verify downloaded SHA256 checksum</summary>
 

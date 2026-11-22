@@ -56,6 +56,15 @@
 > [!NOTE]
 > 安装包仅含 Electron 外壳，**不内置核心**。首次启动会联网从 npm 拉取当前通道的 `dsh-x-core` 并显示实时进度；后续核心与外壳各自独立更新，网页或后端优化无需重新下载 100MB+ 安装包。
 
+### 纯 npm 启动（无需安装包）
+
+已有 **Node.js 22.18+** 或在无桌面环境（服务器 / 容器）运行时，可直接通过 npm 启动 Web 管理页（不含 Electron 桌面外壳）：
+
+```sh
+npm i -g dsh-x-core && dsh-x-core   # 或直接运行：npx dsh-x-core（预发布通道：dsh-x-core@rc）
+DSH_NO_OPEN=1 dsh-x-core            # 服务器 / 容器模式：只起服务不打开浏览器（可用 PORT 指定端口）
+```
+
 <details>
 <summary>本地校验下载文件 SHA256</summary>
 
