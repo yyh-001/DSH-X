@@ -101,11 +101,8 @@ sha256sum DSH-X-<版本>-linux-x64.AppImage             # Linux
 <details>
 <summary>手机端控制台（点击展开）</summary>
 
-<p align="center">
-  <img src="docs/screenshots/screenshot-mobile-dark.jpg" alt="手机端控制台（深色）" width="280" />
-  &nbsp;&nbsp;
-  <img src="docs/screenshots/screenshot-mobile.jpg" alt="手机端控制台（浅色）" width="280" />
-</p>
+<p align="center"><img src="docs/screenshots/screenshot-mobile.jpg" alt="手机端控制台（浅色）" width="820" /></p>
+<p align="center"><img src="docs/screenshots/screenshot-mobile-dark.jpg" alt="手机端控制台（深色）" width="820" /></p>
 
 </details>
 

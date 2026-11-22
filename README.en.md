@@ -101,11 +101,8 @@ sha256sum DSH-X-<version>-linux-x64.AppImage             # Linux
 <details>
 <summary>Mobile Web Console (expand to view)</summary>
 
-<p align="center">
-  <img src="docs/screenshots/screenshot-mobile-dark-en.jpg" alt="Mobile Web Console (Dark)" width="280" />
-  &nbsp;&nbsp;
-  <img src="docs/screenshots/screenshot-mobile-en.jpg" alt="Mobile Web Console (Light)" width="280" />
-</p>
+<p align="center"><img src="docs/screenshots/screenshot-mobile-en.jpg" alt="Mobile Web Console (Light)" width="820" /></p>
+<p align="center"><img src="docs/screenshots/screenshot-mobile-dark-en.jpg" alt="Mobile Web Console (Dark)" width="820" /></p>
 
 </details>
 
