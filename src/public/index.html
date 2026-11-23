@@ -6394,23 +6394,9 @@
       }
     }
 
-    function projectDevicePanelWidth() {
-      const triggerWidth = projectDeviceTriggerEl?.getBoundingClientRect().width || 320
-      return Math.min(Math.max(320, triggerWidth), window.innerWidth - 24)
-    }
-
     function positionProjectDevicePanel() {
       if (!projectDevicePanelEl || !projectDeviceTriggerEl) return
-      const rect = projectDeviceTriggerEl.getBoundingClientRect()
-      const width = projectDevicePanelWidth()
-      projectDevicePanelEl.style.width = `${width}px`
-      projectDevicePanelEl.style.left = `${Math.max(12, Math.min(rect.left, window.innerWidth - width - 12))}px`
-      projectDevicePanelEl.style.top = `${rect.bottom + 6}px`
-      requestAnimationFrame(() => {
-        if (!projectDevicePanelEl || projectDevicePanelEl.hidden) return
-        const panel = projectDevicePanelEl.getBoundingClientRect()
-        if (panel.bottom > window.innerHeight - 12) projectDevicePanelEl.style.top = `${Math.max(12, rect.top - panel.height - 6)}px`
-      })
+      alignFloatingPanel(projectDevicePanelEl, projectDeviceTriggerEl)
     }
 
     function openProjectDevicePanel() {
@@ -7153,23 +7139,27 @@
     let launchCopyCandidates = []
     let launchCopyResize = null
 
-    /** 浮动下拉面板通用定位：与触发器对齐并在靠近底部视口时向上翻转。 */
+    /** 浮动下拉面板通用定位：首帧绘制前同步量取高度并决定向下或向上展开，避免先弹出再翻转闪动。 */
     function alignFloatingPanel(panelEl, anchorEl) {
       if (!panelEl || !anchorEl) return
       const place = () => {
+        if (panelEl.hidden) return
         const rect = anchorEl.getBoundingClientRect()
         const width = Math.min(Math.max(320, rect.width || 320), window.innerWidth - 24)
         panelEl.style.width = `${width}px`
         panelEl.style.left = `${Math.max(12, Math.min(rect.left, window.innerWidth - width - 12))}px`
-        panelEl.style.top = `${rect.bottom + 6}px`
+        const height = panelEl.offsetHeight
+        const below = window.innerHeight - rect.bottom - 12
+        const above = rect.top - 12
+        const openAbove = below < height + 6 && above > below
+        const top = openAbove ? rect.top - height - 6 : rect.bottom + 6
+        panelEl.dataset.placement = openAbove ? 'top' : 'bottom'
+        panelEl.style.top = `${Math.max(12, Math.min(top, window.innerHeight - height - 12))}px`
       }
       place()
       requestAnimationFrame(() => {
         if (!panelEl || panelEl.hidden) return
         place()
-        const rect = anchorEl.getBoundingClientRect()
-        const panel = panelEl.getBoundingClientRect()
-        if (panel.bottom > window.innerHeight - 12) panelEl.style.top = `${Math.max(12, rect.top - panel.height - 6)}px`
       })
     }
 

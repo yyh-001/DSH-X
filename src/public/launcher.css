@@ -803,7 +803,7 @@ html.reduce-motion .launch-status.is-working::before { animation: none; }
 .launch-isolation-tabs::after { content: ''; position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 12px) / 3); border-radius: 9px; background: var(--card); box-shadow: 0 2px 8px rgba(22, 35, 61, .1); pointer-events: none; transition: transform var(--motion-base) var(--ease-decelerate); }
 .launch-isolation-tabs[data-active="home"]::after { transform: translateX(calc(100% + 2px)); }
 .launch-isolation-tabs[data-active="custom"]::after { transform: translateX(calc(200% + 4px)); }
-.launch-isolation-tab { flex: 1 1 0; position: relative; z-index: 1; padding: 8px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font-family: inherit; font-size: 13px; font-weight: 500; cursor: pointer; transition: color var(--motion-fast) var(--ease-standard); }
+.launch-isolation-tab { flex: 1 1 0; position: relative; z-index: 1; padding: 8px; border: 0; border-radius: 9px; background: transparent; display: inline-flex; align-items: center; justify-content: center; text-align: center; color: var(--muted); font-family: inherit; font-size: 13px; font-weight: 500; line-height: 1.25; cursor: pointer; transition: color var(--motion-fast) var(--ease-standard); }
 .launch-isolation-tab:hover { color: var(--text); }
 .launch-isolation-tab[aria-selected="true"] { color: var(--accent); font-weight: 600; }
 .launch-tag { display: inline-flex; align-items: center; flex: 0 0 auto; height: 18px; padding: 0 7px; border-radius: 9px; background: var(--accent-soft); color: var(--accent); font-size: 10px; line-height: 1; font-weight: 600; letter-spacing: .02em; }
@@ -858,7 +858,7 @@ html.reduce-motion .launch-status.is-working::before { animation: none; }
 .pick-home-tabs { position: relative; display: flex; gap: 2px; padding: 4px; border-radius: 12px; background: var(--accent-soft); }
 .pick-home-tabs::after { content: ''; position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 10px) / 2); border-radius: 9px; background: var(--card); box-shadow: 0 2px 8px rgba(22, 35, 61, .1); pointer-events: none; transition: transform var(--motion-base) var(--ease-decelerate); }
 .pick-home-tabs[data-active="wsl"]::after { transform: translateX(calc(100% + 2px)); }
-.pick-home-tab { position: relative; z-index: 1; flex: 1 1 0; padding: 8px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; transition: color var(--motion-fast) var(--ease-standard); }
+.pick-home-tab { position: relative; z-index: 1; flex: 1 1 0; display: inline-flex; align-items: center; justify-content: center; text-align: center; padding: 8px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 500; line-height: 1.25; cursor: pointer; transition: color var(--motion-fast) var(--ease-standard); }
 .pick-home-tab:hover { color: var(--text); }
 .pick-home-tab[aria-selected="true"] { color: var(--accent); font-weight: 600; }
 .pick-home-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
@@ -1600,7 +1600,7 @@ section[data-category="advanced"] .set-group + .set-label + .set-group { margin-
 .launch-log-tabs[data-count="3"]::after { width: calc((100% - 12px) / 3); }
 .launch-log-tabs[data-index="1"]::after { transform: translateX(calc(100% + 2px)); }
 .launch-log-tabs[data-index="2"]::after { transform: translateX(calc(200% + 4px)); }
-.launch-log-tab { position: relative; z-index: 1; flex: 1 1 0; padding: 7px 8px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font-family: inherit; font-size: 12.5px; font-weight: 500; cursor: pointer; transition: color var(--motion-fast) var(--ease-standard); }
+.launch-log-tab { position: relative; z-index: 1; flex: 1 1 0; display: inline-flex; align-items: center; justify-content: center; text-align: center; padding: 7px 8px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font-family: inherit; font-size: 12.5px; font-weight: 500; line-height: 1.25; cursor: pointer; transition: color var(--motion-fast) var(--ease-standard); }
 .launch-log-tab[hidden] { display: none; }
 .launch-log-tab:hover { color: var(--text); }
 .launch-log-tab[aria-selected="true"] { color: var(--accent); font-weight: 600; }
@@ -1856,6 +1856,7 @@ html.reduce-motion #launchLogDialog .launch-log-card[data-log-panel][data-dir]:n
 }
 .connection-import-panel[hidden] { display: none; }
 @keyframes connection-import-in { from { opacity: 0; transform: translateY(-4px); } }
+@keyframes connection-import-in-up { from { opacity: 0; transform: translateY(4px); } }
 .connection-import-search { display: flex; align-items: center; gap: 8px; flex: none; height: 32px; padding: 0 8px; border-bottom: 1px solid var(--line); color: var(--muted); }
 .connection-import-search svg { flex: none; width: 14px; height: 14px; }
 .connection-import-search input { flex: 1 1 auto; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: 12.5px; }
@@ -1897,6 +1898,7 @@ html.reduce-motion .connection-import-caret { transition: none; }
 .project-device-dot.is-preparing { background: #d69a2d; animation: connection-pulse var(--motion-pulse) ease-in-out infinite; }
 .project-device-dot.is-error { background: var(--danger); }
 .project-device-panel { position: fixed; z-index: 60; display: flex; flex-direction: column; max-height: min(340px, calc(100dvh - 24px)); padding: 6px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: 0 18px 44px rgba(0, 0, 0, .28); animation: connection-import-in var(--motion-instant) var(--ease-standard); }
+.project-device-panel[data-placement="top"] { animation-name: connection-import-in-up; }
 .project-device-panel[hidden] { display: none; }
 .project-device-list { display: grid; align-content: start; gap: 2px; flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
 .project-device-option { display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 8px; border: 0; border-radius: 8px; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
@@ -2433,24 +2435,24 @@ html.reduce-motion #connectionWslFields, html.reduce-motion #connectionSshFields
   .pack-source input { flex: 1 1 100%; }
 }
 /* 细滚动条：默认亮灰条在浅色面板上太抢眼，统一成淡蓝灰；弹窗里的长表单（添加启动项的字段区、问句列表、备份列表）也收细，别让粗条压住圆角 */
-.select-panel, .plugin-list, #log, .pane, .settings-nav, .launch-modal-fields, .dialog-body, .ask-items, .backup-list, .plugin-market-scroll { scrollbar-width: thin; scrollbar-color: #c3d3ee transparent; }
+.select-panel, .plugin-list, #log, .pane, .settings-nav, .launch-modal-fields, .dialog-body, .ask-items, .backup-list, .plugin-market-scroll, #environmentInstalledPane, #environmentConfigBox, #packPluginList, #mcpList, #skillList { scrollbar-width: thin; scrollbar-color: #c3d3ee transparent; }
 .select-panel::-webkit-scrollbar, .plugin-list::-webkit-scrollbar, #log::-webkit-scrollbar,
 .pane::-webkit-scrollbar, .settings-nav::-webkit-scrollbar, .launch-modal-fields::-webkit-scrollbar,
 .dialog-body::-webkit-scrollbar, .ask-items::-webkit-scrollbar, .backup-list::-webkit-scrollbar,
-.plugin-market-scroll::-webkit-scrollbar {
+.plugin-market-scroll::-webkit-scrollbar, #environmentInstalledPane::-webkit-scrollbar, #environmentConfigBox::-webkit-scrollbar, #packPluginList::-webkit-scrollbar, #mcpList::-webkit-scrollbar, #skillList::-webkit-scrollbar {
   width: 8px;
   height: var(--control-height);
 }
 .select-panel::-webkit-scrollbar-track, .plugin-list::-webkit-scrollbar-track, #log::-webkit-scrollbar-track,
 .pane::-webkit-scrollbar-track, .settings-nav::-webkit-scrollbar-track, .launch-modal-fields::-webkit-scrollbar-track,
 .dialog-body::-webkit-scrollbar-track, .ask-items::-webkit-scrollbar-track, .backup-list::-webkit-scrollbar-track,
-.plugin-market-scroll::-webkit-scrollbar-track {
+.plugin-market-scroll::-webkit-scrollbar-track, #environmentInstalledPane::-webkit-scrollbar-track, #environmentConfigBox::-webkit-scrollbar-track, #packPluginList::-webkit-scrollbar-track, #mcpList::-webkit-scrollbar-track, #skillList::-webkit-scrollbar-track {
   background: transparent;
 }
 .select-panel::-webkit-scrollbar-thumb, .plugin-list::-webkit-scrollbar-thumb, #log::-webkit-scrollbar-thumb,
 .pane::-webkit-scrollbar-thumb, .settings-nav::-webkit-scrollbar-thumb, .launch-modal-fields::-webkit-scrollbar-thumb,
 .dialog-body::-webkit-scrollbar-thumb, .ask-items::-webkit-scrollbar-thumb, .backup-list::-webkit-scrollbar-thumb,
-.plugin-market-scroll::-webkit-scrollbar-thumb {
+.plugin-market-scroll::-webkit-scrollbar-thumb, #environmentInstalledPane::-webkit-scrollbar-thumb, #environmentConfigBox::-webkit-scrollbar-thumb, #packPluginList::-webkit-scrollbar-thumb, #mcpList::-webkit-scrollbar-thumb, #skillList::-webkit-scrollbar-thumb {
   background: #c3d3ee;
   border-radius: var(--control-radius);
   border: 2px solid transparent;
@@ -2459,7 +2461,7 @@ html.reduce-motion #connectionWslFields, html.reduce-motion #connectionSshFields
 .select-panel::-webkit-scrollbar-thumb:hover, .plugin-list::-webkit-scrollbar-thumb:hover, #log::-webkit-scrollbar-thumb:hover,
 .pane::-webkit-scrollbar-thumb:hover, .settings-nav::-webkit-scrollbar-thumb:hover, .launch-modal-fields::-webkit-scrollbar-thumb:hover,
 .dialog-body::-webkit-scrollbar-thumb:hover, .ask-items::-webkit-scrollbar-thumb:hover, .backup-list::-webkit-scrollbar-thumb:hover,
-.plugin-market-scroll::-webkit-scrollbar-thumb:hover {
+.plugin-market-scroll::-webkit-scrollbar-thumb:hover, #environmentInstalledPane::-webkit-scrollbar-thumb:hover, #environmentConfigBox::-webkit-scrollbar-thumb:hover, #packPluginList::-webkit-scrollbar-thumb:hover, #mcpList::-webkit-scrollbar-thumb:hover, #skillList::-webkit-scrollbar-thumb:hover {
   background: #a3bcea;
   background-clip: content-box;
 }
@@ -2868,11 +2870,12 @@ html.reduce-motion .ask > .ask-card { transition: none; }
 #launchPluginsDialog #packView, #launchPluginsDialog #environmentView { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
 #launchPluginsDialog #packView[hidden], #launchPluginsDialog #environmentView[hidden] { display: none; }
 #launchPluginsDialog #packPluginList,
-#launchPluginsDialog #environmentConfigBox { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+#launchPluginsDialog #environmentConfigBox { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 12px; scrollbar-width: thin; }
 #launchPluginsDialog #environmentMcpHost,
 #launchPluginsDialog #environmentSkillsHost { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow: hidden; }
 #launchPluginsDialog #environmentPluginsBox { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow: hidden; }
-#launchPluginsDialog #environmentInstalledPane { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+/* 右侧留出滚动条槽位：macOS 悬浮滚动条不占布局宽，padding-right 太窄时会直接压在右列卡片按钮上 */
+#launchPluginsDialog #environmentInstalledPane { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 12px; scrollbar-width: thin; }
 #launchPluginsDialog #environmentMarketPane,
 #launchPluginsDialog #environmentMarketPane > .environment-market-form { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow: hidden; }
 #launchPluginsDialog #environmentPluginsBox[hidden],
@@ -3097,7 +3100,7 @@ html.reduce-motion .launch-icon-trigger, html.reduce-motion .launch-icon-choice,
   border-radius: 2px 2px 0 0; background: var(--accent); box-shadow: none;
 }
 .environment-tabs .launch-isolation-tab {
-  height: 36px; padding: 0 8px; border-radius: 0; font-size: 13px; font-weight: 500; color: var(--muted);
+  min-height: 36px; height: auto; padding: 6px 8px; border-radius: 0; font-size: 13px; font-weight: 500; line-height: 1.25; color: var(--muted);
 }
 .environment-tabs .launch-isolation-tab:hover { color: var(--text); }
 .environment-tabs .launch-isolation-tab[aria-selected="true"] { color: var(--accent); font-weight: 600; }
@@ -3396,7 +3399,7 @@ html.reduce-motion .environment-market-tools .icon-btn.is-loading svg { animatio
 #mcpList, #skillList {
   display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;
   grid-auto-rows: max-content;
-  padding: 2px 4px 6px 2px; background: transparent; border: 0; border-radius: 0;
+  padding: 2px 14px 6px 2px; background: transparent; border: 0; border-radius: 0;
   overflow-x: hidden; overflow-y: auto; align-content: start;
 }
 #mcpList:not([hidden]):has(> .plugin-empty),
@@ -3499,7 +3502,7 @@ html.reduce-motion .environment-market-tools .icon-btn.is-loading svg { animatio
 .plugin-market-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 8px; overflow: hidden; }
 .plugin-market-scroll {
   flex: 1 1 auto; min-height: 220px; overflow-y: auto; overflow-x: hidden;
-  display: flex; flex-direction: column; gap: 18px; padding: 2px 6px 4px 2px;
+  display: flex; flex-direction: column; gap: 18px; padding: 2px 14px 4px 2px;
 }
 .plugin-market-group-title {
   display: flex; align-items: center; gap: 8px;
