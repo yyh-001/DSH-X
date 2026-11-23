@@ -1,128 +1,274 @@
-"""Render the README banner: docs/hero.png (Chinese) and docs/hero-en.png.
+#!/usr/bin/env python3
+"""Render the README hero banners (light/dark × zh/en):
 
-    python scripts/make-hero.py        # docs/hero.png
-    python scripts/make-hero.py en     # docs/hero-en.png
+    python scripts/make-hero.py
 
-Style follows the docs landing page and the launcher: the same pale blue radial
-gradient, the app icon with a soft shadow, and the product name in the accent
-blue.  The icon comes from assets/icon.png, so regenerating the icon and
-re-running this keeps the banner in sync.
+Outputs:
+    docs/hero-zh-light.png  (also copied to docs/hero.png)
+    docs/hero-zh-dark.png
+    docs/hero-en-light.png  (also copied to docs/hero-en.png)
+    docs/hero-en-dark.png
+
+Minimalist 1920×760 wide banner: subtle dot-grid + ambient glow backdrop,
+brand lockup and concise value proposition on the left, and a single clean
+frameless rounded app window emerging gracefully on the right.
 """
 
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from __future__ import annotations
+
+import io
 import importlib.util
-import os
-import sys
+import subprocess
+from pathlib import Path
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ICON = os.path.join(ROOT, "src", "assets", "icon.png")
-# 英文版走 hero-en.png：README.en.md 的头图，文案与字体跟中文那份不同
-EN = len(sys.argv) > 1 and sys.argv[1].lower().startswith("en")
-OUT = os.path.join(ROOT, "docs", "hero-en.png" if EN else "hero.png")
+ROOT = Path(__file__).resolve().parent.parent
+DOCS = ROOT / 'docs'
+ICON = ROOT / 'src' / 'assets' / 'icon.png'
+FONT_ROOT = Path(r'C:\Windows\Fonts')
 
-W, H = 1536, 1024
-# Same stops as the landing page's .backdrop:
-# radial-gradient(ellipse at 25% 10%, #f1fbff, #d9eaf7 65%, #d2e3f5)
-STOPS = [(0.0, (241, 251, 255)), (0.65, (217, 234, 247)), (1.0, (210, 227, 245))]
-CENTER = (0.25, 0.10)
-TITLE_COLOR = (59, 111, 224)
-TAGLINE_COLOR = (107, 125, 156)
-SHADOW_COLOR = (86, 122, 180)
-ICON_SIZE = 320
-TITLE = "DSH-X"
-TAGLINE = "A DeepSeek Harness launcher" if EN else "DeepSeek Harness 启动器"
-FONT_ROOT = r"C:\Windows\Fonts" if os.name == "nt" else "/mnt/c/Windows/Fonts"
-TITLE_FONT = os.path.join(FONT_ROOT, "segoeuib.ttf")
-# 中文用 MiSans（拉丁字形一般），英文那段用 Segoe UI
-TAGLINE_FONT = os.path.join(FONT_ROOT, "segoeui.ttf" if EN else "MiSans-Regular.otf")
+W, H = 1920, 760
+BANNER_RADIUS = 24
 
 
-def rounded_icon(size):
-    """assets/icon.png is the square master; reuse make-icons.py's corner mask."""
-    spec = importlib.util.spec_from_file_location("make_icons", os.path.join(ROOT, "scripts", "make-icons.py"))
+def load_font(size: int, weight: int = 400, en: bool = False) -> ImageFont.FreeTypeFont:
+    if en:
+        name = 'segoeuib.ttf' if weight >= 650 else ('seguisb.ttf' if weight >= 550 else 'segoeui.ttf')
+        path = FONT_ROOT / name
+        if path.exists():
+            return ImageFont.truetype(str(path), size)
+    vf = FONT_ROOT / 'NotoSansSC-VF.ttf'
+    if vf.exists():
+        font = ImageFont.truetype(str(vf), size)
+        try:
+            font.set_variation_by_axes([weight])
+        except Exception:
+            pass
+        return font
+    fallback = FONT_ROOT / ('msyhbd.ttc' if weight >= 600 else 'msyh.ttc')
+    return ImageFont.truetype(str(fallback), size)
+
+
+def rounded_icon(size: int) -> Image.Image:
+    spec = importlib.util.spec_from_file_location('make_icons', ROOT / 'scripts' / 'make-icons.py')
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module.fit(size, Image.open(ICON).convert("RGBA"))
+    return module.fit(512, Image.open(ICON).convert('RGBA')).resize((size, size), Image.Resampling.LANCZOS)
 
 
-def _mix(a, b, t):
-    return tuple(round(a[i] + (b[i] - a[i]) * t) for i in range(3))
-
-
-def _sample(t):
-    for i in range(len(STOPS) - 1):
-        t0, c0 = STOPS[i]
-        t1, c1 = STOPS[i + 1]
-        if t <= t1 or i == len(STOPS) - 2:
-            k = 0.0 if t1 == t0 else (t - t0) / (t1 - t0)
-            return _mix(c0, c1, max(0.0, min(1.0, k)))
-    return STOPS[-1][1]
-
-
-def radial_bg(size):
-    """CSS `radial-gradient(ellipse at CX CY, ...)` with the default farthest-corner
-    size: draw at low res, then upscale — a full-res per-pixel loop is far too slow."""
-    cx, cy = size[0] * CENTER[0], size[1] * CENTER[1]
-    dx, dy = size[0] - cx, size[1] - cy
-    # radii that put the farthest corner exactly on the gradient's 100% stop
-    k = ((dx / size[0]) ** 2 + (dy / size[1]) ** 2) ** 0.5
-    rx, ry = k * size[0], k * size[1]
-
-    small = Image.new("RGB", (size[0] // 8, size[1] // 8))
-    px = small.load()
-    sw, sh = small.size
-    for y in range(sh):
-        for x in range(sw):
-            d = (((x + 0.5) * 8 - cx) / rx) ** 2 + (((y + 0.5) * 8 - cy) / ry) ** 2
-            px[x, y] = _sample(min(1.0, d ** 0.5))
-    return small.resize(size, Image.Resampling.BILINEAR)
-
-
-def drop_shadow(icon, blur=28, offset=(0, 16), alpha=70):
-    """Soft shadow so the white icon tile lifts off the pale blue background."""
-    pad = blur * 3
-    w, h = icon.size
-    mask = icon.getchannel("A").point(lambda v: v * alpha // 255)
-    solid = Image.new("RGBA", (w, h), SHADOW_COLOR + (0,))
-    solid.putalpha(mask)
-    canvas = Image.new("RGBA", (w + pad * 2, h + pad * 2), (0, 0, 0, 0))
-    canvas.paste(solid, (pad + offset[0], pad + offset[1]), solid)
-    return canvas.filter(ImageFilter.GaussianBlur(blur)), pad
-
-
-def main():
-    base = radial_bg((W, H))
-
-    icon = rounded_icon(512).resize((ICON_SIZE, ICON_SIZE), Image.Resampling.LANCZOS)
-    x = (W - ICON_SIZE) // 2
-    icon_y = 196
-
-    shadow, pad = drop_shadow(icon)
-    base.paste(shadow, (x - pad, icon_y - pad), shadow)
-    base.paste(icon, (x, icon_y), icon)
-
-    draw = ImageDraw.Draw(base)
-    title_font = ImageFont.truetype(TITLE_FONT, 132)
-
-    box = draw.textbbox((0, 0), TITLE, font=title_font)
-    # 有小字时标题放偏上一点，没有小字就整体居中（+74 是给标题上方留的呼吸位）
-    title_y = icon_y + ICON_SIZE + (74 if TAGLINE else 118) - box[1]
-    draw.text(((W - (box[2] - box[0])) / 2 - box[0], title_y), TITLE, font=title_font, fill=TITLE_COLOR)
-
-    # 副标题默认不画（TAGLINE 留空即可）；想加就填一行文案，位置会自动跟到标题下面
-    if TAGLINE:
-        tag_font = ImageFont.truetype(TAGLINE_FONT, 44)
-        tag_box = draw.textbbox((0, 0), TAGLINE, font=tag_font)
-        draw.text(
-            ((W - (tag_box[2] - tag_box[0])) / 2 - tag_box[0], title_y + box[3] + 42),
-            TAGLINE,
-            font=tag_font,
-            fill=TAGLINE_COLOR,
+def load_shot(name: str) -> Image.Image:
+    try:
+        raw = subprocess.check_output(
+            ['git', 'show', f'HEAD:docs/screenshots/{name}'],
+            cwd=ROOT,
+            stderr=subprocess.DEVNULL,
         )
+        return Image.open(io.BytesIO(raw)).convert('RGBA')
+    except subprocess.CalledProcessError:
+        return Image.open(DOCS / 'screenshots' / name).convert('RGBA')
 
-    base.save(OUT)
-    print("hero", OUT, base.size, os.path.getsize(OUT))
+
+def make_rounded_mask(w: int, h: int, r: int, ss: int = 4) -> Image.Image:
+    hi = Image.new('L', (w * ss, h * ss), 0)
+    ImageDraw.Draw(hi).rounded_rectangle((0, 0, w * ss - 1, h * ss - 1), radius=r * ss, fill=255)
+    return hi.resize((w, h), Image.Resampling.LANCZOS)
 
 
-if __name__ == "__main__":
+def make_backdrop(dark: bool) -> Image.Image:
+    top = (15, 20, 34) if dark else (244, 248, 255)
+    bottom = (11, 15, 25) if dark else (232, 240, 254)
+    grad = Image.linear_gradient('L').resize((W, H), Image.Resampling.BILINEAR)
+    bg = Image.composite(
+        Image.new('RGBA', (W, H), bottom + (255,)),
+        Image.new('RGBA', (W, H), top + (255,)),
+        grad,
+    )
+
+    # 柔和环境光晕（右上偏蓝主光 + 左下极淡提亮）
+    glow = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    gd = ImageDraw.Draw(glow)
+    if dark:
+        gd.ellipse((740, -280, 2040, 760), fill=(62, 108, 232, 66))
+        gd.ellipse((-260, 240, 780, 1080), fill=(48, 86, 180, 42))
+    else:
+        gd.ellipse((760, -260, 2060, 760), fill=(116, 166, 255, 62))
+        gd.ellipse((-240, -180, 820, 560), fill=(255, 255, 255, 160))
+    bg.alpha_composite(glow.filter(ImageFilter.GaussianBlur(140)))
+
+    # 极克制的工程感微点阵（仅作背景肌理，不喧宾夺主）
+    dots = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    dd = ImageDraw.Draw(dots)
+    dot_color = (148, 176, 230, 26) if dark else (77, 107, 254, 24)
+    step = 32
+    for y in range(24, H, step):
+        for x in range(24, W, step):
+            dd.ellipse((x - 1, y - 1, x + 1, y + 1), fill=dot_color)
+    bg.alpha_composite(dots)
+    return bg
+
+
+def make_clean_window(src: Image.Image, target_w: int, dark: bool, radius: int = 16) -> Image.Image:
+    """纯净圆角应用窗口：不套黑壳、不加假标题栏，仅柔和圆角 + 1px 玻璃感描边。"""
+    scale = target_w / src.width
+    target_h = round(src.height * scale)
+    resized = src.resize((target_w, target_h), Image.Resampling.LANCZOS)
+
+    mask = make_rounded_mask(target_w, target_h, radius)
+    win = Image.new('RGBA', (target_w, target_h), (0, 0, 0, 0))
+    win.paste(resized, (0, 0), mask)
+
+    ss = 4
+    border_hi = Image.new('RGBA', (target_w * ss, target_h * ss), (0, 0, 0, 0))
+    border_color = (255, 255, 255, 44) if dark else (22, 35, 61, 24)
+    ImageDraw.Draw(border_hi).rounded_rectangle(
+        (0, 0, target_w * ss - 1, target_h * ss - 1),
+        radius=radius * ss,
+        outline=border_color,
+        width=ss,
+    )
+    win.alpha_composite(border_hi.resize((target_w, target_h), Image.Resampling.LANCZOS))
+    return win
+
+
+def draw_pill(canvas: Image.Image, x: int, y: int, text: str, font: ImageFont.FreeTypeFont, dark: bool) -> int:
+    draw = ImageDraw.Draw(canvas)
+    bbox = draw.textbbox((0, 0), text, font=font)
+    tw = bbox[2] - bbox[0]
+    pw = tw + 34
+    ph = 40
+    pill_bg = (255, 255, 255, 16) if dark else (255, 255, 255, 195)
+    pill_border = (255, 255, 255, 34) if dark else (77, 107, 254, 42)
+    text_color = (212, 224, 246, 235) if dark else (45, 66, 108, 240)
+
+    layer = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    ld = ImageDraw.Draw(layer)
+    ld.rounded_rectangle((x, y, x + pw, y + ph), radius=20, fill=pill_bg, outline=pill_border, width=1)
+    canvas.alpha_composite(layer)
+
+    draw = ImageDraw.Draw(canvas)
+    draw.text((x + pw // 2, y + ph // 2), text, fill=text_color, font=font, anchor='mm')
+    return pw
+
+
+def render_variant(lang: str, dark: bool) -> Image.Image:
+    en = lang == 'en'
+    canvas = make_backdrop(dark)
+
+    # 右侧：单张纯净无壳圆角窗口，从右下方自然探出，呼吸感充足
+    if dark:
+        shot_name = 'screenshot-home-dark-en.jpg' if en else 'screenshot-launches.png'
+    else:
+        shot_name = 'screenshot-home-en.jpg' if en else 'screenshot-home.jpg'
+
+    win = make_clean_window(load_shot(shot_name), target_w=1080, dark=dark, radius=18)
+    wx, wy = 890, 92
+
+    # 柔和双层环境阴影
+    shadow = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    ImageDraw.Draw(shadow).rounded_rectangle(
+        (wx - 4, wy + 24, wx + win.width + 4, wy + win.height + 24),
+        radius=18,
+        fill=(6, 12, 28, 160 if dark else 54),
+    )
+    canvas.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(38)))
+
+    near = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    ImageDraw.Draw(near).rounded_rectangle(
+        (wx, wy + 8, wx + win.width, wy + win.height + 8),
+        radius=18,
+        fill=(6, 12, 28, 95 if dark else 26),
+    )
+    canvas.alpha_composite(near.filter(ImageFilter.GaussianBlur(12)))
+    canvas.alpha_composite(win, (wx, wy))
+
+    # 左侧品牌与定位区
+    lx = 104
+    icon_size = 84
+    icon_y = 148
+    icon = rounded_icon(icon_size)
+    ishadow = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    ImageDraw.Draw(ishadow).rounded_rectangle(
+        (lx, icon_y + 10, lx + icon_size, icon_y + icon_size + 10),
+        radius=20,
+        fill=(22, 48, 112, 85 if dark else 52),
+    )
+    canvas.alpha_composite(ishadow.filter(ImageFilter.GaussianBlur(16)))
+    canvas.alpha_composite(icon, (lx, icon_y))
+
+    draw = ImageDraw.Draw(canvas)
+    accent = (108, 152, 255, 255) if dark else (59, 111, 224, 255)
+    title_color = (248, 250, 252, 255) if dark else (15, 23, 42, 255)
+    sub_color = (182, 196, 222, 235) if dark else (71, 85, 105, 240)
+    foot_color = (130, 146, 174, 195) if dark else (112, 128, 154, 210)
+
+    brand_font = load_font(68, weight=700, en=True)
+    draw.text((lx + icon_size + 26, icon_y + icon_size // 2 - 2), 'DSH-X', fill=title_color, font=brand_font, anchor='lm')
+
+    if en:
+        kicker_font = load_font(34, weight=600, en=True)
+        sub_font = load_font(23, weight=400, en=True)
+        pill_font = load_font(18, weight=500, en=True)
+        foot_font = load_font(17, weight=400, en=True)
+
+        draw.text((lx, 286), 'DeepSeek Harness Launcher', fill=accent, font=kicker_font)
+        draw.text((lx, 354), 'Multi-instance isolation, built-in plugin market,', fill=sub_color, font=sub_font)
+        draw.text((lx, 390), 'WSL / SSH remotes, and mobile control.', fill=sub_color, font=sub_font)
+
+        px = lx
+        for label in ('Multi-Instance', 'Plugin Market', 'WSL & SSH', 'Mobile PWA'):
+            w = draw_pill(canvas, px, 466, label, pill_font, dark)
+            px += w + 12
+
+        draw = ImageDraw.Draw(canvas)
+        draw.text((lx, 566), 'Windows · macOS · Linux  ·  MIT Open Source', fill=foot_color, font=foot_font)
+    else:
+        kicker_font = load_font(36, weight=700, en=False)
+        sub_font = load_font(24, weight=400, en=False)
+        pill_font = load_font(18, weight=500, en=False)
+        foot_font = load_font(18, weight=400, en=False)
+
+        draw.text((lx, 286), 'DeepSeek Harness 启动器', fill=accent, font=kicker_font)
+        draw.text((lx, 356), '多实例环境隔离、在线插件与技能市场，', fill=sub_color, font=sub_font)
+        draw.text((lx, 394), '支持本机、WSL / SSH 远端与手机随时遥控。', fill=sub_color, font=sub_font)
+
+        px = lx
+        for label in ('多实例隔离', '插件市场', 'WSL / SSH', '手机远程'):
+            w = draw_pill(canvas, px, 470, label, pill_font, dark)
+            px += w + 12
+
+        draw = ImageDraw.Draw(canvas)
+        draw.text((lx, 568), 'Windows · macOS · Linux  ·  社区开源（非 DeepSeek 官方产品）', fill=foot_color, font=foot_font)
+
+    # 整体圆角裁切 + 极细外描边
+    mask = make_rounded_mask(W, H, BANNER_RADIUS)
+    out = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    out.paste(canvas, (0, 0), mask)
+
+    ss = 2
+    border_hi = Image.new('RGBA', (W * ss, H * ss), (0, 0, 0, 0))
+    border_color = (255, 255, 255, 28) if dark else (22, 35, 61, 18)
+    ImageDraw.Draw(border_hi).rounded_rectangle(
+        (0, 0, W * ss - 1, H * ss - 1),
+        radius=BANNER_RADIUS * ss,
+        outline=border_color,
+        width=ss,
+    )
+    out.alpha_composite(border_hi.resize((W, H), Image.Resampling.LANCZOS))
+    return out
+
+
+def main() -> None:
+    for lang in ('zh', 'en'):
+        for dark in (False, True):
+            theme = 'dark' if dark else 'light'
+            img = render_variant(lang, dark)
+            dest = DOCS / f'hero-{lang}-{theme}.png'
+            img.save(dest, optimize=True)
+            print(f'wrote {dest.relative_to(ROOT)}')
+            if not dark:
+                compat = DOCS / ('hero-en.png' if lang == 'en' else 'hero.png')
+                img.save(compat, optimize=True)
+
+
+if __name__ == '__main__':
     main()
