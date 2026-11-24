@@ -42,7 +42,7 @@
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/screenshot-launches.png" />
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/screenshot-home-dark-en.jpg" />
     <img src="docs/screenshots/screenshot-home-en.jpg" alt="DSH-X Home" width="840" />
   </picture>
 </p>
@@ -83,7 +83,7 @@
   </picture>
 </p>
 <p align="center">
-  <img src="docs/screenshots/screenshot-tabs.png" alt="Multi-Tab Workspace" width="840" />
+  <img src="docs/screenshots/screenshot-tabs-en.png" alt="Multi-Tab Workspace" width="840" />
 </p>
 
 </details>
