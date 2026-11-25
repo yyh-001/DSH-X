@@ -44,6 +44,16 @@ import {
   setPluginEnabled,
 } from './plugins.js'
 import { listMcpServers, probeMcpServer, removeMcpServer, saveMcpServer, setMcpEnabled } from './mcp.js'
+import {
+  analyzeHomeData,
+  deleteSessions,
+  indexAllSessions,
+  mutateSessionsState,
+  previewDeleteSessions,
+  readWorkspaceStorage,
+  removeWorkspace,
+  scanHomeSessions,
+} from './sessions.js'
 import { latestRecovery, listPatchBackups, restoreProfileBackup, sanitizeProfile, withProfileLock } from './recovery.js'
 import { createMarketStatsReader, marketRepository } from './pack-market.js'
 import { createPluginMarketClient } from './plugin-market.js'
@@ -11299,6 +11309,238 @@ async function handleApi(req, res, url) {
     send(res, 200, { ...result, userDshHome: currentUserDshHome() })
     await emitState()
     return
+  }
+  if (url.pathname === '/api/sessions' || url.pathname.startsWith('/api/sessions/')) {
+    const isHomeActive = (target) => instanceList().some((proc) =>
+      fileManager.samePath(proc.home, target) && ['starting', 'running', 'stopping'].includes(proc.status))
+    const sessionHomeEntries = async () => {
+      const stored = await loadSettings()
+      const names = safeDshHomeNames(stored.dshHomeNames)
+      const def = defaultHome()
+      const presets = safeLaunchPresets(stored.launchPresets).filter((p) => (p.backend || 'local') === 'local')
+      const envMap = new Map(environmentStore().list().map((env) => [env.id, env.name]))
+      return knownHomes(stored).map((home) => {
+        const customName = Object.entries(names).find(([dir]) => fileManager.samePath(dir, home))?.[1] || ''
+        const isDefault = fileManager.samePath(home, def)
+        const label = customName || (isDefault ? '默认目录' : (basename(home) || home))
+        const linkedPresets = presets
+          .filter((p) => fileManager.samePath(p.dshHome || def, home))
+          .map((p) => ({
+            id: p.id,
+            name: p.name,
+            profile: p.profile || PROFILE_NAME,
+            environment: p.environment || '',
+            environmentName: (p.environment && envMap.get(p.environment)) || '',
+            running: instanceList().some((proc) =>
+              fileManager.samePath(proc.home, home) && proc.profile === (p.profile || PROFILE_NAME) && ['starting', 'running'].includes(proc.status)),
+          }))
+        const profiles = listProfiles(join(home, 'profiles'))
+        return { home, label, isDefault, running: isHomeActive(home), presets: linkedPresets, profiles }
+      })
+    }
+    if (req.method === 'GET' && url.pathname === '/api/sessions') {
+      try {
+        const entries = await sessionHomeEntries()
+        const data = await indexAllSessions(entries)
+        const metaByHome = new Map(entries.map((e) => [fileManager.pathKey(e.home), e]))
+        data.homes = data.homes.map((h) => {
+          const meta = metaByHome.get(fileManager.pathKey(h.home))
+          return {
+            ...h,
+            isDefault: Boolean(meta?.isDefault),
+            presets: meta?.presets || [],
+            presetCount: meta?.presets?.length || 0,
+            profiles: meta?.profiles || [],
+            profileCount: meta?.profiles?.length || 0,
+          }
+        })
+        send(res, 200, data)
+      } catch (error) {
+        send(res, 500, { error: error instanceof Error ? error.message : String(error) })
+      }
+      return
+    }
+    if (req.method === 'GET' && url.pathname === '/api/sessions/home-stats') {
+      try {
+        const entries = await sessionHomeEntries()
+        const target = url.searchParams.get('home') || ''
+        const entry = entries.find((e) => fileManager.samePath(e.home, target))
+        if (!entry) throw new Error('未登记的用户目录')
+        const stats = await analyzeHomeData(entry.home, {
+          homeLabel: entry.label,
+          homeRunning: entry.running,
+          isDefault: entry.isDefault,
+          presets: entry.presets,
+        })
+        send(res, 200, stats)
+      } catch (error) {
+        send(res, 400, { error: error instanceof Error ? error.message : String(error) })
+      }
+      return
+    }
+    if (req.method === 'POST' && url.pathname === '/api/sessions/state') {
+      try {
+        const entries = await sessionHomeEntries()
+        const result = await mutateSessionsState({
+          items: Array.isArray(body.items) ? body.items : [],
+          action: String(body.action || ''),
+          allowedHomes: entries.map((e) => e.home),
+          isHomeRunning: isHomeActive,
+        })
+        if (result.succeeded.length) {
+          pushLog(`[会话] 离线${body.action}完成：成功 ${result.succeeded.length}，跳过 ${result.skipped.length}，失败 ${result.failed.length}`)
+        }
+        send(res, 200, result)
+      } catch (error) {
+        send(res, 400, { error: error instanceof Error ? error.message : String(error) })
+      }
+      return
+    }
+    if (req.method === 'POST' && url.pathname === '/api/sessions/delete-preview') {
+      try {
+        const entries = await sessionHomeEntries()
+        const preview = await previewDeleteSessions({
+          items: Array.isArray(body.items) ? body.items : [],
+          includeChildren: body.includeChildren === true,
+          requireArchived: body.requireArchived === true,
+          homeEntries: entries,
+          isHomeRunning: isHomeActive,
+        })
+        send(res, 200, preview)
+      } catch (error) {
+        send(res, 400, { error: error instanceof Error ? error.message : String(error) })
+      }
+      return
+    }
+    if (req.method === 'POST' && url.pathname === '/api/sessions/delete') {
+      try {
+        const entries = await sessionHomeEntries()
+        const result = await deleteSessions({
+          items: Array.isArray(body.items) ? body.items : [],
+          includeChildren: body.includeChildren === true,
+          requireArchived: body.requireArchived === true,
+          allowedHomes: entries.map((e) => e.home),
+          isHomeRunning: isHomeActive,
+        })
+        pushLog(`[会话] 永久删除完成：成功 ${result.succeeded.length}，跳过 ${result.skipped.length}，失败 ${result.failed.length}，释放 ${result.freedBytes} B`)
+        send(res, 200, result)
+      } catch (error) {
+        send(res, 400, { error: error instanceof Error ? error.message : String(error) })
+      }
+      return
+    }
+    if (req.method === 'POST' && url.pathname === '/api/sessions/workspace/remove') {
+      try {
+        const entries = await sessionHomeEntries()
+        const result = await removeWorkspace({
+          home: body.home,
+          workspaceId: body.workspaceId,
+          deleteData: body.deleteData === true,
+          allowedHomes: entries.map((e) => e.home),
+          isHomeRunning: isHomeActive,
+        })
+        pushLog(`[会话] 已移除工作区 ${body.workspaceId}${body.deleteData ? '（含会话数据）' : '（仅从侧栏移除）'}`)
+        send(res, 200, result)
+      } catch (error) {
+        send(res, 400, { error: error instanceof Error ? error.message : String(error), reason: error?.reason || '' })
+      }
+      return
+    }
+    if (req.method === 'POST' && url.pathname === '/api/sessions/reveal') {
+      try {
+        const entries = await sessionHomeEntries()
+        const canonicalHome = entries.find((e) => fileManager.samePath(e.home, body.home || ''))?.home || ''
+        if (!canonicalHome) throw new Error('只支持定位已登记用户目录里的会话或工作区')
+        const rawTarget = String(body.path || '').trim()
+        if (!rawTarget) throw new Error('缺少目标路径')
+        const target = resolve(rawTarget)
+        if (!existsSync(target)) throw new Error('该目录已不存在')
+        const homeRoot = resolve(canonicalHome)
+        const targetKey = fileManager.pathKey(target)
+        const inHome = fileManager.samePath(target, homeRoot)
+          || targetKey.startsWith(`${fileManager.pathKey(homeRoot)}${sep}`)
+        let allowed = inHome
+        if (!allowed) {
+          const ws = await readWorkspaceStorage(canonicalHome)
+          for (const rec of ws.workspaces.values()) {
+            if (rec.path && fileManager.samePath(rec.path, target)) { allowed = true; break }
+          }
+          if (!allowed) {
+            const scanned = await scanHomeSessions(canonicalHome, { homeRunning: isHomeActive(canonicalHome) })
+            allowed = scanned.sessions.some((s) => s.workspacePath && fileManager.samePath(s.workspacePath, target))
+          }
+        }
+        if (!allowed) throw new Error('只支持定位已知会话或工作区目录')
+        await fileManager.revealPath(target)
+        send(res, 200, { ok: true, path: target })
+      } catch (error) {
+        send(res, 400, { error: error instanceof Error ? error.message : String(error) })
+      }
+      return
+    }
+    if (req.method === 'POST' && url.pathname === '/api/sessions/open') {
+      try {
+        const entries = await sessionHomeEntries()
+        const canonicalHome = entries.find((e) => fileManager.samePath(e.home, body.home || ''))?.home || ''
+        if (!canonicalHome) throw new Error('只支持打开已登记用户目录里的会话')
+        const sessionId = String(body.sessionId || '').trim()
+        if (sessionId) {
+          const ws = await readWorkspaceStorage(canonicalHome)
+          if (ws.archivedSet.has(sessionId)) throw new Error('已归档会话不能直接打开，请先取消归档')
+        }
+        // 优先聚焦该用户目录已经跑起来的 Web 实例
+        const runningProc = instanceList().find((proc) =>
+          fileManager.samePath(proc.home, canonicalHome) && proc.status === 'running' && proc.url)
+        if (runningProc) {
+          await openLocalUrl(runningProc.url)
+          send(res, 200, { ok: true, mode: 'focused', sessionId, url: runningProc.url })
+          return
+        }
+        // 还没跑就按匹配该用户目录的启动项拉起
+        const stored = await loadSettings()
+        const presets = safeLaunchPresets(stored.launchPresets).filter((p) => (p.backend || 'local') === 'local')
+        const matched = presets.find((p) => fileManager.samePath(p.dshHome || defaultHome(), canonicalHome))
+        if (!matched) {
+          throw new Error('该用户目录还没有对应的本机启动项，请先在首页添加或启动实例')
+        }
+        const scope = presetScope(matched)
+        const config = await loadConfig()
+        const targetVer = resolvePresetVersion(matched, canonicalHome, config)
+        if (!targetVer) throw new Error('未找到可用的 DSH 版本，请先安装或启动一次')
+        const started = await launchScope.run(scope, () => start(targetVer, matched.profile || PROFILE_NAME))
+        const live = instanceList().find((proc) =>
+          fileManager.samePath(proc.home, canonicalHome) && proc.status === 'running' && proc.url)
+        const targetUrl = started?.url || live?.url || ''
+        if (targetUrl) await openLocalUrl(targetUrl)
+        send(res, 200, { ok: true, mode: 'started', sessionId, url: targetUrl })
+      } catch (error) {
+        send(res, 400, { error: error instanceof Error ? error.message : String(error) })
+      }
+      return
+    }
+    if (req.method === 'POST' && url.pathname === '/api/sessions/stop-home') {
+      try {
+        const entries = await sessionHomeEntries()
+        const homes = Array.isArray(body.homes) ? body.homes : (body.home ? [body.home] : [])
+        const targets = []
+        for (const h of homes) {
+          const matched = entries.find((e) => fileManager.samePath(e.home, h || ''))
+          if (matched && !targets.some((t) => fileManager.samePath(t, matched.home))) targets.push(matched.home)
+        }
+        if (!targets.length) throw new Error('未指定有效的用户目录')
+        for (const home of targets) {
+          const procs = instanceList().filter((proc) =>
+            fileManager.samePath(proc.home, home) && ['starting', 'running', 'stopping'].includes(proc.status))
+          for (const proc of procs) {
+            await stop(proc.version, proc.profile, proc.home)
+          }
+        }
+        send(res, 200, { ok: true, stoppedHomes: targets })
+      } catch (error) {
+        send(res, 400, { error: error instanceof Error ? error.message : String(error) })
+      }
+      return
+    }
   }
   if (req.method === 'POST' && url.pathname === '/api/tray/action') {
     send(res, 200, await trayAction(body))
