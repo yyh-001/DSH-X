@@ -195,6 +195,7 @@ import {
   safeDshHome,
   safeDshHomes,
   safeDshHomeNames,
+  safeRemoteDshHomes,
   safeEnvironmentPorts,
   safeInstancePorts,
   safeConnections,
@@ -11242,18 +11243,93 @@ async function handleApi(req, res, url) {
     return
   }
   if (req.method === 'POST' && ['/api/dsh-homes/add', '/api/dsh-homes/remove'].includes(url.pathname)) {
-    const home = safeDshHome(body.home)
+    const removing = url.pathname.endsWith('/remove')
+    const requestedKind = body.kind === 'ssh' ? 'ssh' : body.kind === 'wsl' ? 'wsl' : ''
+    const rawHomeStr = String(body.home || '').trim()
+    const parsedRemoteKey = parseSshHomeKey(rawHomeStr) || parseWslHomeKey(rawHomeStr)
+    const isRemoteOp = Boolean(requestedKind || parsedRemoteKey)
+
+    if (isRemoteOp) {
+      const stored = await loadSettings()
+      const connections = safeConnections(stored.connections)
+      if (removing) {
+        const targetKey = rawHomeStr
+        if (!targetKey) throw new Error('请选择要移除的远端用户目录')
+        if (instanceList().some((proc) => proc.home === targetKey && ['starting', 'running', 'stopping'].includes(proc.status))) {
+          throw new Error('请先停止使用此目录的实例')
+        }
+        const saved = await saveSettings((current) => {
+          const presets = safeLaunchPresets(current.launchPresets)
+          if (presets.some((entry) => {
+            if (entry.backend === 'ssh') return sshHomeKey(entry.connectionId, entry.remoteHome || '~/.dsh') === targetKey
+            if (entry.backend === 'wsl') {
+              const conn = connections.find((c) => c.id === entry.connectionId)
+              const distro = conn?.wslDistro || entry.wslDistro || WSL_SETTINGS.defaultDistro
+              return wslHomeKey(distro, entry.remoteHome || entry.wslHome || WSL_SETTINGS.defaultHome || '~/.dsh') === targetKey
+            }
+            return false
+          })) {
+            throw new Error('启动项正在使用此目录，请先修改或删除对应启动项')
+          }
+          const next = safeRemoteDshHomes(current.remoteDshHomes).filter((item) => {
+            const key = item.kind === 'ssh'
+              ? sshHomeKey(item.connectionId, item.remoteHome)
+              : wslHomeKey(connections.find((c) => c.id === item.connectionId)?.wslDistro || item.wslDistro || WSL_SETTINGS.defaultDistro, item.remoteHome)
+            return key !== targetKey
+          })
+          return { remoteDshHomes: next }
+        })
+        send(res, 200, { remoteDshHomes: safeRemoteDshHomes(saved.remoteDshHomes) })
+        await emitState()
+        return
+      }
+      // 新增远端用户目录（WSL / SSH）
+      const connectionId = safeConnectionId(body.connectionId)
+      const conn = connectionId ? connections.find((c) => c.id === connectionId) : null
+      if (!conn) throw new Error('先选择一个有效的 WSL 或 SSH 设备连接')
+      const kind = conn.kind === 'ssh' ? 'ssh' : 'wsl'
+      const remoteHome = safeWslPath(body.remoteHome ?? body.home, '远端用户目录') || '~/.dsh'
+      const name = typeof body.name === 'string' ? body.name.trim() : ''
+      if (name && (name.length > 64 || /[\x00-\x1f\x7f]/.test(name))) throw new Error('目录名称应为 1 到 64 个字符')
+      const entry = {
+        kind,
+        connectionId: conn.id,
+        ...(kind === 'wsl' ? { wslDistro: conn.wslDistro, ...(conn.wslUser ? { wslUser: conn.wslUser } : {}) } : {}),
+        remoteHome,
+        ...(name ? { name } : {}),
+      }
+      const saved = await saveSettings((current) => ({
+        remoteDshHomes: safeRemoteDshHomes([...safeRemoteDshHomes(current.remoteDshHomes), entry]),
+      }))
+      const syntheticKey = kind === 'ssh' ? sshHomeKey(conn.id, remoteHome) : wslHomeKey(conn.wslDistro, remoteHome)
+      send(res, 200, { remoteDshHomes: safeRemoteDshHomes(saved.remoteDshHomes), home: syntheticKey })
+      await emitState()
+      return
+    }
+
+    const rawLocal = typeof body.home === 'string' ? body.home.trim() : ''
+    const home = rawLocal ? safeDshHome(rawLocal) : (!removing ? defaultHome() : '')
     if (!home) throw new Error('请选择用户目录')
     const same = (left, right) => fileManager.samePath(left, right)
-    const removing = url.pathname.endsWith('/remove')
+    const customName = typeof body.name === 'string' ? body.name.trim() : ''
+    if (!removing && customName && (customName.length > 64 || /[\x00-\x1f\x7f]/.test(customName))) {
+      throw new Error('目录名称应为 1 到 64 个字符')
+    }
     if (removing && same(home, defaultHome())) throw new Error('全局目录不能移除')
     if (removing && instanceList().some((proc) => same(proc.home, home) && ['starting', 'running', 'stopping'].includes(proc.status))) throw new Error('请先停止使用此目录的实例')
     const stored = await saveSettings((current) => {
       // 启动项仍在用的目录不能悄悄消失，也不能为了移除列表而删掉启动项。
       if (removing && safeLaunchPresets(current.launchPresets).some((entry) => entry.dshHome && same(entry.dshHome, home))) throw new Error('启动项正在使用此目录，请先修改或删除对应启动项')
       const homes = safeDshHomes(current.dshHomes).filter((item) => !same(item, home))
+      const nextNames = customName && !removing
+        ? {
+          ...Object.fromEntries(Object.entries(safeDshHomeNames(current.dshHomeNames)).filter(([dir]) => !same(dir, home))),
+          [home]: customName,
+        }
+        : undefined
       return {
-        dshHomes: removing ? homes : [...homes, home],
+        dshHomes: removing ? homes : (same(home, defaultHome()) ? homes : [...homes, home]),
+        ...(nextNames ? { dshHomeNames: nextNames } : {}),
         // 目录都不在了，钉在它上面的端口也没意义；留着会占住端口（#90）。
         ...(removing ? {
           environmentPorts: Object.fromEntries(Object.entries(safeEnvironmentPorts(current.environmentPorts))
@@ -11262,14 +11338,45 @@ async function handleApi(req, res, url) {
       }
     })
     if (removing) ENVIRONMENT_PORTS = liveEnvironmentPorts(stored)
-    send(res, 200, { dshHomes: safeDshHomes(stored.dshHomes) })
+    send(res, 200, { dshHomes: safeDshHomes(stored.dshHomes), dshHomeNames: safeDshHomeNames(stored.dshHomeNames), home })
     await emitState()
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/dsh-homes/rename') {
-    const home = safeDshHome(body.home)
+    const rawHome = String(body.home || '').trim()
     const name = typeof body.name === 'string' ? body.name.trim() : ''
-    if (!home || !name || name.length > 64 || /[\x00-\x1f\x7f]/.test(name)) throw new Error('目录名称应为 1 到 64 个字符')
+    if (!rawHome || !name || name.length > 64 || /[\x00-\x1f\x7f]/.test(name)) throw new Error('目录名称应为 1 到 64 个字符')
+    const parsedSsh = parseSshHomeKey(rawHome)
+    const parsedWsl = parseWslHomeKey(rawHome)
+    if (parsedSsh || parsedWsl) {
+      const saved = await saveSettings((current) => {
+        const connections = safeConnections(current.connections)
+        const list = safeRemoteDshHomes(current.remoteDshHomes)
+        let updated = false
+        const next = list.map((item) => {
+          const key = item.kind === 'ssh'
+            ? sshHomeKey(item.connectionId, item.remoteHome)
+            : wslHomeKey(connections.find((c) => c.id === item.connectionId)?.wslDistro || item.wslDistro || WSL_SETTINGS.defaultDistro, item.remoteHome)
+          if (key !== rawHome) return item
+          updated = true
+          return { ...item, name }
+        })
+        if (!updated) {
+          // 来自启动项自动发现的远端目录：补写一条记录保存它的自定义显示名
+          if (parsedSsh) {
+            next.push({ kind: 'ssh', connectionId: parsedSsh.connectionId, remoteHome: parsedSsh.home, name })
+          } else if (parsedWsl) {
+            const conn = connections.find((c) => c.kind === 'wsl' && c.wslDistro === parsedWsl.distro)
+            next.push({ kind: 'wsl', ...(conn ? { connectionId: conn.id } : {}), wslDistro: parsedWsl.distro, remoteHome: parsedWsl.home, name })
+          }
+        }
+        return { remoteDshHomes: safeRemoteDshHomes(next) }
+      })
+      send(res, 200, { remoteDshHomes: safeRemoteDshHomes(saved.remoteDshHomes) })
+      await emitState()
+      return
+    }
+    const home = safeDshHome(rawHome)
     const same = (dir) => fileManager.samePath(dir, home)
     const saved = await saveSettings((current) => {
       const canonical = knownHomes(current).find(same)
@@ -11338,15 +11445,157 @@ async function handleApi(req, res, url) {
         return { home, label, isDefault, running: isHomeActive(home), presets: linkedPresets, profiles }
       })
     }
+    const remoteHomeEntries = async () => {
+      const stored = await loadSettings()
+      const connections = safeConnections(stored.connections)
+      const allPresets = safeLaunchPresets(stored.launchPresets)
+      const registered = safeRemoteDshHomes(stored.remoteDshHomes)
+      const byKey = new Map()
+      const addRemote = (item) => {
+        const conn = item.connectionId
+          ? connections.find((c) => c.id === item.connectionId) || null
+          : (item.kind === 'wsl' ? connections.find((c) => c.kind === 'wsl' && c.wslDistro === item.wslDistro) || null : null)
+        const distro = item.kind === 'wsl' ? (conn?.wslDistro || item.wslDistro || WSL_SETTINGS.defaultDistro) : ''
+        const user = item.kind === 'wsl' ? (conn?.wslUser || item.wslUser || '') : (conn?.sshUser || '')
+        const remoteHome = item.remoteHome || '~/.dsh'
+        const key = item.kind === 'ssh'
+          ? (conn ? sshHomeKey(conn.id, remoteHome) : (item.connectionId ? sshHomeKey(item.connectionId, remoteHome) : ''))
+          : (distro ? wslHomeKey(distro, remoteHome) : '')
+        if (!key) return
+        const existing = byKey.get(key)
+        const deviceName = conn?.name || (item.kind === 'wsl' ? distro : item.connectionId)
+        const defaultLabel = remoteHome === '~/.dsh' ? deviceName : `${deviceName} · ${remoteHome.split('/').filter(Boolean).pop() || remoteHome}`
+        const linkedPresets = allPresets
+          .filter((p) => {
+            if (p.backend !== item.kind) return false
+            if (item.kind === 'ssh') return sshHomeKey(p.connectionId, p.remoteHome || '~/.dsh') === key
+            const pConn = connections.find((c) => c.id === p.connectionId)
+            const pDistro = pConn?.wslDistro || p.wslDistro || WSL_SETTINGS.defaultDistro
+            return wslHomeKey(pDistro, p.remoteHome || p.wslHome || WSL_SETTINGS.defaultHome || '~/.dsh') === key
+          })
+          .map((p) => ({
+            id: p.id,
+            name: p.name,
+            profile: p.profile || PROFILE_NAME,
+            environment: '',
+            environmentName: '',
+            running: instanceList().some((proc) => proc.home === key && proc.profile === (p.profile || PROFILE_NAME) && ['starting', 'running'].includes(proc.status)),
+          }))
+        const runtime = conn ? (CONNECTION_RUNTIME.get(conn.id) || {}) : {}
+        const running = instanceList().some((proc) => proc.home === key && ['starting', 'running', 'stopping'].includes(proc.status))
+        if (existing) {
+          if (item.name && !existing.customName) { existing.label = item.name; existing.customName = true }
+          existing.registered = existing.registered || Boolean(item.registered)
+          return
+        }
+        byKey.set(key, {
+          home: key,
+          displayPath: remoteHome,
+          remoteHome,
+          label: item.name || defaultLabel,
+          customName: Boolean(item.name),
+          source: item.kind,
+          deviceKind: item.kind,
+          deviceName,
+          connectionId: conn?.id || item.connectionId || '',
+          connectionStatus: runtime.status || 'offline',
+          wslDistro: distro,
+          wslUser: user,
+          isDefault: false,
+          running,
+          exists: true,
+          registered: Boolean(item.registered),
+          sessionCount: null,
+          activeCount: null,
+          archivedCount: null,
+          blankCount: null,
+          orphanCount: null,
+          bytes: null,
+          presets: linkedPresets,
+          presetCount: linkedPresets.length,
+          profiles: [],
+          profileCount: 0,
+        })
+      }
+      for (const reg of registered) addRemote({ ...reg, registered: true })
+      for (const p of allPresets) {
+        if (p.backend === 'ssh' || p.backend === 'wsl') {
+          addRemote({
+            kind: p.backend,
+            connectionId: p.connectionId,
+            wslDistro: p.wslDistro,
+            wslUser: p.wslUser,
+            remoteHome: p.remoteHome || p.wslHome || '~/.dsh',
+            registered: false,
+          })
+        }
+      }
+      return [...byKey.values()]
+    }
+
+    const resolveRemoteCoreForHomeKey = async (homeKey) => {
+      const remotes = await remoteHomeEntries()
+      const entry = remotes.find((r) => r.home === homeKey)
+      if (!entry) throw new Error('未登记的远端用户目录')
+      const stored = await loadSettings()
+      const conn = entry.connectionId ? safeConnections(stored.connections).find((c) => c.id === entry.connectionId) : null
+      if (entry.source === 'ssh') {
+        if (!conn) throw new Error('对应的 SSH 连接已不存在，请先检查远程设备')
+        const { core, home: resolvedHome } = await remoteCoreForSsh(conn, entry.remoteHome)
+        return { entry, core, resolvedHome }
+      }
+      const distro = conn?.wslDistro || entry.wslDistro
+      const user = conn?.wslUser || entry.wslUser || ''
+      if (!distro) throw new Error('未找到对应的 WSL 发行版')
+      const { core, home: resolvedHome } = await remoteCoreForTarget({ distro, user, home: entry.remoteHome })
+      return { entry, core, resolvedHome }
+    }
+
+    /**
+     * 一批会话操作只能落在一个目录上，远端条目则必须全在同一个合成键下。
+     * 混着来（本机 + 远端，或两台设备）会把本机的 home 当成远端路径转发出去：轻则远端报错，
+     * 重则在另一台机器上动到同名目录。宁可整批拒绝，也不按设备拆单——拆单会在两边各成功一半，
+     * 用户更难判断到底删掉了什么。
+     * @returns 远端合成键；全是本机条目时返回 ''（交给本地引擎）。
+     */
+    const sessionBatchRemoteKey = (items) => {
+      const keys = new Set()
+      let hasLocal = false
+      for (const item of items) {
+        const home = String(item?.home || '')
+        if (parseSshHomeKey(home) || parseWslHomeKey(home)) keys.add(home)
+        else hasLocal = true
+      }
+      if (!keys.size) return ''
+      if (hasLocal || keys.size > 1) throw new Error('一次只能操作一个用户目录里的会话，请分开执行')
+      return [...keys][0]
+    }
+
+    const remoteCoreJson = async (core, path, options = {}) => {
+      const response = await core.request(path, {
+        method: options.method || 'GET',
+        headers: { 'content-type': 'application/json', ...(options.headers || {}) },
+        ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
+        timeoutMs: options.timeoutMs || 60_000,
+      })
+      const text = typeof response.text === 'function' ? await response.text() : String(response.text || '')
+      let parsed = {}
+      try { parsed = text ? JSON.parse(text) : {} } catch { parsed = { error: text } }
+      return { status: response.status, data: parsed }
+    }
+
     if (req.method === 'GET' && url.pathname === '/api/sessions') {
       try {
-        const entries = await sessionHomeEntries()
+        const [entries, remotes] = await Promise.all([sessionHomeEntries(), remoteHomeEntries()])
         const data = await indexAllSessions(entries)
         const metaByHome = new Map(entries.map((e) => [fileManager.pathKey(e.home), e]))
-        data.homes = data.homes.map((h) => {
+        const localHomes = data.homes.map((h) => {
           const meta = metaByHome.get(fileManager.pathKey(h.home))
           return {
             ...h,
+            displayPath: h.home,
+            deviceKind: 'local',
+            deviceName: '此电脑',
             isDefault: Boolean(meta?.isDefault),
             presets: meta?.presets || [],
             presetCount: meta?.presets?.length || 0,
@@ -11354,16 +11603,77 @@ async function handleApi(req, res, url) {
             profileCount: meta?.profiles?.length || 0,
           }
         })
+        data.homes = [...localHomes, ...remotes]
         send(res, 200, data)
       } catch (error) {
         send(res, 500, { error: error instanceof Error ? error.message : String(error) })
       }
       return
     }
+    if (req.method === 'GET' && url.pathname === '/api/sessions/remote') {
+      try {
+        const homeKey = url.searchParams.get('home') || ''
+        const { entry, core, resolvedHome } = await resolveRemoteCoreForHomeKey(homeKey)
+        const resRemote = await remoteCoreJson(core, '/api/sessions')
+        if (resRemote.status === 404) {
+          send(res, 200, { unsupported: true, home: entry, sessions: [], workspaces: [] })
+          return
+        }
+        if (resRemote.status >= 400) throw new Error(resRemote.data?.error || `远端返回 HTTP ${resRemote.status}`)
+        const remoteData = resRemote.data || {}
+        const matchRemoteHome = (p) => String(p || '') === resolvedHome || (remoteData.homes?.length === 1)
+        const matchedHome = (remoteData.homes || []).find((h) => matchRemoteHome(h.home)) || remoteData.homes?.[0] || null
+        const targetRemotePath = matchedHome?.home || resolvedHome
+        // 把远端条目映射到本机合成键（保留 remoteRawHome 便于转发写操作）
+        const sessions = (remoteData.sessions || [])
+          .filter((s) => s.home === targetRemotePath)
+          .map((s) => ({ ...s, home: entry.home, homeLabel: entry.label, remoteRawHome: s.home, source: entry.source }))
+        const workspaces = (remoteData.workspaces || [])
+          .filter((w) => w.home === targetRemotePath)
+          .map((w) => ({ ...w, home: entry.home, homeLabel: entry.label, remoteRawHome: w.home, source: entry.source }))
+        send(res, 200, {
+          unsupported: false,
+          home: {
+            ...entry,
+            resolvedPath: targetRemotePath,
+            sessionCount: sessions.length,
+            activeCount: sessions.filter((s) => !s.archived && !s.isSubagent).length,
+            archivedCount: sessions.filter((s) => s.archived).length,
+            blankCount: sessions.filter((s) => s.blank && !s.archived).length,
+            orphanCount: sessions.filter((s) => s.orphan).length,
+            bytes: sessions.reduce((sum, s) => sum + (s.bytes || 0), 0),
+          },
+          sessions,
+          workspaces,
+        })
+      } catch (error) {
+        send(res, 400, { error: error instanceof Error ? error.message : String(error) })
+      }
+      return
+    }
     if (req.method === 'GET' && url.pathname === '/api/sessions/home-stats') {
       try {
-        const entries = await sessionHomeEntries()
         const target = url.searchParams.get('home') || ''
+        if (parseSshHomeKey(target) || parseWslHomeKey(target)) {
+          const { entry, core, resolvedHome } = await resolveRemoteCoreForHomeKey(target)
+          const resRemote = await remoteCoreJson(core, `/api/sessions/home-stats?home=${encodeURIComponent(resolvedHome)}`)
+          if (resRemote.status === 404) {
+            send(res, 200, { unsupported: true, home: entry.home, label: entry.label, source: entry.source })
+            return
+          }
+          if (resRemote.status >= 400) throw new Error(resRemote.data?.error || `远端返回 HTTP ${resRemote.status}`)
+          send(res, 200, {
+            ...resRemote.data,
+            home: entry.home,
+            displayPath: resolvedHome,
+            label: entry.label,
+            source: entry.source,
+            deviceName: entry.deviceName,
+            presets: entry.presets,
+          })
+          return
+        }
+        const entries = await sessionHomeEntries()
         const entry = entries.find((e) => fileManager.samePath(e.home, target))
         if (!entry) throw new Error('未登记的用户目录')
         const stats = await analyzeHomeData(entry.home, {
@@ -11372,7 +11682,7 @@ async function handleApi(req, res, url) {
           isDefault: entry.isDefault,
           presets: entry.presets,
         })
-        send(res, 200, stats)
+        send(res, 200, { ...stats, source: 'local', deviceName: '此电脑', displayPath: entry.home })
       } catch (error) {
         send(res, 400, { error: error instanceof Error ? error.message : String(error) })
       }
@@ -11380,9 +11690,23 @@ async function handleApi(req, res, url) {
     }
     if (req.method === 'POST' && url.pathname === '/api/sessions/state') {
       try {
+        const items = Array.isArray(body.items) ? body.items : []
+        const remoteKey = sessionBatchRemoteKey(items)
+        if (remoteKey) {
+          const { core, resolvedHome, entry } = await resolveRemoteCoreForHomeKey(remoteKey)
+          const mapped = items.map((i) => ({ home: i.remoteRawHome || resolvedHome, sessionId: i.sessionId }))
+          const resRemote = await remoteCoreJson(core, '/api/sessions/state', { method: 'POST', body: { action: body.action, items: mapped } })
+          if (resRemote.status >= 400) throw new Error(resRemote.data?.error || `远端返回 HTTP ${resRemote.status}`)
+          const payload = resRemote.data || {}
+          if (Array.isArray(payload.failed)) {
+            payload.failed = payload.failed.map((f) => ({ ...f, home: entry.home }))
+          }
+          send(res, 200, payload)
+          return
+        }
         const entries = await sessionHomeEntries()
         const result = await mutateSessionsState({
-          items: Array.isArray(body.items) ? body.items : [],
+          items,
           action: String(body.action || ''),
           allowedHomes: entries.map((e) => e.home),
           isHomeRunning: isHomeActive,
@@ -11398,9 +11722,26 @@ async function handleApi(req, res, url) {
     }
     if (req.method === 'POST' && url.pathname === '/api/sessions/delete-preview') {
       try {
+        const items = Array.isArray(body.items) ? body.items : []
+        const remoteKey = sessionBatchRemoteKey(items)
+        if (remoteKey) {
+          const { core, resolvedHome, entry } = await resolveRemoteCoreForHomeKey(remoteKey)
+          const mapped = items.map((i) => ({ home: i.remoteRawHome || resolvedHome, sessionId: i.sessionId }))
+          const resRemote = await remoteCoreJson(core, '/api/sessions/delete-preview', {
+            method: 'POST',
+            body: { items: mapped, includeChildren: body.includeChildren === true, requireArchived: body.requireArchived === true },
+          })
+          if (resRemote.status >= 400) throw new Error(resRemote.data?.error || `远端返回 HTTP ${resRemote.status}`)
+          const preview = resRemote.data || {}
+          if (Array.isArray(preview.runningHomes)) {
+            preview.runningHomes = preview.runningHomes.map((h) => ({ ...h, home: entry.home, label: entry.label }))
+          }
+          send(res, 200, preview)
+          return
+        }
         const entries = await sessionHomeEntries()
         const preview = await previewDeleteSessions({
-          items: Array.isArray(body.items) ? body.items : [],
+          items,
           includeChildren: body.includeChildren === true,
           requireArchived: body.requireArchived === true,
           homeEntries: entries,
@@ -11414,9 +11755,22 @@ async function handleApi(req, res, url) {
     }
     if (req.method === 'POST' && url.pathname === '/api/sessions/delete') {
       try {
+        const items = Array.isArray(body.items) ? body.items : []
+        const remoteKey = sessionBatchRemoteKey(items)
+        if (remoteKey) {
+          const { core, resolvedHome } = await resolveRemoteCoreForHomeKey(remoteKey)
+          const mapped = items.map((i) => ({ home: i.remoteRawHome || resolvedHome, sessionId: i.sessionId }))
+          const resRemote = await remoteCoreJson(core, '/api/sessions/delete', {
+            method: 'POST',
+            body: { items: mapped, includeChildren: body.includeChildren === true, requireArchived: body.requireArchived === true },
+          })
+          if (resRemote.status >= 400) throw new Error(resRemote.data?.error || `远端返回 HTTP ${resRemote.status}`)
+          send(res, 200, resRemote.data)
+          return
+        }
         const entries = await sessionHomeEntries()
         const result = await deleteSessions({
-          items: Array.isArray(body.items) ? body.items : [],
+          items,
           includeChildren: body.includeChildren === true,
           requireArchived: body.requireArchived === true,
           allowedHomes: entries.map((e) => e.home),
@@ -11431,6 +11785,16 @@ async function handleApi(req, res, url) {
     }
     if (req.method === 'POST' && url.pathname === '/api/sessions/workspace/remove') {
       try {
+        if (parseSshHomeKey(body.home) || parseWslHomeKey(body.home)) {
+          const { core, resolvedHome } = await resolveRemoteCoreForHomeKey(body.home)
+          const resRemote = await remoteCoreJson(core, '/api/sessions/workspace/remove', {
+            method: 'POST',
+            body: { home: body.remoteRawHome || resolvedHome, workspaceId: body.workspaceId, deleteData: body.deleteData === true },
+          })
+          if (resRemote.status >= 400) throw new Error(resRemote.data?.error || `远端返回 HTTP ${resRemote.status}`)
+          send(res, 200, resRemote.data)
+          return
+        }
         const entries = await sessionHomeEntries()
         const result = await removeWorkspace({
           home: body.home,
@@ -11520,22 +11884,32 @@ async function handleApi(req, res, url) {
     }
     if (req.method === 'POST' && url.pathname === '/api/sessions/stop-home') {
       try {
-        const entries = await sessionHomeEntries()
         const homes = Array.isArray(body.homes) ? body.homes : (body.home ? [body.home] : [])
-        const targets = []
+        const [entries, remotes] = await Promise.all([sessionHomeEntries(), remoteHomeEntries()])
+        const stoppedHomes = []
         for (const h of homes) {
-          const matched = entries.find((e) => fileManager.samePath(e.home, h || ''))
-          if (matched && !targets.some((t) => fileManager.samePath(t, matched.home))) targets.push(matched.home)
-        }
-        if (!targets.length) throw new Error('未指定有效的用户目录')
-        for (const home of targets) {
-          const procs = instanceList().filter((proc) =>
-            fileManager.samePath(proc.home, home) && ['starting', 'running', 'stopping'].includes(proc.status))
-          for (const proc of procs) {
-            await stop(proc.version, proc.profile, proc.home)
+          const raw = String(h || '').trim()
+          if (parseSshHomeKey(raw) || parseWslHomeKey(raw)) {
+            const matchedRemote = remotes.find((r) => r.home === raw)
+            if (!matchedRemote) continue
+            const procs = instanceList().filter((proc) => proc.home === raw && ['starting', 'running', 'stopping'].includes(proc.status))
+            for (const proc of procs) await stop(proc.version, proc.profile, proc.home)
+            try {
+              const { core, resolvedHome } = await resolveRemoteCoreForHomeKey(raw)
+              await remoteCoreJson(core, '/api/sessions/stop-home', { method: 'POST', body: { home: resolvedHome } })
+            } catch { /* 远端未连或无运行实例 */ }
+            stoppedHomes.push(raw)
+            continue
           }
+          const matched = entries.find((e) => fileManager.samePath(e.home, raw))
+          if (!matched || stoppedHomes.some((t) => fileManager.samePath(t, matched.home))) continue
+          const procs = instanceList().filter((proc) =>
+            fileManager.samePath(proc.home, matched.home) && ['starting', 'running', 'stopping'].includes(proc.status))
+          for (const proc of procs) await stop(proc.version, proc.profile, proc.home)
+          stoppedHomes.push(matched.home)
         }
-        send(res, 200, { ok: true, stoppedHomes: targets })
+        if (!stoppedHomes.length) throw new Error('未指定有效的用户目录')
+        send(res, 200, { ok: true, stoppedHomes })
       } catch (error) {
         send(res, 400, { error: error instanceof Error ? error.message : String(error) })
       }

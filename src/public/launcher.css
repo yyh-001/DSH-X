@@ -4145,19 +4145,23 @@ html.reduce-motion .ra-pill.is-pending .ra-dot { animation: none; }
 }
 
 /* ---- 会话管理页（方案 A：纯静态只读索引 + 离线维护） ---- */
-#pane-sessions [hidden] { display: none !important; }
+#pane-sessions [hidden], #sessionDeleteDialog [hidden] { display: none !important; }
 .sess-page-top { align-items: flex-start; gap: 14px; }
 .sess-top-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+/* 详情 Tab 栏右侧的轻量文字操作按钮（与实例页工具栏统一，去厚重边框与亮色胶囊） */
 .sess-top-btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  height: 34px; padding: 0 12px; border-radius: 9px; font-size: 12.5px; font-weight: 500;
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 28px; padding: 0 9px; border: 0; border-radius: 7px;
+  background: transparent; color: var(--muted);
+  font-size: 12px; font-weight: 500; white-space: nowrap;
+  transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
 }
-.sess-top-btn svg { width: 14px; height: 14px; flex: 0 0 auto; }
+.sess-top-btn:hover:not(:disabled) { background: var(--accent-soft); border-color: transparent; color: var(--text); }
+.sess-top-btn:disabled { opacity: .42; }
+.sess-top-btn svg { width: 13.5px; height: 13.5px; flex: 0 0 auto; opacity: .85; }
 .sess-pill-count {
-  display: inline-flex; align-items: center; justify-content: center;
-  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
-  background: color-mix(in srgb, var(--status-starting) 18%, var(--accent-soft));
-  color: var(--status-starting); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums;
+  font-size: 11.5px; font-weight: 500; color: var(--muted); opacity: .76;
+  font-variant-numeric: tabular-nums;
 }
 .sess-toolbar {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
@@ -4190,18 +4194,12 @@ html.reduce-motion .ra-pill.is-pending .ra-dot { animation: none; }
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   color: var(--text);
 }
-.sess-summary-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.sess-stat-chip {
-  font-size: 11.5px; color: var(--muted); padding: 3px 9px; border-radius: 999px;
-  background: color-mix(in srgb, var(--accent-soft) 72%, transparent);
-  border: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
-  font-variant-numeric: tabular-nums; white-space: nowrap;
-}
 .sess-filters {
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px;
 }
 .sess-search {
   flex: 1 1 220px; width: auto; min-width: 180px; height: 34px;
+  margin: 0; letter-spacing: 0;
   transition: border-color .15s ease, box-shadow .15s ease;
 }
 .sess-search:focus-within {
@@ -4214,11 +4212,11 @@ html.reduce-motion .ra-pill.is-pending .ra-dot { animation: none; }
   box-shadow: none; color: var(--text); font: inherit; font-size: 12.5px;
 }
 #pane-sessions .sess-search input::placeholder { color: var(--muted); }
-/* 接管后的自定义下拉框与搜索框等高对齐 */
+/* 接管后的自定义下拉框与搜索框等高对齐；.select-caret 是 flex 子项，右边不用按原生背景箭头留 28px */
 .sess-ui-select { flex: 0 1 auto; width: auto; min-width: 126px; max-width: 210px; }
 .sess-ui-select .select-trigger {
-  height: 34px; min-height: 34px; padding: 0 28px 0 11px; border-radius: 9px;
-  font-size: 12.5px; line-height: 32px; gap: 6px;
+  height: 34px; min-height: 34px; padding: 0 11px; border-radius: 9px;
+  font-size: 12.5px; line-height: 1; gap: 8px;
 }
 .sess-ui-select .select-value {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -4232,6 +4230,7 @@ html.reduce-motion .ra-pill.is-pending .ra-dot { animation: none; }
 }
 .sess-check-inline {
   display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 11px;
+  margin: 0; letter-spacing: 0;
   border-radius: 9px; border: 1px solid var(--line); background: var(--card);
   font-size: 12.5px; color: var(--text); cursor: pointer; user-select: none; white-space: nowrap;
 }
@@ -4410,11 +4409,13 @@ html[data-color-scheme="dark"] .sess-check-inline { background: #202024; border-
   border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
   margin-bottom: 14px;
 }
-.sess-detail-tabs { width: 220px; }
+.sess-detail-tabs { width: 152px; }
 .sess-detail-tabs::after { width: 50%; }
 .sess-detail-tabs[data-active="analytics"]::after { transform: translateX(100%); }
-.sess-detail-tabs .launch-isolation-tab { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
-.sess-detail-tab-actions { display: flex; align-items: center; gap: 8px; padding-bottom: 4px; }
+.sess-detail-tabs .launch-isolation-tab {
+  display: inline-flex; align-items: center; justify-content: center; white-space: nowrap;
+}
+.sess-detail-tab-actions { display: flex; align-items: center; gap: 6px; }
 .sess-badge.is-running {
   color: var(--status-running);
   border-color: color-mix(in srgb, var(--status-running) 35%, transparent);
@@ -4490,6 +4491,153 @@ html[data-color-scheme="dark"] .sess-check-inline { background: #202024; border-
 .sess-ana-empty-row { padding: 14px 16px; font-size: 12.5px; color: var(--muted); }
 html[data-color-scheme="dark"] .sess-ana-hero,
 html[data-color-scheme="dark"] .sess-ana-card { background: color-mix(in srgb, var(--card) 92%, #000); }
+
+/* ---- 数据目录总览卡片精修 ---- */
+.sess-home-card-btn {
+  align-items: flex-start;
+  padding: 15px 54px 15px 16px;
+  gap: 13px;
+  cursor: pointer;
+}
+.sess-home-card-btn .pack-tile { margin-top: 2px; flex-shrink: 0; }
+.sess-home-card-body {
+  display: flex; flex-direction: column; gap: 3px; min-width: 0; text-align: left;
+}
+.sess-home-card-summary {
+  font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; line-height: 1.4;
+}
+.sess-home-card-path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px; color: var(--muted); opacity: .72;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sess-home-card-tags {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px;
+}
+.sess-card-tag {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11.5px; line-height: 1.25; padding: 2px 9px; border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+  background: color-mix(in srgb, var(--accent-soft) 72%, transparent);
+  color: var(--muted); white-space: nowrap;
+}
+.sess-card-tag.is-running {
+  color: var(--status-running);
+  border-color: color-mix(in srgb, var(--status-running) 34%, transparent);
+  background: color-mix(in srgb, var(--status-running) 12%, transparent);
+}
+.sess-card-tag.is-running::before {
+  content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--status-running);
+}
+.sess-card-tag.is-warn {
+  color: var(--status-starting);
+  border-color: color-mix(in srgb, var(--status-starting) 34%, transparent);
+  background: color-mix(in srgb, var(--status-starting) 12%, transparent);
+}
+html[data-color-scheme="dark"] .sess-home-card-btn:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: #2c2d32;
+}
+
+/* ---- 本机 / WSL / SSH 设备筛选栏、分组标题与远端状态 ---- */
+.sess-device-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  margin-bottom: 14px;
+}
+.sess-device-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 31px; padding: 0 11px; border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--line) 76%, transparent);
+  background: var(--card); color: var(--muted);
+  font: inherit; font-size: 12.5px; font-weight: 500;
+  cursor: pointer; white-space: nowrap;
+  transition: background-color .14s ease, border-color .14s ease, color .14s ease;
+}
+.sess-device-pill svg { width: 13.5px; height: 13.5px; flex: 0 0 auto; opacity: .82; }
+.sess-device-pill:hover {
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--line));
+  color: var(--text);
+}
+.sess-device-pill.is-active {
+  border-color: color-mix(in srgb, var(--accent) 46%, var(--line));
+  background: color-mix(in srgb, var(--accent) 12%, var(--card));
+  color: var(--text);
+}
+.sess-device-pill.is-active svg { color: var(--accent); opacity: 1; }
+.sess-pill-mini {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 17px; height: 17px; padding: 0 5px; border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+  color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums;
+}
+.sess-device-pill.is-active .sess-pill-mini {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+}
+.sess-device-section + .sess-device-section { margin-top: 18px; }
+.sess-device-section-head {
+  display: flex; align-items: center; gap: 7px;
+  margin: 0 2px 9px; font-size: 12px; font-weight: 600; color: var(--muted);
+}
+.sess-device-section-head svg { width: 14px; height: 14px; opacity: .82; }
+.sess-device-section-count {
+  font-size: 11px; font-weight: 500; opacity: .72; font-variant-numeric: tabular-nums;
+}
+.sess-card-tag.is-local {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--line) 85%, transparent);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+.sess-card-tag.is-wsl {
+  color: #0284c7;
+  border-color: rgba(2, 132, 199, 0.3);
+  background: rgba(2, 132, 199, 0.1);
+}
+.sess-card-tag.is-ssh {
+  color: #7c3aed;
+  border-color: rgba(124, 58, 237, 0.3);
+  background: rgba(124, 58, 237, 0.1);
+}
+html[data-color-scheme="dark"] .sess-card-tag.is-wsl {
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.32);
+  background: rgba(56, 189, 248, 0.13);
+}
+html[data-color-scheme="dark"] .sess-card-tag.is-ssh {
+  color: #c084fc;
+  border-color: rgba(192, 132, 252, 0.32);
+  background: rgba(192, 132, 252, 0.13);
+}
+html[data-color-scheme="dark"] .sess-device-pill {
+  background: #202024;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+html[data-color-scheme="dark"] .sess-device-pill:hover {
+  background: #28282d;
+  border-color: rgba(255, 255, 255, 0.18);
+}
+html[data-color-scheme="dark"] .sess-device-pill.is-active {
+  background: color-mix(in srgb, var(--accent) 18%, #202024);
+  border-color: color-mix(in srgb, var(--accent) 48%, rgba(255, 255, 255, 0.12));
+}
+.sess-remote-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; padding: 44px 20px; text-align: center;
+  border: 1px dashed color-mix(in srgb, var(--line) 75%, transparent);
+  border-radius: 12px; background: var(--card); color: var(--muted); font-size: 13px;
+}
+.sess-remote-state svg { width: 22px; height: 22px; opacity: .75; }
+.sess-remote-state.is-error {
+  border-color: var(--danger-border);
+  background: color-mix(in srgb, var(--danger-soft) 55%, var(--card));
+  color: var(--danger);
+}
+.sess-remote-state-title { font-weight: 600; color: var(--text); font-size: 13.5px; }
+.sess-remote-state.is-error .sess-remote-state-title { color: var(--danger); }
+.sess-remote-state-desc { max-width: 460px; line-height: 1.55; }
+#sessionAddHomeDialog .primary .spin { display: none; }
+#sessionAddHomeDialog .primary:disabled .spin { display: inline-block; }
+
 
 
 

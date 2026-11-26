@@ -3,7 +3,9 @@
 // - 二级：点击目录卡片钻入详情，包含「会话」Tab（全部会话 / 归档中心 / 工作区 / 空白清理 / 离线永久删除）
 //   和「数据分析」Tab（纯静态只读扫描，明确拆分「用户数据层」与「实例运行时与缓存层」，并列出挂载的启动项与实例）。
 // 跑在 index.html 主脚本之后，复用主脚本全局：t、post、appConfirm、formatBytes、escapeHtml、
-// gridCardHtml、pickDirectoryPath、createUiSelect、syncUiSelect。
+// packTileHtml、pickDirectoryPath、pickWslDirectory、createUiSelect、syncUiSelect；「添加目录」弹窗的设备选择器
+// 直接复用首页「创建项目」那一套（connectionsList、connectionById、projectDevice*、startConnectionPrepare、
+// openConnectionDialog、alignFloatingPanel），免得两处的设备列表长得不一样。
 (() => {
   const SVG_NS = 'http://www.w3.org/2000/svg'
   const tr = (zh, vars) => (typeof t === 'function' ? t(zh, vars) : zh)
@@ -18,6 +20,11 @@
     refreshBtn: byId('sessRefresh'),
     addHomeBtn: byId('sessAddHome'),
     overview: byId('sessOverview'),
+    deviceFilterBar: byId('sessDeviceFilterBar'),
+    devCountAll: byId('sessDevCountAll'),
+    devCountLocal: byId('sessDevCountLocal'),
+    devCountWsl: byId('sessDevCountWsl'),
+    devCountSsh: byId('sessDevCountSsh'),
     overviewNotice: byId('sessOverviewNotice'),
     homeGrid: byId('sessHomeGrid'),
     overviewHint: byId('sessOverviewHint'),
@@ -31,8 +38,6 @@
     detailRefresh: byId('sessDetailRefresh'),
     detailStop: byId('sessDetailStop'),
     detailTabs: byId('sessDetailTabs'),
-    detailSessCount: byId('sessDetailSessCount'),
-    detailSizeTag: byId('sessDetailSizeTag'),
     cleanBlankBtn: byId('sessCleanBlank'),
     cleanBlankCount: byId('sessCleanBlankCount'),
     runningBanner: byId('sessRunningBanner'),
@@ -51,7 +56,6 @@
     sortSelect: byId('sessSortSelect'),
     staleOnlyWrap: byId('sessStaleOnlyWrap'),
     staleOnly: byId('sessStaleOnly'),
-    summaryBar: byId('sessSummaryBar'),
     archiveToolbar: byId('sessArchiveToolbar'),
     archiveSelectAll: byId('sessArchiveSelectAll'),
     archiveUnarchiveAll: byId('sessArchiveUnarchiveAll'),
@@ -67,6 +71,21 @@
     // 详情 Tab 2：数据分析
     tabAnalytics: byId('sessTabAnalytics'),
     analyticsHost: byId('sessAnalyticsHost'),
+    // 添加目录弹窗（与首页「创建项目」同款设备选择器）
+    addHomeDialog: byId('sessionAddHomeDialog'),
+    addHomeForm: byId('sessAddHomeForm'),
+    addHomeClose: byId('sessAddHomeClose'),
+    addHomeCancel: byId('sessAddHomeCancel'),
+    addHomeName: byId('sessAddHomeName'),
+    addDeviceTrigger: byId('sessAddDeviceTrigger'),
+    addDeviceIcon: byId('sessAddDeviceIcon'),
+    addDeviceLabel: byId('sessAddDeviceLabel'),
+    addDeviceStatus: byId('sessAddDeviceStatus'),
+    addHomePath: byId('sessAddHomePath'),
+    addHomeBrowse: byId('sessAddHomeBrowse'),
+    addHomeHint: byId('sessAddHomeHint'),
+    addHomeError: byId('sessAddHomeError'),
+    addHomeSubmit: byId('sessAddHomeSubmit'),
     // 目录重命名弹窗
     renameDialog: byId('sessionHomeRenameDialog'),
     renameForm: byId('sessHomeRenameForm'),
@@ -85,10 +104,27 @@
     deleteConfirm: byId('sessDeleteConfirm'),
   }
 
+  // 悬浮设备选择面板（与 #projectDevicePanel 同款结构，挂在 body 避免被弹窗裁切）
+  const addDevicePanel = document.createElement('div')
+  addDevicePanel.className = 'project-device-panel'
+  addDevicePanel.id = 'sessAddDevicePanel'
+  addDevicePanel.hidden = true
+  const addDeviceList = document.createElement('div')
+  addDeviceList.className = 'project-device-list'
+  addDeviceList.id = 'sessAddDeviceList'
+  addDeviceList.setAttribute('role', 'listbox')
+  addDeviceList.setAttribute('aria-label', tr('设备'))
+  addDevicePanel.appendChild(addDeviceList)
+  document.body.appendChild(addDevicePanel)
+
+  const ADD_REMOTE_DEVICE_VAL = '__add_remote_device__'
+  const MANAGE_REMOTE_DEVICE_VAL = '__manage_remote_device__'
+
   const state = {
     loading: false,
     loaded: false,
     data: null, // { homes, workspaces, sessions, summary, scannedAt }
+    deviceFilter: 'all', // 'all' | 'local' | 'wsl' | 'ssh'
     activeHome: '', // '' = 一级卡片总览；非空 = 钻入该用户目录详情
     detailTab: 'sessions', // 'sessions' | 'analytics'
     view: 'all', // 'all' | 'archived' | 'workspaces'
@@ -103,10 +139,14 @@
     noticeText: '',
     noticeKind: 'info',
     busy: false,
+    // 远端（WSL / SSH）目录按需连接拉取的会话与工作区缓存
+    remoteDataByHome: new Map(),
     // 每个用户目录的静态数据分析缓存（手动刷新或删完会话后失效）
     statsByHome: new Map(),
     statsLoadingHome: '',
     statsError: '',
+    // 添加目录弹窗状态
+    addDeviceValue: 'local',
     // 重命名弹窗状态
     renamingHome: '',
     // 删除弹窗状态
@@ -292,29 +332,124 @@
     host.hidden = Boolean(hidden)
   }
 
+  function homeKind(h) {
+    const k = h?.deviceKind || h?.source || 'local'
+    return k === 'wsl' || k === 'ssh' ? k : 'local'
+  }
+
+  function isRemoteHome(h) {
+    return homeKind(h) !== 'local'
+  }
+
+  function homeDisplayPath(h) {
+    if (!h) return ''
+    return h.resolvedPath || h.displayPath || h.remoteHome || h.home || ''
+  }
+
+  function mergeRemoteHomeMeta(h) {
+    if (!h || !isRemoteHome(h)) return h
+    const cached = state.remoteDataByHome.get(h.home)
+    if (!cached?.home) return h
+    return {
+      ...h,
+      resolvedPath: cached.home.resolvedPath || h.resolvedPath || '',
+      sessionCount: cached.home.sessionCount,
+      activeCount: cached.home.activeCount,
+      archivedCount: cached.home.archivedCount,
+      blankCount: cached.home.blankCount,
+      orphanCount: cached.home.orphanCount,
+      bytes: cached.home.bytes,
+    }
+  }
+
+  function sessionItemRef(s) {
+    return {
+      home: s.home,
+      sessionId: s.sessionId,
+      ...(s.remoteRawHome ? { remoteRawHome: s.remoteRawHome } : {}),
+    }
+  }
+
   function currentHomeObj() {
     if (!state.activeHome || !state.data) return null
-    return (state.data.homes || []).find((h) => h.home === state.activeHome) || null
+    const base = (state.data.homes || []).find((h) => h.home === state.activeHome) || null
+    return base ? mergeRemoteHomeMeta(base) : null
   }
 
   function homeSessions(home = state.activeHome) {
+    const h = (state.data?.homes || []).find((x) => x.home === home)
+    if (h && isRemoteHome(h)) {
+      return state.remoteDataByHome.get(home)?.sessions || []
+    }
     return (state.data?.sessions || []).filter((s) => s.home === home)
   }
 
   function homeWorkspaces(home = state.activeHome) {
+    const h = (state.data?.homes || []).find((x) => x.home === home)
+    if (h && isRemoteHome(h)) {
+      return state.remoteDataByHome.get(home)?.workspaces || []
+    }
     return (state.data?.workspaces || []).filter((w) => w.home === home)
+  }
+
+  async function loadRemoteHome(home, { force = false } = {}) {
+    if (!home) return
+    const prev = state.remoteDataByHome.get(home)
+    if (prev?.loading) return
+    if (!force && prev?.loaded && !prev?.error) return
+    state.remoteDataByHome.set(home, {
+      loading: true,
+      loaded: Boolean(prev?.loaded),
+      unsupported: false,
+      error: '',
+      home: prev?.home || null,
+      sessions: prev?.sessions || [],
+      workspaces: prev?.workspaces || [],
+    })
+    paint()
+    try {
+      const res = await apiGet(`/api/sessions/remote?home=${encodeURIComponent(home)}`)
+      state.remoteDataByHome.set(home, {
+        loading: false,
+        loaded: true,
+        unsupported: Boolean(res.unsupported),
+        error: '',
+        home: res.home || null,
+        sessions: Array.isArray(res.sessions) ? res.sessions : [],
+        workspaces: Array.isArray(res.workspaces) ? res.workspaces : [],
+      })
+      syncFilterOptions()
+    } catch (error) {
+      state.remoteDataByHome.set(home, {
+        loading: false,
+        loaded: false,
+        unsupported: false,
+        error: error.message || String(error),
+        home: null,
+        sessions: [],
+        workspaces: [],
+      })
+    } finally {
+      paint()
+    }
   }
 
   async function load({ silent = false, invalidateStats = false } = {}) {
     if (state.loading) return
     state.loading = true
-    if (invalidateStats) state.statsByHome.clear()
+    if (invalidateStats) {
+      state.statsByHome.clear()
+      state.remoteDataByHome.clear()
+    }
     if (!silent) paint()
     try {
       const data = await apiGet('/api/sessions')
       state.data = data
       state.loaded = true
       const liveKeys = new Set((data.sessions || []).map((s) => keyOf(s.home, s.sessionId)))
+      for (const entry of state.remoteDataByHome.values()) {
+        for (const s of entry.sessions || []) liveKeys.add(keyOf(s.home, s.sessionId))
+      }
       for (const k of [...state.selected]) {
         if (!liveKeys.has(k)) state.selected.delete(k)
       }
@@ -322,6 +457,10 @@
         state.activeHome = ''
       }
       syncFilterOptions()
+      const activeObj = currentHomeObj()
+      if (activeObj && isRemoteHome(activeObj) && (!state.remoteDataByHome.has(activeObj.home) || invalidateStats)) {
+        void loadRemoteHome(activeObj.home, { force: invalidateStats })
+      }
       if (state.activeHome && state.detailTab === 'analytics' && !state.statsByHome.has(state.activeHome)) {
         void loadHomeStats(state.activeHome)
       }
@@ -370,6 +509,11 @@
     showNotice('')
     syncFilterOptions()
     paint()
+    const h = currentHomeObj()
+    if (h && isRemoteHome(h)) {
+      const cached = state.remoteDataByHome.get(home)
+      if (!cached || (!cached.loaded && !cached.loading)) void loadRemoteHome(home)
+    }
     if (state.detailTab === 'analytics') void loadHomeStats(home)
   }
 
@@ -512,29 +656,108 @@
     paintDetailBody()
   }
 
-  // ---- 一级：用户目录（数据卷）卡片网格（复用实例页 gridCardHtml） ----
+  // ---- 一级：用户目录（数据卷）卡片网格（区分本机 / WSL / SSH，按设备筛选与分组） ----
+  function deviceBadgeOf(h) {
+    const kind = homeKind(h)
+    if (kind === 'wsl') {
+      return { text: h.deviceName ? `WSL · ${h.deviceName}` : 'WSL', cls: 'is-wsl' }
+    }
+    if (kind === 'ssh') {
+      return { text: h.deviceName ? `SSH · ${h.deviceName}` : 'SSH', cls: 'is-ssh' }
+    }
+    return { text: tr('本机'), cls: 'is-local' }
+  }
+
   function homeCardTags(h) {
-    const tags = []
-    if (h.running) tags.push({ text: tr('运行中'), tone: 'running' })
-    if (h.presetCount > 0) tags.push({ text: tr('{n} 个启动项在用', { n: h.presetCount }) })
-    if (h.isDefault) tags.push({ text: tr('默认目录') })
-    if (h.blankCount > 0) tags.push({ text: tr('{n} 条空白', { n: h.blankCount }), tone: 'warn' })
+    const tags = [deviceBadgeOf(h)]
+    if (h.running) tags.push({ text: tr('运行中'), cls: 'is-running' })
+    if (h.presetCount > 0) tags.push({ text: tr('{n} 个启动项在用', { n: h.presetCount }), cls: '' })
+    // 只有用户改了显示名（与「默认目录」不同）时才补「默认目录」标记，避免标题和徽章重复出现两次
+    if (h.isDefault && h.label !== tr('默认目录') && h.label !== '默认目录') {
+      tags.push({ text: tr('默认目录'), cls: '' })
+    }
+    if ((h.blankCount || 0) > 0) tags.push({ text: tr('{n} 空白', { n: h.blankCount }), cls: 'is-warn' })
     return tags
   }
 
   function homeCardMenuHtml(h) {
     const esc = typeof escapeHtml === 'function' ? escapeHtml : (v) => String(v ?? '')
-    const canRemove = !h.isDefault && h.presetCount === 0 && !h.running
-    const items = [
-      `<button class="ghost" type="button" data-home-open="${esc(h.home)}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-folder"/></svg><span>${esc(tr('打开目录'))}</span></button>`,
-      `<button class="ghost" type="button" data-home-rename="${esc(h.home)}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-pencil"/></svg><span>${esc(tr('重命名'))}</span></button>`,
-      `<button class="ghost" type="button" data-home-analytics="${esc(h.home)}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-sliders-horizontal"/></svg><span>${esc(tr('数据分析'))}</span></button>`,
-      `<button class="ghost" type="button" data-home-env="${esc(h.home)}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-terminal"/></svg><span>${esc(tr('设为全局 DSH_HOME'))}</span></button>`,
-    ]
+    const remote = isRemoteHome(h)
+    const canRemove = remote
+      ? (Boolean(h.registered) && h.presetCount === 0 && !h.running)
+      : (!h.isDefault && h.presetCount === 0 && !h.running)
+    const items = []
+    if (!remote) {
+      items.push(`<button class="ghost" type="button" data-home-open="${esc(h.home)}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-folder"/></svg><span>${esc(tr('打开目录'))}</span></button>`)
+    }
+    items.push(`<button class="ghost" type="button" data-home-rename="${esc(h.home)}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-pencil"/></svg><span>${esc(tr('重命名'))}</span></button>`)
+    items.push(`<button class="ghost" type="button" data-home-analytics="${esc(h.home)}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-sliders-horizontal"/></svg><span>${esc(tr('数据分析'))}</span></button>`)
+    if (!remote) {
+      items.push(`<button class="ghost" type="button" data-home-env="${esc(h.home)}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-terminal"/></svg><span>${esc(tr('设为全局 DSH_HOME'))}</span></button>`)
+    }
     if (canRemove) {
       items.push(`<button class="ghost danger" type="button" data-home-remove="${esc(h.home)}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-trash-2"/></svg><span>${esc(tr('移除目录'))}</span></button>`)
     }
     return items.join('')
+  }
+
+  function homeCardHtml(raw) {
+    const h = mergeRemoteHomeMeta(raw)
+    const esc = typeof escapeHtml === 'function' ? escapeHtml : (v) => String(v ?? '')
+    const tile = typeof packTileHtml === 'function'
+      ? packTileHtml({ name: h.home, displayName: h.label })
+      : `<span class="pack-tile">${esc((h.label || 'D').slice(0, 1))}</span>`
+    const statsCached = state.statsByHome.get(h.home)
+    const remote = isRemoteHome(h)
+    let summaryLine = ''
+    if (typeof h.sessionCount === 'number') {
+      const sizeText = bytesLabel(statsCached && !statsCached.unsupported ? statsCached.totalBytes : (h.bytes || 0))
+      summaryLine = `${tr('{n} 条会话', { n: h.sessionCount })} · ${sizeText}`
+    } else if (remote) {
+      summaryLine = h.connectionStatus === 'online'
+        ? tr('在线 · 点击查看会话')
+        : h.connectionStatus === 'preparing'
+          ? tr('连接中…')
+          : tr('点击连接查看会话')
+    }
+    const displayPath = homeDisplayPath(h)
+    const tagsHtml = homeCardTags(h)
+      .map((tag) => `<span class="sess-card-tag${tag.cls ? ` ${tag.cls}` : ''}">${esc(tag.text)}</span>`)
+      .join('')
+    const menu = homeCardMenuHtml(h)
+    return `<div class="profile-card sess-home-card">
+      <button class="pack-card sess-home-card-btn" type="button" data-home="${esc(h.home)}" aria-label="${esc(tr('查看用户目录 {name}', { name: h.label }))}" title="${esc(displayPath)}">
+        ${tile}
+        <div class="pack-card-body sess-home-card-body">
+          <div class="pack-card-head">
+            <span class="pack-card-name">${esc(h.label)}</span>
+          </div>
+          <div class="sess-home-card-summary">${esc(summaryLine)}</div>
+          <div class="sess-home-card-path">${esc(displayPath)}</div>
+          ${tagsHtml ? `<div class="sess-home-card-tags">${tagsHtml}</div>` : ''}
+        </div>
+      </button>
+      <details class="pack-more profile-menu">
+        <summary title="${esc(tr('更多操作'))}" aria-label="${esc(tr('更多操作'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-ellipsis"/></svg></summary>
+        <div class="pack-more-actions">${menu}</div>
+      </details>
+    </div>`
+  }
+
+  function updateDeviceFilterBar(homes) {
+    const counts = { all: homes.length, local: 0, wsl: 0, ssh: 0 }
+    for (const h of homes) counts[homeKind(h)] += 1
+    if (dom.devCountAll) dom.devCountAll.textContent = String(counts.all)
+    if (dom.devCountLocal) dom.devCountLocal.textContent = String(counts.local)
+    if (dom.devCountWsl) dom.devCountWsl.textContent = String(counts.wsl)
+    if (dom.devCountSsh) dom.devCountSsh.textContent = String(counts.ssh)
+    if (dom.deviceFilterBar) {
+      dom.deviceFilterBar.querySelectorAll('[data-device-filter]').forEach((btn) => {
+        const active = btn.dataset.deviceFilter === state.deviceFilter
+        btn.classList.toggle('is-active', active)
+        btn.setAttribute('aria-selected', String(active))
+      })
+    }
   }
 
   function paintOverview() {
@@ -542,49 +765,61 @@
     if (dom.addHomeBtn) dom.addHomeBtn.disabled = state.loading || state.busy
     if (!dom.homeGrid) return
 
+    const homes = state.data?.homes || []
+    updateDeviceFilterBar(homes)
+
     if (state.loading && !state.loaded) {
       dom.homeGrid.textContent = ''
       if (dom.overviewHint) dom.overviewHint.textContent = tr('正在静态扫描已登记的用户目录…')
       return
     }
 
-    const homes = state.data?.homes || []
-    if (!homes.length) {
+    const visible = state.deviceFilter === 'all'
+      ? homes
+      : homes.filter((h) => homeKind(h) === state.deviceFilter)
+
+    if (!visible.length) {
       dom.homeGrid.textContent = ''
-      if (dom.overviewHint) dom.overviewHint.textContent = tr('还没有已登记的用户目录，点右上角「添加目录」登记一个数据卷。')
+      if (dom.overviewHint) {
+        dom.overviewHint.textContent = state.deviceFilter === 'wsl'
+          ? tr('还没有登记 WSL 用户目录，点右上角「添加目录」并选择 WSL 设备。')
+          : state.deviceFilter === 'ssh'
+            ? tr('还没有登记 SSH 远端用户目录，点右上角「添加目录」并选择 SSH 设备。')
+            : tr('还没有已登记的用户目录，点右上角「添加目录」登记一个数据卷。')
+      }
       return
     }
 
     if (dom.overviewHint) dom.overviewHint.textContent = ''
-    if (typeof gridCardHtml === 'function') {
-      dom.homeGrid.innerHTML = homes.map((h) => {
-        const statsCached = state.statsByHome.get(h.home)
-        const sizeText = statsCached
-          ? tr('总计 {size}', { size: bytesLabel(statsCached.totalBytes) })
-          : tr('会话 {size}', { size: bytesLabel(h.bytes) })
-        const meta = `${tr('{n} 条会话', { n: h.sessionCount })} · ${sizeText} · ${h.home}`
-        return gridCardHtml({
-          data: { dataHome: h.home },
-          label: tr('查看用户目录 {name}', { name: h.label }),
-          title: h.home,
-          tile: { name: h.home, displayName: h.label },
-          name: h.label,
-          meta,
-          tags: homeCardTags(h).map((tag) => tag.text),
-          menu: homeCardMenuHtml(h),
-        })
-      }).join('')
+    const esc = typeof escapeHtml === 'function' ? escapeHtml : (v) => String(v ?? '')
+    const groups = [
+      { key: 'local', title: tr('本机（此电脑）'), iconName: 'app-window', items: visible.filter((h) => homeKind(h) === 'local') },
+      { key: 'wsl', title: 'WSL', iconName: 'box', items: visible.filter((h) => homeKind(h) === 'wsl') },
+      { key: 'ssh', title: tr('SSH 远端'), iconName: 'globe', items: visible.filter((h) => homeKind(h) === 'ssh') },
+    ].filter((g) => g.items.length > 0)
+
+    if (state.deviceFilter === 'all' && groups.length > 1) {
+      dom.homeGrid.innerHTML = groups.map((g) => `<section class="sess-device-section">
+        <div class="sess-device-section-head">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-${g.iconName}"/></svg>
+          <span>${esc(g.title)}</span>
+          <span class="sess-device-section-count">${g.items.length}</span>
+        </div>
+        <div class="pack-grid">${g.items.map(homeCardHtml).join('')}</div>
+      </section>`).join('')
+    } else {
+      dom.homeGrid.innerHTML = `<div class="pack-grid">${visible.map(homeCardHtml).join('')}</div>`
     }
 
-    // 绑定卡片点击与菜单动作
+    // 绑定卡片点击与菜单动作（注意 HTML 属性全小写，使用 data-home 避免驼峰匹配失效）
     const homeOf = (dir) => homes.find((x) => x.home === dir) || null
     const fromMenu = (btn, fn) => {
       const details = btn.closest('details')
       if (details) details.open = false
       fn()
     }
-    dom.homeGrid.querySelectorAll('[data-data-home]').forEach((btn) => {
-      btn.onclick = () => openHome(btn.dataset.dataHome, 'sessions')
+    dom.homeGrid.querySelectorAll('[data-home]').forEach((btn) => {
+      btn.onclick = () => openHome(btn.dataset.home, 'sessions')
     })
     dom.homeGrid.querySelectorAll('[data-home-open]').forEach((btn) => {
       btn.onclick = () => fromMenu(btn, () => openHomeFolder(btn.dataset.homeOpen))
@@ -607,21 +842,21 @@
   function paintDetailHeader() {
     const h = currentHomeObj()
     if (!h) return
+    const remote = isRemoteHome(h)
+    const remoteState = remote ? state.remoteDataByHome.get(h.home) : null
+    const displayPath = homeDisplayPath(h)
+    const badge = deviceBadgeOf(h)
     if (dom.detailName) dom.detailName.textContent = h.label
     if (dom.detailPath) {
-      dom.detailPath.textContent = h.home
-      dom.detailPath.title = h.home
+      const subText = remote ? `${badge.text} · ${displayPath}` : displayPath
+      dom.detailPath.textContent = subText
+      dom.detailPath.title = subText
     }
-    if (dom.detailRefresh) dom.detailRefresh.disabled = state.loading || state.statsLoadingHome === h.home
+    if (dom.detailOpen) dom.detailOpen.hidden = remote
+    if (dom.detailRefresh) dom.detailRefresh.disabled = state.loading || Boolean(remoteState?.loading) || state.statsLoadingHome === h.home
     if (dom.detailStop) {
       dom.detailStop.hidden = !h.running
       dom.detailStop.disabled = state.busy
-    }
-    if (dom.detailSessCount) dom.detailSessCount.textContent = String(h.sessionCount)
-    const stats = state.statsByHome.get(h.home)
-    if (dom.detailSizeTag) {
-      dom.detailSizeTag.hidden = !stats
-      if (stats) dom.detailSizeTag.textContent = bytesLabel(stats.totalBytes)
     }
     if (dom.detailTabs) {
       dom.detailTabs.dataset.active = state.detailTab
@@ -630,10 +865,13 @@
       }
     }
     const blanks = blankCandidates()
-    if (dom.cleanBlankCount) dom.cleanBlankCount.textContent = String(blanks.length)
+    if (dom.cleanBlankCount) {
+      dom.cleanBlankCount.textContent = blanks.length > 0 ? String(blanks.length) : ''
+      dom.cleanBlankCount.hidden = blanks.length === 0
+    }
     if (dom.cleanBlankBtn) {
       dom.cleanBlankBtn.hidden = state.detailTab !== 'sessions'
-      dom.cleanBlankBtn.disabled = state.loading || state.busy || blanks.length === 0
+      dom.cleanBlankBtn.disabled = state.loading || state.busy || Boolean(remoteState?.loading) || Boolean(remoteState?.unsupported) || blanks.length === 0
     }
     if (dom.runningBanner) {
       dom.runningBanner.hidden = !h.running
@@ -642,6 +880,20 @@
         dom.runningStopBtn.disabled = state.busy
       }
     }
+  }
+
+  function renderRemoteStateBox({ iconName = 'server', title = '', desc = '', isError = false, retryFn = null } = {}) {
+    const box = el('div', `sess-remote-state${isError ? ' is-error' : ''}`)
+    box.appendChild(icon(iconName))
+    if (title) box.appendChild(el('div', 'sess-remote-state-title', title))
+    if (desc) box.appendChild(el('div', 'sess-remote-state-desc', desc))
+    if (retryFn) {
+      const btn = el('button', 'ghost sess-action-btn', tr('重新连接'))
+      btn.type = 'button'
+      btn.onclick = retryFn
+      box.appendChild(btn)
+    }
+    return box
   }
 
   function paintDetailBody() {
@@ -654,13 +906,44 @@
     }
 
     const h = currentHomeObj()
+    const remote = isRemoteHome(h)
+    const remoteState = remote ? state.remoteDataByHome.get(h.home) : null
+    if (remote && (!remoteState || remoteState.loading || remoteState.error || remoteState.unsupported)) {
+      if (dom.tabAllCount) dom.tabAllCount.textContent = '0'
+      if (dom.tabArchivedCount) dom.tabArchivedCount.textContent = '0'
+      if (dom.tabWorkspacesCount) dom.tabWorkspacesCount.textContent = '0'
+      if (dom.archiveToolbar) dom.archiveToolbar.hidden = true
+      if (dom.bulkBar) dom.bulkBar.hidden = true
+      dom.listHost.textContent = ''
+      if (!remoteState || remoteState.loading) {
+        dom.listHost.appendChild(renderRemoteStateBox({
+          iconName: homeKind(h) === 'wsl' ? 'box' : 'globe',
+          title: tr('正在连接远端设备并读取会话目录…'),
+          desc: `${deviceBadgeOf(h).text} · ${homeDisplayPath(h)}`,
+        }))
+      } else if (remoteState.unsupported) {
+        dom.listHost.appendChild(renderRemoteStateBox({
+          iconName: 'info',
+          title: tr('远端核心版本暂不支持会话管理'),
+          desc: tr('请先在「远程」页更新该设备上的 dsh-x-core，再回来查看会话与数据分析。'),
+          retryFn: () => void loadRemoteHome(h.home, { force: true }),
+        }))
+      } else {
+        dom.listHost.appendChild(renderRemoteStateBox({
+          iconName: 'triangle-alert',
+          title: tr('连接远端目录失败'),
+          desc: remoteState.error,
+          isError: true,
+          retryFn: () => void loadRemoteHome(h.home, { force: true }),
+        }))
+      }
+      return
+    }
+
     const sessions = homeSessions(state.activeHome)
     const workspaces = homeWorkspaces(state.activeHome)
     const activeCount = sessions.filter((s) => !s.archived && !s.isSubagent).length
     const archivedCount = sessions.filter((s) => s.archived).length
-    const blankCount = sessions.filter((s) => s.blank && !s.archived).length
-    const orphanCount = sessions.filter((s) => s.orphan).length
-    const staleWsCount = workspaces.filter((w) => w.stale).length
 
     if (dom.tabAllCount) dom.tabAllCount.textContent = String(activeCount)
     if (dom.tabArchivedCount) dom.tabArchivedCount.textContent = String(archivedCount)
@@ -670,18 +953,6 @@
     setSelectHidden(dom.statusSelect, state.view !== 'all')
     if (dom.staleOnlyWrap) dom.staleOnlyWrap.hidden = state.view !== 'workspaces'
     if (dom.archiveToolbar) dom.archiveToolbar.hidden = state.view !== 'archived'
-
-    if (dom.summaryBar) {
-      dom.summaryBar.textContent = ''
-      const chips = [
-        tr('共 {n} 条会话', { n: sessions.length }),
-        tr('占用 {size}', { size: bytesLabel(h?.bytes || 0) }),
-        blankCount > 0 ? tr('空白 {n}', { n: blankCount }) : '',
-        orphanCount > 0 ? tr('未挂载 {n}', { n: orphanCount }) : '',
-        staleWsCount > 0 ? tr('疑似闲置工作区 {n}', { n: staleWsCount }) : '',
-      ].filter(Boolean)
-      for (const text of chips) dom.summaryBar.appendChild(el('span', 'sess-stat-chip', text))
-    }
 
     if (state.view === 'workspaces') {
       paintBulkBar([])
@@ -706,12 +977,26 @@
       return
     }
     if (state.statsError && !state.statsByHome.has(h.home)) {
-      const errBox = el('div', 'sess-notice is-error', tr('数据分析失败：{msg}', { msg: state.statsError }))
-      dom.analyticsHost.appendChild(errBox)
+      dom.analyticsHost.appendChild(renderRemoteStateBox({
+        iconName: 'triangle-alert',
+        title: tr('数据分析失败：{msg}', { msg: state.statsError }),
+        isError: true,
+        retryFn: () => void loadHomeStats(h.home, { force: true }),
+      }))
       return
     }
     const st = state.statsByHome.get(h.home)
     if (!st) return
+    if (st.unsupported) {
+      dom.analyticsHost.appendChild(renderRemoteStateBox({
+        iconName: 'info',
+        title: tr('远端核心版本暂不支持数据分析'),
+        desc: tr('请先在「远程」页更新该设备上的 dsh-x-core，再回来查看会话与数据分析。'),
+        retryFn: () => void loadHomeStats(h.home, { force: true }),
+      }))
+      return
+    }
+    const remote = isRemoteHome(h)
 
     // 1. 顶部总览与「用户数据 vs 实例运行时」对比条
     const hero = el('div', 'sess-ana-hero')
@@ -780,7 +1065,7 @@
         btn.onclick = onAction
         right.appendChild(btn)
       }
-      if (revealDir) {
+      if (revealDir && !remote) {
         const btn = el('button', 'sess-icon-btn')
         btn.type = 'button'
         btn.title = tr('在文件管理器中显示')
@@ -1075,13 +1360,16 @@
       return btn
     }
 
+    const remote = Boolean(s.source && s.source !== 'local') || isRemoteHome(currentHomeObj())
     actions.appendChild(makeBtn(
       'external-link',
       tr('打开实例'),
       () => openSessionInstance(s),
       {
-        disabled: s.archived,
-        titleText: s.archived ? tr('已归档会话不能直接打开，请先取消归档') : tr('聚焦或启动对应实例并复制 Session ID'),
+        disabled: s.archived || remote,
+        titleText: remote
+          ? tr('远端会话请在首页对应启动项打开')
+          : (s.archived ? tr('已归档会话不能直接打开，请先取消归档') : tr('聚焦或启动对应实例并复制 Session ID')),
       },
     ))
 
@@ -1089,7 +1377,7 @@
       actions.appendChild(makeBtn(
         'star',
         s.pinned ? tr('取消置顶') : tr('置顶'),
-        () => runStateMutation(s.pinned ? 'unpin' : 'pin', [{ home: s.home, sessionId: s.sessionId }]),
+        () => runStateMutation(s.pinned ? 'unpin' : 'pin', [sessionItemRef(s)]),
         { active: s.pinned, titleText: s.pinned ? tr('取消置顶') : tr('置顶') },
       ))
     }
@@ -1097,7 +1385,7 @@
     actions.appendChild(makeBtn(
       s.archived ? 'rotate-ccw' : 'file-archive',
       s.archived ? tr('取消归档') : tr('归档'),
-      () => runStateMutation(s.archived ? 'unarchive' : 'archive', [{ home: s.home, sessionId: s.sessionId }]),
+      () => runStateMutation(s.archived ? 'unarchive' : 'archive', [sessionItemRef(s)]),
       { titleText: s.archived ? tr('取消归档') : tr('归档') },
     ))
 
@@ -1110,7 +1398,7 @@
       },
     ))
 
-    if (s.sessionDir || (s.workspacePath && !s.workspaceMissing)) {
+    if (!remote && (s.sessionDir || (s.workspacePath && !s.workspaceMissing))) {
       actions.appendChild(makeBtn(
         'folder',
         tr('在文件管理器中显示'),
@@ -1121,7 +1409,7 @@
     actions.appendChild(makeBtn(
       'trash-2',
       tr('永久删除'),
-      () => openDeleteDialog([{ home: s.home, sessionId: s.sessionId }], { requireArchived: state.view === 'archived' }),
+      () => openDeleteDialog([sessionItemRef(s)], { requireArchived: state.view === 'archived' }),
       { danger: true },
     ))
 
@@ -1226,7 +1514,7 @@
       }
       actions.appendChild(viewBtn)
 
-      if (w.path && w.exists) {
+      if (!isRemoteHome(currentHomeObj()) && w.path && w.exists) {
         const revealBtn = el('button', 'sess-icon-btn')
         revealBtn.type = 'button'
         revealBtn.title = tr('在文件管理器中显示')
@@ -1256,24 +1544,206 @@
     dom.listHost.appendChild(box)
   }
 
-  // ---- 目录级管理动作（添加 / 打开 / 重命名 / 设环境变量 / 移除） ----
-  async function addHomeDirectory() {
-    if (typeof pickDirectoryPath !== 'function') return
+  // ---- 添加目录弹窗（与首页「创建项目」同款，支持本机 / WSL / SSH） ----
+  function addSelectedConnection() {
+    const val = state.addDeviceValue || 'local'
+    if (!val.startsWith('conn:')) return null
+    const id = val.slice(5)
+    if (typeof connectionById === 'function') return connectionById(id)
+    const list = typeof connectionsList === 'function' ? connectionsList() : []
+    return list.find((c) => c.id === id) || null
+  }
+
+  function deviceIconHref(kind) {
+    if (kind === 'wsl') return '/icons.svg#lucide-box'
+    if (kind === 'ssh') return '/icons.svg#lucide-globe'
+    return '/icons.svg#lucide-app-window'
+  }
+
+  function paintAddDeviceOptions(selected = state.addDeviceValue || 'local') {
+    const esc = typeof escapeHtml === 'function' ? escapeHtml : (v) => String(v ?? '')
+    const connections = typeof connectionsList === 'function' ? connectionsList() : []
+    const valid = selected === 'local' || connections.some((item) => `conn:${item.id}` === selected)
+    state.addDeviceValue = valid ? selected : 'local'
+    const pickedConn = addSelectedConnection()
+
+    const localIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-app-window"/></svg>'
+    const check = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-check"/></svg>'
+    const rows = [
+      `<button class="project-device-option${!pickedConn ? ' is-selected' : ''}" type="button" role="option" aria-selected="${!pickedConn}" data-sess-device-value="local"><span class="project-device-option-icon">${localIcon}</span><span class="project-device-option-text"><strong>${esc(tr('此电脑'))}</strong></span>${!pickedConn ? `<span class="project-device-check">${check}</span>` : ''}</button>`,
+    ]
+    for (const connection of connections) {
+      const value = `conn:${connection.id}`
+      const selectedRow = state.addDeviceValue === value
+      const runtime = typeof projectDeviceRuntime === 'function' ? projectDeviceRuntime(connection) : {}
+      const status = runtime.status || 'offline'
+      const label = typeof projectDeviceLabel === 'function'
+        ? projectDeviceLabel(connection)
+        : (connection.name || connection.wslDistro || connection.host || connection.id)
+      const pathText = typeof projectDevicePath === 'function' ? projectDevicePath(connection) : '~/.dsh'
+      const mark = typeof projectDeviceStatusMark === 'function' ? projectDeviceStatusMark(status) : ''
+      const connIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><use href="${deviceIconHref(connection.kind)}"/></svg>`
+      const kindTag = connection.kind === 'wsl' ? 'WSL' : 'SSH'
+      rows.push(`<button class="project-device-option${selectedRow ? ' is-selected' : ''}" type="button" role="option" aria-selected="${selectedRow}" data-sess-device-value="${esc(value)}"><span class="project-device-option-icon">${connIcon}</span><span class="project-device-option-text"><strong>${esc(label)}</strong><small>${esc(`${kindTag} · ${pathText}`)}</small></span><span class="project-device-option-state">${mark}${selectedRow ? `<span class="project-device-check">${check}</span>` : ''}</span></button>`)
+    }
+    rows.push(`<button class="project-device-option is-add" type="button" role="option" data-sess-device-value="${ADD_REMOTE_DEVICE_VAL}"><span class="project-device-option-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-plus"/></svg></span><span class="project-device-option-text"><strong>${esc(tr('添加远程设备…'))}</strong></span></button>`)
+    rows.push(`<button class="project-device-option is-manage" type="button" role="option" data-sess-device-value="${MANAGE_REMOTE_DEVICE_VAL}"><span class="project-device-option-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-settings"/></svg></span><span class="project-device-option-text"><strong>${esc(tr('管理连接…'))}</strong></span></button>`)
+    addDeviceList.innerHTML = rows.join('')
+
+    if (dom.addDeviceLabel) {
+      dom.addDeviceLabel.textContent = pickedConn
+        ? (typeof projectDeviceLabel === 'function' ? projectDeviceLabel(pickedConn) : (pickedConn.name || pickedConn.id))
+        : tr('此电脑')
+    }
+    dom.addDeviceIcon?.querySelector('use')?.setAttribute('href', deviceIconHref(pickedConn?.kind || 'local'))
+    const status = pickedConn && typeof projectDeviceRuntime === 'function' ? (projectDeviceRuntime(pickedConn).status || '') : ''
+    if (dom.addDeviceStatus) {
+      dom.addDeviceStatus.hidden = !status || status === 'offline'
+      dom.addDeviceStatus.className = `project-device-status project-device-dot${status === 'online' ? ' is-online' : status === 'preparing' ? ' is-preparing' : status === 'error' ? ' is-error' : ''}`
+    }
+    if (dom.addHomeBrowse) dom.addHomeBrowse.hidden = pickedConn?.kind === 'ssh'
+    if (dom.addHomePath) {
+      dom.addHomePath.placeholder = pickedConn
+        ? tr('例如 ~/.dsh 或 /home/user/.dsh')
+        : tr('选择文件夹；留空使用默认目录')
+    }
+    if (dom.addHomeHint) {
+      dom.addHomeHint.textContent = !pickedConn
+        ? tr('填本机 dsh 用户目录；留空使用默认目录。')
+        : pickedConn.kind === 'wsl'
+          ? tr('填 WSL 内的 dsh 用户目录；留空默认使用 ~/.dsh。')
+          : tr('填 SSH 远端主机上的 dsh 用户目录；留空默认使用 ~/.dsh。')
+    }
+  }
+
+  function positionAddDevicePanel() {
+    if (!addDevicePanel || !dom.addDeviceTrigger) return
+    if (typeof alignFloatingPanel === 'function') {
+      alignFloatingPanel(addDevicePanel, dom.addDeviceTrigger)
+      return
+    }
+    const rect = dom.addDeviceTrigger.getBoundingClientRect()
+    addDevicePanel.style.width = `${rect.width}px`
+    addDevicePanel.style.left = `${rect.left}px`
+    addDevicePanel.style.top = `${rect.bottom + 6}px`
+  }
+
+  function openAddDevicePanel() {
+    if (!addDevicePanel || !addDevicePanel.hidden) return
+    paintAddDeviceOptions(state.addDeviceValue)
+    addDevicePanel.hidden = false
+    dom.addDeviceTrigger?.setAttribute('aria-expanded', 'true')
+    positionAddDevicePanel()
+  }
+
+  function closeAddDevicePanel() {
+    if (!addDevicePanel || addDevicePanel.hidden) return
+    addDevicePanel.hidden = true
+    dom.addDeviceTrigger?.setAttribute('aria-expanded', 'false')
+  }
+
+  function openAddHomeDialog() {
+    if (!dom.addHomeDialog) return
+    if (dom.addHomeName) dom.addHomeName.value = ''
+    if (dom.addHomePath) dom.addHomePath.value = ''
+    if (dom.addHomeError) {
+      dom.addHomeError.hidden = true
+      dom.addHomeError.textContent = ''
+    }
+    // 按当前筛选标签预选合理设备：在 WSL / SSH 标签下有对应连接时默认选中第一个
+    const connections = typeof connectionsList === 'function' ? connectionsList() : []
+    let initialDevice = 'local'
+    if (state.deviceFilter === 'wsl' || state.deviceFilter === 'ssh') {
+      const firstMatch = connections.find((c) => c.kind === state.deviceFilter)
+      if (firstMatch) initialDevice = `conn:${firstMatch.id}`
+    }
+    paintAddDeviceOptions(initialDevice)
+    closeAddDevicePanel()
+    if (typeof showPackDialog === 'function') {
+      showPackDialog(dom.addHomeDialog, dom.addHomeName)
+    } else {
+      dom.addHomeDialog.hidden = false
+    }
+    setTimeout(() => dom.addHomeName?.focus(), 0)
+  }
+
+  function closeAddHomeDialog() {
+    closeAddDevicePanel()
+    if (!dom.addHomeDialog) return
+    if (typeof forceHidePackDialog === 'function') {
+      void forceHidePackDialog(dom.addHomeDialog)
+    } else {
+      dom.addHomeDialog.hidden = true
+    }
+  }
+
+  async function browseAddHomePath() {
+    const conn = addSelectedConnection()
+    if (conn?.kind === 'ssh') {
+      dom.addHomePath?.focus()
+      return
+    }
     try {
-      const picked = await pickDirectoryPath('', '选择 DSH 用户目录')
-      if (picked.canceled || !picked.path) return
-      if (picked.error) {
-        showOverviewNotice(picked.error, 'error')
+      if (conn?.kind === 'wsl' && typeof pickWslDirectory === 'function') {
+        const picked = await pickWslDirectory(conn.wslDistro, dom.addHomePath?.value || '~/.dsh', conn.wslUser || '')
+        if (!picked.canceled && picked.path && dom.addHomePath) dom.addHomePath.value = picked.path
+        else if (picked.error && dom.addHomeError) {
+          dom.addHomeError.textContent = picked.error
+          dom.addHomeError.hidden = false
+        }
         return
       }
-      state.busy = true
-      paint()
-      await post('/api/dsh-homes/add', { home: picked.path })
-      showOverviewNotice(tr('已登记用户目录：{path}', { path: picked.path }), 'ok')
+      if (typeof pickDirectoryPath !== 'function') return
+      const picked = await pickDirectoryPath(dom.addHomePath?.value || '', tr('选择 DSH 用户目录'))
+      if (!picked.canceled && picked.path && dom.addHomePath) dom.addHomePath.value = picked.path
+      else if (picked.error && dom.addHomeError) {
+        dom.addHomeError.textContent = picked.error
+        dom.addHomeError.hidden = false
+      }
+    } catch (error) {
+      if (dom.addHomeError) {
+        dom.addHomeError.textContent = error.message || String(error)
+        dom.addHomeError.hidden = false
+      }
+    }
+  }
+
+  async function submitAddHome(event) {
+    event.preventDefault()
+    if (dom.addHomeError) {
+      dom.addHomeError.hidden = true
+      dom.addHomeError.textContent = ''
+    }
+    const name = (dom.addHomeName?.value || '').trim()
+    const rawPath = (dom.addHomePath?.value || '').trim()
+    const conn = addSelectedConnection()
+    const payload = conn
+      ? { kind: conn.kind, connectionId: conn.id, remoteHome: rawPath || '~/.dsh', ...(name ? { name } : {}) }
+      : { kind: 'local', home: rawPath, ...(name ? { name } : {}) }
+
+    if (dom.addHomeSubmit) dom.addHomeSubmit.disabled = true
+    state.busy = true
+    try {
+      const res = await post('/api/dsh-homes/add', payload)
+      closeAddHomeDialog()
+      const addedKind = conn ? conn.kind : 'local'
+      if (state.deviceFilter !== 'all' && state.deviceFilter !== addedKind) {
+        state.deviceFilter = addedKind
+      }
+      showOverviewNotice(
+        conn
+          ? tr('已添加远端目录：{name}', { name: name || `${conn.name || conn.wslDistro || conn.id} · ${rawPath || '~/.dsh'}` })
+          : tr('已登记用户目录：{path}', { path: res.home || rawPath }),
+        'ok',
+      )
       await load({ silent: true, invalidateStats: true })
     } catch (error) {
-      showOverviewNotice(error.message || String(error), 'error')
+      if (dom.addHomeError) {
+        dom.addHomeError.textContent = error.message || String(error)
+        dom.addHomeError.hidden = false
+      }
     } finally {
+      if (dom.addHomeSubmit) dom.addHomeSubmit.disabled = false
       state.busy = false
       paint()
     }
@@ -1292,7 +1762,7 @@
   function openRenameDialog(h) {
     if (!h || !dom.renameDialog) return
     state.renamingHome = h.home
-    dom.renamePath.textContent = h.home
+    dom.renamePath.textContent = isRemoteHome(h) ? `${deviceBadgeOf(h).text} · ${homeDisplayPath(h)}` : homeDisplayPath(h)
     dom.renameInput.value = h.label || ''
     dom.renameError.hidden = true
     dom.renameError.textContent = ''
@@ -1348,13 +1818,14 @@
   async function removeRegisteredHome(h) {
     if (!h) return
     const ok = await appConfirm(
-      tr('仅将「{name}」（{path}）从 DSH-X 用户目录列表中移除，不会删除磁盘上的任何文件。确定移除吗？', { name: h.label, path: h.home }),
+      tr('仅将「{name}」（{path}）从 DSH-X 用户目录列表中移除，不会删除磁盘上的任何文件。确定移除吗？', { name: h.label, path: homeDisplayPath(h) }),
       { title: tr('移除目录登记'), okText: tr('移除') },
     )
     if (!ok) return
     try {
       await post('/api/dsh-homes/remove', { home: h.home })
       state.statsByHome.delete(h.home)
+      state.remoteDataByHome.delete(h.home)
       showOverviewNotice(tr('已移除目录登记「{name}」', { name: h.label }), 'ok')
       await load({ silent: true })
     } catch (error) {
@@ -1473,6 +1944,7 @@
     try {
       const res = await post('/api/sessions/workspace/remove', {
         home: w.home,
+        ...(w.remoteRawHome ? { remoteRawHome: w.remoteRawHome } : {}),
         workspaceId: w.id,
         deleteData,
       })
@@ -1587,6 +2059,7 @@
         dom.deleteBody.appendChild(list)
       }
       dom.deleteConfirm.hidden = true
+      dom.deleteConfirm.textContent = tr('永久删除')
       dom.deleteCancel.textContent = tr('完成')
       return
     }
@@ -1707,7 +2180,68 @@
 
   // ---- 事件绑定 ----
   dom.refreshBtn?.addEventListener('click', () => { showOverviewNotice(''); void load({ invalidateStats: true }) })
-  dom.addHomeBtn?.addEventListener('click', () => void addHomeDirectory())
+  dom.addHomeBtn?.addEventListener('click', () => openAddHomeDialog())
+  dom.deviceFilterBar?.addEventListener('click', (event) => {
+    const btn = event.target.closest?.('[data-device-filter]')
+    if (!btn) return
+    const next = btn.dataset.deviceFilter
+    if (!['all', 'local', 'wsl', 'ssh'].includes(next)) return
+    state.deviceFilter = next
+    paintOverview()
+  })
+
+  // 添加目录弹窗与设备选择面板事件
+  dom.addHomeForm?.addEventListener('submit', (e) => void submitAddHome(e))
+  dom.addHomeClose?.addEventListener('click', closeAddHomeDialog)
+  dom.addHomeCancel?.addEventListener('click', closeAddHomeDialog)
+  dom.addHomeDialog?.addEventListener('click', (event) => {
+    if (event.target === dom.addHomeDialog) closeAddHomeDialog()
+  })
+  if (dom.addHomeDialog && typeof trapPackDialog === 'function') {
+    trapPackDialog(dom.addHomeDialog, () => {
+      if (!addDevicePanel.hidden) { closeAddDevicePanel(); return }
+      closeAddHomeDialog()
+    })
+  }
+  dom.addHomeBrowse?.addEventListener('click', () => void browseAddHomePath())
+  dom.addDeviceTrigger?.addEventListener('click', (event) => {
+    event.stopPropagation()
+    if (addDevicePanel.hidden) openAddDevicePanel()
+    else closeAddDevicePanel()
+  })
+  addDeviceList.addEventListener('click', (event) => {
+    const option = event.target.closest?.('[data-sess-device-value]')
+    if (!option) return
+    const value = option.dataset.sessDeviceValue
+    if (value === ADD_REMOTE_DEVICE_VAL) {
+      closeAddDevicePanel()
+      if (typeof openConnectionDialog === 'function') void openConnectionDialog()
+      return
+    }
+    if (value === MANAGE_REMOTE_DEVICE_VAL) {
+      closeAddHomeDialog()
+      if (typeof openRemoteSettingsPage === 'function') openRemoteSettingsPage()
+      return
+    }
+    state.addDeviceValue = value
+    paintAddDeviceOptions(value)
+    closeAddDevicePanel()
+    if (value.startsWith('conn:')) {
+      const conn = addSelectedConnection()
+      const runtime = conn && typeof projectDeviceRuntime === 'function' ? projectDeviceRuntime(conn) : {}
+      if (conn && runtime.status !== 'online' && typeof startConnectionPrepare === 'function') {
+        void startConnectionPrepare(conn.id)
+      }
+    }
+  })
+  document.addEventListener('click', (event) => {
+    if (addDevicePanel.hidden) return
+    if (addDevicePanel.contains(event.target) || dom.addDeviceTrigger?.contains(event.target)) return
+    closeAddDevicePanel()
+  })
+  window.addEventListener('resize', () => {
+    if (!addDevicePanel.hidden) positionAddDevicePanel()
+  })
 
   dom.detailBack?.addEventListener('click', closeHome)
   dom.detailOpen?.addEventListener('click', () => { if (state.activeHome) void openHomeFolder(state.activeHome) })
@@ -1715,6 +2249,8 @@
   dom.detailRefresh?.addEventListener('click', async () => {
     showNotice('')
     await load({ invalidateStats: true })
+    const h = currentHomeObj()
+    if (h && isRemoteHome(h)) await loadRemoteHome(h.home, { force: true })
     if (state.activeHome && state.detailTab === 'analytics') await loadHomeStats(state.activeHome, { force: true })
   })
   dom.detailStop?.addEventListener('click', () => { if (state.activeHome) void stopHomes([state.activeHome]) })
@@ -1725,7 +2261,7 @@
     if (btn) setDetailTab(btn.dataset.detailTab)
   })
   dom.cleanBlankBtn?.addEventListener('click', () => {
-    const blanks = blankCandidates().map((s) => ({ home: s.home, sessionId: s.sessionId }))
+    const blanks = blankCandidates().map(sessionItemRef)
     if (!blanks.length) return
     void openDeleteDialog(blanks, { requireArchived: false, title: tr('批量清理空白会话') })
   })
@@ -1751,11 +2287,11 @@
     paint()
   })
   dom.archiveUnarchiveAll?.addEventListener('click', () => {
-    const items = filteredSessions().map((s) => ({ home: s.home, sessionId: s.sessionId }))
+    const items = filteredSessions().map(sessionItemRef)
     void runStateMutation('unarchive', items)
   })
   dom.archiveDeleteFiltered?.addEventListener('click', () => {
-    const items = filteredSessions().map((s) => ({ home: s.home, sessionId: s.sessionId }))
+    const items = filteredSessions().map(sessionItemRef)
     if (!items.length) return
     void openDeleteDialog(items, { requireArchived: true, title: tr('永久删除筛选的归档会话') })
   })
@@ -1764,7 +2300,7 @@
     const visible = filteredSessions()
     return visible
       .filter((s) => state.selected.has(keyOf(s.home, s.sessionId)))
-      .map((s) => ({ home: s.home, sessionId: s.sessionId }))
+      .map(sessionItemRef)
   }
   dom.bulkArchive?.addEventListener('click', () => void runStateMutation('archive', selectedListItems()))
   dom.bulkUnarchive?.addEventListener('click', () => void runStateMutation('unarchive', selectedListItems()))
@@ -1795,9 +2331,15 @@
 
   globalThis.sessionsUi = {
     load,
+    syncDevices() {
+      if (dom.addHomeDialog && !dom.addHomeDialog.hidden) {
+        paintAddDeviceOptions(state.addDeviceValue)
+      }
+    },
     repaint() {
       syncFilterOptions()
       paint()
+      if (dom.addHomeDialog && !dom.addHomeDialog.hidden) paintAddDeviceOptions(state.addDeviceValue)
       if (state.del) paintDeleteDialog()
     },
   }

@@ -605,6 +605,52 @@ export function safeDshHomeNames(value) {
   return names
 }
 
+/**
+ * 远端用户目录登记（WSL / SSH）：与本机 dshHomes 分开存放，避免 Linux 路径被 Windows 的 safeDshHome 拒掉。
+ * 每条记录挂到一个已配置的连接（connectionId），remoteHome 默认为 `~/.dsh`。
+ */
+export function safeRemoteDshHomes(value) {
+  const list = []
+  const seen = new Set()
+  for (const item of Array.isArray(value) ? value : []) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue
+    const kind = item.kind === 'ssh' ? 'ssh' : item.kind === 'wsl' ? 'wsl' : ''
+    if (!kind) continue
+    const connectionId = safeConnectionId(item.connectionId)
+    let wslDistro = ''
+    let wslUser = ''
+    let remoteHome = ''
+    try {
+      if (kind === 'wsl') {
+        wslDistro = safeWslDistro(item.wslDistro)
+        wslUser = safeWslUser(item.wslUser)
+      }
+      remoteHome = safeWslPath(item.remoteHome, '远端用户目录') || '~/.dsh'
+    } catch { continue }
+    if (kind === 'ssh' && !connectionId) continue
+    if (kind === 'wsl' && !connectionId && !wslDistro) continue
+    const dedupeKey = `${kind}:${connectionId || wslDistro}:${remoteHome}`
+    if (seen.has(dedupeKey)) continue
+    seen.add(dedupeKey)
+    const rawName = typeof item.name === 'string' ? item.name.trim() : ''
+    const name = rawName && rawName.length <= 64 && !/[\x00-\x1f\x7f]/.test(rawName) ? rawName : ''
+    const id = typeof item.id === 'string' && /^[a-f0-9]{16}$/.test(item.id)
+      ? item.id
+      : createHash('sha256').update(dedupeKey).digest('hex').slice(0, 16)
+    list.push({
+      id,
+      kind,
+      ...(connectionId ? { connectionId } : {}),
+      ...(wslDistro ? { wslDistro } : {}),
+      ...(wslUser ? { wslUser } : {}),
+      remoteHome,
+      ...(name ? { name } : {}),
+    })
+    if (list.length >= 50) break
+  }
+  return list
+}
+
 /** dsh 用户目录没配置时的默认位置。 */
 export function defaultDshHome() {
   return join(homedir(), '.dsh')
@@ -811,6 +857,7 @@ export const DEFAULTS = {
   // 单独登记的目录不依赖启动项，删掉最后一个 Profile 后仍能回到这里新建。
   dshHomes: [],
   dshHomeNames: {},
+  remoteDshHomes: [],
   // 额外启动参数（一行文本，空格分词，含空格的值用引号包起来）
   args: '',
   // dsh web 的绑定方式：两种都注入 --host 127.0.0.1；lan 时启动器再在局域网 IP 的同一端口上
@@ -1368,6 +1415,7 @@ async function saveSettingsNow(patch) {
   merged.wslHiddenDistros = safeWslHiddenDistros('wslHiddenDistros' in patch ? patch.wslHiddenDistros : merged.wslHiddenDistros)
   merged.dshHomes = safeDshHomes(merged.dshHomes)
   merged.dshHomeNames = safeDshHomeNames(merged.dshHomeNames)
+  merged.remoteDshHomes = safeRemoteDshHomes(merged.remoteDshHomes)
   merged.lang = 'lang' in patch ? safeLang(patch.lang) : safeLang(merged.lang)
   merged.theme = safeTheme(merged.theme)
   merged.nodeRuntime = 'nodeRuntime' in patch ? safeNodeRuntime(patch.nodeRuntime) : safeNodeRuntime(merged.nodeRuntime)

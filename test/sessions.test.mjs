@@ -18,6 +18,7 @@ import {
   removeWorkspace,
   scanHomeSessions,
 } from '../src/sessions.js'
+import { safeRemoteDshHomes } from '../src/settings.js'
 
 function makeTempHome(prefix = 'dsh-sessions-') {
   const dir = mkdtempSync(join(tmpdir(), prefix))
@@ -490,9 +491,12 @@ test('打包清单、页面入口与英文翻译完整接入', () => {
   const html = readFileSync(new URL('../src/public/index.html', import.meta.url), 'utf8')
   assert.match(html, /data-pane="sessions"/)
   assert.match(html, /id="pane-sessions"/)
+  assert.match(html, /id="sessDeviceFilterBar"/)
   assert.match(html, /id="sessHomeGrid"/)
   assert.match(html, /id="sessDetailView"/)
   assert.match(html, /id="sessTabAnalytics"/)
+  assert.match(html, /id="sessionAddHomeDialog"/)
+  assert.match(html, /id="sessAddDeviceTrigger"/)
   assert.match(html, /id="sessionHomeRenameDialog"/)
   assert.match(html, /id="sessionDeleteDialog"/)
   assert.match(html, /\/sessions-page\.js/)
@@ -501,4 +505,40 @@ test('打包清单、页面入口与英文翻译完整接入', () => {
   assert.match(en, /"归档中心":\s*"Archive center"/)
   assert.match(en, /"数据分析":\s*"Data analysis"/)
   assert.match(en, /"清理空白会话":\s*"Clean blank sessions"/)
+  assert.match(en, /"全部设备":\s*"All devices"/)
+  assert.match(en, /"目录名称":\s*"Directory name"/)
+
+  const pageJs = readFileSync(new URL('../src/public/sessions-page.js', import.meta.url), 'utf8')
+  assert.match(pageJs, /data-home="/)
+  assert.match(pageJs, /querySelectorAll\('\[data-home\]'\)/)
+  assert.match(pageJs, /\/api\/sessions\/remote\?home=/)
+  assert.match(pageJs, /sessAddDevicePanel/)
+})
+
+test('safeRemoteDshHomes 正确校验与去重 WSL / SSH 远端用户目录配置', () => {
+  const idWsl = '0123456789abcdef'
+  const idSsh = 'fedcba9876543210'
+  const cleaned = safeRemoteDshHomes([
+    { kind: 'wsl', connectionId: idWsl, wslDistro: 'Ubuntu', wslUser: 'alice', remoteHome: '~/.dsh', name: 'Ubuntu 主目录' },
+    // 相同 kind + connectionId + remoteHome 应去重（保留前者）
+    { kind: 'wsl', connectionId: idWsl, wslDistro: 'Ubuntu', remoteHome: '~/.dsh', name: '重复条目' },
+    { kind: 'ssh', connectionId: idSsh, remoteHome: '/data/dsh-prod', name: '生产机' },
+    // 无效条目：SSH 缺少或非法 connectionId / 非法相对路径 / 未知 kind
+    { kind: 'ssh', remoteHome: '~/.dsh' },
+    { kind: 'ssh', connectionId: 'not-a-hex-id', remoteHome: '~/.dsh' },
+    { kind: 'wsl', wslDistro: 'Ubuntu', remoteHome: 'relative/path' },
+    { kind: 'local', remoteHome: '~/.dsh' },
+    null,
+  ])
+  assert.equal(cleaned.length, 2)
+  assert.equal(cleaned[0].kind, 'wsl')
+  assert.equal(cleaned[0].connectionId, idWsl)
+  assert.equal(cleaned[0].wslDistro, 'Ubuntu')
+  assert.equal(cleaned[0].wslUser, 'alice')
+  assert.equal(cleaned[0].remoteHome, '~/.dsh')
+  assert.equal(cleaned[0].name, 'Ubuntu 主目录')
+  assert.equal(cleaned[1].kind, 'ssh')
+  assert.equal(cleaned[1].connectionId, idSsh)
+  assert.equal(cleaned[1].remoteHome, '/data/dsh-prod')
+  assert.equal(cleaned[1].name, '生产机')
 })
