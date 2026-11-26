@@ -57,15 +57,17 @@ def rounded_icon(size: int) -> Image.Image:
 
 
 def load_shot(name: str) -> Image.Image:
-    try:
-        raw = subprocess.check_output(
-            ['git', 'show', f'HEAD:docs/screenshots/{name}'],
-            cwd=ROOT,
-            stderr=subprocess.DEVNULL,
-        )
-        return Image.open(io.BytesIO(raw)).convert('RGBA')
-    except subprocess.CalledProcessError:
-        return Image.open(DOCS / 'screenshots' / name).convert('RGBA')
+    # 工作区里的截图才是刚拍的；只有文件不在磁盘上时才回退到 HEAD 里的版本。
+    # （反过来先读 HEAD 会让重拍过的截图被悄悄忽略，主图继续用旧的那张。）
+    local = DOCS / 'screenshots' / name
+    if local.exists():
+        return Image.open(local).convert('RGBA')
+    raw = subprocess.check_output(
+        ['git', 'show', f'HEAD:docs/screenshots/{name}'],
+        cwd=ROOT,
+        stderr=subprocess.DEVNULL,
+    )
+    return Image.open(io.BytesIO(raw)).convert('RGBA')
 
 
 def make_rounded_mask(w: int, h: int, r: int, ss: int = 4) -> Image.Image:

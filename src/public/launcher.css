@@ -4143,3 +4143,501 @@ html.reduce-motion .ra-pill.is-pending .ra-dot { animation: none; }
   #remoteMobilePanel .is-spinning svg,
   .ra-pill.is-pending .ra-dot { animation: none; }
 }
+
+/* ---- 会话管理页（方案 A：纯静态只读索引 + 离线维护） ---- */
+#pane-sessions [hidden], #sessionDeleteDialog [hidden] { display: none !important; }
+.sess-page-top { align-items: flex-start; gap: 14px; }
+.sess-top-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+/* 详情 Tab 栏右侧的轻量文字操作按钮（与实例页工具栏统一，去厚重边框与亮色胶囊） */
+.sess-top-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 28px; padding: 0 9px; border: 0; border-radius: 7px;
+  background: transparent; color: var(--muted);
+  font-size: 12px; font-weight: 500; white-space: nowrap;
+  transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
+}
+.sess-top-btn:hover:not(:disabled) { background: var(--accent-soft); border-color: transparent; color: var(--text); }
+.sess-top-btn:disabled { opacity: .42; }
+.sess-top-btn svg { width: 13.5px; height: 13.5px; flex: 0 0 auto; opacity: .85; }
+.sess-pill-count {
+  font-size: 11.5px; font-weight: 500; color: var(--muted); opacity: .76;
+  font-variant-numeric: tabular-nums;
+}
+.sess-toolbar {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: 10px 14px; margin: 12px 0 12px;
+}
+.sess-tabs {
+  flex: 0 0 auto;
+  min-width: 348px;
+  max-width: 100%;
+  padding: 3px;
+  border-radius: 11px;
+}
+.sess-tabs::after {
+  top: 3px; bottom: 3px; left: 3px;
+  width: calc((100% - 10px) / 3);
+  border-radius: 8px;
+}
+.sess-tabs[data-active="archived"]::after { transform: translateX(calc(100% + 2px)); }
+.sess-tabs[data-active="workspaces"]::after { transform: translateX(calc(200% + 4px)); }
+.sess-tabs .launch-isolation-tab {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 6px 14px; font-size: 12.5px; white-space: nowrap;
+}
+.sess-tab-count {
+  font-size: 11px; line-height: 1.2; padding: 1px 6px; border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.sess-tabs .launch-isolation-tab[aria-selected="true"] .sess-tab-count {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--text);
+}
+.sess-filters {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px;
+}
+.sess-search {
+  flex: 1 1 220px; width: auto; min-width: 180px; height: 34px;
+  margin: 0; letter-spacing: 0;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.sess-search:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+#pane-sessions .sess-search input {
+  flex: 1 1 auto; min-width: 0; height: 100%; padding: 0;
+  border: 0; border-radius: 0; outline: 0; background: transparent;
+  box-shadow: none; color: var(--text); font: inherit; font-size: 12.5px;
+}
+#pane-sessions .sess-search input::placeholder { color: var(--muted); }
+/* 接管后的自定义下拉框与搜索框等高对齐；.select-caret 是 flex 子项，右边不用按原生背景箭头留 28px */
+.sess-ui-select { flex: 0 1 auto; width: auto; min-width: 126px; max-width: 210px; }
+.sess-ui-select .select-trigger {
+  height: 34px; min-height: 34px; padding: 0 11px; border-radius: 9px;
+  font-size: 12.5px; line-height: 1; gap: 8px;
+}
+.sess-ui-select .select-value {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* 兜底：若未经过 createUiSelect 包装，原生 select 也保持干净单箭头 */
+.sess-select:not(.ui-select-native) {
+  height: 34px; padding: 0 28px 0 10px; border-radius: 9px; border: 1px solid var(--line);
+  background-color: var(--card); background-repeat: no-repeat;
+  background-position: right 10px center; background-size: 10px 6px;
+  color: var(--text); font-size: 12.5px; max-width: 210px;
+}
+.sess-check-inline {
+  display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 11px;
+  margin: 0; letter-spacing: 0;
+  border-radius: 9px; border: 1px solid var(--line); background: var(--card);
+  font-size: 12.5px; color: var(--text); cursor: pointer; user-select: none; white-space: nowrap;
+}
+.sess-check-inline input { margin: 0; width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; }
+.sess-running-banner {
+  display: flex; align-items: center; gap: 10px; padding: 9px 12px; margin-bottom: 10px;
+  border-radius: 10px; border: 1px solid color-mix(in srgb, var(--status-starting) 34%, var(--line));
+  background: color-mix(in srgb, var(--status-starting) 9%, var(--card));
+  font-size: 12.5px; color: var(--text); line-height: 1.45;
+}
+.sess-running-banner svg { width: 16px; height: 16px; flex: 0 0 auto; color: var(--status-starting); }
+.sess-running-text { flex: 1; min-width: 0; }
+.sess-notice {
+  padding: 9px 12px; margin-bottom: 10px; border-radius: 10px; font-size: 12.5px;
+  border: 1px solid var(--line); background: var(--card); color: var(--text);
+}
+.sess-notice.is-error { border-color: var(--danger-border); background: var(--danger-soft); color: var(--danger); }
+.sess-notice.is-ok {
+  border-color: color-mix(in srgb, var(--status-running) 35%, var(--line));
+  background: color-mix(in srgb, var(--status-running) 8%, var(--card));
+}
+.sess-archive-bar, .sess-bulk-bar {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 8px 12px; margin-bottom: 10px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--card);
+}
+.sess-archive-bar { justify-content: flex-start; }
+.sess-bulk-bar {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--line));
+  background: color-mix(in srgb, var(--accent-soft) 72%, var(--card));
+}
+.sess-bulk-count { font-size: 12.5px; font-weight: 600; color: var(--text); }
+.sess-bulk-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.sess-group-title {
+  font-size: 11.5px; font-weight: 600; color: var(--muted);
+  margin: 14px 4px 6px; letter-spacing: .03em; text-transform: uppercase;
+}
+.sess-group-title:first-child { margin-top: 2px; }
+.sess-list {
+  display: flex; flex-direction: column;
+  border: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+  border-radius: 12px; background: var(--card); overflow: hidden;
+}
+.sess-row {
+  display: flex; align-items: center; gap: 12px; padding: 12px 15px;
+  transition: background-color .14s ease;
+}
+.sess-row + .sess-row { border-top: 1px solid color-mix(in srgb, var(--line) 46%, transparent); }
+.sess-row:hover { background: color-mix(in srgb, var(--accent-soft) 52%, transparent); }
+.sess-row.is-archived { opacity: .88; }
+.sess-check {
+  width: 15px; height: 15px; flex: 0 0 auto; cursor: pointer;
+  accent-color: var(--accent); margin: 0;
+}
+.sess-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.sess-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.sess-title {
+  font-size: 13.5px; font-weight: 600; color: var(--text); line-height: 1.35;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
+}
+.sess-title.is-untitled { color: var(--muted); font-weight: 500; }
+.sess-badges { display: inline-flex; flex-wrap: wrap; gap: 5px; }
+.sess-badge {
+  font-size: 11px; font-weight: 500; line-height: 1.25; padding: 2px 7px; border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+  color: var(--muted); background: color-mix(in srgb, var(--accent-soft) 75%, transparent);
+}
+.sess-badge.is-pin {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 32%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.sess-badge.is-arch { color: var(--muted); }
+.sess-badge.is-blank {
+  color: var(--status-starting);
+  border-color: color-mix(in srgb, var(--status-starting) 34%, transparent);
+  background: color-mix(in srgb, var(--status-starting) 12%, transparent);
+}
+.sess-badge.is-warn { color: var(--danger); border-color: var(--danger-border); background: var(--danger-soft); }
+.sess-badge.is-orphan { color: var(--muted); border-style: dashed; background: transparent; }
+.sess-meta, .sess-submeta {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--muted); min-width: 0; line-height: 1.4;
+}
+.sess-submeta { font-size: 11.5px; opacity: .88; }
+.sess-home-tag {
+  display: inline-flex; align-items: center; gap: 5px; padding: 1px 7px; border-radius: 6px;
+  background: color-mix(in srgb, var(--accent-soft) 85%, transparent);
+  color: var(--text); font-size: 11.5px; font-weight: 500;
+}
+.sess-home-tag.is-running::before {
+  content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--status-running);
+}
+.sess-ws-name { color: var(--text); font-weight: 500; }
+.sess-path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11.5px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 360px;
+  user-select: text; opacity: .84;
+}
+.sess-id-chip {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; opacity: .72;
+}
+.sess-dot { opacity: .42; }
+.sess-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+/* 无框极简操作图标：默认柔和收拢，悬停出现柔底，减少密集按钮的视觉割裂 */
+.sess-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; padding: 0; border: 1px solid transparent; border-radius: 8px;
+  background: transparent; color: var(--muted); cursor: pointer;
+  transition: background-color .14s ease, color .14s ease, border-color .14s ease, opacity .14s ease;
+}
+.sess-icon-btn svg { width: 15px; height: 15px; }
+.sess-icon-btn:hover:not(:disabled) {
+  background: var(--accent-soft); color: var(--text);
+}
+.sess-icon-btn.is-active { color: var(--status-starting); }
+.sess-icon-btn.is-active:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--status-starting) 14%, transparent);
+  color: var(--status-starting);
+}
+.sess-icon-btn.is-danger:hover:not(:disabled) {
+  background: var(--danger-soft); color: var(--danger);
+}
+.sess-icon-btn:disabled { opacity: .32; cursor: not-allowed; }
+.sess-action-btn { padding: 5px 11px; font-size: 12px; border-radius: 8px; white-space: nowrap; }
+.sess-action-btn.is-danger { color: var(--danger); border-color: var(--danger-border); }
+.sess-action-btn.is-danger:hover:not(:disabled) { background: var(--danger-soft); }
+.sess-empty {
+  padding: 44px 16px; text-align: center; font-size: 13px; color: var(--muted);
+  border: 1px dashed color-mix(in srgb, var(--line) 75%, transparent);
+  border-radius: 12px; background: var(--card);
+}
+.sess-del-body { display: flex; flex-direction: column; gap: 12px; font-size: 13px; }
+.sess-del-summary { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); }
+.sess-del-metric { font-weight: 600; color: var(--text); }
+.sess-del-metric.is-warn { color: var(--status-starting); font-weight: 500; }
+.sess-del-metric.is-danger { color: var(--danger); }
+.sess-del-metric.is-muted { color: var(--muted); font-weight: 500; }
+.sess-del-banner {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 10px 12px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--status-starting) 40%, var(--line));
+  background: color-mix(in srgb, var(--status-starting) 10%, transparent); font-size: 12.5px;
+}
+.sess-del-section { display: flex; flex-direction: column; gap: 6px; }
+.sess-del-sec-title { font-size: 12px; font-weight: 600; color: var(--muted); }
+.sess-del-list { margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--muted); line-height: 1.55; }
+.sess-del-confirm-box {
+  display: flex; flex-direction: column; gap: 8px; padding: 10px 12px;
+  border-radius: 10px; border: 1px solid var(--danger-border); background: var(--danger-soft);
+}
+.sess-del-check { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12.5px; color: var(--text); }
+.sess-del-type-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.sess-del-type-label { font-size: 12.5px; color: var(--text); }
+.sess-del-type-input { width: 96px; height: 30px; padding: 0 8px; font-size: 12.5px; }
+.sess-del-note { margin: 4px 0; color: var(--muted); }
+.sess-del-error { margin: 4px 0; color: var(--danger); }
+button.primary.is-danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+button.primary.is-danger:disabled { opacity: .45; }
+html[data-color-scheme="dark"] .sess-list { background: color-mix(in srgb, var(--card) 92%, #000); }
+html[data-color-scheme="dark"] .sess-row:hover { background: rgba(255, 255, 255, 0.04); }
+html[data-color-scheme="dark"] .sess-icon-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.08); }
+html[data-color-scheme="dark"] .sess-icon-btn.is-danger:hover:not(:disabled) { background: var(--danger-soft); color: var(--danger); }
+html[data-color-scheme="dark"] .sess-search { background: #202024; border-color: rgba(255, 255, 255, 0.1); }
+html[data-color-scheme="dark"] .sess-search:focus-within { background: #232328; border-color: rgba(255, 255, 255, 0.26); box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.06); }
+html[data-color-scheme="dark"] .sess-ui-select .select-trigger { background-color: #202024; border-color: rgba(255, 255, 255, 0.1); }
+html[data-color-scheme="dark"] .sess-ui-select .select-trigger:hover:not(:disabled) { background-color: #28282d; border-color: rgba(255, 255, 255, 0.18); }
+html[data-color-scheme="dark"] .sess-check-inline { background: #202024; border-color: rgba(255, 255, 255, 0.1); }
+
+/* ---- 数据目录详情头、双 Tab 与静态数据分析 ---- */
+.sess-detail-path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px; user-select: text;
+}
+.sess-detail-toolbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+  margin-bottom: 14px;
+}
+.sess-detail-tabs { width: 152px; }
+.sess-detail-tabs::after { width: 50%; }
+.sess-detail-tabs[data-active="analytics"]::after { transform: translateX(100%); }
+.sess-detail-tabs .launch-isolation-tab {
+  display: inline-flex; align-items: center; justify-content: center; white-space: nowrap;
+}
+.sess-detail-tab-actions { display: flex; align-items: center; gap: 6px; }
+.sess-badge.is-running {
+  color: var(--status-running);
+  border-color: color-mix(in srgb, var(--status-running) 35%, transparent);
+  background: color-mix(in srgb, var(--status-running) 12%, transparent);
+}
+
+.sess-ana-host { display: flex; flex-direction: column; gap: 14px; }
+.sess-ana-hero {
+  padding: 16px 18px; border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+  background: var(--card); display: flex; flex-direction: column; gap: 12px;
+}
+.sess-ana-hero-top {
+  display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px;
+}
+.sess-ana-total-label { font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+.sess-ana-total-val { font-size: 24px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; line-height: 1.15; }
+.sess-ana-split { display: flex; flex-wrap: wrap; gap: 8px; }
+.sess-ana-pill {
+  display: inline-flex; align-items: center; gap: 8px; padding: 6px 11px; border-radius: 9px;
+  border: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+  background: color-mix(in srgb, var(--accent-soft) 65%, transparent);
+  font-size: 12px;
+}
+.sess-ana-pill-k { color: var(--muted); }
+.sess-ana-pill-v { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.sess-ana-bar {
+  display: flex; height: 10px; border-radius: 999px; overflow: hidden;
+  background: color-mix(in srgb, var(--accent-soft) 80%, transparent); gap: 1.5px;
+}
+.sess-ana-seg { height: 100%; min-width: 3px; transition: width .25s ease; }
+.sess-ana-legend { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 12px; color: var(--muted); }
+.sess-ana-legend-item { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+.sess-ana-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+
+.sess-ana-seg.is-sessions, .sess-ana-dot.is-sessions, .sess-ana-mini-fill.is-sessions { background: #3b82f6; }
+.sess-ana-seg.is-attachments, .sess-ana-dot.is-attachments, .sess-ana-mini-fill.is-attachments { background: #10b981; }
+.sess-ana-seg.is-memory, .sess-ana-dot.is-memory, .sess-ana-mini-fill.is-memory { background: #8b5cf6; }
+.sess-ana-seg.is-plugin-data, .sess-ana-dot.is-plugin-data, .sess-ana-mini-fill.is-plugin-data { background: #06b6d4; }
+.sess-ana-seg.is-profiles, .sess-ana-dot.is-profiles, .sess-ana-mini-fill.is-profiles { background: #f59e0b; }
+.sess-ana-seg.is-cache, .sess-ana-dot.is-cache, .sess-ana-mini-fill.is-cache { background: #94a3b8; }
+
+.sess-ana-card {
+  border: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+  border-radius: 12px; background: var(--card); overflow: hidden;
+}
+.sess-ana-card-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 12px 16px; border-bottom: 1px solid color-mix(in srgb, var(--line) 46%, transparent);
+}
+.sess-ana-card-title { margin: 0; font-size: 13.5px; font-weight: 600; color: var(--text); }
+.sess-ana-card-total { font-size: 12.5px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+.sess-ana-card-desc { margin: 0; padding: 10px 16px; font-size: 12px; color: var(--muted); line-height: 1.5; border-bottom: 1px solid color-mix(in srgb, var(--line) 35%, transparent); }
+.sess-ana-list { display: flex; flex-direction: column; }
+.sess-ana-row, .sess-ana-mount-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 11px 16px;
+}
+.sess-ana-row + .sess-ana-row, .sess-ana-mount-row + .sess-ana-mount-row {
+  border-top: 1px solid color-mix(in srgb, var(--line) 42%, transparent);
+}
+.sess-ana-row-main, .sess-ana-mount-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.sess-ana-row-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.sess-ana-row-title { font-size: 13px; font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sess-ana-row-size { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.sess-ana-row-sub { font-size: 11.5px; color: var(--muted); line-height: 1.4; }
+.sess-ana-mini-track {
+  height: 4px; border-radius: 999px; overflow: hidden;
+  background: color-mix(in srgb, var(--accent-soft) 80%, transparent); margin-top: 2px;
+}
+.sess-ana-mini-fill { height: 100%; border-radius: 999px; }
+.sess-ana-row-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.sess-ana-empty-row { padding: 14px 16px; font-size: 12.5px; color: var(--muted); }
+html[data-color-scheme="dark"] .sess-ana-hero,
+html[data-color-scheme="dark"] .sess-ana-card { background: color-mix(in srgb, var(--card) 92%, #000); }
+
+/* ---- 数据目录总览卡片精修 ---- */
+.sess-home-card-btn {
+  align-items: flex-start;
+  padding: 15px 54px 15px 16px;
+  gap: 13px;
+  cursor: pointer;
+}
+.sess-home-card-btn .pack-tile { margin-top: 2px; flex-shrink: 0; }
+.sess-home-card-body {
+  display: flex; flex-direction: column; gap: 3px; min-width: 0; text-align: left;
+}
+.sess-home-card-summary {
+  font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; line-height: 1.4;
+}
+.sess-home-card-path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px; color: var(--muted); opacity: .72;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sess-home-card-tags {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px;
+}
+.sess-card-tag {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11.5px; line-height: 1.25; padding: 2px 9px; border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+  background: color-mix(in srgb, var(--accent-soft) 72%, transparent);
+  color: var(--muted); white-space: nowrap;
+}
+.sess-card-tag.is-running {
+  color: var(--status-running);
+  border-color: color-mix(in srgb, var(--status-running) 34%, transparent);
+  background: color-mix(in srgb, var(--status-running) 12%, transparent);
+}
+.sess-card-tag.is-running::before {
+  content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--status-running);
+}
+.sess-card-tag.is-warn {
+  color: var(--status-starting);
+  border-color: color-mix(in srgb, var(--status-starting) 34%, transparent);
+  background: color-mix(in srgb, var(--status-starting) 12%, transparent);
+}
+html[data-color-scheme="dark"] .sess-home-card-btn:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: #2c2d32;
+}
+
+/* ---- 本机 / WSL / SSH 设备筛选栏、分组标题与远端状态 ---- */
+.sess-device-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  margin-bottom: 14px;
+}
+.sess-device-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 31px; padding: 0 11px; border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--line) 76%, transparent);
+  background: var(--card); color: var(--muted);
+  font: inherit; font-size: 12.5px; font-weight: 500;
+  cursor: pointer; white-space: nowrap;
+  transition: background-color .14s ease, border-color .14s ease, color .14s ease;
+}
+.sess-device-pill svg { width: 13.5px; height: 13.5px; flex: 0 0 auto; opacity: .82; }
+.sess-device-pill:hover {
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--line));
+  color: var(--text);
+}
+.sess-device-pill.is-active {
+  border-color: color-mix(in srgb, var(--accent) 46%, var(--line));
+  background: color-mix(in srgb, var(--accent) 12%, var(--card));
+  color: var(--text);
+}
+.sess-device-pill.is-active svg { color: var(--accent); opacity: 1; }
+.sess-pill-mini {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 17px; height: 17px; padding: 0 5px; border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+  color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums;
+}
+.sess-device-pill.is-active .sess-pill-mini {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+}
+.sess-device-section + .sess-device-section { margin-top: 18px; }
+.sess-device-section-head {
+  display: flex; align-items: center; gap: 7px;
+  margin: 0 2px 9px; font-size: 12px; font-weight: 600; color: var(--muted);
+}
+.sess-device-section-head svg { width: 14px; height: 14px; opacity: .82; }
+.sess-device-section-count {
+  font-size: 11px; font-weight: 500; opacity: .72; font-variant-numeric: tabular-nums;
+}
+.sess-card-tag.is-local {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--line) 85%, transparent);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+.sess-card-tag.is-wsl {
+  color: #0284c7;
+  border-color: rgba(2, 132, 199, 0.3);
+  background: rgba(2, 132, 199, 0.1);
+}
+.sess-card-tag.is-ssh {
+  color: #7c3aed;
+  border-color: rgba(124, 58, 237, 0.3);
+  background: rgba(124, 58, 237, 0.1);
+}
+html[data-color-scheme="dark"] .sess-card-tag.is-wsl {
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.32);
+  background: rgba(56, 189, 248, 0.13);
+}
+html[data-color-scheme="dark"] .sess-card-tag.is-ssh {
+  color: #c084fc;
+  border-color: rgba(192, 132, 252, 0.32);
+  background: rgba(192, 132, 252, 0.13);
+}
+html[data-color-scheme="dark"] .sess-device-pill {
+  background: #202024;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+html[data-color-scheme="dark"] .sess-device-pill:hover {
+  background: #28282d;
+  border-color: rgba(255, 255, 255, 0.18);
+}
+html[data-color-scheme="dark"] .sess-device-pill.is-active {
+  background: color-mix(in srgb, var(--accent) 18%, #202024);
+  border-color: color-mix(in srgb, var(--accent) 48%, rgba(255, 255, 255, 0.12));
+}
+.sess-remote-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; padding: 44px 20px; text-align: center;
+  border: 1px dashed color-mix(in srgb, var(--line) 75%, transparent);
+  border-radius: 12px; background: var(--card); color: var(--muted); font-size: 13px;
+}
+.sess-remote-state svg { width: 22px; height: 22px; opacity: .75; }
+.sess-remote-state.is-error {
+  border-color: var(--danger-border);
+  background: color-mix(in srgb, var(--danger-soft) 55%, var(--card));
+  color: var(--danger);
+}
+.sess-remote-state-title { font-weight: 600; color: var(--text); font-size: 13.5px; }
+.sess-remote-state.is-error .sess-remote-state-title { color: var(--danger); }
+.sess-remote-state-desc { max-width: 460px; line-height: 1.55; }
+#sessionAddHomeDialog .primary .spin { display: none; }
+#sessionAddHomeDialog .primary:disabled .spin { display: inline-block; }
+
+
+
+
