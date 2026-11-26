@@ -64,6 +64,7 @@ const APP_FILES = [
   'filemanager-base.js',
   'fs-utils.js',
   'storage-stats.js',
+  'sessions.js',
   'profile-backups.js',
   'plugins.js',
   'pre-update.js',

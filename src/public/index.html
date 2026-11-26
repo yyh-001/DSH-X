@@ -40,7 +40,7 @@
       })
     })()
   </script>
-  <link rel="stylesheet" href="/launcher.css?v=20261121b" />
+  <link rel="stylesheet" href="/launcher.css?v=20261125e" />
   <link rel="stylesheet" href="/mascot.css?v=20261119" />
   <link rel="stylesheet" href="/theme.css?v=20261120e" />
   <link rel="stylesheet" href="/launcher-boot.css?v=20261119" />
@@ -116,6 +116,10 @@
           <button type="button" class="nav-item" data-pane="environments">
             <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-package"/></svg>
             <span data-i18n="实例">实例</span>
+          </button>
+          <button type="button" class="nav-item" data-pane="sessions">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-folder-user"/></svg>
+            <span data-i18n="数据">数据</span>
           </button>
           <button type="button" class="nav-item" data-pane="remote">
             <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-server"/></svg>
@@ -655,6 +659,132 @@
                   </div>
                 </div>
               </details>
+            </div>
+          </div>
+        </section>
+        <section class="pane" id="pane-sessions">
+          <div class="pane-inner">
+            <!-- 一级：用户目录（数据卷）总览，复用实例页的卡片网格语言 -->
+            <div class="pane-top" id="sessTop">
+              <div>
+                <h1 class="pane-title" data-i18n="数据">数据</h1>
+                <p class="pane-sub" data-i18n="管理各用户目录的会话、记忆与附件，与实例环境分离挂载。">管理各用户目录的会话、记忆与附件，与实例环境分离挂载。</p>
+              </div>
+              <div class="pane-actions">
+                <button class="ghost pane-action icon-only" id="sessRefresh" type="button" title="刷新" aria-label="刷新" data-i18n-title="刷新" data-i18n-aria-label="刷新"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-refresh-cw"/></svg></button>
+                <button class="ghost pane-action" id="sessAddHome" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-plus"/></svg><span data-i18n="添加目录">添加目录</span></button>
+              </div>
+            </div>
+            <div id="sessOverview">
+              <div class="sess-device-bar" id="sessDeviceFilterBar" role="tablist" aria-label="按设备筛选" data-i18n-aria-label="按设备筛选">
+                <button type="button" class="sess-device-pill is-active" role="tab" data-device-filter="all" aria-selected="true"><span data-i18n="全部设备">全部设备</span><span class="sess-pill-mini" id="sessDevCountAll">0</span></button>
+                <button type="button" class="sess-device-pill" role="tab" data-device-filter="local" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-app-window"/></svg><span data-i18n="本机">本机</span><span class="sess-pill-mini" id="sessDevCountLocal">0</span></button>
+                <button type="button" class="sess-device-pill" role="tab" data-device-filter="wsl" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-box"/></svg><span data-i18n="WSL">WSL</span><span class="sess-pill-mini" id="sessDevCountWsl">0</span></button>
+                <button type="button" class="sess-device-pill" role="tab" data-device-filter="ssh" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-globe"/></svg><span data-i18n="SSH">SSH</span><span class="sess-pill-mini" id="sessDevCountSsh">0</span></button>
+              </div>
+              <div class="sess-notice" id="sessOverviewNotice" role="status" aria-live="polite" hidden></div>
+              <div id="sessHomeGrid"></div>
+              <p class="hint" id="sessOverviewHint" role="status" aria-live="polite"></p>
+            </div>
+            <!-- 二级：单个用户目录详情（会话 Tab + 数据分析 Tab） -->
+            <div id="sessDetailView" hidden>
+              <div class="pack-detail-top">
+                <button class="ghost icon-btn pack-back" id="sessDetailBack" type="button" title="返回用户目录列表" aria-label="返回用户目录列表" data-i18n-title="返回用户目录列表" data-i18n-aria-label="返回用户目录列表"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-arrow-left"/></svg></button>
+                <div class="pack-detail-heading">
+                  <span class="pack-detail-name" id="sessDetailName"></span>
+                  <span class="pack-detail-sub sess-detail-path" id="sessDetailPath"></span>
+                </div>
+                <div class="pack-detail-actions">
+                  <button class="ghost icon-btn pack-tool" id="sessDetailOpen" type="button" title="打开目录" aria-label="打开目录" data-i18n-title="打开目录" data-i18n-aria-label="打开目录"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-folder"/></svg></button>
+                  <button class="ghost icon-btn pack-tool" id="sessDetailRename" type="button" title="重命名目录" aria-label="重命名目录" data-i18n-title="重命名目录" data-i18n-aria-label="重命名目录"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-pencil"/></svg></button>
+                  <button class="ghost icon-btn pack-tool" id="sessDetailRefresh" type="button" title="刷新" aria-label="刷新" data-i18n-title="刷新" data-i18n-aria-label="刷新"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-refresh-cw"/></svg></button>
+                  <button class="ghost icon-btn pack-tool danger" id="sessDetailStop" type="button" title="停止该目录实例" aria-label="停止该目录实例" data-i18n-title="停止该目录实例" data-i18n-aria-label="停止该目录实例" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-ban"/></svg></button>
+                </div>
+              </div>
+              <div class="environment-toolbar sess-detail-toolbar">
+                <div class="launch-isolation-tabs environment-tabs sess-detail-tabs" id="sessDetailTabs" role="tablist" aria-label="目录内容" data-i18n-aria-label="目录内容" data-active="sessions">
+                  <button type="button" class="launch-isolation-tab" role="tab" data-detail-tab="sessions" aria-selected="true" data-i18n="会话">会话</button>
+                  <button type="button" class="launch-isolation-tab" role="tab" data-detail-tab="analytics" aria-selected="false" data-i18n="数据分析">数据分析</button>
+                </div>
+                <div class="sess-detail-tab-actions">
+                  <button class="ghost sess-top-btn" id="sessCleanBlank" type="button" disabled>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-sparkles"/></svg>
+                    <span data-i18n="清理空白会话">清理空白会话</span>
+                    <span class="sess-pill-count" id="sessCleanBlankCount">0</span>
+                  </button>
+                </div>
+              </div>
+              <div class="sess-running-banner" id="sessRunningBanner" hidden>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-info"/></svg>
+                <span class="sess-running-text" id="sessRunningText"></span>
+                <button class="ghost sess-action-btn" id="sessRunningStopBtn" type="button" data-i18n="停止实例">停止实例</button>
+              </div>
+              <div class="sess-notice" id="sessNotice" role="status" aria-live="polite" hidden></div>
+
+              <!-- 详情 Tab 1：会话管理（当前用户目录作用域） -->
+              <div id="sessTabSessions">
+                <div class="sess-toolbar">
+                  <div class="launch-isolation-tabs sess-tabs" id="sessTabs" role="tablist" aria-label="会话视图" data-i18n-aria-label="会话视图" data-active="all">
+                    <button type="button" class="launch-isolation-tab" role="tab" data-sess-tab="all" aria-selected="true">
+                      <span data-i18n="全部会话">全部会话</span>
+                      <span class="sess-tab-count" id="sessTabAllCount">0</span>
+                    </button>
+                    <button type="button" class="launch-isolation-tab" role="tab" data-sess-tab="archived" aria-selected="false">
+                      <span data-i18n="归档中心">归档中心</span>
+                      <span class="sess-tab-count" id="sessTabArchivedCount">0</span>
+                    </button>
+                    <button type="button" class="launch-isolation-tab" role="tab" data-sess-tab="workspaces" aria-selected="false">
+                      <span data-i18n="工作区">工作区</span>
+                      <span class="sess-tab-count" id="sessTabWorkspacesCount">0</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="sess-filters">
+                  <label class="remote-device-search sess-search">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-search"/></svg>
+                    <input id="sessSearch" type="search" autocomplete="off" spellcheck="false" placeholder="搜索标题、工作区、路径或 Session ID" data-placeholder-i18n="搜索标题、工作区、路径或 Session ID" aria-label="搜索会话" data-i18n-aria-label="搜索会话" />
+                  </label>
+                  <select class="sess-select" id="sessWorkspaceFilter" aria-label="按工作区筛选" data-i18n-aria-label="按工作区筛选"></select>
+                  <select class="sess-select" id="sessStatusFilter" aria-label="按状态筛选" data-i18n-aria-label="按状态筛选">
+                    <option value="active" data-i18n="未归档">未归档</option>
+                    <option value="all" data-i18n="全部（含已归档）">全部（含已归档）</option>
+                    <option value="blank" data-i18n="仅空白会话">仅空白会话</option>
+                    <option value="orphan" data-i18n="仅未挂载孤儿">仅未挂载孤儿</option>
+                    <option value="subagent" data-i18n="仅子会话">仅子会话</option>
+                  </select>
+                  <label class="sess-check-inline" id="sessStaleOnlyWrap" hidden>
+                    <input type="checkbox" id="sessStaleOnly" />
+                    <span data-i18n="仅显示疑似不再使用">仅显示疑似不再使用</span>
+                  </label>
+                  <select class="sess-select" id="sessSortSelect" aria-label="排序方式" data-i18n-aria-label="排序方式">
+                    <option value="updated" data-i18n="按最近活动">按最近活动</option>
+                    <option value="created" data-i18n="按创建时间">按创建时间</option>
+                    <option value="bytes" data-i18n="按磁盘占用">按磁盘占用</option>
+                    <option value="title" data-i18n="按标题">按标题</option>
+                  </select>
+                </div>
+                <div class="sess-archive-bar" id="sessArchiveToolbar" hidden>
+                  <button class="ghost sess-action-btn" id="sessArchiveSelectAll" type="button" data-i18n="全选当前筛选">全选当前筛选</button>
+                  <button class="ghost sess-action-btn" id="sessArchiveUnarchiveAll" type="button" data-i18n="全部取消归档">全部取消归档</button>
+                  <button class="ghost sess-action-btn is-danger" id="sessArchiveDeleteFiltered" type="button" data-i18n="永久删除筛选结果">永久删除筛选结果</button>
+                </div>
+                <div class="sess-bulk-bar" id="sessBulkBar" hidden>
+                  <span class="sess-bulk-count" id="sessBulkCount"></span>
+                  <div class="sess-bulk-actions">
+                    <button class="ghost sess-action-btn" id="sessBulkArchive" type="button" data-i18n="批量归档">批量归档</button>
+                    <button class="ghost sess-action-btn" id="sessBulkUnarchive" type="button" data-i18n="批量取消归档">批量取消归档</button>
+                    <button class="ghost sess-action-btn" id="sessBulkUnpin" type="button" data-i18n="取消置顶">取消置顶</button>
+                    <button class="ghost sess-action-btn is-danger" id="sessBulkDelete" type="button" data-i18n="永久删除">永久删除</button>
+                    <button class="ghost sess-action-btn" id="sessBulkClear" type="button" data-i18n="取消选择">取消选择</button>
+                  </div>
+                </div>
+                <div class="sess-list-host" id="sessListHost"></div>
+              </div>
+
+              <!-- 详情 Tab 2：目录静态数据分析（用户数据层 vs 实例运行时层） -->
+              <div id="sessTabAnalytics" hidden>
+                <div class="sess-ana-host" id="sessAnalyticsHost"></div>
+              </div>
             </div>
           </div>
         </section>
@@ -1839,6 +1969,70 @@
       </div>
     </div>
   </div>
+  <div class="ask" id="sessionAddHomeDialog" hidden>
+    <form class="ask-card" id="sessAddHomeForm" role="dialog" aria-modal="true" aria-labelledby="sessAddHomeTitle" data-dialog-size="small">
+      <div class="dialog-heading">
+        <h2 class="ask-title" id="sessAddHomeTitle" data-i18n="添加目录">添加目录</h2>
+        <button class="ghost icon-btn dialog-close" id="sessAddHomeClose" type="button" title="关闭" aria-label="关闭" data-i18n-title="关闭" data-i18n-aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-x"/></svg></button>
+      </div>
+      <div class="launch-modal-fields">
+        <div class="home-field">
+          <label for="sessAddHomeName" data-i18n="目录名称">目录名称</label>
+          <input id="sessAddHomeName" type="text" maxlength="64" autocomplete="off" data-placeholder-i18n="新目录（可选）" />
+        </div>
+        <div class="home-field">
+          <label for="sessAddDeviceTrigger" data-i18n="设备">设备</label>
+          <div class="project-device-control">
+            <button class="project-device-trigger" id="sessAddDeviceTrigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="sessAddDevicePanel">
+              <svg class="project-device-kind-icon" id="sessAddDeviceIcon" viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-app-window"/></svg>
+              <span class="project-device-label" id="sessAddDeviceLabel" data-i18n="此电脑">此电脑</span>
+              <span class="project-device-status" id="sessAddDeviceStatus" hidden></span>
+              <svg class="project-device-caret" viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-chevron-down"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="home-field">
+          <label for="sessAddHomePath" data-i18n="源文件夹">源文件夹</label>
+          <div class="control-row">
+            <input id="sessAddHomePath" type="text" autocomplete="off" spellcheck="false" data-placeholder-i18n="选择文件夹；留空使用默认目录" />
+            <button class="ghost browse-btn" id="sessAddHomeBrowse" type="button" title="浏览…" aria-label="浏览…" data-i18n-title="浏览…" data-i18n-aria-label="浏览…"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-folder"/></svg></button>
+          </div>
+          <p class="hint" id="sessAddHomeHint" data-i18n="填本机 dsh 用户目录；留空使用默认目录。">填本机 dsh 用户目录；留空使用默认目录。</p>
+        </div>
+        <p class="hint profile-error" id="sessAddHomeError" role="alert" hidden></p>
+      </div>
+      <div class="profile-dialog-actions">
+        <button class="ghost" id="sessAddHomeCancel" type="button" data-i18n="取消">取消</button>
+        <button class="primary" id="sessAddHomeSubmit" type="submit"><span class="spin" aria-hidden="true"></span><span data-i18n="添加目录">添加目录</span></button>
+      </div>
+    </form>
+  </div>
+  <div class="ask" id="sessionHomeRenameDialog" hidden>
+    <form class="ask-card" id="sessHomeRenameForm" role="dialog" aria-modal="true" aria-labelledby="sessHomeRenameTitle" data-dialog-size="small">
+      <button type="button" class="ask-close" id="sessHomeRenameClose" title="关闭" aria-label="关闭" data-i18n-title="关闭" data-i18n-aria-label="关闭">×</button>
+      <h2 class="ask-title" id="sessHomeRenameTitle" data-i18n="重命名目录">重命名目录</h2>
+      <div class="dialog-body sess-del-body">
+        <p class="sess-del-note sess-detail-path" id="sessHomeRenamePath"></p>
+        <input id="sessHomeRenameInput" type="text" maxlength="64" autocomplete="off" spellcheck="false" placeholder="输入目录显示名称（1-64 个字符）" data-placeholder-i18n="输入目录显示名称（1-64 个字符）" />
+        <p class="sess-del-error" id="sessHomeRenameError" hidden></p>
+      </div>
+      <div class="ask-actions">
+        <button type="button" class="ghost" id="sessHomeRenameCancel" data-i18n="取消">取消</button>
+        <button type="submit" class="primary" id="sessHomeRenameSave" data-i18n="保存">保存</button>
+      </div>
+    </form>
+  </div>
+  <div class="ask" id="sessionDeleteDialog" hidden>
+    <div class="ask-card sess-del-card" role="dialog" aria-modal="true" aria-labelledby="sessDeleteTitle" data-dialog-size="medium">
+      <button type="button" class="ask-close" id="sessDeleteClose" title="关闭" aria-label="关闭" data-i18n-title="关闭" data-i18n-aria-label="关闭">×</button>
+      <h2 class="ask-title" id="sessDeleteTitle" data-i18n="永久删除会话">永久删除会话</h2>
+      <div class="dialog-body sess-del-body" id="sessDeleteBody"></div>
+      <div class="ask-actions">
+        <button type="button" class="ghost" id="sessDeleteCancel" data-i18n="取消">取消</button>
+        <button type="button" class="primary is-danger" id="sessDeleteConfirm" disabled data-i18n="永久删除">永久删除</button>
+      </div>
+    </div>
+  </div>
   <div class="gone" id="gone" hidden>
     <div>
       <div class="gone-title" data-i18n="DSH-X 已退出">DSH-X 已退出</div>
@@ -1848,7 +2042,7 @@
   </div>
   <script src="/log-view.js"></script>
   <script src="/ui-helpers.js?v=20261121"></script>
-  <script src="/i18n-en.js?v=20261121"></script>
+  <script src="/i18n-en.js?v=20261125e"></script>
   <script>
     // ---- 界面双语：字典按中文原文做 key，没翻到的原样显示中文（不会漏、不会崩） ----
     const LANG = '__APP_LANG__'
@@ -1916,6 +2110,7 @@
         () => renderPackGrid(),
         () => environmentState.repaint?.(),
         () => globalThis.remoteAccessUi?.repaint?.(),
+        () => globalThis.sessionsUi?.repaint?.(),
       ]
       for (const paint of painters) {
         try { paint() } catch { /* 这一块还没初始化 */ }
@@ -3654,7 +3849,7 @@
     const panes = [...document.querySelectorAll('.pane')]
     const gearEl = document.getElementById('settingsEntry')
     // 进面板时按需加载：和以前 tab 的行为一致，不做无谓请求
-    const paneLoaders = { plugins: loadPlugins, settings: loadSettings, remote: paintRemoteSettings }
+    const paneLoaders = { plugins: loadPlugins, settings: loadSettings, remote: paintRemoteSettings, sessions: () => globalThis.sessionsUi?.load() }
     let currentPane = 'control'
     let currentSettingsCategory = 'general'
     const settingsCategories = {
@@ -4889,6 +5084,7 @@
       }
       if (!connectionProgressDialogEl.hidden && activePrepareId === prepare.connectionId) renderConnectionProgress()
       if (!projectDialogEl.hidden) paintProjectDevices(projectDevicePicked)
+      globalThis.sessionsUi?.syncDevices?.()
       if (currentPane === 'remote') paintRemoteSettings()
     }
 
@@ -9768,6 +9964,7 @@
         }
       }
       if (!projectDialogEl.hidden) paintProjectDevices(projectDevicePicked)
+      globalThis.sessionsUi?.syncDevices?.()
       if (currentPane === 'remote') paintRemoteSettings()
       if (previouslyRunning !== launcherRunning()) {
         if (!packInstallDialog.hidden) renderPackInspect()
@@ -13030,6 +13227,7 @@
   <script src="/env-launch-config.js?v=20261121"></script>
   <script src="/environments-page.js?v=20261121b"></script>
   <script src="/remote-access.js?v=20261122"></script>
+  <script src="/sessions-page.js?v=20261125e"></script>
   <script src="/idle.js" defer></script>
   <script src="/mascot.js" defer></script>
   <script src="/water.js" defer></script>

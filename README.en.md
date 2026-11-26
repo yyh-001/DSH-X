@@ -122,7 +122,15 @@ sha256sum DSH-X-<version>-linux-x64.AppImage             # Linux
 
 </details>
 
-## Isolation Modes
+## Instances, Data & Isolation
+
+DSH-X separates runtime environments from user data, mirroring Docker's "Image × Volume = Container" model:
+
+| Docker Concept | DSH-X Equivalent | Location & Scope |
+| --- | --- | --- |
+| **Image** | **Instance (Environment)** | Launcher `envs/<id>`: DSH version + plugin manifest only, no user data |
+| **Volume** | **User Directory (`DSH_HOME`)** | Any folder (e.g. `~/.dsh`, `D:\dsh-work`): sessions, memory, attachments, credentials |
+| **Container** | **Launch Preset** | Each home entry = **pick an Instance + mount a User Directory** |
 
 Pick the isolation level when creating a launch entry (user and version directories are prevented from being placed inside the launcher install folder):
 
