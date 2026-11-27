@@ -7,7 +7,7 @@
 // 完整性用 npm 的 dist.integrity（sha512）校验；registry 走设置里的下载源（官方/镜像）。
 
 import { spawnSync } from 'node:child_process'
-import { createHash } from 'node:crypto'
+import { createHash, createPublicKey, verify as verifySignature } from 'node:crypto'
 import { chmodSync, createWriteStream, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -38,6 +38,68 @@ export function coreRegistry(source = 'official') {
   return CORE_REGISTRIES[source] || CORE_REGISTRIES.official
 }
 
+/**
+ * 显式指定了 registry（本地演练、自建源）：那上面的包不是 npm 官方签的，签名和 https 两条都不强求。
+ * 默认的镜像 / 官方两条路一律校验。
+ */
+export function customRegistry() {
+  return Boolean(String(process.env.DSH_CORE_REGISTRY || '').trim())
+}
+
+/**
+ * npm 官方 registry 的签名公钥（https://registry.npmjs.org/-/npm/v1/keys，ECDSA P-256）。
+ *
+ * integrity 和 tarball 地址来自同一份元数据，下载源又默认是镜像：只校验 sha512 的话，
+ * 镜像被攻破就能发一份哈希对得上的假核心。npm 对每个版本的 `包名@版本:integrity` 签过名，
+ * 镜像原样转发却伪造不了；拿钉死的公钥验它，信任根就回到 npm 官方，跟走哪个源无关。
+ * 和 shell/core-fetch.mjs 里那份保持一致（外壳与核心互不 import，只能各放一份）。
+ */
+export const NPM_SIGNING_KEYS = Object.freeze([
+  {
+    keyid: 'SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U',
+    key: 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEY6Ya7W++7aUPzvMTrezH6Ycx3c+HOKYCcNGybJZSCJq/fd7Qa8uuAKtdIkUQtQiEKERhAmE5lMMJhP8OkDOa2g==',
+  },
+])
+/** npm 轮换密钥后的出路：只从官方域名取新公钥，绝不问镜像。 */
+const NPM_KEYS_URL = `${CORE_REGISTRIES.official}/-/npm/v1/keys`
+
+function signedBy(release, name, keys) {
+  const message = Buffer.from(`${name}@${release.version}:${release.integrity}`)
+  for (const signature of Array.isArray(release.signatures) ? release.signatures : []) {
+    const pinned = keys.find((item) => item.keyid === signature?.keyid)
+    if (!pinned) continue
+    try {
+      const key = createPublicKey({ key: Buffer.from(pinned.key, 'base64'), format: 'der', type: 'spki' })
+      if (verifySignature('sha256', message, key, Buffer.from(String(signature.sig || ''), 'base64'))) return true
+    } catch { /* 公钥或签名格式不对就当没验过 */ }
+  }
+  return false
+}
+
+/**
+ * 确认这个版本是 npm 官方签过的；不是就抛错。
+ * 先用钉死的公钥；签名用的是没见过的 keyid（npm 换了密钥）时去官方域名取一次当前公钥再验，
+ * 否则一次密钥轮换就会让核心再也更新不了。`fetchImpl` 只给测试注入。
+ */
+export async function verifyCoreRelease(release, { name = CORE_PACKAGE, fetchImpl = netFetch, signal } = {}) {
+  if (customRegistry()) return
+  if (!/^sha512-/.test(String(release?.integrity || ''))) throw new Error(`${name}@${release?.version} 的元数据里没有 sha512 校验值`)
+  if (signedBy(release, name, NPM_SIGNING_KEYS)) return
+  const known = new Set(NPM_SIGNING_KEYS.map((item) => item.keyid))
+  const unknown = (Array.isArray(release.signatures) ? release.signatures : []).some((item) => item?.keyid && !known.has(item.keyid))
+  if (unknown) {
+    let fresh = []
+    try {
+      const res = await fetchImpl(NPM_KEYS_URL, { headers: { accept: 'application/json' }, signal: signal || AbortSignal.timeout(15_000) })
+      if (res.ok) {
+        fresh = ((await res.json())?.keys || []).filter((item) => item?.keyid && item?.key && (!item.expires || Date.parse(item.expires) > Date.now()))
+      }
+    } catch { /* 取不到就按验不过处理 */ }
+    if (signedBy(release, name, fresh)) return
+  }
+  throw new Error(`${name}@${release?.version} 没有通过 npm 官方签名校验，已拒绝安装`)
+}
+
 export function coreMetadataUrl(registry, name = CORE_PACKAGE) {
   return `${String(registry).replace(/\/+$/, '')}/${name.startsWith('@') ? name.replace('/', '%2F') : name}`
 }
@@ -65,6 +127,8 @@ function releaseOf(version, info) {
     tarball: String(dist.tarball || ''),
     integrity: String(dist.integrity || ''),
     shasum: String(dist.shasum || ''),
+    // npm 官方对「包名@版本:integrity」的签名，verifyCoreRelease 用它确认元数据没被镜像改过
+    signatures: Array.isArray(dist.signatures) ? dist.signatures : [],
     unpackedSize: Number(dist.unpackedSize) || 0,
     // 发布脚本写进核心 package.json：这份核心是按哪个 Electron 版本构建/验证的
     electron: String(info.dshX?.electron || ''),
@@ -143,9 +207,15 @@ export async function checkCoreUpdateAny({ current, source = 'official', channel
   return { available: true, current, latest: best.version, release: best }
 }
 
-/** 下载 tarball，边下边算 sha512；有 integrity 就按 npm 的 SRI 校验，否则退回 sha1。 */
-export async function downloadCoreTarball(url, dest, { integrity = '', shasum = '', signal, onProgress, limit = CORE_MAX_BYTES } = {}) {
+/**
+ * 下载 tarball，边下边算 sha512，按 npm 的 SRI（integrity）校验。
+ * 没有 sha512 就不下：以前会退回 sha1、两样都没有时干脆不校验，元数据里少一项就等于放行。
+ * 地址只认 https（自己指定 registry 的演练除外）——元数据可以把 tarball 指到任何地方。
+ */
+export async function downloadCoreTarball(url, dest, { integrity = '', signal, onProgress, limit = CORE_MAX_BYTES } = {}) {
   if (!url) throw new Error('核心包没有下载地址')
+  if (!/^sha512-.+/.test(String(integrity || ''))) throw new Error('核心包没有 sha512 校验值，已拒绝下载')
+  if (!customRegistry() && !/^https:\/\//i.test(String(url))) throw new Error(`核心包的下载地址不是 https：${url}`)
   const res = await netFetch(url, { redirect: 'follow', signal })
   if (!res.ok) throw new Error(`下载核心包失败：HTTP ${res.status}`)
   const total = Number(res.headers.get('content-length')) || 0
@@ -179,18 +249,10 @@ export async function downloadCoreTarball(url, dest, { integrity = '', shasum = 
     throw error
   }
   const digest = hash.digest('base64')
-  if (integrity) {
-    const expected = String(integrity).replace(/^sha512-/, '')
-    if (digest !== expected) {
-      rmSync(dest, { force: true })
-      throw new Error('核心包的 sha512 校验失败')
-    }
-  } else if (shasum) {
-    const sha1 = createHash('sha1').update(readFileSync(dest)).digest('hex')
-    if (sha1 !== String(shasum).toLowerCase()) {
-      rmSync(dest, { force: true })
-      throw new Error('核心包的 sha1 校验失败')
-    }
+  if (digest !== String(integrity).replace(/^sha512-/, '')) {
+    // 校验不过的文件别留在临时目录里
+    rmSync(dest, { force: true })
+    throw new Error('核心包的 sha512 校验失败')
   }
   return { bytes: done, sha512: digest }
 }

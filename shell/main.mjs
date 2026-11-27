@@ -23,6 +23,7 @@ import {
   LAUNCH_ACTIONS,
   internalMode,
   isExternalWebUrl,
+  isInstanceUrl,
   isLoopbackUrl,
   isWebUrl,
   launchActionEnabled,
@@ -134,6 +135,11 @@ const browserGuests = new DesktopBrowserGuests(() => {
   for (const owner of browserGuestOwners) {
     if (owner.isDestroyed()) continue
     try { origins.push(new URL(owner.getURL()).origin) } catch { /* 加载中的页面没有 URL */ }
+  }
+  // 管理页和实例的 cookie 都在外壳的会话里，guest 里的网页把它们嵌进 iframe 或直接导航过去，
+  // 就等于借用户的登录态操作启动器；没开标签的实例同理。这里每个请求都会问一次，所以用轮询到的 state，不现解析。
+  for (const url of [managerBase, ...state.instances.map((instance) => instance.url)]) {
+    try { if (url) origins.push(new URL(url).origin) } catch { /* 地址不完整就跳过 */ }
   }
   return origins
 }, {
@@ -1027,6 +1033,17 @@ function shortcutAction(input, inTab) {
   return null
 }
 
+/**
+ * 现在的实例列表。发租约要用最新的：进度页自己跳进实例时，1.5 秒轮询到的 state 可能还没有
+ * 这台实例的地址。旧核心没有 trayStateText 就退回轮询那份（和 liveInstanceCount 一个取舍）。
+ */
+function currentInstances() {
+  try {
+    if (typeof server?.trayStateText === 'function') return parseTrayState(server.trayStateText()).instances
+  } catch { /* 退回轮询状态 */ }
+  return state.instances
+}
+
 function createTabView(id, target = null) {
   const view = new WebContentsView({ webPreferences: remotePreferences(target) })
   const contents = view.webContents
@@ -1044,6 +1061,13 @@ function createTabView(id, target = null) {
   contents.on('will-navigate', (event, url) => {
     // 本机地址（dsh 自己、它的插件页）和页面自己的东西都放行；只有真正的外部网页交给系统浏览器
     if (!isExternalWebUrl(url)) return
+    event.preventDefault()
+    shell.openExternal(url)
+  })
+  // will-navigate 只管页面发起的那一跳，服务端 3xx 不经过它：本机地址（放行）再 302 到外部网页，
+  // 外部页面就会落在 dsh 的标签页 / 独立窗口里。重定向单独拦一次，口径一样——外部网页交给系统浏览器。
+  contents.on('will-redirect', (event, url, _inPlace, mainFrame) => {
+    if (!mainFrame || !isExternalWebUrl(url)) return
     event.preventDefault()
     shell.openExternal(url)
   })
@@ -1555,6 +1579,12 @@ function installDownloadHandler() {
 function installBrowserGuestIpc() {
   ipcMain.handle(BROWSER_IPC.acquire, (event, workspace) => {
     if (!browserGuestOwners.has(event.sender)) throw new Error('desktop browser: unknown owner')
+    // 只认「这块标签页的主框架、且此刻就是 dsh 实例自己的页面」：标签页会换页，
+    // 落在里面的别的本机服务不能凭同一块 WebContents 拿租约（见 model.mjs 的 isInstanceUrl）。
+    const frame = event.senderFrame
+    if (!frame || frame !== event.sender.mainFrame || !isInstanceUrl(frame.url, currentInstances())) {
+      throw new Error('desktop browser: this page is not a dsh instance')
+    }
     return browserGuests.acquire(event.sender, workspace)
   })
   ipcMain.handle(BROWSER_IPC.release, (event, lease) => {

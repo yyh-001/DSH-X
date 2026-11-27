@@ -5,7 +5,7 @@
  * 1. 提示词：注册一条静态 system 段（写记忆的纪律，照 ZCode 的 Memory 段改写）+ 一条动态
  *    context（本工作区的 MEMORY.md 索引，每会话渲染一次后冻结，中途写记忆不改已注入的内容）；
  * 2. 工具：六个 memory_* 工具（见 lib/tools.js），按调用者所在工作区取库；
- * 3. 设置页数据面：/api/x-memory/* 一组仅限环回的本机路由，面板（lib/client.js）用它浏览、
+ * 3. 设置页数据面：/api/x-memory/* 一组仅限环回、走 dsh 连接鉴权的本机路由，面板（lib/client.js）用它浏览、
  *    编辑、删除记忆；
  * 4. 配置：默认值 ← profile 的 cordis.patch.yml 里那一行 config ← 面板写入的
  *    `<profileDir>/dsh-x-memory.json`（后者优先，面板改完立即生效，不用重启 dsh）。
@@ -20,9 +20,11 @@ import { INDEX_MAX_BYTES, INDEX_MAX_LINES, MEMORY_TYPES, MemoryStore, workspaceK
 import { createTools } from './tools.js'
 
 /** 需要的服务：工具注册表 + 系统提示装配 + 本机 web 路由。（必须导出，cordis 从模块上读 inject。） */
-export const inject = ['tools', 'systemPrompt', 'webServer']
+export const inject = ['tools', 'systemPrompt', 'webServer', 'connection']
 
 const CONFIG_NAME = 'dsh-x-memory.json'
+/** 会改盘的路由只收 POST；其余是面板的只读查询。 */
+const WRITE_ROUTES = new Set(['/api/x-memory/config', '/api/x-memory/save', '/api/x-memory/update', '/api/x-memory/delete'])
 const DEFAULT_CONFIG = {
   /** 是否把记忆索引注入上下文；关掉=只留工具，模型想用时自己去查。 */
   autoInject: true,
@@ -162,7 +164,12 @@ export function storeForAgent(agent, config = normalizeConfig(), home = homeDir(
 
 // ---- 环回与 HTTP 小工具（和 dsh-x-sync 同一套，验过） ----
 
-function isLoopbackRequest(req) {
+/**
+ * 带 `X-Forwarded-For` 的不算环回：DSH-X 的局域网代理从回环连进来、Host 也改写成回环，
+ * 只看地址和 Host 会把局域网设备当成本机；代理给每个请求都加了这个头。
+ */
+export function isLoopbackRequest(req) {
+  if (req.headers?.['x-forwarded-for']) return false
   const address = req.socket?.remoteAddress || ''
   const host = String(req.headers?.host || '')
   const localAddress = address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1'
@@ -454,6 +461,16 @@ export async function apply(ctx, patchConfig) {
       handler: (req, res) => {
         if (!isLoopbackRequest(req)) {
           sendJson(res, 403, { error: 'forbidden: loopback only' })
+          return
+        }
+        if (WRITE_ROUTES.has(route.path) && req.method !== 'POST') {
+          sendJson(res, 405, { error: 'method not allowed' })
+          return
+        }
+        // webServer 自己不鉴权也不查 Origin：不过这一关，任意网页都能跨站读写记忆、改 rootDir。
+        const rejection = ctx.connection.requestRejection(req)
+        if (rejection !== undefined) {
+          sendJson(res, rejection, { error: rejection === 401 ? 'unauthorized' : 'forbidden' })
           return
         }
         Promise.resolve(route.handler(req, res)).catch((error) => {

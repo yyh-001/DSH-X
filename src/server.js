@@ -1,6 +1,6 @@
 import { execFile, spawn, spawnSync } from 'node:child_process'
 import { AsyncLocalStorage } from 'node:async_hooks'
-import { createHash, randomBytes } from 'node:crypto'
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import { createServer } from 'node:http'
 import { createServer as createNetServer } from 'node:net'
 import { createInterface } from 'node:readline'
@@ -262,7 +262,7 @@ import { createSecretStore } from './secret-store.js'
 import { lanUrlOf, pickLanAddress, startLanProxy } from './lan-proxy.js'
 import { createRemoteAccessController } from './remote-access.js'
 import { DESKTOP_API_VERSION, DESKTOP_CAPABILITIES, parseDesktopRequest } from './desktop.js'
-import { checkCoreUpdate, downloadCoreTarball, extractCoreTarball, stagingExists, stagingStats } from './core-npm.js'
+import { checkCoreUpdate, downloadCoreTarball, extractCoreTarball, stagingExists, stagingStats, verifyCoreRelease } from './core-npm.js'
 import { writeElectronBinMarker } from './electron-bin.js'
 import { createStorageStats } from './storage-stats.js'
 import { createProfileBackups } from './profile-backups.js'
@@ -1247,7 +1247,9 @@ async function pruneVersions(config) {
 
 function safeSpec(spec) {
   const value = typeof spec === 'string' ? spec.trim() : ''
-  if (!value || !(SPEC_RE.test(value) || GITHUB_SPEC_RE.test(value) || FILE_SPEC_RE.test(value) || REMOTE_SPEC_RE.test(value))) {
+  // dsh plugin add 把参数原样透传给 pnpm：`--global` 这种形状也合包名字符集，得单独挡掉，
+  // 不然它会被当成开关而不是包名。
+  if (!value || value.startsWith('-') || !(SPEC_RE.test(value) || GITHUB_SPEC_RE.test(value) || FILE_SPEC_RE.test(value) || REMOTE_SPEC_RE.test(value))) {
     throw new Error('非法插件源')
   }
   return value
@@ -5955,6 +5957,11 @@ function stripTag(tag) {
   return String(tag || '').trim().replace(/^v/i, '')
 }
 
+/** 拆包后的核心模式不提供完整安装包的老式自更新（下载 exe/dmg 后直接运行），见 /api/self/download 路由。 */
+export function legacyInstallerDisabled(env = process.env) {
+  return env.DSH_CORE === '1'
+}
+
 async function checkSelfUpdate({ force = false } = {}) {
   const current = APP_VERSION
   const fallback = { current, latest: null, update: false, url: installerUrl() }
@@ -6030,10 +6037,12 @@ async function downloadAppUpdate() {
   if (stagedApp && stagedApp.version === data.version && stagingExists(stagedApp.dir)) {
     return { ok: true, version: stagedApp.version, reused: true }
   }
+  // 先验 npm 官方签名再下载：integrity 和下载地址都出自同一份（默认是镜像的）元数据，
+  // 不验签的话镜像可以连包带哈希一起换掉
+  await verifyCoreRelease(pendingAppUpdate)
   const tarball = join(tmpdir(), `DSH-X-core-${data.version}-${process.pid}.tgz`)
   const result = await downloadCoreTarball(pendingAppUpdate.tarball, tarball, {
     integrity: pendingAppUpdate.integrity,
-    shasum: pendingAppUpdate.shasum,
     onProgress: ({ done, total }) => emit('selfUpdate', { phase: 'download', kind: 'app', done, total }),
   })
   const staging = join(tmpdir(), `DSH-X-core-${data.version}-${process.pid}`)
@@ -6194,7 +6203,7 @@ async function checkAppUpdate({ force = false } = {}) {
   if (release.electron && release.electron !== String(process.versions.electron)) {
     return remember({ available: false, reason: 'electron', latest: result.latest, electron: release.electron })
   }
-  pendingAppUpdate = { version: result.latest, tarball: release.tarball, integrity: release.integrity, shasum: release.shasum }
+  pendingAppUpdate = { version: result.latest, tarball: release.tarball, integrity: release.integrity, signatures: release.signatures }
   return remember({
     available: true,
     latest: result.latest,
@@ -9448,6 +9457,18 @@ function sameSiteRequest(req) {
   }
 }
 
+/**
+ * 浏览器发起的请求是不是管理页自己发的。Chromium / Firefox 给每个请求带 Sec-Fetch-Site：
+ * 页面自己的 fetch / EventSource 是 same-origin，地址栏 / loadURL 直接打开是 none。
+ * 别的网站用 <img src> 之类触发的 GET 不带 Origin，但这个头会是 cross-site（本机别的端口是
+ * same-site）——GET 里有会起进程、扫磁盘、发外网请求的接口，不能让任意网页替用户触发。
+ * 本机程序（外壳、插件、curl）不带这个头，照常放行。
+ */
+function ownPageRequest(req) {
+  const site = req.headers['sec-fetch-site']
+  return !site || site === 'same-origin' || site === 'none'
+}
+
 /** Host 头是不是我们自己（DNS rebinding 的请求里写的是攻击者的域名）。 */
 function isLocalHostHeader(host) {
   if (!host) return true
@@ -9556,6 +9577,7 @@ async function uninstall(version) {
   await emitState()
 }
 
+
 async function readJson(req) {
   const pathname = req.url?.split('?')[0] || ''
   // 除技能包上传外统一限制 4 MB，避免超大 POST 把内存打满
@@ -9634,6 +9656,8 @@ function send(res, status, body, type = 'application/json; charset=utf-8', heade
     'content-length': payload.length,
     'cache-control': 'no-store',
     connection: 'close',
+    // 管理页不该被任何页面嵌进 iframe：嵌进去的请求是同源的，Origin 检查拦不住点击劫持。
+    'x-frame-options': 'DENY',
     ...headers,
   })
   res.end(payload)
@@ -10264,8 +10288,10 @@ async function handleApi(req, res, url) {
     send(res, 200, { app: 'dsh-x', version: APP_VERSION, port: PORT })
     return
   }
-  // 改状态的请求只认本机来源（浏览器会带 Origin，本机程序不会）
-  if (req.method !== 'GET' && !sameSiteRequest(req)) {
+  // 改状态的请求只认本机来源（浏览器会带 Origin，本机程序不会）。读请求的来源由上面的会话 cookie 管；
+  // 再按 Sec-Fetch-Site 挡一次别的网站 / 本机别的端口用 <img src> 之类触发的请求：它们不带 Origin，
+  // 同站时还会带上 cookie，而 GET 里有会起进程、扫磁盘、发外网请求的接口。
+  if ((req.method !== 'GET' && !sameSiteRequest(req)) || !ownPageRequest(req)) {
     send(res, 403, { error: '跨站请求被拒绝' })
     return
   }
@@ -10572,7 +10598,7 @@ async function handleApi(req, res, url) {
       const hidden = safeWslHiddenDistros(loadSettingsSync().wslHiddenDistros)
       const showAll = url.searchParams.get('all') === '1'
       const distros = listed.distros.filter((item) => showAll || !hidden.includes(item.name))
-      const distro = String(url.searchParams.get('distro') || '').trim()
+      const distro = safeWslDistro(url.searchParams.get('distro') || '')
       const user = safeWslUser(url.searchParams.get('user') || '')
       let inspect = null
       if (distro) {
@@ -11129,6 +11155,13 @@ async function handleApi(req, res, url) {
   }
   if (req.method === 'POST' && url.pathname === '/api/pending/skip') {
     send(res, 200, await skipPendingUpdate(body))
+    return
+  }
+  // 完整安装包这条老路只做了「够大、是 PE/dmg」的检查，下载还先走第三方 GitHub 加速前缀，
+  // 拿到什么就静默执行什么。拆包后的核心 / npm 版里安装包归外壳的 electron-updater（有 sha512 清单）
+  // 或 npm 管，页面也不会露出这个入口——路由干脆不存在，免得本机任何不带 Origin 的请求都能触发它。
+  if (req.method === 'POST' && (url.pathname === '/api/self/download' || url.pathname === '/api/self/install') && legacyInstallerDisabled()) {
+    send(res, 404, { error: '这个版本的安装包更新由外壳负责，这里不提供' })
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/self/download') {

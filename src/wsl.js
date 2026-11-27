@@ -797,7 +797,11 @@ export async function inspectWslDistro(distro, home, options = {}) {
       info.retryable = false
     }
   }
-  if (cacheable) inspectCache.set(key, { at: Date.now(), value: info })
+  if (cacheable) {
+    // 键里有调用方给的发行版名和目录：不收口的话每个新值都留一条，永远不清
+    if (inspectCache.size >= 32) inspectCache.clear()
+    inspectCache.set(key, { at: Date.now(), value: info })
+  }
   return info
 }
 

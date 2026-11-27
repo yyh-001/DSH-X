@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { allowedUrl, apply, isLoopbackRequest, openerCommand, resolveTarget } from '../lib/index.js'
+import { allowedUrl, apply, isLoopbackRequest, isNetworkPath, openerCommand, resolveTarget } from '../lib/index.js'
 
 test('外链：只放行 http/https', () => {
   assert.equal(allowedUrl('https://example.com/a?b=1'), 'https://example.com/a?b=1')
@@ -69,15 +69,34 @@ test('路由只认环回', () => {
   assert.equal(isLoopbackRequest(request('192.168.1.9', '127.0.0.1:3780')), false)
   assert.equal(isLoopbackRequest(request('127.0.0.1', 'evil.example.com')), false)
   assert.equal(isLoopbackRequest({}), false)
+  // 局域网代理从回环连进来、Host 也是回环，只有 X-Forwarded-For 认得出来
+  assert.equal(isLoopbackRequest({ socket: { remoteAddress: '127.0.0.1' }, headers: { host: '127.0.0.1:3780', 'x-forwarded-for': '192.168.1.9' } }), false)
+})
+
+test('UNC 路径不解析（不去连那台机器）', () => {
+  assert.equal(resolveTarget('\\\\evil.example\\share\\x'), null)
+  assert.equal(resolveTarget('//evil.example/share/x'), null)
+})
+
+test('长路径写法：本机盘符放行，UNC / 管道 / 设备照样挡', () => {
+  // 本机磁盘：工作区路径太长时 Windows 给的就是这种形式
+  for (const local of ['\\\\?\\C:\\work\\project', '\\\\.\\D:\\x', '//?/c:/work', '\\\\?\\C:', 'C:\\work', '/Users/me/work']) {
+    assert.equal(isNetworkPath(local), false, local)
+  }
+  for (const remote of ['\\\\?\\UNC\\server\\share\\x', '\\\\.\\UNC\\server\\share', '\\\\.\\pipe\\name', '\\\\.\\PhysicalDrive0',
+    '\\\\?\\GLOBALROOT\\Device\\x', '\\\\server\\share', '//server/share', '\\\\?\\C:evil']) {
+    assert.equal(isNetworkPath(remote), true, remote)
+  }
 })
 
 // ---- 路由层：有外壳走 Electron 桥，没外壳退回本机 ----
 
 /** 只实现本插件用到的 cordis 面：effect / get / webServer.register。 */
-function fakeContext({ bridge = null } = {}) {
+function fakeContext({ bridge = null, rejection = undefined } = {}) {
   const routes = new Map()
   return {
     routes,
+    connection: { requestRejection: () => rejection },
     effect(run) {
       const dispose = run()
       return typeof dispose === 'function' ? dispose : () => {}
@@ -96,13 +115,14 @@ function fakeContext({ bridge = null } = {}) {
 }
 
 /** 调一条已注册的路由，返回 { status, payload }。 */
-function callRoute(ctx, path, body, { address = '127.0.0.1', host = '127.0.0.1:3981' } = {}) {
+function callRoute(ctx, path, body, { address = '127.0.0.1', host = '127.0.0.1:3981', method = 'POST', headers = {} } = {}) {
   return new Promise((resolve) => {
     const handler = ctx.routes.get(path)
     assert.ok(handler, `路由没注册：${path}`)
     const req = new EventEmitter()
+    req.method = method
     req.socket = { remoteAddress: address }
-    req.headers = { host }
+    req.headers = { host, ...headers }
     const res = {
       status: 0,
       writeHead(status) {
@@ -185,4 +205,23 @@ test('路由级环回判定：外网来源 403', async () => {
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
+})
+
+test('路由要过 dsh 的连接鉴权：没登录 / 跨站 / 局域网代理 / 非 POST 都进不来', async () => {
+  const body = { url: 'https://example.com/' }
+  const path = '/api/x-context-menu/open-url'
+
+  const unauthenticated = fakeContext({ rejection: 401 })
+  apply(unauthenticated)
+  assert.equal((await callRoute(unauthenticated, path, body)).status, 401)
+
+  const crossSite = fakeContext({ rejection: 403 })
+  apply(crossSite)
+  assert.equal((await callRoute(crossSite, path, body)).status, 403)
+
+  const ctx = fakeContext({ bridge: { open: async () => ({ ok: true }) } })
+  apply(ctx)
+  assert.equal((await callRoute(ctx, path, body, { headers: { 'x-forwarded-for': '192.168.1.9' } })).status, 403)
+  assert.equal((await callRoute(ctx, path, body, { method: 'GET' })).status, 405)
+  assert.equal((await callRoute(ctx, path, body)).status, 200)
 })

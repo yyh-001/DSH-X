@@ -35,6 +35,8 @@ export const OFFLINE_PACK_DIR = 'offline'
 /** 包体积上限：整合包只装清单与配置，几 MB 就够了，几十 MB 的多半是塞了别的东西。 */
 export const MAX_PACK_BYTES = 32 * 1024 * 1024
 export const MAX_PACK_ENTRIES = 4000
+/** 解开后的总量上限：包体上限的 4 倍，文本配置压得再狠也够用，压缩炸弹到这里就停。 */
+export const MAX_PACK_UNPACKED_BYTES = 4 * MAX_PACK_BYTES
 /** 打包时的默认市场索引（PackForge 的公开索引，采集的是打了 dsh-pack topic 的仓库）。 */
 export const MARKET_INDEX_URL = 'https://raw.githubusercontent.com/DSH-PackForge/dsh-pack-market/main/index/index.json'
 
@@ -60,11 +62,27 @@ const BLOCKED_RE = [
 
 /** 打包时漏出来的东西：不该进包，也不该落盘。 */
 const JUNK_RE = [
-  [/(^|\/)\.git(?:\/|$)/, '版本库元数据'],
-  [/(^|\/)node_modules(?:\/|$)/, '依赖目录（装的时候会重新装）'],
-  [/(^|\/)pnpm-lock\.ya?ml$/, '锁文件（和本机已有插件对不上，会顶掉别人的安装）'],
-  [/(^|\/)\.dshpkcfg$/, '导出工具的参数文件'],
+  // 都不分大小写：Windows 与 macOS 默认的文件系统不分，`Node_Modules/` 落盘后就是 node_modules
+  [/(^|\/)\.git(?:\/|$)/i, '版本库元数据'],
+  [/(^|\/)node_modules(?:\/|$)/i, '依赖目录（装的时候会重新装）'],
+  [/(^|\/)pnpm-lock\.ya?ml$/i, '锁文件（和本机已有插件对不上，会顶掉别人的安装）'],
+  [/(^|\/)\.dshpkcfg$/i, '导出工具的参数文件'],
 ]
+
+/**
+ * overrides/ 不许碰的 profile 根文件：它们不是「配置」，是 pnpm 的控制面。
+ *
+ * - `package.json`：会顶掉我们刚合好的清单；根项目的 preinstall / postinstall 在 `pnpm install` 时照跑；
+ * - `.pnpmfile.cjs` / `.mjs`：pnpm 装依赖时直接 require 它；
+ * - `pnpm-workspace.yaml`：pnpm 10 起设置都搬到这里，能放开构建脚本、能换 registry——和上面挡 `.npmrc` 是同一个理由；
+ * - `cordis.yml`：条目根，层栈靠清单的 bundles 拼，不靠它；
+ * - `node_modules/`、`pnpm-lock.yaml`：JUNK_RE 也挡，但那边区分大小写，而 Windows / macOS 的文件系统不分。
+ *
+ * 这几样放进来，一个「零依赖」的包在安装那一刻就能跑代码，检查页上却什么都看不出来。
+ * 只看 overrides 下的第一段、不分大小写：子目录里的同名文件 pnpm 不读。导出那边
+ * （exportPack）本来就不往 overrides/ 里放这些，所以正常的包不受影响。
+ */
+const OVERRIDE_RESERVED_RE = /^(?:package\.json|pnpm-workspace\.ya?ml|pnpm-lock\.ya?ml|\.?pnpmfile\.[cm]?js|cordis\.yml|node_modules)(?:\/|$)/i
 
 /** Windows 上这些名字永远不是普通文件（老工具写出来的包可能带）。 */
 const WINDOWS_RESERVED = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i
@@ -82,6 +100,10 @@ export function safeRelPath(name) {
     if (segment === '..') return ''
     if (WINDOWS_RESERVED.test(segment)) return ''
     if (/[\0-\x1f]/.test(segment)) return ''
+    // 冒号在 NTFS 上是「备用数据流」的分隔符：`.npmrc::$DATA` 写进去的就是 `.npmrc` 本体，
+    // 能绕过下面按文件名挡敏感文件的那张表；`a.txt:x` 则是资源管理器里看不见的隐藏流。
+    // 其余几个是 Windows 文件名里的非法字符，写得出来的只有别的平台，装到 Windows 上必失败。
+    if (/[:<>"|?*]/.test(segment)) return ''
     // Windows 会把结尾的点和空格吃掉，写出来的文件和包里的名字对不上
     if (/[ .]$/.test(segment)) return ''
     if (segment.length > 120) return ''
@@ -295,6 +317,7 @@ function classify(entries) {
       // 补丁层在 overrides 下是约定位置（PackForge：文件优先于清单里的 patch 字段）
       if (inner === 'cordis.patch.yml') { patchCandidates.push({ path: rel, data }); continue }
       const reason = blockedReason(inner)
+        || (OVERRIDE_RESERVED_RE.test(inner) ? '清单与 pnpm 的控制文件由启动器生成，整合包不能覆盖' : '')
       if (reason) skipped.push({ path: rel, reason })
       else overrides.push({ path: inner, source: rel, size: data.length })
       continue
@@ -333,8 +356,8 @@ export function parsePackArchive(buffer) {
   if (!Buffer.isBuffer(buffer)) buffer = Buffer.from(buffer)
   if (!buffer.length) throw new Error('整合包是空的')
   if (buffer.length > MAX_PACK_BYTES) throw new Error(`整合包太大了（${Math.round(buffer.length / 1048576)} MB，上限 ${MAX_PACK_BYTES / 1048576} MB）`)
-  const { entries } = readZip(buffer)
-  if (entries.length > MAX_PACK_ENTRIES) throw new Error(`整合包里的文件太多（${entries.length} 个，上限 ${MAX_PACK_ENTRIES}）`)
+  // 两个上限交给 readZip 在解压前判（解完再数条目，内存早就被吃掉了）
+  const { entries } = readZip(buffer, { maxEntries: MAX_PACK_ENTRIES, maxTotalBytes: MAX_PACK_UNPACKED_BYTES })
   const dspackEntry = entries.find((entry) => entry.name === 'dspack.json')
   const manifestEntry = entries.find((entry) => entry.name === 'manifest.json')
   if (!manifestEntry) throw new Error('这不是整合包：里面没有 manifest.json')

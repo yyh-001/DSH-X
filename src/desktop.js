@@ -218,8 +218,10 @@ const PARSERS = {
  * 校验失败直接抛（路由转 400），错误文案是给插件作者看的。
  */
 export function parseDesktopRequest(action, input) {
-  const parser = PARSERS[String(action ?? '')]
-  if (!parser) return null
+  // 只认 PARSERS 自己的键：`constructor` 之类从原型上拿到的是 Object，会把正文原样放过去。
+  const name = String(action ?? '')
+  if (!Object.hasOwn(PARSERS, name)) return null
+  const parser = PARSERS[name]
   const body = input && typeof input === 'object' && !Array.isArray(input) ? input : {}
   return parser(body)
 }

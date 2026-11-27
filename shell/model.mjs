@@ -66,6 +66,18 @@ export function sameOrigin(a, b) {
 }
 
 /**
+ * 这个地址是不是某个 dsh 实例自己的页面（和实例地址同源）。
+ *
+ * 右侧栏浏览器的桥按它发租约：标签页是一块会换页的 WebContents，别的本机服务、被重定向进来的
+ * 页面也会落在里面，「这块 WebContents 是 dsh 标签页」不等于「现在这张页是 dsh」。
+ * 拿到租约就能往工作区的持久分区里挂 guest、读里面的登录态，所以只认实例自己的 origin。
+ */
+export function isInstanceUrl(url, instances) {
+  return (Array.isArray(instances) ? instances : [])
+    .some((item) => Boolean(item?.url) && sameOrigin(url, item.url))
+}
+
+/**
  * 标签条这一轮要不要动这个标签页（BrowserTabs.follow 的决策，抽出来单独测）。
  *
  * 只有一种情况放着不管：标签上开着启动进度页（/booting），而实例还在起、地址还没打印出来

@@ -208,3 +208,48 @@ test('技能与记忆：两个技能根各走各的前缀', async (t) => {
     'dsh-x/v1/skills/dsh/demo/SKILL.md',
   ])
 })
+
+test('远端不可信：列出来的键想逃出同步范围时一个都不落盘', async (t) => {
+  // 假桶会老实按前缀过滤，演不了「被攻破的服务端」，这里单起一个什么键都敢报的。
+  const { createServer } = await import('node:http')
+  const hostile = [
+    'dsh-x/v1/sessions/../../outside.txt',   // 逃出 DSH_HOME
+    'dsh-x/v1/profiles/web/.npmrc',          // 没选的范围，也不在 profile 文件白名单里
+    'dsh-x/v1/sessions/..\\..\\outside.txt', // Windows 的分隔符
+    'sessions/no-namespace.txt',             // 不在命名空间下
+  ]
+  const fetched = []
+  const server = createServer((req, res) => {
+    const url = new URL(req.url, 'http://127.0.0.1')
+    if (url.searchParams.get('list-type')) {
+      const rows = [...hostile, 'dsh-x/v1/sessions/proj/ok.txt']
+        .map((key) => `<Contents><Key>${encodeURIComponent(key)}</Key><Size>5</Size><LastModified>2026-01-01T00:00:00Z</LastModified></Contents>`)
+      res.end(`<ListBucketResult>${rows.join('')}<IsTruncated>false</IsTruncated></ListBucketResult>`)
+      return
+    }
+    fetched.push(req.url)
+    res.end('PWNED')
+  })
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  t.after(() => server.close())
+  const root = await mkdtemp(join(tmpdir(), 'dsh-sync-hostile-'))
+  const home = join(root, 'user', '.dsh')
+  write(join(root, 'user', 'outside.txt'), 'ORIGINAL')
+  write(join(home, 'sessions', 'keep.txt'), 'local')
+  const logs = []
+  const summary = await runSync({
+    mode: 'down',
+    scopes: ['sessions'],
+    config: { store: 's3', s3: { endpoint: `http://127.0.0.1:${server.address().port}`, bucket: 'b', accessKeyId: 'AKIATEST', secretAccessKey: 'secret-test-key' } },
+    context: contextOf(home),
+    log: (line) => logs.push(line),
+  })
+  assert.equal(summary.downloaded, 1, '只有范围内的那一个被下载')
+  assert.equal(readFileSync(join(home, 'sessions', 'proj', 'ok.txt'), 'utf8'), 'PWNED')
+  assert.equal(readFileSync(join(root, 'user', 'outside.txt'), 'utf8'), 'ORIGINAL', '范围外的文件不能被覆盖')
+  assert.equal(existsSync(join(home, 'profiles', 'web', '.npmrc')), false)
+  assert.equal(existsSync(join(home, 'sessions', 'no-namespace.txt')), false)
+  assert.equal(fetched.length, 1, '被拒的键连请求都不该发')
+  assert.match(summary.notes.join('\n'), /4 个路径不在同步范围内/)
+  assert.ok(logs.some((line) => line.includes('outside.txt')), '日志里要点名被拒的路径')
+})

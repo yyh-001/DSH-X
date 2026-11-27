@@ -9,7 +9,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { request as httpRequest } from 'node:http'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { downloadCoreTarball, fetchCoreMetadata } from './core-npm.js'
+import { downloadCoreTarball, fetchCoreMetadata, verifyCoreRelease } from './core-npm.js'
 import { buildExportsScript, remoteError, REMOTE_REASON, shellQuote } from './remote.js'
 import { parseRemoteCoreReady } from './remote-core.js'
 import { proxyEnv } from './proxy.js'
@@ -48,6 +48,8 @@ async function resolveLocalCoreTarball(version, { cacheDir = tmpdir(), source = 
   const metadata = await fetchCoreMetadata({ source })
   const info = metadata?.versions?.[version] || null
   if (!info?.dist?.tarball) throw remoteError(REMOTE_REASON.sshCoreInstallFailed, `找不到 core ${version} 的安装包`)
+  // 这份核心会被装到远端主机上跑：和本机核心更新一样先验 npm 官方签名，镜像改过的元数据在这里就拦下
+  await verifyCoreRelease({ version, integrity: info.dist.integrity, signatures: info.dist.signatures })
   await downloadCoreTarball(info.dist.tarball, candidates[0], { integrity: info.dist.integrity, shasum: info.dist.shasum })
   return candidates[0]
 }

@@ -28,7 +28,11 @@ const AUTH_COOKIE_PREFIX = 'dsh-auth-'
 /** 解析相对 URL 用的占位基址：只取路径和 query，主机名无意义。 */
 const URL_BASE = 'http://lan-proxy.invalid'
 /** 客户端自带的转发头一律丢掉，免得局域网设备伪造「我来自本机」。 */
-const FORWARDING_HEADERS = ['x-forwarded-for', 'x-forwarded-host', 'x-forwarded-proto', 'forwarded', 'cf-connecting-ip']
+const FORWARDING_HEADERS = [
+  'x-forwarded-for', 'x-forwarded-host', 'x-forwarded-proto', 'x-forwarded-port', 'forwarded',
+  'cf-connecting-ip', 'x-real-ip', 'x-client-ip', 'true-client-ip',
+]
+const HTTP_BAD_REQUEST = 400
 
 /**
  * 隧道 / VPN 网卡名前缀：地址是本机的点对点端点，局域网里的设备连不过来。
@@ -175,12 +179,19 @@ export function startLanProxy({ lanHost, port, upstreamHost = '127.0.0.1', onErr
       res.writeHead(HTTP_FORBIDDEN).end()
       return
     }
+    // 客户端发完请求立刻 RST 时，这里已经拿不到对端地址。不带 X-Forwarded-For 转过去，
+    // 插件会把它当成本机直连（回环对端 + 没有转发痕迹），所以拿不到地址就不转发。
+    const clientAddress = req.socket.remoteAddress
+    if (!clientAddress) {
+      res.writeHead(HTTP_BAD_REQUEST).end()
+      return
+    }
     const upstream = http.request({
       host: upstreamHost,
       port,
       method: req.method,
       path: req.url,
-      headers: upstreamHeaders(req.headers, addresses, req.socket.remoteAddress),
+      headers: upstreamHeaders(req.headers, addresses, clientAddress),
     }, (upstreamRes) => {
       if (isTokenExchange(req.url, upstreamRes.statusCode, upstreamRes.headers['set-cookie'])) {
         upstreamRes.resume()
@@ -205,13 +216,22 @@ export function startLanProxy({ lanHost, port, upstreamHost = '127.0.0.1', onErr
   // WebSocket（/api/remote.mux）等升级请求：按同样的规则改写请求头后重放，再把两条 socket 接起来
   server.on('upgrade', (req, socket, head) => {
     track(socket)
+    // 升级后的 socket 上 Node 已经摘掉自己的 error 监听：对端一 RST，下面的写入就是
+    // 没人接的 error 事件，管理器进程直接崩（局域网里任何设备都能触发）。必须最先挂上。
+    socket.on('error', () => socket.destroy())
     if (!isTrustedHost(req.headers.host, addresses)) {
       socket.end(`HTTP/1.1 ${HTTP_FORBIDDEN} Forbidden\r\n\r\n`)
       return
     }
+    // 和普通请求同一条规矩：拿不到对端地址就不转发（见上）
+    const clientAddress = socket.remoteAddress
+    if (!clientAddress) {
+      socket.destroy()
+      return
+    }
     const upstream = net.connect(port, upstreamHost, () => {
       let requestHead = `${req.method} ${req.url} HTTP/1.1\r\n`
-      for (const [name, value] of Object.entries(upstreamHeaders(req.headers, addresses, req.socket.remoteAddress))) {
+      for (const [name, value] of Object.entries(upstreamHeaders(req.headers, addresses, clientAddress))) {
         for (const item of [].concat(value)) requestHead += `${name}: ${item}\r\n`
       }
       upstream.write(`${requestHead}\r\n`)
