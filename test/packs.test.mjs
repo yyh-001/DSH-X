@@ -14,6 +14,7 @@ import {
   PACK_TYPES,
   applyInstall,
   backupDirFor,
+  blockedReason,
   forgetPack,
   installSpecs,
   installedVersion,
@@ -110,6 +111,64 @@ test('zip：64 位（ZIP64）与加密包明确拒绝，不猜', () => {
   assert.throws(() => readZip(zip64), /ZIP64/)
 })
 
+test('zip：压缩炸弹在解压前就停下（谎报大小、共用数据、条目数）', () => {
+  const one = writeZip([{ name: 'a', data: Buffer.alloc(1024 * 1024) }])
+  const eocd = one.length - 22
+  const centralAt = one.readUInt32LE(eocd + 16)
+  const centralSize = one.readUInt32LE(eocd + 12)
+
+  // 中央目录声明只有 10 字节，实际能解出 1 MB：输出封顶在声明值，解不完就报错
+  const lying = Buffer.from(one)
+  lying.writeUInt32LE(10, centralAt + 24)
+  assert.throws(() => readZip(lying), /解压失败/)
+
+  // 50 条中央目录记录指向同一段数据：包只有几 KB，解开是 50 MB
+  const copies = 50
+  const record = one.subarray(centralAt, centralAt + centralSize)
+  const tail = Buffer.from(one.subarray(eocd))
+  tail.writeUInt16LE(copies, 8)
+  tail.writeUInt16LE(copies, 10)
+  tail.writeUInt32LE(centralSize * copies, 12)
+  const shared = Buffer.concat([one.subarray(0, centralAt), ...Array(copies).fill(record), tail])
+  assert.ok(shared.length < 16 * 1024)
+  assert.throws(() => readZip(shared, { maxTotalBytes: 8 * 1024 * 1024 }), /太大/)
+  assert.throws(() => readZip(shared, { maxEntries: 10 }), /文件太多/)
+  // 不给上限时照旧能读（纯字节层不替调用方做决定）
+  assert.equal(readZip(shared).entries.length, copies)
+  // 整合包入口带着两个上限
+  assert.throws(() => parsePackArchive(Buffer.concat([one.subarray(0, centralAt), ...Array(200).fill(record), (() => {
+    const end = Buffer.from(one.subarray(eocd))
+    end.writeUInt16LE(200, 8)
+    end.writeUInt16LE(200, 10)
+    end.writeUInt32LE(centralSize * 200, 12)
+    return end
+  })()])), /太大/)
+})
+
+test('解析整合包：overrides 不能覆盖清单与 pnpm 的控制文件', () => {
+  const pack = parsePackArchive(makePack({
+    entries: [
+      { name: 'overrides/package.json', data: '{"scripts":{"preinstall":"echo pwned"}}' },
+      { name: 'overrides/.pnpmfile.cjs', data: 'module.exports = {}' },
+      { name: 'overrides/PNPM-Workspace.yaml', data: 'dangerouslyAllowAllBuilds: true\n' },
+      { name: 'overrides/cordis.yml', data: '[]\n' },
+      { name: 'overrides/Node_Modules/@deepseek-ai/dsh-base/index.js', data: 'x' },
+      { name: 'overrides/pnpm-lock.yaml', data: 'x' },
+      // 子目录里的同名文件 pnpm 不读，普通配置照收
+      { name: 'overrides/config/package.json', data: '{}' },
+      { name: 'overrides/theme.json', data: '{}' },
+    ],
+  }))
+  assert.equal(pack.ok, true)
+  assert.deepEqual(pack.overrides.map((item) => item.path).sort(), ['config/package.json', 'theme.json'])
+  assert.equal(pack.skipped.filter((item) => item.path.startsWith('overrides/')).length, 6)
+  const home = tempDir()
+  const plan = planConfigInstall(pack, { home, profile: 'demo' })
+  // 只导配置：清单和 pnpm 的控制文件一个都不写
+  assert.equal(plan.writes.some((write) => write.rel === 'profiles/demo/package.json'), false)
+  assert.equal(plan.writes.some((write) => /pnpmfile|pnpm-workspace|node_modules|cordis\.yml$/i.test(write.rel)), false)
+})
+
 // ---- 路径安全 ----
 
 test('路径安全：越界、绝对路径、Windows 设备名一律拒收', () => {
@@ -125,6 +184,27 @@ test('路径安全：越界、绝对路径、Windows 设备名一律拒收', () 
   assert.equal(safeRelPath('trailing./x'), '')
   assert.equal(safeRelPath('trailing /x'), '')
   assert.equal(safeRelPath(''), '')
+})
+
+test('路径安全：NTFS 备用数据流与大小写变体绕不过过滤', () => {
+  // `.npmrc::$DATA` 在 NTFS 上写的就是 .npmrc 本体，`a.txt:x` 是隐藏流
+  assert.equal(safeRelPath('overrides/.npmrc::$DATA'), '')
+  assert.equal(safeRelPath('overrides/a.txt:hidden'), '')
+  assert.equal(safeRelPath('overrides/sub/C:/x'), '')
+  for (const bad of ['a<b', 'a>b', 'a"b', 'a|b', 'a?b', 'a*b']) assert.equal(safeRelPath(`overrides/${bad}`), '')
+  // 不分大小写的文件系统上，这些落盘后就是 node_modules / .git / 锁文件
+  assert.ok(blockedReason('Node_Modules/x/index.js'))
+  assert.ok(blockedReason('sub/NODE_MODULES/x'))
+  assert.ok(blockedReason('.GIT/config'))
+  assert.ok(blockedReason('PNPM-Lock.yaml'))
+  assert.equal(blockedReason('skills/demo/SKILL.md'), '')
+  // 带冒号的条目和其它不安全路径一样：整包拒收
+  const pack = parsePackArchive(makePack({ entries: [{ name: 'overrides/.npmrc::$DATA', data: 'registry=https://example.invalid/' }] }))
+  assert.equal(pack.ok, false)
+  assert.match(pack.errors.join('\n'), /路径不安全/)
+  // home/ 下的 node_modules 变体同样进不来
+  const home = parsePackArchive(makePack({ entries: [{ name: 'home/skills/demo/Node_Modules/x.js', data: 'x' }] }))
+  assert.equal(home.home.length, 0)
 })
 
 // ---- 解析 ----

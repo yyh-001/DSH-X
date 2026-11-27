@@ -217,6 +217,25 @@ test('本机扫描：键是相对路径，Windows 反斜杠换成正斜杠，临
   assert.equal(localPathFor('other/x.txt', targets), '')
   // 没有 files 清单的目录：远端多出来的键也能算出落点
   assert.match(localPathFor('sessions/newproj/s2/file', targets), /newproj[\\/]s2[\\/]file$/)
+  // 键是远端给的，不能信：往上跳、空段、反斜杠（Windows 上就是分隔符）、NUL 一律不给落点
+  for (const key of [
+    'sessions/../../.zshrc',
+    'sessions/a/../../../x',
+    'sessions/./x',
+    'sessions//x',
+    '/sessions/x',
+    'sessions/..\\..\\x',
+    'sessions/a\\b',
+    'sessions/a\0b',
+  ]) {
+    assert.equal(localPathFor(key, targets), '', JSON.stringify(key))
+  }
+  // 插件配置只认白名单里的三个文件：.npmrc、node_modules、大小写不同的同名文件都不认
+  const profile = scopeTargets('plugins', { home, profile: 'web', profileDir: join(home, 'profiles', 'web') })
+  assert.match(localPathFor('profiles/web/cordis.patch.yml', profile), /cordis\.patch\.yml$/)
+  for (const key of ['profiles/web/.npmrc', 'profiles/web/Package.json', 'profiles/web/node_modules/x/index.js']) {
+    assert.equal(localPathFor(key, profile), '', key)
+  }
 })
 
 test('插件清单合并：并集、版本取高、bundles 跟着依赖走、本地路径依赖摘掉', () => {

@@ -121,7 +121,8 @@ export const DEFAULT_UPDATE_SOURCE = 'mirror'
 /** 更新下载源只认内置选项，脏值回默认（国内加速：镜像优先、直连兜底）。 */
 export function safeUpdateSource(value) {
   const name = String(value ?? '').trim()
-  return UPDATE_SOURCES[name] ? name : DEFAULT_UPDATE_SOURCE
+  // hasOwn：`constructor` 这类原型上的名字不是下载源
+  return Object.hasOwn(UPDATE_SOURCES, name) ? name : DEFAULT_UPDATE_SOURCE
 }
 
 /** 一个下载源统管 npm 与 GitHub，避免界面选择和实际更新路径互相矛盾。 */
@@ -896,7 +897,7 @@ export const DEFAULTS = {
 /** 下载源只认内置选项，历史文件里的脏值回默认镜像。 */
 export function safeDownloadSource(value) {
   const name = String(value ?? '').trim()
-  return DOWNLOAD_SOURCES[name] ? name : DEFAULT_SOURCE
+  return Object.hasOwn(DOWNLOAD_SOURCES, name) ? name : DEFAULT_SOURCE
 }
 
 /** 与官方市场一致：索引只接受无账号密码、无片段的 HTTP(S) URL。 */

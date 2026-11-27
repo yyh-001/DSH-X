@@ -160,12 +160,39 @@ function isHttpUrl(value) {
   return typeof value === 'string' && /^https?:\/\//i.test(value.trim())
 }
 
-function normalizeUrl(value) {
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '0.0.0.0', '[::]'])
+
+/**
+ * 地址是不是 DSH-X 管理页（`DSH_X_MANAGER_URL` 那个端口上的本机地址）。
+ *
+ * 管理页没有鉴权，只靠 Origin 判断来源；agent 把 Browser tab 开过去再 eval，就是同源请求，
+ * 能装插件、起 MCP 进程。外壳的 guest 策略也挡这个端口，这里是给旧外壳兜的第一道。
+ * 别的本机端口不拦：看本地开发服务器是这个工具的正常用法。
+ */
+export function isManagerUrl(value, env = process.env) {
+  let manager
+  let url
+  try {
+    manager = new URL(String(env?.DSH_X_MANAGER_URL ?? ''))
+    url = new URL(value)
+  } catch {
+    return false
+  }
+  const portOf = (parsed) => parsed.port || (parsed.protocol === 'https:' ? '443' : '80')
+  if (portOf(url) !== portOf(manager)) return false
+  const host = url.hostname.toLowerCase()
+  return host === manager.hostname.toLowerCase() || LOOPBACK_HOSTS.has(host) || host.endsWith('.localhost')
+}
+
+export function normalizeUrl(value, env = process.env) {
   const text = String(value ?? '').trim()
   if (text.length === 0) throw new Error('a url is required for this action')
-  if (isHttpUrl(text)) return text
-  if (/^[a-z][a-z0-9+.-]*:/i.test(text)) throw new Error(`only http(s) URLs are accepted, received ${JSON.stringify(text)}`)
-  return `https://${text.replace(/^\/+/, '')}`
+  let url
+  if (isHttpUrl(text)) url = text
+  else if (/^[a-z][a-z0-9+.-]*:/i.test(text)) throw new Error(`only http(s) URLs are accepted, received ${JSON.stringify(text)}`)
+  else url = `https://${text.replace(/^\/+/, '')}`
+  if (isManagerUrl(url, env)) throw new Error('the DSH-X management page cannot be opened in the Browser tab')
+  return url
 }
 
 function pickArgs(raw) {

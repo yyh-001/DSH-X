@@ -9,6 +9,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import {
   isExternalWebUrl,
+  isInstanceUrl,
   isBootingUrl,
   followAction,
   isLoopbackUrl,
@@ -59,6 +60,15 @@ test('本机地址判定：只认回环，userinfo 里的主机名骗不过去',
   assert.ok(sameOrigin('http://127.0.0.1:1/a?b', 'HTTP://127.0.0.1:1/'))
   assert.ok(!sameOrigin('http://127.0.0.1:1/', 'http://127.0.0.1:2/'))
   assert.ok(!sameOrigin('about:blank', 'about:blank'))
+})
+
+test('右侧栏浏览器的租约只发给实例自己的页面：别的本机端口、外部网页、没地址的实例都不算', () => {
+  const instances = [{ id: 'a', url: 'http://127.0.0.1:9716/?token=x' }, { id: 'b', url: '' }]
+  assert.ok(isInstanceUrl('http://127.0.0.1:9716/chat', instances))
+  assert.ok(!isInstanceUrl('http://127.0.0.1:5173/', instances))
+  assert.ok(!isInstanceUrl('https://evil.example/', instances))
+  assert.ok(!isInstanceUrl('about:blank', instances))
+  assert.ok(!isInstanceUrl('http://127.0.0.1:9716/', undefined))
 })
 
 test('认出启动进度页：只有 /booting 才算，别的路径与坏地址都不算', () => {

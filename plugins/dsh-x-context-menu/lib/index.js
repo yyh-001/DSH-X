@@ -5,7 +5,7 @@
  * 2. `POST /api/x-context-menu/open-url` —— 用系统默认浏览器打开外链。
  *
  * 其余菜单动作（重命名、归档、置顶、分叉、新建会话、复制）全在客户端调 dsh 自己的服务，
- * 不经过这里。两条路由都只认环回来源，不鉴权也不该被局域网访问到。
+ * 不经过这里。两条路由都只认环回来源，并且走 dsh 的连接鉴权（同源 + 登录态），局域网和别的网页都调不到。
  *
  * 不依赖 DSH-X 外壳：浏览器里跑 dsh 时这两个动作照样能用；外壳在场时也只是多一条路。
  */
@@ -16,8 +16,8 @@ import { isAbsolute } from 'node:path'
 /** Diagnostic name of this Host plugin. */
 export const name = 'dsh-x-context-menu'
 
-/** 只需要一个能挂路由的 webServer。 */
-export const inject = ['webServer']
+/** 挂路由的 webServer，加上给路由鉴权的 connection（Host/Origin 检查 + 登录态）。 */
+export const inject = ['webServer', 'connection']
 
 const MAX_URL_LENGTH = 2048
 const MAX_PATH_LENGTH = 4096
@@ -51,6 +51,8 @@ export function resolveTarget(value) {
   if (typeof value !== 'string') return null
   const raw = value.trim()
   if (raw === '' || raw.length > MAX_PATH_LENGTH || !isAbsolute(raw)) return null
+  // UNC / 网络路径不碰：statSync 会去连那台机器，Windows 上等于把登录凭据哈希送出去。
+  if (/^[\\/]{2}/.test(raw)) return null
   try {
     const stat = statSync(raw)
     if (stat.isDirectory()) return { path: raw, kind: 'directory' }
@@ -140,8 +142,14 @@ function launch(spec) {
   })
 }
 
-/** 只有环回来源能调这两条路由。 */
+/**
+ * 只有环回来源能调这两条路由。
+ *
+ * 带 `X-Forwarded-For` 的不算：DSH-X 的局域网代理从回环连进来、Host 也改写成回环，
+ * 只看地址和 Host 会把局域网设备当成本机；代理给每个请求都加了这个头。
+ */
 export function isLoopbackRequest(req) {
+  if (req.headers?.['x-forwarded-for']) return false
   const address = req.socket?.remoteAddress || ''
   const host = String(req.headers?.host || '')
   const localAddress = address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1'
@@ -237,6 +245,16 @@ export function apply(ctx) {
       handler: (req, res) => {
         if (!isLoopbackRequest(req)) {
           sendJson(res, 403, { ok: false, error: 'forbidden: loopback only' })
+          return
+        }
+        if (req.method !== 'POST') {
+          sendJson(res, 405, { ok: false, error: 'method not allowed' })
+          return
+        }
+        // webServer 自己不鉴权也不查 Origin：不过这一关，任意网页都能跨站 POST 过来。
+        const rejection = ctx.connection.requestRejection(req)
+        if (rejection !== undefined) {
+          sendJson(res, rejection, { ok: false, error: rejection === 401 ? 'unauthorized' : 'forbidden' })
           return
         }
         Promise.resolve(route.handler(req, res)).catch((error) => {

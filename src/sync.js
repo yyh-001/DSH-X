@@ -1568,18 +1568,40 @@ export function scanLocal(targets) {
   return local
 }
 
-/** 桶里的键 → 本机该落到哪个路径（不在同步范围内的键、带 .. 的键返回空串）。 */
+/**
+ * 键里的一段能不能当本机文件名。键是远端给的（被攻破的桶、中间人、别人发来的 ZIP），
+ * 不能信：
+ * - `.` / `..` / 空段：路径穿越；
+ * - 反斜杠：Windows 上它就是分隔符，`..\..\x` 按 `/` 拆是「一段」，拼出来却会往上跳。
+ *   各平台一律不收——同一个键在哪台机器上都该是同一个结论；
+ * - NUL：fs 直接抛，早点拦；
+ * - 冒号只在 Windows 上拦（盘符、NTFS 备用数据流）；macOS / Linux 的文件名里带冒号是正常的。
+ */
+function safeKeyPart(part) {
+  if (!part || part === '.' || part === '..') return false
+  if (part.includes('\\') || part.includes('\0')) return false
+  if (sep === '\\' && part.includes(':')) return false
+  return true
+}
+
+/**
+ * 桶里的键 → 本机该落到哪个路径。不在同步范围内的键、带 `..` 之类危险段的键返回空串，
+ * **调用方必须把空串当成「跳过」**，不能自己另拼一个落点。
+ */
 export function localPathFor(key, targets) {
-  const parts = String(key).split('/')
-  if (parts.includes('..') || parts.includes('')) return ''
+  const text = String(key)
+  if (!text.split('/').every(safeKeyPart)) return ''
   for (const target of targets) {
-    if (!key.startsWith(`${target.prefix}/`)) continue
-    const rest = key.slice(target.prefix.length + 1)
+    if (!text.startsWith(`${target.prefix}/`)) continue
+    const rest = text.slice(target.prefix.length + 1)
     if (target.files) {
       const known = target.files.find((file) => file.name === rest)
       return known ? join(target.dir, known.name) : ''
     }
-    return join(target.dir, ...rest.split('/'))
+    const dest = join(target.dir, ...rest.split('/'))
+    // 上面已经逐段查过，这里再按结果兜一次：落点必须真的在这个范围的目录里面
+    const root = resolve(target.dir)
+    return resolve(dest).startsWith(`${root}${sep}`) ? dest : ''
   }
   return ''
 }
@@ -1898,6 +1920,27 @@ export async function runSync({
     }
     // 插件清单不走普通的文件比对：它两个方向都做并集合并（下面的 mergeManifests 管），
     // 从计划里摘出去，免得「本机没有、桶里有」时被当成普通文件先拉下来再合并一遍
+    // 远端列出来的键不能信（被攻破的桶、中间人、别人发来的 ZIP 都能随便写）：不在命名空间下、
+    // 或者算不出本机落点的（带 `..`、不属于这个范围、不在 profile 文件白名单里），下载方向
+    // 一律丢掉并点名。早先这里有个「算不出就拼到 DSH_HOME 下面」的兜底，等于让远端想写哪写哪。
+    if (mode !== 'up') {
+      const head = `${client.namespace}/`
+      const rejected = []
+      for (const key of [...remote.keys()]) {
+        if (key.startsWith(head) && localPathFor(key.slice(head.length), targets)) continue
+        remote.delete(key)
+        rejected.push(key)
+      }
+      if (rejected.length) {
+        report.skipped += rejected.length
+        summary.skipped += rejected.length
+        const note = `${report.label}：远端有 ${rejected.length} 个路径不在同步范围内，没有下载`
+        report.notes.push(note)
+        summary.notes.push(note)
+        for (const key of rejected.slice(0, 20)) log(`[同步] 跳过不在同步范围内的远端路径 ${JSON.stringify(key)}`)
+        if (rejected.length > 20) log(`[同步] …还有 ${rejected.length - 20} 个同类路径没列出来`)
+      }
+    }
     const manifestKeys = new Set(targets.flatMap((target) => (target.files || [])
       .filter((file) => file.kind === 'manifest')
       .map((file) => `${client.namespace}/${target.prefix}/${file.name}`)))

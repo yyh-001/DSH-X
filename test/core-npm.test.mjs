@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import { CORE_PACKAGE, coreDistTag, coreMetadataUrl, extractCoreTarball, resolveCoreRelease, stagingStats, tarCommand } from '../src/core-npm.js'
+import { CORE_PACKAGE, coreDistTag, coreMetadataUrl, downloadCoreTarball, extractCoreTarball, NPM_SIGNING_KEYS, resolveCoreRelease, stagingStats, tarCommand, verifyCoreRelease } from '../src/core-npm.js'
+import { NPM_SIGNING_KEYS as SHELL_SIGNING_KEYS } from '../shell/core-fetch.mjs'
 import { VERSION_CHANNEL } from '../src/version.js'
 import { pickCoreRelease } from '../shell/core-fetch.mjs'
 
@@ -93,4 +94,27 @@ test('解压 npm tarball：剥掉 package/ 前缀，校验 server.js 和 package
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
+})
+
+// dsh-x-core@0.2.0 在 npm 上的真实签名（公开数据），和 test/core-fetch.test.mjs 用的是同一组
+const SIGNED = {
+  version: '0.2.0',
+  integrity: 'sha512-c+S730RjV6Yezq1UBlW+kQws7OG8leb2NAPxUhwFQD3WDVX2yoPpxVJ5Ewhv9MrHf1OK+MXPbnymZWJNswMKUA==',
+  signatures: [{
+    keyid: 'SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U',
+    sig: 'MEUCIQDDfWB0kP8ERs6Zgon5W23EqpW/NX2sqqrZQ1D+Lx2dtgIgND0snQymYWpN4CBJF23b/0PyDeOHhjT4wMPNlQK19z0=',
+  }],
+}
+
+test('核心更新验签：官方签过的通过，改过 integrity 或没签名的拒绝；没有 sha512 / 不是 https 不下载', { skip: process.env.DSH_CORE_REGISTRY ? '指定了 DSH_CORE_REGISTRY' : false }, async () => {
+  const noFetch = async () => { throw new Error('不该联网') }
+  await verifyCoreRelease(SIGNED, { name: 'dsh-x-core', fetchImpl: noFetch })
+  await assert.rejects(verifyCoreRelease({ ...SIGNED, integrity: `${SIGNED.integrity.slice(0, -4)}AA==` }, { name: 'dsh-x-core', fetchImpl: noFetch }), /签名校验/)
+  await assert.rejects(verifyCoreRelease({ ...SIGNED, signatures: [] }, { name: 'dsh-x-core', fetchImpl: noFetch }), /签名校验/)
+  assert.deepEqual(resolveCoreRelease({ 'dist-tags': { latest: '0.2.0' }, versions: { '0.2.0': { dist: { signatures: SIGNED.signatures } } } }).signatures, SIGNED.signatures)
+  // 外壳和核心各钉一份公钥，必须是同一把
+  assert.deepEqual(NPM_SIGNING_KEYS, SHELL_SIGNING_KEYS)
+  const dest = join(tmpdir(), `dsh-core-npm-${process.pid}.tgz`)
+  await assert.rejects(downloadCoreTarball('https://registry.npmjs.org/x.tgz', dest, { integrity: '' }), /sha512/)
+  await assert.rejects(downloadCoreTarball('http://registry.npmjs.org/x.tgz', dest, { integrity: SIGNED.integrity }), /https/)
 })

@@ -94,4 +94,20 @@ test('版本检测：真服务验证缓存、通道口径、GitHub 隔离与静�
     assert.equal((await checkLogs()).length, before.length + 1)
     assert.equal(githubCalls, calls)
   })
+
+  await t.test('拆包后的核心不提供「下载安装包并运行」这条老路，也不为它发任何请求', async () => {
+    const saved = process.env.DSH_CORE
+    process.env.DSH_CORE = '1'
+    try {
+      const calls = githubCalls
+      for (const path of ['/api/self/download', '/api/self/install']) {
+        const result = await env.call(path, {})
+        assert.equal(result.status, 404, path)
+      }
+      assert.equal(githubCalls, calls)
+    } finally {
+      if (saved === undefined) delete process.env.DSH_CORE
+      else process.env.DSH_CORE = saved
+    }
+  })
 })

@@ -1,6 +1,6 @@
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { corePackageName, channelOf, coreRegistries, fetchCoreMetadata, installCore, pickCoreRelease, tarballFor } from './core-fetch.mjs'
+import { corePackageName, channelOf, coreRegistries, fetchCoreMetadata, installCore, pickCoreRelease, tarballFor, verifyCoreRelease } from './core-fetch.mjs'
 import { coreSetupPage, coreSetupPaintScript, dataUrl } from './pages.mjs'
 
 function registryHost(registry) {
@@ -111,7 +111,11 @@ export function createCoreBootstrap({
           channel: channelOf(version),
           skip: failedCoreVersions(),
         })
-        if (release) return { release, registry }
+        if (release) {
+          // 在循环里验签：镜像给的元数据验不过时接着问官方源，而不是直接让首启失败
+          await verifyCoreRelease(release, { fetchImpl })
+          return { release, registry }
+        }
         last = new Error(`npm 上没有和当前外壳（Electron ${process.versions.electron}）兼容的核心版本`)
       } catch (error) {
         last = error

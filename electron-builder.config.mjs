@@ -36,6 +36,16 @@ export default {
     buildResources: 'src/assets',
   },
   asar: false,
+  // Electron fuses：只关两个用不到的入口，其余保持默认。
+  // - enableNodeCliInspectArguments：不关的话 `DSH --inspect` 就能往主进程里塞代码。
+  // - grantFileProtocolExtraPrivileges：外壳只加载 http://127.0.0.1 和 data: 页面，没有 file: 页面。
+  // 故意不动的：runAsNode（dsh 子进程就是 Electron 加 ELECTRON_RUN_AS_NODE=1 跑的）、
+  // enableNodeOptionsEnvironmentVariable（compat 的 worker 钩子靠 NODE_OPTIONS 注入）、
+  // enableCookieEncryption（mac 是 ad-hoc 签名，每次换包签名都变，钥匙串会反复询问甚至读不回登录态）。
+  electronFuses: {
+    enableNodeCliInspectArguments: false,
+    grantFileProtocolExtraPrivileges: false,
+  },
   npmRebuild: false,
   files: ['**/*'],
   publish: [

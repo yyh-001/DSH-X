@@ -141,6 +141,11 @@ dsh 的环境隔离单位。模板名（web / headless / acp / sdk / …）会�
 - 清理按钮（`POST /api/browser/clear-cache` / `clear-data`）由核心转给 `host.browser`（`shell/main.mjs` 的 `clearBrowserData`）：分区名是 `persist:dsh-sidebar-browser-*`，进程里和磁盘（`userData/Partitions`）上的都要扫；清缓存只动 Cache Storage / Service Worker / HTTP 缓存，清全部连 Cookie、站点数据一起删。`/api/settings` 的 `browserHost` 表示当前外壳有没有这层能力，页面据此禁用按钮。
 - 这是**外壳 + 核心**两层功能：发布时两个版本都要 bump。
 
+### 管理接口的入口检查
+
+- 依次三道（`server.js`）：`isLocalHostHeader`（Host 必须是本机，挡 DNS rebinding）→ 会话 cookie（`manager-auth.js`：跨站来源的读请求没带 cookie 一律 401）→ `handleApi` 里的 `sameSiteRequest`（改状态的请求 Origin 必须是本机 + 管理页端口）与 `ownPageRequest`（`Sec-Fetch-Site` 只认 `same-origin` / `none`，挡别的网页和本机别的端口用 `<img src>` 之类触发的 GET）。
+- 不带 Origin / `Sec-Fetch-Site` 的本机程序（外壳、插件、curl）不受后两道影响。新增要从别的页面调管理接口的功能时，先想清楚它会不会被这两道挡掉。
+
 ### 插件桌面 API（`/api/desktop`）
 
 - 插件跑在 dsh 子进程里，拿不到 Electron。能力走本机 HTTP：插件 → `server.js` 的 `/api/desktop/*` → `host.desktop`（`shell/main.mjs`）→ Electron。协议、请求形状和可复制的客户端封装见 `docs/desktop-api.md`。

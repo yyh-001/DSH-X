@@ -54,8 +54,12 @@ function normalizeEntryName(name) {
  * 读一个 ZIP，返回 `{ entries: [{ name, dir, size, data }] }`。
  *
  * 每个条目的内容都过一次 CRC 校验：整合包是从网上来的，静默读出半截数据比报错危险得多。
+ *
+ * 上限都在解压**之前**按中央目录声明的大小判：先解再查没有用——几百 KB 的包能解出几百 MB；
+ * 更狠的是让几万条中央目录记录指向同一段数据，十几 KB 的包就能把启动器的内存吃满。
+ * 单条目 64 MB / 总量 128 MB 是硬上限；`maxEntries` / `maxTotalBytes` 由调用方按业务再收紧。
  */
-export function readZip(input) {
+export function readZip(input, { maxEntries = Infinity, maxTotalBytes = Infinity } = {}) {
   const buffer = Buffer.isBuffer(input) ? input : Buffer.from(input)
   if (buffer.length < 22) throw new Error('不是 ZIP：文件太小')
   // ZIP 一定以本地文件头的 'PK' 开头：这一条就能把普通文本、图片挡在外面
@@ -69,6 +73,7 @@ export function readZip(input) {
     throw new Error('不支持 ZIP64 格式的压缩包')
   }
   if (offset + size > buffer.length) throw new Error('ZIP 中央目录越界（文件可能被截断）')
+  if (count > maxEntries) throw new Error(`压缩包里的文件太多（${count} 个，上限 ${maxEntries}）`)
 
   const entries = []
   let cursor = offset
@@ -105,13 +110,19 @@ export function readZip(input) {
     const raw = buffer.subarray(from, from + compressedSize)
     // 防 zip bomb：单条目与累计解压字节都设上限，避免小包在 inflateRawSync 里直接把进程 OOM 打崩
     const maxEntryBytes = 64 * 1024 * 1024
-    const maxTotalBytes = 128 * 1024 * 1024
+    const hardTotalBytes = 128 * 1024 * 1024
     if (uncompressedSize > maxEntryBytes) throw new Error(`ZIP 条目过大（超过 64 MB）：${name}`)
     totalUncompressed += uncompressedSize
-    if (totalUncompressed > maxTotalBytes) throw new Error('ZIP 解压后总大小超过 128 MB，已拒绝读取')
+    // 调用方的上限先判：它更具体，报错能点名业务上的数字
+    if (totalUncompressed > maxTotalBytes) {
+      throw new Error(`压缩包解开后太大（超过 ${Math.round(maxTotalBytes / 1048576)} MB），已停下：${name}`)
+    }
+    if (totalUncompressed > hardTotalBytes) throw new Error('ZIP 解压后总大小超过 128 MB，已拒绝读取')
     let data
     try {
-      data = method === 0 ? Buffer.from(raw) : inflateRawSync(raw, { maxOutputLength: maxEntryBytes })
+      // 输出封顶在声明的大小：谎报大小的压缩炸弹解到这里就报错，不会先把 64 MB 解满再被后面的长度检查发现。
+      // zlib 不收 0，所以空文件给 1。
+      data = method === 0 ? Buffer.from(raw) : inflateRawSync(raw, { maxOutputLength: Math.max(1, Math.min(uncompressedSize, maxEntryBytes)) })
     } catch (error) {
       // zlib 报的是它自己的话（invalid code lengths set 之类），这里换成能看懂的说法
       throw new Error(`ZIP 条目解压失败（文件损坏？）：${name} —— ${error.message}`)

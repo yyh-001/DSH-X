@@ -187,3 +187,40 @@ test('只收 IPv4 字面量（authority 写成 host:port，IPv6 会有歧义）'
   await assert.rejects(startLanProxy({ lanHost: '::1', port: 1 }), /IPv4/)
   await assert.rejects(startLanProxy({ lanHost: 'localhost', port: 1 }), /IPv4/)
 })
+
+test('转发头：X-Real-IP 一类也丢掉，解析不了的请求行不算 token 交换（不能抛）', () => {
+  const addresses = proxyAddresses('192.168.31.76', 3080)
+  const rewritten = upstreamHeaders({
+    host: '192.168.31.76:3080', 'x-real-ip': '127.0.0.1', 'x-client-ip': '127.0.0.1', 'true-client-ip': '127.0.0.1', 'x-forwarded-port': '1',
+  }, addresses, '192.168.31.9')
+  for (const name of ['x-real-ip', 'x-client-ip', 'true-client-ip', 'x-forwarded-port']) assert.equal(rewritten[name], undefined, name)
+  assert.equal(rewritten['x-forwarded-for'], '192.168.31.9')
+  // Node 的解析器收得下这种请求行；这里抛出去就是上游响应回调里的未捕获异常
+  assert.equal(isTokenExchange('http://[x?token=a', 303, ['dsh-auth-x=1']), false)
+})
+
+test('升级请求 Host 不对又立刻 RST：代理不能因为没人接的 socket error 崩掉', { skip: !LAN && '这台机器没有局域网 IPv4' }, async () => {
+  const upstream = http.createServer((_req, res) => res.end('ok'))
+  await new Promise((resolve) => upstream.listen(0, '127.0.0.1', resolve))
+  const port = upstream.address().port
+  const proxy = await startLanProxy({ lanHost: LAN, port })
+  try {
+    // 未处理的 error 事件会直接让这个测试进程退出，所以跑完还能正常请求就是证据
+    for (let round = 0; round < 30; round += 1) {
+      await new Promise((resolve) => {
+        const socket = net.connect(port, LAN, () => {
+          socket.write('GET / HTTP/1.1\r\nHost: evil\r\nConnection: Upgrade\r\nUpgrade: x\r\n\r\n')
+          socket.resetAndDestroy()
+        })
+        socket.on('error', () => {})
+        socket.on('close', resolve)
+      })
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    const response = await fetch(`http://${LAN}:${port}/`)
+    assert.equal(await response.text(), 'ok')
+  } finally {
+    await proxy.close()
+    await new Promise((resolve) => upstream.close(resolve))
+  }
+})

@@ -7,7 +7,7 @@ import { delimiter, dirname, join } from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { fileURLToPath } from 'node:url'
-import { DEFAULTS, DOWNLOAD_SOURCES, loadSettingsSync } from './settings.js'
+import { DEFAULTS, DOWNLOAD_SOURCES, loadSettingsSync, safeDownloadSource } from './settings.js'
 import { IN_ELECTRON, IS_WINDOWS, RUNTIME_NODE, RUNTIME_NODE_ENV } from './platform.js'
 // 版本列表、tarball 都走带代理的 fetch（见 proxy.js）；回环地址它自动直连
 import { netFetch, proxyEnv } from './proxy.js'
@@ -26,7 +26,8 @@ export function currentRegistry() {
   const fromEnv = (process.env.npm_config_registry || '').replace(/\/$/, '')
   if (fromEnv) return fromEnv
   const name = loadSettingsSync().downloadSource
-  return DOWNLOAD_SOURCES[name] || DOWNLOAD_SOURCES[DEFAULTS.downloadSource]
+  // 过一遍校验再查表：设置文件里的脏值（包括 `constructor` 这种原型上的名字）回默认源
+  return DOWNLOAD_SOURCES[safeDownloadSource(name)] || DOWNLOAD_SOURCES[DEFAULTS.downloadSource]
 }
 const USER_AGENT = `dsh-x/${CORE_VERSION}`
 let npmReady = null
