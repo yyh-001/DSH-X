@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { allowedUrl, apply, isLoopbackRequest, openerCommand, resolveTarget } from '../lib/index.js'
+import { allowedUrl, apply, isLoopbackRequest, isNetworkPath, openerCommand, resolveTarget } from '../lib/index.js'
 
 test('外链：只放行 http/https', () => {
   assert.equal(allowedUrl('https://example.com/a?b=1'), 'https://example.com/a?b=1')
@@ -76,6 +76,17 @@ test('路由只认环回', () => {
 test('UNC 路径不解析（不去连那台机器）', () => {
   assert.equal(resolveTarget('\\\\evil.example\\share\\x'), null)
   assert.equal(resolveTarget('//evil.example/share/x'), null)
+})
+
+test('长路径写法：本机盘符放行，UNC / 管道 / 设备照样挡', () => {
+  // 本机磁盘：工作区路径太长时 Windows 给的就是这种形式
+  for (const local of ['\\\\?\\C:\\work\\project', '\\\\.\\D:\\x', '//?/c:/work', '\\\\?\\C:', 'C:\\work', '/Users/me/work']) {
+    assert.equal(isNetworkPath(local), false, local)
+  }
+  for (const remote of ['\\\\?\\UNC\\server\\share\\x', '\\\\.\\UNC\\server\\share', '\\\\.\\pipe\\name', '\\\\.\\PhysicalDrive0',
+    '\\\\?\\GLOBALROOT\\Device\\x', '\\\\server\\share', '//server/share', '\\\\?\\C:evil']) {
+    assert.equal(isNetworkPath(remote), true, remote)
+  }
 })
 
 // ---- 路由层：有外壳走 Electron 桥，没外壳退回本机 ----

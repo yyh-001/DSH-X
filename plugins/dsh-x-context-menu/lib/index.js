@@ -43,6 +43,20 @@ export function allowedUrl(value) {
 }
 
 /**
+ * 以两个分隔符开头、又不是本机盘符的路径：UNC 共享（`\\server\share`、`\\?\UNC\server\share`）、
+ * 命名管道、`\\.\PhysicalDrive0` 这类设备。statSync 碰 UNC 会去连那台机器，Windows 上等于把
+ * 登录凭据哈希送出去；设备和管道也不是「文件或目录」。
+ * 只放过长路径 / 设备命名空间里的盘符写法（`\\?\C:\work`、`\\.\C:\work`）：那还是本机磁盘，
+ * 工作区路径太长时 Windows 就会给出这种形式。
+ * @param {string} raw - 已 trim 的绝对路径。
+ * @returns {boolean}
+ */
+export function isNetworkPath(raw) {
+  if (!/^[\\/]{2}/.test(raw)) return false
+  return !/^[\\/]{2}[?.][\\/][a-z]:(?:[\\/]|$)/i.test(raw)
+}
+
+/**
  * 只接受存在的绝对路径；返回它的类型，别的一律拒掉。
  * @param {unknown} value - 页面传来的路径。
  * @returns {{ path: string, kind: 'file' | 'directory' } | null}
@@ -51,8 +65,7 @@ export function resolveTarget(value) {
   if (typeof value !== 'string') return null
   const raw = value.trim()
   if (raw === '' || raw.length > MAX_PATH_LENGTH || !isAbsolute(raw)) return null
-  // UNC / 网络路径不碰：statSync 会去连那台机器，Windows 上等于把登录凭据哈希送出去。
-  if (/^[\\/]{2}/.test(raw)) return null
+  if (isNetworkPath(raw)) return null
   try {
     const stat = statSync(raw)
     if (stat.isDirectory()) return { path: raw, kind: 'directory' }
