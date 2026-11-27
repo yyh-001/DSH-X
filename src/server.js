@@ -3293,86 +3293,95 @@ function environmentTargetProfile(store, env, presets = safeLaunchPresets(loadSe
   return { home, profile, dir: join(home, 'profiles', safeProfile(profile)) }
 }
 
-/** 环境页的数据：生效的插件清单 + 哪些启动项在用 + 当前写在哪些 profile 目录里。 */
-async function environmentsPayload() {
-  await collectAllProfileChanges().catch((error) => pushLog(`[实例] 收集插件改动失败：${errorText(error)}`))
-  const store = environmentStore()
+/** 列表和保存响应共用一份视图结构，不能把磁盘上的 delta 当成页面上的差异摘要。 */
+function environmentView(env, viewContext) {
+  const { store, state, lang, presets, cachedMarketIcons } = viewContext
+  const list = effectivePlugins(env)
+  const following = isFollowing(env)
+  const local = new Set([...Object.keys(env.delta.dependencies), ...env.delta.bundlesAdded])
+  const usedPresets = presets.filter((entry) => entry.environment === env.id)
+  const target = environmentTargetProfile(store, env, presets)
+  const refPlugins = existsSync(join(target.dir, 'package.json')) ? listPlugins(target.dir, { lang }).plugins : []
+  const refPluginMap = new Map(refPlugins.map((item) => [item.name, item]))
+  return {
+    id: env.id,
+    name: env.name,
+    description: env.description || '',
+    packVersion: env.packVersion || '',
+    dshVersion: list.dshVersion,
+    updateChannel: list.updateChannel,
+    following,
+    source: env.source,
+    plugins: Object.entries(list.dependencies).map(([name, spec]) => {
+      const official = isOfficialPackage(name)
+      const localParsed = localSpecPath(spec)
+      const localSpec = localParsed !== null
+      const localDirPath = localSpec ? (isAbsolute(localParsed.path) ? localParsed.path : resolve(target.dir, localParsed.path)) : ''
+      const refItem = refPluginMap.get(name)
+      const refMeta = refItem && (refItem.description || refItem.title || refItem.icon) ? refItem : null
+      const directMeta = localSpec
+        ? readPluginPackageMeta(localDirPath, lang)
+        : (!refMeta ? readPluginPackageMeta(join(target.dir, 'node_modules', name), lang) : {})
+      const pkgMeta = {
+        title: refMeta?.title || directMeta.title || '',
+        description: refMeta?.description || directMeta.description || '',
+        icon: refMeta?.icon || directMeta.icon || '',
+      }
+      const icon = pkgMeta.icon || cachedMarketIcons[name] || ''
+      const enabled = official ? true
+        : refItem ? (refItem.toggleable ? refItem.enabled : list.bundles.includes(name))
+        : list.bundles.includes(name)
+      return {
+        name, spec,
+        ...(pkgMeta.title ? { title: pkgMeta.title } : {}),
+        ...(pkgMeta.description ? { description: pkgMeta.description } : {}),
+        ...(icon ? { icon } : {}),
+        bundle: list.bundles.includes(name),
+        enabled,
+        official,
+        local: localSpec,
+        upgradable: !official && !localSpec && isExactVersion(spec),
+        offline: Boolean(env.files[name]),
+        origin: local.has(name) ? ENVIRONMENT.PLUGIN_ORIGIN.LOCAL : ENVIRONMENT.PLUGIN_ORIGIN.UPSTREAM,
+      }
+    }),
+    bundles: list.bundles,
+    delta: following ? {
+      dshVersion: env.delta.dshVersion,
+      added: Object.keys(env.delta.dependencies).filter((name) => !Object.hasOwn(env.base.dependencies, name)),
+      changed: Object.keys(env.delta.dependencies).filter((name) => Object.hasOwn(env.base.dependencies, name)),
+      removed: env.delta.removed,
+    } : null,
+    usedBy: usedPresets.map((entry) => ({ id: entry.id, name: entry.name })),
+    targetProfile: target.profile,
+    targetHome: target.home,
+    // 更新前存下的旧清单（新到旧），环境页「切回之前的版本」用
+    history: store.history(env.id),
+    applied: Object.entries(state.applied).filter(([, record]) => record.environment === env.id).map(([key]) => {
+      const [home, profile] = key.split('\0')
+      return { home, profile }
+    }),
+  }
+}
+
+function environmentViewContext(store) {
   const state = store.readState()
   const stored = loadSettingsSync()
   const lang = stored.lang === 'en' ? 'en' : 'zh'
   const presets = safeLaunchPresets(stored.launchPresets)
   const marketSources = safePluginMarketSources(stored.pluginMarketSources)
   const cachedMarketIcons = pluginMarketClientInstance?.cachedIcons?.(marketSources) || {}
+  return { store, state, lang, presets, cachedMarketIcons }
+}
+
+/** 环境页的数据：生效的插件清单 + 哪些启动项在用 + 当前写在哪些 profile 目录里。 */
+async function environmentsPayload() {
+  await collectAllProfileChanges().catch((error) => pushLog(`[实例] 收集插件改动失败：${errorText(error)}`))
+  const store = environmentStore()
   const environments = store.list()
+  const viewContext = environmentViewContext(store)
   return {
-    environments: environments.map((env) => {
-      const list = effectivePlugins(env)
-      const following = isFollowing(env)
-      const local = new Set([...Object.keys(env.delta.dependencies), ...env.delta.bundlesAdded])
-      const usedPresets = presets.filter((entry) => entry.environment === env.id)
-      const target = environmentTargetProfile(store, env, presets)
-      const refPlugins = existsSync(join(target.dir, 'package.json')) ? listPlugins(target.dir, { lang }).plugins : []
-      const refPluginMap = new Map(refPlugins.map((item) => [item.name, item]))
-      return {
-        id: env.id,
-        name: env.name,
-        description: env.description || '',
-        packVersion: env.packVersion || '',
-        dshVersion: list.dshVersion,
-        updateChannel: list.updateChannel,
-        following,
-        source: env.source,
-        plugins: Object.entries(list.dependencies).map(([name, spec]) => {
-          const official = isOfficialPackage(name)
-          const localParsed = localSpecPath(spec)
-          const localSpec = localParsed !== null
-          const localDirPath = localSpec ? (isAbsolute(localParsed.path) ? localParsed.path : resolve(target.dir, localParsed.path)) : ''
-          const refItem = refPluginMap.get(name)
-          const refMeta = refItem && (refItem.description || refItem.title || refItem.icon) ? refItem : null
-          const directMeta = localSpec
-            ? readPluginPackageMeta(localDirPath, lang)
-            : (!refMeta ? readPluginPackageMeta(join(target.dir, 'node_modules', name), lang) : {})
-          const pkgMeta = {
-            title: refMeta?.title || directMeta.title || '',
-            description: refMeta?.description || directMeta.description || '',
-            icon: refMeta?.icon || directMeta.icon || '',
-          }
-          const icon = pkgMeta.icon || cachedMarketIcons[name] || ''
-          const enabled = official ? true
-            : refItem ? (refItem.toggleable ? refItem.enabled : list.bundles.includes(name))
-            : list.bundles.includes(name)
-          return {
-            name, spec,
-            ...(pkgMeta.title ? { title: pkgMeta.title } : {}),
-            ...(pkgMeta.description ? { description: pkgMeta.description } : {}),
-            ...(icon ? { icon } : {}),
-            bundle: list.bundles.includes(name),
-            enabled,
-            official,
-            local: localSpec,
-            upgradable: !official && !localSpec && isExactVersion(spec),
-            offline: Boolean(env.files[name]),
-            origin: local.has(name) ? ENVIRONMENT.PLUGIN_ORIGIN.LOCAL : ENVIRONMENT.PLUGIN_ORIGIN.UPSTREAM,
-          }
-        }),
-        bundles: list.bundles,
-        delta: following ? {
-          dshVersion: env.delta.dshVersion,
-          added: Object.keys(env.delta.dependencies).filter((name) => !Object.hasOwn(env.base.dependencies, name)),
-          changed: Object.keys(env.delta.dependencies).filter((name) => Object.hasOwn(env.base.dependencies, name)),
-          removed: env.delta.removed,
-        } : null,
-        usedBy: usedPresets.map((entry) => ({ id: entry.id, name: entry.name })),
-        targetProfile: target.profile,
-        targetHome: target.home,
-        // 更新前存下的旧清单（新到旧），环境页「切回之前的版本」用
-        history: store.history(env.id),
-        applied: Object.entries(state.applied).filter(([, record]) => record.environment === env.id).map(([key]) => {
-          const [home, profile] = key.split('\0')
-          return { home, profile }
-        }),
-      }
-    }),
+    environments: environments.map((env) => environmentView(env, viewContext)),
     // 页面输入框的上限跟着服务端的校验走，不在页面里另写一份
     limits: { nameMax: ENVIRONMENT.NAME_MAX },
     // 导出框不填版本号时服务端用的那个（页面拿它当占位提示）
@@ -3463,16 +3472,8 @@ function updateEnvironmentNow(body) {
     const next = { ...env, updatedAt: new Date().toISOString() }
     if (environmentVersionKey(next) !== before) await syncPresetVersions(store, next)
     const saved = store.save(next)
-    const effective = effectivePlugins(saved)
     await emitState()
-    return {
-      ok: true,
-      environment: {
-        ...saved,
-        dshVersion: effective.dshVersion,
-        updateChannel: effective.updateChannel,
-      },
-    }
+    return { ok: true, environment: environmentView(saved, environmentViewContext(store)) }
   }))
 }
 

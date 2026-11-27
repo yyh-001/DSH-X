@@ -858,19 +858,14 @@
         const savedEnv = res?.environment
         let targetEnv = env
         if (savedEnv && typeof environments !== 'undefined' && Array.isArray(environments)) {
-          // /api/environments/update 返回存储原始结构，需保留前端列表上的 plugins / usedBy / applied 等视图字段
-          const prevEnv = environments.find((item) => item.id === savedEnv.id) || env
+          // 兼容旧服务：只接收配置表单改过的字段，不能用存储结构覆盖页面视图（尤其是 delta）。
           const mergedEnv = Array.isArray(savedEnv.plugins)
             ? savedEnv
             : {
-                ...prevEnv,
-                ...savedEnv,
+                ...(environments.find((item) => item.id === savedEnv.id) || env),
                 name: savedEnv.name ?? nextName,
                 dshVersion: savedEnv.dshVersion ?? nextVersion,
                 updateChannel: savedEnv.updateChannel ?? nextChannel,
-                plugins: Array.isArray(prevEnv?.plugins) ? prevEnv.plugins : [],
-                usedBy: Array.isArray(prevEnv?.usedBy) ? prevEnv.usedBy : [],
-                applied: Array.isArray(prevEnv?.applied) ? prevEnv.applied : [],
               }
           targetEnv = mergedEnv
           environments = environments.map((item) => (item.id === mergedEnv.id ? mergedEnv : item))
