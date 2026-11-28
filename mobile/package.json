@@ -1,6 +1,6 @@
 {
   "name": "dsh-x-mobile",
-  "version": "0.2.1-rc.4",
+  "version": "0.2.1-rc.5",
   "private": true,
   "type": "module",
   "description": "DSH-X native mobile app shell powered by Capacitor",
