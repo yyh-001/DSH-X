@@ -40,9 +40,20 @@ public class QrScanActivity extends AppCompatActivity {
     private boolean handled = false;
 
     @Override
+    protected void onStart() {
+        super.onStart();
+        NoticeSyncService.onActivityStarted();
+    }
+
+    @Override
+    protected void onStop() {
+        NoticeSyncService.onActivityStopped();
+        super.onStop();
+    }
+
+    @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Color.BLACK);
         root.setFitsSystemWindows(true);

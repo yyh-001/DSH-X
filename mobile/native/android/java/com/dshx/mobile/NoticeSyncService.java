@@ -52,9 +52,17 @@ public class NoticeSyncService extends Service {
     private ScheduledExecutorService scheduler;
     private SecureTokenStore tokenStore;
 
+    /**
+     * 前台 Activity 计数：App 自己在前台时不需要那条「后台通知连接」常驻通知，
+     * 切到后台（计数归零）再重新进入前台服务，保证锁屏后仍能收通知。
+     */
+    private static final AtomicInteger STARTED_ACTIVITIES = new AtomicInteger();
+    private static volatile NoticeSyncService instance;
+
     @Override
     public void onCreate() {
         super.onCreate();
+        instance = this;
         tokenStore = new SecureTokenStore(this);
         ensureChannels(this);
     }
@@ -65,7 +73,11 @@ public class NoticeSyncService extends Service {
             stopSelf();
             return START_NOT_STICKY;
         }
-        startAsForeground();
+        if (isAppVisible()) {
+            hideForegroundNotice();
+        } else {
+            showForegroundNoticeSafe();
+        }
         startPolling();
         return START_STICKY;
     }
@@ -73,7 +85,57 @@ public class NoticeSyncService extends Service {
     @Override
     public void onDestroy() {
         stopPolling();
+        if (instance == this) {
+            instance = null;
+        }
         super.onDestroy();
+    }
+
+    /** App 是否有可见界面（MainActivity / DshWebViewActivity / QrScanActivity 任一在前台）。 */
+    public static boolean isAppVisible() {
+        return STARTED_ACTIVITIES.get() > 0;
+    }
+
+    public static void onActivityStarted() {
+        if (STARTED_ACTIVITIES.incrementAndGet() == 1) {
+            NoticeSyncService svc = instance;
+            if (svc != null) {
+                svc.hideForegroundNotice();
+            }
+        }
+    }
+
+    public static void onActivityStopped() {
+        if (STARTED_ACTIVITIES.decrementAndGet() > 0) {
+            return;
+        }
+        STARTED_ACTIVITIES.set(0);
+        NoticeSyncService svc = instance;
+        if (svc != null) {
+            svc.showForegroundNoticeSafe();
+        }
+    }
+
+    private void showForegroundNoticeSafe() {
+        if (!isEnabled(this)) {
+            return;
+        }
+        try {
+            startAsForeground();
+        } catch (Exception ignored) {
+            // Android 12+ 后台启动前台服务受限：退化成普通后台服务继续轮询，下次进前台再恢复。
+        }
+    }
+
+    private void hideForegroundNotice() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                stopForeground(STOP_FOREGROUND_REMOVE);
+            } else {
+                stopForeground(true);
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     @Nullable
@@ -86,8 +148,8 @@ public class NoticeSyncService extends Service {
         SharedPreferences prefs = prefs(this);
         String hostName = prefs.getString(KEY_HOST_NAME, "");
         String contentText = hostName.isEmpty()
-            ? "正在监听电脑端任务完成与审批通知"
-            : ("正在监听 " + hostName + " 的任务通知");
+            ? "正在接收电脑端任务与确认提醒"
+            : ("正在接收 " + hostName + " 的任务提醒");
 
         Intent openIntent = new Intent(this, MainActivity.class);
         openIntent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
@@ -98,13 +160,20 @@ public class NoticeSyncService extends Service {
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
+        // 尽量做到「隐形」：安静、不进锁屏、不占 badge、可一键划掉；
+        // App 打开时由 hideForegroundNotice() 直接撤掉，只有退到后台才会重新出现。
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_BG_SYNC)
             .setSmallIcon(getApplicationInfo().icon)
-            .setContentTitle("DSH-X 通知连接运行中")
+            .setContentTitle("DSH-X 后台通知")
             .setContentText(contentText)
-            .setOngoing(true)
-            .setSilent(true)
+            .setOngoing(false)
+            .setAutoCancel(false)
+            .setShowWhen(false)
+            .setOnlyAlertOnce(true)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
             .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setSilent(true)
             .setContentIntent(pendingIntent)
             .build();
 
@@ -217,6 +286,9 @@ public class NoticeSyncService extends Service {
         );
         bgSync.setDescription("保持手机接收电脑端通知的静默后台状态");
         bgSync.setShowBadge(false);
+        bgSync.setSound(null, null);
+        bgSync.enableVibration(false);
+        bgSync.setLockscreenVisibility(Notification.VISIBILITY_SECRET);
 
         nm.createNotificationChannel(approval);
         nm.createNotificationChannel(done);

@@ -2,11 +2,13 @@ package com.dshx.mobile;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
+import android.os.PowerManager;
 import android.provider.Settings;
 import androidx.activity.result.ActivityResult;
 import androidx.core.content.ContextCompat;
@@ -353,6 +355,7 @@ public class DshxNativePlugin extends Plugin {
         String token = call.getString("token", "");
         String instanceTitle = call.getString("instanceTitle", "");
         Boolean darkTheme = call.getBoolean("darkTheme");
+        Boolean floatingPill = call.getBoolean("floatingPill");
         if (origin == null || origin.isEmpty() || instanceKey == null || instanceKey.isEmpty() || token == null || token.isEmpty()) {
             call.reject("Missing origin, instanceKey, or token");
             return;
@@ -365,6 +368,7 @@ public class DshxNativePlugin extends Plugin {
         if (darkTheme != null) {
             intent.putExtra(DshWebViewActivity.EXTRA_DARK_THEME, darkTheme);
         }
+        intent.putExtra(DshWebViewActivity.EXTRA_FLOATING_PILL, floatingPill == null || floatingPill);
         startActivityForResult(call, intent, "handleWebViewClosed");
     }
 
@@ -386,6 +390,62 @@ public class DshxNativePlugin extends Plugin {
         ret.put("enabled", NoticeSyncService.isEnabled(getContext()));
         ret.put("granted", granted);
         call.resolve(ret);
+    }
+
+    /** 后台常驻（忽略电池优化）状态：国产 ROM 不申请这一项，前台服务随时会被清掉。 */
+    @PluginMethod
+    public void getBackgroundState(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("ignoringBatteryOptimizations", isIgnoringBatteryOptimizations());
+        ret.put("sdkInt", Build.VERSION.SDK_INT);
+        call.resolve(ret);
+    }
+
+    /** 拉起系统「允许后台运行 / 忽略电池优化」弹窗；部分 ROM 没有该弹窗时退到电池优化列表。 */
+    @PluginMethod
+    public void requestBackgroundPermission(PluginCall call) {
+        JSObject ret = new JSObject();
+        if (isIgnoringBatteryOptimizations()) {
+            ret.put("requested", false);
+            ret.put("ignoringBatteryOptimizations", true);
+            call.resolve(ret);
+            return;
+        }
+        boolean opened = false;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                Intent request = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                request.setData(Uri.parse("package:" + getContext().getPackageName()));
+                request.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(request);
+                opened = true;
+            } catch (Exception ignored) {
+            }
+        }
+        if (!opened) {
+            try {
+                Intent list = new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+                list.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(list);
+                opened = true;
+            } catch (Exception ignored) {
+            }
+        }
+        ret.put("requested", opened);
+        ret.put("ignoringBatteryOptimizations", isIgnoringBatteryOptimizations());
+        call.resolve(ret);
+    }
+
+    private boolean isIgnoringBatteryOptimizations() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            return true;
+        }
+        try {
+            PowerManager pm = (PowerManager) getContext().getSystemService(Context.POWER_SERVICE);
+            return pm != null && pm.isIgnoringBatteryOptimizations(getContext().getPackageName());
+        } catch (Exception ex) {
+            return false;
+        }
     }
 
     @PluginMethod
@@ -432,7 +492,20 @@ public class DshxNativePlugin extends Plugin {
         NoticeSyncService.saveConfig(getContext(), enabled, hostId, hostName, origins);
         Intent serviceIntent = new Intent(getContext(), NoticeSyncService.class);
         if (enabled && hostId != null && !hostId.isEmpty() && !origins.isEmpty()) {
-            ContextCompat.startForegroundService(getContext(), serviceIntent);
+            // App 在前台时不需要那条常驻通知，用普通 startService 拉起；
+            // 只有从后台恢复时才走前台服务（否则 Android 8+ 会要求 5 秒内 startForeground）。
+            try {
+                if (NoticeSyncService.isAppVisible()) {
+                    getContext().startService(serviceIntent);
+                } else {
+                    ContextCompat.startForegroundService(getContext(), serviceIntent);
+                }
+            } catch (Exception ex) {
+                try {
+                    ContextCompat.startForegroundService(getContext(), serviceIntent);
+                } catch (Exception ignored) {
+                }
+            }
         } else {
             getContext().stopService(serviceIntent);
         }

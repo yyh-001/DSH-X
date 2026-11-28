@@ -10,6 +10,9 @@ const STORAGE = {
   autoSwitch: 'dshx_mobile_auto_switch',
   lastLogKey: 'dshx_mobile_last_log_key',
   pwaDismissed: 'dshx_mobile_pwa_dismissed',
+  nativeNotifyPref: 'dshx_mobile_native_notify_pref',
+  nativeBgAsked: 'dshx_mobile_native_bg_asked',
+  nativePill: 'dshx_mobile_native_pill',
 }
 
 const REDIRECT_GUARD_KEY = 'dshx_mobile_route_redirected'
@@ -236,6 +239,16 @@ const I18N = {
     nativeNotifyEnabled: '已开启后台原生通知',
     nativeNotifyDisabled: '已关闭后台原生通知',
     nativeNotifyPermDenied: '未授予系统通知权限，请在系统设置中允许通知',
+    nativeBgTitle: '后台运行',
+    nativeBgDescOn: '已允许后台常驻，锁屏后仍能收到通知',
+    nativeBgDescOff: '未允许，系统可能清理后台通知连接',
+    nativeBgBtn: '去开启',
+    nativeBgRequested: '请在系统弹窗中允许后台运行',
+    nativeBgGranted: '已允许后台运行',
+    nativePillTitle: '悬浮窗',
+    nativePillDesc: '在 DSH 页面浮动显示实例胶囊，点按切换实例',
+    nativePillOn: '已开启悬浮窗',
+    nativePillOff: '已关闭悬浮窗，下次进入实例生效',
     appUpdateTitle: '应用版本',
     appUpdateCurrent: '当前 {ver}（已是最新）',
     appUpdateUnknown: '当前版本 {ver}',
@@ -467,6 +480,16 @@ const I18N = {
     nativeNotifyEnabled: 'Background native notifications enabled',
     nativeNotifyDisabled: 'Background native notifications disabled',
     nativeNotifyPermDenied: 'Notification permission denied in system settings',
+    nativeBgTitle: 'Background running',
+    nativeBgDescOn: 'Allowed to run in background; notifications arrive while locked',
+    nativeBgDescOff: 'Not allowed; the system may stop background notification sync',
+    nativeBgBtn: 'Enable',
+    nativeBgRequested: 'Choose "Allow" in the system dialog',
+    nativeBgGranted: 'Background running allowed',
+    nativePillTitle: 'Floating pill',
+    nativePillDesc: 'Show a floating instance pill over DSH pages; tap to switch',
+    nativePillOn: 'Floating pill enabled',
+    nativePillOff: 'Floating pill disabled; applies next time you open an instance',
     manualPairToggle: 'Enter pairing code manually',
     appUpdateTitle: 'App Version',
     appUpdateCurrent: 'v{ver} (up to date)',
@@ -933,6 +956,7 @@ const state = {
   },
   instancesTimer: null,
   logsTimer: null,
+  notifyDefaultsApplied: false,
 }
 
 // ===== DOM 引用 =====
@@ -992,6 +1016,11 @@ const el = {
   nativeNotifyRow: document.getElementById('nativeNotifyRow'),
   nativeNotifyToggle: document.getElementById('nativeNotifyToggle'),
   nativeNotifyTestBtn: document.getElementById('nativeNotifyTestBtn'),
+  nativeBgRow: document.getElementById('nativeBgRow'),
+  nativeBgDesc: document.getElementById('nativeBgDesc'),
+  nativeBgBtn: document.getElementById('nativeBgBtn'),
+  nativePillRow: document.getElementById('nativePillRow'),
+  nativePillToggle: document.getElementById('nativePillToggle'),
   unpairSelfBtn: document.getElementById('unpairSelfBtn'),
   appFooterNote: document.getElementById('appFooterNote'),
 
@@ -2123,6 +2152,7 @@ async function openNativeDshInstance(instanceKey, instanceTitle = '') {
       hostName: host?.hostName || '',
       instanceTitle,
       darkTheme: document.documentElement.dataset.colorScheme === 'dark',
+      floatingPill: lsGet(STORAGE.nativePill, '1') !== '0',
     })
     await loadInstances({ silent: true })
   } catch (err) {
@@ -3234,8 +3264,21 @@ async function startAppUpdateDownload() {
 }
 
 function renderPwaGuideUI() {
+  const nativeMode = isNativeApp()
   if (el.nativeNotifyRow) {
-    el.nativeNotifyRow.hidden = !isNativeApp()
+    el.nativeNotifyRow.hidden = !nativeMode
+  }
+  if (el.nativeBgRow) {
+    el.nativeBgRow.hidden = !nativeMode
+  }
+  if (el.nativePillRow) {
+    el.nativePillRow.hidden = !nativeMode
+    if (el.nativePillToggle) {
+      el.nativePillToggle.checked = lsGet(STORAGE.nativePill, '1') !== '0'
+    }
+  }
+  if (nativeMode) {
+    void refreshNativeBackgroundState()
   }
   renderAppUpdateUI()
   const scenario = detectPwaScenario()
@@ -3324,6 +3367,10 @@ function switchTab(tab) {
     loadDevices()
     renderEndpointsPanel()
     renderSavedHostsList()
+    if (isNativeApp()) {
+      void refreshNativeBackgroundState()
+      void syncNativeNotificationToggleState()
+    }
   } else if (tab === 'instances') {
     loadInstances({ silent: true })
   }
@@ -3367,6 +3414,7 @@ async function enterAuthenticatedConsole({ keepPairModal = false } = {}) {
     loadInstances(),
     probeHostRoutes({ allowAutoSwitch: !keepPairModal }),
   ])
+  await ensureNativeNotificationDefaults()
 }
 
 async function syncNativeNotifications(explicitEnabled) {
@@ -3405,6 +3453,70 @@ async function syncNativeNotifications(explicitEnabled) {
     el.nativeNotifyToggle.checked = Boolean(res.enabled)
   }
   return res
+}
+
+/** 后台常驻状态（忽略电池优化）：国产 ROM 不申请这一项，前台服务随时会被清掉。 */
+async function refreshNativeBackgroundState() {
+  if (!isNativeApp()) return null
+  const native = getNativeBridge()
+  if (!native || typeof native.getBackgroundState !== 'function') return null
+  const state = await native.getBackgroundState().catch(() => null)
+  if (!state) return null
+  const allowed = Boolean(state.ignoringBatteryOptimizations)
+  if (el.nativeBgDesc) {
+    el.nativeBgDesc.textContent = allowed ? t('nativeBgDescOn') : t('nativeBgDescOff')
+  }
+  if (el.nativeBgBtn) {
+    el.nativeBgBtn.textContent = t('nativeBgBtn')
+    el.nativeBgBtn.hidden = allowed
+  }
+  return state
+}
+
+async function requestNativeBackgroundPermission() {
+  const native = getNativeBridge()
+  if (!native || typeof native.requestBackgroundPermission !== 'function') return null
+  const res = await native.requestBackgroundPermission().catch(() => null)
+  if (res && !res.ignoringBatteryOptimizations && res.requested) {
+    showToast(t('nativeBgRequested'))
+  }
+  return res
+}
+
+/** 打开设置页时把原生通知开关同步成真实状态（默认开启后可能已自动启动）。 */
+async function syncNativeNotificationToggleState() {
+  const native = getNativeBridge()
+  if (!native || typeof native.getNotificationState !== 'function') return
+  const state = await native.getNotificationState().catch(() => null)
+  if (state && el.nativeNotifyToggle) {
+    el.nativeNotifyToggle.checked = Boolean(state.enabled)
+  }
+}
+
+/**
+ * 系统通知默认开启：前台拿到活跃主机后自动申请通知权限并启动后台同步，
+ * 用户显式关掉后写入 localStorage，之后不再自动打开。
+ */
+async function ensureNativeNotificationDefaults() {
+  if (!isNativeApp() || state.notifyDefaultsApplied) return
+  const native = getNativeBridge()
+  if (!native) return
+  state.notifyDefaultsApplied = true
+  if (lsGet(STORAGE.nativeNotifyPref, 'on') === 'off') {
+    void refreshNativeBackgroundState()
+    return
+  }
+  const res = await syncNativeNotifications(true).catch(() => null)
+  if (res?.enabled) {
+    if (lsGet(STORAGE.nativeBgAsked, '0') !== '1') {
+      lsSet(STORAGE.nativeBgAsked, '1')
+      void requestNativeBackgroundPermission()
+    } else {
+      void refreshNativeBackgroundState()
+    }
+  } else {
+    void refreshNativeBackgroundState()
+  }
 }
 
 async function bootstrapNative() {
@@ -3691,11 +3803,34 @@ function bindEvents() {
         showToast(t('nativeNotifyPermDenied'), { error: true })
         return
       }
+      lsSet(STORAGE.nativeNotifyPref, desired ? 'on' : 'off')
       showToast(res.enabled ? t('nativeNotifyEnabled') : t('nativeNotifyDisabled'))
+      if (desired && lsGet(STORAGE.nativeBgAsked, '0') !== '1') {
+        lsSet(STORAGE.nativeBgAsked, '1')
+        void requestNativeBackgroundPermission()
+      } else {
+        void refreshNativeBackgroundState()
+      }
     } catch (err) {
       el.nativeNotifyToggle.checked = !desired
       showToast(t('actionFailed', { msg: err?.message || 'Error' }), { error: true })
     }
+  })
+  el.nativeBgBtn?.addEventListener('click', async () => {
+    try {
+      await requestNativeBackgroundPermission()
+      const state = await refreshNativeBackgroundState()
+      if (state?.ignoringBatteryOptimizations) {
+        showToast(t('nativeBgGranted'))
+      }
+    } catch (err) {
+      showToast(t('actionFailed', { msg: err?.message || 'Error' }), { error: true })
+    }
+  })
+  el.nativePillToggle?.addEventListener('change', () => {
+    const enabled = Boolean(el.nativePillToggle.checked)
+    lsSet(STORAGE.nativePill, enabled ? '1' : '0')
+    showToast(enabled ? t('nativePillOn') : t('nativePillOff'))
   })
   el.nativeNotifyTestBtn?.addEventListener('click', async () => {
     try {
@@ -3828,6 +3963,9 @@ function bindEvents() {
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && state.authenticated) {
       refreshCurrentTab({ manual: false })
+      if (isNativeApp()) {
+        void refreshNativeBackgroundState()
+      }
     }
   })
 }

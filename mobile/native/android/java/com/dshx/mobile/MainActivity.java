@@ -9,4 +9,16 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(DshxNativePlugin.class);
         super.onCreate(savedInstanceState);
     }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        NoticeSyncService.onActivityStarted();
+    }
+
+    @Override
+    protected void onStop() {
+        NoticeSyncService.onActivityStopped();
+        super.onStop();
+    }
 }

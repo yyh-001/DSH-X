@@ -4,6 +4,7 @@ import android.annotation.SuppressLint;
 import android.app.Dialog;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.content.res.Configuration;
 import android.graphics.Canvas;
@@ -22,7 +23,9 @@ import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.webkit.CookieManager;
@@ -65,8 +68,8 @@ import org.json.JSONObject;
  * 1. 携带 Bearer Token 请求 `POST /_dshx/api/session/bootstrap` 为当前链路种下 HttpOnly Cookie
  *    （遇 `< 0.2.1` 旧版内核返回 HTTP 404 时自动回落写入同源 `dsh-x-device` Cookie），
  *    再加载 `/_dshx/open/<instanceKey>` 进入原版 DSH；
- * 2. 顶部内置极简现代左对齐导航条（返回 / 实例选择器 / 刷新 / 收起），点击实例选择器弹出
- *    底部抽屉式多实例切换器，支持在当前 WebView 内原地无重启秒切其他运行中实例。
+ * 2. 页面之上悬浮一枚可拖动的实例胶囊（设置里可关闭）：点按弹出底部抽屉式多实例切换器，
+ *    支持在当前 WebView 内原地无重启秒切其他运行中实例，也能一键返回控制台。
  */
 public class DshWebViewActivity extends AppCompatActivity {
     public static final String EXTRA_ORIGIN = "origin";
@@ -74,13 +77,13 @@ public class DshWebViewActivity extends AppCompatActivity {
     public static final String EXTRA_TOKEN = "token";
     public static final String EXTRA_TITLE = "title";
     public static final String EXTRA_DARK_THEME = "darkTheme";
+    public static final String EXTRA_FLOATING_PILL = "floatingPill";
 
     private static final String NATIVE_UA_MARKER = "DSHXNativeApp/1";
+    private static final String PILL_PREFS = "dshx_webview_pill";
 
-    private static final int ICON_BACK = 1;
     private static final int ICON_CHEVRON_DOWN = 2;
     private static final int ICON_REFRESH = 3;
-    private static final int ICON_COLLAPSE = 4;
     private static final int ICON_CHECK = 5;
     private static final int ICON_CHEVRON_RIGHT = 6;
     private static final int ICON_ALERT = 7;
@@ -140,22 +143,10 @@ public class DshWebViewActivity extends AppCompatActivity {
             path.reset();
 
             switch (kind) {
-                case ICON_BACK:
-                    path.moveTo(15f * s, 18f * s);
-                    path.lineTo(9f * s, 12f * s);
-                    path.lineTo(15f * s, 6f * s);
-                    canvas.drawPath(path, paint);
-                    break;
                 case ICON_CHEVRON_DOWN:
                     path.moveTo(7f * s, 10f * s);
                     path.lineTo(12f * s, 15f * s);
                     path.lineTo(17f * s, 10f * s);
-                    canvas.drawPath(path, paint);
-                    break;
-                case ICON_COLLAPSE:
-                    path.moveTo(7f * s, 14.5f * s);
-                    path.lineTo(12f * s, 9.5f * s);
-                    path.lineTo(17f * s, 14.5f * s);
                     canvas.drawPath(path, paint);
                     break;
                 case ICON_REFRESH:
@@ -199,11 +190,9 @@ public class DshWebViewActivity extends AppCompatActivity {
 
     private WebView webView;
     private ProgressBar progressBar;
-    private LinearLayout topBar;
-    private View topDivider;
+    private LinearLayout floatingPill;
     private TextView switcherLabel;
     private TextView switcherCount;
-    private LinearLayout restoreBarChip;
     private LinearLayout errorOverlay;
     private TextView errorMessageView;
     private Dialog switcherDialog;
@@ -218,8 +207,22 @@ public class DshWebViewActivity extends AppCompatActivity {
     private String instanceTitle = "";
     private String bearerToken = "";
     private boolean darkTheme = false;
+    private boolean floatingPillEnabled = true;
+    private boolean pillPositionApplied = false;
     private boolean fetchingInstances = false;
     private String instancesFetchError = "";
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        NoticeSyncService.onActivityStarted();
+    }
+
+    @Override
+    protected void onStop() {
+        NoticeSyncService.onActivityStopped();
+        super.onStop();
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -230,6 +233,8 @@ public class DshWebViewActivity extends AppCompatActivity {
         instanceKey = safeTrim(getIntent().getStringExtra(EXTRA_INSTANCE_KEY));
         instanceTitle = safeTrim(getIntent().getStringExtra(EXTRA_TITLE));
         bearerToken = safeTrim(getIntent().getStringExtra(EXTRA_TOKEN));
+        floatingPillEnabled = !getIntent().hasExtra(EXTRA_FLOATING_PILL)
+            || getIntent().getBooleanExtra(EXTRA_FLOATING_PILL, true);
 
         if (getIntent().hasExtra(EXTRA_DARK_THEME)) {
             darkTheme = getIntent().getBooleanExtra(EXTRA_DARK_THEME, false);
@@ -257,19 +262,6 @@ public class DshWebViewActivity extends AppCompatActivity {
         root.setFitsSystemWindows(true);
         root.setBackgroundColor(colorBg());
 
-        topBar = buildTopBar();
-        root.addView(topBar, new LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            dp(46)
-        ));
-
-        topDivider = new View(this);
-        topDivider.setBackgroundColor(colorDivider());
-        root.addView(topDivider, new LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            1
-        ));
-
         FrameLayout contentWrap = new FrameLayout(this);
 
         webView = new WebView(this);
@@ -289,22 +281,24 @@ public class DshWebViewActivity extends AppCompatActivity {
         progressParams.gravity = Gravity.TOP;
         contentWrap.addView(progressBar, progressParams);
 
-        restoreBarChip = buildRestoreBarChip();
-        restoreBarChip.setVisibility(View.GONE);
-        FrameLayout.LayoutParams restoreParams = new FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            dp(32)
-        );
-        restoreParams.gravity = Gravity.TOP | Gravity.END;
-        restoreParams.setMargins(0, dp(10), dp(12), 0);
-        contentWrap.addView(restoreBarChip, restoreParams);
-
         errorOverlay = buildErrorOverlay();
         errorOverlay.setVisibility(View.GONE);
         contentWrap.addView(errorOverlay, new FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT
         ));
+
+        // 悬浮胶囊最后加：盖在错误页之上，页面挂了也还能切换实例或返回控制台。
+        if (floatingPillEnabled) {
+            floatingPill = buildFloatingPill();
+            FrameLayout.LayoutParams pillParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                dp(36)
+            );
+            pillParams.leftMargin = 0;
+            pillParams.topMargin = dp(10);
+            contentWrap.addView(floatingPill, pillParams);
+        }
 
         root.addView(contentWrap, new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -335,6 +329,16 @@ public class DshWebViewActivity extends AppCompatActivity {
         bootstrapAndOpen();
     }
 
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        // 首次拿到焦点时布局已经完成，此时恢复胶囊位置才拿得到真实宽高。
+        if (hasFocus && !pillPositionApplied && floatingPill != null && floatingPill.getParent() instanceof View) {
+            pillPositionApplied = true;
+            restorePillPosition(floatingPill, (View) floatingPill.getParent());
+        }
+    }
+
     private void applySystemBarColors() {
         Window window = getWindow();
         if (window == null) {
@@ -350,56 +354,44 @@ public class DshWebViewActivity extends AppCompatActivity {
         controller.setAppearanceLightNavigationBars(!darkTheme);
     }
 
-    private LinearLayout buildTopBar() {
-        LinearLayout bar = new LinearLayout(this);
-        bar.setOrientation(LinearLayout.HORIZONTAL);
-        bar.setGravity(Gravity.CENTER_VERTICAL);
-        bar.setBackgroundColor(colorBarBg());
-        bar.setPadding(dp(8), 0, dp(8), 0);
+    /**
+     * 悬浮实例胶囊：48dp 宽的自适应明暗胶囊（状态点 + 实例名 + 运行中数量），
+     * 可拖动，点按打开底部实例切换抽屉；位置按内容区比例持久化。
+     */
+    private LinearLayout buildFloatingPill() {
+        LinearLayout pill = new LinearLayout(this);
+        pill.setOrientation(LinearLayout.HORIZONTAL);
+        pill.setGravity(Gravity.CENTER_VERTICAL);
+        pill.setPadding(dp(11), 0, dp(9), 0);
+        int bg = darkTheme ? Color.argb(214, 24, 26, 32) : Color.argb(228, 255, 255, 255);
+        pill.setBackground(makeRippleDrawable(bg, dp(999), dp(1), colorDivider()));
+        pill.setElevation(dp(6));
+        pill.setClickable(true);
+        pill.setFocusable(true);
+        pill.setContentDescription("切换实例");
 
-        FrameLayout backBtn = makeIconTapTarget(ICON_BACK, dp(36), dp(18), colorText(), "返回控制台");
-        backBtn.setOnClickListener(v -> {
-            setResult(RESULT_OK);
-            finish();
-        });
-        bar.addView(backBtn, new LinearLayout.LayoutParams(dp(36), dp(36)));
-
-        // 左对齐无边框标题选择器（类似 ChatGPT / Linear 移动端顶栏）
-        LinearLayout selectorContainer = new LinearLayout(this);
-        selectorContainer.setOrientation(LinearLayout.HORIZONTAL);
-        selectorContainer.setGravity(Gravity.CENTER_VERTICAL);
-        selectorContainer.setPadding(dp(4), 0, dp(6), 0);
-
-        LinearLayout selector = new LinearLayout(this);
-        selector.setOrientation(LinearLayout.HORIZONTAL);
-        selector.setGravity(Gravity.CENTER_VERTICAL);
-        selector.setPadding(dp(8), dp(6), dp(8), dp(6));
-        selector.setBackground(makeRippleDrawable(Color.TRANSPARENT, dp(10), 0, 0));
-        selector.setClickable(true);
-        selector.setFocusable(true);
-        selector.setOnClickListener(v -> showInstanceSwitcherSheet());
-
-        View greenDot = makeGlowingDot(colorGreen());
-        LinearLayout.LayoutParams dotParams = new LinearLayout.LayoutParams(dp(11), dp(11));
-        dotParams.rightMargin = dp(7);
-        selector.addView(greenDot, dotParams);
+        View dot = makeGlowingDot(colorGreen());
+        LinearLayout.LayoutParams dotParams = new LinearLayout.LayoutParams(dp(8), dp(8));
+        dotParams.rightMargin = dp(6);
+        pill.addView(dot, dotParams);
 
         switcherLabel = new TextView(this);
         switcherLabel.setTextColor(colorText());
-        switcherLabel.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f);
+        switcherLabel.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12.5f);
         switcherLabel.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         switcherLabel.setSingleLine(true);
         switcherLabel.setEllipsize(TextUtils.TruncateAt.END);
+        switcherLabel.setMaxWidth(dp(132));
         LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(
-            0,
             ViewGroup.LayoutParams.WRAP_CONTENT,
-            1f
+            ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        selector.addView(switcherLabel, labelParams);
+        labelParams.rightMargin = dp(2);
+        pill.addView(switcherLabel, labelParams);
 
         switcherCount = new TextView(this);
         switcherCount.setTextColor(colorAccent());
-        switcherCount.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10.5f);
+        switcherCount.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10f);
         switcherCount.setTypeface(Typeface.DEFAULT_BOLD);
         switcherCount.setPadding(dp(5), dp(1), dp(5), dp(1));
         switcherCount.setBackground(makeRoundedRect(colorAccentSoft(), 0, 0, dp(999)));
@@ -408,40 +400,110 @@ public class DshWebViewActivity extends AppCompatActivity {
             ViewGroup.LayoutParams.WRAP_CONTENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        countParams.leftMargin = dp(6);
-        selector.addView(switcherCount, countParams);
+        countParams.leftMargin = dp(5);
+        pill.addView(switcherCount, countParams);
 
         VectorIconView caret = new VectorIconView(this, ICON_CHEVRON_DOWN, colorMuted(), 2.0f);
-        LinearLayout.LayoutParams caretParams = new LinearLayout.LayoutParams(dp(14), dp(14));
-        caretParams.leftMargin = dp(4);
-        selector.addView(caret, caretParams);
+        LinearLayout.LayoutParams caretParams = new LinearLayout.LayoutParams(dp(13), dp(13));
+        caretParams.leftMargin = dp(3);
+        pill.addView(caret, caretParams);
 
-        selectorContainer.addView(selector, new LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        ));
-        bar.addView(selectorContainer, new LinearLayout.LayoutParams(
-            0,
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            1f
-        ));
-
-        FrameLayout reloadBtn = makeIconTapTarget(ICON_REFRESH, dp(36), dp(17), colorMuted(), "刷新页面");
-        reloadBtn.setOnClickListener(v -> {
+        pill.setOnClickListener(v -> showInstanceSwitcherSheet());
+        // 顶部栏去掉后，长按胶囊保留「重载页面」这个动作。
+        pill.setOnLongClickListener(v -> {
             if (webView != null) {
                 errorOverlay.setVisibility(View.GONE);
+                progressBar.setVisibility(View.VISIBLE);
                 webView.reload();
             }
+            return true;
         });
-        bar.addView(reloadBtn, new LinearLayout.LayoutParams(dp(36), dp(36)));
+        attachPillDrag(pill);
+        return pill;
+    }
 
-        FrameLayout collapseBtn = makeIconTapTarget(ICON_COLLAPSE, dp(36), dp(17), colorMuted(), "收起顶部栏");
-        collapseBtn.setOnClickListener(v -> setTopBarVisible(false));
-        LinearLayout.LayoutParams collapseParams = new LinearLayout.LayoutParams(dp(36), dp(36));
-        collapseParams.leftMargin = dp(2);
-        bar.addView(collapseBtn, collapseParams);
+    /** 触摸拖动：越过 touchSlop 才进入拖动，松手时按内容区宽高比例记下位置。 */
+    private void attachPillDrag(View pill) {
+        final float[] down = new float[2];
+        final int[] start = new int[2];
+        final boolean[] dragging = { false };
+        final int slop = ViewConfiguration.get(this).getScaledTouchSlop();
+        pill.setOnTouchListener((v, event) -> {
+            if (!(v.getLayoutParams() instanceof FrameLayout.LayoutParams)) {
+                return false;
+            }
+            FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) v.getLayoutParams();
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    down[0] = event.getRawX();
+                    down[1] = event.getRawY();
+                    start[0] = lp.leftMargin;
+                    start[1] = lp.topMargin;
+                    dragging[0] = false;
+                    return true;
+                case MotionEvent.ACTION_MOVE: {
+                    float dx = event.getRawX() - down[0];
+                    float dy = event.getRawY() - down[1];
+                    if (!dragging[0] && Math.abs(dx) < slop && Math.abs(dy) < slop) {
+                        return true;
+                    }
+                    dragging[0] = true;
+                    View parent = (View) v.getParent();
+                    if (parent == null) {
+                        return true;
+                    }
+                    int maxX = Math.max(0, parent.getWidth() - v.getWidth());
+                    int maxY = Math.max(0, parent.getHeight() - v.getHeight());
+                    lp.leftMargin = Math.max(0, Math.min(maxX, start[0] + Math.round(dx)));
+                    lp.topMargin = Math.max(0, Math.min(maxY, start[1] + Math.round(dy)));
+                    v.setLayoutParams(lp);
+                    return true;
+                }
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    if (dragging[0]) {
+                        savePillPosition(v);
+                    } else if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+                        v.performClick();
+                    }
+                    return true;
+                default:
+                    return false;
+            }
+        });
+    }
 
-        return bar;
+    private void savePillPosition(View pill) {
+        View parent = (View) pill.getParent();
+        if (parent == null || !(pill.getLayoutParams() instanceof FrameLayout.LayoutParams)) {
+            return;
+        }
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) pill.getLayoutParams();
+        float maxX = Math.max(1, parent.getWidth() - pill.getWidth());
+        float maxY = Math.max(1, parent.getHeight() - pill.getHeight());
+        getSharedPreferences(PILL_PREFS, MODE_PRIVATE)
+            .edit()
+            .putFloat("x", lp.leftMargin / maxX)
+            .putFloat("y", lp.topMargin / maxY)
+            .apply();
+    }
+
+    private void restorePillPosition(View pill, View parent) {
+        if (!(pill.getLayoutParams() instanceof FrameLayout.LayoutParams) || parent.getWidth() <= 0) {
+            return;
+        }
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) pill.getLayoutParams();
+        int maxX = Math.max(0, parent.getWidth() - pill.getWidth());
+        int maxY = Math.max(0, parent.getHeight() - pill.getHeight());
+        SharedPreferences prefs = getSharedPreferences(PILL_PREFS, MODE_PRIVATE);
+        if (prefs.contains("x") && prefs.contains("y")) {
+            lp.leftMargin = Math.max(0, Math.min(maxX, Math.round(prefs.getFloat("x", 1f) * maxX)));
+            lp.topMargin = Math.max(0, Math.min(maxY, Math.round(prefs.getFloat("y", 0f) * maxY)));
+        } else {
+            lp.leftMargin = Math.max(0, maxX - dp(8));
+            lp.topMargin = dp(10);
+        }
+        pill.setLayoutParams(lp);
     }
 
     private FrameLayout makeIconTapTarget(int iconKind, int boxPx, int iconPx, int tintColor, String contentDesc) {
@@ -456,44 +518,6 @@ public class DshWebViewActivity extends AppCompatActivity {
         lp.gravity = Gravity.CENTER;
         wrap.addView(icon, lp);
         return wrap;
-    }
-
-    private LinearLayout buildRestoreBarChip() {
-        LinearLayout chip = new LinearLayout(this);
-        chip.setOrientation(LinearLayout.HORIZONTAL);
-        chip.setGravity(Gravity.CENTER_VERTICAL);
-        chip.setPadding(dp(10), 0, dp(9), 0);
-        int bg = darkTheme ? Color.argb(228, 24, 26, 32) : Color.argb(238, 255, 255, 255);
-        chip.setBackground(makeRippleDrawable(bg, dp(999), dp(1), colorDivider()));
-        chip.setElevation(dp(4));
-        chip.setClickable(true);
-        chip.setFocusable(true);
-        chip.setContentDescription("展开顶部控制条");
-        chip.setOnClickListener(v -> {
-            setTopBarVisible(true);
-            showInstanceSwitcherSheet();
-        });
-
-        View dot = makeGlowingDot(colorGreen());
-        LinearLayout.LayoutParams dotParams = new LinearLayout.LayoutParams(dp(10), dp(10));
-        dotParams.rightMargin = dp(5);
-        chip.addView(dot, dotParams);
-
-        VectorIconView chevron = new VectorIconView(this, ICON_CHEVRON_DOWN, colorText(), 2.0f);
-        chip.addView(chevron, new LinearLayout.LayoutParams(dp(14), dp(14)));
-        return chip;
-    }
-
-    private void setTopBarVisible(boolean visible) {
-        if (topBar != null) {
-            topBar.setVisibility(visible ? View.VISIBLE : View.GONE);
-        }
-        if (topDivider != null) {
-            topDivider.setVisibility(visible ? View.VISIBLE : View.GONE);
-        }
-        if (restoreBarChip != null) {
-            restoreBarChip.setVisibility(visible ? View.GONE : View.VISIBLE);
-        }
     }
 
     private void updateSwitcherHeaderText() {

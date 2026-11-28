@@ -144,7 +144,7 @@
       await nativePlugin.deleteHostToken({ hostId: String(hostId) })
     },
 
-    async openDshInstance({ origin, instanceKey, token, hostName = '', instanceTitle = '', darkTheme } = {}) {
+    async openDshInstance({ origin, instanceKey, token, hostName = '', instanceTitle = '', darkTheme, floatingPill } = {}) {
       if (!nativePlugin || typeof nativePlugin.openDshInstance !== 'function') {
         throw new Error('Native WebView launcher unavailable')
       }
@@ -157,6 +157,9 @@
       }
       if (typeof darkTheme === 'boolean') {
         payload.darkTheme = darkTheme
+      }
+      if (typeof floatingPill === 'boolean') {
+        payload.floatingPill = floatingPill
       }
       return nativePlugin.openDshInstance(payload)
     },
@@ -196,6 +199,20 @@
         hostName: String(hostName || ''),
         origins: Array.isArray(origins) ? origins.filter(Boolean) : [],
       })
+    },
+
+    async getBackgroundState() {
+      if (!nativePlugin || typeof nativePlugin.getBackgroundState !== 'function') {
+        return { ignoringBatteryOptimizations: true }
+      }
+      return nativePlugin.getBackgroundState()
+    },
+
+    async requestBackgroundPermission() {
+      if (!nativePlugin || typeof nativePlugin.requestBackgroundPermission !== 'function') {
+        return { requested: false, ignoringBatteryOptimizations: true }
+      }
+      return nativePlugin.requestBackgroundPermission()
     },
 
     async getAppInfo() {
