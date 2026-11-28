@@ -1,17 +1,27 @@
 /**
- * MCP 服务器管理：读写 profile 补丁层 cordis.patch.yml 里的 dsh-mcp-client 插入条目。
+ * MCP 服务器管理：读写 profile 补丁层 cordis.patch.yml 里的 dsh-mcp-client 条目。
  *
  * 官方的 MCP 接入形态（dsh-mcp-client README）：每个外部 MCP 服务器就是组合树里的
  * 一条插件条目——`name: '@deepseek-ai/dsh-mcp-client'`，config 带 serverName/transport/...；
  * 工具以 `mcp__<serverName>__<tool>` 暴露给模型。profile 树里默认没有 client 条目，
- * 所以这里用补丁层的 insert 语义新增条目（cordis-plugin-include 的 applyEntryPatches：
+ * 所以 DSH-X 新增条目时用补丁层的 insert 语义（cordis-plugin-include 的 applyEntryPatches：
  * 普通 patch 条目只覆盖已有 id，只有不带 id 的 `insert:` 才往顶层树里 push 新行）。
  *
- * 为什么用「标记区块 + 单行 JSON」而不是整文件 YAML 解析：
+ * 补丁层里的 MCP 行不一定都是本启动器写的：用户手写、dsh-skill-mcp-panel 之类的工具
+ * 也会往同一个文件里写 `@deepseek-ai/dsh-mcp-client` 行。页面必须把它们都列出来，
+ * 否则 profile 里明明配着服务器，MCP 页却显示 0 台（issue #125）。
+ * 所以这里有两套定位：
+ * - 本启动器自己的条目：一对 begin/end 标记 + 单行 flow JSON，整块重写；
+ * - 外来条目：按 YAML 的常见块写法扫出行/insert 成员的字节跨度，启停只动 `disabled`
+ *   那一行、删除只切那一段、编辑只重写那一条，文件其他字节不动。
+ *
+ * 为什么自己的条目用「标记区块 + 单行 JSON」：
  * - 补丁层允许 `!!js` 表达式（用户的其他条目可能在用），零依赖手写 YAML 解析器接不住；
  *   JSON 是 YAML 的子集，自己的条目用单行 flow JSON 写，读写都只需文本手术，
  *   区块之外的字节永远不动；
  * - 每个服务器一对 begin/end 标记，plugins.js 追加的禁用块落在文件末尾（标记之外），两边互不踩。
+ * 外来行只读 YAML 的保守子集（块状映射/列表、引号标量、JSON 流式写法）；认不出的写法
+ * 标成 opaque：仍能列出、启停、删除，但不做猜测性重写（宁可拒绝也不写坏用户配置）。
  *
  * 热生效：dsh-hmr 会 watch profile 的 patchPath 和 `$DSH_HOME/cordis.patch.yml`，改动会
  * 原地重载（新条目启动、改动条目重连），不用重启。（注意：profile 的 package.json 里那个
@@ -260,7 +270,485 @@ function readText(file) {
   }
 }
 
-/** 列出补丁层里由本启动器管理的 MCP 服务器（不动文件）。 */
+/* ------------------------------------------------------------------ *
+ * 补丁层里的外来 MCP 行（手写 / 其它面板写的 dsh-mcp-client 条目）。
+ *
+ * 只读 YAML 的保守子集：块状映射与列表、引号标量、JSON 流式写法。
+ * 遇到 !!js、锚点、块状标量、非 JSON 的 flow 写法则把那一行标成 opaque——
+ * 列出来、能启停能删，但不做猜测性重写。这样零依赖也不会写坏用户配置。
+ * ------------------------------------------------------------------ */
+
+const SEQ_ITEM_RE = /^-(?:[ \t]|$)/
+const KEY_LINE_RE = /^(?:"((?:[^"\\]|\\.)*)"|'((?:[^']|'')*)'|([A-Za-z0-9_.$@/-]+))[ \t]*:(?:[ \t]+(.*))?$/
+/** 外来行里“这一段是启动器自己写的表单字段”，编辑重写时会被条目替换。 */
+const ENTRY_KEYS = new Set(['id', 'name', 'disabled', 'config'])
+/** 已知 schema 字段：编辑切换传输方式时不能把上一个传输的字段原样带回来。 */
+const KNOWN_CONFIG_KEYS = new Set([
+  'serverName', 'transport', 'command', 'args', 'env', 'cwd', 'url', 'headers',
+  'toolCallTimeoutMs', 'maxInstructionBytes', 'failOnStartupError', 'reconnect',
+])
+
+/** 每行记字节跨度与缩进；行号即数组下标，改文件时按 [start, next) 切。 */
+function indexLines(text) {
+  const lines = []
+  let offset = 0
+  const rawLines = String(text ?? '').split('\n')
+  for (let index = 0; index < rawLines.length; index += 1) {
+    const raw = rawLines[index]
+    const content = raw.endsWith('\r') ? raw.slice(0, -1) : raw
+    const indentText = /^[ \t]*/.exec(content)[0]
+    const body = content.slice(indentText.length)
+    lines.push({
+      index,
+      start: offset,
+      contentEnd: offset + content.length,
+      next: offset + raw.length + 1,
+      indent: indentText.length,
+      tabbed: indentText.includes('\t'),
+      body,
+      blank: body.trim() === '',
+      comment: body.trimStart().startsWith('#'),
+    })
+    offset += raw.length + 1
+  }
+  return lines
+}
+
+function skipNoise(lines, index) {
+  let cursor = index
+  while (cursor < lines.length && (lines[cursor].blank || lines[cursor].comment)) cursor += 1
+  return cursor
+}
+
+function rangeEndOf(lines, index, length) {
+  if (index < 0) return 0
+  return Math.min(length, lines[index]?.next ?? length)
+}
+
+function keyTextOf(match) {
+  if (match[1] !== undefined) {
+    try {
+      return JSON.parse(`"${match[1]}"`)
+    } catch {
+      return match[1]
+    }
+  }
+  if (match[2] !== undefined) return match[2].replace(/''/g, "'")
+  return match[3]
+}
+
+/** 引号标量的收尾位置（支持 YAML 单引号里的 '' 转义）。 */
+function quotedEndOf(text, quote, doubled = false) {
+  for (let index = 1; index < text.length; index += 1) {
+    if (doubled) {
+      if (text[index] !== quote) continue
+      if (text[index + 1] === quote) {
+        index += 1
+        continue
+      }
+      return index
+    }
+    if (text[index] === '\\') {
+      index += 1
+      continue
+    }
+    if (text[index] === quote) return index
+  }
+  return -1
+}
+
+/** 行内注释只在空白后的 # 开始（值以 # 开头也算注释）；URL 里的 # 不算。 */
+function stripInlineComment(text) {
+  const value = String(text)
+  const at = value.search(/(?:^|[ \t])#/)
+  if (at < 0) return value.trim()
+  return (at === 0 ? '' : value.slice(0, at)).trim()
+}
+
+function parseScalar(raw) {
+  const trimmed = String(raw ?? '').trim()
+  if (trimmed === '' || trimmed.startsWith('#')) return { value: null }
+  if (/^!!/.test(trimmed) || trimmed.startsWith('!<')) return { value: null, opaque: '!!js 或自定义标签' }
+  if (trimmed.startsWith('&') || trimmed.startsWith('*')) return { value: null, opaque: '锚点或别名' }
+  if (trimmed.startsWith('|') || trimmed.startsWith('>')) return { value: null, opaque: '块状标量' }
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    try {
+      return { value: JSON.parse(trimmed) }
+    } catch {
+      // 行尾注释是 YAML 语法，不是 JSON；去掉再试一次
+    }
+    try {
+      return { value: JSON.parse(stripInlineComment(trimmed)) }
+    } catch {
+      return { value: null, opaque: '流式结构不是 JSON 写法' }
+    }
+  }
+  if (trimmed.startsWith('"')) {
+    const end = quotedEndOf(trimmed, '"')
+    if (end < 0) return { value: null, opaque: '双引号没有闭合' }
+    try {
+      return { value: JSON.parse(trimmed.slice(0, end + 1)) }
+    } catch {
+      return { value: null, opaque: '双引号字符串的转义看不懂' }
+    }
+  }
+  if (trimmed.startsWith("'")) {
+    const end = quotedEndOf(trimmed, "'", true)
+    if (end < 0) return { value: null, opaque: '单引号没有闭合' }
+    return { value: trimmed.slice(1, end).replace(/''/g, "'") }
+  }
+  const plain = stripInlineComment(trimmed)
+  if (/^(?:true|True|TRUE)$/.test(plain)) return { value: true }
+  if (/^(?:false|False|FALSE)$/.test(plain)) return { value: false }
+  if (/^(?:null|Null|NULL|~)$/.test(plain)) return { value: null }
+  if (/^[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$/.test(plain)) return { value: Number(plain) }
+  return { value: plain }
+}
+
+/** 块状标量（| / >）要整段吞掉，别把内容行当成新键。 */
+function consumeBlockScalar(lines, start, parentIndent) {
+  let index = start
+  let endLine = start - 1
+  while (index < lines.length) {
+    const line = lines[index]
+    if (line.blank) {
+      index += 1
+      continue
+    }
+    if (line.indent <= parentIndent) break
+    endLine = index
+    index += 1
+  }
+  return { index, endLine }
+}
+
+/** 空值键后面跟的缩进块；缩进不够就当作 null。 */
+function parseNodeAfter(lines, start, parentIndent) {
+  const index = skipNoise(lines, start)
+  if (index >= lines.length || lines[index].indent <= parentIndent) {
+    return { value: null, index: start, endLine: start - 1, opaque: [], selfOpaque: [], items: null, meta: null }
+  }
+  if (lines[index].tabbed) {
+    return { value: null, index: index + 1, endLine: index, opaque: ['缩进里有制表符'], selfOpaque: ['缩进里有制表符'], items: null, meta: null }
+  }
+  return SEQ_ITEM_RE.test(lines[index].body)
+    ? parseSequence(lines, index, lines[index].indent)
+    : parseMapping(lines, index, lines[index].indent, null)
+}
+
+/**
+ * 解析一层块状映射。firstPair 用于 `- id: x` 这种条目首键写在横线后面的写法；
+ * 此时后续键的对齐列是横线后第一个非空字符的位置。
+ */
+function parseMapping(lines, start, keyIndent, firstPair) {
+  const value = {}
+  const meta = { keyLines: new Map(), children: new Map(), disabledSpan: null, disabledLine: -1, keyIndent }
+  const selfOpaque = []
+  const nested = []
+  let pending = firstPair
+  let index = start
+  let endLine = start
+  while (true) {
+    let line = null
+    let text = ''
+    let textOffset = 0
+    if (pending) {
+      line = lines[start]
+      text = pending.text
+      textOffset = pending.offset
+      pending = null
+      index = start
+    } else {
+      index = skipNoise(lines, index)
+      if (index >= lines.length) break
+      line = lines[index]
+      if (line.indent === keyIndent && SEQ_ITEM_RE.test(line.body)) break
+      if (line.indent > keyIndent) {
+        selfOpaque.push(`缩进对不上：${line.body.trim().slice(0, 30)}`)
+        index += 1
+        endLine = index - 1
+        continue
+      }
+      if (line.indent < keyIndent) break
+      if (line.tabbed) {
+        selfOpaque.push('缩进里有制表符')
+        index += 1
+        endLine = index - 1
+        continue
+      }
+      text = line.body
+      textOffset = line.start + line.indent
+    }
+    const match = KEY_LINE_RE.exec(text)
+    if (!match) {
+      selfOpaque.push(`认不出的行：${text.trim().slice(0, 30)}`)
+      index = line.index + 1
+      endLine = line.index
+      continue
+    }
+    const key = keyTextOf(match)
+    if (meta.keyLines.has(key)) selfOpaque.push(`字段 ${key} 重复`)
+    meta.keyLines.set(key, line.index)
+    if (key === 'disabled') meta.disabledLine = line.index
+    // `key: # 注释` 的值是空的，注释不能算成字符串
+    const rest = /^\s*#/.test(match[4] ?? '') ? '' : (match[4] ?? '')
+    let itemValue = null
+    let itemEnd = line.index
+    if (rest === '') {
+      const child = parseNodeAfter(lines, line.index + 1, keyIndent)
+      itemValue = child.value
+      nested.push(...child.opaque)
+      meta.children.set(key, child)
+      itemEnd = Math.max(line.index, child.endLine)
+      index = Math.max(child.index, line.index + 1)
+    } else if (/^[|>]/.test(rest)) {
+      const child = consumeBlockScalar(lines, line.index + 1, keyIndent)
+      nested.push(`字段 ${key} 用了块状标量`)
+      itemEnd = Math.max(line.index, child.endLine)
+      index = Math.max(child.index, line.index + 1)
+    } else {
+      const scalar = parseScalar(rest)
+      itemValue = scalar.value
+      if (scalar.opaque) nested.push(`字段 ${key}：${scalar.opaque}`)
+      itemEnd = line.index
+      index = line.index + 1
+      if (key === 'disabled') {
+        const token = /^[^\s#]+/.exec(rest)
+        const restOffset = textOffset + text.length - rest.length
+        meta.disabledSpan = token ? { lineIndex: line.index, start: restOffset, end: restOffset + token[0].length } : null
+      }
+    }
+    value[key] = itemValue
+    endLine = itemEnd
+  }
+  return { value, index, endLine, opaque: [...selfOpaque, ...nested], selfOpaque, items: null, meta }
+}
+
+function parseSequence(lines, start, indent) {
+  const items = []
+  const selfOpaque = []
+  const nested = []
+  let index = start
+  let endLine = start
+  while (true) {
+    index = skipNoise(lines, index)
+    if (index >= lines.length) break
+    const line = lines[index]
+    if (line.indent < indent) break
+    if (line.indent > indent) {
+      selfOpaque.push(`缩进对不上：${line.body.trim().slice(0, 30)}`)
+      index += 1
+      endLine = index - 1
+      continue
+    }
+    if (!SEQ_ITEM_RE.test(line.body)) break
+    if (line.tabbed) {
+      selfOpaque.push('缩进里有制表符')
+      index += 1
+      endLine = index - 1
+      continue
+    }
+    const afterDash = line.body.slice(1)
+    const gap = /^[ \t]*/.exec(afterDash)[0]
+    const rest = afterDash.slice(gap.length)
+    const keyIndent = line.indent + 1 + gap.length
+    let value = null
+    let itemEnd = line.index
+    let itemMeta = null
+    let itemOpaque = []
+    let itemSelfOpaque = []
+    if (rest === '') {
+      const child = parseNodeAfter(lines, line.index + 1, line.indent)
+      value = child.value
+      itemOpaque = child.opaque
+      // 条目写成 `-` 换行再缩进映射时，键列在子节点那边，不能按横线推算
+      itemMeta = child.meta
+      itemEnd = Math.max(line.index, child.endLine)
+      index = Math.max(child.index, line.index + 1)
+    } else if (KEY_LINE_RE.test(rest)) {
+      const child = parseMapping(lines, line.index, keyIndent, { text: rest, offset: line.start + keyIndent })
+      value = child.value
+      itemOpaque = child.opaque
+      itemSelfOpaque = child.selfOpaque
+      itemMeta = child.meta
+      itemEnd = Math.max(line.index, child.endLine)
+      index = Math.max(child.index, line.index + 1)
+    } else if (/^[|>]/.test(rest)) {
+      const child = consumeBlockScalar(lines, line.index + 1, line.indent)
+      itemOpaque = ['块状标量']
+      itemEnd = Math.max(line.index, child.endLine)
+      index = Math.max(child.index, line.index + 1)
+    } else {
+      const scalar = parseScalar(rest)
+      value = scalar.value
+      if (scalar.opaque) itemOpaque = [scalar.opaque]
+      index = line.index + 1
+    }
+    nested.push(...itemOpaque)
+    items.push({
+      value,
+      startLine: line.index,
+      endLine: itemEnd,
+      keyIndent: itemMeta?.keyIndent ?? keyIndent,
+      dashIndent: line.indent,
+      meta: itemMeta,
+      opaque: itemOpaque,
+      selfOpaque: itemSelfOpaque,
+    })
+    endLine = itemEnd
+  }
+  return { value: items.map((item) => item.value), index, endLine, opaque: [...selfOpaque, ...nested], selfOpaque, items, meta: null }
+}
+
+/** 扫描一条外来行；只有 name 是官方 MCP 客户端的行才算。 */
+function foreignRowFromItem(item, range, insertParent) {
+  const fields = item.value
+  if (!fields || typeof fields !== 'object' || Array.isArray(fields)) return null
+  if (String(fields.name ?? '') !== MCP_CLIENT_PKG) return null
+  const config = fields.config && typeof fields.config === 'object' && !Array.isArray(fields.config) ? fields.config : null
+  const serverName = config && typeof config.serverName === 'string' ? config.serverName : ''
+  const id = typeof fields.id === 'string' ? fields.id : ''
+  const broken = !serverName
+  const opaque = item.opaque || []
+  const disabledProblem = fields.disabled !== undefined && fields.disabled !== null && typeof fields.disabled !== 'boolean'
+  return {
+    kind: 'row',
+    serverName: serverName || id || '(未命名 MCP 行)',
+    id,
+    disabled: fields.disabled === true,
+    config,
+    fields,
+    range,
+    start: range.start,
+    end: range.end,
+    insertParent,
+    // 顶层行只覆盖已有 id；只有 insert 成员才会往树里 push 新服务器
+    inserted: Boolean(insertParent),
+    keyIndent: item.keyIndent,
+    dashIndent: item.dashIndent,
+    startLine: item.startLine,
+    endLine: item.endLine,
+    disabledSpan: item.meta?.disabledSpan ?? null,
+    disabledLine: item.meta?.disabledLine ?? -1,
+    opaque: opaque[0] || (disabledProblem ? 'disabled 不是 true/false' : ''),
+    opaqueAll: opaque,
+    editable: !broken && !opaque.length && !disabledProblem,
+    // flow 写法（`- {…}`）没法在条目末尾补行，启停只能手工改原文。
+    toggleable: Boolean(item.meta) && !(item.selfOpaque || []).length && !disabledProblem,
+    broken,
+    error: broken ? '缺少 config.serverName（这一行读不出服务器名）' : '',
+  }
+}
+
+/** 补丁层里所有 MCP 行（本启动器的标记区块 + 外来行），按文件位置排序。 */
+function collectMcpRefs(text) {
+  const blocks = scanBlocks(text)
+  const blockRefs = blocks.map((block) => ({
+    kind: 'block',
+    serverName: block.serverName,
+    id: block.entry && typeof block.entry.id === 'string' ? block.entry.id : '',
+    disabled: block.entry?.disabled === true,
+    config: block.entry && block.entry.config && typeof block.entry.config === 'object' ? block.entry.config : null,
+    entry: block.entry,
+    start: block.start,
+    end: block.end,
+    closed: block.closed,
+    broken: !block.entry,
+    error: block.error,
+    startLine: -1,
+    endLine: -1,
+  }))
+  const lines = indexLines(text)
+  const length = text.length
+  const top = parseSequence(lines, 0, 0)
+  const closedBlocks = blocks.filter((block) => block.closed)
+  const entryIds = new Set(blocks.map((block) => block.entry?.id).filter((id) => typeof id === 'string' && id !== ''))
+  // 缺结束标记的区块范围会一直算到文件尾：只把紧跟在 begin 标记后的第一个顶层条目当成
+  // 它自己的 insert，否则同一个损坏区块会既按区块列一次、又按外来行再列一次。
+  const unclosedOwnLines = new Set()
+  for (const block of blocks.filter((entry) => !entry.closed)) {
+    const next = (top.items ?? []).find((item) => lines[item.startLine].start >= block.start)
+    if (next) unclosedOwnLines.add(next.startLine)
+  }
+  const rows = []
+  for (const item of top.items ?? []) {
+    if (!item.value || typeof item.value !== 'object' || Array.isArray(item.value)) continue
+    const itemStart = lines[item.startLine].start
+    const itemEnd = rangeEndOf(lines, item.endLine, length)
+    const insertChild = item.meta?.children?.get('insert')
+    if (insertChild && Array.isArray(insertChild.items)) {
+      const insideClosed = closedBlocks.some((block) => itemStart >= block.start && itemEnd <= block.end)
+      const isOwnEntry = insertChild.items.some((member) => typeof member.value?.id === 'string' && entryIds.has(member.value.id))
+      if (insideClosed || isOwnEntry || unclosedOwnLines.has(item.startLine)) continue
+      for (const member of insertChild.items) {
+        const row = foreignRowFromItem(
+          member,
+          { start: lines[member.startLine].start, end: rangeEndOf(lines, member.endLine, length) },
+          {
+            start: itemStart,
+            end: itemEnd,
+            memberCount: insertChild.items.length,
+            // `insert:` 键的行号：删掉最后一个成员时要把值写成 `[]`，
+            // 不能把整条 insert 拔掉（别的工具可能正靠这条 insert 维持受管块结构）。
+            keyLineIndex: item.meta?.keyLines?.get('insert') ?? item.startLine,
+          },
+        )
+        if (row) rows.push(row)
+      }
+      continue
+    }
+    // 标记区块里手写的顶层条目也照样列出来（标记只圈住我们的 insert，不圈别人的行）。
+    const row = foreignRowFromItem(item, { start: itemStart, end: itemEnd }, null)
+    if (row) rows.push(row)
+  }
+  return [...blockRefs, ...rows].sort((a, b) => a.start - b.start)
+}
+
+function locatorOf(input) {
+  if (input && typeof input === 'object') {
+    return { serverName: String(input.serverName || '').trim(), id: String(input.id || '').trim() }
+  }
+  return { serverName: String(input || '').trim(), id: '' }
+}
+
+/** 按 id/serverName 找唯一一条；先两个都对上，再退回单字段。 */
+function matchRefs(refs, locator) {
+  const { serverName, id } = locator
+  if (!serverName && !id) throw new Error('缺少服务器名')
+  let hits = refs.filter((ref) => (!serverName || ref.serverName === serverName) && (!id || ref.id === id))
+  if (!hits.length && id) hits = refs.filter((ref) => ref.id === id)
+  if (!hits.length && serverName) hits = refs.filter((ref) => ref.serverName === serverName)
+  if (!hits.length) throw new Error(`没有找到名为 ${serverName || id} 的 MCP 服务器`)
+  if (hits.length > 1) {
+    throw new Error(`补丁层里有 ${hits.length} 条 ${serverName || id} 的 MCP 条目（id 或 serverName 重复），先手工清掉多余的再操作`)
+  }
+  return hits[0]
+}
+
+/** 行对象 → 页面/探测用的统一形状；config 缺字段时给安全默认值。 */
+function serverFromConfig(config, base) {
+  const cfg = config && typeof config === 'object' && !Array.isArray(config) ? config : {}
+  return {
+    serverName: String(cfg.serverName || base.serverName || base.id || ''),
+    id: String(base.id || ''),
+    disabled: base.disabled === true,
+    transport: cfg.transport === 'streamable-http' ? 'streamable-http' : 'stdio',
+    command: String(cfg.command || ''),
+    args: Array.isArray(cfg.args) ? cfg.args.map(String) : [],
+    env: cfg.env && typeof cfg.env === 'object' && !Array.isArray(cfg.env) ? cfg.env : null,
+    cwd: String(cfg.cwd || ''),
+    url: String(cfg.url || ''),
+    headers: cfg.headers && typeof cfg.headers === 'object' && !Array.isArray(cfg.headers) ? cfg.headers : null,
+    toolCallTimeoutMs: Number(cfg.toolCallTimeoutMs) || undefined,
+    maxInstructionBytes: Number(cfg.maxInstructionBytes) || undefined,
+    failOnStartupError: cfg.failOnStartupError === true,
+    reconnect: cfg.reconnect && typeof cfg.reconnect === 'object' && !Array.isArray(cfg.reconnect) ? cfg.reconnect : null,
+    config,
+    ...base.extra,
+  }
+}
+
+/** 列出补丁层里所有 MCP 服务器（本启动器的 + 外来的，不动文件）。 */
 export function listMcpServers(patchPath) {
   let text = ''
   try {
@@ -268,45 +756,50 @@ export function listMcpServers(patchPath) {
   } catch {
     return { servers: [], patchExists: false }
   }
-  const servers = scanBlocks(text).map((block) => {
-    const entry = block.entry
-    if (!entry) {
-      return {
-        serverName: block.serverName,
-        id: '',
-        disabled: false,
-        transport: 'stdio',
-        command: '',
-        url: '',
-        args: [],
-        env: null,
-        headers: null,
-        cwd: '',
-        config: null,
-        error: block.error,
-        broken: true,
+  const servers = collectMcpRefs(text).map((ref) => {
+    if (ref.kind === 'block') {
+      if (!ref.entry) {
+        return {
+          serverName: ref.serverName,
+          id: '',
+          disabled: false,
+          transport: 'stdio',
+          command: '',
+          url: '',
+          args: [],
+          env: null,
+          headers: null,
+          cwd: '',
+          config: null,
+          error: ref.error,
+          broken: true,
+          source: 'dshx',
+          editable: false,
+          toggleable: false,
+          opaque: '',
+        }
       }
+      return serverFromConfig(ref.config, {
+        serverName: ref.serverName,
+        id: ref.id,
+        disabled: ref.disabled,
+        extra: { error: '', broken: false, source: 'dshx', editable: true, toggleable: true, opaque: '', inserted: true },
+      })
     }
-    const config = entry.config && typeof entry.config === 'object' ? entry.config : {}
-    return {
-      serverName: String(config.serverName || block.serverName),
-      id: String(entry.id || ''),
-      disabled: entry.disabled === true,
-      transport: config.transport === 'streamable-http' ? 'streamable-http' : 'stdio',
-      command: String(config.command || ''),
-      args: Array.isArray(config.args) ? config.args.map(String) : [],
-      env: config.env && typeof config.env === 'object' ? config.env : null,
-      cwd: String(config.cwd || ''),
-      url: String(config.url || ''),
-      headers: config.headers && typeof config.headers === 'object' ? config.headers : null,
-      toolCallTimeoutMs: Number(config.toolCallTimeoutMs) || undefined,
-      maxInstructionBytes: Number(config.maxInstructionBytes) || undefined,
-      failOnStartupError: config.failOnStartupError === true,
-      reconnect: config.reconnect && typeof config.reconnect === 'object' ? config.reconnect : null,
-      config,
-      error: '',
-      broken: false,
-    }
+    return serverFromConfig(ref.config, {
+      serverName: ref.serverName,
+      id: ref.id,
+      disabled: ref.disabled,
+      extra: {
+        error: ref.error,
+        broken: ref.broken,
+        source: 'profile',
+        editable: ref.editable,
+        toggleable: ref.toggleable,
+        opaque: ref.opaque,
+        inserted: ref.inserted,
+      },
+    })
   })
   return { servers, patchExists: true }
 }
@@ -318,8 +811,11 @@ function assertWritable(patchPath, text) {
 }
 
 /**
- * 保存（新增或更新）一个 MCP 服务器条目。按标记区块定位：同 serverName 的区块整体重写，
- * 新的追加到文件末尾；区块之外的内容一个字节都不碰。
+ * 保存（新增或更新）一个 MCP 服务器条目。
+ *
+ * - 命中本启动器的标记区块：整块重写成单行 JSON；
+ * - 命中补丁层里的外来行：只重写那一条（保留 id、停用状态和表单没建模的配置键）；
+ * - 没命中：追加一个新的标记区块。
  *
  * 编辑语义（修掉老版本的坑）：
  * - 表单没提交 disabled 时沿用原条目的停用状态，不再「编辑一下就把停用的服务器打开了」；
@@ -331,29 +827,70 @@ export function saveMcpServer(patchPath, spec) {
     throw new Error('名称只能用字母、数字、下划线、连字符（1-32 个字符）')
   }
   const text = readText(patchPath)
-  const sameName = scanBlocks(text).filter((block) => block.serverName === serverName)
-  const usable = sameName.filter((block) => block.closed && block.entry)
-  if (usable.length > 1) {
-    throw new Error(`补丁层里有 ${usable.length} 个名为 ${serverName} 的区块，先手工清掉多余的再保存`)
+  const locator = { serverName, id: String(spec.id || '').trim() }
+  const refs = collectMcpRefs(text)
+  let hits = refs.filter((ref) => ref.serverName === serverName && (!locator.id || ref.id === locator.id))
+  if (!hits.length && locator.id) hits = refs.filter((ref) => ref.id === locator.id)
+  if (!hits.length) hits = refs.filter((ref) => ref.serverName === serverName)
+  if (hits.length > 1) {
+    throw new Error(`补丁层里有 ${hits.length} 条名为 ${serverName} 的 MCP 条目（id 或 serverName 重复），先手工清掉多余的再保存`)
   }
-  const previous = usable[0]?.entry ?? null
-  const { config, warnings } = buildConfig(spec, previous?.config)
-  const entry = { id: `dshx-mcp-${serverName}`, name: MCP_CLIENT_PKG }
-  const disabled = typeof spec.disabled === 'boolean' ? spec.disabled : previous?.disabled === true
+  const target = hits[0] ?? null
+  if (target?.kind === 'row' && !target.editable) {
+    const reason = target.opaque || target.error || '写法不在表单能安全重写的范围内'
+    throw new Error(`这条 MCP 服务器是补丁层里的手写条目，没法用表单改写（${reason}）；可以先开关、检测或删除，或到原文里改`)
+  }
+  const previousConfig = target?.kind === 'block' ? (target.entry?.config ?? null) : (target?.config ?? null)
+  const { config, warnings } = buildConfig(spec, previousConfig)
+  if (target?.kind === 'row') carryExtraConfig(config, previousConfig)
+  const entry = { id: target?.id || `dshx-mcp-${serverName}`, name: MCP_CLIENT_PKG }
+  const disabled = typeof spec.disabled === 'boolean' ? spec.disabled : target?.disabled === true
   if (disabled) entry.disabled = true
   entry.config = config
 
-  const block = renderBlock(serverName, entry)
-  const target = usable[0] ?? sameName[0] ?? null
-  const repaired = Boolean(target && !usable[0])
-  const next = target
-    ? text.slice(0, target.start) + block + text.slice(target.end)
-    : appendBlock(text, block)
+  let next
+  let repaired = false
+  if (!target) {
+    next = appendBlock(text, renderBlock(serverName, entry))
+  } else if (target.kind === 'block') {
+    repaired = !target.entry
+    next = text.slice(0, target.start) + renderBlock(serverName, entry) + text.slice(target.end)
+  } else {
+    const eol = text.includes('\r\n') ? '\r\n' : '\n'
+    next = text.slice(0, target.start) + renderProfileRow(target, entry, eol) + text.slice(target.end)
+  }
   assertWritable(patchPath, next)
   backupOnce(patchPath)
   ensureParent(patchPath)
   writeFileSync(patchPath, next)
-  return { ok: true, warnings, replaced: Boolean(target), repaired }
+  return { ok: true, warnings, replaced: Boolean(target), repaired, adopted: target?.kind === 'row' }
+}
+
+/** 外来行里表单没建模的配置键原样带回；已知 schema 键不在这里处理（buildConfig 管）。 */
+function carryExtraConfig(config, previous) {
+  if (!previous || typeof previous !== 'object' || Array.isArray(previous)) return
+  for (const [key, value] of Object.entries(previous)) {
+    if (KNOWN_CONFIG_KEYS.has(key) || has(config, key)) continue
+    config[key] = value
+  }
+}
+
+/** 把一条外来行重写成规范块写法（JSON 是 YAML 子集，值不会被误解）。 */
+function renderProfileRow(ref, entry, eol) {
+  const indent = ' '.repeat(Math.max(0, ref.dashIndent))
+  const gap = Math.max(2, ref.keyIndent - ref.dashIndent)
+  const keyIndent = `${indent}${' '.repeat(gap)}`
+  const lines = [
+    `${indent}- id: ${JSON.stringify(entry.id)}`,
+    `${keyIndent}name: ${JSON.stringify(entry.name)}`,
+  ]
+  if (entry.disabled === true) lines.push(`${keyIndent}disabled: true`)
+  for (const [key, value] of Object.entries(ref.fields || {})) {
+    if (ENTRY_KEYS.has(key) || value === undefined) continue
+    lines.push(`${keyIndent}${key}: ${JSON.stringify(value)}`)
+  }
+  lines.push(`${keyIndent}config: ${JSON.stringify(entry.config)}`)
+  return `${lines.join(eol)}${eol}`
 }
 
 /** profile 目录还没被 dsh 建出来时也别 ENOENT——先把父目录补上再写。 */
@@ -373,40 +910,87 @@ function appendBlock(text, block) {
   return `${head}${block}`
 }
 
-/** 启用/禁用一个 MCP 服务器（重写它的标记区块）。 */
-export function setMcpEnabled(patchPath, serverName, enabled) {
-  const name = String(serverName || '').trim()
-  const text = readFileSync0(patchPath, '补丁层文件不存在，没有可开关的 MCP 服务器')
-  for (const block of scanBlocks(text)) {
-    if (block.serverName !== name) continue
-    if (!block.entry) throw new Error(`MCP 服务器 ${name} 的条目损坏，无法开关：${block.error}`)
-    const entry = block.entry
-    const want = enabled === false
-    if (Boolean(entry.disabled) === want) return { ok: true, changed: false }
-    if (want) entry.disabled = true
-    else delete entry.disabled
-    const next = text.slice(0, block.start) + renderBlock(name, entry) + text.slice(block.end)
-    assertWritable(patchPath, next)
-    backupOnce(patchPath)
-    writeFileSync(patchPath, next)
-    return { ok: true, changed: true }
+/**
+ * 外来行的启停：只动 `disabled` 这一处。
+ * - 有键：原地换值（独占一行的整行删掉；条目首行 `- disabled:` 不行，只能换值）；
+ * - 无键：在行末补一行同缩进的 `disabled: true`（追加在末尾，不插在嵌套块前面）。
+ */
+function toggleForeignRow(text, ref, disabled) {
+  const eol = text.includes('\r\n') ? '\r\n' : '\n'
+  if (ref.disabledSpan) {
+    const lines = indexLines(text)
+    const span = ref.disabledSpan
+    const line = lines[span.lineIndex]
+    if (!disabled && line && line.index !== ref.startLine && /^disabled[ \t]*:[ \t]*(?:true|false)[ \t]*$/.test(line.body.trim())) {
+      const end = Math.min(text.length, line.next)
+      return text.slice(0, line.start) + text.slice(end)
+    }
+    return text.slice(0, span.start) + (disabled ? 'true' : 'false') + text.slice(span.end)
   }
-  throw new Error(`没有找到名为 ${name} 的 MCP 服务器`)
+  // `disabled:` 写了键但没写值：在冒号后补值，别再加一个重复键。
+  if (ref.disabledLine >= 0) {
+    const lines = indexLines(text)
+    const line = lines[ref.disabledLine]
+    const colon = line.body.indexOf(':')
+    const at = line.start + line.indent + colon + 1
+    return text.slice(0, at) + (disabled ? ' true' : ' false') + text.slice(at)
+  }
+  if (!disabled) return text
+  const at = ref.range.end
+  const indent = ' '.repeat(Math.max(0, ref.keyIndent))
+  const needsEol = at > 0 && text[at - 1] !== '\n'
+  return text.slice(0, at) + (needsEol ? eol : '') + `${indent}disabled: true${eol}` + text.slice(at)
 }
 
-/** 删除一个 MCP 服务器的标记区块（损坏的孤儿块也能删）。 */
-export function removeMcpServer(patchPath, serverName) {
-  const name = String(serverName || '').trim()
-  const text = readFileSync0(patchPath, '补丁层文件不存在，没有可删除的 MCP 服务器')
-  for (const block of scanBlocks(text)) {
-    if (block.serverName !== name) continue
-    const next = text.slice(0, block.start) + text.slice(block.end)
-    assertWritable(patchPath, next)
-    backupOnce(patchPath)
-    writeFileSync(patchPath, ensurePlaceholder(next))
-    return { ok: true, broken: !block.entry }
+/** 启用/禁用一个 MCP 服务器（本启动器的重写区块，外来的只改 disabled 那行）。 */
+export function setMcpEnabled(patchPath, locatorInput, enabled) {
+  const locator = locatorOf(locatorInput)
+  const text = readFileSync0(patchPath, '补丁层文件不存在，没有可开关的 MCP 服务器')
+  const target = matchRefs(collectMcpRefs(text), locator)
+  const want = enabled === false
+  if (target.disabled === want) return { ok: true, changed: false }
+
+  let next
+  if (target.kind === 'block') {
+    const entry = target.entry
+    if (!entry) throw new Error(`MCP 服务器 ${target.serverName} 的条目损坏，无法开关：${target.error}`)
+    if (want) entry.disabled = true
+    else delete entry.disabled
+    next = text.slice(0, target.start) + renderBlock(target.serverName, entry) + text.slice(target.end)
+  } else {
+    if (!target.toggleable) {
+      throw new Error(`MCP 服务器 ${target.serverName} 的 disabled 写法表单接不住，没法自动开关；请手工改原文`)
+    }
+    next = toggleForeignRow(text, target, want)
   }
-  throw new Error(`没有找到名为 ${name} 的 MCP 服务器`)
+  assertWritable(patchPath, next)
+  backupOnce(patchPath)
+  writeFileSync(patchPath, next)
+  return { ok: true, changed: true }
+}
+
+/** 删除一个 MCP 服务器（本启动器的区块 / 外来行；损坏的孤儿块也能删）。 */
+export function removeMcpServer(patchPath, locatorInput) {
+  const locator = locatorOf(locatorInput)
+  const text = readFileSync0(patchPath, '补丁层文件不存在，没有可删除的 MCP 服务器')
+  const target = matchRefs(collectMcpRefs(text), locator)
+  let next = text.slice(0, target.start) + text.slice(target.end)
+  // insert 里只剩这一条：成员删掉后把 `insert:` 改成 `insert: []`。
+  // 不把整条 insert 拔掉——受管块可能是别的工具（比如 dsh-skill-mcp-panel）围起来的，
+  // 空掉它的内容会让对方的解析器报「受管块内容必须是 YAML 数组」。
+  if (target.kind === 'row' && target.insertParent && target.insertParent.memberCount === 1) {
+    const lines = indexLines(text)
+    const line = lines[target.insertParent.keyLineIndex]
+    const colon = line ? line.body.indexOf(':') : -1
+    if (line && colon >= 0) {
+      const at = line.start + line.indent + colon + 1
+      next = next.slice(0, at) + ' []' + next.slice(at)
+    }
+  }
+  assertWritable(patchPath, next)
+  backupOnce(patchPath)
+  writeFileSync(patchPath, ensurePlaceholder(next))
+  return { ok: true, broken: target.kind === 'block' ? !target.entry : false }
 }
 
 function readFileSync0(file, missingMessage) {

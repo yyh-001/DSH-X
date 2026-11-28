@@ -12503,7 +12503,8 @@ async function handleApi(req, res, url) {
     const targetProfile = targetMcpProfile(url, body)
     const patch = patchFileFor(targetProfile)
     const name = String(body.serverName || '')
-    const result = await editProfile(targetProfile, () => setMcpEnabled(patch, name, body.enabled !== false))
+    // id 一起传：补丁层里 serverName 重复时也能精确开关点的那一条
+    const result = await editProfile(targetProfile, () => setMcpEnabled(patch, { serverName: name, id: body.id }, body.enabled !== false))
     pushLog(`MCP 服务器 ${name} → ${body.enabled !== false ? '启用' : '停用'}${result.changed ? '' : '（无变化）'}`)
     send(res, 200, { ok: true, changed: result.changed, ...listMcpServers(patch), profile: targetProfile })
     return
@@ -12512,7 +12513,7 @@ async function handleApi(req, res, url) {
     const targetProfile = targetMcpProfile(url, body)
     const patch = patchFileFor(targetProfile)
     const name = String(body.serverName || '')
-    await editProfile(targetProfile, () => removeMcpServer(patch, name))
+    await editProfile(targetProfile, () => removeMcpServer(patch, { serverName: name, id: body.id }))
     pushLog(`MCP 服务器 ${name} 已删除`)
     send(res, 200, { ok: true, ...listMcpServers(patch), profile: targetProfile })
     return

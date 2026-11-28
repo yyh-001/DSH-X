@@ -293,7 +293,8 @@ export function looksLikeEntryList(text) {
   const lines = text.split(/\r?\n/).filter((line) => line.trim() !== '' && !line.trim().startsWith('#'))
   if (!lines.length) return true
   if (lines.length === 1 && /^\[\s*\]$/.test(lines[0].trim())) return true
-  if (lines.some((line) => /^\S/.test(line) && !line.startsWith('- '))) return false
+  // 裸 `-` 也是合法的序列条目（映射写在缩进的下一行），别把它当成坏文件
+  if (lines.some((line) => /^\S/.test(line) && !/^-(?:[ \t]|$)/.test(line))) return false
   if (lines.some((line) => /^\[\s*\]$|^\{\s*\}$/.test(line.trim()))) return false
   return true
 }

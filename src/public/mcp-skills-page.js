@@ -99,10 +99,25 @@ function mcpRow(server) {
     timeoutEl.textContent = timeoutText
     subRow.append(timeoutEl)
   }
-  if (server.broken || server.disabled) {
+  if (server.source === 'profile') {
+    const sourceTag = document.createElement('span')
+    sourceTag.className = 'plugin-status plugin-market-tag'
+    sourceTag.textContent = t('配置文件')
+    sourceTag.title = t('来自 profile 的 cordis.patch.yml（手写或别的工具写的），不是 DSH-X 添加的')
+    subRow.append(sourceTag)
+  }
+  if (server.source === 'profile' && server.inserted === false) {
+    const topTag = document.createElement('span')
+    topTag.className = 'plugin-status plugin-market-tag is-warn'
+    topTag.textContent = t('顶层条目')
+    topTag.title = t('顶层条目只覆盖已有 id；新增 MCP 服务器要写在 insert 里，这一条在 dsh 里可能不会生效')
+    subRow.append(topTag)
+  }
+  if (server.broken || server.disabled || server.opaque) {
     const stateTag = document.createElement('span')
-    stateTag.className = `plugin-status plugin-market-tag${server.broken ? ' is-warn' : ''}`
-    stateTag.textContent = server.broken ? t('条目损坏') : t('已停用')
+    stateTag.className = `plugin-status plugin-market-tag${server.broken || server.opaque ? ' is-warn' : ''}`
+    stateTag.textContent = server.broken ? t('条目损坏') : server.opaque ? t('无法表单编辑') : t('已停用')
+    if (server.broken || server.opaque) stateTag.title = server.error || server.opaque
     subRow.append(stateTag)
   }
   meta.append(nameRow, subRow)
@@ -112,22 +127,26 @@ function mcpRow(server) {
   const toggle = document.createElement('input')
   toggle.type = 'checkbox'
   toggle.checked = !server.disabled
-  toggle.disabled = server.broken === true
+  toggle.disabled = server.broken === true || server.toggleable === false
   toggle.setAttribute('aria-label', t('启用 {name}', { name: server.serverName }))
+  if (server.toggleable === false) toggle.title = server.opaque || t('这一条的 disabled 写法表单接不住，只能改原文')
   toggle.onchange = async () => {
     const enabled = toggle.checked
     toggle.disabled = true
     try {
-      const data = await post('/api/mcp/toggle', withToolProfile({ serverName: server.serverName, enabled }), toolScopeOptions())
+      const data = await post('/api/mcp/toggle', withToolProfile({ serverName: server.serverName, id: server.id, enabled }), toolScopeOptions())
       mcpServers = data.servers || []
       renderMcp()
-    } catch (error) { setMcpHint(error.message); toggle.checked = !enabled } finally { toggle.disabled = false }
+    } catch (error) { setMcpHint(error.message); toggle.checked = !enabled } finally { toggle.disabled = server.broken === true || server.toggleable === false }
   }
   const edit = document.createElement('button')
   edit.type = 'button'
   edit.className = 'ghost icon-btn'
   edit.title = edit.ariaLabel = t('编辑')
   edit.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons.svg#lucide-pencil"/></svg>'
+  // 手写条目里有表单接不住的写法（!!js、锚点…）时不给表单入口：硬改写会静默丢配置
+  edit.disabled = server.editable === false
+  if (edit.disabled) edit.title = server.error || server.opaque || t('这条只能开关、检测或删除，改配置请编辑原文')
   edit.onclick = () => openMcpDialog(server)
   const remove = document.createElement('button')
   remove.type = 'button'
@@ -137,7 +156,7 @@ function mcpRow(server) {
   remove.onclick = async () => {
     remove.disabled = true
     try {
-      const data = await post('/api/mcp/remove', withToolProfile({ serverName: server.serverName }), toolScopeOptions())
+      const data = await post('/api/mcp/remove', withToolProfile({ serverName: server.serverName, id: server.id }), toolScopeOptions())
       mcpServers = data.servers || []
       renderMcp()
       setMcpHint(t('已删除 {name}。dsh 在跑会热加载。', { name: server.serverName }))
@@ -402,7 +421,7 @@ function renderMcp() {
   if (!filtered.length) {
     const empty = document.createElement('div')
     empty.className = 'plugin-empty'
-    empty.textContent = mcpServers.length ? t('没有匹配的 MCP 服务器。') : t('还没有 MCP 服务器。点右上角「添加」写一台。')
+    empty.textContent = mcpServers.length ? t('没有匹配的 MCP 服务器。') : t('profile 的 cordis.patch.yml 里还没有 MCP 服务器。点右上角「添加」写一台。')
     mcpListEl.append(empty)
     return
   }
@@ -463,6 +482,8 @@ let mcpOriginalCommand = null
 function openMcpDialog(server, { fromPreset = false, note = '' } = {}) {
   const isEdit = Boolean(server) && !fromPreset
   mcpDialogEl.dataset.edit = isEdit ? server.serverName : ''
+  // serverName 可能重复（手写条目的 serverName 不强制唯一），编辑时带上 id 才能精确定位
+  mcpDialogEl.dataset.editId = isEdit ? (server.id || '') : ''
   document.getElementById('mcpDialogTitle').textContent = isEdit ? t('编辑 MCP 服务器') : t('添加 MCP 服务器')
   mcpNameEl.value = server?.serverName ?? ''
   mcpNameEl.disabled = isEdit
@@ -519,6 +540,7 @@ async function saveMcp() {
   }
   const spec = {
     serverName: mcpDialogEl.dataset.edit || name,
+    ...(mcpDialogEl.dataset.editId ? { id: mcpDialogEl.dataset.editId } : {}),
     transport,
     commandLine: transport === 'stdio' ? mcpCommandEl.value.trim() : undefined,
     ...(transport === 'stdio' && envLines !== undefined ? { env: envLines } : {}),

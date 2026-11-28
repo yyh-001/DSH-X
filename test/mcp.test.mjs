@@ -178,3 +178,235 @@ test('完整 MCP 命令拆成 argv，保存和编辑保留空格、引号与 Win
     assert.deepEqual(saved.args, argv.slice(1).filter(Boolean))
   } finally { box.done() }
 })
+
+// ---- 补丁层里的外来 MCP 行（issue #125）：不是本启动器写的也要列出来 ----
+
+const PROFILE_ROW = [
+  '- insert:',
+  '    - id: panel-mcp-codegraph',
+  "      name: '@deepseek-ai/dsh-mcp-client'",
+  '      config:',
+  '        serverName: codegraph',
+  '        transport: stdio',
+  '        command: npx',
+  '        args:',
+  '          - -y',
+  '          - codegraph-mcp',
+  '    - id: other-plugin',
+  '      name: some-other-plugin',
+  '      config:',
+  '        foo: bar',
+  '- id: ctx7',
+  '  name: "@deepseek-ai/dsh-mcp-client"',
+  '  config: {"serverName":"ctx7","transport":"streamable-http","url":"https://example.com/mcp"}',
+  '',
+].join('\n')
+
+test('读取 profile 里手写的 MCP 行：顶层条目与 insert 成员都列出来，其他插件的行不列', () => {
+  const box = sandbox()
+  try {
+    writeFileSync(box.patch, PROFILE_ROW)
+    const { servers } = listMcpServers(box.patch)
+    assert.deepEqual(servers.map((server) => server.serverName), ['codegraph', 'ctx7'])
+    const [codegraph, ctx7] = servers
+    assert.equal(codegraph.source, 'profile')
+    assert.equal(codegraph.id, 'panel-mcp-codegraph')
+    assert.equal(codegraph.transport, 'stdio')
+    assert.equal(codegraph.command, 'npx')
+    assert.deepEqual(codegraph.args, ['-y', 'codegraph-mcp'])
+    assert.equal(codegraph.editable, true)
+    assert.equal(codegraph.inserted, true, 'insert 成员才会真正加入组合树')
+    assert.equal(ctx7.transport, 'streamable-http')
+    assert.equal(ctx7.url, 'https://example.com/mcp')
+    assert.equal(ctx7.inserted, false, '顶层行只覆盖已有 id，页面要标出来')
+  } finally { box.done() }
+})
+
+test('标记区块里的条目不会被当成外来行重复列出', () => {
+  const box = sandbox()
+  try {
+    writeFileSync(box.patch, '[]\n')
+    saveMcpServer(box.patch, stdioSpec)
+    const { servers } = listMcpServers(box.patch)
+    assert.equal(servers.length, 1)
+    assert.equal(servers[0].source, 'dshx')
+  } finally { box.done() }
+})
+
+test('外来行启停：只动 disabled，文件其他字节保持不变（含 CRLF 与注释）', () => {
+  const box = sandbox()
+  try {
+    const text = '# 用户注释\r\n' + PROFILE_ROW.replace(/\n/g, '\r\n')
+    writeFileSync(box.patch, text)
+    setMcpEnabled(box.patch, { serverName: 'codegraph', id: 'panel-mcp-codegraph' }, false)
+    let next = readFileSync(box.patch, 'utf8')
+    assert.ok(next.startsWith('# 用户注释\r\n'), '文件头不能动')
+    assert.match(next, /      disabled: true\r\n/)
+    assert.ok(next.includes("- id: ctx7\r\n"), '其他条目原样保留')
+    let { servers } = listMcpServers(box.patch)
+    assert.equal(servers.find((server) => server.serverName === 'codegraph').disabled, true)
+
+    setMcpEnabled(box.patch, { serverName: 'codegraph', id: 'panel-mcp-codegraph' }, true)
+    next = readFileSync(box.patch, 'utf8')
+    assert.ok(!next.includes('disabled: true'), '启用时整行删掉')
+    ;({ servers } = listMcpServers(box.patch))
+    assert.equal(servers.find((server) => server.serverName === 'codegraph').disabled, false)
+  } finally { box.done() }
+})
+
+test('外来行删除：insert 里唯一成员删掉后留 insert: []，不拔掉别的工具的受管块', () => {
+  const box = sandbox()
+  try {
+    writeFileSync(box.patch, PROFILE_ROW)
+    removeMcpServer(box.patch, { serverName: 'codegraph', id: 'panel-mcp-codegraph' })
+    let text = readFileSync(box.patch, 'utf8')
+    assert.ok(!text.includes('codegraph'), 'codegraph 行要删掉')
+    assert.ok(text.includes('other-plugin'), '同 insert 里的其他插件行不能动')
+    assert.ok(text.includes('id: ctx7'), '顶层 MCP 行不能动')
+
+    removeMcpServer(box.patch, { serverName: 'ctx7', id: 'ctx7' })
+    text = readFileSync(box.patch, 'utf8')
+    assert.ok(!text.includes('ctx7'))
+    assert.ok(text.includes('other-plugin'))
+
+    // 最后一条 MCP 行在只有它一个成员的 insert 里：删成员、把 insert 写成 []
+    const single = [
+      '# >>> dsh-skill-mcp-panel:mcp:begin',
+      '- insert:',
+      "    - id: panel-mcp-only",
+      "      name: '@deepseek-ai/dsh-mcp-client'",
+      '      config:',
+      '        serverName: only',
+      '        transport: stdio',
+      '        command: npx',
+      '# <<< dsh-skill-mcp-panel:mcp:end',
+      '',
+    ].join('\n')
+    writeFileSync(box.patch, single)
+    removeMcpServer(box.patch, { serverName: 'only', id: 'panel-mcp-only' })
+    text = readFileSync(box.patch, 'utf8')
+    assert.match(text, /- insert: \[\]/, `insert 应该留空数组：${text}`)
+    assert.ok(text.includes('# >>> dsh-skill-mcp-panel:mcp:begin'), '受管块标记不能删')
+    assert.ok(text.includes('# <<< dsh-skill-mcp-panel:mcp:end'), '受管块标记不能删')
+    assert.equal(listMcpServers(box.patch).servers.length, 0)
+  } finally { box.done() }
+})
+
+test('外来行编辑：只重写那一条，保留 id、停用状态和表单没建模的配置键', () => {
+  const box = sandbox()
+  try {
+    const text = [
+      '- id: keep',
+      '  name: other-plugin',
+      '- id: hand',
+      "  name: '@deepseek-ai/dsh-mcp-client'",
+      '  disabled: true',
+      '  config:',
+      '    serverName: hand',
+      '    transport: stdio',
+      '    command: npx',
+      '    customFlag: keep-me',
+      '',
+    ].join('\n')
+    writeFileSync(box.patch, text)
+    saveMcpServer(box.patch, {
+      id: 'hand',
+      serverName: 'hand',
+      transport: 'stdio',
+      command: 'node',
+      args: ['entry.js'],
+      toolCallTimeoutMs: 5000,
+    })
+    const next = readFileSync(box.patch, 'utf8')
+    assert.ok(next.startsWith('- id: keep\n  name: other-plugin\n'), '别的条目字节不动')
+    const row = next.slice(next.indexOf('- id: "hand"'))
+    assert.match(row, /"command":"node"/)
+    assert.match(row, /"toolCallTimeoutMs":5000/)
+    assert.match(row, /"customFlag":"keep-me"/, '表单不认识的配置键要带回来')
+    assert.match(row, /disabled: true/, '编辑不能把停用状态改成启用')
+    const { servers } = listMcpServers(box.patch)
+    const hand = servers.find((server) => server.serverName === 'hand')
+    assert.equal(hand.disabled, true)
+    assert.equal(hand.config.customFlag, 'keep-me')
+  } finally { box.done() }
+})
+
+test('!!js 这类写法：照常列出、能启停，但表单保存拒绝（不静默丢表达式）', () => {
+  const box = sandbox()
+  try {
+    const text = [
+      '- id: js',
+      "  name: '@deepseek-ai/dsh-mcp-client'",
+      '  config:',
+      '    serverName: jsonly',
+      '    transport: stdio',
+      '    command: npx',
+      '    env:',
+      '      TOKEN: !!js `process.env.TOKEN`',
+      '',
+    ].join('\n')
+    writeFileSync(box.patch, text)
+    const server = listMcpServers(box.patch).servers[0]
+    assert.equal(server.serverName, 'jsonly')
+    assert.equal(server.editable, false)
+    assert.match(server.opaque, /js|标签/)
+    setMcpEnabled(box.patch, { serverName: 'jsonly', id: 'js' }, false)
+    assert.match(readFileSync(box.patch, 'utf8'), /!!js `process\.env\.TOKEN`/, '启停不能碰表达式')
+    assert.throws(() => saveMcpServer(box.patch, { id: 'js', serverName: 'jsonly', transport: 'stdio', command: 'node', args: [] }), /没法用表单改写/)
+  } finally { box.done() }
+})
+
+test('serverName 重复时用 id 精确定位，不会误改另一条', () => {
+  const box = sandbox()
+  try {
+    const text = [
+      '- id: first',
+      "  name: '@deepseek-ai/dsh-mcp-client'",
+      '  config:',
+      '    serverName: same',
+      '    transport: stdio',
+      '    command: npx',
+      '- id: second',
+      "  name: '@deepseek-ai/dsh-mcp-client'",
+      '  config:',
+      '    serverName: same',
+      '    transport: streamable-http',
+      '    url: https://example.com/mcp',
+      '',
+    ].join('\n')
+    writeFileSync(box.patch, text)
+    setMcpEnabled(box.patch, { serverName: 'same', id: 'second' }, false)
+    const rows = readFileSync(box.patch, 'utf8').split('\n')
+    const firstIndex = rows.findIndex((line) => line.includes('id: first'))
+    const secondIndex = rows.findIndex((line) => line.includes('id: second'))
+    assert.ok(!rows.slice(firstIndex, secondIndex).some((line) => line.includes('disabled')), '第一条不能被改')
+    assert.ok(rows.slice(secondIndex).some((line) => line.includes('disabled: true')), '第二条要停用')
+  } finally { box.done() }
+})
+
+test('缺结束标记的区块只列一次：不会既报损坏、又被当成外来行', () => {
+  const box = sandbox()
+  try {
+    // 只有 begin 标记：scanBlocks 的范围会一直算到文件尾，不能把后面的外来行也当成区块内容
+    writeFileSync(box.patch, [
+      '# ==== dshx-mcp:begin memory ====',
+      '- insert:',
+      '    - {"id":"dshx-mcp-memory","name":"@deepseek-ai/dsh-mcp-client","config":{"serverName":"memory","transport":"stdio","command":"npx"}}',
+      '- id: hand',
+      "  name: '@deepseek-ai/dsh-mcp-client'",
+      '  config:',
+      '    serverName: hand',
+      '    transport: stdio',
+      '    command: node',
+      '',
+    ].join('\n'))
+    const { servers } = listMcpServers(box.patch)
+    assert.equal(servers.length, 2, `应该只有损坏区块和 hand 两条：${JSON.stringify(servers.map((server) => [server.serverName, server.source, server.broken]))}`)
+    const memory = servers.find((server) => server.serverName === 'memory')
+    assert.equal(memory.broken, true)
+    assert.equal(memory.source, 'dshx')
+    const hand = servers.find((server) => server.serverName === 'hand')
+    assert.equal(hand.source, 'profile')
+    assert.equal(hand.broken, false)
+  } finally { box.done() }
+})
