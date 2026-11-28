@@ -149,6 +149,10 @@ jobs:
             echo "::error::APK 缺少 android.permission.CAMERA 权限声明。"
             exit 1
           fi
+          if ! printf '%s\n' "$badging" | grep -q "android.permission.POST_NOTIFICATIONS"; then
+            echo "::error::APK 缺少 android.permission.POST_NOTIFICATIONS 权限声明。"
+            exit 1
+          fi
 
           "$zipalign" -c -P 16 4 "$apk"
           certs="$("$apksigner" verify --min-sdk-version 24 --verbose --print-certs "$apk")"

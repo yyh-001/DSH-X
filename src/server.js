@@ -10951,6 +10951,28 @@ async function handleApi(req, res, url) {
     }
     try {
       const result = await host.desktop[request.action](request)
+      if (request.action === 'notify' && result?.reason !== 'disabled' && remoteAccess) {
+        try {
+          const targetPort = request.url ? urlPortOf(request.url) : 0
+          const matched = targetPort
+            ? instanceList().find((proc) => proc.url && urlPortOf(proc.url) === targetPort)
+            : null
+          const instanceKey = matched ? remoteInstanceKey(matched) : ''
+          const instanceName = matched
+            ? (launchNameOf(matched) || (matched.version && matched.profile ? `${matched.version} · ${matched.profile}` : ''))
+            : ''
+          remoteAccess.pushNotice({
+            title: request.title,
+            body: request.body,
+            url: request.url,
+            silent: request.silent,
+            instanceKey,
+            instanceName,
+          })
+        } catch {
+          // 远程通知旁路异常不影响桌面通知主流程
+        }
+      }
       send(res, 200, { ok: true, ...(result && typeof result === 'object' ? result : {}) })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)

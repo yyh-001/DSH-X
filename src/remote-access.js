@@ -160,27 +160,36 @@ export function encodePairingPayload({ code, hostId = '', hostName = '', endpoin
   return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url')
 }
 
-/** 生成与手机端 PWA 兼容的扫码 URL（`/_dshx/m/#pair=<base64url>`，fragment 不进入服务端/代理日志）。 */
+/** 生成紧凑且低密度的扫码 URL（`/_dshx/m/#pair=<code>&lan=...`，fragment 不进代理日志，且仅附带与主入口不同的备用地址）。 */
 export function buildPairingUrl(origin, payload) {
   const base = normalizeOrigin(origin)
   if (!base) return ''
-  const encoded = encodePairingPayload(payload)
-  return `${base}${MOBILE_ROOT_PATH}#pair=${encoded}`
+  const code = String(payload?.code || '').trim()
+  if (!code) return ''
+  const params = new URLSearchParams()
+  params.set('pair', code)
+  const ep = payload?.endpoints || {}
+  for (const key of ['lan', 'custom', 'tunnel']) {
+    const clean = normalizeOrigin(ep[key] || '')
+    if (clean && clean !== base) params.set(key, clean)
+  }
+  return `${base}${MOBILE_ROOT_PATH}#${params.toString()}`
 }
 
 function renderSafeQrSvg(url, fallbackPayload) {
   if (!url) return ''
+  // 默认使用 L 级纠错以增大单模块尺寸，显著提升手机对电脑屏幕拍码的识别率
   try {
-    return renderQrSvg(url, { ecc: 'M' })
+    return renderQrSvg(url, { ecc: 'L' })
   } catch {
+    // 极端情况下（自定义域名极长）退回到最小载荷，保证二维码始终能渲染出来
+    const origin = normalizeOrigin(url)
+    if (!origin || !fallbackPayload?.code) return ''
+    const minimal = `${origin}${MOBILE_ROOT_PATH}#pair=${encodeURIComponent(fallbackPayload.code)}`
     try {
-      return renderQrSvg(url, { ecc: 'L' })
-    } catch {
-      // 极端情况下（自定义域名极长）退回到最小载荷，保证二维码始终能渲染出来
-      const origin = normalizeOrigin(url)
-      if (!origin || !fallbackPayload?.code) return ''
-      const minimal = `${origin}${MOBILE_ROOT_PATH}#pair=${encodeURIComponent(fallbackPayload.code)}`
       return renderQrSvg(minimal, { ecc: 'L' })
+    } catch {
+      return ''
     }
   }
 }
@@ -325,6 +334,43 @@ export function createRemoteAccessController({
   let lastEdgeProbe = null
   let pairingCache = null
   let opQueue = Promise.resolve()
+
+  const MAX_NOTICES = 100
+  const noticeBootId = randomBytes(6).toString('hex')
+  let noticeSeq = 0
+  const noticeQueue = []
+
+  function classifyNoticeKind(title, explicitKind) {
+    if (explicitKind === 'approval' || explicitKind === 'error' || explicitKind === 'done') {
+      return explicitKind
+    }
+    const text = String(title || '')
+    if (/确认|审批|approv|confirm/i.test(text)) return 'approval'
+    if (/失败|阻断|错误|fail|error|block/i.test(text)) return 'error'
+    return 'done'
+  }
+
+  function pushNotice({ title = '', body = '', url = '', silent = false, instanceKey = '', instanceName = '', kind = '' } = {}) {
+    const cleanTitle = String(title ?? '').replace(/[\r\n\t\x00-\x1f\x7f]+/g, ' ').trim().slice(0, 120)
+    const cleanBody = String(body ?? '').replace(/\r\n?/g, '\n').replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]+/g, '').trim().slice(0, 400)
+    if (!cleanTitle && !cleanBody) return null
+    const entry = {
+      seq: ++noticeSeq,
+      kind: classifyNoticeKind(cleanTitle, kind),
+      title: cleanTitle || 'DSH-X',
+      body: cleanBody,
+      instanceKey: String(instanceKey || ''),
+      instanceName: String(instanceName || ''),
+      silent: Boolean(silent),
+      url: String(url || ''),
+      time: now(),
+    }
+    noticeQueue.push(entry)
+    while (noticeQueue.length > MAX_NOTICES) {
+      noticeQueue.shift()
+    }
+    return { ...entry }
+  }
 
   function activeGateways() {
     const list = []
@@ -852,6 +898,46 @@ export function createRemoteAccessController({
       return true
     }
 
+    if (pathname === '/_dshx/api/notices' && req.method === 'GET') {
+      const init = url.searchParams.get('init') === '1'
+      const clientBoot = String(url.searchParams.get('boot') || '').trim()
+      const since = Math.max(0, Number(url.searchParams.get('since') || 0) || 0)
+      const rawLimit = Number(url.searchParams.get('limit') || 30)
+      const limit = Number.isFinite(rawLimit) ? Math.max(1, Math.min(50, Math.round(rawLimit))) : 30
+      if (init) {
+        sendJson(res, 200, {
+          ok: true,
+          boot: noticeBootId,
+          seq: noticeSeq,
+          reset: false,
+          notices: [],
+        })
+        return true
+      }
+      const reset = Boolean(clientBoot && clientBoot !== noticeBootId)
+      const items = reset
+        ? noticeQueue.slice(-limit)
+        : noticeQueue.filter((item) => item.seq > since).slice(-limit)
+      sendJson(res, 200, {
+        ok: true,
+        boot: noticeBootId,
+        seq: noticeSeq,
+        reset,
+        notices: items,
+      })
+      return true
+    }
+
+    if (pathname === '/_dshx/api/notices/test' && req.method === 'POST') {
+      const notice = pushNotice({
+        title: 'DSH-X 测试通知',
+        body: '手机端原生通知已与电脑端成功联动',
+        kind: 'done',
+      })
+      sendJson(res, 200, { ok: true, notice })
+      return true
+    }
+
     return false
   }
 
@@ -1223,6 +1309,7 @@ export function createRemoteAccessController({
     stopTunnel,
     probeEdge,
     clearInstanceCookies,
+    pushNotice,
     // 仅供离线集成测试检查内部状态
     _getActiveSocketCount: (deviceId) => activeGateways().reduce((sum, gw) => sum + gw.getActiveSocketCount(deviceId), 0),
     _hasTunnelToken: hasTunnelToken,

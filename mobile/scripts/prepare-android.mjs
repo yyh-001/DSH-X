@@ -41,6 +41,19 @@ export function patchManifest(rawXml) {
     )
   }
 
+  for (const perm of [
+    'android.permission.POST_NOTIFICATIONS',
+    'android.permission.FOREGROUND_SERVICE',
+    'android.permission.FOREGROUND_SERVICE_DATA_SYNC',
+  ]) {
+    if (!xml.includes(perm)) {
+      xml = xml.replace(
+        '<uses-permission android:name="android.permission.CAMERA" />',
+        `<uses-permission android:name="android.permission.CAMERA" />\n    <uses-permission android:name="${perm}" />`,
+      )
+    }
+  }
+
   if (!xml.includes('android.hardware.camera.any')) {
     xml = xml.replace(
       '</manifest>',
@@ -65,6 +78,30 @@ export function patchManifest(rawXml) {
       '',
     ].join('\n')
     xml = xml.replace('        <provider', `${activityBlock}\n        <provider`)
+  }
+
+  if (!xml.includes('.QrScanActivity')) {
+    const qrBlock = [
+      '        <activity',
+      '            android:name=".QrScanActivity"',
+      '            android:screenOrientation="portrait"',
+      '            android:stateNotNeeded="true"',
+      '            android:theme="@style/Theme.AppCompat.NoActionBar"',
+      '            android:exported="false" />',
+      '',
+    ].join('\n')
+    xml = xml.replace('        <provider', `${qrBlock}\n        <provider`)
+  }
+
+  if (!xml.includes('.NoticeSyncService')) {
+    const svcBlock = [
+      '        <service',
+      '            android:name=".NoticeSyncService"',
+      '            android:exported="false"',
+      '            android:foregroundServiceType="dataSync" />',
+      '',
+    ].join('\n')
+    xml = xml.replace('        <provider', `${svcBlock}\n        <provider`)
   }
 
   return xml
@@ -163,7 +200,14 @@ export function prepareAndroid() {
   const javaDestDir = join(ANDROID_DIR, 'app', 'src', 'main', 'java', 'com', 'dshx', 'mobile')
   const javaSrcDir = join(OVERLAY_ANDROID, 'java', 'com', 'dshx', 'mobile')
   mkdirSync(javaDestDir, { recursive: true })
-  for (const name of ['MainActivity.java', 'SecureTokenStore.java', 'DshWebViewActivity.java', 'DshxNativePlugin.java']) {
+  for (const name of [
+    'MainActivity.java',
+    'SecureTokenStore.java',
+    'DshWebViewActivity.java',
+    'QrScanActivity.java',
+    'NoticeSyncService.java',
+    'DshxNativePlugin.java',
+  ]) {
     copyFileSync(join(javaSrcDir, name), join(javaDestDir, name))
   }
 

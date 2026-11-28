@@ -375,21 +375,17 @@ test('端到端离线集成：配对扫码 → 多实例切换与认证桥接 �
     const unauthInst = await rawHttpRequest(gwPort, { path: '/_dshx/api/instances' })
     assert.equal(unauthInst.status, 401)
 
-    // 3. 生成配对会话并校验 QR SVG 与 `#pair=` 载荷（fragment 不进入服务端/代理日志）与 mobile/app.js 完全兼容
+    // 3. 生成配对会话并校验紧凑低密度 QR URL（#pair=<code>，长度远低于旧 base64 JSON）与 mobile/app.js 完全兼容
     const pairing = ctrl.createPairing()
     assert.ok(pairing.code.length >= 32)
     assert.ok(pairing.expiresAt > Date.now())
     assert.match(pairing.svg, /^<svg\b[\s\S]*<\/svg>$/)
+    assert.ok(pairing.url.length < 240, `紧凑扫码链接应控制长度以保证低密度二维码，实际 ${pairing.url.length}`)
     const parsedUrl = new URL(pairing.url)
     assert.equal(parsedUrl.pathname, '/_dshx/m/')
     assert.equal(parsedUrl.search, '')
     const hashParams = new URLSearchParams(parsedUrl.hash.replace(/^#/, ''))
-    const pairParam = hashParams.get('pair')
-    assert.ok(pairParam)
-    const decodedPair = JSON.parse(Buffer.from(pairParam, 'base64url').toString('utf8'))
-    assert.equal(decodedPair.code, pairing.code)
-    assert.equal(decodedPair.hostName, 'Dev-Box')
-    assert.ok(decodedPair.hostId)
+    assert.equal(hashParams.get('pair'), pairing.code)
 
     // 4. 完成配对，获取 HttpOnly 设备 Cookie，并验证一次性码防重放
     const pairRes = await rawHttpRequest(gwPort, {
@@ -451,6 +447,57 @@ test('端到端离线集成：配对扫码 → 多实例切换与认证桥接 �
     const meRes = await rawHttpRequest(gwPort, { path: '/_dshx/api/me', headers: { cookie: bootstrappedCookie } })
     assert.equal(meRes.status, 200)
     assert.equal(JSON.parse(meRes.body).device.deviceId, pairData.device.deviceId)
+
+    // 5b. 校验原生通知队列：?init=1 基线游标、增量拉取、审批/错误分类、重启 boot 重置与测试通知接口
+    const initNoticeRes = await rawHttpRequest(gwPort, {
+      path: '/_dshx/api/notices?init=1',
+      headers: { authorization: `Bearer ${pairData.token}` },
+    })
+    assert.equal(initNoticeRes.status, 200)
+    const initNoticeData = JSON.parse(initNoticeRes.body)
+    assert.equal(initNoticeData.ok, true)
+    assert.ok(initNoticeData.boot)
+    assert.deepEqual(initNoticeData.notices, [])
+
+    ctrl.pushNotice({
+      title: '等你确认',
+      body: 'bash 需要你确认：运行部署脚本',
+      instanceKey: '0.2.2@web',
+      instanceName: 'DSH A',
+    })
+    ctrl.pushNotice({
+      title: '任务失败',
+      body: '错误：上游超时',
+      instanceKey: '0.2.2@work',
+    })
+
+    const pullNoticeRes = await rawHttpRequest(gwPort, {
+      path: `/_dshx/api/notices?boot=${encodeURIComponent(initNoticeData.boot)}&since=${initNoticeData.seq}`,
+      headers: { authorization: `Bearer ${pairData.token}` },
+    })
+    assert.equal(pullNoticeRes.status, 200)
+    const pullNoticeData = JSON.parse(pullNoticeRes.body)
+    assert.equal(pullNoticeData.reset, false)
+    assert.equal(pullNoticeData.notices.length, 2)
+    assert.equal(pullNoticeData.notices[0].kind, 'approval')
+    assert.equal(pullNoticeData.notices[0].instanceKey, '0.2.2@web')
+    assert.equal(pullNoticeData.notices[1].kind, 'error')
+
+    const testNoticeRes = await rawHttpRequest(gwPort, {
+      method: 'POST',
+      path: '/_dshx/api/notices/test',
+      headers: { authorization: `Bearer ${pairData.token}` },
+    })
+    assert.equal(testNoticeRes.status, 200)
+    assert.equal(JSON.parse(testNoticeRes.body).notice.kind, 'done')
+
+    const resetNoticeRes = await rawHttpRequest(gwPort, {
+      path: '/_dshx/api/notices?boot=stale_boot_id&since=9999',
+      headers: { authorization: `Bearer ${pairData.token}` },
+    })
+    assert.equal(resetNoticeRes.status, 200)
+    assert.equal(JSON.parse(resetNoticeRes.body).reset, true)
+    assert.equal(JSON.parse(resetNoticeRes.body).notices.length, 3)
 
     const instRes = await rawHttpRequest(gwPort, { path: '/_dshx/api/instances', headers: { cookie: deviceCookie } })
     assert.equal(instRes.status, 200)

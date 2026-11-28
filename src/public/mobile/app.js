@@ -228,6 +228,13 @@ const I18N = {
     nativeOpeningDsh: '正在打开 DSH…',
     nativeOpenFailed: '打开 DSH 失败：{msg}',
     pairServerRequired: '请先扫码或填写主机服务器地址',
+    nativeNotifyTitle: '系统原生通知',
+    nativeNotifyDesc: '后台接收电脑端任务完成与审批确认提醒（联动 dsh-x-desktop-notify）',
+    nativeNotifyTest: '测试通知',
+    nativeNotifyTestSent: '已发送测试通知，稍后将在通知栏弹出',
+    nativeNotifyEnabled: '已开启后台原生通知',
+    nativeNotifyDisabled: '已关闭后台原生通知',
+    nativeNotifyPermDenied: '未授予系统通知权限，请在系统设置中允许通知',
   },
   en: {
     connecting: 'Connecting',
@@ -438,6 +445,13 @@ const I18N = {
     nativeOpeningDsh: 'Opening DSH…',
     nativeOpenFailed: 'Failed to open DSH: {msg}',
     pairServerRequired: 'Scan a QR code or enter a host server URL first',
+    nativeNotifyTitle: 'Native Notifications',
+    nativeNotifyDesc: 'Receive task completion and approval alerts in the background (linked with dsh-x-desktop-notify)',
+    nativeNotifyTest: 'Test',
+    nativeNotifyTestSent: 'Test notification queued',
+    nativeNotifyEnabled: 'Background native notifications enabled',
+    nativeNotifyDisabled: 'Background native notifications disabled',
+    nativeNotifyPermDenied: 'Notification permission denied in system settings',
   },
 }
 
@@ -923,6 +937,9 @@ const el = {
   pwaSettingsRow: document.getElementById('pwaSettingsRow'),
   pwaSettingsDesc: document.getElementById('pwaSettingsDesc'),
   pwaSettingsBtn: document.getElementById('pwaSettingsBtn'),
+  nativeNotifyRow: document.getElementById('nativeNotifyRow'),
+  nativeNotifyToggle: document.getElementById('nativeNotifyToggle'),
+  nativeNotifyTestBtn: document.getElementById('nativeNotifyTestBtn'),
   unpairSelfBtn: document.getElementById('unpairSelfBtn'),
   appFooterNote: document.getElementById('appFooterNote'),
 
@@ -1343,6 +1360,7 @@ function redirectToEndpoint(targetOrigin) {
     }
     el.routeBanner.hidden = true
     renderAll()
+    void syncNativeNotifications()
     showToast(t('routeSwitched', { type: linkTypeLabel(classifyEndpointType(clean, host.endpoints)) }))
     void Promise.all([
       loadInstances({ silent: true }),
@@ -1678,6 +1696,7 @@ async function revokeDevice(dev) {
     showToast(t('deviceRevoked'))
     if (isSelf) {
       if (isNativeApp() && state.activeHostId) {
+        await getNativeBridge().configureNotifications?.({ enabled: false }).catch(() => {})
         await getNativeBridge().deleteHostToken(state.activeHostId).catch(() => {})
       }
       state.authenticated = false
@@ -1702,6 +1721,7 @@ async function unpairSelf() {
     return
   }
   if (isNativeApp() && state.activeHostId) {
+    await getNativeBridge().configureNotifications?.({ enabled: false }).catch(() => {})
     await getNativeBridge().deleteHostToken(state.activeHostId).catch(() => {})
   }
   state.authenticated = false
@@ -1899,6 +1919,7 @@ async function handlePairSubmit(event) {
       lsSet(STORAGE.activeHostId, mergedHost.hostId)
       state.activeOrigin = effectiveOrigin
       state.activeToken = String(data.token || '')
+      void syncNativeNotifications()
     }
 
     state.pendingUrlPair = null
@@ -2496,6 +2517,7 @@ async function switchToSavedHost(host) {
           endpoints: meData.host?.endpoints || host.endpoints,
         })
         saveHosts(state.hosts)
+        await syncNativeNotifications()
         await enterAuthenticatedConsole()
         return
       }
@@ -2793,6 +2815,9 @@ function renderPwaBannerSlot({ bannerEl, titleEl, subEl, actionsEl, descriptor, 
 }
 
 function renderPwaGuideUI() {
+  if (el.nativeNotifyRow) {
+    el.nativeNotifyRow.hidden = !isNativeApp()
+  }
   const scenario = detectPwaScenario()
   if (scenario === 'installed') {
     el.pwaBanner.hidden = true
@@ -2924,6 +2949,44 @@ async function enterAuthenticatedConsole({ keepPairModal = false } = {}) {
   ])
 }
 
+async function syncNativeNotifications(explicitEnabled) {
+  const native = getNativeBridge()
+  if (!native || typeof native.getNotificationState !== 'function') return { enabled: false, granted: false }
+  const cur = await native.getNotificationState().catch(() => ({ enabled: false, granted: false }))
+  const wantEnabled = explicitEnabled !== undefined ? Boolean(explicitEnabled) : Boolean(cur.enabled)
+  const host = getCurrentHostRecord()
+  const origins = [
+    state.activeOrigin,
+    host?.endpoints?.lan,
+    host?.endpoints?.custom,
+    host?.endpoints?.tunnel,
+    host?.activeEndpoint,
+  ]
+    .map(normalizeOrigin)
+    .filter((u, i, arr) => u && arr.indexOf(u) === i)
+
+  let res = { enabled: false, granted: Boolean(cur.granted) }
+  if (wantEnabled && state.activeHostId && origins.length) {
+    res = await native.configureNotifications({
+      enabled: true,
+      hostId: state.activeHostId,
+      hostName: host?.hostName || '',
+      origins,
+    })
+  } else if (!wantEnabled) {
+    res = await native.configureNotifications({
+      enabled: false,
+      hostId: state.activeHostId || '',
+      hostName: host?.hostName || '',
+      origins,
+    })
+  }
+  if (el.nativeNotifyToggle) {
+    el.nativeNotifyToggle.checked = Boolean(res.enabled)
+  }
+  return res
+}
+
 async function bootstrapNative() {
   const native = getNativeBridge()
   native.onDeepLink((rawUrl) => {
@@ -2997,6 +3060,7 @@ async function bootstrapNative() {
       },
     })
     saveHosts(state.hosts)
+    await syncNativeNotifications()
     await enterAuthenticatedConsole()
     return
   }
@@ -3182,6 +3246,33 @@ function bindEvents() {
   })
 
   el.addHostBtn.addEventListener('click', () => showPairView({ modal: true }))
+  el.nativeNotifyToggle?.addEventListener('change', async () => {
+    const desired = Boolean(el.nativeNotifyToggle.checked)
+    try {
+      const res = await syncNativeNotifications(desired)
+      if (desired && !res.granted) {
+        showToast(t('nativeNotifyPermDenied'), { error: true })
+        return
+      }
+      showToast(res.enabled ? t('nativeNotifyEnabled') : t('nativeNotifyDisabled'))
+    } catch (err) {
+      el.nativeNotifyToggle.checked = !desired
+      showToast(t('actionFailed', { msg: err?.message || 'Error' }), { error: true })
+    }
+  })
+  el.nativeNotifyTestBtn?.addEventListener('click', async () => {
+    try {
+      const res = await syncNativeNotifications(true)
+      if (!res.granted) {
+        showToast(t('nativeNotifyPermDenied'), { error: true })
+        return
+      }
+      await apiFetch('/_dshx/api/notices/test', { method: 'POST' })
+      showToast(t('nativeNotifyTestSent'))
+    } catch (err) {
+      showToast(t('actionFailed', { msg: err?.message || 'Error' }), { error: true })
+    }
+  })
   el.unpairSelfBtn.addEventListener('click', () => unpairSelf())
 
   // 主题与语言切换

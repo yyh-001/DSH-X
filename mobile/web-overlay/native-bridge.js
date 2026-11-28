@@ -154,5 +154,24 @@
       // Capacitor StatusBar: Style.Dark = light text on dark background; Style.Light = dark text on light background
       statusBarPlugin.setStyle({ style: dark ? 'DARK' : 'LIGHT' }).catch(() => {})
     },
+
+    async getNotificationState() {
+      if (!nativePlugin || typeof nativePlugin.getNotificationState !== 'function') {
+        return { enabled: false, granted: false }
+      }
+      return nativePlugin.getNotificationState()
+    },
+
+    async configureNotifications({ enabled, hostId = '', hostName = '', origins = [] } = {}) {
+      if (!nativePlugin || typeof nativePlugin.configureNotifications !== 'function') {
+        return { enabled: false, granted: false }
+      }
+      return nativePlugin.configureNotifications({
+        enabled: Boolean(enabled),
+        hostId: String(hostId || ''),
+        hostName: String(hostName || ''),
+        origins: Array.isArray(origins) ? origins.filter(Boolean) : [],
+      })
+    },
   }
 })()

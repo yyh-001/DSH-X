@@ -3,7 +3,10 @@ package com.dshx.mobile;
 import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
+import android.os.Build;
 import androidx.activity.result.ActivityResult;
+import androidx.core.content.ContextCompat;
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.PermissionState;
 import com.getcapacitor.Plugin;
@@ -13,13 +16,14 @@ import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
-import com.google.zxing.client.android.Intents;
-import com.journeyapps.barcodescanner.CaptureActivity;
+import java.util.ArrayList;
+import java.util.List;
 
 @CapacitorPlugin(
     name = "DshxNative",
     permissions = {
-        @Permission(strings = { Manifest.permission.CAMERA }, alias = "camera")
+        @Permission(strings = { Manifest.permission.CAMERA }, alias = "camera"),
+        @Permission(strings = { Manifest.permission.POST_NOTIFICATIONS }, alias = "notifications")
     }
 )
 public class DshxNativePlugin extends Plugin {
@@ -28,6 +32,7 @@ public class DshxNativePlugin extends Plugin {
     @Override
     public void load() {
         tokenStore = new SecureTokenStore(getContext());
+        NoticeSyncService.ensureChannels(getContext());
     }
 
     @PluginMethod
@@ -87,11 +92,7 @@ public class DshxNativePlugin extends Plugin {
     }
 
     private void launchQrScanner(PluginCall call) {
-        Intent intent = new Intent(getContext(), CaptureActivity.class);
-        intent.setAction(Intents.Scan.ACTION);
-        intent.putExtra(Intents.Scan.MODE, Intents.Scan.QR_CODE_MODE);
-        intent.putExtra(Intents.Scan.BEEP_ENABLED, false);
-        intent.putExtra(Intents.Scan.ORIENTATION_LOCKED, false);
+        Intent intent = new Intent(getContext(), QrScanActivity.class);
         startActivityForResult(call, intent, "handleQrResult");
     }
 
@@ -107,7 +108,7 @@ public class DshxNativePlugin extends Plugin {
             call.resolve(ret);
             return;
         }
-        String text = result.getData().getStringExtra(Intents.Scan.RESULT);
+        String text = result.getData().getStringExtra(QrScanActivity.EXTRA_QR_RESULT);
         JSObject ret = new JSObject();
         ret.put("cancelled", false);
         ret.put("text", text != null ? text : "");
@@ -139,6 +140,73 @@ public class DshxNativePlugin extends Plugin {
         }
         JSObject ret = new JSObject();
         ret.put("closed", true);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void getNotificationState(PluginCall call) {
+        boolean granted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+            || getPermissionState("notifications") == PermissionState.GRANTED;
+        JSObject ret = new JSObject();
+        ret.put("enabled", NoticeSyncService.isEnabled(getContext()));
+        ret.put("granted", granted);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void configureNotifications(PluginCall call) {
+        boolean enabled = Boolean.TRUE.equals(call.getBoolean("enabled", false));
+        if (enabled
+            && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+            && getPermissionState("notifications") != PermissionState.GRANTED
+        ) {
+            requestPermissionForAlias("notifications", call, "notificationPermissionCallback");
+            return;
+        }
+        applyNotificationConfig(call, enabled);
+    }
+
+    @PermissionCallback
+    private void notificationPermissionCallback(PluginCall call) {
+        boolean granted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+            || getPermissionState("notifications") == PermissionState.GRANTED;
+        if (!granted) {
+            JSObject ret = new JSObject();
+            ret.put("enabled", false);
+            ret.put("granted", false);
+            call.resolve(ret);
+            return;
+        }
+        applyNotificationConfig(call, Boolean.TRUE.equals(call.getBoolean("enabled", false)));
+    }
+
+    private void applyNotificationConfig(PluginCall call, boolean enabled) {
+        String hostId = call.getString("hostId", "");
+        String hostName = call.getString("hostName", "");
+        List<String> origins = new ArrayList<>();
+        JSArray arr = call.getArray("origins");
+        if (arr != null) {
+            for (int i = 0; i < arr.length(); i++) {
+                String val = arr.optString(i, "").trim();
+                if (!val.isEmpty()) {
+                    origins.add(val);
+                }
+            }
+        }
+
+        NoticeSyncService.saveConfig(getContext(), enabled, hostId, hostName, origins);
+        Intent serviceIntent = new Intent(getContext(), NoticeSyncService.class);
+        if (enabled && hostId != null && !hostId.isEmpty() && !origins.isEmpty()) {
+            ContextCompat.startForegroundService(getContext(), serviceIntent);
+        } else {
+            getContext().stopService(serviceIntent);
+        }
+
+        boolean granted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+            || getPermissionState("notifications") == PermissionState.GRANTED;
+        JSObject ret = new JSObject();
+        ret.put("enabled", enabled && granted);
+        ret.put("granted", granted);
         call.resolve(ret);
     }
 }
