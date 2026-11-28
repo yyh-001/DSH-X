@@ -1008,8 +1008,15 @@ public class DshWebViewActivity extends AppCompatActivity {
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setGravity(Gravity.CENTER);
         layout.setBackgroundColor(colorBg());
-        int pad = dp(28);
-        layout.setPadding(pad, pad, pad, pad);
+        int outerPad = dp(24);
+        layout.setPadding(outerPad, outerPad, outerPad, outerPad);
+
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setGravity(Gravity.CENTER_HORIZONTAL);
+        card.setBackground(makeRoundedRect(colorCard(), dp(1), colorDivider(), dp(20)));
+        card.setPadding(dp(24), dp(28), dp(24), dp(24));
+        card.setElevation(dp(2));
 
         FrameLayout badge = new FrameLayout(this);
         badge.setBackground(makeCircle(colorDangerSoft()));
@@ -1019,7 +1026,7 @@ public class DshWebViewActivity extends AppCompatActivity {
         badge.addView(alertIcon, iconLp);
         LinearLayout.LayoutParams badgeParams = new LinearLayout.LayoutParams(dp(52), dp(52));
         badgeParams.bottomMargin = dp(16);
-        layout.addView(badge, badgeParams);
+        card.addView(badge, badgeParams);
 
         TextView titleView = new TextView(this);
         titleView.setText("无法连接到实例");
@@ -1032,40 +1039,85 @@ public class DshWebViewActivity extends AppCompatActivity {
             ViewGroup.LayoutParams.WRAP_CONTENT
         );
         titleParams.bottomMargin = dp(6);
-        layout.addView(titleView, titleParams);
+        card.addView(titleView, titleParams);
+
+        TextView hintView = new TextView(this);
+        hintView.setText("电脑端可能已重启、更换端口，或当前网络不可达。");
+        hintView.setTextColor(colorMuted());
+        hintView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f);
+        hintView.setLineSpacing(0f, 1.35f);
+        hintView.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams hintParams = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        hintParams.bottomMargin = dp(14);
+        card.addView(hintView, hintParams);
 
         errorMessageView = new TextView(this);
+        errorMessageView.setBackground(makeRoundedRect(colorPillBg(), 0, 0, dp(10)));
+        errorMessageView.setPadding(dp(12), dp(9), dp(12), dp(9));
         errorMessageView.setTextColor(colorMuted());
-        errorMessageView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f);
+        errorMessageView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f);
+        errorMessageView.setTypeface(Typeface.MONOSPACE);
+        errorMessageView.setMaxLines(3);
+        errorMessageView.setEllipsize(android.text.TextUtils.TruncateAt.END);
         errorMessageView.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams msgParams = new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        msgParams.bottomMargin = dp(22);
-        layout.addView(errorMessageView, msgParams);
+        msgParams.bottomMargin = dp(20);
+        card.addView(errorMessageView, msgParams);
 
         LinearLayout btnRow = new LinearLayout(this);
         btnRow.setOrientation(LinearLayout.HORIZONTAL);
         btnRow.setGravity(Gravity.CENTER);
 
-        TextView retryBtn = makeActionPill("重试", colorPrimaryBtnBg(), colorPrimaryBtnFg(), 0, 0);
-        retryBtn.setOnClickListener(v -> bootstrapAndOpen());
-        btnRow.addView(retryBtn);
-
-        TextView backBtn = makeActionPill("返回控制台", colorCard(), colorText(), dp(1), colorDivider());
-        LinearLayout.LayoutParams backParams = new LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            dp(40)
-        );
-        backParams.leftMargin = dp(10);
+        TextView backBtn = new TextView(this);
+        backBtn.setText("返回控制台");
+        backBtn.setTextColor(colorText());
+        backBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13.5f);
+        backBtn.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        backBtn.setGravity(Gravity.CENTER);
+        backBtn.setSingleLine(true);
+        backBtn.setClickable(true);
+        backBtn.setFocusable(true);
+        backBtn.setBackground(makeRippleDrawable(colorPillBg(), dp(12), dp(1), colorDivider()));
         backBtn.setOnClickListener(v -> {
             setResult(RESULT_OK);
             finish();
         });
+        LinearLayout.LayoutParams backParams = new LinearLayout.LayoutParams(0, dp(42), 1f);
+        backParams.rightMargin = dp(5);
         btnRow.addView(backBtn, backParams);
 
-        layout.addView(btnRow);
+        TextView retryBtn = new TextView(this);
+        retryBtn.setText("重试");
+        retryBtn.setTextColor(colorPrimaryBtnFg());
+        retryBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13.5f);
+        retryBtn.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        retryBtn.setGravity(Gravity.CENTER);
+        retryBtn.setSingleLine(true);
+        retryBtn.setClickable(true);
+        retryBtn.setFocusable(true);
+        retryBtn.setBackground(makeRippleDrawable(colorPrimaryBtnBg(), dp(12), 0, 0));
+        retryBtn.setOnClickListener(v -> bootstrapAndOpen());
+        LinearLayout.LayoutParams retryParams = new LinearLayout.LayoutParams(0, dp(42), 1f);
+        retryParams.leftMargin = dp(5);
+        btnRow.addView(retryBtn, retryParams);
+
+        LinearLayout.LayoutParams btnRowParams = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        card.addView(btnRow, btnRowParams);
+
+        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        layout.addView(card, cardParams);
         return layout;
     }
 
