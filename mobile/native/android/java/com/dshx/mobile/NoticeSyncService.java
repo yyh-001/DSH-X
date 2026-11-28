@@ -1,5 +1,7 @@
 package com.dshx.mobile;
 
+import android.app.Activity;
+import android.app.Application;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -10,6 +12,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ServiceInfo;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.IBinder;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
@@ -94,6 +97,55 @@ public class NoticeSyncService extends Service {
     /** App 是否有可见界面（MainActivity / DshWebViewActivity / QrScanActivity 任一在前台）。 */
     public static boolean isAppVisible() {
         return STARTED_ACTIVITIES.get() > 0;
+    }
+
+    private static boolean lifecycleCallbacksRegistered = false;
+
+    /**
+     * 通过 Application 的 Activity 生命周期回调维护可见性计数。
+     * 不直接 override MainActivity 的 onStart/onStop：Capacitor 的 BridgeActivity 把它们做成了终态/公开方法，
+     * 覆写会编译失败；回调方式对从通知直接拉起的 DshWebViewActivity 同样有效。
+     */
+    public static void ensureLifecycleTracking(Context context) {
+        if (lifecycleCallbacksRegistered) {
+            return;
+        }
+        Context app = context != null ? context.getApplicationContext() : null;
+        if (!(app instanceof Application)) {
+            return;
+        }
+        lifecycleCallbacksRegistered = true;
+        ((Application) app).registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
+            @Override
+            public void onActivityCreated(Activity activity, Bundle savedInstanceState) {
+            }
+
+            @Override
+            public void onActivityStarted(Activity activity) {
+                NoticeSyncService.onActivityStarted();
+            }
+
+            @Override
+            public void onActivityResumed(Activity activity) {
+            }
+
+            @Override
+            public void onActivityPaused(Activity activity) {
+            }
+
+            @Override
+            public void onActivityStopped(Activity activity) {
+                NoticeSyncService.onActivityStopped();
+            }
+
+            @Override
+            public void onActivitySaveInstanceState(Activity activity, Bundle outState) {
+            }
+
+            @Override
+            public void onActivityDestroyed(Activity activity) {
+            }
+        });
     }
 
     public static void onActivityStarted() {

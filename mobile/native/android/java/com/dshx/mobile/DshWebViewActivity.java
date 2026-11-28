@@ -212,22 +212,11 @@ public class DshWebViewActivity extends AppCompatActivity {
     private boolean fetchingInstances = false;
     private String instancesFetchError = "";
 
-    @Override
-    protected void onStart() {
-        super.onStart();
-        NoticeSyncService.onActivityStarted();
-    }
-
-    @Override
-    protected void onStop() {
-        NoticeSyncService.onActivityStopped();
-        super.onStop();
-    }
-
     @SuppressLint("SetJavaScriptEnabled")
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        NoticeSyncService.ensureLifecycleTracking(this);
 
         targetOrigin = safeTrim(getIntent().getStringExtra(EXTRA_ORIGIN));
         instanceKey = safeTrim(getIntent().getStringExtra(EXTRA_INSTANCE_KEY));

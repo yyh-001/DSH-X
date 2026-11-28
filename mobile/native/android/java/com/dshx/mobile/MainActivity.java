@@ -8,17 +8,7 @@ public class MainActivity extends BridgeActivity {
     protected void onCreate(Bundle savedInstanceState) {
         registerPlugin(DshxNativePlugin.class);
         super.onCreate(savedInstanceState);
-    }
-
-    @Override
-    protected void onStart() {
-        super.onStart();
-        NoticeSyncService.onActivityStarted();
-    }
-
-    @Override
-    protected void onStop() {
-        NoticeSyncService.onActivityStopped();
-        super.onStop();
+        // 用 Application 的生命周期回调统计前后台，避免覆写 BridgeActivity 的 onStart/onStop。
+        NoticeSyncService.ensureLifecycleTracking(this);
     }
 }
