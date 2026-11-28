@@ -893,6 +893,7 @@ const state = {
   activeToken: '',
   authenticated: false,
   pairModalOpen: false,
+  pairingInFlight: false,
   pendingUrlPair: null,
   health: null,
   me: null,
@@ -1808,15 +1809,15 @@ function setPairManualExpanded(expanded) {
   }
 }
 
-function showPairView({ modal = false, pairPayload = null, errorMessage = '' } = {}) {
+function showPairView({ modal = false, pairPayload = null, errorMessage = '', autoSubmit = false } = {}) {
   state.pairModalOpen = modal
   el.pairView.hidden = false
   el.pairView.classList.toggle('as-modal', modal)
   el.pairTopbar.hidden = modal
   el.pairCloseBtn.hidden = !modal
-  el.consoleShell.hidden = !modal
   const nativeMode = isNativeApp()
   el.pairScanQrBtn.hidden = !nativeMode
+  el.consoleShell.hidden = !modal
 
   el.pairTitle.textContent = modal ? t('pairAddTitle') : t('pairTitle')
   el.pairSubtitle.textContent = t('pairSubtitle')
@@ -1855,11 +1856,11 @@ function showPairView({ modal = false, pairPayload = null, errorMessage = '' } =
     el.pairError.textContent = ''
   }
 
-  // 原生 App 主推扫码配对：默认折叠手动表单，识别到扫码结果或出错时自动展开
+  // 原生 App 主推扫码配对：自动配对中或待扫码时保持表单折叠；仅手工/失败/缺地址时展开
   if (el.pairManualToggle) {
     el.pairManualToggle.hidden = !nativeMode
   }
-  const shouldExpandManual = !nativeMode || hasAutoPayload || Boolean(errorMessage) || Boolean(el.pairCodeInput.value.trim())
+  const shouldExpandManual = !nativeMode || (!autoSubmit && (hasAutoPayload || Boolean(errorMessage) || Boolean(el.pairCodeInput.value.trim())))
   setPairManualExpanded(shouldExpandManual)
 
   updatePairServerHint()
@@ -1874,8 +1875,35 @@ function hidePairView() {
   renderPwaGuideUI()
 }
 
+function hasPairServerCandidate(parsed) {
+  return Boolean(
+    parsed?.serverUrl ||
+    parsed?.endpoints?.lan ||
+    parsed?.endpoints?.custom ||
+    parsed?.endpoints?.tunnel ||
+    normalizeOrigin(el.pairServerUrlInput.value) ||
+    getActiveOrigin()
+  )
+}
+
+function setPairingBusy(busy) {
+  state.pairingInFlight = busy
+  el.pairSubmitBtn.disabled = busy
+  el.pairSubmitBtn.textContent = busy ? t('pairing') : t('pairSubmit')
+  if (el.pairScanQrBtn) {
+    el.pairScanQrBtn.disabled = busy
+    const labelSpan = el.pairScanQrBtn.querySelector('span')
+    if (labelSpan) labelSpan.textContent = busy ? t('pairing') : t('scanQrBtn')
+  }
+}
+
 async function handlePairSubmit(event) {
   event.preventDefault()
+  await submitPairNow()
+}
+
+async function submitPairNow() {
+  if (state.pairingInFlight) return false
   el.pairError.hidden = true
 
   const rawCode = el.pairCodeInput.value.trim()
@@ -1888,18 +1916,20 @@ async function handlePairSubmit(event) {
   const rawServer = el.pairServerUrlInput.value.trim()
 
   if (!code) {
+    setPairManualExpanded(true)
     el.pairError.textContent = t('pairFailed')
     el.pairError.hidden = false
-    return
+    return false
   }
 
   let targetServerOrigin = ''
   if (rawServer) {
     targetServerOrigin = normalizeOrigin(rawServer)
     if (!targetServerOrigin) {
+      setPairManualExpanded(true)
       el.pairError.textContent = t('invalidUrl')
       el.pairError.hidden = false
-      return
+      return false
     }
     // 跨主机配对必须跳转到目标源发起同源 POST，否则浏览器不会为目标域种下 SameSite=Lax HttpOnly Cookie
     if (!isNativeApp() && targetServerOrigin !== window.location.origin) {
@@ -1909,12 +1939,11 @@ async function handlePairSubmit(event) {
       hashParams.set('name', deviceName)
       target.hash = hashParams.toString()
       window.location.href = target.toString()
-      return
+      return false
     }
   }
 
-  el.pairSubmitBtn.disabled = true
-  el.pairSubmitBtn.textContent = t('pairing')
+  setPairingBusy(true)
 
   try {
     let pairOrigin = ''
@@ -1935,9 +1964,10 @@ async function handlePairSubmit(event) {
         .filter((u, idx, arr) => u && arr.indexOf(u) === idx)
 
       if (!candidates.length) {
+        setPairManualExpanded(true)
         el.pairError.textContent = t('pairServerRequired')
         el.pairError.hidden = false
-        return
+        return false
       }
       if (candidates.length === 1) {
         pairOrigin = candidates[0]
@@ -2001,7 +2031,14 @@ async function handlePairSubmit(event) {
     hidePairView()
     showToast(t('pairSuccess'))
     await enterAuthenticatedConsole()
+    if (native) {
+      await ensureAppVersionLoaded()
+      renderAppUpdateUI()
+      setTimeout(() => { void checkAppUpdate({ silent: true }) }, 1800)
+    }
+    return true
   } catch (err) {
+    setPairManualExpanded(true)
     if (err && err.status === 429) {
       el.pairError.textContent = t('rateLimited', { s: err.retryAfterSec || 30 })
     } else {
@@ -2010,9 +2047,9 @@ async function handlePairSubmit(event) {
         : t('pairFailed')
     }
     el.pairError.hidden = false
+    return false
   } finally {
-    el.pairSubmitBtn.disabled = false
-    el.pairSubmitBtn.textContent = t('pairSubmit')
+    setPairingBusy(false)
   }
 }
 
@@ -3376,7 +3413,11 @@ async function bootstrapNative() {
     const parsed = parsePairingText(rawUrl)
     if (!parsed || !parsed.code) return
     state.pendingUrlPair = parsed
-    showPairView({ modal: state.authenticated, pairPayload: parsed })
+    const canAuto = hasPairServerCandidate(parsed)
+    showPairView({ modal: state.authenticated, pairPayload: parsed, autoSubmit: canAuto })
+    if (canAuto) {
+      void submitPairNow()
+    }
   })
 
   if (!state.hosts.length) {
@@ -3484,7 +3525,7 @@ async function bootstrap() {
     state.health = healthRes.value
   }
 
-  // 若携带了 #pair= / ?pair= 扫码参数，优先弹出配对卡片让用户一键完成/轮换配对
+  // 若携带了 #pair= / ?pair= 扫码参数，自动发起配对并直达控制台（失败时留在配对卡片提示）
   if (state.pendingUrlPair) {
     if (meRes.status === 'fulfilled' && meRes.value?.device) {
       state.authenticated = true
@@ -3500,10 +3541,14 @@ async function bootstrap() {
         },
       })
       saveHosts(state.hosts)
-      showPairView({ modal: true, pairPayload: state.pendingUrlPair })
-      await enterAuthenticatedConsole({ keepPairModal: true })
+      showPairView({ modal: true, pairPayload: state.pendingUrlPair, autoSubmit: true })
+      const ok = await submitPairNow()
+      if (!ok) {
+        await enterAuthenticatedConsole({ keepPairModal: true })
+      }
     } else {
-      showPairView({ modal: false, pairPayload: state.pendingUrlPair })
+      showPairView({ modal: false, pairPayload: state.pendingUrlPair, autoSubmit: true })
+      await submitPairNow()
     }
     return
   }
@@ -3708,8 +3753,15 @@ function bindEvents() {
         return
       }
       state.pendingUrlPair = parsed
-      showPairView({ modal: state.pairModalOpen, pairPayload: parsed })
-      el.pairSubmitBtn.focus()
+      const canAuto = hasPairServerCandidate(parsed)
+      showPairView({ modal: state.pairModalOpen, pairPayload: parsed, autoSubmit: canAuto })
+      if (canAuto) {
+        await submitPairNow()
+      } else {
+        el.pairError.textContent = t('pairServerRequired')
+        el.pairError.hidden = false
+        el.pairServerUrlInput.focus()
+      }
     } catch (err) {
       setPairManualExpanded(true)
       el.pairError.textContent = err?.message || t('scanQrFailed')

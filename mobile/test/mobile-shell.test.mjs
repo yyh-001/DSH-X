@@ -157,6 +157,7 @@ test('Android 原生 Java 覆盖层与桥接脚本结构完整', () => {
   assert.ok(mobileAppJs.includes('openNativeDshInstance'))
   assert.ok(mobileAppJs.includes('syncNativeNotifications'))
   assert.ok(mobileAppJs.includes('checkAppUpdate'))
+  assert.ok(mobileAppJs.includes('submitPairNow'))
 
   const gitignore = readFileSync(join(MOBILE_DIR, '.gitignore'), 'utf8')
   const lines = gitignore.split(/\r?\n/).map((l) => l.trim())
