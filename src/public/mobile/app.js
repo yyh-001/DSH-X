@@ -4,6 +4,7 @@
 const STORAGE = {
   deviceKey: 'dshx_mobile_device_key',
   hosts: 'dshx_mobile_hosts_v1',
+  activeHostId: 'dshx_mobile_active_host_id',
   theme: 'dshx_mobile_theme',
   lang: 'dshx_mobile_lang',
   autoSwitch: 'dshx_mobile_auto_switch',
@@ -220,6 +221,13 @@ const I18N = {
     pwaGuideManualNote: 'Android 设备建议使用 Chrome 或 Edge，可获得完整独立窗口体验。',
     defaultHostName: 'DSH-X 主机',
     noEndpoints: '暂未获取到链路地址',
+    scanQrBtn: '扫码配对',
+    scanQrFailed: '扫码失败或未识别到有效配对码',
+    scanQrCancelled: '已取消扫码',
+    routeSwitched: '已切换至{type}链路',
+    nativeOpeningDsh: '正在打开 DSH…',
+    nativeOpenFailed: '打开 DSH 失败：{msg}',
+    pairServerRequired: '请先扫码或填写主机服务器地址',
   },
   en: {
     connecting: 'Connecting',
@@ -423,6 +431,13 @@ const I18N = {
     pwaGuideManualNote: 'Chrome or Edge on Android provides the best standalone PWA experience.',
     defaultHostName: 'DSH-X Host',
     noEndpoints: 'No route URLs configured yet',
+    scanQrBtn: 'Scan QR Code',
+    scanQrFailed: 'Scan failed or no valid pairing code found',
+    scanQrCancelled: 'Scan cancelled',
+    routeSwitched: 'Switched to {type} route',
+    nativeOpeningDsh: 'Opening DSH…',
+    nativeOpenFailed: 'Failed to open DSH: {msg}',
+    pairServerRequired: 'Scan a QR code or enter a host server URL first',
   },
 }
 
@@ -505,6 +520,18 @@ function detectDeviceProfile() {
     platform,
     defaultName: `${osLabel} ${browser}`.trim(),
   }
+}
+
+function getNativeBridge() {
+  return window.DSHXNative && window.DSHXNative.isNative ? window.DSHXNative : null
+}
+
+function isNativeApp() {
+  return Boolean(getNativeBridge())
+}
+
+function getActiveOrigin() {
+  return isNativeApp() ? normalizeOrigin(state.activeOrigin) : normalizeOrigin(window.location.origin)
 }
 
 function normalizeOrigin(raw) {
@@ -602,23 +629,22 @@ function decodeBase64UrlJson(input) {
   }
 }
 
-function parseUrlPairing() {
-  const params = new URLSearchParams(window.location.search)
-  const rawPair = params.get('pair')
-  const nameParam = params.get('name') || ''
+function parsePairingParams(hashParams, searchParams, fallbackOrigin = '') {
+  const getParam = (key) => hashParams.get(key) ?? searchParams.get(key)
+  const rawPair = getParam('pair') || getParam('code')
   if (!rawPair) return null
 
-  let result = {
+  const result = {
     code: '',
     hostId: '',
-    hostName: params.get('hostName') || params.get('host') || '',
-    deviceName: nameParam,
+    hostName: getParam('hostName') || getParam('host') || '',
+    deviceName: getParam('name') || '',
     endpoints: {
-      lan: normalizeOrigin(params.get('lan') || ''),
-      tunnel: normalizeOrigin(params.get('tunnel') || ''),
-      custom: normalizeOrigin(params.get('custom') || ''),
+      lan: normalizeOrigin(getParam('lan') || ''),
+      tunnel: normalizeOrigin(getParam('tunnel') || ''),
+      custom: normalizeOrigin(getParam('custom') || ''),
     },
-    serverUrl: normalizeOrigin(params.get('server') || ''),
+    serverUrl: normalizeOrigin(getParam('server') || fallbackOrigin),
   }
 
   const decoded = decodeBase64UrlJson(rawPair)
@@ -639,23 +665,81 @@ function parseUrlPairing() {
     result.code = rawPair.trim()
   }
 
-  // 解析完成后立刻从地址栏移除一次性配对码，防止刷新重复提交或留在浏览器历史记录中
-  try {
-    const cleanUrl = new URL(window.location.href)
-    cleanUrl.searchParams.delete('pair')
-    cleanUrl.searchParams.delete('name')
-    cleanUrl.searchParams.delete('host')
-    cleanUrl.searchParams.delete('hostName')
-    cleanUrl.searchParams.delete('lan')
-    cleanUrl.searchParams.delete('tunnel')
-    cleanUrl.searchParams.delete('custom')
-    cleanUrl.searchParams.delete('server')
-    window.history.replaceState(null, '', cleanUrl.pathname + cleanUrl.search + cleanUrl.hash)
-  } catch {
-    // 忽略 history API 受限场景
+  return result.code ? result : null
+}
+
+function parsePairingText(rawText) {
+  const input = String(rawText || '').trim()
+  if (!input) return null
+
+  if (/^https?:\/\//i.test(input)) {
+    try {
+      const parsed = new URL(input)
+      const hashParams = new URLSearchParams(parsed.hash.replace(/^#/, ''))
+      const searchParams = new URLSearchParams(parsed.search)
+      return parsePairingParams(hashParams, searchParams, parsed.origin)
+    } catch {
+      return null
+    }
   }
 
-  return result.code ? result : null
+  const decoded = decodeBase64UrlJson(input)
+  if (decoded && (decoded.code || decoded.c || decoded.pairCode)) {
+    const ep = decoded.endpoints || decoded.e || {}
+    return {
+      code: String(decoded.code || decoded.c || decoded.pairCode || '').trim(),
+      hostId: String(decoded.hostId || decoded.id || '').trim(),
+      hostName: String(decoded.hostName || decoded.name || decoded.n || '').trim(),
+      deviceName: '',
+      endpoints: {
+        lan: normalizeOrigin(ep.lan || decoded.lan || ''),
+        tunnel: normalizeOrigin(ep.tunnel || decoded.tunnel || ''),
+        custom: normalizeOrigin(ep.custom || decoded.custom || ''),
+      },
+      serverUrl: normalizeOrigin(decoded.url || decoded.server || ''),
+    }
+  }
+
+  return {
+    code: input,
+    hostId: '',
+    hostName: '',
+    deviceName: '',
+    endpoints: { lan: '', tunnel: '', custom: '' },
+    serverUrl: '',
+  }
+}
+
+function parseUrlPairing(rawHref = window.location.href) {
+  let parsedUrl
+  try {
+    parsedUrl = new URL(rawHref)
+  } catch {
+    return null
+  }
+  const hashParams = new URLSearchParams(parsedUrl.hash.replace(/^#/, ''))
+  const searchParams = new URLSearchParams(parsedUrl.search)
+  const result = parsePairingParams(hashParams, searchParams)
+  if (!result) return null
+
+  // 解析完成后立刻从地址栏移除一次性配对码，防止刷新重复提交或留在浏览器历史记录中
+  if (rawHref === window.location.href) {
+    try {
+      const cleanUrl = new URL(window.location.href)
+      const keys = ['pair', 'name', 'host', 'hostName', 'lan', 'tunnel', 'custom', 'server']
+      for (const k of keys) {
+        cleanUrl.searchParams.delete(k)
+        hashParams.delete(k)
+      }
+      const nextHash = hashParams.toString()
+      cleanUrl.hash = nextHash ? `#${nextHash}` : ''
+      window.history.replaceState(null, '', cleanUrl.pathname + cleanUrl.search + cleanUrl.hash)
+    } catch {
+      // 忽略 history API 受限场景
+    }
+  }
+
+  return result
 }
 
 function loadSavedHosts() {
@@ -696,7 +780,7 @@ function hostContainsOrigin(host, origin) {
 }
 
 function upsertSavedHost(hosts, incoming) {
-  const origin = normalizeOrigin(window.location.origin)
+  const origin = normalizeOrigin(incoming.origin || getActiveOrigin())
   const incomingId = String(incoming.hostId || '').trim()
   const nextEndpoints = {
     lan: normalizeOrigin(incoming.endpoints?.lan || ''),
@@ -705,7 +789,7 @@ function upsertSavedHost(hosts, incoming) {
   }
   const idx = hosts.findIndex((h) => {
     if (incomingId && h.hostId && h.hostId === incomingId) return true
-    return hostContainsOrigin(h, origin)
+    return origin ? hostContainsOrigin(h, origin) : false
   })
 
   if (idx >= 0) {
@@ -718,8 +802,10 @@ function upsertSavedHost(hosts, incoming) {
         : (nextEndpoints.custom || prev.endpoints?.custom || ''),
     }
     // 将当前访问来源自动补录到对应类型槽位，避免用户从局域网打开时丢掉局域网地址
-    const curType = classifyEndpointType(origin, mergedEndpoints)
-    if (!mergedEndpoints[curType]) mergedEndpoints[curType] = origin
+    if (origin) {
+      const curType = classifyEndpointType(origin, mergedEndpoints)
+      if (!mergedEndpoints[curType]) mergedEndpoints[curType] = origin
+    }
 
     hosts[idx] = {
       hostId: incomingId || prev.hostId || origin,
@@ -730,14 +816,16 @@ function upsertSavedHost(hosts, incoming) {
     return hosts[idx]
   }
 
-  const curType = classifyEndpointType(origin, nextEndpoints)
-  if (origin && !nextEndpoints[curType]) nextEndpoints[curType] = origin
+  if (origin) {
+    const curType = classifyEndpointType(origin, nextEndpoints)
+    if (!nextEndpoints[curType]) nextEndpoints[curType] = origin
+  }
 
   const entry = {
     hostId: incomingId || origin,
     hostName: String(incoming.hostName || '').trim(),
     endpoints: nextEndpoints,
-    activeEndpoint: origin,
+    activeEndpoint: origin || nextEndpoints.lan || nextEndpoints.custom || nextEndpoints.tunnel || '',
   }
   hosts.unshift(entry)
   return entry
@@ -756,6 +844,9 @@ const state = {
   autoSwitch: lsGet(STORAGE.autoSwitch, '0') === '1',
   deviceKey: getOrCreateDeviceKey(),
   hosts: loadSavedHosts(),
+  activeHostId: lsGet(STORAGE.activeHostId, ''),
+  activeOrigin: '',
+  activeToken: '',
   authenticated: false,
   pairModalOpen: false,
   pendingUrlPair: null,
@@ -844,6 +935,7 @@ const el = {
   pairCloseBtn: document.getElementById('pairCloseBtn'),
   pairAutoNotice: document.getElementById('pairAutoNotice'),
   pairAutoNoticeText: document.getElementById('pairAutoNoticeText'),
+  pairScanQrBtn: document.getElementById('pairScanQrBtn'),
   pairForm: document.getElementById('pairForm'),
   pairCodeInput: document.getElementById('pairCodeInput'),
   pairDeviceNameInput: document.getElementById('pairDeviceNameInput'),
@@ -904,6 +996,7 @@ function applyTheme(mode) {
   document.querySelectorAll('[data-theme-opt]').forEach((btn) => {
     btn.setAttribute('aria-pressed', String(btn.dataset.themeOpt === normalized))
   })
+  getNativeBridge()?.setStatusBarTheme?.(dark)
 }
 
 function applyLanguage(lang) {
@@ -919,7 +1012,9 @@ function applyLanguage(lang) {
   })
   el.pairLangBtn.textContent = state.lang === 'zh' ? 'EN' : '中文'
   el.pairCodeInput.placeholder = t('pairCodePlaceholder')
-  el.pairServerUrlInput.placeholder = t('serverUrlPlaceholder', { origin: window.location.origin })
+  el.pairServerUrlInput.placeholder = t('serverUrlPlaceholder', {
+    origin: getActiveOrigin() || 'http://192.168.1.10:3790',
+  })
   updatePairServerHint()
   renderAll()
   if (!el.pwaGuideDialog.hidden) {
@@ -1040,7 +1135,32 @@ class ApiError extends Error {
   }
 }
 
-async function apiFetch(path, { method = 'GET', body, timeoutMs = 10000, skipAuthHandling = false } = {}) {
+async function apiFetch(path, { method = 'GET', body, timeoutMs = 10000, skipAuthHandling = false, origin = '', token } = {}) {
+  const native = getNativeBridge()
+  if (native) {
+    const targetOrigin = normalizeOrigin(origin || getActiveOrigin())
+    if (!targetOrigin) {
+      throw new ApiError(t('pairServerRequired'), { status: 0 })
+    }
+    const authToken = token !== undefined ? token : state.activeToken
+    const res = await native.request(targetOrigin, path, {
+      method,
+      body,
+      token: authToken,
+      timeoutMs,
+    })
+    const status = Number(res?.status || 0)
+    const data = res?.data ?? null
+    if (status < 200 || status >= 300) {
+      if (status === 401 && !skipAuthHandling) {
+        handleSessionUnauthorized()
+      }
+      const msg = (data && (data.error || data.message)) || (status ? `HTTP ${status}` : 'Network error')
+      throw new ApiError(msg, { status, data, retryAfterSec: Number(res?.retryAfterSec || 0) })
+    }
+    return data || {}
+  }
+
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
@@ -1094,9 +1214,9 @@ function handleSessionUnauthorized() {
 // ===== 主机与多链路并发测速选路 =====
 
 function getCurrentHostRecord() {
-  const origin = normalizeOrigin(window.location.origin)
-  const hostId = state.me?.host?.hostId || state.health?.hostId || ''
-  let host = state.hosts.find((h) => (hostId && h.hostId === hostId) || hostContainsOrigin(h, origin))
+  const origin = getActiveOrigin()
+  const hostId = state.me?.host?.hostId || state.health?.hostId || state.activeHostId || ''
+  let host = state.hosts.find((h) => (hostId && h.hostId === hostId) || (origin && hostContainsOrigin(h, origin)))
   if (!host) {
     host = {
       hostId: hostId || origin,
@@ -1113,7 +1233,7 @@ function getCurrentHostRecord() {
 }
 
 function buildCandidateEndpoints(host) {
-  const origin = normalizeOrigin(window.location.origin)
+  const origin = getActiveOrigin()
   const ep = host?.endpoints || {}
   const list = []
   const seen = new Set()
@@ -1125,7 +1245,7 @@ function buildCandidateEndpoints(host) {
     list.push({
       url,
       type: explicitType || classifyEndpointType(url, ep),
-      isCurrent: url === origin,
+      isCurrent: Boolean(origin && url === origin),
     })
   }
 
@@ -1138,6 +1258,17 @@ function buildCandidateEndpoints(host) {
 }
 
 async function probeSingleEndpoint(candidate) {
+  const native = getNativeBridge()
+  if (native) {
+    const res = await native.probeHealth(candidate.url, PROBE_TIMEOUT_MS)
+    return {
+      ...candidate,
+      status: res.status || (res.ok ? 'ok' : 'error'),
+      rttMs: res.ok ? res.rttMs : null,
+      data: res.ok ? res.data : null,
+    }
+  }
+
   if (!candidate.isCurrent && isMixedContentUrl(candidate.url)) {
     return {
       ...candidate,
@@ -1196,7 +1327,29 @@ function canAutoRedirectNow(targetUrl) {
 
 function redirectToEndpoint(targetOrigin) {
   const clean = normalizeOrigin(targetOrigin)
-  if (!clean || clean === window.location.origin) return
+  if (!clean || clean === getActiveOrigin()) return
+  if (isNativeApp()) {
+    state.activeOrigin = clean
+    state.bannerDismissedUrl = ''
+    const host = getCurrentHostRecord()
+    if (host.hostId) {
+      upsertSavedHost(state.hosts, {
+        hostId: host.hostId,
+        hostName: host.hostName,
+        endpoints: host.endpoints,
+        origin: clean,
+      })
+      saveHosts(state.hosts)
+    }
+    el.routeBanner.hidden = true
+    renderAll()
+    showToast(t('routeSwitched', { type: linkTypeLabel(classifyEndpointType(clean, host.endpoints)) }))
+    void Promise.all([
+      loadInstances({ silent: true }),
+      probeHostRoutes({ allowAutoSwitch: false }),
+    ])
+    return
+  }
   try {
     sessionStorage.setItem(
       REDIRECT_GUARD_KEY,
@@ -1308,12 +1461,20 @@ function showRouteBanner({ warn, title, sub, targetUrl, actionLabel }) {
   el.routeBanner.className = warn ? 'route-banner warn' : 'route-banner'
   el.routeBannerTitle.textContent = title
   el.routeBannerSub.textContent = sub
+  const primaryAction = isNativeApp()
+    ? createEl('button', {
+        type: 'button',
+        class: 'btn btn-sm btn-primary',
+        text: actionLabel,
+        onClick: () => redirectToEndpoint(targetUrl),
+      })
+    : createEl('a', {
+        class: 'btn btn-sm btn-primary',
+        href: `${targetUrl}/_dshx/m/`,
+        text: actionLabel,
+      })
   el.routeBannerActions.replaceChildren(
-    createEl('a', {
-      class: 'btn btn-sm btn-primary',
-      href: `${targetUrl}/_dshx/m/`,
-      text: actionLabel,
-    }),
+    primaryAction,
     createEl('button', {
       type: 'button',
       class: 'btn btn-sm btn-ghost',
@@ -1516,8 +1677,12 @@ async function revokeDevice(dev) {
     await apiFetch(`/_dshx/api/devices/${encodeURIComponent(dev.deviceId)}`, { method: 'DELETE' })
     showToast(t('deviceRevoked'))
     if (isSelf) {
+      if (isNativeApp() && state.activeHostId) {
+        await getNativeBridge().deleteHostToken(state.activeHostId).catch(() => {})
+      }
       state.authenticated = false
       state.me = null
+      state.activeToken = ''
       stopPolling()
       showPairView({ modal: false })
       return
@@ -1536,8 +1701,12 @@ async function unpairSelf() {
     await revokeDevice({ deviceId: curId, deviceName: state.me?.device?.deviceName || '', current: true })
     return
   }
+  if (isNativeApp() && state.activeHostId) {
+    await getNativeBridge().deleteHostToken(state.activeHostId).catch(() => {})
+  }
   state.authenticated = false
   state.me = null
+  state.activeToken = ''
   stopPolling()
   showPairView({ modal: false })
 }
@@ -1547,10 +1716,16 @@ async function unpairSelf() {
 function updatePairServerHint() {
   const val = el.pairServerUrlInput.value.trim()
   const targetOrigin = normalizeOrigin(val)
-  if (targetOrigin && targetOrigin !== window.location.origin) {
+  const curOrigin = getActiveOrigin()
+  if (isNativeApp()) {
+    const shown = targetOrigin || curOrigin
+    el.pairServerHint.textContent = shown ? t('serverUrlHintCurrent', { origin: shown }) : t('pairServerRequired')
+    return
+  }
+  if (targetOrigin && targetOrigin !== curOrigin) {
     el.pairServerHint.textContent = t('serverUrlHintCross')
   } else {
-    el.pairServerHint.textContent = t('serverUrlHintCurrent', { origin: window.location.origin })
+    el.pairServerHint.textContent = t('serverUrlHintCurrent', { origin: curOrigin })
   }
 }
 
@@ -1561,6 +1736,7 @@ function showPairView({ modal = false, pairPayload = null, errorMessage = '' } =
   el.pairTopbar.hidden = modal
   el.pairCloseBtn.hidden = !modal
   el.consoleShell.hidden = !modal
+  el.pairScanQrBtn.hidden = !isNativeApp()
 
   el.pairTitle.textContent = modal ? t('pairAddTitle') : t('pairTitle')
   el.pairSubtitle.textContent = t('pairSubtitle')
@@ -1574,8 +1750,9 @@ function showPairView({ modal = false, pairPayload = null, errorMessage = '' } =
     if (pairPayload.deviceName) {
       el.pairDeviceNameInput.value = pairPayload.deviceName
     }
-    if (pairPayload.serverUrl && pairPayload.serverUrl !== window.location.origin) {
-      el.pairServerUrlInput.value = pairPayload.serverUrl
+    const candidateServer = pairPayload.serverUrl || pairPayload.endpoints?.lan || pairPayload.endpoints?.tunnel || pairPayload.endpoints?.custom || ''
+    if (candidateServer && (isNativeApp() || candidateServer !== getActiveOrigin())) {
+      el.pairServerUrlInput.value = candidateServer
     }
   } else {
     if (modal) {
@@ -1613,7 +1790,12 @@ async function handlePairSubmit(event) {
   event.preventDefault()
   el.pairError.hidden = true
 
-  const code = el.pairCodeInput.value.trim()
+  const rawCode = el.pairCodeInput.value.trim()
+  const parsedPaste = rawCode.includes('://') || rawCode.includes('pair=') ? parsePairingText(rawCode) : null
+  const code = (parsedPaste?.code || rawCode).trim()
+  if (parsedPaste && !state.pendingUrlPair) {
+    state.pendingUrlPair = parsedPaste
+  }
   const deviceName = el.pairDeviceNameInput.value.trim() || deviceProfile.defaultName
   const rawServer = el.pairServerUrlInput.value.trim()
 
@@ -1623,18 +1805,21 @@ async function handlePairSubmit(event) {
     return
   }
 
+  let targetServerOrigin = ''
   if (rawServer) {
-    const targetOrigin = normalizeOrigin(rawServer)
-    if (!targetOrigin) {
+    targetServerOrigin = normalizeOrigin(rawServer)
+    if (!targetServerOrigin) {
       el.pairError.textContent = t('invalidUrl')
       el.pairError.hidden = false
       return
     }
     // 跨主机配对必须跳转到目标源发起同源 POST，否则浏览器不会为目标域种下 SameSite=Lax HttpOnly Cookie
-    if (targetOrigin !== window.location.origin) {
-      const target = new URL('/_dshx/m/', targetOrigin)
-      target.searchParams.set('pair', code)
-      target.searchParams.set('name', deviceName)
+    if (!isNativeApp() && targetServerOrigin !== window.location.origin) {
+      const target = new URL('/_dshx/m/', targetServerOrigin)
+      const hashParams = new URLSearchParams()
+      hashParams.set('pair', code)
+      hashParams.set('name', deviceName)
+      target.hash = hashParams.toString()
       window.location.href = target.toString()
       return
     }
@@ -1644,22 +1829,60 @@ async function handlePairSubmit(event) {
   el.pairSubmitBtn.textContent = t('pairing')
 
   try {
+    let pairOrigin = ''
+    if (isNativeApp()) {
+      const candidates = [
+        targetServerOrigin,
+        parsedPaste?.serverUrl,
+        state.pendingUrlPair?.serverUrl,
+        parsedPaste?.endpoints?.lan,
+        state.pendingUrlPair?.endpoints?.lan,
+        parsedPaste?.endpoints?.custom,
+        state.pendingUrlPair?.endpoints?.custom,
+        parsedPaste?.endpoints?.tunnel,
+        state.pendingUrlPair?.endpoints?.tunnel,
+        getActiveOrigin(),
+      ]
+        .map(normalizeOrigin)
+        .filter((u, idx, arr) => u && arr.indexOf(u) === idx)
+
+      if (!candidates.length) {
+        el.pairError.textContent = t('pairServerRequired')
+        el.pairError.hidden = false
+        return
+      }
+      if (candidates.length === 1) {
+        pairOrigin = candidates[0]
+      } else {
+        const probeResults = await Promise.all(candidates.map((url) => probeSingleEndpoint({ url, type: 'custom', isCurrent: false })))
+        const fastest = probeResults
+          .filter((r) => r.status === 'ok' && Number.isFinite(r.rttMs))
+          .sort((a, b) => a.rttMs - b.rttMs)[0]
+        pairOrigin = fastest ? fastest.url : candidates[0]
+      }
+    }
+
+    const native = getNativeBridge()
     const data = await apiFetch('/_dshx/api/pair/complete', {
       method: 'POST',
       skipAuthHandling: true,
+      origin: pairOrigin,
+      token: '',
       body: {
         code,
         deviceName,
-        platform: deviceProfile.platform,
+        platform: native?.platform || deviceProfile.platform,
         deviceKey: state.deviceKey,
       },
     })
 
     const qrEndpoints = state.pendingUrlPair?.endpoints || {}
     const hostInfo = data.host || {}
+    const effectiveOrigin = pairOrigin || getActiveOrigin()
     const mergedHost = upsertSavedHost(state.hosts, {
-      hostId: hostInfo.hostId || state.pendingUrlPair?.hostId || state.health?.hostId || window.location.origin,
+      hostId: hostInfo.hostId || state.pendingUrlPair?.hostId || state.health?.hostId || effectiveOrigin,
       hostName: hostInfo.hostName || state.pendingUrlPair?.hostName || state.health?.hostName || t('defaultHostName'),
+      origin: effectiveOrigin,
       endpoints: {
         lan: hostInfo.endpoints?.lan || qrEndpoints.lan || '',
         tunnel: hostInfo.endpoints?.tunnel || qrEndpoints.tunnel || state.health?.tunnel?.publicUrl || '',
@@ -1667,6 +1890,16 @@ async function handlePairSubmit(event) {
       },
     })
     saveHosts(state.hosts)
+
+    if (native) {
+      if (data.token) {
+        await native.setHostToken(mergedHost.hostId, data.token)
+      }
+      state.activeHostId = mergedHost.hostId
+      lsSet(STORAGE.activeHostId, mergedHost.hostId)
+      state.activeOrigin = effectiveOrigin
+      state.activeToken = String(data.token || '')
+    }
 
     state.pendingUrlPair = null
     state.authenticated = true
@@ -1697,13 +1930,13 @@ async function handlePairSubmit(event) {
 // ===== 渲染函数 =====
 
 function renderHostSelect() {
-  const origin = normalizeOrigin(window.location.origin)
+  const origin = getActiveOrigin()
   const currentHost = getCurrentHostRecord()
   const options = []
 
   const list = state.hosts.length ? state.hosts : [currentHost]
   for (const h of list) {
-    const isCur = h.hostId === currentHost.hostId || hostContainsOrigin(h, origin)
+    const isCur = h.hostId === currentHost.hostId || (origin && hostContainsOrigin(h, origin))
     const opt = createEl('option', {
       value: h.hostId,
       text: h.hostName || h.activeEndpoint || t('defaultHostName'),
@@ -1723,7 +1956,7 @@ function renderHostSelect() {
 function renderConnectionChip() {
   const current = state.probeResults.find((r) => r.isCurrent)
   const host = getCurrentHostRecord()
-  const curType = current?.type || classifyEndpointType(window.location.origin, host.endpoints)
+  const curType = current?.type || classifyEndpointType(getActiveOrigin(), host.endpoints)
 
   if (state.probing && !current) {
     el.connDot.className = 'conn-dot probing'
@@ -1749,6 +1982,25 @@ function renderConnectionChip() {
   el.connDot.className = state.authenticated ? 'conn-dot online' : 'conn-dot probing'
   el.connLabel.textContent = linkTypeLabel(curType)
   el.connRtt.textContent = ''
+}
+
+async function openNativeDshInstance(instanceKey, instanceTitle = '') {
+  const native = getNativeBridge()
+  const origin = getActiveOrigin()
+  if (!native || !origin || !instanceKey) return
+  try {
+    const host = getCurrentHostRecord()
+    await native.openDshInstance({
+      origin,
+      instanceKey,
+      token: state.activeToken,
+      hostName: host?.hostName || '',
+      instanceTitle,
+    })
+    await loadInstances({ silent: true })
+  } catch (err) {
+    showToast(t('nativeOpenFailed', { msg: err?.message || 'Error' }), { error: true })
+  }
 }
 
 function renderInstancesLoading() {
@@ -1825,6 +2077,12 @@ function renderInstancesTab() {
           createEl('a', {
             class: 'btn btn-primary',
             href: openHref,
+            onClick: isNativeApp()
+              ? (e) => {
+                  e.preventDefault()
+                  void openNativeDshInstance(inst.key, titleText)
+                }
+              : undefined,
           }, [
             createSvgIcon(['M15 3h6v6', 'M10 14 21 3', 'M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6']),
             t('enterDsh'),
@@ -1888,6 +2146,12 @@ function renderInstancesTab() {
             class: 'btn btn-primary',
             href: `/_dshx/open/${encodeURIComponent(launch.runningKey)}`,
             text: t('enterDsh'),
+            onClick: isNativeApp()
+              ? (e) => {
+                  e.preventDefault()
+                  void openNativeDshInstance(launch.runningKey, name)
+                }
+              : undefined,
           })
         : createEl('button', {
             type: 'button',
@@ -2004,11 +2268,18 @@ function renderEndpointsPanel() {
     const actionNodes = []
     if (!c.isCurrent) {
       actionNodes.push(
-        createEl('a', {
-          class: 'btn btn-sm btn-ghost',
-          href: `${c.url}/_dshx/m/`,
-          text: res?.status === 'mixed-content' ? t('openDirect') : t('switchTo'),
-        })
+        isNativeApp()
+          ? createEl('button', {
+              type: 'button',
+              class: 'btn btn-sm btn-ghost',
+              text: t('switchTo'),
+              onClick: () => redirectToEndpoint(c.url),
+            })
+          : createEl('a', {
+              class: 'btn btn-sm btn-ghost',
+              href: `${c.url}/_dshx/m/`,
+              text: res?.status === 'mixed-content' ? t('openDirect') : t('switchTo'),
+            })
       )
     }
 
@@ -2073,7 +2344,7 @@ function renderDevicesList() {
 }
 
 function renderSavedHostsList() {
-  const origin = normalizeOrigin(window.location.origin)
+  const origin = getActiveOrigin()
   if (!state.hosts.length) {
     el.hostsList.replaceChildren(
       createEl('div', { class: 'list-row' }, [
@@ -2084,7 +2355,9 @@ function renderSavedHostsList() {
   }
 
   const rows = state.hosts.map((host) => {
-    const isCurrent = hostContainsOrigin(host, origin)
+    const isCurrent = isNativeApp()
+      ? (Boolean(state.activeHostId && host.hostId === state.activeHostId) || (origin && hostContainsOrigin(host, origin)))
+      : hostContainsOrigin(host, origin)
     const target = host.activeEndpoint || host.endpoints?.lan || host.endpoints?.tunnel || host.endpoints?.custom
     return createEl('div', { class: 'list-row' }, [
       createEl('div', { class: 'row-info' }, [
@@ -2133,8 +2406,8 @@ function renderSavedHostsList() {
 }
 
 function renderPairSavedHosts() {
-  const origin = normalizeOrigin(window.location.origin)
-  const others = state.hosts.filter((h) => !hostContainsOrigin(h, origin))
+  const origin = getActiveOrigin()
+  const others = state.hosts.filter((h) => !(origin && hostContainsOrigin(h, origin)))
   if (state.pairModalOpen || !others.length) {
     el.pairSavedHostsBox.hidden = true
     return
@@ -2171,23 +2444,74 @@ async function switchToSavedHost(host) {
     .filter((u, i, arr) => u && arr.indexOf(u) === i)
 
   if (!candidates.length) return
-  if (candidates.length === 1) {
-    redirectToEndpoint(candidates[0])
+
+  let targetOrigin = candidates[0]
+  if (candidates.length > 1) {
+    const curOrigin = getActiveOrigin()
+    const probeCandidates = candidates.map((url) => ({
+      url,
+      type: classifyEndpointType(url, host.endpoints),
+      isCurrent: Boolean(curOrigin && url === curOrigin),
+    }))
+    const results = await Promise.all(probeCandidates.map(probeSingleEndpoint))
+    const fastest = results
+      .filter((r) => r.status === 'ok' && Number.isFinite(r.rttMs))
+      .sort((a, b) => a.rttMs - b.rttMs)[0]
+    targetOrigin = fastest ? fastest.url : (host.activeEndpoint || candidates[0])
+  }
+
+  if (isNativeApp()) {
+    const native = getNativeBridge()
+    const token = await native.getHostToken(host.hostId)
+    state.activeHostId = host.hostId
+    lsSet(STORAGE.activeHostId, host.hostId)
+    state.activeOrigin = targetOrigin
+    state.activeToken = token || ''
+    state.bannerDismissedUrl = ''
+    if (!token) {
+      state.authenticated = false
+      state.me = null
+      stopPolling()
+      showPairView({
+        modal: false,
+        pairPayload: { code: '', hostName: host.hostName, serverUrl: targetOrigin },
+      })
+      el.pairServerUrlInput.value = targetOrigin
+      updatePairServerHint()
+      return
+    }
+    try {
+      const [healthData, meData] = await Promise.all([
+        apiFetch('/_dshx/api/health', { skipAuthHandling: true, timeoutMs: 4000, origin: targetOrigin, token: '' }).catch(() => null),
+        apiFetch('/_dshx/api/me', { skipAuthHandling: true, timeoutMs: 4000, origin: targetOrigin, token }),
+      ])
+      if (healthData?.ok) state.health = healthData
+      if (meData?.device) {
+        state.authenticated = true
+        state.me = meData
+        upsertSavedHost(state.hosts, {
+          hostId: meData.host?.hostId || host.hostId,
+          hostName: meData.host?.hostName || host.hostName,
+          origin: targetOrigin,
+          endpoints: meData.host?.endpoints || host.endpoints,
+        })
+        saveHosts(state.hosts)
+        await enterAuthenticatedConsole()
+        return
+      }
+    } catch {
+      // 回落到配对界面
+    }
+    state.authenticated = false
+    state.me = null
+    stopPolling()
+    showPairView({ modal: false, errorMessage: t('sessionExpired') })
+    el.pairServerUrlInput.value = targetOrigin
+    updatePairServerHint()
     return
   }
 
-  // 切换多主机时优先并发探测未受混合内容阻拦的端点，跳到最快可达地址
-  const probeCandidates = candidates.map((url) => ({
-    url,
-    type: classifyEndpointType(url, host.endpoints),
-    isCurrent: url === window.location.origin,
-  }))
-  const results = await Promise.all(probeCandidates.map(probeSingleEndpoint))
-  const fastest = results
-    .filter((r) => r.status === 'ok' && Number.isFinite(r.rttMs))
-    .sort((a, b) => a.rttMs - b.rttMs)[0]
-
-  redirectToEndpoint(fastest ? fastest.url : (host.activeEndpoint || candidates[0]))
+  redirectToEndpoint(targetOrigin)
 }
 
 function findStableHttpsEndpoint() {
@@ -2219,9 +2543,13 @@ function switchToHttpsOrigin(httpsOrigin) {
   const target = new URL('/_dshx/m/', clean)
   const pendingCode = (el.pairCodeInput?.value || state.pendingUrlPair?.code || '').trim()
   if (pendingCode) {
-    target.searchParams.set('pair', pendingCode)
+    const hashParams = new URLSearchParams()
+    hashParams.set('pair', pendingCode)
     const devName = (el.pairDeviceNameInput?.value || state.pendingUrlPair?.deviceName || '').trim()
-    if (devName) target.searchParams.set('name', devName)
+    if (devName) hashParams.set('name', devName)
+    target.hash = hashParams.toString()
+  } else if (window.location.hash) {
+    target.hash = window.location.hash
   } else if (window.location.search) {
     target.search = window.location.search
   }
@@ -2229,6 +2557,7 @@ function switchToHttpsOrigin(httpsOrigin) {
 }
 
 function detectPwaScenario() {
+  if (isNativeApp()) return 'installed'
   if (state.pwaInstalled) return 'installed'
   const ua = navigator.userAgent || ''
   if (/MicroMessenger|QQ\/|DingTalk|Weibo|AlipayClient/i.test(ua)) return 'inApp'
@@ -2595,9 +2924,99 @@ async function enterAuthenticatedConsole({ keepPairModal = false } = {}) {
   ])
 }
 
+async function bootstrapNative() {
+  const native = getNativeBridge()
+  native.onDeepLink((rawUrl) => {
+    const parsed = parsePairingText(rawUrl)
+    if (!parsed || !parsed.code) return
+    state.pendingUrlPair = parsed
+    showPairView({ modal: state.authenticated, pairPayload: parsed })
+  })
+
+  if (!state.hosts.length) {
+    state.authenticated = false
+    showPairView({ modal: false })
+    return
+  }
+
+  const host = state.hosts.find((h) => state.activeHostId && h.hostId === state.activeHostId) || state.hosts[0]
+  state.activeHostId = host.hostId
+  lsSet(STORAGE.activeHostId, host.hostId)
+  const token = await native.getHostToken(host.hostId)
+  state.activeToken = token || ''
+
+  const candidates = [
+    host.endpoints?.lan,
+    host.endpoints?.custom,
+    host.endpoints?.tunnel,
+    host.activeEndpoint,
+  ]
+    .map(normalizeOrigin)
+    .filter((u, i, arr) => u && arr.indexOf(u) === i)
+
+  if (candidates.length > 1) {
+    const probeResults = await Promise.all(candidates.map((url) => probeSingleEndpoint({ url, type: 'custom', isCurrent: false })))
+    const fastest = probeResults
+      .filter((r) => r.status === 'ok' && Number.isFinite(r.rttMs))
+      .sort((a, b) => a.rttMs - b.rttMs)[0]
+    state.activeOrigin = fastest ? fastest.url : (host.activeEndpoint || candidates[0])
+  } else {
+    state.activeOrigin = candidates[0] || ''
+  }
+
+  if (!state.activeOrigin || !state.activeToken) {
+    state.authenticated = false
+    showPairView({ modal: false })
+    if (state.activeOrigin) {
+      el.pairServerUrlInput.value = state.activeOrigin
+      updatePairServerHint()
+    }
+    return
+  }
+
+  const [healthRes, meRes] = await Promise.allSettled([
+    apiFetch('/_dshx/api/health', { skipAuthHandling: true, timeoutMs: 4000, token: '' }),
+    apiFetch('/_dshx/api/me', { skipAuthHandling: true, timeoutMs: 4000 }),
+  ])
+
+  if (healthRes.status === 'fulfilled' && healthRes.value?.ok) {
+    state.health = healthRes.value
+  }
+  if (meRes.status === 'fulfilled' && meRes.value?.device) {
+    state.authenticated = true
+    state.me = meRes.value
+    const hostInfo = meRes.value.host || {}
+    upsertSavedHost(state.hosts, {
+      hostId: hostInfo.hostId || host.hostId,
+      hostName: hostInfo.hostName || host.hostName || t('defaultHostName'),
+      origin: state.activeOrigin,
+      endpoints: {
+        lan: hostInfo.endpoints?.lan || host.endpoints?.lan || '',
+        tunnel: hostInfo.endpoints?.tunnel || state.health?.tunnel?.publicUrl || host.endpoints?.tunnel || '',
+        custom: hostInfo.endpoints?.custom || host.endpoints?.custom || '',
+      },
+    })
+    saveHosts(state.hosts)
+    await enterAuthenticatedConsole()
+    return
+  }
+
+  state.authenticated = false
+  showPairView({ modal: false, errorMessage: meRes.status === 'rejected' && meRes.reason?.status === 401 ? t('sessionExpired') : '' })
+  if (state.activeOrigin) {
+    el.pairServerUrlInput.value = state.activeOrigin
+    updatePairServerHint()
+  }
+}
+
 async function bootstrap() {
   applyTheme(state.theme)
   applyLanguage(state.lang)
+
+  if (isNativeApp()) {
+    await bootstrapNative()
+    return
+  }
 
   // 注册 Service Worker（限定在 /_dshx/m/ 作用域，绝不接管上游 dsh 路径）
   if ('serviceWorker' in navigator) {
@@ -2616,7 +3035,7 @@ async function bootstrap() {
     state.health = healthRes.value
   }
 
-  // 若携带了 ?pair= 扫码参数，优先弹出配对卡片让用户一键完成/轮换配对
+  // 若携带了 #pair= / ?pair= 扫码参数，优先弹出配对卡片让用户一键完成/轮换配对
   if (state.pendingUrlPair) {
     if (meRes.status === 'fulfilled' && meRes.value?.device) {
       state.authenticated = true
@@ -2678,7 +3097,7 @@ function bindEvents() {
       return
     }
     const targetHost = state.hosts.find((h) => h.hostId === val)
-    if (targetHost && !hostContainsOrigin(targetHost, window.location.origin)) {
+    if (targetHost && (isNativeApp() ? targetHost.hostId !== state.activeHostId : !hostContainsOrigin(targetHost, getActiveOrigin()))) {
       switchToSavedHost(targetHost)
     }
   })
@@ -2789,6 +3208,29 @@ function bindEvents() {
     if (e.target === el.pairView && state.pairModalOpen && state.authenticated) hidePairView()
   })
   el.pairServerUrlInput.addEventListener('input', updatePairServerHint)
+  el.pairScanQrBtn?.addEventListener('click', async () => {
+    const native = getNativeBridge()
+    if (!native) return
+    el.pairError.hidden = true
+    try {
+      const res = await native.scanQr()
+      if (!res || res.cancelled) {
+        return
+      }
+      const parsed = parsePairingText(res.text || '')
+      if (!parsed || !parsed.code) {
+        el.pairError.textContent = t('scanQrFailed')
+        el.pairError.hidden = false
+        return
+      }
+      state.pendingUrlPair = parsed
+      showPairView({ modal: state.pairModalOpen, pairPayload: parsed })
+      el.pairSubmitBtn.focus()
+    } catch (err) {
+      el.pairError.textContent = err?.message || t('scanQrFailed')
+      el.pairError.hidden = false
+    }
+  })
   el.pairForm.addEventListener('submit', handlePairSubmit)
 
   // 确认弹窗

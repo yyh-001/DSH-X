@@ -1,0 +1,22 @@
+{
+  "name": "dsh-x-mobile",
+  "version": "0.2.1-rc.1",
+  "private": true,
+  "type": "module",
+  "description": "DSH-X native mobile app shell powered by Capacitor",
+  "license": "MIT",
+  "scripts": {
+    "sync:web": "node scripts/sync-web.mjs",
+    "prepare:android": "node scripts/prepare-android.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.6.3",
+    "@capacitor/status-bar": "^8.0.4"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.6.3",
+    "@capacitor/cli": "^8.6.3"
+  }
+}

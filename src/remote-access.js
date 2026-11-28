@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { hostname as osHostname } from 'node:os'
 import { dirname, extname, join, resolve, sep } from 'node:path'
@@ -160,12 +160,12 @@ export function encodePairingPayload({ code, hostId = '', hostName = '', endpoin
   return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url')
 }
 
-/** 生成与手机端 PWA 兼容的扫码 URL（`/_dshx/m/?pair=<base64url>`）。 */
+/** 生成与手机端 PWA 兼容的扫码 URL（`/_dshx/m/#pair=<base64url>`，fragment 不进入服务端/代理日志）。 */
 export function buildPairingUrl(origin, payload) {
   const base = normalizeOrigin(origin)
   if (!base) return ''
   const encoded = encodePairingPayload(payload)
-  return `${base}${MOBILE_ROOT_PATH}?pair=${encoded}`
+  return `${base}${MOBILE_ROOT_PATH}#pair=${encoded}`
 }
 
 function renderSafeQrSvg(url, fallbackPayload) {
@@ -179,7 +179,7 @@ function renderSafeQrSvg(url, fallbackPayload) {
       // 极端情况下（自定义域名极长）退回到最小载荷，保证二维码始终能渲染出来
       const origin = normalizeOrigin(url)
       if (!origin || !fallbackPayload?.code) return ''
-      const minimal = `${origin}${MOBILE_ROOT_PATH}?pair=${encodeURIComponent(fallbackPayload.code)}`
+      const minimal = `${origin}${MOBILE_ROOT_PATH}#pair=${encodeURIComponent(fallbackPayload.code)}`
       return renderQrSvg(minimal, { ecc: 'L' })
     }
   }
@@ -577,6 +577,20 @@ export function createRemoteAccessController({
       return true
     }
 
+    if (rel !== 'icon.png') {
+      try {
+        const realRoot = realpathSync(mobileRoot)
+        const realTarget = realpathSync(filePath)
+        if (!isPathInside(realRoot, realTarget)) {
+          sendJson(res, 403, { ok: false, error: 'forbidden' })
+          return true
+        }
+      } catch {
+        sendJson(res, 404, { ok: false, error: 'not_found' })
+        return true
+      }
+    }
+
     const ext = extname(filePath).toLowerCase()
     const contentType = rel === 'manifest.json'
       ? 'application/manifest+json; charset=utf-8'
@@ -584,8 +598,10 @@ export function createRemoteAccessController({
 
     const headers = {
       'content-type': contentType,
-      'cache-control': 'no-cache',
+      'cache-control': rel === 'index.html' ? 'no-store' : 'no-cache',
       'x-content-type-options': 'nosniff',
+      'referrer-policy': 'no-referrer',
+      'x-frame-options': 'DENY',
     }
     // Service Worker 脚本显式放开根作用域声明头，配合前端按 `/_dshx/m/` 注册
     if (rel === 'sw.js') {
@@ -811,6 +827,28 @@ export function createRemoteAccessController({
         return true
       }
       sendJson(res, 200, { ok: true, ticket, expiresInMs: WS_TICKET_TTL_MS })
+      return true
+    }
+
+    // 原生 App 壳持有持久化 Bearer Token 时，可在任意可用链路（LAN/Tunnel/自定义）静默换取 HttpOnly 会话 Cookie 以打开 WebView
+    if (pathname === '/_dshx/api/session/bootstrap' && req.method === 'POST') {
+      if (auth.source !== 'bearer') {
+        sendJson(res, 403, { ok: false, error: 'bearer_required' })
+        return true
+      }
+      const extracted = extractDeviceToken(req)
+      if (!extracted || extracted.source !== 'bearer' || !extracted.token) {
+        sendJson(res, 401, { ok: false, error: 'unauthorized' })
+        return true
+      }
+      const device = deviceStore.getDevice(auth.deviceId) || auth
+      sendJson(res, 200, {
+        ok: true,
+        device,
+        host: buildHostSummary(),
+      }, {
+        'set-cookie': buildDeviceCookie(extracted.token, { secure: isSecure }),
+      })
       return true
     }
 

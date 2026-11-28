@@ -1253,6 +1253,12 @@ html:not([data-color-scheme="dark"]) .tab-btn[aria-selected="true"] {
   font-size: 15px;
 }
 
+.pair-scan-btn {
+  width: 100%;
+  min-height: 44px;
+  font-size: 15px;
+}
+
 .saved-hosts-box {
   display: flex;
   flex-direction: column;

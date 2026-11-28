@@ -1,0 +1,205 @@
+# 构建并签名 DSH-X Android APK（Capacitor 8）
+# 支持：
+# - PR / 手动触发（dry-run）：缺少上传密钥时自动回退 debug 签名并跑完整 5 项验包检查；
+# - 打 tag（mobile-v* 或与外壳/移动端相关的 v*）或手动填写 release_tag：要求正式签名并上传 APK 与 SHA256 至对应 Release。
+name: mobile-android
+
+on:
+  pull_request:
+    paths:
+      - 'mobile/**'
+      - 'src/public/mobile/**'
+      - '.github/workflows/mobile-android.yml'
+  push:
+    tags:
+      - 'mobile-v*'
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: '可选：构建后顺带上传到指定 GitHub Release tag（留空则只产出 workflow artifact）'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  check-needed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: check
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            tag="${GITHUB_REF_NAME}"
+            prev="$(git describe --tags --abbrev=0 "$tag^" 2>/dev/null || true)"
+            if [ -n "$prev" ] && git diff --quiet "$prev" "$tag" -- mobile/ src/public/mobile/ src/public/icon.png .github/workflows/mobile-android.yml; then
+              echo "should_build=0" >> "$GITHUB_OUTPUT"
+              echo "移动端无改动，跳过 Android APK 构建"
+              exit 0
+            fi
+          fi
+          echo "should_build=1" >> "$GITHUB_OUTPUT"
+
+  build-android:
+    name: Android APK
+    needs: check-needed
+    if: needs.check-needed.outputs.should_build == '1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install dependencies & run offline tests
+        run: |
+          npm ci
+          npm test
+
+      - name: Prepare Capacitor Android project
+        run: npm run prepare:android
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ startsWith(github.ref, 'refs/tags/') }}
+
+      - name: Build APK
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          DSHX_RELEASE_ABI_FILTER: '1'
+        run: |
+          set -euo pipefail
+          is_release=0
+          if [[ "$GITHUB_REF" == refs/tags/* ]] || [ -n "${{ github.event.inputs.release_tag }}" ]; then
+            is_release=1
+          fi
+
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+            export DSHX_ANDROID_KEYSTORE="$RUNNER_TEMP/upload.jks"
+            export DSHX_ANDROID_KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD"
+            export DSHX_ANDROID_KEY_ALIAS="$KEY_ALIAS"
+            export DSHX_ANDROID_KEY_PASSWORD="${KEY_PASSWORD:-$KEYSTORE_PASSWORD}"
+            build_task="assembleRelease"
+          elif [ "$is_release" = "1" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 未配置，无法为正式发布签发 APK。"
+            exit 1
+          else
+            echo "::warning::未配置上传签名密钥，本次试跑改用 debug 签名构建用于校验。"
+            build_task="assembleDebug"
+          fi
+
+          (cd android && ./gradlew "$build_task" --no-daemon --build-cache --console=plain)
+          rm -f "$RUNNER_TEMP/upload.jks"
+
+          version="$(node -p "require('../package.json').version")"
+          mkdir -p dist
+          if [ "$build_task" = "assembleRelease" ]; then
+            cp android/app/build/outputs/apk/release/app-release.apk "dist/DSH-X-$version-android.apk"
+          else
+            cp android/app/build/outputs/apk/debug/app-debug.apk "dist/DSH-X-$version-android.apk"
+          fi
+
+      - name: Verify APK integrity & signatures
+        run: |
+          set -euo pipefail
+          apk="$(ls dist/DSH-X-*-android.apk | head -n1)"
+          if unzip -l "$apk" | grep -Eq 'lib/(x86|x86_64)/'; then
+            echo "::error::APK 包含 x86 模拟器原生库。"
+            exit 1
+          fi
+
+          build_tools="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
+          aapt2="$build_tools/aapt2"
+          zipalign="$build_tools/zipalign"
+          apksigner="$build_tools/apksigner"
+
+          badging="$("$aapt2" dump badging "$apk")"
+          compile_sdk="$(printf '%s\n' "$badging" | sed -n "s/.*compileSdkVersion='\([0-9]*\)'.*/\1/p" | head -n1)"
+          target_sdk="$(printf '%s\n' "$badging" | sed -n "s/.*targetSdkVersion:'\([0-9]*\)'.*/\1/p" | head -n1)"
+          if [ -z "$compile_sdk" ] || [ -z "$target_sdk" ] || [ "$compile_sdk" -gt "$target_sdk" ]; then
+            echo "::error::Android SDK 版本异常: compileSdkVersion=$compile_sdk targetSdkVersion=$target_sdk"
+            exit 1
+          fi
+          if ! printf '%s\n' "$badging" | grep -q "android.permission.CAMERA"; then
+            echo "::error::APK 缺少 android.permission.CAMERA 权限声明。"
+            exit 1
+          fi
+
+          "$zipalign" -c -P 16 4 "$apk"
+          certs="$("$apksigner" verify --min-sdk-version 24 --verbose --print-certs "$apk")"
+          echo "$certs" | grep -E '(^Verified using v[123] |certificate (DN|SHA-256 digest):)'
+          for scheme in 'v2 scheme (APK Signature Scheme v2): true' 'v3 scheme (APK Signature Scheme v3): true'; do
+            if ! echo "$certs" | grep -Fq "Verified using $scheme"; then
+              echo "::error::APK 缺少签名方案 $scheme"
+              exit 1
+            fi
+          done
+
+          if [[ "$GITHUB_REF" == refs/tags/* ]] || [ -n "${{ github.event.inputs.release_tag }}" ]; then
+            if echo "$certs" | grep -q 'CN=Android Debug'; then
+              echo "::error::正式发布 APK 不允许使用 Android Debug 签名。"
+              exit 1
+            fi
+          fi
+
+          (cd dist && sha256sum "$(basename "$apk")" > "$(basename "$apk").sha256")
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DSH-X-android
+          path: |
+            mobile/dist/DSH-X-*-android.apk
+            mobile/dist/DSH-X-*-android.apk.sha256
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Attach APK to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/') || github.event.inputs.release_tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          target_tag="${{ github.event.inputs.release_tag }}"
+          if [ -z "$target_tag" ]; then
+            target_tag="${GITHUB_REF_NAME}"
+          fi
+          found_release=0
+          for attempt in 1 2 3 4 5 6; do
+            if gh release view "$target_tag" >/dev/null 2>&1; then
+              found_release=1
+              break
+            fi
+            echo "等待 Release $target_tag 创建（第 $attempt/6 次）..."
+            sleep 10
+          done
+          if [ "$found_release" = "1" ]; then
+            gh release upload "$target_tag" dist/DSH-X-*-android.apk dist/DSH-X-*-android.apk.sha256 --clobber
+          else
+            echo "::warning::Release $target_tag 尚未创建，跳过挂载（已保留 workflow artifact）。"
+          fi

@@ -353,6 +353,10 @@ test('端到端离线集成：配对扫码 → 多实例切换与认证桥接 �
     const mIndex = await rawHttpRequest(gwPort, { path: '/_dshx/m/' })
     assert.equal(mIndex.status, 200)
     assert.match(mIndex.headers['content-type'], /text\/html/i)
+    assert.equal(mIndex.headers['cache-control'], 'no-store')
+    assert.equal(mIndex.headers['referrer-policy'], 'no-referrer')
+    assert.equal(mIndex.headers['x-frame-options'], 'DENY')
+    assert.equal(mIndex.headers['x-content-type-options'], 'nosniff')
 
     const mIcon = await rawHttpRequest(gwPort, { path: '/_dshx/m/icon.png' })
     assert.equal(mIcon.status, 200)
@@ -371,14 +375,16 @@ test('端到端离线集成：配对扫码 → 多实例切换与认证桥接 �
     const unauthInst = await rawHttpRequest(gwPort, { path: '/_dshx/api/instances' })
     assert.equal(unauthInst.status, 401)
 
-    // 3. 生成配对会话并校验 QR SVG 与 `?pair=` 载荷与 mobile/app.js 完全兼容
+    // 3. 生成配对会话并校验 QR SVG 与 `#pair=` 载荷（fragment 不进入服务端/代理日志）与 mobile/app.js 完全兼容
     const pairing = ctrl.createPairing()
     assert.ok(pairing.code.length >= 32)
     assert.ok(pairing.expiresAt > Date.now())
     assert.match(pairing.svg, /^<svg\b[\s\S]*<\/svg>$/)
     const parsedUrl = new URL(pairing.url)
     assert.equal(parsedUrl.pathname, '/_dshx/m/')
-    const pairParam = parsedUrl.searchParams.get('pair')
+    assert.equal(parsedUrl.search, '')
+    const hashParams = new URLSearchParams(parsedUrl.hash.replace(/^#/, ''))
+    const pairParam = hashParams.get('pair')
     assert.ok(pairParam)
     const decodedPair = JSON.parse(Buffer.from(pairParam, 'base64url').toString('utf8'))
     assert.equal(decodedPair.code, pairing.code)
@@ -417,8 +423,32 @@ test('端到端离线集成：配对扫码 → 多实例切换与认证桥接 �
     })
     assert.equal(replayRes.status, 401)
 
-    // 5. 校验已鉴权控制面接口（me / instances / logs / start / stop / devices）
-    const meRes = await rawHttpRequest(gwPort, { path: '/_dshx/api/me', headers: { cookie: deviceCookie } })
+    // 5. 校验已鉴权控制面接口（session/bootstrap / me / instances / logs / start / stop / devices）
+    const unauthBoot = await rawHttpRequest(gwPort, { method: 'POST', path: '/_dshx/api/session/bootstrap' })
+    assert.equal(unauthBoot.status, 401)
+
+    const cookieOnlyBoot = await rawHttpRequest(gwPort, {
+      method: 'POST',
+      path: '/_dshx/api/session/bootstrap',
+      headers: { cookie: deviceCookie, origin: `http://127.0.0.1:${gwPort}` },
+    })
+    assert.equal(cookieOnlyBoot.status, 403)
+    assert.equal(JSON.parse(cookieOnlyBoot.body).error, 'bearer_required')
+
+    const bearerBoot = await rawHttpRequest(gwPort, {
+      method: 'POST',
+      path: '/_dshx/api/session/bootstrap',
+      headers: { authorization: `Bearer ${pairData.token}` },
+    })
+    assert.equal(bearerBoot.status, 200)
+    const bootData = JSON.parse(bearerBoot.body)
+    assert.equal(bootData.ok, true)
+    assert.equal(bootData.device.deviceId, pairData.device.deviceId)
+    const bootstrappedCookie = extractCookiePair(bearerBoot.headers['set-cookie'], 'dsh-x-device')
+    assert.ok(bootstrappedCookie.startsWith('dsh-x-device=tok_'))
+    assert.match(String(bearerBoot.headers['set-cookie']), /HttpOnly/i)
+
+    const meRes = await rawHttpRequest(gwPort, { path: '/_dshx/api/me', headers: { cookie: bootstrappedCookie } })
     assert.equal(meRes.status, 200)
     assert.equal(JSON.parse(meRes.body).device.deviceId, pairData.device.deviceId)
 
@@ -745,7 +775,7 @@ test('手机端 PWA 清单图标拆分与区分临时/固定域名安装引导�
 
     const mApp = await rawHttpRequest(gwPort, { path: '/_dshx/m/app.js' })
     assert.equal(mApp.status, 200)
-    for (const marker of ['beforeinstallprompt', 'appinstalled', 'trycloudflare.com', 'isEphemeralTunnelHost', 'findStableHttpsEndpoint']) {
+    for (const marker of ['beforeinstallprompt', 'appinstalled', 'trycloudflare.com', 'isEphemeralTunnelHost', 'findStableHttpsEndpoint', 'window.location.hash']) {
       assert.ok(mApp.body.includes(marker), `/_dshx/m/app.js 应包含 ${marker}`)
     }
 

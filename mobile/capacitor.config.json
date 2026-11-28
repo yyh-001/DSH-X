@@ -1,0 +1,13 @@
+{
+  "appId": "com.dshx.mobile",
+  "appName": "DSH-X",
+  "webDir": "www",
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": false
+    }
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

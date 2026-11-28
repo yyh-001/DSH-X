@@ -59,6 +59,9 @@ const FORWARDING_HEADERS = ['x-forwarded-for', 'x-forwarded-host', 'x-forwarded-
 const MAX_HTML_INJECT_BYTES = 4 * 1024 * 1024
 /** 内部回环 token 桥接超时，防止假死的上游实例拖住网关。 */
 const BRIDGE_TIMEOUT_MS = 5000
+/** WebSocket 上游 TCP 建连超时与保活探测间隔，避免半开连接长期挂死。 */
+const WS_UPSTREAM_CONNECT_TIMEOUT_MS = 10_000
+const WS_KEEPALIVE_INITIAL_DELAY_MS = 30_000
 
 /** 规范化 IPv4-mapped IPv6 地址（如 `::ffff:127.0.0.1` -> `127.0.0.1`）。 */
 export function normalizeRemoteAddress(addr) {
@@ -1208,7 +1211,15 @@ export function startRemoteGateway(options = {}) {
       stripAuthorization: authSource === 'bearer',
     })
 
+    if (typeof socket.setNoDelay === 'function') socket.setNoDelay(true)
+    if (typeof socket.setKeepAlive === 'function') socket.setKeepAlive(true, WS_KEEPALIVE_INITIAL_DELAY_MS)
+
+    let upstreamConnected = false
     const upstream = net.connect(upstreamPort, upstreamHost, () => {
+      upstreamConnected = true
+      upstream.setTimeout(0)
+      upstream.setNoDelay(true)
+      upstream.setKeepAlive(true, WS_KEEPALIVE_INITIAL_DELAY_MS)
       if (socket.destroyed || (deviceRevokeGeneration.get(auth.deviceId) || 0) !== startDeviceGen) {
         upstream.destroy()
         socket.destroy()
@@ -1229,10 +1240,19 @@ export function startRemoteGateway(options = {}) {
       socket.pipe(upstream)
     })
 
+    upstream.setTimeout(WS_UPSTREAM_CONNECT_TIMEOUT_MS)
+    upstream.on('timeout', () => {
+      if (upstreamConnected) return
+      onError('WS 上游连接超时')
+      upstream.destroy()
+      rejectUpgrade(socket, HTTP_BAD_GATEWAY, 'Bad Gateway')
+    })
+
     trackDedicatedSocket(upstream, auth.deviceId)
     upstream.on('error', (error) => {
       onError(error.message)
-      socket.destroy()
+      if (!upstreamConnected) rejectUpgrade(socket, HTTP_BAD_GATEWAY, 'Bad Gateway')
+      else socket.destroy()
     })
     socket.on('error', () => upstream.destroy())
     socket.once('close', () => upstream.destroy())
