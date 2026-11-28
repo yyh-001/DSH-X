@@ -127,4 +127,9 @@ test('Android 原生 Java 覆盖层与桥接脚本结构完整', () => {
   assert.ok(bridgeJs.includes('window.DSHXNative'))
   assert.ok(mobileAppJs.includes('getNativeBridge'))
   assert.ok(mobileAppJs.includes('openNativeDshInstance'))
+
+  const gitignore = readFileSync(join(MOBILE_DIR, '.gitignore'), 'utf8')
+  const lines = gitignore.split(/\r?\n/).map((l) => l.trim())
+  assert.ok(lines.includes('/android/'), 'mobile/.gitignore 必须锚定 /android/，防止误忽略 native/android/')
+  assert.equal(lines.includes('android/'), false, 'mobile/.gitignore 不能包含未锚定的 android/')
 })

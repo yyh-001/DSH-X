@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- 局域网与 Tailscale 直连需要允许 HTTP 明文流量；公网隧道仍强制 HTTPS -->
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>
