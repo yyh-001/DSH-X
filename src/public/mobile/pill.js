@@ -5,9 +5,10 @@
 // 3. 仅在用户点击展开浮层时按需请求 /_dshx/api/instances，零常驻后台轮询开销。
 (() => {
   if (window.__dshxMobilePillLoaded) return
-  // 避免在子 iframe 或移动端控制台页面自身重复挂载
+  // 避免在子 iframe、原生 App 内置顶部切换栏或移动端控制台页面自身重复挂载
   if (window.self !== window.top) return
   if (window.location.pathname.startsWith('/_dshx/m')) return
+  if (/DSHXNativeApp\//i.test(navigator.userAgent || '')) return
   window.__dshxMobilePillLoaded = true
 
   const POS_KEY = 'dshx_pill_pos_v1'
@@ -109,24 +110,24 @@
         inset: 0;
         pointer-events: none;
         font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", sans-serif;
-        --pill-bg: rgba(255, 255, 255, 0.86);
-        --pill-fg: #16233d;
-        --pill-muted: #647696;
-        --pill-border: rgba(22, 35, 61, 0.16);
-        --pill-accent: #3b6fe0;
-        --pill-accent-soft: rgba(59, 111, 224, 0.12);
+        --pill-bg: rgba(255, 255, 255, 0.9);
+        --pill-fg: #0f172a;
+        --pill-muted: #64748b;
+        --pill-border: rgba(15, 23, 42, 0.12);
+        --pill-accent: #2563eb;
+        --pill-accent-soft: rgba(37, 99, 235, 0.11);
         --pill-dot: #16a34a;
-        --pill-shadow: 0 6px 20px rgba(22, 35, 61, 0.18);
+        --pill-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
       }
       .wrap.dark {
-        --pill-bg: rgba(31, 31, 36, 0.88);
-        --pill-fg: #f4f4f5;
-        --pill-muted: #a8a8b0;
-        --pill-border: rgba(255, 255, 255, 0.16);
-        --pill-accent: #ececee;
+        --pill-bg: rgba(24, 26, 32, 0.92);
+        --pill-fg: #f4f4f6;
+        --pill-muted: #989aa6;
+        --pill-border: rgba(255, 255, 255, 0.14);
+        --pill-accent: #f4f4f6;
         --pill-accent-soft: rgba(255, 255, 255, 0.1);
         --pill-dot: #4ade80;
-        --pill-shadow: 0 8px 26px rgba(0, 0, 0, 0.48);
+        --pill-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
       }
       .pill {
         position: fixed;
@@ -136,21 +137,21 @@
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        height: 36px;
+        height: 34px;
         padding: 0 11px;
         border-radius: 999px;
         border: 1px solid var(--pill-border);
         background: var(--pill-bg);
         color: var(--pill-fg);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
         box-shadow: var(--pill-shadow);
         font: inherit;
         font-size: 12px;
-        font-weight: 700;
+        font-weight: 650;
         letter-spacing: -0.01em;
         cursor: grab;
-        opacity: 0.76;
+        opacity: 0.84;
         touch-action: none;
         user-select: none;
         -webkit-user-select: none;
@@ -177,6 +178,22 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+      }
+      .count-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 16px;
+        height: 16px;
+        padding: 0 4px;
+        border-radius: 999px;
+        background: var(--pill-accent-soft);
+        color: var(--pill-accent);
+        font-size: 10px;
+        font-weight: 700;
+      }
+      .count-badge[hidden] {
+        display: none;
       }
       .popover {
         position: fixed;
@@ -319,7 +336,10 @@
     const label = document.createElement('span')
     label.className = 'label'
     label.textContent = 'DSH-X'
-    pillBtn.append(dot, label)
+    const countBadge = document.createElement('span')
+    countBadge.className = 'count-badge'
+    countBadge.hidden = true
+    pillBtn.append(dot, label, countBadge)
 
     const popover = document.createElement('div')
     popover.className = 'popover'
@@ -438,6 +458,12 @@
           if (isActive) {
             popTitle.textContent = display
             label.textContent = inst.profile || 'DSH-X'
+            if (instances.length > 1) {
+              countBadge.textContent = String(instances.length)
+              countBadge.hidden = false
+            } else {
+              countBadge.hidden = true
+            }
             // 文本宽度可能变化，重新计算右贴边坐标
             applyDockedPosition()
           }
@@ -566,8 +592,37 @@
     window.addEventListener('resize', applyDockedPosition, { passive: true })
     window.addEventListener('orientationchange', () => setTimeout(applyDockedPosition, 120), { passive: true })
 
+    // 挂载后轻量拉取一次当前实例名称与多实例计数，无常驻轮询开销
+    async function prefetchActiveMeta() {
+      try {
+        const res = await fetch('/_dshx/api/instances', {
+          credentials: 'same-origin',
+          cache: 'no-store',
+        })
+        if (!res.ok) return
+        const data = await res.json()
+        const instances = Array.isArray(data.instances) ? data.instances : []
+        const activeKey = String(data.activeInstanceKey || '')
+        const cur = instances.find((i) => i.active || (activeKey && i.key === activeKey))
+        if (cur) {
+          label.textContent = cur.profile || 'DSH-X'
+          popTitle.textContent = cur.version && cur.profile ? `${cur.version} · ${cur.profile}` : (cur.key || 'DSH')
+        }
+        if (instances.length > 1) {
+          countBadge.textContent = String(instances.length)
+          countBadge.hidden = false
+        } else {
+          countBadge.hidden = true
+        }
+        applyDockedPosition()
+      } catch {
+        // 静默忽略
+      }
+    }
+
     // 首次渲染对齐贴边位置
     requestAnimationFrame(applyDockedPosition)
+    void prefetchActiveMeta()
   }
 
   if (document.readyState === 'loading' && !document.body) {

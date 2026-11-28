@@ -124,17 +124,21 @@
       await nativePlugin.deleteHostToken({ hostId: String(hostId) })
     },
 
-    async openDshInstance({ origin, instanceKey, token, hostName = '', instanceTitle = '' }) {
+    async openDshInstance({ origin, instanceKey, token, hostName = '', instanceTitle = '', darkTheme } = {}) {
       if (!nativePlugin || typeof nativePlugin.openDshInstance !== 'function') {
         throw new Error('Native WebView launcher unavailable')
       }
-      return nativePlugin.openDshInstance({
+      const payload = {
         origin: String(origin || ''),
         instanceKey: String(instanceKey || ''),
         token: String(token || ''),
         hostName: String(hostName || ''),
         instanceTitle: String(instanceTitle || ''),
-      })
+      }
+      if (typeof darkTheme === 'boolean') {
+        payload.darkTheme = darkTheme
+      }
+      return nativePlugin.openDshInstance(payload)
     },
 
     onDeepLink(handler) {

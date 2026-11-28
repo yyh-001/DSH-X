@@ -29,10 +29,10 @@ const I18N = {
     addNewHostOption: '+ 配对新主机…',
     tabInstances: '实例',
     tabLogs: '日志',
-    tabSettings: '设备与设置',
-    runningInstances: '运行中实例',
-    configuredLaunches: '启动项',
-    enterDsh: '进入 DSH',
+    tabSettings: '设置',
+    runningInstances: '运行中',
+    configuredLaunches: '可启动',
+    enterDsh: '进入',
     stop: '停止',
     start: '启动',
     starting: '启动中…',
@@ -60,8 +60,8 @@ const I18N = {
     noLogsInstance: '当前没有运行中的实例可查看日志',
     logsEmpty: '（暂无日志输出）',
     linesCount: '{n} 行',
-    routesSection: '链路与测速',
-    probeRoutes: '测速选路',
+    routesSection: '连接链路',
+    probeRoutes: '测速',
     probing: '测速中…',
     probeDone: '测速完成',
     currentRoute: '当前',
@@ -97,24 +97,25 @@ const I18N = {
     lastActive: '最近活跃',
     pairedAt: '配对于',
     hostsSection: '已保存主机',
-    addHost: '配对新主机',
+    addHost: '配对主机',
     removeHost: '移除',
     removeHostTitle: '移除本地主机记录？',
     removeHostBody: '仅从本机列表移除「{name}」，不会影响电脑端设置。',
     hostRemoved: '已移除主机记录',
     noSavedHosts: '当前主机配对后会自动保存在这里',
-    preferencesSection: '外观与语言',
-    themeLabel: '主题',
+    preferencesSection: '偏好设置',
+    themeLabel: '外观',
     themeAuto: '自动',
     themeLight: '浅色',
     themeDark: '深色',
     languageLabel: '语言',
     unpairTitle: '退出当前设备',
     unpairDesc: '吊销本机在此主机上的会话并返回配对页',
-    unpairBtn: '退出配对',
-    pairTitle: '配对此设备',
+    unpairBtn: '退出当前设备配对',
+    pairTitle: '连接电脑端 DSH-X',
     pairAddTitle: '配对新主机',
-    pairSubtitle: '在电脑端 DSH-X「远程访问」中生成配对二维码或配对码',
+    pairSubtitle: '在电脑端「远程 → 手机访问」扫描二维码',
+    manualPairToggle: '手动输入配对码',
     pairAutoRecognized: '已自动识别扫码配对信息，确认设备名后点击配对',
     pairAutoRecognizedHost: '已识别主机「{host}」的配对信息，点击下方即可配对',
     pairCodeLabel: '配对码',
@@ -228,9 +229,9 @@ const I18N = {
     nativeOpeningDsh: '正在打开 DSH…',
     nativeOpenFailed: '打开 DSH 失败：{msg}',
     pairServerRequired: '请先扫码或填写主机服务器地址',
-    nativeNotifyTitle: '系统原生通知',
-    nativeNotifyDesc: '后台接收电脑端任务完成与审批确认提醒（联动 dsh-x-desktop-notify）',
-    nativeNotifyTest: '测试通知',
+    nativeNotifyTitle: '系统通知',
+    nativeNotifyDesc: '后台接收任务完成与审批确认提醒',
+    nativeNotifyTest: '测试',
     nativeNotifyTestSent: '已发送测试通知，稍后将在通知栏弹出',
     nativeNotifyEnabled: '已开启后台原生通知',
     nativeNotifyDisabled: '已关闭后台原生通知',
@@ -452,6 +453,7 @@ const I18N = {
     nativeNotifyEnabled: 'Background native notifications enabled',
     nativeNotifyDisabled: 'Background native notifications disabled',
     nativeNotifyPermDenied: 'Notification permission denied in system settings',
+    manualPairToggle: 'Enter pairing code manually',
   },
 }
 
@@ -911,8 +913,10 @@ const el = {
   pwaBannerSub: document.getElementById('pwaBannerSub'),
   pwaBannerActions: document.getElementById('pwaBannerActions'),
 
+  quickSwitchStrip: document.getElementById('quickSwitchStrip'),
   runningCount: document.getElementById('runningCount'),
   runningList: document.getElementById('runningList'),
+  launchesSection: document.getElementById('launchesSection'),
   launchesCount: document.getElementById('launchesCount'),
   launchesList: document.getElementById('launchesList'),
 
@@ -953,6 +957,7 @@ const el = {
   pairAutoNotice: document.getElementById('pairAutoNotice'),
   pairAutoNoticeText: document.getElementById('pairAutoNoticeText'),
   pairScanQrBtn: document.getElementById('pairScanQrBtn'),
+  pairManualToggle: document.getElementById('pairManualToggle'),
   pairForm: document.getElementById('pairForm'),
   pairCodeInput: document.getElementById('pairCodeInput'),
   pairDeviceNameInput: document.getElementById('pairDeviceNameInput'),
@@ -1009,7 +1014,7 @@ function applyTheme(mode) {
   document.documentElement.dataset.theme = normalized
   document.documentElement.dataset.colorScheme = dark ? 'dark' : 'light'
   const meta = document.getElementById('metaThemeColor')
-  if (meta) meta.setAttribute('content', dark ? '#18181b' : '#eef3fd')
+  if (meta) meta.setAttribute('content', dark ? '#0f1014' : '#f4f6fb')
   document.querySelectorAll('[data-theme-opt]').forEach((btn) => {
     btn.setAttribute('aria-pressed', String(btn.dataset.themeOpt === normalized))
   })
@@ -1749,6 +1754,13 @@ function updatePairServerHint() {
   }
 }
 
+function setPairManualExpanded(expanded) {
+  el.pairForm.hidden = !expanded
+  if (el.pairManualToggle) {
+    el.pairManualToggle.setAttribute('aria-expanded', String(expanded))
+  }
+}
+
 function showPairView({ modal = false, pairPayload = null, errorMessage = '' } = {}) {
   state.pairModalOpen = modal
   el.pairView.hidden = false
@@ -1756,12 +1768,14 @@ function showPairView({ modal = false, pairPayload = null, errorMessage = '' } =
   el.pairTopbar.hidden = modal
   el.pairCloseBtn.hidden = !modal
   el.consoleShell.hidden = !modal
-  el.pairScanQrBtn.hidden = !isNativeApp()
+  const nativeMode = isNativeApp()
+  el.pairScanQrBtn.hidden = !nativeMode
 
   el.pairTitle.textContent = modal ? t('pairAddTitle') : t('pairTitle')
   el.pairSubtitle.textContent = t('pairSubtitle')
 
-  if (pairPayload && pairPayload.code) {
+  const hasAutoPayload = Boolean(pairPayload && pairPayload.code)
+  if (hasAutoPayload) {
     el.pairCodeInput.value = pairPayload.code
     el.pairAutoNotice.hidden = false
     el.pairAutoNoticeText.textContent = pairPayload.hostName
@@ -1771,7 +1785,7 @@ function showPairView({ modal = false, pairPayload = null, errorMessage = '' } =
       el.pairDeviceNameInput.value = pairPayload.deviceName
     }
     const candidateServer = pairPayload.serverUrl || pairPayload.endpoints?.lan || pairPayload.endpoints?.tunnel || pairPayload.endpoints?.custom || ''
-    if (candidateServer && (isNativeApp() || candidateServer !== getActiveOrigin())) {
+    if (candidateServer && (nativeMode || candidateServer !== getActiveOrigin())) {
       el.pairServerUrlInput.value = candidateServer
     }
   } else {
@@ -1793,6 +1807,13 @@ function showPairView({ modal = false, pairPayload = null, errorMessage = '' } =
     el.pairError.hidden = true
     el.pairError.textContent = ''
   }
+
+  // 原生 App 主推扫码配对：默认折叠手动表单，识别到扫码结果或出错时自动展开
+  if (el.pairManualToggle) {
+    el.pairManualToggle.hidden = !nativeMode
+  }
+  const shouldExpandManual = !nativeMode || hasAutoPayload || Boolean(errorMessage) || Boolean(el.pairCodeInput.value.trim())
+  setPairManualExpanded(shouldExpandManual)
 
   updatePairServerHint()
   renderPairSavedHosts()
@@ -2017,6 +2038,7 @@ async function openNativeDshInstance(instanceKey, instanceTitle = '') {
       token: state.activeToken,
       hostName: host?.hostName || '',
       instanceTitle,
+      darkTheme: document.documentElement.dataset.colorScheme === 'dark',
     })
     await loadInstances({ silent: true })
   } catch (err) {
@@ -2024,7 +2046,16 @@ async function openNativeDshInstance(instanceKey, instanceTitle = '') {
   }
 }
 
+function openDshInstance(inst, displayTitle) {
+  if (isNativeApp()) {
+    void openNativeDshInstance(inst.key, displayTitle)
+    return
+  }
+  window.location.href = `/_dshx/open/${encodeURIComponent(inst.key)}`
+}
+
 function renderInstancesLoading() {
+  if (el.quickSwitchStrip) el.quickSwitchStrip.hidden = true
   el.runningList.replaceChildren(
     createEl('div', { class: 'skeleton-card' }),
     createEl('div', { class: 'skeleton-card' })
@@ -2033,10 +2064,13 @@ function renderInstancesLoading() {
 }
 
 function renderInstancesTab() {
+  const stoppedLaunches = state.launches.filter((launch) => !launch.runningKey)
   el.runningCount.textContent = String(state.instances.length)
-  el.launchesCount.textContent = String(state.launches.length)
+  el.launchesCount.textContent = String(stoppedLaunches.length)
 
   if (state.instancesError && !state.instances.length && !state.launches.length) {
+    if (el.quickSwitchStrip) el.quickSwitchStrip.hidden = true
+    if (el.launchesSection) el.launchesSection.hidden = true
     el.runningList.replaceChildren(
       createEl('div', { class: 'empty-state' }, [
         createEl('p', { class: 'empty-title', text: t('loadFailedTitle') }),
@@ -2053,7 +2087,39 @@ function renderInstancesTab() {
     return
   }
 
-  // 渲染运行中实例
+  // 多实例运行中时，顶部提供横向快切胶囊条，1 次点击直达任意实例
+  if (el.quickSwitchStrip) {
+    if (state.instances.length >= 2) {
+      const chips = state.instances.map((inst) => {
+        const isActive = Boolean(inst.active || (state.activeInstanceKey && inst.key === state.activeInstanceKey))
+        const isReady = inst.ready !== false
+        const chipLabel = inst.profile || inst.name || inst.key || 'DSH'
+        const displayTitle =
+          inst.version && inst.profile ? `${inst.version} · ${inst.profile}` : (inst.name || inst.key || 'DSH')
+        const href = `/_dshx/open/${encodeURIComponent(inst.key)}`
+        return createEl('a', {
+          class: `quick-chip${isActive ? ' is-active' : ''}`,
+          href,
+          onClick: isNativeApp()
+            ? (e) => {
+                e.preventDefault()
+                void openNativeDshInstance(inst.key, displayTitle)
+              }
+            : undefined,
+        }, [
+          createEl('span', { class: `quick-chip-dot${isReady ? '' : ' starting'}` }),
+          createEl('span', { text: chipLabel }),
+        ])
+      })
+      el.quickSwitchStrip.replaceChildren(...chips)
+      el.quickSwitchStrip.hidden = false
+    } else {
+      el.quickSwitchStrip.replaceChildren()
+      el.quickSwitchStrip.hidden = true
+    }
+  }
+
+  // 渲染运行中实例（整卡点击直达，精简为 1 行主标题 + 1 行简洁元信息）
   if (!state.instances.length) {
     el.runningList.replaceChildren(
       createEl('div', { class: 'empty-state' }, [
@@ -2068,52 +2134,38 @@ function renderInstancesTab() {
       const isStopping = state.pendingStopKeys.has(inst.key)
       const target = formatTargetInfo(inst.target)
       const titleText =
-        inst.version && inst.profile ? `${inst.version} · ${inst.profile}` : (inst.key || 'DSH')
+        inst.version && inst.profile ? `${inst.version} · ${inst.profile}` : (inst.name || inst.key || 'DSH')
       const uptime = formatRelativeDuration(inst.startedAt)
-
-      const badges = [
-        createEl('span', { class: `badge ${target.cls}`, text: target.label }),
-        createEl('span', { class: `badge ${isReady ? 'status-running' : 'status-starting'}` }, [
-          createEl('span', { class: 'badge-dot' }),
-          isReady ? t('statusRunning') : t('statusStarting'),
-        ]),
-      ]
-      if (isActive) {
-        badges.push(createEl('span', { class: 'badge status-active', text: t('statusActive') }))
+      const subParts = [target.label]
+      if (!isReady) {
+        subParts.push(t('statusStarting'))
+      } else if (uptime) {
+        subParts.push(`${t('uptimePrefix')} ${uptime}`)
       }
-
       const openHref = `/_dshx/open/${encodeURIComponent(inst.key)}`
 
-      return createEl('article', { class: `card instance-card${isActive ? ' is-active' : ''}` }, [
-        createEl('div', { class: 'instance-top' }, [
-          createEl('div', { class: 'instance-title-group' }, [
-            createEl('h3', { class: 'instance-name', text: titleText }),
-            createEl('div', { class: 'meta-row' }, badges),
-            uptime
-              ? createEl('div', { class: 'instance-sub', text: `${t('uptimePrefix')} ${uptime}` })
-              : null,
+      return createEl('article', {
+        class: `card instance-card clickable${isActive ? ' is-active' : ''}`,
+        onClick: () => openDshInstance(inst, titleText),
+      }, [
+        createEl('div', { class: 'instance-main' }, [
+          createEl('span', { class: `status-dot${isReady ? '' : ' starting'}` }),
+          createEl('div', { class: 'instance-text' }, [
+            createEl('div', { class: 'instance-title-line' }, [
+              createEl('h3', { class: 'instance-name', text: titleText }),
+              isActive ? createEl('span', { class: 'badge status-active', text: t('statusActive') }) : null,
+            ]),
+            createEl('div', { class: 'instance-sub', text: subParts.join(' · ') }),
           ]),
         ]),
         createEl('div', { class: 'instance-actions' }, [
-          createEl('a', {
-            class: 'btn btn-primary',
-            href: openHref,
-            onClick: isNativeApp()
-              ? (e) => {
-                  e.preventDefault()
-                  void openNativeDshInstance(inst.key, titleText)
-                }
-              : undefined,
-          }, [
-            createSvgIcon(['M15 3h6v6', 'M10 14 21 3', 'M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6']),
-            t('enterDsh'),
-          ]),
           createEl('button', {
             type: 'button',
             class: 'btn btn-ghost btn-icon-only',
             title: t('viewLogs'),
             'aria-label': t('viewLogs'),
-            onClick: () => {
+            onClick: (e) => {
+              e.stopPropagation()
               state.selectedLogKey = inst.key
               lsSet(STORAGE.lastLogKey, inst.key)
               switchTab('logs')
@@ -2123,10 +2175,28 @@ function renderInstancesTab() {
           ]),
           createEl('button', {
             type: 'button',
-            class: 'btn btn-danger',
+            class: 'btn btn-danger btn-icon-only',
+            title: t('stop'),
+            'aria-label': t('stop'),
             disabled: isStopping,
-            text: isStopping ? t('stopping') : t('stop'),
-            onClick: () => stopInstance(inst),
+            onClick: (e) => {
+              e.stopPropagation()
+              void stopInstance(inst)
+            },
+          }, [
+            createSvgIcon(['M6 6h12v12H6z']),
+          ]),
+          createEl('a', {
+            class: 'instance-open-pill',
+            href: openHref,
+            text: t('enterDsh'),
+            onClick: (e) => {
+              e.stopPropagation()
+              if (isNativeApp()) {
+                e.preventDefault()
+                void openNativeDshInstance(inst.key, titleText)
+              }
+            },
           }),
         ]),
       ])
@@ -2134,65 +2204,48 @@ function renderInstancesTab() {
     el.runningList.replaceChildren(...nodes)
   }
 
-  // 渲染已配置启动项
-  if (!state.launches.length) {
-    el.launchesList.replaceChildren(
-      createEl('div', { class: 'empty-state' }, [
-        createEl('p', { class: 'empty-title', text: t('noLaunchesTitle') }),
-        createEl('p', { class: 'empty-desc', text: t('noLaunchesDesc') }),
-      ])
-    )
+  // 渲染未运行的启动项（去重已在运行中显示的项；统一收纳在精简列表卡片中）
+  if (!stoppedLaunches.length) {
+    if (el.launchesSection) {
+      el.launchesSection.hidden = state.instances.length > 0
+    }
+    if (!state.instances.length) {
+      el.launchesList.replaceChildren(
+        createEl('div', { class: 'empty-state' }, [
+          createEl('p', { class: 'empty-title', text: t('noLaunchesTitle') }),
+          createEl('p', { class: 'empty-desc', text: t('noLaunchesDesc') }),
+        ])
+      )
+    } else {
+      el.launchesList.replaceChildren()
+    }
   } else {
-    const nodes = state.launches.map((launch) => {
+    if (el.launchesSection) el.launchesSection.hidden = false
+    const rows = stoppedLaunches.map((launch) => {
       const idKey = launch.id || `${launch.version}@${launch.profile}`
       const isStarting = state.pendingStartIds.has(idKey)
-      const isRunning = Boolean(launch.runningKey)
       const target = formatTargetInfo(launch.target)
-      const name = launch.name || `${launch.version || ''} · ${launch.profile || ''}`.trim()
+      const fallbackName = [launch.version, launch.profile].filter(Boolean).join(' · ')
+      const name = launch.name || fallbackName || idKey
+      const subParts = [launch.version, launch.profile, target.label].filter(Boolean)
 
-      const meta = [
-        launch.version ? createEl('span', { class: 'badge mono', text: launch.version }) : null,
-        launch.profile ? createEl('span', { class: 'badge', text: launch.profile }) : null,
-        createEl('span', { class: `badge ${target.cls}`, text: target.label }),
-        isRunning
-          ? createEl('span', { class: 'badge status-running' }, [
-              createEl('span', { class: 'badge-dot' }),
-              t('statusRunning'),
-            ])
-          : null,
-      ]
-
-      const actionBtn = isRunning
-        ? createEl('a', {
-            class: 'btn btn-primary',
-            href: `/_dshx/open/${encodeURIComponent(launch.runningKey)}`,
-            text: t('enterDsh'),
-            onClick: isNativeApp()
-              ? (e) => {
-                  e.preventDefault()
-                  void openNativeDshInstance(launch.runningKey, name)
-                }
-              : undefined,
-          })
-        : createEl('button', {
+      return createEl('div', { class: 'list-row' }, [
+        createEl('div', { class: 'row-info' }, [
+          createEl('div', { class: 'row-title', text: name }),
+          subParts.length ? createEl('div', { class: 'row-sub', text: subParts.join(' · ') }) : null,
+        ]),
+        createEl('div', { class: 'row-actions' }, [
+          createEl('button', {
             type: 'button',
-            class: 'btn btn-primary',
+            class: 'btn btn-sm btn-primary',
             disabled: isStarting,
             text: isStarting ? t('starting') : t('start'),
             onClick: () => startLaunch(launch),
-          })
-
-      return createEl('article', { class: 'card instance-card' }, [
-        createEl('div', { class: 'instance-top' }, [
-          createEl('div', { class: 'instance-title-group' }, [
-            createEl('h3', { class: 'instance-name', text: name }),
-            createEl('div', { class: 'meta-row' }, meta),
-          ]),
+          }),
         ]),
-        createEl('div', { class: 'instance-actions' }, [actionBtn]),
       ])
     })
-    el.launchesList.replaceChildren(...nodes)
+    el.launchesList.replaceChildren(...rows)
   }
 }
 
@@ -3310,6 +3363,7 @@ function bindEvents() {
       }
       const parsed = parsePairingText(res.text || '')
       if (!parsed || !parsed.code) {
+        setPairManualExpanded(true)
         el.pairError.textContent = t('scanQrFailed')
         el.pairError.hidden = false
         return
@@ -3318,8 +3372,16 @@ function bindEvents() {
       showPairView({ modal: state.pairModalOpen, pairPayload: parsed })
       el.pairSubmitBtn.focus()
     } catch (err) {
+      setPairManualExpanded(true)
       el.pairError.textContent = err?.message || t('scanQrFailed')
       el.pairError.hidden = false
+    }
+  })
+  el.pairManualToggle?.addEventListener('click', () => {
+    const isExpanded = !el.pairForm.hidden
+    setPairManualExpanded(!isExpanded)
+    if (!isExpanded) {
+      el.pairCodeInput.focus()
     }
   })
   el.pairForm.addEventListener('submit', handlePairSubmit)

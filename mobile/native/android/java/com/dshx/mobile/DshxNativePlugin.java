@@ -121,6 +121,7 @@ public class DshxNativePlugin extends Plugin {
         String instanceKey = call.getString("instanceKey", "");
         String token = call.getString("token", "");
         String instanceTitle = call.getString("instanceTitle", "");
+        Boolean darkTheme = call.getBoolean("darkTheme");
         if (origin == null || origin.isEmpty() || instanceKey == null || instanceKey.isEmpty() || token == null || token.isEmpty()) {
             call.reject("Missing origin, instanceKey, or token");
             return;
@@ -130,6 +131,9 @@ public class DshxNativePlugin extends Plugin {
         intent.putExtra(DshWebViewActivity.EXTRA_INSTANCE_KEY, instanceKey);
         intent.putExtra(DshWebViewActivity.EXTRA_TOKEN, token);
         intent.putExtra(DshWebViewActivity.EXTRA_TITLE, instanceTitle != null ? instanceTitle : "");
+        if (darkTheme != null) {
+            intent.putExtra(DshWebViewActivity.EXTRA_DARK_THEME, darkTheme);
+        }
         startActivityForResult(call, intent, "handleWebViewClosed");
     }
 
