@@ -156,10 +156,10 @@ a {
   position: sticky;
   top: 0;
   z-index: 30;
-  padding: calc(8px + var(--safe-top)) calc(16px + var(--safe-right)) 8px calc(16px + var(--safe-left));
+  padding: calc(7px + var(--safe-top)) calc(14px + var(--safe-right)) 7px calc(14px + var(--safe-left));
   background: var(--header-bg);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--line);
 }
 
@@ -175,19 +175,19 @@ a {
 .header-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
   flex: 1;
 }
 
 .brand-mark {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
   background: var(--accent);
   color: var(--accent-contrast);
   font-weight: 800;
-  font-size: 12px;
+  font-size: 11.5px;
   letter-spacing: -0.04em;
   display: inline-flex;
   align-items: center;
@@ -207,8 +207,8 @@ a {
   -webkit-appearance: none;
   width: 100%;
   min-height: 32px;
-  padding: 2px 24px 2px 8px;
-  border: 1px solid transparent;
+  padding: 2px 22px 2px 6px;
+  border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text);
@@ -228,19 +228,19 @@ a {
 
 .host-select-caret {
   position: absolute;
-  right: 6px;
+  right: 5px;
   top: 50%;
   transform: translateY(-50%);
   pointer-events: none;
   color: var(--muted);
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
 }
 
 .header-right {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   flex-shrink: 0;
 }
 
@@ -248,8 +248,8 @@ a {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  height: 30px;
-  padding: 0 10px;
+  height: 28px;
+  padding: 0 9px;
   border-radius: 999px;
   border: 1px solid var(--line);
   background: var(--card);
@@ -257,14 +257,14 @@ a {
   font-weight: 600;
   color: var(--text);
   white-space: nowrap;
-  max-width: 148px;
+  max-width: 142px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .conn-dot {
-  width: 7px;
-  height: 7px;
+  width: 6.5px;
+  height: 6.5px;
   border-radius: 50%;
   flex-shrink: 0;
   background: var(--status-offline);
@@ -292,23 +292,24 @@ a {
 .icon-btn {
   width: 32px;
   height: 32px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--line);
-  background: var(--card);
-  color: var(--text);
+  border-radius: 9px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: background 140ms var(--ease), transform 120ms var(--ease);
+  transition: background 140ms var(--ease), color 140ms var(--ease), transform 120ms var(--ease);
 }
 
 .icon-btn:active {
-  transform: scale(0.94);
+  transform: scale(0.92);
 }
 
 .icon-btn:hover {
   background: var(--accent-soft);
+  color: var(--text);
 }
 
 .icon-btn.spinning .icon {

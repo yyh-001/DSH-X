@@ -2,12 +2,20 @@ package com.dshx.mobile;
 
 import android.annotation.SuppressLint;
 import android.app.Dialog;
+import android.content.Context;
 import android.content.Intent;
+import android.content.res.ColorStateList;
 import android.content.res.Configuration;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.RippleDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -25,7 +33,6 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
@@ -55,10 +62,11 @@ import org.json.JSONObject;
 
 /**
  * 原版 DSH Web 界面全屏承载页：
- * 1. 携带 Bearer Token 请求 `POST /_dshx/api/session/bootstrap` 为当前链路种下 HttpOnly Cookie，
+ * 1. 携带 Bearer Token 请求 `POST /_dshx/api/session/bootstrap` 为当前链路种下 HttpOnly Cookie
+ *    （遇 `< 0.2.1` 旧版内核返回 HTTP 404 时自动回落写入同源 `dsh-x-device` Cookie），
  *    再加载 `/_dshx/open/<instanceKey>` 进入原版 DSH；
- * 2. 顶部内置极简可收起控制条（返回控制台 / 当前实例切换胶囊 / 刷新 / 收起），点击胶囊即可从
- *    `GET /_dshx/api/instances` 拉取全部运行中实例并在当前 WebView 内原地秒切，无需重建 Activity。
+ * 2. 顶部内置极简现代左对齐导航条（返回 / 实例选择器 / 刷新 / 收起），点击实例选择器弹出
+ *    底部抽屉式多实例切换器，支持在当前 WebView 内原地无重启秒切其他运行中实例。
  */
 public class DshWebViewActivity extends AppCompatActivity {
     public static final String EXTRA_ORIGIN = "origin";
@@ -68,6 +76,14 @@ public class DshWebViewActivity extends AppCompatActivity {
     public static final String EXTRA_DARK_THEME = "darkTheme";
 
     private static final String NATIVE_UA_MARKER = "DSHXNativeApp/1";
+
+    private static final int ICON_BACK = 1;
+    private static final int ICON_CHEVRON_DOWN = 2;
+    private static final int ICON_REFRESH = 3;
+    private static final int ICON_COLLAPSE = 4;
+    private static final int ICON_CHECK = 5;
+    private static final int ICON_CHEVRON_RIGHT = 6;
+    private static final int ICON_ALERT = 7;
 
     private static final class InstanceItem {
         final String key;
@@ -83,15 +99,111 @@ public class DshWebViewActivity extends AppCompatActivity {
         }
     }
 
+    /** 24×24 几何矢量绘制图标，避免各机型的 Unicode 字体基线歪斜与锯齿。 */
+    private static final class VectorIconView extends View {
+        private final int kind;
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path path = new Path();
+        private final RectF oval = new RectF();
+        private float strokeDp = 1.9f;
+
+        VectorIconView(Context context, int kind, int color, float strokeDp) {
+            super(context);
+            this.kind = kind;
+            this.strokeDp = strokeDp;
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeCap(Paint.Cap.ROUND);
+            paint.setStrokeJoin(Paint.Join.ROUND);
+            paint.setColor(color);
+        }
+
+        void setIconColor(int color) {
+            paint.setColor(color);
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            float w = getWidth();
+            float h = getHeight();
+            if (w <= 0 || h <= 0) {
+                return;
+            }
+            float s = Math.min(w, h) / 24f;
+            float ox = (w - 24f * s) * 0.5f;
+            float oy = (h - 24f * s) * 0.5f;
+            paint.setStrokeWidth(strokeDp * getResources().getDisplayMetrics().density * 0.85f);
+
+            canvas.save();
+            canvas.translate(ox, oy);
+            path.reset();
+
+            switch (kind) {
+                case ICON_BACK:
+                    path.moveTo(15f * s, 18f * s);
+                    path.lineTo(9f * s, 12f * s);
+                    path.lineTo(15f * s, 6f * s);
+                    canvas.drawPath(path, paint);
+                    break;
+                case ICON_CHEVRON_DOWN:
+                    path.moveTo(7f * s, 10f * s);
+                    path.lineTo(12f * s, 15f * s);
+                    path.lineTo(17f * s, 10f * s);
+                    canvas.drawPath(path, paint);
+                    break;
+                case ICON_COLLAPSE:
+                    path.moveTo(7f * s, 14.5f * s);
+                    path.lineTo(12f * s, 9.5f * s);
+                    path.lineTo(17f * s, 14.5f * s);
+                    canvas.drawPath(path, paint);
+                    break;
+                case ICON_REFRESH:
+                    oval.set(4.5f * s, 4.5f * s, 19.5f * s, 19.5f * s);
+                    path.addArc(oval, -20f, 295f);
+                    path.moveTo(19.5f * s, 5f * s);
+                    path.lineTo(19.5f * s, 9.8f * s);
+                    path.lineTo(14.7f * s, 9.8f * s);
+                    canvas.drawPath(path, paint);
+                    break;
+                case ICON_CHECK:
+                    path.moveTo(5.5f * s, 12.8f * s);
+                    path.lineTo(10f * s, 17.2f * s);
+                    path.lineTo(18.5f * s, 7.5f * s);
+                    canvas.drawPath(path, paint);
+                    break;
+                case ICON_CHEVRON_RIGHT:
+                    path.moveTo(9.5f * s, 7f * s);
+                    path.lineTo(14.5f * s, 12f * s);
+                    path.lineTo(9.5f * s, 17f * s);
+                    canvas.drawPath(path, paint);
+                    break;
+                case ICON_ALERT:
+                    canvas.drawCircle(12f * s, 12f * s, 9f * s, paint);
+                    path.moveTo(12f * s, 8f * s);
+                    path.lineTo(12f * s, 12.8f * s);
+                    canvas.drawPath(path, paint);
+                    Paint dotPaint = new Paint(paint);
+                    dotPaint.setStyle(Paint.Style.FILL);
+                    canvas.drawCircle(12f * s, 16.2f * s, 1.15f * s, dotPaint);
+                    break;
+                default:
+                    break;
+            }
+            canvas.restore();
+        }
+    }
+
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final List<InstanceItem> cachedInstances = new ArrayList<>();
 
     private WebView webView;
     private ProgressBar progressBar;
     private LinearLayout topBar;
+    private View topDivider;
     private TextView switcherLabel;
     private TextView switcherCount;
-    private TextView restoreBarChip;
+    private LinearLayout restoreBarChip;
     private LinearLayout errorOverlay;
     private TextView errorMessageView;
     private Dialog switcherDialog;
@@ -148,12 +260,12 @@ public class DshWebViewActivity extends AppCompatActivity {
         topBar = buildTopBar();
         root.addView(topBar, new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
-            dp(44)
+            dp(46)
         ));
 
-        View divider = new View(this);
-        divider.setBackgroundColor(colorDivider());
-        root.addView(divider, new LinearLayout.LayoutParams(
+        topDivider = new View(this);
+        topDivider.setBackgroundColor(colorDivider());
+        root.addView(topDivider, new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             1
         ));
@@ -168,6 +280,8 @@ public class DshWebViewActivity extends AppCompatActivity {
 
         progressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         progressBar.setMax(100);
+        progressBar.setProgressTintList(ColorStateList.valueOf(colorAccent()));
+        progressBar.setProgressBackgroundTintList(ColorStateList.valueOf(Color.TRANSPARENT));
         FrameLayout.LayoutParams progressParams = new FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             dp(2)
@@ -179,10 +293,10 @@ public class DshWebViewActivity extends AppCompatActivity {
         restoreBarChip.setVisibility(View.GONE);
         FrameLayout.LayoutParams restoreParams = new FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT,
-            dp(30)
+            dp(32)
         );
         restoreParams.gravity = Gravity.TOP | Gravity.END;
-        restoreParams.setMargins(0, dp(8), dp(10), 0);
+        restoreParams.setMargins(0, dp(10), dp(12), 0);
         contentWrap.addView(restoreBarChip, restoreParams);
 
         errorOverlay = buildErrorOverlay();
@@ -241,41 +355,39 @@ public class DshWebViewActivity extends AppCompatActivity {
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setGravity(Gravity.CENTER_VERTICAL);
         bar.setBackgroundColor(colorBarBg());
-        bar.setPadding(dp(8), dp(4), dp(8), dp(4));
+        bar.setPadding(dp(8), 0, dp(8), 0);
 
-        TextView backBtn = makeBarButton("‹", dp(34));
-        backBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f);
-        backBtn.setContentDescription("返回控制台");
+        FrameLayout backBtn = makeIconTapTarget(ICON_BACK, dp(36), dp(18), colorText(), "返回控制台");
         backBtn.setOnClickListener(v -> {
             setResult(RESULT_OK);
             finish();
         });
-        bar.addView(backBtn, new LinearLayout.LayoutParams(dp(36), dp(34)));
+        bar.addView(backBtn, new LinearLayout.LayoutParams(dp(36), dp(36)));
 
-        LinearLayout centerSlot = new LinearLayout(this);
-        centerSlot.setOrientation(LinearLayout.HORIZONTAL);
-        centerSlot.setGravity(Gravity.CENTER);
-        centerSlot.setPadding(dp(6), 0, dp(6), 0);
+        // 左对齐无边框标题选择器（类似 ChatGPT / Linear 移动端顶栏）
+        LinearLayout selectorContainer = new LinearLayout(this);
+        selectorContainer.setOrientation(LinearLayout.HORIZONTAL);
+        selectorContainer.setGravity(Gravity.CENTER_VERTICAL);
+        selectorContainer.setPadding(dp(4), 0, dp(6), 0);
 
-        LinearLayout pill = new LinearLayout(this);
-        pill.setOrientation(LinearLayout.HORIZONTAL);
-        pill.setGravity(Gravity.CENTER_VERTICAL);
-        pill.setPadding(dp(11), 0, dp(10), 0);
-        pill.setBackground(makeRoundedRect(colorPillBg(), dp(1), colorDivider(), dp(999)));
-        pill.setClickable(true);
-        pill.setFocusable(true);
-        pill.setOnClickListener(v -> showInstanceSwitcherSheet());
+        LinearLayout selector = new LinearLayout(this);
+        selector.setOrientation(LinearLayout.HORIZONTAL);
+        selector.setGravity(Gravity.CENTER_VERTICAL);
+        selector.setPadding(dp(8), dp(6), dp(8), dp(6));
+        selector.setBackground(makeRippleDrawable(Color.TRANSPARENT, dp(10), 0, 0));
+        selector.setClickable(true);
+        selector.setFocusable(true);
+        selector.setOnClickListener(v -> showInstanceSwitcherSheet());
 
-        View greenDot = new View(this);
-        greenDot.setBackground(makeCircle(colorGreen()));
-        LinearLayout.LayoutParams dotParams = new LinearLayout.LayoutParams(dp(7), dp(7));
+        View greenDot = makeGlowingDot(colorGreen());
+        LinearLayout.LayoutParams dotParams = new LinearLayout.LayoutParams(dp(11), dp(11));
         dotParams.rightMargin = dp(7);
-        pill.addView(greenDot, dotParams);
+        selector.addView(greenDot, dotParams);
 
         switcherLabel = new TextView(this);
         switcherLabel.setTextColor(colorText());
-        switcherLabel.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f);
-        switcherLabel.setTypeface(Typeface.DEFAULT_BOLD);
+        switcherLabel.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f);
+        switcherLabel.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         switcherLabel.setSingleLine(true);
         switcherLabel.setEllipsize(TextUtils.TruncateAt.END);
         LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(
@@ -283,13 +395,13 @@ public class DshWebViewActivity extends AppCompatActivity {
             ViewGroup.LayoutParams.WRAP_CONTENT,
             1f
         );
-        pill.addView(switcherLabel, labelParams);
+        selector.addView(switcherLabel, labelParams);
 
         switcherCount = new TextView(this);
         switcherCount.setTextColor(colorAccent());
-        switcherCount.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f);
+        switcherCount.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10.5f);
         switcherCount.setTypeface(Typeface.DEFAULT_BOLD);
-        switcherCount.setPadding(dp(6), dp(1), dp(6), dp(1));
+        switcherCount.setPadding(dp(5), dp(1), dp(5), dp(1));
         switcherCount.setBackground(makeRoundedRect(colorAccentSoft(), 0, 0, dp(999)));
         switcherCount.setVisibility(View.GONE);
         LinearLayout.LayoutParams countParams = new LinearLayout.LayoutParams(
@@ -297,83 +409,87 @@ public class DshWebViewActivity extends AppCompatActivity {
             ViewGroup.LayoutParams.WRAP_CONTENT
         );
         countParams.leftMargin = dp(6);
-        pill.addView(switcherCount, countParams);
+        selector.addView(switcherCount, countParams);
 
-        TextView caret = new TextView(this);
-        caret.setText("▾");
-        caret.setTextColor(colorMuted());
-        caret.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f);
-        LinearLayout.LayoutParams caretParams = new LinearLayout.LayoutParams(
+        VectorIconView caret = new VectorIconView(this, ICON_CHEVRON_DOWN, colorMuted(), 2.0f);
+        LinearLayout.LayoutParams caretParams = new LinearLayout.LayoutParams(dp(14), dp(14));
+        caretParams.leftMargin = dp(4);
+        selector.addView(caret, caretParams);
+
+        selectorContainer.addView(selector, new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        caretParams.leftMargin = dp(5);
-        pill.addView(caret, caretParams);
-
-        centerSlot.addView(pill, new LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            dp(32)
         ));
-        bar.addView(centerSlot, new LinearLayout.LayoutParams(
+        bar.addView(selectorContainer, new LinearLayout.LayoutParams(
             0,
             ViewGroup.LayoutParams.MATCH_PARENT,
             1f
         ));
 
-        TextView reloadBtn = makeBarButton("↻", dp(34));
-        reloadBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f);
-        reloadBtn.setContentDescription("刷新页面");
+        FrameLayout reloadBtn = makeIconTapTarget(ICON_REFRESH, dp(36), dp(17), colorMuted(), "刷新页面");
         reloadBtn.setOnClickListener(v -> {
             if (webView != null) {
                 errorOverlay.setVisibility(View.GONE);
                 webView.reload();
             }
         });
-        bar.addView(reloadBtn, new LinearLayout.LayoutParams(dp(34), dp(34)));
+        bar.addView(reloadBtn, new LinearLayout.LayoutParams(dp(36), dp(36)));
 
-        TextView collapseBtn = makeBarButton("⌃", dp(34));
-        collapseBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f);
-        collapseBtn.setContentDescription("收起顶部栏");
+        FrameLayout collapseBtn = makeIconTapTarget(ICON_COLLAPSE, dp(36), dp(17), colorMuted(), "收起顶部栏");
         collapseBtn.setOnClickListener(v -> setTopBarVisible(false));
-        LinearLayout.LayoutParams collapseParams = new LinearLayout.LayoutParams(dp(34), dp(34));
+        LinearLayout.LayoutParams collapseParams = new LinearLayout.LayoutParams(dp(36), dp(36));
         collapseParams.leftMargin = dp(2);
         bar.addView(collapseBtn, collapseParams);
 
         return bar;
     }
 
-    private TextView makeBarButton(String text, int heightPx) {
-        TextView btn = new TextView(this);
-        btn.setText(text);
-        btn.setGravity(Gravity.CENTER);
-        btn.setTextColor(colorText());
-        btn.setBackground(makeRoundedRect(Color.TRANSPARENT, 0, 0, dp(8)));
-        btn.setMinimumHeight(heightPx);
-        btn.setClickable(true);
-        btn.setFocusable(true);
-        return btn;
+    private FrameLayout makeIconTapTarget(int iconKind, int boxPx, int iconPx, int tintColor, String contentDesc) {
+        FrameLayout wrap = new FrameLayout(this);
+        wrap.setBackground(makeRippleDrawable(Color.TRANSPARENT, dp(10), 0, 0));
+        wrap.setClickable(true);
+        wrap.setFocusable(true);
+        wrap.setContentDescription(contentDesc);
+
+        VectorIconView icon = new VectorIconView(this, iconKind, tintColor, 1.9f);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(iconPx, iconPx);
+        lp.gravity = Gravity.CENTER;
+        wrap.addView(icon, lp);
+        return wrap;
     }
 
-    private TextView buildRestoreBarChip() {
-        TextView chip = new TextView(this);
-        chip.setText("⇄ 切换");
-        chip.setTextColor(colorText());
-        chip.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f);
-        chip.setTypeface(Typeface.DEFAULT_BOLD);
-        chip.setGravity(Gravity.CENTER);
-        chip.setPadding(dp(10), 0, dp(10), 0);
-        int bg = darkTheme ? Color.argb(215, 24, 26, 32) : Color.argb(225, 255, 255, 255);
-        chip.setBackground(makeRoundedRect(bg, dp(1), colorDivider(), dp(999)));
+    private LinearLayout buildRestoreBarChip() {
+        LinearLayout chip = new LinearLayout(this);
+        chip.setOrientation(LinearLayout.HORIZONTAL);
+        chip.setGravity(Gravity.CENTER_VERTICAL);
+        chip.setPadding(dp(10), 0, dp(9), 0);
+        int bg = darkTheme ? Color.argb(228, 24, 26, 32) : Color.argb(238, 255, 255, 255);
+        chip.setBackground(makeRippleDrawable(bg, dp(999), dp(1), colorDivider()));
+        chip.setElevation(dp(4));
+        chip.setClickable(true);
+        chip.setFocusable(true);
+        chip.setContentDescription("展开顶部控制条");
         chip.setOnClickListener(v -> {
             setTopBarVisible(true);
             showInstanceSwitcherSheet();
         });
+
+        View dot = makeGlowingDot(colorGreen());
+        LinearLayout.LayoutParams dotParams = new LinearLayout.LayoutParams(dp(10), dp(10));
+        dotParams.rightMargin = dp(5);
+        chip.addView(dot, dotParams);
+
+        VectorIconView chevron = new VectorIconView(this, ICON_CHEVRON_DOWN, colorText(), 2.0f);
+        chip.addView(chevron, new LinearLayout.LayoutParams(dp(14), dp(14)));
         return chip;
     }
 
     private void setTopBarVisible(boolean visible) {
         if (topBar != null) {
             topBar.setVisibility(visible ? View.VISIBLE : View.GONE);
+        }
+        if (topDivider != null) {
+            topDivider.setVisibility(visible ? View.VISIBLE : View.GONE);
         }
         if (restoreBarChip != null) {
             restoreBarChip.setVisibility(visible ? View.GONE : View.VISIBLE);
@@ -661,12 +777,12 @@ public class DshWebViewActivity extends AppCompatActivity {
 
         LinearLayout sheet = new LinearLayout(this);
         sheet.setOrientation(LinearLayout.VERTICAL);
-        float radius = dp(20);
+        float radius = dp(22);
         GradientDrawable sheetBg = new GradientDrawable();
         sheetBg.setColor(colorCard());
         sheetBg.setCornerRadii(new float[] { radius, radius, radius, radius, 0f, 0f, 0f, 0f });
         sheet.setBackground(sheetBg);
-        sheet.setPadding(dp(16), dp(10), dp(16), dp(22));
+        sheet.setPadding(dp(16), dp(10), dp(16), dp(24));
 
         View handle = new View(this);
         handle.setBackground(makeRoundedRect(colorDivider(), 0, 0, dp(999)));
@@ -678,39 +794,35 @@ public class DshWebViewActivity extends AppCompatActivity {
         LinearLayout headerRow = new LinearLayout(this);
         headerRow.setOrientation(LinearLayout.HORIZONTAL);
         headerRow.setGravity(Gravity.CENTER_VERTICAL);
-        headerRow.setPadding(dp(2), 0, dp(2), dp(10));
+        headerRow.setPadding(dp(2), 0, dp(2), dp(12));
 
         TextView titleView = new TextView(this);
-        titleView.setText("切换运行中实例");
+        titleView.setText("切换实例");
         titleView.setTextColor(colorText());
         titleView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f);
-        titleView.setTypeface(Typeface.DEFAULT_BOLD);
+        titleView.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         headerRow.addView(titleView, new LinearLayout.LayoutParams(
             0,
             ViewGroup.LayoutParams.WRAP_CONTENT,
             1f
         ));
 
-        TextView refreshSheetBtn = new TextView(this);
-        refreshSheetBtn.setText("刷新");
-        refreshSheetBtn.setTextColor(colorAccent());
-        refreshSheetBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f);
-        refreshSheetBtn.setTypeface(Typeface.DEFAULT_BOLD);
-        refreshSheetBtn.setPadding(dp(10), dp(6), dp(10), dp(6));
-        refreshSheetBtn.setBackground(makeRoundedRect(colorAccentSoft(), 0, 0, dp(8)));
+        FrameLayout refreshSheetBtn = makeIconTapTarget(ICON_REFRESH, dp(32), dp(16), colorMuted(), "刷新实例");
         refreshSheetBtn.setOnClickListener(v -> {
             renderSwitcherSheetLoading();
             fetchRunningInstancesAsync(null);
         });
-        headerRow.addView(refreshSheetBtn);
+        headerRow.addView(refreshSheetBtn, new LinearLayout.LayoutParams(dp(32), dp(32)));
 
         TextView consoleBtn = new TextView(this);
         consoleBtn.setText("控制台");
         consoleBtn.setTextColor(colorText());
-        consoleBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f);
-        consoleBtn.setTypeface(Typeface.DEFAULT_BOLD);
-        consoleBtn.setPadding(dp(10), dp(6), dp(10), dp(6));
-        consoleBtn.setBackground(makeRoundedRect(colorPillBg(), dp(1), colorDivider(), dp(8)));
+        consoleBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12.5f);
+        consoleBtn.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        consoleBtn.setPadding(dp(12), dp(6), dp(12), dp(6));
+        consoleBtn.setBackground(makeRippleDrawable(colorPillBg(), dp(999), dp(1), colorDivider()));
+        consoleBtn.setClickable(true);
+        consoleBtn.setFocusable(true);
         consoleBtn.setOnClickListener(v -> {
             dismissSwitcherDialog();
             setResult(RESULT_OK);
@@ -720,7 +832,7 @@ public class DshWebViewActivity extends AppCompatActivity {
             ViewGroup.LayoutParams.WRAP_CONTENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        consoleParams.leftMargin = dp(8);
+        consoleParams.leftMargin = dp(6);
         headerRow.addView(consoleBtn, consoleParams);
 
         sheet.addView(headerRow);
@@ -729,7 +841,7 @@ public class DshWebViewActivity extends AppCompatActivity {
         sheetStatusView.setTextColor(colorMuted());
         sheetStatusView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f);
         sheetStatusView.setGravity(Gravity.CENTER);
-        sheetStatusView.setPadding(dp(8), dp(18), dp(8), dp(18));
+        sheetStatusView.setPadding(dp(8), dp(20), dp(8), dp(20));
         sheet.addView(sheetStatusView);
 
         ScrollView scroll = new ScrollView(this);
@@ -739,12 +851,10 @@ public class DshWebViewActivity extends AppCompatActivity {
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         ));
-        LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(
+        sheet.addView(scroll, new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        scroll.setLayoutParams(scrollParams);
-        sheet.addView(scroll);
+        ));
 
         dialog.setContentView(sheet);
         Window win = dialog.getWindow();
@@ -752,6 +862,7 @@ public class DshWebViewActivity extends AppCompatActivity {
             win.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
             win.setGravity(Gravity.BOTTOM);
             win.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            win.setDimAmount(0.42f);
         }
         dialog.setOnDismissListener(d -> {
             switcherDialog = null;
@@ -806,10 +917,10 @@ public class DshWebViewActivity extends AppCompatActivity {
             LinearLayout row = new LinearLayout(this);
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(dp(12), dp(12), dp(12), dp(12));
+            row.setPadding(dp(14), dp(12), dp(14), dp(12));
             int rowBg = isCurrent ? colorAccentSoft() : colorPillBg();
             int rowBorder = isCurrent ? colorAccent() : colorDivider();
-            row.setBackground(makeRoundedRect(rowBg, dp(1), rowBorder, dp(12)));
+            row.setBackground(makeRippleDrawable(rowBg, dp(14), dp(1), rowBorder));
             row.setClickable(true);
             row.setFocusable(true);
             row.setOnClickListener(v -> {
@@ -819,10 +930,9 @@ public class DshWebViewActivity extends AppCompatActivity {
                 }
             });
 
-            View dot = new View(this);
-            dot.setBackground(makeCircle(item.ready ? colorGreen() : Color.parseColor("#D97706")));
-            LinearLayout.LayoutParams dotParams = new LinearLayout.LayoutParams(dp(8), dp(8));
-            dotParams.rightMargin = dp(10);
+            View dot = makeGlowingDot(item.ready ? colorGreen() : Color.parseColor("#D97706"));
+            LinearLayout.LayoutParams dotParams = new LinearLayout.LayoutParams(dp(11), dp(11));
+            dotParams.rightMargin = dp(11);
             row.addView(dot, dotParams);
 
             LinearLayout info = new LinearLayout(this);
@@ -832,7 +942,7 @@ public class DshWebViewActivity extends AppCompatActivity {
             nameView.setText(item.displayTitle);
             nameView.setTextColor(colorText());
             nameView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14.5f);
-            nameView.setTypeface(Typeface.DEFAULT_BOLD);
+            nameView.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
             nameView.setSingleLine(true);
             nameView.setEllipsize(TextUtils.TruncateAt.END);
             info.addView(nameView);
@@ -849,12 +959,15 @@ public class DshWebViewActivity extends AppCompatActivity {
                 1f
             ));
 
-            TextView tag = new TextView(this);
-            tag.setText(isCurrent ? "当前" : "切换 →");
-            tag.setTextColor(isCurrent ? colorAccent() : colorMuted());
-            tag.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f);
-            tag.setTypeface(Typeface.DEFAULT_BOLD);
-            row.addView(tag);
+            VectorIconView trailing = new VectorIconView(
+                this,
+                isCurrent ? ICON_CHECK : ICON_CHEVRON_RIGHT,
+                isCurrent ? colorAccent() : colorMuted(),
+                2.0f
+            );
+            LinearLayout.LayoutParams trailParams = new LinearLayout.LayoutParams(dp(17), dp(17));
+            trailParams.leftMargin = dp(8);
+            row.addView(trailing, trailParams);
 
             LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -895,36 +1008,57 @@ public class DshWebViewActivity extends AppCompatActivity {
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setGravity(Gravity.CENTER);
         layout.setBackgroundColor(colorBg());
-        int pad = dp(24);
+        int pad = dp(28);
         layout.setPadding(pad, pad, pad, pad);
 
+        FrameLayout badge = new FrameLayout(this);
+        badge.setBackground(makeCircle(colorDangerSoft()));
+        VectorIconView alertIcon = new VectorIconView(this, ICON_ALERT, colorDanger(), 1.9f);
+        FrameLayout.LayoutParams iconLp = new FrameLayout.LayoutParams(dp(24), dp(24));
+        iconLp.gravity = Gravity.CENTER;
+        badge.addView(alertIcon, iconLp);
+        LinearLayout.LayoutParams badgeParams = new LinearLayout.LayoutParams(dp(52), dp(52));
+        badgeParams.bottomMargin = dp(16);
+        layout.addView(badge, badgeParams);
+
+        TextView titleView = new TextView(this);
+        titleView.setText("无法连接到实例");
+        titleView.setTextColor(colorText());
+        titleView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16.5f);
+        titleView.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        titleView.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        titleParams.bottomMargin = dp(6);
+        layout.addView(titleView, titleParams);
+
         errorMessageView = new TextView(this);
-        errorMessageView.setTextColor(colorText());
-        errorMessageView.setTextSize(15f);
+        errorMessageView.setTextColor(colorMuted());
+        errorMessageView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f);
         errorMessageView.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams msgParams = new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        msgParams.bottomMargin = dp(16);
+        msgParams.bottomMargin = dp(22);
         layout.addView(errorMessageView, msgParams);
 
         LinearLayout btnRow = new LinearLayout(this);
         btnRow.setOrientation(LinearLayout.HORIZONTAL);
         btnRow.setGravity(Gravity.CENTER);
 
-        Button retryBtn = new Button(this);
-        retryBtn.setText("重试");
+        TextView retryBtn = makeActionPill("重试", colorPrimaryBtnBg(), colorPrimaryBtnFg(), 0, 0);
         retryBtn.setOnClickListener(v -> bootstrapAndOpen());
         btnRow.addView(retryBtn);
 
-        Button backBtn = new Button(this);
-        backBtn.setText("返回控制台");
+        TextView backBtn = makeActionPill("返回控制台", colorCard(), colorText(), dp(1), colorDivider());
         LinearLayout.LayoutParams backParams = new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
+            dp(40)
         );
-        backParams.leftMargin = dp(12);
+        backParams.leftMargin = dp(10);
         backBtn.setOnClickListener(v -> {
             setResult(RESULT_OK);
             finish();
@@ -933,6 +1067,35 @@ public class DshWebViewActivity extends AppCompatActivity {
 
         layout.addView(btnRow);
         return layout;
+    }
+
+    private TextView makeActionPill(String label, int fillColor, int textColor, int strokePx, int strokeColor) {
+        TextView btn = new TextView(this);
+        btn.setText(label);
+        btn.setTextColor(textColor);
+        btn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13.5f);
+        btn.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        btn.setGravity(Gravity.CENTER);
+        btn.setMinHeight(dp(40));
+        btn.setPadding(dp(20), 0, dp(20), 0);
+        btn.setBackground(makeRippleDrawable(fillColor, dp(999), strokePx, strokeColor));
+        btn.setClickable(true);
+        btn.setFocusable(true);
+        return btn;
+    }
+
+    private View makeGlowingDot(int dotColor) {
+        FrameLayout wrap = new FrameLayout(this);
+        View halo = new View(this);
+        halo.setBackground(makeCircle(Color.argb(46, Color.red(dotColor), Color.green(dotColor), Color.blue(dotColor))));
+        wrap.addView(halo, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+        View core = new View(this);
+        core.setBackground(makeCircle(dotColor));
+        FrameLayout.LayoutParams coreLp = new FrameLayout.LayoutParams(dp(7), dp(7));
+        coreLp.gravity = Gravity.CENTER;
+        wrap.addView(core, coreLp);
+        return wrap;
     }
 
     private void showError(String message) {
@@ -946,6 +1109,13 @@ public class DshWebViewActivity extends AppCompatActivity {
             startActivity(new Intent(Intent.ACTION_VIEW, uri));
         } catch (Exception ignored) {
         }
+    }
+
+    private Drawable makeRippleDrawable(int fillColor, int radiusPx, int strokeWidthPx, int strokeColor) {
+        GradientDrawable content = makeRoundedRect(fillColor, strokeWidthPx, strokeColor, radiusPx);
+        GradientDrawable mask = makeRoundedRect(Color.WHITE, 0, 0, radiusPx);
+        int rippleColor = darkTheme ? Color.argb(38, 255, 255, 255) : Color.argb(26, 15, 23, 42);
+        return new RippleDrawable(ColorStateList.valueOf(rippleColor), content, mask);
     }
 
     private GradientDrawable makeRoundedRect(int fillColor, int strokeWidthPx, int strokeColor, int radiusPx) {
@@ -970,7 +1140,7 @@ public class DshWebViewActivity extends AppCompatActivity {
     }
 
     private int colorBarBg() {
-        return darkTheme ? Color.parseColor("#16181E") : Color.parseColor("#FFFFFF");
+        return darkTheme ? Color.parseColor("#121318") : Color.parseColor("#FFFFFF");
     }
 
     private int colorCard() {
@@ -978,7 +1148,7 @@ public class DshWebViewActivity extends AppCompatActivity {
     }
 
     private int colorPillBg() {
-        return darkTheme ? Color.parseColor("#22252E") : Color.parseColor("#F1F5F9");
+        return darkTheme ? Color.parseColor("#20232C") : Color.parseColor("#F3F6FA");
     }
 
     private int colorText() {
@@ -986,11 +1156,11 @@ public class DshWebViewActivity extends AppCompatActivity {
     }
 
     private int colorMuted() {
-        return darkTheme ? Color.parseColor("#989AA6") : Color.parseColor("#64748B");
+        return darkTheme ? Color.parseColor("#8F94A3") : Color.parseColor("#64748B");
     }
 
     private int colorDivider() {
-        return darkTheme ? Color.parseColor("#2A2D37") : Color.parseColor("#E2E8F0");
+        return darkTheme ? Color.parseColor("#22252F") : Color.parseColor("#EAECEF");
     }
 
     private int colorAccent() {
@@ -998,11 +1168,27 @@ public class DshWebViewActivity extends AppCompatActivity {
     }
 
     private int colorAccentSoft() {
-        return darkTheme ? Color.argb(38, 96, 165, 250) : Color.argb(26, 37, 99, 235);
+        return darkTheme ? Color.argb(38, 96, 165, 250) : Color.argb(24, 37, 99, 235);
+    }
+
+    private int colorPrimaryBtnBg() {
+        return darkTheme ? Color.parseColor("#F4F4F6") : Color.parseColor("#2563EB");
+    }
+
+    private int colorPrimaryBtnFg() {
+        return darkTheme ? Color.parseColor("#0F1014") : Color.parseColor("#FFFFFF");
     }
 
     private int colorGreen() {
         return darkTheme ? Color.parseColor("#4ADE80") : Color.parseColor("#16A34A");
+    }
+
+    private int colorDanger() {
+        return darkTheme ? Color.parseColor("#FB7185") : Color.parseColor("#E11D48");
+    }
+
+    private int colorDangerSoft() {
+        return darkTheme ? Color.argb(34, 251, 113, 133) : Color.argb(24, 225, 29, 72);
     }
 
     private static String formatTargetBadge(@Nullable Object targetObj) {
