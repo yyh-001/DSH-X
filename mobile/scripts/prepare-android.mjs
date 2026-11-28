@@ -254,6 +254,11 @@ export function prepareAndroid() {
     ]) {
       rmSync(stale, { force: true })
     }
+
+    // 悬浮球用原图标（512 见方、白底）做头像，圆形容器裁切，比系统自适应图标干净。
+    const nodpiDir = join(resDir, 'drawable-nodpi')
+    mkdirSync(nodpiDir, { recursive: true })
+    copyFileSync(APP_ICON_SRC, join(nodpiDir, 'dshx_bubble.png'))
   }
 
   // 修补 AndroidManifest.xml 与 app/build.gradle

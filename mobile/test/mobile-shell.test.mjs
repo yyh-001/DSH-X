@@ -145,7 +145,8 @@ test('Android 原生 Java 覆盖层与桥接脚本结构完整', () => {
   assert.ok(pluginJava.includes('setFloatingWindowEnabled'))
   assert.ok(floatingJava.includes('TYPE_APPLICATION_OVERLAY'))
   assert.ok(floatingJava.includes('Settings.canDrawOverlays'))
-  assert.ok(floatingJava.includes('BUBBLE_DP = 44'))
+  assert.ok(floatingJava.includes('BUBBLE_DP = 46'))
+  assert.ok(floatingJava.includes('R.drawable.dshx_bubble'))
   assert.ok(pluginJava.includes('openDshInstance'))
   assert.ok(pluginJava.includes('getAppInfo'))
   assert.ok(pluginJava.includes('downloadAndInstallApk'))
@@ -185,6 +186,7 @@ test('Android 原生 Java 覆盖层与桥接脚本结构完整', () => {
 
   const prepareJs = readFileSync(join(MOBILE_DIR, 'scripts', 'prepare-android.mjs'), 'utf8')
   assert.ok(prepareJs.includes("'FloatingWindowService.java'"), 'prepare-android 必须复制悬浮窗服务源码')
+  assert.ok(prepareJs.includes('dshx_bubble.png'), 'prepare-android 必须把悬浮球头像打包进 res')
 
   const gitignore = readFileSync(join(MOBILE_DIR, '.gitignore'), 'utf8')
   const lines = gitignore.split(/\r?\n/).map((l) => l.trim())

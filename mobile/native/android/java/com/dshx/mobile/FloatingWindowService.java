@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
+import android.graphics.Outline;
 import android.graphics.PixelFormat;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
@@ -16,6 +17,7 @@ import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
+import android.view.ViewOutlineProvider;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -33,7 +35,7 @@ public class FloatingWindowService extends Service {
     private static final String KEY_X = "x";
     private static final String KEY_Y = "y";
     private static final String TAG = "DshxFloating";
-    private static final int BUBBLE_DP = 44;
+    private static final int BUBBLE_DP = 46;
 
     private WindowManager windowManager;
     private FrameLayout bubble;
@@ -145,34 +147,47 @@ public class FloatingWindowService extends Service {
         }
     }
 
+    /**
+     * 46dp 圆形小头像：白色底 + 细边框，里面是 DSH 看板娘图标（从 res/drawable-nodpi 打包进来），
+     * 按圆裁切，不再用系统自适应图标（各家 ROM 会渲染成黑底方块/裁切怪相）。
+     */
     private FrameLayout buildBubble() {
         FrameLayout container = new FrameLayout(this);
         GradientDrawable bg = new GradientDrawable();
         bg.setShape(GradientDrawable.OVAL);
-        bg.setColor(Color.argb(232, 22, 24, 30));
-        bg.setStroke(dp(1), Color.argb(46, 255, 255, 255));
+        bg.setColor(Color.WHITE);
+        bg.setStroke(dp(1), Color.argb(38, 15, 23, 42));
         container.setBackground(bg);
+        container.setClipToOutline(true);
         container.setElevation(dp(6));
         container.setContentDescription("DSH-X 悬浮窗");
 
         ImageView icon = new ImageView(this);
+        icon.setScaleType(ImageView.ScaleType.CENTER_CROP);
         try {
-            icon.setImageDrawable(getPackageManager().getApplicationIcon(getPackageName()));
-        } catch (Exception ignored) {
+            icon.setImageResource(R.drawable.dshx_bubble);
+        } catch (Exception ex) {
+            Log.w(TAG, "bubble icon missing, fallback to app icon", ex);
+            try {
+                icon.setImageDrawable(getPackageManager().getApplicationIcon(getPackageName()));
+            } catch (Exception ignored) {
+            }
         }
-        FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(dp(26), dp(26));
-        iconParams.gravity = Gravity.CENTER;
+        FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        );
+        // 留一圈 4dp 白边，头像与球体之间有个细白环，比顶满更像头像。
+        iconParams.setMargins(dp(4), dp(4), dp(4), dp(4));
         container.addView(icon, iconParams);
-
-        View dot = new View(this);
-        GradientDrawable dotBg = new GradientDrawable();
-        dotBg.setShape(GradientDrawable.OVAL);
-        dotBg.setColor(Color.parseColor("#22C55E"));
-        dot.setBackground(dotBg);
-        FrameLayout.LayoutParams dotParams = new FrameLayout.LayoutParams(dp(9), dp(9));
-        dotParams.gravity = Gravity.BOTTOM | Gravity.END;
-        dotParams.setMargins(0, 0, dp(3), dp(3));
-        container.addView(dot, dotParams);
+        // ImageView 自己按椭圆裁切，保证头像一定是圆的（ViewGroup 的 clipToOutline 在部分 ROM 上不裁子 View）。
+        icon.setClipToOutline(true);
+        icon.setOutlineProvider(new ViewOutlineProvider() {
+            @Override
+            public void getOutline(View view, Outline outline) {
+                outline.setOval(0, 0, view.getWidth(), view.getHeight());
+            }
+        });
 
         container.setOnClickListener(v -> openApp());
         container.setOnLongClickListener(v -> {
@@ -197,6 +212,7 @@ public class FloatingWindowService extends Service {
                         startX = params.x;
                         startY = params.y;
                         dragging = false;
+                        view.setAlpha(0.82f);
                         return true;
                     case MotionEvent.ACTION_MOVE: {
                         float dx = event.getRawX() - downRawX;
@@ -217,6 +233,7 @@ public class FloatingWindowService extends Service {
                     }
                     case MotionEvent.ACTION_UP:
                     case MotionEvent.ACTION_CANCEL:
+                        view.setAlpha(1f);
                         if (dragging) {
                             savePosition();
                         } else if (event.getActionMasked() == MotionEvent.ACTION_UP) {
