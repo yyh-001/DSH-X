@@ -3914,15 +3914,17 @@ html.reduce-motion .plugin-market-head-actions .icon-btn.is-loading svg { animat
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  margin: 0;
   border: 0;
   border-radius: 8px;
-  padding: 5px 11px;
+  padding: 6px 12px;
   background: transparent;
   color: var(--muted);
   font: inherit;
   font-size: 12.5px;
-  font-weight: 550;
-  line-height: 1.2;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.25;
   cursor: pointer;
   white-space: nowrap;
   transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
@@ -3939,6 +3941,7 @@ html.reduce-motion .plugin-market-head-actions .icon-btn.is-loading svg { animat
 .ra-mode-pill:has(input:checked) {
   background: var(--card);
   color: var(--accent);
+  font-weight: 500;
   box-shadow: 0 1px 4px rgba(22, 35, 61, 0.08);
 }
 .ra-qr-layout {
