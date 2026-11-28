@@ -144,7 +144,7 @@
       await nativePlugin.deleteHostToken({ hostId: String(hostId) })
     },
 
-    async openDshInstance({ origin, instanceKey, token, hostName = '', instanceTitle = '', darkTheme, floatingPill } = {}) {
+    async openDshInstance({ origin, instanceKey, token, hostName = '', instanceTitle = '', darkTheme } = {}) {
       if (!nativePlugin || typeof nativePlugin.openDshInstance !== 'function') {
         throw new Error('Native WebView launcher unavailable')
       }
@@ -157,9 +157,6 @@
       }
       if (typeof darkTheme === 'boolean') {
         payload.darkTheme = darkTheme
-      }
-      if (typeof floatingPill === 'boolean') {
-        payload.floatingPill = floatingPill
       }
       return nativePlugin.openDshInstance(payload)
     },
@@ -213,6 +210,27 @@
         return { requested: false, ignoringBatteryOptimizations: true }
       }
       return nativePlugin.requestBackgroundPermission()
+    },
+
+    async getFloatingWindowState() {
+      if (!nativePlugin || typeof nativePlugin.getFloatingWindowState !== 'function') {
+        return { enabled: false, granted: true }
+      }
+      return nativePlugin.getFloatingWindowState()
+    },
+
+    async requestOverlayPermission() {
+      if (!nativePlugin || typeof nativePlugin.requestOverlayPermission !== 'function') {
+        return { requested: false, granted: true }
+      }
+      return nativePlugin.requestOverlayPermission()
+    },
+
+    async setFloatingWindowEnabled(enabled) {
+      if (!nativePlugin || typeof nativePlugin.setFloatingWindowEnabled !== 'function') {
+        return { enabled: false, granted: false }
+      }
+      return nativePlugin.setFloatingWindowEnabled({ enabled: Boolean(enabled) })
     },
 
     async getAppInfo() {

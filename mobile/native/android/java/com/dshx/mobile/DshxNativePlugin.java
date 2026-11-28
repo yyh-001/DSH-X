@@ -355,7 +355,6 @@ public class DshxNativePlugin extends Plugin {
         String token = call.getString("token", "");
         String instanceTitle = call.getString("instanceTitle", "");
         Boolean darkTheme = call.getBoolean("darkTheme");
-        Boolean floatingPill = call.getBoolean("floatingPill");
         if (origin == null || origin.isEmpty() || instanceKey == null || instanceKey.isEmpty() || token == null || token.isEmpty()) {
             call.reject("Missing origin, instanceKey, or token");
             return;
@@ -368,7 +367,6 @@ public class DshxNativePlugin extends Plugin {
         if (darkTheme != null) {
             intent.putExtra(DshWebViewActivity.EXTRA_DARK_THEME, darkTheme);
         }
-        intent.putExtra(DshWebViewActivity.EXTRA_FLOATING_PILL, floatingPill == null || floatingPill);
         startActivityForResult(call, intent, "handleWebViewClosed");
     }
 
@@ -446,6 +444,61 @@ public class DshxNativePlugin extends Plugin {
         } catch (Exception ex) {
             return false;
         }
+    }
+
+    /** 系统悬浮窗状态：默认关闭；只有授予「显示在其他应用上层」后才能真正显示。 */
+    @PluginMethod
+    public void getFloatingWindowState(PluginCall call) {
+        boolean granted = FloatingWindowService.canDrawOverlays(getContext());
+        JSObject ret = new JSObject();
+        ret.put("granted", granted);
+        ret.put("enabled", granted && FloatingWindowService.isEnabled(getContext()));
+        call.resolve(ret);
+    }
+
+    /** 拉起系统「显示在其他应用上层」授权页；部分 ROM 需要用户手动在列表里勾选。 */
+    @PluginMethod
+    public void requestOverlayPermission(PluginCall call) {
+        boolean granted = FloatingWindowService.canDrawOverlays(getContext());
+        boolean requested = false;
+        if (!granted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                Intent intent = new Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + getContext().getPackageName())
+                );
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(intent);
+                requested = true;
+            } catch (Exception ignored) {
+            }
+        }
+        JSObject ret = new JSObject();
+        ret.put("requested", requested);
+        ret.put("granted", granted);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void setFloatingWindowEnabled(PluginCall call) {
+        boolean enabled = Boolean.TRUE.equals(call.getBoolean("enabled", false));
+        boolean granted = FloatingWindowService.canDrawOverlays(getContext());
+        JSObject ret = new JSObject();
+        if (enabled && !granted) {
+            ret.put("enabled", false);
+            ret.put("granted", false);
+            call.resolve(ret);
+            return;
+        }
+        FloatingWindowService.setEnabled(getContext(), enabled);
+        if (enabled) {
+            FloatingWindowService.start(getContext());
+        } else {
+            FloatingWindowService.stop(getContext());
+        }
+        ret.put("enabled", enabled);
+        ret.put("granted", granted);
+        call.resolve(ret);
     }
 
     @PluginMethod

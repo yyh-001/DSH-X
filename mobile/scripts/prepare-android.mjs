@@ -47,6 +47,7 @@ export function patchManifest(rawXml) {
     'android.permission.FOREGROUND_SERVICE_DATA_SYNC',
     'android.permission.REQUEST_INSTALL_PACKAGES',
     'android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS',
+    'android.permission.SYSTEM_ALERT_WINDOW',
   ]) {
     if (!xml.includes(perm)) {
       xml = xml.replace(
@@ -209,6 +210,7 @@ export function prepareAndroid() {
     'QrScanActivity.java',
     'NoticeSyncService.java',
     'DshxNativePlugin.java',
+    'FloatingWindowService.java',
   ]) {
     copyFileSync(join(javaSrcDir, name), join(javaDestDir, name))
   }

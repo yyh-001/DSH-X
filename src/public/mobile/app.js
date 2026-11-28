@@ -12,7 +12,7 @@ const STORAGE = {
   pwaDismissed: 'dshx_mobile_pwa_dismissed',
   nativeNotifyPref: 'dshx_mobile_native_notify_pref',
   nativeBgAsked: 'dshx_mobile_native_bg_asked',
-  nativePill: 'dshx_mobile_native_pill',
+  nativeOverlayPending: 'dshx_mobile_native_overlay_pending',
 }
 
 const REDIRECT_GUARD_KEY = 'dshx_mobile_route_redirected'
@@ -246,9 +246,11 @@ const I18N = {
     nativeBgRequested: '请在系统弹窗中允许后台运行',
     nativeBgGranted: '已允许后台运行',
     nativePillTitle: '悬浮窗',
-    nativePillDesc: '在 DSH 页面浮动显示实例胶囊，点按切换实例',
+    nativePillDesc: 'App 切到后台后仍显示的悬浮球，点按回到 DSH',
     nativePillOn: '已开启悬浮窗',
-    nativePillOff: '已关闭悬浮窗，下次进入实例生效',
+    nativePillOff: '已关闭悬浮窗',
+    nativePillNeedPermission: '请允许「显示在其他应用上层」权限',
+    nativePillGrantedLater: '已允许悬浮窗权限，正在开启',
     appUpdateTitle: '应用版本',
     appUpdateCurrent: '当前 {ver}（已是最新）',
     appUpdateUnknown: '当前版本 {ver}',
@@ -486,10 +488,12 @@ const I18N = {
     nativeBgBtn: 'Enable',
     nativeBgRequested: 'Choose "Allow" in the system dialog',
     nativeBgGranted: 'Background running allowed',
-    nativePillTitle: 'Floating pill',
-    nativePillDesc: 'Show a floating instance pill over DSH pages; tap to switch',
-    nativePillOn: 'Floating pill enabled',
-    nativePillOff: 'Floating pill disabled; applies next time you open an instance',
+    nativePillTitle: 'Floating window',
+    nativePillDesc: 'A small floating ball that stays visible when the app is in the background',
+    nativePillOn: 'Floating window enabled',
+    nativePillOff: 'Floating window disabled',
+    nativePillNeedPermission: 'Allow "Display over other apps" to use the floating window',
+    nativePillGrantedLater: 'Overlay permission granted, turning it on',
     manualPairToggle: 'Enter pairing code manually',
     appUpdateTitle: 'App Version',
     appUpdateCurrent: 'v{ver} (up to date)',
@@ -2152,7 +2156,6 @@ async function openNativeDshInstance(instanceKey, instanceTitle = '') {
       hostName: host?.hostName || '',
       instanceTitle,
       darkTheme: document.documentElement.dataset.colorScheme === 'dark',
-      floatingPill: lsGet(STORAGE.nativePill, '1') !== '0',
     })
     await loadInstances({ silent: true })
   } catch (err) {
@@ -3273,12 +3276,10 @@ function renderPwaGuideUI() {
   }
   if (el.nativePillRow) {
     el.nativePillRow.hidden = !nativeMode
-    if (el.nativePillToggle) {
-      el.nativePillToggle.checked = lsGet(STORAGE.nativePill, '1') !== '0'
-    }
   }
   if (nativeMode) {
     void refreshNativeBackgroundState()
+    void refreshFloatingWindowState()
   }
   renderAppUpdateUI()
   const scenario = detectPwaScenario()
@@ -3369,6 +3370,7 @@ function switchTab(tab) {
     renderSavedHostsList()
     if (isNativeApp()) {
       void refreshNativeBackgroundState()
+      void refreshFloatingWindowState()
       void syncNativeNotificationToggleState()
     }
   } else if (tab === 'instances') {
@@ -3490,6 +3492,54 @@ async function syncNativeNotificationToggleState() {
   const state = await native.getNotificationState().catch(() => null)
   if (state && el.nativeNotifyToggle) {
     el.nativeNotifyToggle.checked = Boolean(state.enabled)
+  }
+}
+
+/** 系统悬浮窗（悬浮球）：默认关闭，开启前必须先拿到「显示在其他应用上层」权限。 */
+async function refreshFloatingWindowState() {
+  if (!isNativeApp()) return null
+  const native = getNativeBridge()
+  if (!native || typeof native.getFloatingWindowState !== 'function') return null
+  const state = await native.getFloatingWindowState().catch(() => null)
+  if (!state) return null
+  if (el.nativePillToggle) {
+    el.nativePillToggle.checked = Boolean(state.enabled)
+  }
+  return state
+}
+
+async function enableFloatingWindowWithPermission() {
+  const native = getNativeBridge()
+  if (!native) return false
+  const perm = await native.requestOverlayPermission().catch(() => null)
+  if (!perm?.granted) {
+    lsSet(STORAGE.nativeOverlayPending, '1')
+    showToast(t('nativePillNeedPermission'))
+    if (el.nativePillToggle) el.nativePillToggle.checked = false
+    return false
+  }
+  const res = await native.setFloatingWindowEnabled(true).catch(() => null)
+  if (el.nativePillToggle) el.nativePillToggle.checked = Boolean(res?.enabled)
+  showToast(res?.enabled ? t('nativePillOn') : t('nativePillNeedPermission'))
+  return Boolean(res?.enabled)
+}
+
+/** 从系统授权页返回后，如果刚申请过悬浮窗权限且已授权，就自动打开悬浮球。 */
+async function resumeFloatingWindowIfPending() {
+  if (!isNativeApp() || lsGet(STORAGE.nativeOverlayPending, '0') !== '1') return
+  const native = getNativeBridge()
+  if (!native || typeof native.getFloatingWindowState !== 'function') return
+  const state = await native.getFloatingWindowState().catch(() => null)
+  if (!state?.granted) {
+    // 用户没给权限：清掉待办，设置页保持关闭，避免以后再回来“自动打开”。
+    lsSet(STORAGE.nativeOverlayPending, '0')
+    return
+  }
+  lsSet(STORAGE.nativeOverlayPending, '0')
+  const res = await native.setFloatingWindowEnabled(true).catch(() => null)
+  if (res?.enabled) {
+    if (el.nativePillToggle) el.nativePillToggle.checked = true
+    showToast(t('nativePillGrantedLater'))
   }
 }
 
@@ -3827,10 +3877,21 @@ function bindEvents() {
       showToast(t('actionFailed', { msg: err?.message || 'Error' }), { error: true })
     }
   })
-  el.nativePillToggle?.addEventListener('change', () => {
-    const enabled = Boolean(el.nativePillToggle.checked)
-    lsSet(STORAGE.nativePill, enabled ? '1' : '0')
-    showToast(enabled ? t('nativePillOn') : t('nativePillOff'))
+  el.nativePillToggle?.addEventListener('change', async () => {
+    const desired = Boolean(el.nativePillToggle.checked)
+    const native = getNativeBridge()
+    if (!native) return
+    try {
+      if (!desired) {
+        await native.setFloatingWindowEnabled(false)
+        showToast(t('nativePillOff'))
+        return
+      }
+      await enableFloatingWindowWithPermission()
+    } catch (err) {
+      el.nativePillToggle.checked = false
+      showToast(t('actionFailed', { msg: err?.message || 'Error' }), { error: true })
+    }
   })
   el.nativeNotifyTestBtn?.addEventListener('click', async () => {
     try {
@@ -3965,6 +4026,8 @@ function bindEvents() {
       refreshCurrentTab({ manual: false })
       if (isNativeApp()) {
         void refreshNativeBackgroundState()
+        void refreshFloatingWindowState()
+        void resumeFloatingWindowIfPending()
       }
     }
   })
