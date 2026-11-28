@@ -84,6 +84,8 @@ test('patchManifest 与 patchAppBuildGradle: 幂等注入权限、WebView Activi
   assert.ok(patchedManifestOnce.includes('android:screenOrientation="portrait"'))
   assert.ok(patchedManifestOnce.includes('.NoticeSyncService'))
   assert.ok(patchedManifestOnce.includes('foregroundServiceType="dataSync"'))
+  assert.ok(patchedManifestOnce.includes('.FloatingWindowService'), '悬浮窗服务必须声明进 AndroidManifest，否则 startService 会失败')
+  assert.ok(patchedManifestOnce.includes('android:stopWithTask="false"'))
   assert.equal(patchManifest(patchedManifestOnce), patchedManifestOnce, 'patchManifest 必须幂等')
 
   const rawGradle = [

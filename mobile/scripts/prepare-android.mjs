@@ -107,6 +107,19 @@ export function patchManifest(rawXml) {
     xml = xml.replace('        <provider', `${svcBlock}\n        <provider`)
   }
 
+  // 悬浮球是普通 Service（靠可见的 overlay 窗口与前台通知服务保活），
+  // 不声明就会 startService 失败，表现就是「打开悬浮窗什么也没有」。
+  if (!xml.includes('.FloatingWindowService')) {
+    const floatBlock = [
+      '        <service',
+      '            android:name=".FloatingWindowService"',
+      '            android:exported="false"',
+      '            android:stopWithTask="false" />',
+      '',
+    ].join('\n')
+    xml = xml.replace('        <provider', `${floatBlock}\n        <provider`)
+  }
+
   return xml
 }
 

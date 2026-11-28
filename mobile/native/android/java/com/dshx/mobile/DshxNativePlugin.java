@@ -51,6 +51,10 @@ public class DshxNativePlugin extends Plugin {
     public void load() {
         tokenStore = new SecureTokenStore(getContext());
         NoticeSyncService.ensureChannels(getContext());
+        // 进程被系统回收后重进 App：悬浮球开关还开着就把它重新拉起来。
+        if (FloatingWindowService.isEnabled(getContext()) && FloatingWindowService.canDrawOverlays(getContext())) {
+            FloatingWindowService.start(getContext());
+        }
     }
 
     @Override
@@ -490,13 +494,19 @@ public class DshxNativePlugin extends Plugin {
             call.resolve(ret);
             return;
         }
-        FloatingWindowService.setEnabled(getContext(), enabled);
+        boolean started = false;
         if (enabled) {
-            FloatingWindowService.start(getContext());
+            FloatingWindowService.setEnabled(getContext(), true);
+            started = FloatingWindowService.start(getContext());
+            if (!started) {
+                // 起不来就回滚开关，避免设置页显示「开」但实际没有小球。
+                FloatingWindowService.setEnabled(getContext(), false);
+            }
         } else {
+            FloatingWindowService.setEnabled(getContext(), false);
             FloatingWindowService.stop(getContext());
         }
-        ret.put("enabled", enabled);
+        ret.put("enabled", started);
         ret.put("granted", granted);
         call.resolve(ret);
     }

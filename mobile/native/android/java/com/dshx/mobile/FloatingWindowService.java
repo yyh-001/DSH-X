@@ -10,6 +10,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.IBinder;
 import android.provider.Settings;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.MotionEvent;
@@ -28,9 +29,10 @@ import android.widget.Toast;
  */
 public class FloatingWindowService extends Service {
     public static final String PREFS_NAME = "dshx_floating_window";
-    private static final String KEY_ENABLED = "enabled";
+    private static final String PREFS_KEY_ENABLED = "enabled";
     private static final String KEY_X = "x";
     private static final String KEY_Y = "y";
+    private static final String TAG = "DshxFloating";
     private static final int BUBBLE_DP = 44;
 
     private WindowManager windowManager;
@@ -48,31 +50,35 @@ public class FloatingWindowService extends Service {
     }
 
     public static boolean isEnabled(Context context) {
-        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getBoolean(KEY_ENABLED, false);
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getBoolean(PREFS_KEY_ENABLED, false);
     }
 
     public static void setEnabled(Context context, boolean enabled) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
-            .putBoolean(KEY_ENABLED, enabled)
+            .putBoolean(PREFS_KEY_ENABLED, enabled)
             .apply();
     }
 
     /** 只有在已授权时才真的起服务，避免用户拒绝权限后反复弹系统页。 */
-    public static void start(Context context) {
+    public static boolean start(Context context) {
         if (!isEnabled(context) || !canDrawOverlays(context)) {
-            return;
+            return false;
         }
         try {
             context.startService(new Intent(context, FloatingWindowService.class));
-        } catch (Exception ignored) {
+            return true;
+        } catch (Exception ex) {
+            Log.w(TAG, "start floating window service failed", ex);
+            return false;
         }
     }
 
     public static void stop(Context context) {
         try {
             context.stopService(new Intent(context, FloatingWindowService.class));
-        } catch (Exception ignored) {
+        } catch (Exception ex) {
+            Log.w(TAG, "stop floating window service failed", ex);
         }
     }
 
@@ -134,6 +140,7 @@ public class FloatingWindowService extends Service {
         try {
             windowManager.addView(bubble, params);
         } catch (Exception ex) {
+            Log.w(TAG, "add overlay view failed", ex);
             stopSelf();
         }
     }

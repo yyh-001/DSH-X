@@ -251,6 +251,7 @@ const I18N = {
     nativePillOff: '已关闭悬浮窗',
     nativePillNeedPermission: '请允许「显示在其他应用上层」权限',
     nativePillGrantedLater: '已允许悬浮窗权限，正在开启',
+    nativePillFailed: '悬浮窗启动失败，请检查系统权限后重试',
     appUpdateTitle: '应用版本',
     appUpdateCurrent: '当前 {ver}（已是最新）',
     appUpdateUnknown: '当前版本 {ver}',
@@ -494,6 +495,7 @@ const I18N = {
     nativePillOff: 'Floating window disabled',
     nativePillNeedPermission: 'Allow "Display over other apps" to use the floating window',
     nativePillGrantedLater: 'Overlay permission granted, turning it on',
+    nativePillFailed: 'Could not start the floating window; check the system permission and retry',
     manualPairToggle: 'Enter pairing code manually',
     appUpdateTitle: 'App Version',
     appUpdateCurrent: 'v{ver} (up to date)',
@@ -3520,7 +3522,11 @@ async function enableFloatingWindowWithPermission() {
   }
   const res = await native.setFloatingWindowEnabled(true).catch(() => null)
   if (el.nativePillToggle) el.nativePillToggle.checked = Boolean(res?.enabled)
-  showToast(res?.enabled ? t('nativePillOn') : t('nativePillNeedPermission'))
+  if (res?.enabled) {
+    showToast(t('nativePillOn'))
+  } else {
+    showToast(t('nativePillFailed'), { error: true })
+  }
   return Boolean(res?.enabled)
 }
 
