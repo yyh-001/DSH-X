@@ -45,6 +45,7 @@ export function patchManifest(rawXml) {
     'android.permission.POST_NOTIFICATIONS',
     'android.permission.FOREGROUND_SERVICE',
     'android.permission.FOREGROUND_SERVICE_DATA_SYNC',
+    'android.permission.REQUEST_INSTALL_PACKAGES',
   ]) {
     if (!xml.includes(perm)) {
       xml = xml.replace(

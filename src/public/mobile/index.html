@@ -67,6 +67,15 @@
       <div id="routeBannerActions" class="route-banner-actions"></div>
     </div>
 
+    <!-- 原生 App 新版本更新提示条 -->
+    <div id="appUpdateBanner" class="route-banner" hidden role="status">
+      <div class="route-banner-text">
+        <span id="appUpdateBannerTitle" class="route-banner-title"></span>
+        <span id="appUpdateBannerSub" class="route-banner-sub"></span>
+      </div>
+      <div id="appUpdateBannerActions" class="route-banner-actions"></div>
+    </div>
+
     <!-- PWA 安装 / HTTPS 引导横幅 -->
     <div id="pwaBanner" class="pwa-banner" hidden role="region" aria-labelledby="pwaBannerTitle">
       <div class="pwa-banner-lead">
@@ -207,6 +216,13 @@
                 <div id="pwaSettingsDesc" class="row-sub"></div>
               </div>
               <button type="button" id="pwaSettingsBtn" class="btn btn-sm btn-primary"></button>
+            </div>
+            <div id="nativeUpdateRow" class="list-row" hidden>
+              <div class="row-info">
+                <div class="row-title" data-i18n="appUpdateTitle">应用版本</div>
+                <div id="nativeUpdateDesc" class="row-sub"></div>
+              </div>
+              <button type="button" id="nativeUpdateBtn" class="btn btn-sm btn-ghost"></button>
             </div>
           </div>
         </div>

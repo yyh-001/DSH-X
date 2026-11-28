@@ -15,6 +15,26 @@
   const appPlugin = plugins.App
   const statusBarPlugin = plugins.StatusBar
 
+  async function safeNativeJsonGet(url, timeoutMs = 10000) {
+    if (!httpPlugin || typeof httpPlugin.request !== 'function') {
+      throw new Error('CapacitorHttp plugin unavailable')
+    }
+    const res = await httpPlugin.request({
+      url: String(url || ''),
+      method: 'GET',
+      headers: {
+        Accept: 'application/vnd.github+json, application/json',
+        'User-Agent': 'DSH-X-Mobile',
+      },
+      connectTimeout: timeoutMs,
+      readTimeout: timeoutMs,
+      responseType: 'text',
+    })
+    const status = Number(res?.status || 0)
+    const data = parseJsonResponse(res?.data)
+    return { status, data }
+  }
+
   function parseJsonResponse(rawData) {
     if (rawData === null || rawData === undefined || rawData === '') return {}
     if (typeof rawData === 'object') return rawData
@@ -176,6 +196,47 @@
         hostName: String(hostName || ''),
         origins: Array.isArray(origins) ? origins.filter(Boolean) : [],
       })
+    },
+
+    async getAppInfo() {
+      if (!nativePlugin || typeof nativePlugin.getAppInfo !== 'function') {
+        return { platform: 'android', versionName: '', versionCode: 0 }
+      }
+      return nativePlugin.getAppInfo()
+    },
+
+    async fetchJson(url, timeoutMs = 10000) {
+      return safeNativeJsonGet(url, timeoutMs)
+    },
+
+    async downloadAndInstallApk({ url, expectedSha256 = '' } = {}) {
+      if (!nativePlugin || typeof nativePlugin.downloadAndInstallApk !== 'function') {
+        throw new Error('Native APK updater unavailable')
+      }
+      return nativePlugin.downloadAndInstallApk({
+        url: String(url || ''),
+        expectedSha256: String(expectedSha256 || ''),
+      })
+    },
+
+    onApkDownloadProgress(handler) {
+      if (!nativePlugin || typeof nativePlugin.addListener !== 'function' || typeof handler !== 'function') {
+        return () => {}
+      }
+      const handlePromise = nativePlugin.addListener('apkDownloadProgress', (event) => {
+        if (event) handler(event)
+      })
+      return () => {
+        Promise.resolve(handlePromise).then((h) => h?.remove?.()).catch(() => {})
+      }
+    },
+
+    async openExternalUrl(url) {
+      if (nativePlugin && typeof nativePlugin.openExternalUrl === 'function') {
+        return nativePlugin.openExternalUrl({ url: String(url || '') })
+      }
+      window.open(String(url || ''), '_blank', 'noopener')
+      return {}
     },
   }
 })()

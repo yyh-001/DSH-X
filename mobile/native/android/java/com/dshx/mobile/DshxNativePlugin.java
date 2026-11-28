@@ -3,9 +3,14 @@ package com.dshx.mobile;
 import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Build;
+import android.provider.Settings;
 import androidx.activity.result.ActivityResult;
 import androidx.core.content.ContextCompat;
+import androidx.core.content.FileProvider;
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.PermissionState;
@@ -16,8 +21,17 @@ import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @CapacitorPlugin(
     name = "DshxNative",
@@ -27,6 +41,8 @@ import java.util.List;
     }
 )
 public class DshxNativePlugin extends Plugin {
+    private static final String UPDATE_APK_FILENAME = "dsh-x-update.apk";
+    private final ExecutorService updateExecutor = Executors.newSingleThreadExecutor();
     private SecureTokenStore tokenStore;
 
     @Override
@@ -35,11 +51,226 @@ public class DshxNativePlugin extends Plugin {
         NoticeSyncService.ensureChannels(getContext());
     }
 
+    @Override
+    protected void handleOnDestroy() {
+        updateExecutor.shutdownNow();
+        super.handleOnDestroy();
+    }
+
     @PluginMethod
     public void getPlatformInfo(PluginCall call) {
         JSObject ret = new JSObject();
         ret.put("platform", "android");
         call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void getAppInfo(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("platform", "android");
+        try {
+            PackageManager pm = getContext().getPackageManager();
+            PackageInfo info = pm.getPackageInfo(getContext().getPackageName(), 0);
+            long versionCode = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+                ? info.getLongVersionCode()
+                : info.versionCode;
+            ret.put("versionName", info.versionName != null ? info.versionName : "");
+            ret.put("versionCode", versionCode);
+        } catch (Exception ex) {
+            ret.put("versionName", "");
+            ret.put("versionCode", 0);
+        }
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void openExternalUrl(PluginCall call) {
+        String rawUrl = call.getString("url", "");
+        String clean = rawUrl != null ? rawUrl.trim() : "";
+        if (!clean.startsWith("https://") && !clean.startsWith("http://")) {
+            call.reject("Invalid URL scheme");
+            return;
+        }
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(clean));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            call.resolve();
+        } catch (Exception ex) {
+            call.reject("Failed to open URL: " + ex.getMessage(), ex);
+        }
+    }
+
+    @PluginMethod
+    public void downloadAndInstallApk(PluginCall call) {
+        String rawUrl = call.getString("url", "");
+        String cleanUrl = rawUrl != null ? rawUrl.trim() : "";
+        if (!cleanUrl.startsWith("https://")) {
+            call.reject("APK download URL must use HTTPS");
+            return;
+        }
+        String rawSha = call.getString("expectedSha256", "");
+        String expectedSha256 = normalizeSha256(rawSha);
+
+        updateExecutor.execute(() -> {
+            File cacheDir = getContext().getCacheDir();
+            File tmpFile = new File(cacheDir, UPDATE_APK_FILENAME + ".part");
+            File targetFile = new File(cacheDir, UPDATE_APK_FILENAME);
+            HttpURLConnection conn = null;
+            try {
+                if (tmpFile.exists()) {
+                    tmpFile.delete();
+                }
+
+                String currentUrl = cleanUrl;
+                for (int redirect = 0; redirect < 6; redirect++) {
+                    URL url = new URL(currentUrl);
+                    conn = (HttpURLConnection) url.openConnection();
+                    conn.setInstanceFollowRedirects(false);
+                    conn.setConnectTimeout(15_000);
+                    conn.setReadTimeout(30_000);
+                    conn.setRequestProperty("Accept", "application/vnd.android.package-archive, application/octet-stream");
+                    conn.setRequestProperty("User-Agent", "DSH-X-Mobile");
+                    int status = conn.getResponseCode();
+                    if (status == HttpURLConnection.HTTP_MOVED_TEMP
+                        || status == HttpURLConnection.HTTP_MOVED_PERM
+                        || status == HttpURLConnection.HTTP_SEE_OTHER
+                        || status == 307
+                        || status == 308) {
+                        String location = conn.getHeaderField("Location");
+                        conn.disconnect();
+                        conn = null;
+                        if (location == null || location.trim().isEmpty()) {
+                            throw new IllegalStateException("Redirect missing Location");
+                        }
+                        URL next = new URL(url, location.trim());
+                        if (!"https".equalsIgnoreCase(next.getProtocol())) {
+                            throw new IllegalStateException("Refusing non-HTTPS APK redirect");
+                        }
+                        currentUrl = next.toString();
+                        continue;
+                    }
+                    break;
+                }
+
+                if (conn == null) {
+                    throw new IllegalStateException("Failed to open APK connection");
+                }
+                int code = conn.getResponseCode();
+                if (code < 200 || code >= 300) {
+                    throw new IllegalStateException("Download failed (HTTP " + code + ")");
+                }
+
+                long totalBytes = conn.getContentLengthLong();
+                long downloaded = 0L;
+                long lastEmitAt = 0L;
+                MessageDigest digest = MessageDigest.getInstance("SHA-256");
+
+                emitProgress("downloading", 0L, totalBytes);
+                try (InputStream in = conn.getInputStream(); FileOutputStream out = new FileOutputStream(tmpFile)) {
+                    byte[] buf = new byte[16 * 1024];
+                    int read;
+                    while ((read = in.read(buf)) != -1) {
+                        out.write(buf, 0, read);
+                        digest.update(buf, 0, read);
+                        downloaded += read;
+                        long now = System.currentTimeMillis();
+                        if (now - lastEmitAt >= 200) {
+                            lastEmitAt = now;
+                            emitProgress("downloading", downloaded, totalBytes);
+                        }
+                    }
+                    out.flush();
+                }
+
+                emitProgress("verifying", downloaded, totalBytes > 0 ? totalBytes : downloaded);
+                String actualSha256 = toHexLower(digest.digest());
+                if (!expectedSha256.isEmpty() && !expectedSha256.equals(actualSha256)) {
+                    tmpFile.delete();
+                    call.reject("APK 校验失败，请重新下载");
+                    return;
+                }
+
+                if (targetFile.exists()) {
+                    targetFile.delete();
+                }
+                if (!tmpFile.renameTo(targetFile)) {
+                    throw new IllegalStateException("Failed to finalize downloaded APK");
+                }
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !getContext().getPackageManager().canRequestPackageInstalls()) {
+                    Intent permIntent = new Intent(
+                        Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                        Uri.parse("package:" + getContext().getPackageName())
+                    );
+                    permIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    getContext().startActivity(permIntent);
+                    JSObject ret = new JSObject();
+                    ret.put("ok", true);
+                    ret.put("needsPermission", true);
+                    ret.put("apkReady", true);
+                    ret.put("sha256", actualSha256);
+                    call.resolve(ret);
+                    return;
+                }
+
+                Uri apkUri = FileProvider.getUriForFile(
+                    getContext(),
+                    getContext().getPackageName() + ".fileprovider",
+                    targetFile
+                );
+                Intent installIntent = new Intent(Intent.ACTION_VIEW);
+                installIntent.setDataAndType(apkUri, "application/vnd.android.package-archive");
+                installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(installIntent);
+
+                JSObject ret = new JSObject();
+                ret.put("ok", true);
+                ret.put("installing", true);
+                ret.put("needsPermission", false);
+                ret.put("sha256", actualSha256);
+                call.resolve(ret);
+            } catch (Exception ex) {
+                if (tmpFile.exists()) {
+                    tmpFile.delete();
+                }
+                call.reject(ex.getMessage() != null ? ex.getMessage() : "APK download failed", ex);
+            } finally {
+                if (conn != null) {
+                    conn.disconnect();
+                }
+            }
+        });
+    }
+
+    private void emitProgress(String phase, long downloaded, long total) {
+        int percent = total > 0 ? (int) Math.max(0, Math.min(100, (downloaded * 100L) / total)) : -1;
+        JSObject data = new JSObject();
+        data.put("phase", phase);
+        data.put("downloaded", downloaded);
+        data.put("total", total);
+        data.put("percent", percent);
+        notifyListeners("apkDownloadProgress", data);
+    }
+
+    private static String normalizeSha256(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        String clean = raw.trim().toLowerCase(Locale.ROOT);
+        if (clean.startsWith("sha256:")) {
+            clean = clean.substring("sha256:".length()).trim();
+        }
+        return clean.matches("[0-9a-f]{64}") ? clean : "";
+    }
+
+    private static String toHexLower(byte[] bytes) {
+        StringBuilder sb = new StringBuilder(bytes.length * 2);
+        for (byte b : bytes) {
+            sb.append(Character.forDigit((b >> 4) & 0xF, 16));
+            sb.append(Character.forDigit(b & 0xF, 16));
+        }
+        return sb.toString();
     }
 
     @PluginMethod

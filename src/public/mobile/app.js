@@ -236,6 +236,20 @@ const I18N = {
     nativeNotifyEnabled: '已开启后台原生通知',
     nativeNotifyDisabled: '已关闭后台原生通知',
     nativeNotifyPermDenied: '未授予系统通知权限，请在系统设置中允许通知',
+    appUpdateTitle: '应用版本',
+    appUpdateCurrent: '当前 {ver}（已是最新）',
+    appUpdateUnknown: '当前版本 {ver}',
+    appUpdateChecking: '正在检查新版本…',
+    appUpdateCheckBtn: '检查更新',
+    appUpdateAvailableTitle: '发现新版本 {ver}',
+    appUpdateAvailableSub: '安装包 {size}，点击即可下载覆盖升级（保留已有配对）',
+    appUpdateDownloadBtn: '立即更新',
+    appUpdateDownloading: '下载中 {pct}%',
+    appUpdateVerifying: '校验中…',
+    appUpdateNeedsPermission: '请在系统设置中允许“安装未知应用”，返回后再点一次即可安装',
+    appUpdateCheckFailed: '检查更新失败：{msg}',
+    appUpdateFailed: '下载更新失败：{msg}',
+    appUpdateOpenRelease: '去发布页',
   },
   en: {
     connecting: 'Connecting',
@@ -454,6 +468,20 @@ const I18N = {
     nativeNotifyDisabled: 'Background native notifications disabled',
     nativeNotifyPermDenied: 'Notification permission denied in system settings',
     manualPairToggle: 'Enter pairing code manually',
+    appUpdateTitle: 'App Version',
+    appUpdateCurrent: 'v{ver} (up to date)',
+    appUpdateUnknown: 'Version {ver}',
+    appUpdateChecking: 'Checking for updates…',
+    appUpdateCheckBtn: 'Check',
+    appUpdateAvailableTitle: 'Update available: {ver}',
+    appUpdateAvailableSub: 'APK {size}. Tap to download and install in place.',
+    appUpdateDownloadBtn: 'Update',
+    appUpdateDownloading: 'Downloading {pct}%',
+    appUpdateVerifying: 'Verifying…',
+    appUpdateNeedsPermission: 'Allow "Install unknown apps" in Settings, then tap Update again',
+    appUpdateCheckFailed: 'Update check failed: {msg}',
+    appUpdateFailed: 'Update download failed: {msg}',
+    appUpdateOpenRelease: 'Releases',
   },
 }
 
@@ -890,6 +918,18 @@ const state = {
   pwaInstalled: isStandalonePwa(),
   pwaDismissed: lsGet(STORAGE.pwaDismissed, '0') === '1',
   pwaDialogScenario: '',
+  appVersion: '',
+  appUpdate: {
+    status: 'idle', // idle | checking | available | current | downloading | verifying | error
+    latestVersion: '',
+    downloadUrl: '',
+    expectedSha256: '',
+    releaseUrl: '',
+    size: 0,
+    percent: -1,
+    dismissedVersion: '',
+    error: '',
+  },
   instancesTimer: null,
   logsTimer: null,
 }
@@ -908,6 +948,10 @@ const el = {
   routeBannerTitle: document.getElementById('routeBannerTitle'),
   routeBannerSub: document.getElementById('routeBannerSub'),
   routeBannerActions: document.getElementById('routeBannerActions'),
+  appUpdateBanner: document.getElementById('appUpdateBanner'),
+  appUpdateBannerTitle: document.getElementById('appUpdateBannerTitle'),
+  appUpdateBannerSub: document.getElementById('appUpdateBannerSub'),
+  appUpdateBannerActions: document.getElementById('appUpdateBannerActions'),
   pwaBanner: document.getElementById('pwaBanner'),
   pwaBannerTitle: document.getElementById('pwaBannerTitle'),
   pwaBannerSub: document.getElementById('pwaBannerSub'),
@@ -941,6 +985,9 @@ const el = {
   pwaSettingsRow: document.getElementById('pwaSettingsRow'),
   pwaSettingsDesc: document.getElementById('pwaSettingsDesc'),
   pwaSettingsBtn: document.getElementById('pwaSettingsBtn'),
+  nativeUpdateRow: document.getElementById('nativeUpdateRow'),
+  nativeUpdateDesc: document.getElementById('nativeUpdateDesc'),
+  nativeUpdateBtn: document.getElementById('nativeUpdateBtn'),
   nativeNotifyRow: document.getElementById('nativeNotifyRow'),
   nativeNotifyToggle: document.getElementById('nativeNotifyToggle'),
   nativeNotifyTestBtn: document.getElementById('nativeNotifyTestBtn'),
@@ -2867,10 +2914,293 @@ function renderPwaBannerSlot({ bannerEl, titleEl, subEl, actionsEl, descriptor, 
   actionsEl.replaceChildren(...buttons)
 }
 
+const APP_RELEASES_API = 'https://api.github.com/repos/yyh-001/DSH-X/releases?per_page=15'
+
+function formatFileSize(bytes) {
+  const n = Number(bytes || 0)
+  if (!Number.isFinite(n) || n <= 0) return ''
+  if (n >= 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`
+  if (n >= 1024) return `${Math.round(n / 1024)} KB`
+  return `${n} B`
+}
+
+function compareSemver(a, b) {
+  const parse = (raw) => {
+    const clean = String(raw || '').trim().replace(/^v/i, '')
+    const dash = clean.indexOf('-')
+    const core = dash >= 0 ? clean.slice(0, dash) : clean
+    const pre = dash >= 0 ? clean.slice(dash + 1) : ''
+    return {
+      nums: core.split('.').map((part) => Number.parseInt(part, 10) || 0),
+      pre: pre ? pre.split('.') : [],
+    }
+  }
+  const left = parse(a)
+  const right = parse(b)
+  const maxNums = Math.max(left.nums.length, right.nums.length)
+  for (let i = 0; i < maxNums; i += 1) {
+    const diff = (left.nums[i] || 0) - (right.nums[i] || 0)
+    if (diff !== 0) return diff > 0 ? 1 : -1
+  }
+  if (!left.pre.length && !right.pre.length) return 0
+  if (!left.pre.length) return 1
+  if (!right.pre.length) return -1
+  const maxPre = Math.max(left.pre.length, right.pre.length)
+  for (let i = 0; i < maxPre; i += 1) {
+    if (left.pre[i] === undefined) return -1
+    if (right.pre[i] === undefined) return 1
+    const ln = /^\d+$/.test(left.pre[i]) ? Number(left.pre[i]) : NaN
+    const rn = /^\d+$/.test(right.pre[i]) ? Number(right.pre[i]) : NaN
+    if (!Number.isNaN(ln) && !Number.isNaN(rn)) {
+      if (ln !== rn) return ln > rn ? 1 : -1
+      continue
+    }
+    if (!Number.isNaN(ln)) return -1
+    if (!Number.isNaN(rn)) return 1
+    if (left.pre[i] !== right.pre[i]) return left.pre[i] > right.pre[i] ? 1 : -1
+  }
+  return 0
+}
+
+function renderAppUpdateUI() {
+  const nativeMode = isNativeApp()
+  if (el.nativeUpdateRow) {
+    el.nativeUpdateRow.hidden = !nativeMode
+  }
+  if (!nativeMode) {
+    if (el.appUpdateBanner) el.appUpdateBanner.hidden = true
+    return
+  }
+
+  const u = state.appUpdate
+  const curVer = state.appVersion || '—'
+  const busy = u.status === 'checking' || u.status === 'downloading' || u.status === 'verifying'
+
+  if (el.nativeUpdateDesc && el.nativeUpdateBtn) {
+    if (u.status === 'downloading') {
+      const pctText = u.percent >= 0 ? String(u.percent) : '…'
+      el.nativeUpdateDesc.textContent = u.latestVersion
+        ? `${u.latestVersion} · ${t('appUpdateDownloading', { pct: pctText })}`
+        : t('appUpdateDownloading', { pct: pctText })
+      el.nativeUpdateBtn.textContent = t('appUpdateDownloading', { pct: pctText })
+      el.nativeUpdateBtn.className = 'btn btn-sm btn-primary'
+      el.nativeUpdateBtn.disabled = true
+    } else if (u.status === 'verifying') {
+      el.nativeUpdateDesc.textContent = `${u.latestVersion} · ${t('appUpdateVerifying')}`
+      el.nativeUpdateBtn.textContent = t('appUpdateVerifying')
+      el.nativeUpdateBtn.className = 'btn btn-sm btn-primary'
+      el.nativeUpdateBtn.disabled = true
+    } else if (u.status === 'checking') {
+      el.nativeUpdateDesc.textContent = t('appUpdateChecking')
+      el.nativeUpdateBtn.textContent = t('appUpdateChecking')
+      el.nativeUpdateBtn.className = 'btn btn-sm btn-ghost'
+      el.nativeUpdateBtn.disabled = true
+    } else if (u.status === 'available' && u.latestVersion) {
+      el.nativeUpdateDesc.textContent = t('appUpdateAvailableTitle', { ver: u.latestVersion })
+      el.nativeUpdateBtn.textContent = t('appUpdateDownloadBtn')
+      el.nativeUpdateBtn.className = 'btn btn-sm btn-primary'
+      el.nativeUpdateBtn.disabled = false
+    } else if (u.status === 'current') {
+      el.nativeUpdateDesc.textContent = t('appUpdateCurrent', { ver: curVer })
+      el.nativeUpdateBtn.textContent = t('appUpdateCheckBtn')
+      el.nativeUpdateBtn.className = 'btn btn-sm btn-ghost'
+      el.nativeUpdateBtn.disabled = false
+    } else {
+      el.nativeUpdateDesc.textContent = u.error || t('appUpdateUnknown', { ver: curVer })
+      el.nativeUpdateBtn.textContent = t('appUpdateCheckBtn')
+      el.nativeUpdateBtn.className = 'btn btn-sm btn-ghost'
+      el.nativeUpdateBtn.disabled = busy
+    }
+  }
+
+  if (!el.appUpdateBanner) return
+  const showBanner =
+    state.authenticated &&
+    !state.pairModalOpen &&
+    u.latestVersion &&
+    (u.status === 'available' || u.status === 'downloading' || u.status === 'verifying') &&
+    u.dismissedVersion !== u.latestVersion
+
+  if (!showBanner) {
+    el.appUpdateBanner.hidden = true
+    return
+  }
+
+  el.appUpdateBanner.hidden = false
+  el.appUpdateBannerTitle.textContent = t('appUpdateAvailableTitle', { ver: u.latestVersion })
+  if (u.status === 'downloading') {
+    const pctText = u.percent >= 0 ? String(u.percent) : '…'
+    el.appUpdateBannerSub.textContent = t('appUpdateDownloading', { pct: pctText })
+  } else if (u.status === 'verifying') {
+    el.appUpdateBannerSub.textContent = t('appUpdateVerifying')
+  } else {
+    el.appUpdateBannerSub.textContent = t('appUpdateAvailableSub', { size: formatFileSize(u.size) || 'APK' })
+  }
+
+  const actions = [
+    createEl('button', {
+      type: 'button',
+      class: 'btn btn-sm btn-primary',
+      disabled: u.status === 'downloading' || u.status === 'verifying',
+      text: u.status === 'downloading'
+        ? t('appUpdateDownloading', { pct: u.percent >= 0 ? u.percent : '…' })
+        : (u.status === 'verifying' ? t('appUpdateVerifying') : t('appUpdateDownloadBtn')),
+      onClick: () => void startAppUpdateDownload(),
+    }),
+  ]
+  if (u.status === 'available') {
+    actions.push(
+      createEl('button', {
+        type: 'button',
+        class: 'btn btn-sm btn-ghost',
+        text: t('dismiss'),
+        onClick: () => {
+          state.appUpdate.dismissedVersion = u.latestVersion
+          renderAppUpdateUI()
+        },
+      })
+    )
+  }
+  el.appUpdateBannerActions.replaceChildren(...actions)
+}
+
+async function ensureAppVersionLoaded() {
+  if (state.appVersion) return state.appVersion
+  const native = getNativeBridge()
+  if (!native || typeof native.getAppInfo !== 'function') return ''
+  try {
+    const info = await native.getAppInfo()
+    state.appVersion = String(info?.versionName || '').trim()
+  } catch {
+    state.appVersion = ''
+  }
+  return state.appVersion
+}
+
+async function checkAppUpdate({ silent = false } = {}) {
+  const native = getNativeBridge()
+  if (!native || typeof native.fetchJson !== 'function') return null
+  if (state.appUpdate.status === 'checking' || state.appUpdate.status === 'downloading') return null
+
+  const currentVer = await ensureAppVersionLoaded()
+  state.appUpdate.status = 'checking'
+  state.appUpdate.error = ''
+  renderAppUpdateUI()
+
+  try {
+    const res = await native.fetchJson(APP_RELEASES_API, 10000)
+    if (res.status < 200 || res.status >= 300 || !Array.isArray(res.data)) {
+      throw new Error(`HTTP ${res.status || 0}`)
+    }
+    const allowPrerelease = currentVer.includes('-')
+    let best = null
+    for (const rel of res.data) {
+      if (!rel || rel.draft) continue
+      if (!allowPrerelease && rel.prerelease) continue
+      const tagVer = String(rel.tag_name || '').replace(/^v/i, '').trim()
+      if (!tagVer || (currentVer && compareSemver(tagVer, currentVer) <= 0)) continue
+      const assets = Array.isArray(rel.assets) ? rel.assets : []
+      const apk = assets.find((a) => /^DSH-X-.*-android\.apk$/i.test(String(a?.name || '')) && a?.browser_download_url)
+      if (!apk) continue
+      if (!best || compareSemver(tagVer, best.latestVersion) > 0) {
+        best = {
+          latestVersion: tagVer,
+          downloadUrl: String(apk.browser_download_url || ''),
+          expectedSha256: String(apk.digest || ''),
+          releaseUrl: String(rel.html_url || ''),
+          size: Number(apk.size || 0),
+        }
+      }
+    }
+
+    if (best) {
+      state.appUpdate = {
+        ...state.appUpdate,
+        status: 'available',
+        latestVersion: best.latestVersion,
+        downloadUrl: best.downloadUrl,
+        expectedSha256: best.expectedSha256,
+        releaseUrl: best.releaseUrl,
+        size: best.size,
+        percent: -1,
+        error: '',
+      }
+      renderAppUpdateUI()
+      return best
+    }
+
+    state.appUpdate = {
+      ...state.appUpdate,
+      status: 'current',
+      latestVersion: '',
+      downloadUrl: '',
+      expectedSha256: '',
+      percent: -1,
+      error: '',
+    }
+    renderAppUpdateUI()
+    return null
+  } catch (err) {
+    const msg = err?.message || 'Network error'
+    state.appUpdate.status = 'error'
+    state.appUpdate.error = t('appUpdateCheckFailed', { msg })
+    renderAppUpdateUI()
+    if (!silent) {
+      showToast(state.appUpdate.error, { error: true })
+    }
+    return null
+  }
+}
+
+async function startAppUpdateDownload() {
+  const native = getNativeBridge()
+  const u = state.appUpdate
+  if (!native || typeof native.downloadAndInstallApk !== 'function' || !u.downloadUrl) return
+  if (u.status === 'downloading' || u.status === 'verifying') return
+
+  u.status = 'downloading'
+  u.percent = 0
+  u.error = ''
+  renderAppUpdateUI()
+
+  const unsub = native.onApkDownloadProgress?.((evt) => {
+    if (evt?.phase === 'verifying') {
+      state.appUpdate.status = 'verifying'
+    } else if (evt?.phase === 'downloading') {
+      state.appUpdate.status = 'downloading'
+      state.appUpdate.percent = Number.isFinite(Number(evt.percent)) ? Number(evt.percent) : -1
+    }
+    renderAppUpdateUI()
+  })
+
+  try {
+    const res = await native.downloadAndInstallApk({
+      url: u.downloadUrl,
+      expectedSha256: u.expectedSha256,
+    })
+    u.status = 'available'
+    u.percent = -1
+    renderAppUpdateUI()
+    if (res?.needsPermission) {
+      showToast(t('appUpdateNeedsPermission'), { duration: 4000 })
+    }
+  } catch (err) {
+    const msg = err?.message || 'Download error'
+    u.status = 'available'
+    u.percent = -1
+    u.error = t('appUpdateFailed', { msg })
+    renderAppUpdateUI()
+    showToast(u.error, { error: true, duration: 3600 })
+  } finally {
+    unsub?.()
+  }
+}
+
 function renderPwaGuideUI() {
   if (el.nativeNotifyRow) {
     el.nativeNotifyRow.hidden = !isNativeApp()
   }
+  renderAppUpdateUI()
   const scenario = detectPwaScenario()
   if (scenario === 'installed') {
     el.pwaBanner.hidden = true
@@ -3114,7 +3444,9 @@ async function bootstrapNative() {
     })
     saveHosts(state.hosts)
     await syncNativeNotifications()
+    await ensureAppVersionLoaded()
     await enterAuthenticatedConsole()
+    setTimeout(() => { void checkAppUpdate({ silent: true }) }, 1800)
     return
   }
 
@@ -3299,6 +3631,13 @@ function bindEvents() {
   })
 
   el.addHostBtn.addEventListener('click', () => showPairView({ modal: true }))
+  el.nativeUpdateBtn?.addEventListener('click', () => {
+    if (state.appUpdate.status === 'available' && state.appUpdate.downloadUrl) {
+      void startAppUpdateDownload()
+    } else {
+      void checkAppUpdate({ silent: false })
+    }
+  })
   el.nativeNotifyToggle?.addEventListener('change', async () => {
     const desired = Boolean(el.nativeNotifyToggle.checked)
     try {

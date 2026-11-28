@@ -526,19 +526,29 @@ public class DshWebViewActivity extends AppCompatActivity {
                 conn.setFixedLengthStreamingMode(0);
 
                 int code = conn.getResponseCode();
-                if (code < 200 || code >= 300) {
-                    throw new IllegalStateException("Session bootstrap failed (HTTP " + code + ")");
-                }
-
                 CookieManager cookieManager = CookieManager.getInstance();
-                for (Map.Entry<String, List<String>> entry : conn.getHeaderFields().entrySet()) {
-                    if (entry.getKey() != null && entry.getKey().equalsIgnoreCase("Set-Cookie") && entry.getValue() != null) {
-                        for (String cookieVal : entry.getValue()) {
-                            cookieManager.setCookie(targetOrigin, cookieVal);
+                if (code == HttpURLConnection.HTTP_NOT_FOUND) {
+                    // 兼容 < 0.2.1-rc.1 的旧版电脑端核心（尚无 /_dshx/api/session/bootstrap 接口）：
+                    // 直接将设备 Bearer Token 写入同源 dsh-x-device 会话 Cookie 后继续进入 /_dshx/open/<key>
+                    StringBuilder fallbackCookie = new StringBuilder();
+                    fallbackCookie.append("dsh-x-device=").append(bearerToken).append("; Path=/; SameSite=Lax");
+                    if (targetOrigin.toLowerCase().startsWith("https://")) {
+                        fallbackCookie.append("; Secure");
+                    }
+                    cookieManager.setCookie(targetOrigin, fallbackCookie.toString());
+                    cookieManager.flush();
+                } else if (code < 200 || code >= 300) {
+                    throw new IllegalStateException("Session bootstrap failed (HTTP " + code + ")");
+                } else {
+                    for (Map.Entry<String, List<String>> entry : conn.getHeaderFields().entrySet()) {
+                        if (entry.getKey() != null && entry.getKey().equalsIgnoreCase("Set-Cookie") && entry.getValue() != null) {
+                            for (String cookieVal : entry.getValue()) {
+                                cookieManager.setCookie(targetOrigin, cookieVal);
+                            }
                         }
                     }
+                    cookieManager.flush();
                 }
-                cookieManager.flush();
 
                 String encodedKey = URLEncoder.encode(instanceKey, StandardCharsets.UTF_8.name()).replace("+", "%20");
                 String openUrl = targetOrigin + "/_dshx/open/" + encodedKey;
