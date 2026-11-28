@@ -3842,6 +3842,9 @@ html.reduce-motion .plugin-market-head-actions .icon-btn.is-loading svg { animat
   padding-top: 12px;
   padding-bottom: 12px;
 }
+.ra-action-row .set-control {
+  margin-left: auto;
+}
 .ra-inline-hint {
   margin: 0 !important;
   flex: 1 1 auto;
